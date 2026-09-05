@@ -30,21 +30,36 @@ docs/            the migration record, the architecture, and upstream defects
 ## Use
 
 ```bash
-python3 -m workflow_manager releases                 # what is available
+python3 -m workflow_manager releases                  # what is available
 python3 -m workflow_manager status    /path/to/repo   # is it managed, is it clean
 python3 -m workflow_manager bootstrap /path/to/repo   # install into a fresh repo
 python3 -m workflow_manager verify    /path/to/repo   # drift against canonical
 python3 -m workflow_manager update    /path/to/repo   # move to another release
 ```
 
-`bootstrap` installs the payload, writes clean state from templates, merges
-its section into `.gitignore` and `CLAUDE.md`, and records everything in
-`.workflow-manager/installation.json`.
+`bootstrap` installs everything the release owns, writes clean state from
+templates, merges its section into `.gitignore` and `CLAUDE.md`, and records
+everything in `.workflow-manager/installation.json`. It refuses if the
+repository already keeps its own file where a release file goes — `scripts/`
+and `.claude/commands/` are ordinary names — and lists what collided;
+`--force` overwrites.
 
-`update` replaces payload files and leaves `WORKFLOW_STATE.json`,
+`update` replaces release-owned files and leaves `WORKFLOW_STATE.json`,
 `docs/ACTIVE_MILESTONE.md` and `.ai-review/` untouched. It refuses to run if a
-managed file was edited locally, so an intentional edit is seen rather than
+release file was edited locally, so an intentional edit is seen rather than
 discarded; `--force` overrides.
+
+Nothing is copied out of `distribution/` without being checked against the
+release manifest first, so a damaged distribution fails the install instead of
+installing something else under its version number.
+
+Neither operation is atomic; both are re-runnable. An interrupted bootstrap or
+update is repaired by running the same command again — see
+[the interruption contract](docs/ARCHITECTURE.md#interruption).
+
+With more than one release in `distribution/`, `bootstrap` and `update` mean
+the newest and take `--release-version` to pin one, while `status` and
+`verify` measure a target against the release its own record names.
 
 ## Re-deriving the distribution
 

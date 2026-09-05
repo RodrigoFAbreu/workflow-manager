@@ -6,7 +6,15 @@ Workflow release. This package reads those releases and installs them into
 target repositories without ever touching repository-local work-item state.
 """
 
-from .installation import Installation, is_managed
-from .release import Release, find_release
+from .installation import CorruptInstallationError, Installation, is_managed
+from .release import Release, ReleaseIntegrityError, available_versions, find_release
 
-__all__ = ["Installation", "Release", "find_release", "is_managed"]
+__all__ = [
+    "CorruptInstallationError",
+    "Installation",
+    "Release",
+    "ReleaseIntegrityError",
+    "available_versions",
+    "find_release",
+    "is_managed",
+]

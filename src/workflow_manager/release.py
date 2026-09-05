@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -32,13 +33,23 @@ _PROFILE_CATEGORIES = {
 
 #: Templates that become repository-local state in a target: written once when
 #: the repository is first managed, and never replaced afterwards. The Workflow
-#: writes to all of these, so replacing one would destroy someone's work.
+#: writes to all of these at run time, so replacing one would destroy someone's
+#: work.
 STATE_TEMPLATES = (
     "docs/ai-workflow/WORKFLOW_STATE.json",
     "docs/ai-workflow/WORKFLOW_CONFIG.json",
     "docs/ACTIVE_MILESTONE.md",
-    ".github/workflows/workflow-conformance.yml",
 )
+
+#: Templates the *release* owns rather than the repository. Nothing in the
+#: Workflow writes to these at run time; they exist to run a particular
+#: release's suites, so they are installed, replaced and drift-checked exactly
+#: like payload files. The category each one belongs to decides which profiles
+#: install it -- the conformance CI is pointless in a repository that did not
+#: install what it runs.
+RELEASE_TEMPLATES = {
+    ".github/workflows/workflow-conformance.yml": "conformance",
+}
 
 #: Templates contributed as a section to a file the target may already own.
 GITIGNORE_TEMPLATE = ".gitignore.workflow-fragment"
@@ -50,9 +61,14 @@ def sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+class ReleaseIntegrityError(RuntimeError):
+    """Release content on disk does not match the digest its manifest records."""
+
+
 @dataclass(frozen=True)
 class Artifact:
-    """One payload or fixture file, addressed by where it goes in a target."""
+    """One payload, fixture, or release-template file, addressed by where it
+    goes in a target."""
 
     target_path: str
     location: str
@@ -100,10 +116,66 @@ class Release:
     def templates(self) -> list[dict]:
         return list(self.manifest["templates"])
 
+    def release_template_artifacts(self, profile: str = INSTALL_PROFILE_FULL) -> list[Artifact]:
+        """Release-owned templates, in the same shape as payload artifacts.
+
+        They are rendered by migration rather than copied byte-for-byte, but a
+        target treats them identically: installed from the release, replaced on
+        update, and compared against the release when checking for drift.
+        """
+        if profile not in INSTALL_PROFILES:
+            raise ValueError(f"unknown install profile {profile!r}")
+        wanted = _PROFILE_CATEGORIES[profile]
+        found = []
+        for record in self.manifest["templates"]:
+            category = RELEASE_TEMPLATES.get(record["target_path"])
+            if category is None or category not in wanted:
+                continue
+            found.append(Artifact(
+                target_path=record["target_path"],
+                location=record["location"],
+                sha256=record["sha256"],
+                size=record["size"],
+                executable=False,
+                category=category,
+            ))
+        return found
+
+    def installable(self, profile: str = INSTALL_PROFILE_FULL) -> list[Artifact]:
+        """Everything a target installs *from the release* under `profile`.
+
+        The single set `bootstrap`, `update` and `drift` all work from, so the
+        three cannot disagree about what the release owns.
+        """
+        return self.payload_artifacts(profile) + self.release_template_artifacts(profile)
+
+    def state_templates(self) -> list[dict]:
+        """Templates that seed repository-local state, in `STATE_TEMPLATES` order."""
+        by_path = {t["target_path"]: t for t in self.manifest["templates"]}
+        return [by_path[rel] for rel in STATE_TEMPLATES]
+
     # -- content -----------------------------------------------------------
 
     def read(self, location: str) -> bytes:
         return (self.root / location).read_bytes()
+
+    def read_verified(self, location: str, expected_sha256: str) -> bytes:
+        """Release bytes, checked against the manifest before they are used.
+
+        Installing is the moment the release's identity is asserted to a target
+        repository. A `distribution/` that was damaged, partially checked out,
+        or edited must not be able to pass itself off as the release it claims
+        to be, so nothing is copied out of one without this check.
+        """
+        data = self.read(location)
+        actual = sha256(data)
+        if actual != expected_sha256:
+            raise ReleaseIntegrityError(
+                f"release {self.version} is damaged: {location} has digest {actual[:12]}, "
+                f"its manifest records {expected_sha256[:12]}. "
+                f"Re-derive it with tools/migrate.py before installing."
+            )
+        return data
 
     def verify(self) -> list[str]:
         """Every manifest entry present on disk with the recorded digest.
@@ -137,14 +209,42 @@ class Release:
         return problems
 
 
+def _version_key(name: str) -> tuple:
+    """Order versions numerically where they are numeric, textually where they
+    are not, so `2.3.10` sorts after `2.3.9` and anything unexpected still has
+    a defined place instead of raising."""
+    return tuple(
+        (0, int(part), "") if part.isdigit() else (1, 0, part)
+        for part in re.split(r"[.\-_]", name)
+    )
+
+
+def release_root(repo_root: Path) -> Path:
+    return Path(repo_root) / "distribution" / "workflow"
+
+
+def available_versions(repo_root: Path) -> list[str]:
+    """Every migrated release present, oldest first. Empty if there are none."""
+    base = release_root(repo_root)
+    if not base.is_dir():
+        return []
+    names = [p.name for p in base.iterdir() if (p / "manifest.json").exists()]
+    return sorted(names, key=_version_key)
+
+
 def find_release(repo_root: Path, version: str | None = None) -> Release:
-    """The release directory for `version`, or the only one present."""
-    base = Path(repo_root) / "distribution" / "workflow"
+    """The release directory for `version`, or the newest one present.
+
+    Defaulting to the newest is what makes adding a second release a matter of
+    adding a directory: `bootstrap` and `update` mean "the current release"
+    unless an operator pins one. Commands that must speak about a *particular*
+    installation resolve the version from the target's own record instead --
+    see `cli._release_for_target`.
+    """
+    base = release_root(repo_root)
     if version is not None:
         return Release(base / version)
-    candidates = sorted(p for p in base.iterdir() if (p / "manifest.json").exists())
-    if len(candidates) != 1:
-        raise ValueError(
-            f"expected exactly one release under {base}, found {[p.name for p in candidates]}"
-        )
-    return Release(candidates[0])
+    versions = available_versions(repo_root)
+    if not versions:
+        raise ValueError(f"no migrated release under {base} -- run tools/migrate.py first")
+    return Release(base / versions[-1])

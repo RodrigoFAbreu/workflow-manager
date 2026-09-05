@@ -27,7 +27,9 @@ distribution/
     manifest.json              every upstream path's disposition, with digests
     payload/                   Workflow files, byte-identical, target-relative paths
     fixtures/                  host documents the frozen suite asserts on
-    templates/                 clean repository-local initial state
+    templates/                 clean repository-local initial state, and the
+                               release-owned files migration renders rather
+                               than copies
 src/workflow_manager/
   release.py                   read and verify a release from its own manifest
   fixture.py                   build disposable repositories from a release
@@ -60,11 +62,12 @@ A copy cannot.
 | Profile | Categories | Use |
 |---|---|---|
 | `runtime` | `distribution` | The Workflow operates. 34 files. |
-| `full` | `distribution` + `conformance` | The Workflow operates *and* its own conformance suite runs. 58 files. |
+| `full` | `distribution` + `conformance` | The Workflow operates *and* its own conformance suite runs. 59 files — 58 payload files plus the conformance CI workflow. |
 
 `full` is the default. A repository that installs `runtime` only gets the
 tests without the documents several of them lint, so its suite would be red
-for reasons that are not regressions.
+for reasons that are not regressions — which is why the CI workflow that runs
+them is a `conformance` file too, and is not installed under `runtime`.
 
 `host-evidence` is in neither profile. Those two files are the upstream
 repository's own documents, kept solely so the frozen suite can be run
@@ -72,11 +75,23 @@ unchanged as migration evidence.
 
 ## What the installer owns and what it does not
 
-Owned — replaced wholesale on update, drift-checked against the manifest:
+The question that decides every row below is **who writes to this file after
+it is installed**. If the answer is the Workflow or the operator, the release
+must never overwrite it. If the answer is nobody, it belongs to the release.
+
+Release-owned — replaced wholesale on update, drift-checked against the
+manifest, refused rather than overwritten when edited locally:
 
 - `scripts/` (the payload's files only)
 - `.claude/commands/`
 - `docs/ai-workflow/` (the payload's files only)
+- `.github/workflows/workflow-conformance.yml` — rendered from a template
+  rather than copied byte-for-byte, but owned by the release all the same:
+  nothing writes to it at run time and it exists to run *that release's*
+  suites, so freezing it at install time would leave a repository running an
+  older release's conformance gate forever. `full` profile only; under
+  `runtime` the documents several of those suites lint are absent, so shipping
+  the CI that runs them would hand a repository a red pipeline it cannot fix.
 
 Created once, then never touched:
 
@@ -91,6 +106,18 @@ Merged, never replaced:
 - `CLAUDE.md` — a managed section up to `<!-- workflow-manager:end -->`;
   anything below it is the repository's own
 
+Neither merged file is owned, so neither is compared whole — but the
+installer's *contribution* to each is checked, because losing it is silent and
+expensive. A `.gitignore` that no longer ignores `.ai-review/` means the
+repository has started tracking the Workflow's live runtime workspace.
+`verify` reports both; the next `update` repairs both, leaving everything the
+repository wrote where it was.
+
+Nothing else in a target is touched. A repository that already keeps its own
+file at a release path — `.claude/commands/` and `scripts/` are ordinary
+names — stops the bootstrap with the list of collisions rather than losing
+them; `--force` overwrites.
+
 ## The installation record
 
 `.workflow-manager/installation.json` in the target records which release is
@@ -101,6 +128,56 @@ three things possible without guessing:
 - **drift** — compare each recorded file's current digest against the manifest;
 - **safe update** — a file that drifted is a local modification, and an update
   reports it rather than silently discarding it.
+
+It is replaced by `os.replace`, never written in place. A record is the one
+thing a target cannot reconstruct, and a reader must see either the previous
+one or the complete new one — never half of either.
+
+## Interruption
+
+Neither `bootstrap` nor `update` is atomic. A repository is not a database,
+and a rollback path that has itself never been interrupted is a worse promise
+than none. What both operations are instead is **re-runnable**: every write
+is idempotent, and the contract is that running the same command again
+finishes the job.
+
+| Interrupted | What is left | What repairs it |
+|---|---|---|
+| `bootstrap` | Some release files present, no installation record. `status` says *not a managed repository* — the half-install is never mistaken for a real one. | Run `bootstrap` again. The files already written hold the release's own bytes, so they are not collisions and not rewritten; state templates already written are recognised as this installer's, not as the repository's own. |
+| `update` | A mix of the two releases on disk, the record still naming the old one. | Run `update` again. A file already holding the *incoming* release's bytes is not counted as a local edit, so the update resumes without `--force` — which would have discarded real edits along with the half-applied ones. |
+| the record write | Nothing: the rename is atomic. | — |
+| a hand-damaged record | `.workflow-manager/installation.json` unreadable. Every command refuses with the reason and the remedy. | Delete `.workflow-manager/` and run `bootstrap`. Repository-local state does not live there and is untouched. |
+
+A genuine local edit still blocks a resumed update. Resumability is not a way
+to lose an edit: the exemption is narrowly "this file already *is* what we are
+about to write", nothing wider. It follows that *rolling back* after an
+interrupted update is not resumption — the half-applied files match neither the
+record nor the release being returned to, which is indistinguishable from a
+local edit — so it refuses until `--force`. Finishing forward is the cheap
+path; going back is the one that asks first.
+
+## Release integrity
+
+Installing is the moment a release asserts its identity to a repository, so
+nothing is copied out of `distribution/` without being checked against the
+manifest digest first. A `distribution/` that was damaged, partially checked
+out, or edited fails the install rather than handing a target non-canonical
+bytes under a canonical version label — which would also leave the record
+describing files that are not there.
+
+## Which release a command means
+
+`distribution/` may hold several releases at once, and the two kinds of
+command mean different things by "the release":
+
+| Command | Default | Why |
+|---|---|---|
+| `bootstrap`, `update` | the newest release present | These *choose* which release a repository is on; "the current one" is the only sensible default, and `--release-version` pins. |
+| `status`, `verify` | the release the target's own record names | These *report on* an installation. Grading a repository against a release it was never installed from would make every target look broken the moment a newer one landed. |
+
+`status` never reports an installation it did not check. If no release is
+available to compare against it says so; it cannot say "clean" without having
+looked.
 
 ## Boundaries this design keeps
 
@@ -129,6 +206,11 @@ would fail if the claim were false:
 | No live state crossed over | `.ai-review/`, locks, journals, approvals and RepFlow product work items are each asserted absent. |
 | A clean target behaves like v2.3.1 | The bootstrapper's own output runs the frozen suite; its failure set must *equal* the documented exception list — a new unportable test fails the build rather than being absorbed. |
 | Updates preserve local work | A second release is synthesized so the release-to-release path is exercised for real: added, changed and dropped files, with live work-item state written through the installed module and compared byte-for-byte afterwards. |
+| A damaged release cannot be installed | A release copy is tampered with and every install path is asserted to refuse it, with the target left untouched. |
+| A bootstrap does not overwrite the repository's own files | A target is given its own file at a release path; the bootstrap must refuse and leave it byte-identical. |
+| An interrupted operation is repairable by re-running it | `_write` is made to fail at each point in a bootstrap and at the first write of an update; the re-run must converge to a clean, verified installation with repository-local state intact. |
+| A report is never given without a check | `status` on an unverified installation must not contain the word "clean"; with several releases present, `status` and `verify` must still grade a target against its own recorded version. |
+| A merged file that lost the installer's section is not "clean" | The Workflow's ignore lines and the managed `CLAUDE.md` section are each deleted; `verify` must report both, an update must restore both, and the repository's own content in either file must survive and never be reported as drift. |
 
 The dependency closure itself was derived by ablation rather than by reading:
 each candidate file was removed from a disposable repository and the frozen
@@ -143,9 +225,11 @@ than reaching into the internals:
 | Seam | What it gives a caller |
 |---|---|
 | `Release` | A migrated release, addressed by version, verifiable from its own manifest. Adding a second release is adding a directory, not changing code. |
-| `Release.payload_artifacts(profile)` | The install set. A new profile is one entry in `_PROFILE_CATEGORIES`. |
+| `Release.installable(profile)` | The install set — payload plus release-owned templates. `bootstrap`, `update` and `drift()` all read it, so they cannot disagree about what the release owns. A new profile is one entry in `_PROFILE_CATEGORIES`. |
+| `available_versions()` / `find_release()` | Which releases exist and which one a command means. Adding a release is adding a directory. |
 | `Installation` | What a repository has, as data. A Controller asking "which of my repositories are on which release" reads these files; it does not need to inspect trees. |
-| `drift()` / `verify()` | A structured answer (`Drift(path, kind, detail)`), not a printed report. Fleet-wide health is a loop over targets. |
+| `drift()` / `verify()` | A structured answer (`Drift(path, kind, detail)`), not a printed report, covering release-owned, generated and merged content alike. Fleet-wide health is a loop over targets. |
+| `Status.verified` | Whether a report was actually measured against a release. A fleet view that treats "unverified" as "healthy" is the bug this field exists to prevent. |
 | `update()` | Returns the new record and the list of changes. Safe by default: it refuses rather than discarding local edits, so an orchestrator does not need its own guard. |
 | `build_target_repo()` / `build_conformance_repo()` | Disposable repositories from a release. Any new operation can be proven against one before it touches a real consumer. |
 
@@ -161,6 +245,12 @@ should stay open.
 3. `python3 tests/run_all.py` — the conformance fixture must be green, and the
    clean target's failure set must equal the documented exceptions.
 
+Nothing else. `bootstrap` and `update` already mean the newest release, and
+`status` and `verify` already resolve a target's own version, so a second
+release changes no code and no command line.
+
 `update()` already handles files added, changed, and dropped between releases;
 `tests/test_bootstrap.py::TestReleaseToReleaseUpdate` proves that against a
-synthesized second release rather than waiting for a real one.
+synthesized second release rather than waiting for a real one, and
+`TestReleaseResolution` proves the resolution rules against a `distribution/`
+holding two.

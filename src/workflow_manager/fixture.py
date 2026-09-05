@@ -22,7 +22,13 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
-from .release import GITIGNORE_TEMPLATE, INSTALL_PROFILE_FULL, STATE_TEMPLATES, Release
+from .release import (
+    GITIGNORE_TEMPLATE,
+    INSTALL_PROFILE_FULL,
+    RELEASE_TEMPLATES,
+    STATE_TEMPLATES,
+    Release,
+)
 
 
 def _git(repo: Path, *args: str) -> str:
@@ -42,7 +48,7 @@ def init_git_repo(root: Path) -> None:
 def write_artifact(release: Release, artifact, dest_root: Path) -> Path:
     path = dest_root / artifact.target_path
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(release.read(artifact.location))
+    path.write_bytes(release.read_verified(artifact.location, artifact.sha256))
     path.chmod(0o755 if artifact.executable else 0o644)
     return path
 
@@ -50,21 +56,25 @@ def write_artifact(release: Release, artifact, dest_root: Path) -> Path:
 def write_template(release: Release, template: dict, dest_root: Path) -> Path:
     path = dest_root / template["target_path"]
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(release.read(template["location"]))
+    path.write_bytes(release.read_verified(template["location"], template["sha256"]))
     path.chmod(0o644)
     return path
 
 
 def _place_payload(release: Release, dest: Path, profile: str) -> None:
-    for artifact in release.payload_artifacts(profile):
+    """Everything the release owns under `profile` -- the same set `bootstrap`
+    installs, so a fixture and a bootstrapped target cannot diverge."""
+    for artifact in release.installable(profile):
         write_artifact(release, artifact, dest)
 
 
 def _place_state_templates(release: Release, dest: Path) -> None:
     """Only the two repository-local state files the Workflow itself reads.
 
-    The `.gitignore` fragment and the CI workflow are installer concerns, not
-    conformance ones, so they are not placed here.
+    `docs/ACTIVE_MILESTONE.md` is deliberately absent: in this fixture it comes
+    from the frozen host document instead, which is the whole point of the
+    conformance run. The `.gitignore` fragment is an installer concern, not a
+    conformance one, so it is not placed here either.
     """
     wanted = {
         rel for rel in STATE_TEMPLATES if rel.startswith("docs/ai-workflow/")
@@ -81,8 +91,10 @@ def build_conformance_repo(release: Release, dest: Path, commit: bool = True) ->
     for artifact in release.fixture_artifacts():
         write_artifact(release, artifact, dest)
     _place_state_templates(release, dest)
+    fragment = next(t for t in release.templates()
+                    if t["target_path"] == GITIGNORE_TEMPLATE)
     (dest / ".gitignore").write_bytes(
-        release.read(f"templates/{GITIGNORE_TEMPLATE}")
+        release.read_verified(fragment["location"], fragment["sha256"])
     )
     if commit:
         _git(dest, "add", "-A")
@@ -97,8 +109,11 @@ def build_target_repo(release: Release, dest: Path, profile: str = INSTALL_PROFI
     init_git_repo(dest)
     _place_payload(release, dest, profile)
     for template in release.templates():
+        if template["target_path"] in RELEASE_TEMPLATES:
+            continue                      # already placed as release content
         if template["target_path"] == GITIGNORE_TEMPLATE:
-            (dest / ".gitignore").write_bytes(release.read(template["location"]))
+            (dest / ".gitignore").write_bytes(
+                release.read_verified(template["location"], template["sha256"]))
         else:
             write_template(release, template, dest)
     if commit:

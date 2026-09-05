@@ -8,16 +8,21 @@ result.
 
 from __future__ import annotations
 
+import contextlib
 import json
+import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 
 from support import REPO_ROOT
 
+import workflow_manager.install as install_module
 from workflow_manager.install import (
     AlreadyManagedError,
+    CollisionError,
     DriftError,
     NotManagedError,
     bootstrap,
@@ -29,8 +34,20 @@ from workflow_manager.install import (
     update,
     verify,
 )
-from workflow_manager.installation import Installation, is_managed
-from workflow_manager.release import Release, find_release, sha256
+from workflow_manager.installation import (
+    CorruptInstallationError,
+    Installation,
+    installation_path,
+    is_managed,
+)
+from workflow_manager.release import (
+    RELEASE_TEMPLATES,
+    Release,
+    ReleaseIntegrityError,
+    available_versions,
+    find_release,
+    sha256,
+)
 
 FIXED_NOW = "2026-01-01T00:00:00Z"
 
@@ -127,14 +144,13 @@ class TestInstalledLayout(BootstrapCase):
         self.assertIn(".ai-review/", (self.target / ".gitignore").read_text().splitlines())
 
     def test_the_record_lists_everything_it_wrote(self):
-        installed = {a.target_path for a in self.release.payload_artifacts("full")}
+        installed = {a.target_path for a in self.release.installable("full")}
         self.assertEqual(set(self.installation.managed), installed)
         self.assertEqual(
             set(self.installation.generated),
             {"docs/ai-workflow/WORKFLOW_STATE.json",
              "docs/ai-workflow/WORKFLOW_CONFIG.json",
-             "docs/ACTIVE_MILESTONE.md",
-             ".github/workflows/workflow-conformance.yml"},
+             "docs/ACTIVE_MILESTONE.md"},
         )
         self.assertEqual(set(self.installation.merged), {".gitignore", "CLAUDE.md"})
 
@@ -252,6 +268,50 @@ class TestDriftDetection(BootstrapCase):
         (self.target / "docs/ACTIVE_MILESTONE.md").write_text("# whatever\n")
         self.assertEqual(drift(self.target, self.release), [])
 
+    def test_losing_the_workflow_ignore_entries_is_reported(self):
+        """Without them a repository starts tracking `.ai-review/` -- the
+        Workflow's live runtime workspace -- and nothing would have said so."""
+        (self.target / ".gitignore").write_text("build/\n")
+        found = drift(self.target, self.release)
+        self.assertEqual([(d.path, d.kind) for d in found], [(".gitignore", "modified")])
+        self.assertIn(".ai-review/", found[0].detail)
+
+    def test_keeping_them_among_the_repositorys_own_entries_is_not_drift(self):
+        path = self.target / ".gitignore"
+        path.write_text("build/\n" + path.read_text() + "\n*.log\n")
+        self.assertEqual(drift(self.target, self.release), [])
+
+    def test_deleting_the_managed_claude_section_is_reported(self):
+        (self.target / "CLAUDE.md").write_text("# just my rules\n")
+        self.assertIn(("CLAUDE.md", "modified"),
+                      [(d.path, d.kind) for d in drift(self.target, self.release)])
+
+    def test_removing_claude_md_entirely_is_reported(self):
+        (self.target / "CLAUDE.md").unlink()
+        self.assertIn(("CLAUDE.md", "missing"),
+                      [(d.path, d.kind) for d in drift(self.target, self.release)])
+
+    def test_the_repositorys_own_guidance_below_the_marker_is_not_drift(self):
+        path = self.target / "CLAUDE.md"
+        path.write_text(path.read_text() + "\n# House rules\n\nMine.\n")
+        self.assertEqual(drift(self.target, self.release), [])
+
+    def test_a_repository_that_brought_its_own_claude_md_has_no_drift(self):
+        """The managed section is prepended above the repository's file rather
+        than replacing it, and that shape must read as clean."""
+        other = empty_repo(Path(self._tmp.name) / "own-claude")
+        (other / "CLAUDE.md").write_text("# Their repo\n\nTheir rules.\n")
+        bootstrap(other, self.release, now=FIXED_NOW)
+        self.assertEqual(drift(other, self.release), [])
+        self.assertIn("Their rules.", (other / "CLAUDE.md").read_text())
+
+    def test_an_update_repairs_both_merged_files(self):
+        (self.target / ".gitignore").write_text("build/\n")
+        (self.target / "CLAUDE.md").write_text("# just my rules\n")
+        update(self.target, self.release, now=FIXED_NOW)
+        self.assertEqual(drift(self.target, self.release), [])
+        self.assertIn("just my rules", (self.target / "CLAUDE.md").read_text())
+
     def test_verify_reports_a_version_mismatch(self):
         record = Installation.read(self.target)
         record.workflow_version = "9.9.9"
@@ -348,6 +408,16 @@ class TestUninstall(BootstrapCase):
         self.assertFalse((self.target / "scripts/workflow_state.py").exists())
         self.assertIn("kept", state.read_text())
 
+    def test_uninstall_removes_only_files_it_installed(self):
+        bootstrap(self.target, self.release, now=FIXED_NOW)
+        path = self.target / ".claude/commands/approve-review.md"
+        path.unlink()
+        path.mkdir()
+        (path / "mine.txt").write_text("mine\n")
+        removed = uninstall(self.target)
+        self.assertNotIn(".claude/commands/approve-review.md", removed)
+        self.assertTrue((path / "mine.txt").exists())
+
     def test_uninstall_leaves_no_empty_directories_behind(self):
         bootstrap(self.target, self.release, now=FIXED_NOW)
         uninstall(self.target)
@@ -372,7 +442,8 @@ class TestInstallationRecord(unittest.TestCase):
         again = Installation.from_dict(json.loads(original.serialize()))
         self.assertEqual(again.serialize(), original.serialize())
 
-def synthesize_next_release(source: Release, dest: Path, version: str) -> Release:
+def synthesize_next_release(source: Release, dest: Path, version: str,
+                            change_ci: bool = False) -> Release:
     """A second release, built from the real one by hand.
 
     Only one release exists so far, so the release-to-release update path would
@@ -424,6 +495,10 @@ def synthesize_next_release(source: Release, dest: Path, version: str) -> Releas
         data = source.read(record["location"])
         if record["target_path"] == "docs/ACTIVE_MILESTONE.md":
             data = b"# Active Milestone\n\nNone. (2.3.2 wording.)\n"
+            record["sha256"] = sha256(data)
+            record["size"] = len(data)
+        elif change_ci and record["target_path"] in RELEASE_TEMPLATES:
+            data = data + b"\n# runs the 2.3.2 suites\n"
             record["sha256"] = sha256(data)
             record["size"] = len(data)
         out = dest / record["location"]
@@ -512,6 +587,480 @@ class TestReleaseToReleaseUpdate(BootstrapCase):
         self.assertFalse((self.target / self.ADDED).exists())
         self.assertEqual(drift(self.target, self.release), [])
         self.assertEqual(self.state.read_text(), self.live_state)
+
+
+
+# ---------------------------------------------------------------------------
+# Regressions
+# ---------------------------------------------------------------------------
+
+
+def damaged_copy(release: Release, dest: Path, location: str) -> Release:
+    """A release whose bytes on disk no longer match its own manifest."""
+    shutil.copytree(release.root, dest)
+    path = dest / location
+    path.write_bytes(path.read_bytes() + b"\n# tampered\n")
+    return Release(dest)
+
+
+class TestReleaseContentIsCheckedBeforeItIsInstalled(BootstrapCase):
+    """Installing is where a release asserts its identity to a repository.
+
+    A `distribution/` that was damaged, half checked out, or edited must not be
+    able to hand a target non-canonical bytes under a canonical version label.
+    """
+
+    def test_bootstrap_refuses_a_release_whose_payload_was_tampered_with(self):
+        damaged = damaged_copy(self.release, Path(self._tmp.name) / "damaged",
+                               "payload/scripts/workflow_state.py")
+        with self.assertRaises(ReleaseIntegrityError) as caught:
+            bootstrap(self.target, damaged, now=FIXED_NOW)
+        self.assertIn("payload/scripts/workflow_state.py", str(caught.exception))
+        self.assertFalse(is_managed(self.target))
+
+    def test_bootstrap_refuses_a_release_whose_template_was_tampered_with(self):
+        damaged = damaged_copy(self.release, Path(self._tmp.name) / "damaged-t",
+                               "templates/docs/ai-workflow/WORKFLOW_STATE.json")
+        with self.assertRaises(ReleaseIntegrityError):
+            bootstrap(self.target, damaged, now=FIXED_NOW)
+
+    def test_update_refuses_a_damaged_release_too(self):
+        bootstrap(self.target, self.release, now=FIXED_NOW)
+        damaged = damaged_copy(self.release, Path(self._tmp.name) / "damaged-u",
+                               "payload/scripts/workflow_fingerprint.py")
+        with self.assertRaises(ReleaseIntegrityError):
+            update(self.target, damaged, force=True, now=FIXED_NOW)
+        self.assertEqual(drift(self.target, self.release), [])
+
+    def test_the_damaged_file_never_reaches_the_target(self):
+        damaged = damaged_copy(self.release, Path(self._tmp.name) / "damaged-2",
+                               "payload/scripts/workflow_state.py")
+        with self.assertRaises(ReleaseIntegrityError):
+            bootstrap(self.target, damaged, now=FIXED_NOW)
+        landed = self.target / "scripts/workflow_state.py"
+        self.assertTrue(not landed.exists() or b"tampered" not in landed.read_bytes())
+
+
+class TestBootstrapDoesNotClobberTheRepositorysOwnFiles(BootstrapCase):
+    """`.claude/commands/` and `scripts/` are ordinary names. A repository that
+    already keeps files there must be told, not quietly overwritten."""
+
+    OWN = ".claude/commands/review-plan.md"
+    MINE = "# my own review-plan command\n"
+
+    def _write_own(self) -> Path:
+        path = self.target / self.OWN
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(self.MINE)
+        return path
+
+    def test_a_colliding_file_stops_the_bootstrap(self):
+        path = self._write_own()
+        with self.assertRaises(CollisionError) as caught:
+            bootstrap(self.target, self.release, now=FIXED_NOW)
+        self.assertEqual([c.path for c in caught.exception.collisions], [self.OWN])
+        self.assertEqual(path.read_text(), self.MINE)
+        self.assertFalse(is_managed(self.target))
+
+    def test_force_overwrites_it(self):
+        path = self._write_own()
+        bootstrap(self.target, self.release, force=True, now=FIXED_NOW)
+        self.assertNotEqual(path.read_text(), self.MINE)
+        self.assertEqual(drift(self.target, self.release), [])
+
+    def test_a_directory_in_the_way_is_reported_not_crashed_on(self):
+        (self.target / self.OWN).mkdir(parents=True)
+        with self.assertRaises(CollisionError) as caught:
+            bootstrap(self.target, self.release, now=FIXED_NOW)
+        self.assertIn("directory", str(caught.exception))
+
+    def test_a_directory_where_a_state_template_goes_is_reported_too(self):
+        """State templates are never overwritten, but they still have to be
+        files -- a directory there would fail half-way through the install."""
+        (self.target / "docs/ACTIVE_MILESTONE.md").mkdir(parents=True)
+        with self.assertRaises(CollisionError) as caught:
+            bootstrap(self.target, self.release, now=FIXED_NOW)
+        self.assertEqual([c.path for c in caught.exception.collisions],
+                         ["docs/ACTIVE_MILESTONE.md"])
+        self.assertFalse(is_managed(self.target))
+
+    def test_force_does_not_paper_over_a_directory_in_a_state_path(self):
+        (self.target / "docs/ACTIVE_MILESTONE.md").mkdir(parents=True)
+        with self.assertRaises(CollisionError):
+            bootstrap(self.target, self.release, force=True, now=FIXED_NOW)
+
+    def test_a_directory_at_a_merged_path_is_reported(self):
+        (self.target / "CLAUDE.md").mkdir()
+        with self.assertRaises(CollisionError) as caught:
+            bootstrap(self.target, self.release, now=FIXED_NOW)
+        self.assertEqual([c.path for c in caught.exception.collisions], ["CLAUDE.md"])
+
+    def test_an_update_reports_a_directory_where_it_must_write(self):
+        bootstrap(self.target, self.release, now=FIXED_NOW)
+        (self.target / ".gitignore").unlink()
+        (self.target / ".gitignore").mkdir()
+        with self.assertRaises(CollisionError) as caught:
+            update(self.target, self.release, force=True, now=FIXED_NOW)
+        self.assertEqual([c.path for c in caught.exception.collisions], [".gitignore"])
+
+    def test_a_file_that_already_holds_the_release_bytes_is_not_a_collision(self):
+        """This is what makes an interrupted bootstrap re-runnable."""
+        artifact = next(a for a in self.release.installable("full")
+                        if a.target_path == self.OWN)
+        path = self.target / self.OWN
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(self.release.read(artifact.location))
+        bootstrap(self.target, self.release, now=FIXED_NOW)
+        self.assertEqual(drift(self.target, self.release), [])
+
+    def test_the_cli_refuses_and_then_honours_force(self):
+        """The flag is one line of wiring, which is exactly where a typo would
+        sit unnoticed behind a library-level test."""
+        import io
+
+        from workflow_manager.cli import main
+
+        path = self._write_own()
+
+        def cli(*args):
+            out, err = io.StringIO(), io.StringIO()
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                code = main(["--manager-root", str(REPO_ROOT), *args])
+            return code, out.getvalue() + err.getvalue()
+
+        code, output = cli("bootstrap", str(self.target))
+        self.assertEqual(code, 2)
+        self.assertIn(self.OWN, output)
+        self.assertIn("--force", output)
+        self.assertEqual(path.read_text(), self.MINE)
+        self.assertFalse(is_managed(self.target))
+
+        self.assertEqual(cli("bootstrap", str(self.target), "--force")[0], 0)
+        self.assertEqual(cli("verify", str(self.target))[0], 0)
+
+    def test_an_update_that_adds_a_file_the_repository_owns_stops_too(self):
+        bootstrap(self.target, self.release, now=FIXED_NOW)
+        nxt = synthesize_next_release(self.release, Path(self._tmp.name) / "r2", "2.3.2")
+        mine = self.target / "docs/ai-workflow/WHATS_NEW.md"
+        mine.write_text("# mine\n")
+        with self.assertRaises(CollisionError):
+            update(self.target, nxt, now=FIXED_NOW)
+        self.assertEqual(mine.read_text(), "# mine\n")
+
+
+class TestInterruptedOperationsAreRerunnable(BootstrapCase):
+    """Neither operation is atomic. Both are idempotent, which is the contract
+    `docs/ARCHITECTURE.md` states: run the same command again."""
+
+    @staticmethod
+    @contextlib.contextmanager
+    def _interrupted_at(nth: int):
+        """Make `_write` raise on its `nth` call, for the block's duration."""
+        real = install_module._write
+        calls = {"n": 0}
+
+        def failing(path, data, executable=False):
+            calls["n"] += 1
+            if calls["n"] == nth:
+                raise KeyboardInterrupt("simulated interruption")
+            return real(path, data, executable)
+
+        install_module._write = failing
+        try:
+            yield calls
+        finally:
+            install_module._write = real
+
+    def _write_count(self) -> int:
+        """How many files a bootstrap of a fresh repository writes."""
+        counted = empty_repo(Path(self._tmp.name) / "counted")
+        with self._interrupted_at(0) as calls:
+            bootstrap(counted, self.release, now=FIXED_NOW)
+        return calls["n"]
+
+    def test_bootstrap_interrupted_at_any_write_converges_when_re_run(self):
+        """Every write, not a sample of them: the contract is that the command
+        can be re-run from wherever it stopped, and 'wherever' is all of them."""
+        for nth in range(1, self._write_count() + 1):
+            with self.subTest(interrupted_at=nth):
+                target = empty_repo(Path(self._tmp.name) / f"boot-{nth}")
+                with self._interrupted_at(nth) as calls:
+                    with self.assertRaises(KeyboardInterrupt):
+                        bootstrap(target, self.release, now=FIXED_NOW)
+                self.assertFalse(is_managed(target), "a half-install must not look managed")
+                installation = bootstrap(target, self.release, now=FIXED_NOW)
+                self.assertEqual(drift(target, self.release), [])
+                self.assertEqual(verify(target, self.release), [])
+                self.assertTrue(calls["n"] >= nth)
+                self.assertEqual(
+                    {rec["source"] for rec in installation.generated.values()}, {"template"},
+                    "state the interrupted run wrote is the template, not the repository's",
+                )
+
+    LIVE_STATE = '{"schema_version": 1, "active_work_item_id": "wi", "work_items": {"wi": {}}}\n'
+
+    def _managed_repo_with_live_state(self, name: str) -> Path:
+        target = empty_repo(Path(self._tmp.name) / name)
+        bootstrap(target, self.release, now=FIXED_NOW)
+        (target / "docs/ai-workflow/WORKFLOW_STATE.json").write_text(self.LIVE_STATE)
+        return target
+
+    def test_an_interrupted_update_resumes_at_any_write_on_a_plain_re_run(self):
+        """The half-applied files are the new release's own bytes. Calling them
+        local edits would leave `--force` -- which discards edits -- as the only
+        way forward."""
+        nxt = synthesize_next_release(self.release, Path(self._tmp.name) / "r2", "2.3.2",
+                                      change_ci=True)
+        counted = self._managed_repo_with_live_state("update-count")
+        with self._interrupted_at(0) as calls:
+            update(counted, nxt, now=FIXED_NOW)
+        total = calls["n"]
+        self.assertGreater(total, 1, "an update that writes nothing proves nothing")
+
+        for nth in range(1, total + 1):
+            with self.subTest(interrupted_at=nth):
+                target = self._managed_repo_with_live_state(f"update-{nth}")
+                state = target / "docs/ai-workflow/WORKFLOW_STATE.json"
+                with self._interrupted_at(nth):
+                    with self.assertRaises(KeyboardInterrupt):
+                        update(target, nxt, now="2027-01-01T00:00:00Z")
+                self.assertEqual(Installation.read(target).workflow_version, "2.3.1",
+                                 "the record must not claim a release that is half applied")
+
+                updated, _ = update(target, nxt, now="2027-01-02T00:00:00Z")
+                self.assertEqual(updated.workflow_version, "2.3.2")
+                self.assertEqual(drift(target, nxt), [])
+                self.assertEqual(verify(target, nxt), [])
+                self.assertEqual(state.read_text(), self.LIVE_STATE)
+
+    def test_a_genuine_local_edit_still_blocks_a_resumed_update(self):
+        """Resumability must not become a way to lose an edit."""
+        bootstrap(self.target, self.release, now=FIXED_NOW)
+        nxt = synthesize_next_release(self.release, Path(self._tmp.name) / "r2", "2.3.2")
+        path = self.target / "scripts/workflow_state.py"
+        path.write_text(path.read_text() + "\n# mine\n")
+        with self.assertRaises(DriftError):
+            update(self.target, nxt, now=FIXED_NOW)
+        self.assertIn("# mine", path.read_text())
+
+
+class TestTheInstallationRecordSurvivesInterruption(BootstrapCase):
+    def test_the_record_is_replaced_by_rename_not_written_in_place(self):
+        bootstrap(self.target, self.release, now=FIXED_NOW)
+        update(self.target, self.release, now=FIXED_NOW)
+        strays = list((self.target / ".workflow-manager").glob("*.tmp"))
+        self.assertEqual(strays, [])
+
+    def test_an_unreadable_record_says_how_to_recover(self):
+        bootstrap(self.target, self.release, now=FIXED_NOW)
+        installation_path(self.target).write_text("{ truncated")
+        with self.assertRaises(CorruptInstallationError) as caught:
+            Installation.read(self.target)
+        self.assertIn(".workflow-manager", str(caught.exception))
+        self.assertIn("bootstrap", str(caught.exception))
+
+    def test_every_command_reports_a_damaged_record_including_bootstrap(self):
+        """`bootstrap` used to answer "already managed; use update()" -- advice
+        that cannot work, since `update` reads the same broken record."""
+        bootstrap(self.target, self.release, now=FIXED_NOW)
+        installation_path(self.target).write_text("{ truncated")
+        for operation in (
+            lambda: bootstrap(self.target, self.release, now=FIXED_NOW),
+            lambda: update(self.target, self.release, now=FIXED_NOW),
+            lambda: verify(self.target, self.release),
+            lambda: status(self.target, self.release),
+            lambda: uninstall(self.target),
+        ):
+            with self.assertRaises(CorruptInstallationError):
+                operation()
+
+    def test_the_documented_recovery_actually_recovers(self):
+        """Delete the record, re-run bootstrap: the payload is already the
+        release's own bytes, so nothing collides and nothing is rewritten."""
+        bootstrap(self.target, self.release, now=FIXED_NOW)
+        state = self.target / "docs/ai-workflow/WORKFLOW_STATE.json"
+        mine = '{"schema_version": 1, "active_work_item_id": "wi", "work_items": {"wi": {}}}\n'
+        state.write_text(mine)
+        installation_path(self.target).write_text("{ truncated")
+
+        shutil.rmtree(self.target / ".workflow-manager")
+        bootstrap(self.target, self.release, now=FIXED_NOW)
+        self.assertEqual(verify(self.target, self.release), [])
+        self.assertEqual(state.read_text(), mine, "recovery must not cost the repository its work")
+
+
+class TestTheConformanceCiIsReleaseOwned(BootstrapCase):
+    """It runs a particular release's suites and nothing writes to it at run
+    time, so it belongs to the release, not to the repository."""
+
+    CI = ".github/workflows/workflow-conformance.yml"
+
+    def test_it_is_declared_as_a_release_template(self):
+        self.assertIn(self.CI, RELEASE_TEMPLATES)
+
+    def test_every_template_the_release_ships_has_a_declared_disposition(self):
+        """A future release that adds a template must be given an owner. Without
+        this, an unknown one would simply never be installed, silently."""
+        from workflow_manager.release import MERGED_TEMPLATES, STATE_TEMPLATES
+
+        declared = set(STATE_TEMPLATES) | set(RELEASE_TEMPLATES) | set(MERGED_TEMPLATES)
+        shipped = {t["target_path"] for t in self.release.templates()}
+        self.assertEqual(shipped, declared)
+
+    def test_a_full_install_records_it_as_managed_not_generated(self):
+        installation = bootstrap(self.target, self.release, now=FIXED_NOW)
+        self.assertIn(self.CI, installation.managed)
+        self.assertNotIn(self.CI, installation.generated)
+
+    def test_editing_it_is_reported_as_drift(self):
+        bootstrap(self.target, self.release, now=FIXED_NOW)
+        path = self.target / self.CI
+        path.write_text(path.read_text() + "\n# local\n")
+        self.assertIn((self.CI, "modified"), [(d.path, d.kind) for d in drift(self.target, self.release)])
+
+    def test_a_new_release_updates_it(self):
+        bootstrap(self.target, self.release, now=FIXED_NOW)
+        nxt = synthesize_next_release(self.release, Path(self._tmp.name) / "r2", "2.3.2",
+                                      change_ci=True)
+        _, changes = update(self.target, nxt, now=FIXED_NOW)
+        self.assertIn(f"updated {self.CI}", changes)
+        self.assertIn("2.3.2 suites", (self.target / self.CI).read_text())
+        self.assertEqual(drift(self.target, nxt), [])
+
+    def test_the_runtime_profile_does_not_install_it(self):
+        """Under `runtime` the documents several suites lint are absent, so the
+        suites are red by design. Shipping the CI that runs them would hand a
+        repository a red pipeline on its first push."""
+        runtime = bootstrap(self.target, self.release, profile="runtime", now=FIXED_NOW)
+        self.assertNotIn(self.CI, runtime.managed)
+        self.assertFalse((self.target / self.CI).exists())
+
+    def test_narrowing_the_profile_removes_it_and_widening_restores_it(self):
+        bootstrap(self.target, self.release, now=FIXED_NOW)
+        update(self.target, self.release, profile="runtime", now=FIXED_NOW)
+        self.assertFalse((self.target / self.CI).exists())
+        update(self.target, self.release, profile="full", now=FIXED_NOW)
+        self.assertTrue((self.target / self.CI).exists())
+        self.assertEqual(drift(self.target, self.release), [])
+
+
+class TestReleaseResolution(BootstrapCase):
+    """What `bootstrap`, `update`, `status` and `verify` mean by "the release"
+    once `distribution/` holds more than one."""
+
+    def setUp(self):
+        super().setUp()
+        self.manager_root = Path(self._tmp.name) / "manager"
+        base = self.manager_root / "distribution" / "workflow"
+        base.mkdir(parents=True)
+        (base / "2.3.1").symlink_to(self.release.root)
+        synthesize_next_release(self.release, base / "2.3.2", "2.3.2")
+
+    def _cli(self, *args):
+        """The CLI in-process, with its report captured rather than printed."""
+        import io
+
+        from workflow_manager.cli import main
+
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            code = main(["--manager-root", str(self.manager_root), *args])
+        self.cli_output = out.getvalue() + err.getvalue()
+        return code
+
+    def test_available_versions_are_ordered_oldest_first(self):
+        self.assertEqual(available_versions(self.manager_root), ["2.3.1", "2.3.2"])
+
+    def test_an_unpinned_release_means_the_newest(self):
+        self.assertEqual(find_release(self.manager_root).version, "2.3.2")
+        self.assertEqual(find_release(self.manager_root, "2.3.1").version, "2.3.1")
+
+    def test_bootstrap_installs_the_newest_and_update_moves_to_it(self):
+        self.assertEqual(self._cli("bootstrap", str(self.target)), 0)
+        self.assertEqual(Installation.read(self.target).workflow_version, "2.3.2")
+
+    def test_reports_are_measured_against_the_release_the_target_records(self):
+        """A target pinned to an older release must not start looking broken
+        because a newer one landed in `distribution/`."""
+        self.assertEqual(self._cli("--release-version", "2.3.1", "bootstrap", str(self.target)), 0)
+        self.assertEqual(self._cli("status", str(self.target)), 0)
+        self.assertEqual(self._cli("verify", str(self.target)), 0)
+
+    def test_a_damaged_target_is_never_reported_as_clean(self):
+        self.assertEqual(self._cli("--release-version", "2.3.1", "bootstrap", str(self.target)), 0)
+        (self.target / "scripts/workflow_state.py").write_text("# clobbered\n")
+        self.assertEqual(self._cli("status", str(self.target)), 1)
+        self.assertEqual(self._cli("verify", str(self.target)), 1)
+
+    def test_a_target_recording_a_release_that_is_absent_is_an_error(self):
+        bootstrap(self.target, self.release, now=FIXED_NOW)
+        record = Installation.read(self.target)
+        record.workflow_version = "9.9.9"
+        record.write(self.target)
+        self.assertEqual(self._cli("status", str(self.target)), 2)
+
+
+class TestStatusNeverClaimsCleanWithoutLooking(BootstrapCase):
+    def test_an_unverified_installation_does_not_say_clean(self):
+        bootstrap(self.target, self.release, now=FIXED_NOW)
+        result = status(self.target)
+        self.assertTrue(result.managed)
+        self.assertFalse(result.verified)
+        self.assertNotIn("clean", str(result))
+        self.assertIn("not verified", str(result))
+
+    def test_a_verified_clean_installation_says_clean(self):
+        bootstrap(self.target, self.release, now=FIXED_NOW)
+        result = status(self.target, self.release)
+        self.assertTrue(result.verified)
+        self.assertIn("clean", str(result))
+
+
+class TestNoRuntimeDependencyOnTheUpstreamRepository(BootstrapCase):
+    """The bootstrapper must work on a machine that has never held RepFlow.
+
+    `tools/migrate.py` reads the upstream tag; nothing else may. Grepping the
+    distribution proves the *content* is clean (see `test_payload_bytes.py`);
+    this proves the *code path* is, by running it where the upstream checkout's
+    default location cannot exist.
+    """
+
+    MANAGER_SOURCES = sorted((REPO_ROOT / "src" / "workflow_manager").glob("*.py"))
+
+    def test_no_manager_module_names_the_upstream_checkout(self):
+        for path in self.MANAGER_SOURCES:
+            text = path.read_text()
+            self.assertNotIn("repflow", text.lower(), path.name)
+            self.assertNotIn(str(Path.home()), text, path.name)
+
+    def test_a_full_lifecycle_runs_with_home_pointed_somewhere_empty(self):
+        """`~/Workspace/repflow-android` is where the upstream clone lives. With
+        `HOME` moved, that path does not exist -- so anything that reached for
+        it would fail here rather than silently succeed on this machine."""
+        elsewhere = Path(self._tmp.name) / "empty-home"
+        elsewhere.mkdir()
+        self.assertFalse((elsewhere / "Workspace" / "repflow-android").exists())
+        env = {
+            "PYTHONPATH": str(REPO_ROOT / "src"),
+            "PATH": "/usr/bin:/bin",
+            "HOME": str(elsewhere),
+            "PYTHONDONTWRITEBYTECODE": "1",
+        }
+        for argv in (
+            ["bootstrap", str(self.target)],
+            ["verify", str(self.target)],
+            ["status", str(self.target)],
+            ["update", str(self.target)],
+            ["verify", str(self.target)],
+            ["uninstall", str(self.target)],
+        ):
+            with self.subTest(command=argv[0]):
+                proc = subprocess.run(
+                    [sys.executable, "-m", "workflow_manager", *argv],
+                    cwd=str(REPO_ROOT), capture_output=True, text=True, env=env,
+                )
+                self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=1)

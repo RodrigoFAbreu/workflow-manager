@@ -7,20 +7,28 @@ either respects that rule or refuses.
 Three operations:
 
 `bootstrap`
-    A repository that has never used the Workflow. Installs the payload,
-    writes clean state from templates, merges the two shared files, and
-    records what it did.
+    A repository that has never used the Workflow. Installs everything the
+    release owns, writes clean state from templates, merges the two shared
+    files, and records what it did. Refuses if the repository already has a
+    file of its own where a release file goes, unless told to overwrite.
 
 `update`
-    A managed repository moving from one release to another. Replaces payload
-    files, removes payload files the new release dropped, and leaves every
-    generated state file exactly as it is. Refuses if a managed file was
-    edited locally, unless told to discard those edits.
+    A managed repository moving from one release to another. Replaces
+    release-owned files, removes the ones the new release dropped, and leaves
+    every generated state file exactly as it is. Refuses if a release-owned
+    file was edited locally, unless told to discard those edits.
 
 `verify` / `drift`
     Compares what is on disk against the release manifest and the installation
     record. This is what makes an update safe rather than hopeful: it runs
     before the update decides anything.
+
+Neither operation is atomic -- a repository is not a database, and pretending
+otherwise would be a lie with a rollback path in it. Both are instead
+*re-runnable*: every write is idempotent, so an interrupted operation is
+repaired by running the same command again. `docs/ARCHITECTURE.md` states the
+contract that follows from that, and `tests/test_bootstrap.py` interrupts each
+operation at every write to prove it.
 """
 
 from __future__ import annotations
@@ -30,13 +38,13 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .installation import Installation, is_managed
+from .installation import INSTALLATION_DIR, Installation, is_managed
 from .release import (
     CLAUDE_TEMPLATE,
     GITIGNORE_TEMPLATE,
     INSTALL_PROFILE_FULL,
     INSTALL_PROFILES,
-    STATE_TEMPLATES,
+    Artifact,
     Release,
     sha256,
 )
@@ -57,6 +65,14 @@ class NotManagedError(InstallError):
     pass
 
 
+class CollisionError(InstallError):
+    """The repository already has its own file where a release file goes."""
+
+    def __init__(self, message: str, collisions: list["Drift"]):
+        super().__init__(message)
+        self.collisions = collisions
+
+
 class DriftError(InstallError):
     def __init__(self, message: str, drifted: list["Drift"]):
         super().__init__(message)
@@ -67,6 +83,7 @@ class DriftError(InstallError):
 class Drift:
     path: str
     kind: str          # "modified" | "missing" | "unexpected" | "not-executable"
+                       # | "occupied"
     detail: str = ""
 
     def __str__(self) -> str:
@@ -153,17 +170,101 @@ def managed_claude_section(data: bytes) -> bytes:
 # ---------------------------------------------------------------------------
 
 
+def _collisions(target: Path, incoming: dict[str, Artifact],
+                already_ours: frozenset[str] | set[str] = frozenset()) -> list[Drift]:
+    """Release paths the repository already occupies with something else.
+
+    A path holding exactly the bytes the release is about to write is not a
+    collision -- that is what makes an interrupted install re-runnable. A path
+    the record already claims is not one either; that is drift, and `update`
+    judges it against the record. A path that is not a file at all is always
+    reported, recorded or not: nothing here can write through a directory, and
+    saying so beats failing part-way with a traceback.
+    """
+    found = []
+    for rel in sorted(incoming):
+        path = target / rel
+        if not path.exists():
+            continue
+        if not path.is_file():
+            found.append(Drift(rel, "occupied", "a directory is in the way"))
+        elif rel in already_ours:
+            continue
+        elif sha256(path.read_bytes()) != incoming[rel].sha256:
+            found.append(Drift(rel, "occupied", "the repository has its own file here"))
+    return found
+
+
+def _merged_drift(target: Path, release: Release, templates: dict,
+                  installation: Installation) -> list[Drift]:
+    """What became of the two files the installer only contributes *part* of.
+
+    It does not own either file, so it cannot compare them whole. What it can
+    check is that its own contribution is still there -- and it must, because
+    losing it is silent and expensive: without the ignore lines a repository
+    starts tracking `.ai-review/`, the Workflow's live runtime workspace.
+    """
+    found: list[Drift] = []
+
+    if ".gitignore" in installation.merged:
+        fragment = release.read(templates[GITIGNORE_TEMPLATE]["location"])
+        wanted = [
+            line for line in fragment.decode("utf-8").splitlines()
+            if line.strip() and not line.lstrip().startswith("#")
+        ]
+        path = target / ".gitignore"
+        present = set(path.read_bytes().decode("utf-8", "replace").splitlines()) \
+            if path.is_file() else set()
+        gone = [line for line in wanted if line not in present]
+        if gone:
+            found.append(Drift(".gitignore", "modified",
+                               "workflow entries removed: " + ", ".join(gone)))
+
+    if "CLAUDE.md" in installation.merged:
+        expected = sha256(managed_claude_section(
+            release.read(templates[CLAUDE_TEMPLATE]["location"])))
+        path = target / "CLAUDE.md"
+        if not path.is_file():
+            found.append(Drift("CLAUDE.md", "missing", "the managed section is gone"))
+        elif sha256(managed_claude_section(path.read_bytes())) != expected:
+            found.append(Drift("CLAUDE.md", "modified",
+                               "the managed section differs from the release's"))
+    return found
+
+
+def _other_written_paths(release: Release) -> set[str]:
+    """Target paths an operation writes that are not release artifacts: the
+    state templates it may create and the two files it merges into."""
+    return {t["target_path"] for t in release.state_templates()} | {".gitignore", "CLAUDE.md"}
+
+
+def _blocked_paths(target: Path, paths: set[str]) -> list[Drift]:
+    """Paths an operation must write through that are not files.
+
+    Nothing here can write a file where a directory stands, so the operation
+    says so up front instead of failing part-way through. Unlike a collision,
+    this is not something `force` can decide its way past.
+    """
+    found = []
+    for rel in sorted(paths):
+        path = target / rel
+        if path.exists() and not path.is_file():
+            found.append(Drift(rel, "occupied", "a directory is in the way"))
+    return found
+
+
 def drift(target: Path, release: Release) -> list[Drift]:
     """Every difference between the target and what the record says is there.
 
-    Managed files are compared against the *release manifest*, so a drift is
-    "this differs from canonical", not merely "this changed since install".
+    Release-owned files are compared against the *release manifest*, so a drift
+    is "this differs from canonical", not merely "this changed since install".
     Generated files are compared against the record, since canonical has no
-    opinion about them after they are created.
+    opinion about them after they are created. Merged files are compared only
+    over the part the installer contributed.
     """
     target = Path(target)
     installation = Installation.read(target)
-    manifest_digests = {a.target_path: a for a in release.payload_artifacts(installation.profile)}
+    manifest_digests = {a.target_path: a for a in release.installable(installation.profile)}
     found: list[Drift] = []
 
     for rel, record in sorted(installation.managed.items()):
@@ -179,14 +280,16 @@ def drift(target: Path, release: Release) -> list[Drift]:
         elif record.get("executable") and not path.stat().st_mode & 0o111:
             found.append(Drift(rel, "not-executable"))
 
-    for rel, record in sorted(installation.generated.items()):
-        path = target / rel
-        if not path.exists():
+    for rel in sorted(installation.generated):
+        if not (target / rel).exists():
             found.append(Drift(rel, "missing", "repository-local state was deleted"))
 
     for rel in sorted(set(manifest_digests) - set(installation.managed)):
         if (target / rel).exists():
             found.append(Drift(rel, "unexpected", "present but not recorded as installed"))
+
+    templates = {t["target_path"]: t for t in release.templates()}
+    found += _merged_drift(target, release, templates, installation)
 
     return found
 
@@ -209,8 +312,14 @@ def verify(target: Path, release: Release) -> list[str]:
 
 
 def bootstrap(target: Path, release: Release, profile: str = INSTALL_PROFILE_FULL,
-              now: str | None = None) -> Installation:
-    """Install the Workflow into a repository that has never used it."""
+              force: bool = False, now: str | None = None) -> Installation:
+    """Install the Workflow into a repository that has never used it.
+
+    Refuses if the repository already keeps its own file where a release file
+    goes -- `.claude/commands/` and `scripts/` are ordinary names, and a
+    bootstrap that quietly replaced what it found there would destroy work no
+    one asked it to touch. `force` overwrites those paths.
+    """
     target = Path(target)
     if profile not in INSTALL_PROFILES:
         raise InstallError(f"unknown install profile {profile!r}")
@@ -219,8 +328,21 @@ def bootstrap(target: Path, release: Release, profile: str = INSTALL_PROFILE_FUL
     if not (target / ".git").exists():
         raise InstallError(f"{target} is not a Git repository")
     if is_managed(target):
+        # Reading it first means a damaged record reports itself, with the
+        # remedy, instead of being turned away with advice that cannot work.
+        Installation.read(target)
         raise AlreadyManagedError(
             f"{target} is already managed; use update() to move it to another release"
+        )
+
+    incoming = {a.target_path: a for a in release.installable(profile)}
+    occupied = [] if force else _collisions(target, incoming)
+    occupied += _blocked_paths(target, _other_written_paths(release))
+    if occupied:
+        raise CollisionError(
+            "refusing to bootstrap: the repository already has its own file at these "
+            "release paths:\n  " + "\n  ".join(str(c) for c in occupied),
+            occupied,
         )
 
     stamp = now or _now()
@@ -232,24 +354,29 @@ def bootstrap(target: Path, release: Release, profile: str = INSTALL_PROFILE_FUL
         updated_at=stamp,
     )
 
-    for artifact in release.payload_artifacts(profile):
-        _write(target / artifact.target_path, release.read(artifact.location), artifact.executable)
-        installation.managed[artifact.target_path] = {
+    for rel, artifact in sorted(incoming.items()):
+        _write(target / rel, release.read_verified(artifact.location, artifact.sha256),
+               artifact.executable)
+        installation.managed[rel] = {
             "sha256": artifact.sha256,
             "executable": artifact.executable,
         }
 
     templates = {t["target_path"]: t for t in release.templates()}
-    for rel in STATE_TEMPLATES:
-        template = templates[rel]
-        data = release.read(template["location"])
+    for template in release.state_templates():
+        rel = template["target_path"]
         path = target / rel
         if path.exists():
             # Pre-existing repository state is never clobbered by a bootstrap.
-            installation.generated[rel] = {"sha256": sha256(path.read_bytes()),
-                                           "source": "pre-existing"}
+            existing = sha256(path.read_bytes())
+            installation.generated[rel] = {
+                "sha256": existing,
+                # Byte-identical to the template means an earlier run of this
+                # bootstrap wrote it, not that the repository brought its own.
+                "source": "template" if existing == template["sha256"] else "pre-existing",
+            }
             continue
-        _write(path, data)
+        _write(path, release.read_verified(template["location"], template["sha256"]))
         installation.generated[rel] = {"sha256": template["sha256"], "source": "template"}
 
     _apply_merges(target, release, templates, installation)
@@ -266,7 +393,8 @@ def _apply_merges(target: Path, release: Release, templates: dict,
     """
     changes: list[str] = []
 
-    fragment = release.read(templates[GITIGNORE_TEMPLATE]["location"])
+    fragment = release.read_verified(templates[GITIGNORE_TEMPLATE]["location"],
+                                     templates[GITIGNORE_TEMPLATE]["sha256"])
     merged, action = merge_gitignore(target, fragment)
     if action != "unchanged":
         _write(target / ".gitignore", merged)
@@ -276,7 +404,8 @@ def _apply_merges(target: Path, release: Release, templates: dict,
         "action": action,
     }
 
-    managed_section = release.read(templates[CLAUDE_TEMPLATE]["location"])
+    managed_section = release.read_verified(templates[CLAUDE_TEMPLATE]["location"],
+                                            templates[CLAUDE_TEMPLATE]["sha256"])
     path = target / "CLAUDE.md"
     before = path.read_bytes() if path.exists() else None
     merged, action = merge_claude_md(target, managed_section)
@@ -300,7 +429,7 @@ def update(target: Path, release: Release, profile: str | None = None,
     """Move a managed repository to `release`.
 
     Returns the new installation record and a list of the changes made.
-    Repository-local state is never rewritten; a locally modified managed file
+    Repository-local state is never rewritten; a locally modified release file
     stops the update unless `force` is set, so an edit someone made on purpose
     is not thrown away without being seen.
     """
@@ -314,14 +443,27 @@ def update(target: Path, release: Release, profile: str | None = None,
     if profile not in INSTALL_PROFILES:
         raise InstallError(f"unknown install profile {profile!r}")
 
+    incoming = {a.target_path: a for a in release.installable(profile)}
+
     if not force:
-        modified = [d for d in _drift_against_installed(target, current) if d.kind == "modified"]
+        modified = _local_modifications(target, current, incoming)
         if modified:
             raise DriftError(
-                "refusing to update: these managed files were modified locally and would be "
+                "refusing to update: these release files were modified locally and would be "
                 "overwritten:\n  " + "\n  ".join(str(d) for d in modified),
                 modified,
             )
+    occupied = [] if force else _collisions(target, incoming, already_ours=set(current.managed))
+    occupied += _blocked_paths(
+        target,
+        _other_written_paths(release) | (set(current.managed) - set(incoming)),
+    )
+    if occupied:
+        raise CollisionError(
+            "refusing to update: this release needs paths the repository is using for "
+            "something else:\n  " + "\n  ".join(str(c) for c in occupied),
+            occupied,
+        )
 
     stamp = now or _now()
     updated = Installation(
@@ -330,24 +472,26 @@ def update(target: Path, release: Release, profile: str | None = None,
         upstream=release.upstream,
         installed_at=current.installed_at,
         updated_at=stamp,
-        generated=dict(current.generated),
+        # A path the release has taken ownership of since the target was
+        # installed stops being repository-local state; leaving a stale
+        # `generated` entry behind would record it as both.
+        generated={rel: rec for rel, rec in current.generated.items() if rel not in incoming},
         merged=dict(current.merged),
     )
 
     changes: list[str] = []
-    incoming = {a.target_path: a for a in release.payload_artifacts(profile)}
 
     for rel in sorted(set(current.managed) - set(incoming)):
         path = target / rel
-        if path.exists():
+        if path.is_file():
             path.unlink()
             _prune_empty_parents(path, target)
             changes.append(f"removed {rel}")
 
     for rel, artifact in sorted(incoming.items()):
         path = target / rel
-        data = release.read(artifact.location)
-        before = path.read_bytes() if path.exists() else None
+        data = release.read_verified(artifact.location, artifact.sha256)
+        before = path.read_bytes() if path.is_file() else None
         if before != data:
             _write(path, data, artifact.executable)
             changes.append(("added " if before is None else "updated ") + rel)
@@ -357,14 +501,15 @@ def update(target: Path, release: Release, profile: str | None = None,
         updated.managed[rel] = {"sha256": artifact.sha256, "executable": artifact.executable}
 
     templates = {t["target_path"]: t for t in release.templates()}
-    for rel in STATE_TEMPLATES:
+    for template in release.state_templates():
+        rel = template["target_path"]
         path = target / rel
         if path.exists():
             continue
         # A state file the repository never had (or deleted) is created from
         # the new release's template. An existing one is left untouched.
-        _write(path, release.read(templates[rel]["location"]))
-        updated.generated[rel] = {"sha256": templates[rel]["sha256"], "source": "template"}
+        _write(path, release.read_verified(template["location"], template["sha256"]))
+        updated.generated[rel] = {"sha256": template["sha256"], "source": "template"}
         changes.append(f"created missing state {rel}")
 
     changes += _apply_merges(target, release, templates, updated)
@@ -372,16 +517,28 @@ def update(target: Path, release: Release, profile: str | None = None,
     return updated, changes
 
 
-def _drift_against_installed(target: Path, installation: Installation) -> list[Drift]:
-    """Drift measured against the record alone -- used by `update` before a
-    release is applied, when the *installed* digests are the right baseline."""
+def _local_modifications(target: Path, installation: Installation,
+                         incoming: dict[str, Artifact]) -> list[Drift]:
+    """Release files that were edited locally and that this update would lose.
+
+    Measured against the record, because the *installed* digests are what the
+    repository agreed to. A file already holding the incoming release's bytes
+    is excluded: that is a half-applied update, not someone's edit, and
+    treating it as an edit would leave an interrupted update repairable only
+    by `--force` -- which discards edits, the very thing the check protects.
+    """
     found = []
     for rel, record in sorted(installation.managed.items()):
         path = target / rel
-        if not path.exists():
-            found.append(Drift(rel, "missing"))
-        elif sha256(path.read_bytes()) != record["sha256"]:
-            found.append(Drift(rel, "modified"))
+        if not path.is_file():
+            continue
+        digest = sha256(path.read_bytes())
+        if digest == record["sha256"]:
+            continue
+        arriving = incoming.get(rel)
+        if arriving is not None and digest == arriving.sha256:
+            continue
+        found.append(Drift(rel, "modified"))
     return found
 
 
@@ -396,27 +553,33 @@ class Status:
     workflow_version: str | None = None
     profile: str | None = None
     problems: list[str] = field(default_factory=list)
+    #: False when no release was available to check against. An unverified
+    #: installation is never described as clean: saying "clean" without having
+    #: looked is the one answer this command must not be able to give.
+    verified: bool = False
 
     def __str__(self) -> str:
         if not self.managed:
             return "not a managed repository"
         head = f"workflow {self.workflow_version} ({self.profile} profile)"
-        if not self.problems:
-            return f"{head} — clean"
-        return f"{head} — {len(self.problems)} problem(s):\n  " + "\n  ".join(self.problems)
+        if self.problems:
+            return f"{head} — {len(self.problems)} problem(s):\n  " + "\n  ".join(self.problems)
+        if not self.verified:
+            return f"{head} — not verified (no release to compare against)"
+        return f"{head} — clean"
 
 
 def status(target: Path, release: Release | None = None) -> Status:
     target = Path(target)
     if not is_managed(target):
-        return Status(managed=False, problems=[])
+        return Status(managed=False, problems=[], verified=True)
     installation = Installation.read(target)
-    problems = verify(target, release) if release is not None else []
     return Status(
         managed=True,
         workflow_version=installation.workflow_version,
         profile=installation.profile,
-        problems=problems,
+        problems=verify(target, release) if release is not None else [],
+        verified=release is not None,
     )
 
 
@@ -431,9 +594,12 @@ def uninstall(target: Path) -> list[str]:
     removed = []
     for rel in sorted(installation.managed):
         path = target / rel
-        if path.exists():
+        # Only files this installer put there. Anything else at that path is
+        # the repository's, and uninstalling the tooling is no licence to
+        # remove it.
+        if path.is_file():
             path.unlink()
             _prune_empty_parents(path, target)
             removed.append(rel)
-    shutil.rmtree(target / ".workflow-manager", ignore_errors=True)
+    shutil.rmtree(target / INSTALLATION_DIR, ignore_errors=True)
     return removed

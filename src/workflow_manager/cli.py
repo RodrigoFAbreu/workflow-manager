@@ -1,14 +1,18 @@
 """Command-line entry point.
 
-    python3 -m workflow_manager status   <target>
-    python3 -m workflow_manager bootstrap <target> [--profile full|runtime]
+    python3 -m workflow_manager status    <target>
+    python3 -m workflow_manager bootstrap <target> [--profile full|runtime] [--force]
     python3 -m workflow_manager update    <target> [--profile ...] [--force]
     python3 -m workflow_manager verify    <target>
     python3 -m workflow_manager uninstall <target>
     python3 -m workflow_manager releases
 
 Every command takes `--release-version` to pick among the releases in
-`distribution/`; with one release present it is optional.
+`distribution/`. Without it, the two commands that *change* which release a
+repository is on -- `bootstrap` and `update` -- mean the newest release, and
+the two that *report on* an installation -- `status` and `verify` -- mean the
+release the target says it has, so they never quietly grade a repository
+against something it was never installed from.
 """
 
 from __future__ import annotations
@@ -19,6 +23,7 @@ from pathlib import Path
 
 from .install import (
     AlreadyManagedError,
+    CollisionError,
     DriftError,
     InstallError,
     NotManagedError,
@@ -28,13 +33,44 @@ from .install import (
     update,
     verify,
 )
-from .release import INSTALL_PROFILE_FULL, INSTALL_PROFILES, find_release
+from .installation import CorruptInstallationError, Installation, is_managed
+from .release import (
+    INSTALL_PROFILE_FULL,
+    INSTALL_PROFILES,
+    ReleaseIntegrityError,
+    available_versions,
+    find_release,
+)
 
 MANAGER_ROOT = Path(__file__).resolve().parent.parent.parent
 
 
 def _release(args):
+    """The newest migrated release, or the pinned one."""
     return find_release(args.manager_root, args.release_version)
+
+
+def _release_for_target(args):
+    """The release a *report* about `args.target` should be measured against.
+
+    An installed repository is graded against the release it records, not
+    against whatever happens to be newest -- otherwise every target would look
+    broken the moment a new release landed in `distribution/`.
+    """
+    if args.release_version is not None:
+        return find_release(args.manager_root, args.release_version)
+    if not is_managed(args.target):
+        return None
+    version = Installation.read(args.target).workflow_version
+    available = available_versions(args.manager_root)
+    if version not in available:
+        raise InstallError(
+            f"{args.target} records workflow {version}, which is not in "
+            f"{Path(args.manager_root) / 'distribution' / 'workflow'} "
+            f"(present: {', '.join(available) or 'none'}). "
+            f"Nothing can be verified against a release that is not here."
+        )
+    return find_release(args.manager_root, version)
 
 
 def cmd_releases(args) -> int:
@@ -42,29 +78,25 @@ def cmd_releases(args) -> int:
     if not base.exists():
         print("no distribution/ — run tools/migrate.py first", file=sys.stderr)
         return 1
-    for path in sorted(base.iterdir()):
-        if (path / "manifest.json").exists():
-            from .release import Release
-            release = Release(path)
-            print(f"{release.version}  from {release.upstream['tag']} "
-                  f"({release.upstream['commit'][:12]})  "
-                  f"{len(release.payload_artifacts(INSTALL_PROFILE_FULL))} files")
+    for version in available_versions(args.manager_root):
+        release = find_release(args.manager_root, version)
+        print(f"{release.version}  from {release.upstream['tag']} "
+              f"({release.upstream['commit'][:12]})  "
+              f"{len(release.installable(INSTALL_PROFILE_FULL))} files")
     return 0
 
 
 def cmd_status(args) -> int:
-    try:
-        release = _release(args)
-    except (FileNotFoundError, ValueError):
-        release = None
-    result = status(args.target, release)
+    result = status(args.target, _release_for_target(args))
     print(result)
-    return 0 if (not result.managed or not result.problems) else 1
+    if not result.managed:
+        return 0
+    return 0 if (result.verified and not result.problems) else 1
 
 
 def cmd_bootstrap(args) -> int:
     release = _release(args)
-    installation = bootstrap(args.target, release, args.profile)
+    installation = bootstrap(args.target, release, args.profile, force=args.force)
     print(f"bootstrapped workflow {installation.workflow_version} "
           f"({installation.profile}) into {args.target}")
     print(f"  {len(installation.managed)} managed files, "
@@ -85,7 +117,9 @@ def cmd_update(args) -> int:
 
 
 def cmd_verify(args) -> int:
-    release = _release(args)
+    release = _release_for_target(args)
+    if release is None:
+        raise NotManagedError(f"{args.target} is not a managed repository; nothing to verify")
     problems = verify(args.target, release)
     if not problems:
         print(f"{args.target}: installation matches workflow {release.version}")
@@ -114,7 +148,10 @@ COMMANDS = {
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="workflow_manager", description=__doc__)
+    parser = argparse.ArgumentParser(
+        prog="workflow_manager", description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument("--manager-root", type=Path, default=MANAGER_ROOT,
                         help="the workflow-manager checkout holding distribution/")
     parser.add_argument("--release-version", default=None)
@@ -129,6 +166,8 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("bootstrap")
     p.add_argument("target", type=Path)
     p.add_argument("--profile", choices=INSTALL_PROFILES, default=INSTALL_PROFILE_FULL)
+    p.add_argument("--force", action="store_true",
+                   help="overwrite files the repository already keeps at release paths")
 
     p = sub.add_parser("update")
     p.add_argument("target", type=Path)
@@ -146,8 +185,13 @@ def main(argv: list[str] | None = None) -> int:
         print(str(error), file=sys.stderr)
         print("\nre-run with --force to discard those local edits", file=sys.stderr)
         return 2
-    except (AlreadyManagedError, NotManagedError, InstallError, FileNotFoundError,
-            ValueError) as error:
+    except CollisionError as error:
+        print(str(error), file=sys.stderr)
+        print("\nre-run with --force to replace those files with the release's",
+              file=sys.stderr)
+        return 2
+    except (AlreadyManagedError, NotManagedError, InstallError, CorruptInstallationError,
+            ReleaseIntegrityError, FileNotFoundError, ValueError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 2
 

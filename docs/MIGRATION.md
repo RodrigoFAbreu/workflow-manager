@@ -105,7 +105,9 @@ distribution/workflow/2.3.1/
 ├── manifest.json   every one of the 479 upstream paths, exactly once
 ├── payload/        58 files, byte-identical, at target-relative paths
 ├── fixtures/       CLAUDE.md and docs/ACTIVE_MILESTONE.md, frozen
-└── templates/      6 clean repository-local files
+└── templates/      6 generated files: 3 seeding repository-local state,
+                    2 merged into files the target may already own, and the
+                    release-owned conformance CI workflow
 ```
 
 Payload paths are target-relative, so installing is a copy with no path
@@ -122,7 +124,7 @@ be a place for those to break silently.
 | `docs/ACTIVE_MILESTONE.md` | generated — clean scaffold; the frozen file is 1857 lines of RepFlow narrative |
 | `CLAUDE.md` | generated — Workflow routing only, in a managed section |
 | `.gitignore.workflow-fragment` | generated — merged into the target's own `.gitignore` |
-| `.github/workflows/workflow-conformance.yml` | generated — the frozen CI's seven hermetic suite steps |
+| `.github/workflows/workflow-conformance.yml` | generated — the frozen CI's seven hermetic suite steps. Rendered here, but owned by the release once installed: see [ARCHITECTURE.md](ARCHITECTURE.md#what-the-installer-owns-and-what-it-does-not) |
 
 The `WORKFLOW_STATE.json` template is proven against the migrated
 `workflow_state` module itself: `tests/test_templates.py` asserts the

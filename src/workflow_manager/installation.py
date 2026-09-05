@@ -18,17 +18,26 @@ It holds three separate maps, because the three have different update rules:
 `merged`
     Files the installer contributes a section to without owning the whole
     file (`.gitignore`, `CLAUDE.md`).
+
+The record is the one thing a target cannot afford to lose, so it is written
+by rename rather than in place: an interrupted write leaves the previous
+record, never half of the new one.
 """
 
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
 INSTALLATION_DIR = ".workflow-manager"
 INSTALLATION_FILE = "installation.json"
 SCHEMA_VERSION = 1
+
+
+class CorruptInstallationError(RuntimeError):
+    """The installation record exists but cannot be read as one."""
 
 
 def installation_path(target: Path) -> Path:
@@ -92,9 +101,18 @@ class Installation:
     # -- io ----------------------------------------------------------------
 
     def write(self, target: Path) -> Path:
+        """Replace the record atomically.
+
+        `os.replace` on the same filesystem is the whole point: a reader either
+        sees the record that was there before or the complete new one. Writing
+        in place would let an interruption leave a truncated record, which
+        every command reads and none can repair.
+        """
         path = installation_path(target)
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(self.serialize())
+        tmp = path.with_name(path.name + ".tmp")
+        tmp.write_bytes(self.serialize())
+        os.replace(tmp, path)
         return path
 
     @classmethod
@@ -104,7 +122,17 @@ class Installation:
             raise FileNotFoundError(
                 f"{target} is not a managed repository (no {INSTALLATION_DIR}/{INSTALLATION_FILE})"
             )
-        return cls.from_dict(json.loads(path.read_text()))
+        try:
+            data = json.loads(path.read_text())
+            if not isinstance(data, dict):
+                raise TypeError("record is not a JSON object")
+            return cls.from_dict(data)
+        except (json.JSONDecodeError, KeyError, TypeError) as error:
+            raise CorruptInstallationError(
+                f"the installation record at {path} is unreadable ({error}). "
+                f"Delete {INSTALLATION_DIR}/ and re-run bootstrap to reinstall; "
+                f"repository-local state is not stored there and is not affected."
+            ) from error
 
     # -- queries -----------------------------------------------------------
 
