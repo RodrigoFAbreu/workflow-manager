@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "workflow_version": "2.3.1",
+  "description": "Tests in the frozen v2.3.1 suite that cannot pass in a freshly bootstrapped target repository because they assert on the upstream host repository's own document history. Each one is green in the conformance fixture, where the frozen host documents are present. Nothing here is a Workflow regression and nothing here is repaired: frozen v2.3.1 semantics are preserved byte-for-byte.",
+  "exceptions": [
+    {
+      "suite": "workflow_integration_test.py",
+      "test": "TestRetiredScopedRemediationLeavesNoLiveSurface.test_the_historical_status_note_carries_a_dated_correction",
+      "requires": "docs/ACTIVE_MILESTONE.md",
+      "reason": "Asserts that a paragraph beginning '**Status note (2026-08-04)**' exists and is immediately followed by one beginning '**Correction (2026-08-26)**'. Both are RepFlow's own dated milestone history. A bootstrapped repository has no such history, and fabricating one would write a false record into the target.",
+      "defect": "docs/defects/v2.3.1-001-host-history-coupled-tests.md"
+    }
+  ]
+}

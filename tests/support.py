@@ -1,0 +1,96 @@
+"""Shared helpers for the workflow-manager test suites. Stdlib only."""
+
+from __future__ import annotations
+
+import json
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+#: Importing payload modules must not leave `__pycache__` inside the
+#: canonical distribution -- it is meant to be byte-for-byte inspectable.
+sys.dont_write_bytecode = True
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(REPO_ROOT / "src"))
+
+CLASSIFICATION = json.loads((REPO_ROOT / "migration" / "classification.json").read_text())
+PORTABILITY_EXCEPTIONS = json.loads(
+    (REPO_ROOT / "migration" / "portability_exceptions.json").read_text()
+)
+
+#: Set WORKFLOW_MANAGER_UPSTREAM to point the upstream-comparison tests at a
+#: different clone. They skip when it is absent -- the migrated distribution
+#: must be verifiable from its own manifest without the upstream repository.
+UPSTREAM = Path(
+    os.environ.get("WORKFLOW_MANAGER_UPSTREAM", str(Path.home() / "Workspace" / "repflow-android"))
+)
+
+FROZEN_COMMIT = CLASSIFICATION["upstream"]["commit"]
+FROZEN_TAG = CLASSIFICATION["upstream"]["tag"]
+
+
+def upstream_available() -> bool:
+    if not (UPSTREAM / ".git").exists():
+        return False
+    proc = subprocess.run(
+        ["git", "-C", str(UPSTREAM), "cat-file", "-e", f"{FROZEN_COMMIT}^{{commit}}"],
+        capture_output=True,
+    )
+    return proc.returncode == 0
+
+
+def frozen_paths() -> list[str]:
+    out = subprocess.run(
+        ["git", "-C", str(UPSTREAM), "ls-tree", "-r", "--name-only", FROZEN_COMMIT],
+        check=True, capture_output=True, text=True,
+    ).stdout
+    return out.splitlines()
+
+
+def frozen_bytes(path: str) -> bytes:
+    return subprocess.run(
+        ["git", "-C", str(UPSTREAM), "show", f"{FROZEN_COMMIT}:{path}"],
+        check=True, capture_output=True,
+    ).stdout
+
+
+def run_suite(repo: Path, suite: str, timeout: int = 1800) -> subprocess.CompletedProcess:
+    """One frozen conformance suite, run the way the frozen CI runs it:
+    from `scripts/`, with no PYTHONPATH help."""
+    env = dict(os.environ)
+    env.pop("PYTHONPATH", None)
+    env["GIT_CONFIG_GLOBAL"] = "/dev/null"
+    env["GIT_CONFIG_SYSTEM"] = "/dev/null"
+    return subprocess.run(
+        [sys.executable, suite], cwd=str(repo / "scripts"),
+        capture_output=True, text=True, timeout=timeout, env=env,
+    )
+
+
+def failing_tests(output: str) -> set[str]:
+    """`{ClassName.test_name}` for every FAIL/ERROR line in unittest output."""
+    names = set()
+    for line in output.splitlines():
+        if line.startswith(("FAIL: ", "ERROR: ")):
+            head = line.split(": ", 1)[1].split(" ", 1)[0]
+            qualified = line.split("(", 1)[1].rstrip(")") if "(" in line else head
+            # "__main__.Class.test" -> "Class.test"
+            parts = qualified.split(".")
+            names.add(".".join(parts[-2:]) if len(parts) >= 2 else qualified)
+    return names
+
+
+#: The frozen suites the upstream CI runs on every pull request, with the
+#: exact test counts the frozen release produces. `tests/test_conformance_suite.py`
+#: asserts these numbers so a silently-skipped test is a failure, not a pass.
+CI_SUITES = {
+    "workflow_fingerprint_test.py": 218,
+    "workflow_state_test.py": 616,
+    "workflow_test_harness_test.py": 19,
+    "workflow_integration_test.py": 256,
+    "workflow_acceptance_matrix_test.py": 146,
+    "workflow_state_completion_obligations_test.py": 106,
+    "workflow_fingerprint_generalization_test.py": 79,
+}
