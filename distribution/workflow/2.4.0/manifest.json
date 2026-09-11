@@ -9,7 +9,7 @@
   "provenance": {
     "origin": "authored",
     "base_release": "2.3.1",
-    "overlay_commit": "0cd8ed6281c24717a2f66fe47b521d2c1baf16b2"
+    "overlay_commit": "55a4271caea93872bf4e17175b52b1ba85a25f74"
   },
   "categories": {
     "distribution": "Canonical Workflow implementation. Copied byte-for-byte into the payload and installed into every managed target repository.",
@@ -280,12 +280,12 @@
       "category": "distribution",
       "rule": "^docs/ai-workflow/WORKFLOW_V2_1_OPERATOR_REFERENCE\\.md$",
       "rationale": "Persisted-phases/writer tables, command count, Remediation children section, and the new /request-plan-amendment section. Preserves the base release's own distribution category for this path (I-R16-2).",
-      "sha256": "2f6e7f874eb5c120cb5a0ad1247d9c945c3d03e2182c4dc707f1c43c7980453c",
+      "sha256": "84143ac69d961ac979bc530175d2bab15b03b5551047be69c0546479b105b523",
       "size": 54916,
       "executable": false,
       "overlay_delta": {
         "base_sha256": "2e7a83a3298802133ce8af7a60e3096fd53dd010749647b25adf977cad1de562",
-        "diff_sha256": "8d5b2490d9c65e279f1dc264b3c2f0bbac3a13e5ab8484d427ab60567a1d01fb"
+        "diff_sha256": "23f0521dc5c5c56b6807b723c0280bb2cacc8a142d175523b0bd9a9d0338ac35"
       }
     },
     {
@@ -666,12 +666,12 @@
       "category": "distribution",
       "rule": "^scripts/workflow_state\\.py$",
       "rationale": "AMENDING_PLAN, /request-plan-amendment's writer, SUPERSEDED/NEEDS_REVALIDATION, apply_plan_approval's reconciliation parameters, load_pre_amendment_snapshot, and the widened vocabulary constants (D-Plan-Amendment-2..4). Preserves the base release's own distribution category for this path (I-R16-2).",
-      "sha256": "74a05286599f1abf05529fc86e0819b7711867a41cdc5dd7327d32a9b8037518",
-      "size": 632823,
+      "sha256": "228b8ad044c29a70f05d76af88eef6d9908bb25b06b71e7594cfef1a3d944ac8",
+      "size": 632825,
       "executable": false,
       "overlay_delta": {
         "base_sha256": "d9097f02bf78b53ee048d3bb5e5f674c9c246065d8ceb4c71d8dfd039032131e",
-        "diff_sha256": "a3c6706af4e047ff54eee1b1dcb1f8c96fa0098fbe43132467d61be28a59a5e5"
+        "diff_sha256": "58170510a76183d76bb9733ba9187258c3a4f2685579ed89ef5d8cdd95844122"
       }
     },
     {

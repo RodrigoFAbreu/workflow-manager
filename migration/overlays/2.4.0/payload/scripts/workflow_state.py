@@ -1605,7 +1605,7 @@ def load_pre_amendment_snapshot(
     manifest_by_path = {m.get("path"): m.get("blob") for m in manifest if isinstance(m, dict)}
     commit = entry.get("pre_amendment_approval_commit")
 
-    def _resolve_blob(path: str) -> str:
+    def _resolve_blob(path: str) -> bytes:
         blob = manifest_by_path.get(path)
         if not blob:
             raise AmendmentPreSnapshotUnreproducibleError(

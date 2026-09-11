@@ -188,11 +188,11 @@ dependency-closure item.*
 | Migrated bytes match frozen v2.3.1 | `test_payload_bytes.py::test_every_migrated_file_is_byte_identical_to_the_frozen_commit` |
 | Transformations deterministic and tested | `test_templates.py` (whole file) |
 | Internal references resolve from the distribution | `test_internal_references.py` |
-| The Workflow suite executes against the migrated distribution | `test_conformance_suite.py::TestConformanceFixture` |
+| The Workflow suite executes against the migrated distribution | `test_conformance_suite.py::TestConformanceFixture231` |
 | Command inventory and golden hashes accounted for | `test_internal_references.py::TestCommandInventoryAndGoldenHashes` |
 | No dependency reaches back into the RepFlow working tree | `test_payload_bytes.py::TestNoUpstreamReachback` |
 | No active RepFlow runtime/work-item state imported | `test_no_live_state_imported.py` |
-| A clean disposable target satisfies the Workflow's own tests | `test_conformance_suite.py::TestBootstrappedTarget`, `test_bootstrap_e2e.py` |
+| A clean disposable target satisfies the Workflow's own tests | `test_conformance_suite.py::TestBootstrappedTarget231`, `test_bootstrap_e2e.py::TestBootstrappedRepositorySatisfiesTheFrozenSuite231` |
 | No unresolved dependency-closure item | An unclassified path is a hard error in `tools/migrate.py`; `unmatched_rules` must be empty |
 
 All green. The one clean-target failure is classified, explained, and asserted
@@ -212,7 +212,7 @@ release plus a hand-written overlay, composed by `tools/build_release.py`
 |---|---|
 | Base release | `2.3.1`, verified against its own manifest before the overlay is applied |
 | Overlay | `migration/overlays/2.4.0/` — 11 payload files replaced, 1 added (`.claude/commands/request-plan-amendment.md`) |
-| Provenance | `distribution/workflow/2.4.0/manifest.json`'s `provenance`: `{"origin": "authored", "base_release": "2.3.1", "overlay_commit": "0cd8ed6281c24717a2f66fe47b521d2c1baf16b2"}` |
+| Provenance | `distribution/workflow/2.4.0/manifest.json`'s `provenance`: `{"origin": "authored", "base_release": "2.3.1", "overlay_commit": "55a4271caea93872bf4e17175b52b1ba85a25f74"}` (the build-time `HEAD`, re-recorded by the `SELF_REVIEWING_IMPLEMENTATION` rebuild that carried this milestone's own self-review corrections into the overlay) |
 | Manifest | 61 artifacts (35 `distribution`, 24 `conformance`, 2 `host-evidence`), 6 templates |
 | Byte-level provenance | Every overlay-replaced file records an `overlay_delta` (the base file's own sha256 plus the sha256 of a unified diff against it). `tools/build_release.py --overlay migration/overlays/2.4.0 --check` reproduces the committed `distribution/workflow/2.4.0/` from the base release and the overlay alone; `TestAuthoredReleaseOverlayDelta` reproduces every `overlay_delta` from the base payload plus its recorded diff |
 | Frozen suite against the conformance fixture | 7/7 suites, 1472 tests — the same suite set as `2.3.1`, plus 32 additional `workflow_state_test.py` cases covering the new `AMENDING_PLAN` reconciliation code |

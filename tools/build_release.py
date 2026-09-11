@@ -254,6 +254,21 @@ def build(
         executable = os.access(source_path, os.X_OK)
 
         base_artifact = base_artifacts_by_path.get(rel_path)
+        if base_artifact is not None and base_artifact["location"] != f"payload/{rel_path}":
+            # `base_artifacts_by_path` is keyed by `target_path`, which the
+            # base manifest also assigns to non-`payload/` artifacts (the
+            # `fixtures/` host-evidence documents install at a bare
+            # target-relative path too). An overlay payload file whose
+            # `target_path` collides with one of those is not a replacement
+            # of it: treating it as one would record an `overlay_delta`
+            # against the wrong base bytes and, worse, make the copy-forward
+            # loop below skip the real base artifact -- silently dropping a
+            # file from the release. Refuse and name it instead.
+            raise BuildReleaseError(
+                f"{rel_path}: the base release's artifact with this target_path lives at "
+                f"{base_artifact['location']!r}, not 'payload/{rel_path}' -- an overlay "
+                f"payload file cannot replace a non-payload base artifact"
+            )
         actual_kind = "replaced" if base_artifact is not None else "added"
         expected_kind = rule["expected_kind"]
         if actual_kind != expected_kind:

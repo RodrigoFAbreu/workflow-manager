@@ -188,7 +188,7 @@ What is actually guaranteed about that inventory, precisely:
 set of `### /<name>` sections in this document and the set of
 `.claude/commands/*.md` stems on disk and asserts the two are **equal** —
 that part is derived, so a command added or removed without a section here
-fails. The number 15 itself is *not* derived: it is a hardcoded tripwire
+fails. The number 16 itself is *not* derived: it is a hardcoded tripwire
 in that same test (`assertEqual(len(on_disk), 16)`) whose job is to make a
 change in the roster size a deliberate, reviewed edit. So the set equality
 is mechanical; the count in this paragraph and in the test is a
