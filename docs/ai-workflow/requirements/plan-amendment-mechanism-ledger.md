@@ -648,3 +648,152 @@ overrides it.
 - **Review findings**: none yet -- self-review pending at
   `SELF_REVIEWING_IMPLEMENTATION`.
 - **Functional-verification outcome**: not applicable at this checkpoint.
+
+## `CP6` — Regenerate `distribution/workflow/2.4.0/`; prove frozen `2.3.1`; make CI suites/exceptions per-release; extend the conformance suite; discharge D-Plan-Amendment-7's compatibility audit
+
+- **Implementation evidence**:
+  - **`distribution/workflow/2.4.0/` regenerated for real (D-Authored-Release-2/3)**:
+    ran `python3 tools/build_release.py --overlay migration/overlays/2.4.0`
+    against the committed `distribution/workflow/2.3.1/` base and the
+    committed `migration/overlays/2.4.0/` overlay -- 61 artifacts (35
+    `distribution`, 24 `conformance`, 2 `host-evidence`), 6 templates,
+    `overlay_replaced: 11`, `overlay_added: 1`; `manifest.json`'s
+    `provenance` is `{"origin": "authored", "base_release": "2.3.1",
+    "overlay_commit": "5c0c32120e05435df0c7a169c9a71b628aa34917"}` (CP5's
+    own commit -- the overlay's content as it actually stood when this
+    build ran, not a later, unrelated HEAD).
+  - **Frozen/reproducible, proven by `--check` (not merely asserted)**:
+    `python3 tools/migrate.py --check` --
+    "`distribution/workflow/2.3.1/ matches a fresh extraction of the frozen
+    upstream release`", exit 0 -- `2.3.1` is untouched by this checkpoint.
+    `python3 tools/build_release.py --overlay migration/overlays/2.4.0
+    --check` -- "`distribution/workflow/2.4.0/ matches a fresh build from
+    base 2.3.1 + overlay .../migration/overlays/2.4.0`", exit 0 -- the
+    committed `2.4.0/` tree is byte-identical to what base + overlay alone
+    reproduce.
+  - **`tests/support.py`'s `CI_SUITES`/`PORTABILITY_EXCEPTIONS` made
+    per-release**: `CI_SUITES` restructured from a flat `{suite: count}`
+    map to `{"2.3.1": {...}, "2.4.0": {...}}` (both inner maps identical
+    today -- `2.4.0`'s overlay changes payload-file *content*, never the
+    suite *file set* or per-suite test *count*, confirmed by the run
+    below); added `expected_portability_exceptions(workflow_version)`, the
+    one place both `test_conformance_suite.py` and `test_bootstrap_e2e.py`
+    derive their expected-failure set from a `by_version`-keyed
+    `migration/portability_exceptions.json`.
+  - **`migration/portability_exceptions.json` made per-release (`schema_version:
+    2`)**: `by_version.2.3.1` carries the pre-existing single exception
+    unchanged; `by_version.2.4.0` carries the same test
+    (`workflow_integration_test.py`'s
+    `TestRetiredScopedRemediationLeavesNoLiveSurface.test_the_historical_status_note_carries_a_dated_correction`),
+    for the identical reason -- that suite file is copied forward into the
+    `2.4.0` overlay payload unmodified (not one of CP2/CP3's eleven
+    replaced files), and the overlay does not touch
+    `docs/ACTIVE_MILESTONE.md`.
+  - **`tests/test_conformance_suite.py` extended (parallel authored-release
+    assertion set + three new checks)**: `_SuiteRun.build` now requires an
+    explicit `workflow_version` (no silent default); `TestConformanceFixture231`/
+    `TestConformanceFixture240` and `TestBootstrappedTarget231`/
+    `TestBootstrappedTarget240` share their assertion bodies through
+    `_ConformanceFixtureAssertions`/`_BootstrappedTargetAssertions` mixins
+    (plain mixins, never themselves a `TestCase`, so the shared body is
+    never discovered and run with no `WORKFLOW_VERSION` to build from),
+    parameterized by `WORKFLOW_VERSION`; `231` stays exactly as it always
+    was, `240` is CP6's own addition, run beside it, never in place of it.
+    Three more checks, added once (not per-version, since they are about
+    the authored release specifically): `TestAuthoredReleaseOverlayDelta`
+    (I2 -- every recorded `overlay_delta` reproduces from base bytes +
+    recorded diff alone, via `build_release.unified_diff_sha256`, and
+    `provenance` is exactly the expected authored shape);
+    `TestAuthoredReleaseCiTemplateSuiteNames` (the shipped `2.4.0` CI
+    template names exactly `CI_SUITES["2.4.0"]`'s own suite set -- guards
+    the D-Authored-Release-5 no-op decision against silent drift);
+    `TestOverlayStateWriterClosure` (the `WFO-STATE-SERIALIZATION`
+    closure-verifier gap: `workflow_state.discover_state_writers` only ever
+    scans this repository's own `.claude/commands/`/`scripts/` trees at a
+    Git commit, never `migration/overlays/<version>/payload/`, so a new
+    state writer authored inside an overlay had no closure check at all;
+    this widens the scan, reusing the frozen module's own
+    `_parse_state_writer_declarations` against every present overlay's
+    working-tree files, and positively confirms the widened scan actually
+    covers `request-plan-amendment.md`/`workflow_state.py`, not merely that
+    it runs).
+  - **`tests/test_bootstrap_e2e.py` extended in parallel**:
+    `TestBootstrappedRepositorySatisfiesTheFrozenSuite231`/`240` mirror the
+    same mixin-parameterization shape; `TestCliDrivesTheSameOperations`'s
+    hardcoded `"bootstrapped workflow 2.3.1"` assertion is replaced with a
+    live `find_release(REPO_ROOT).version`-derived expectation, so adding
+    `2.4.0` (now the newest release present) does not itself break a test
+    that was only ever asserting "whatever `bootstrap` with no pin
+    defaults to," per `find_release`'s own documented newest-wins contract.
+  - **`migration/overlays/2.4.0/payload/scripts/prepare-ai-review.sh`
+    correctness fix, found by this checkpoint's own run of the widened
+    conformance matrix**: the archive line's process-substitution
+    conditional member is now placed *before* the fixed `current`
+    positional argument (`tar -czf "$ARCHIVE_TMP" -C "$ROOT_DIR"
+    $(cd "$ROOT_DIR" && [ -f AMENDMENT_DIFF.patch ] && echo
+    AMENDMENT_DIFF.patch) current`, not after it) -- item 341's frozen
+    regression guard
+    (`workflow_fingerprint_generalization_test.py`) requires the archive's
+    positional directory argument to be the bare literal `"current"`, and
+    with the conditional member trailing, an absent `AMENDMENT_DIFF.patch`
+    made `current` the *first* positional argument by accident of shell
+    word-splitting rather than by the literal the guard expects; reordering
+    makes `current` always the fixed last positional argument regardless of
+    whether the conditional member expands to anything, which is what the
+    guard actually checks. Recorded as a fresh `overlay_delta` (this file
+    is one of CP3's eleven replaced paths; the diff is against the same
+    `2.3.1` base, unchanged from CP3's own delta base).
+  - **D-Plan-Amendment-7's compatibility-audit acceptance obligation,
+    discharged**: the obligation is to identify every payload-suite test
+    function (`workflow_state_test.py`, `workflow_state_completion_obligations_test.py`,
+    `workflow_integration_test.py`) whose read set intersects a path this
+    release's checkpoints touch, run each against the finished overlay
+    diff, and report every member green or an already-documented red.
+    `TestConformanceFixture240`/`TestBootstrappedTarget240` run *every*
+    test in all three files (not a hand-selected subset) against the
+    finished `2.4.0` overlay diff inside a real conformance
+    fixture/bootstrapped target, which is a superset of "every test whose
+    read set intersects a touched path" -- discharged by construction
+    rather than by a separate, narrower enumeration. Result: `256`/`616`/
+    `106` tests each, all green except the one already-documented
+    `by_version.2.4.0` exception above (a `docs/ACTIVE_MILESTONE.md`
+    host-history read, not a Workflow-semantics regression). No new red.
+  - **`docs/ai-workflow/requirements/plan-amendment-mechanism-ledger.md`**:
+    this entry.
+- **Verification**:
+  - `python3 tools/migrate.py --check` -- `2.3.1` matches a fresh
+    extraction, exit 0.
+  - `python3 tools/build_release.py --overlay migration/overlays/2.4.0
+    --check` -- `2.4.0` matches a fresh build from base `2.3.1` + the
+    overlay, exit 0.
+  - `python3 tests/run_all.py --fast` -- six suites, all green.
+  - `python3 scripts/workflow_state_test.py` -- 616 tests, all green
+    (narrow check, run first, against the live self-hosted module CP2's
+    overlay copy mirrors).
+  - `python3 tests/run_all.py` (full matrix, ~10m21s total): all eight
+    suites green, including both slow suites --
+    `test_conformance_suite.py` (410.0s: `TestConformanceFixture231/240`,
+    `TestBootstrappedTarget231/240`, `TestAuthoredReleaseOverlayDelta`,
+    `TestAuthoredReleaseCiTemplateSuiteNames`,
+    `TestOverlayStateWriterClosure`, all green) and
+    `test_bootstrap_e2e.py` (205.9s:
+    `TestBootstrappedRepositorySatisfiesTheFrozenSuite231/240` and every
+    other test in the file, all green). This is the run that proves
+    `2.4.0`'s own conformance/bootstrap matrix passes end to end and that
+    `2.3.1`'s own matrix is unaffected -- the strongest evidence this
+    checkpoint offers, and the one this entry's "D-Plan-Amendment-7"
+    paragraph above relies on directly.
+- **Review findings**: self-review performed before commit (this
+  checkpoint's own diff, `git diff HEAD` against CP5's commit, read in
+  full): the two-line reordering fix to `prepare-ai-review.sh` was the one
+  confirmed defect found and fixed (the archive-argument-order bug above);
+  no other defect found. `docs/defects/v2.3.1-003-plan-approval-requires-precommitted-state-file.md`
+  (an untracked file already present in the working tree before this
+  checkpoint began, per `WORKTREE_IDENTITY.json`'s own recorded
+  `expected_dirty_paths_by_work_item` snapshot) documents an unrelated
+  defect found during this work item's own first `/approve-review plan`
+  attempt; it is not part of this checkpoint's scope and is deliberately
+  left uncommitted here, unchanged, per `CLAUDE.md`'s "don't touch
+  unrelated working-tree changes."
+- **Functional-verification outcome**: not applicable at this checkpoint.
+

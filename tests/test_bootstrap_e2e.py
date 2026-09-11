@@ -6,7 +6,9 @@ directly from the release. This suite runs it against a repository produced by
 `install.bootstrap` -- the code a real consumer would run -- and then puts that
 repository through an update cycle with live work-item state in it.
 
-Slow (~2 minutes): the frozen acceptance matrix runs twice.
+Slow (~2 minutes per release): `TestBootstrappedRepositorySatisfiesTheFrozen
+Suite231`/`240` (CP6) each drive the frozen acceptance matrix once, against a
+repository bootstrapped from `2.3.1` and from `2.4.0` respectively.
 """
 
 from __future__ import annotations
@@ -19,7 +21,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from support import CI_SUITES, PORTABILITY_EXCEPTIONS, REPO_ROOT, failing_tests, run_suite
+from support import CI_SUITES, REPO_ROOT, expected_portability_exceptions, failing_tests, run_suite
 
 from workflow_manager.install import bootstrap, drift, update, verify
 from workflow_manager.installation import Installation
@@ -43,25 +45,24 @@ def _empty_repo(root: Path) -> Path:
     return root
 
 
-def _expected_failures() -> dict[str, set[str]]:
-    expected: dict[str, set[str]] = {}
-    for record in PORTABILITY_EXCEPTIONS["exceptions"]:
-        expected.setdefault(record["suite"], set()).add(record["test"])
-    return expected
+class _BootstrappedRepositorySatisfiesTheFrozenSuiteAssertions:
+    """Shared assertions for `TestBootstrappedRepositorySatisfiesTheFrozen
+    Suite*`, parameterized per release by `WORKFLOW_VERSION` -- mirrors
+    `test_conformance_suite.py`'s own mixin shape and reasoning (a plain
+    mixin, never itself a `unittest.TestCase`, so the shared body is never
+    discovered and run on its own with no `WORKFLOW_VERSION` to bootstrap)."""
 
-
-class TestBootstrappedRepositorySatisfiesTheFrozenSuite(unittest.TestCase):
-    """The gate: what the bootstrapper produces behaves like frozen v2.3.1."""
+    WORKFLOW_VERSION: str
 
     @classmethod
     def setUpClass(cls):
         cls._tmp = tempfile.TemporaryDirectory()
-        cls.release = find_release(REPO_ROOT, "2.3.1")
+        cls.release = find_release(REPO_ROOT, cls.WORKFLOW_VERSION)
         cls.target = _empty_repo(Path(cls._tmp.name) / "consumer")
         cls.installation = bootstrap(cls.target, cls.release, now=FIXED_NOW)
         _git(cls.target, "add", "-A")
         _git(cls.target, "commit", "-q", "-m", "bootstrap workflow")
-        cls.results = {suite: run_suite(cls.target, suite) for suite in CI_SUITES}
+        cls.results = {suite: run_suite(cls.target, suite) for suite in CI_SUITES[cls.WORKFLOW_VERSION]}
 
     @classmethod
     def tearDownClass(cls):
@@ -73,7 +74,7 @@ class TestBootstrappedRepositorySatisfiesTheFrozenSuite(unittest.TestCase):
             names = failing_tests(proc.stdout + proc.stderr)
             if names:
                 actual[suite] = names
-        self.assertEqual(actual, _expected_failures())
+        self.assertEqual(actual, expected_portability_exceptions(self.WORKFLOW_VERSION))
 
     def test_every_suite_runs_the_frozen_number_of_tests(self):
         counts = {}
@@ -81,7 +82,7 @@ class TestBootstrappedRepositorySatisfiesTheFrozenSuite(unittest.TestCase):
             match = RAN_RE.search(proc.stdout + proc.stderr)
             self.assertIsNotNone(match, f"{suite} produced no summary")
             counts[suite] = int(match.group(1))
-        self.assertEqual(counts, dict(CI_SUITES))
+        self.assertEqual(counts, dict(CI_SUITES[self.WORKFLOW_VERSION]))
 
     def test_the_acceptance_matrix_passes_outright(self):
         """The strongest single row: every documented lifecycle behaviour,
@@ -113,6 +114,26 @@ class TestBootstrappedRepositorySatisfiesTheFrozenSuite(unittest.TestCase):
             if "__pycache__" not in line and not line.endswith(".pyc")
         ]
         self.assertEqual(ignorable, [])
+
+
+class TestBootstrappedRepositorySatisfiesTheFrozenSuite231(
+    _BootstrappedRepositorySatisfiesTheFrozenSuiteAssertions, unittest.TestCase,
+):
+    """The gate: what the bootstrapper produces behaves like frozen v2.3.1.
+    Unchanged by CP6."""
+
+    WORKFLOW_VERSION = "2.3.1"
+
+
+class TestBootstrappedRepositorySatisfiesTheFrozenSuite240(
+    _BootstrappedRepositorySatisfiesTheFrozenSuiteAssertions, unittest.TestCase,
+):
+    """CP6's own explicit obligation: the same bootstrapped-repository gate,
+    a second time, against `2.4.0`'s own authored release -- `bootstrap()`
+    against an authored (not merely upstream-extracted) manifest is itself
+    part of what this proves (D-Authored-Release-5)."""
+
+    WORKFLOW_VERSION = "2.4.0"
 
 
 class TestUpdatePreservesLiveWorkItemState(unittest.TestCase):
@@ -213,9 +234,18 @@ class TestCliDrivesTheSameOperations(unittest.TestCase):
         before = self._cli("status", str(self.target))
         self.assertIn("not a managed repository", before.stdout)
 
+        # `find_release`'s own documented contract: an unpinned `bootstrap`
+        # means "the current release" -- the newest one present, not a
+        # literal pinned to whatever was newest when this test was written
+        # (CP6, D-Authored-Release-4: adding `distribution/workflow/2.4.0/`
+        # is exactly the kind of "just add a directory" change this
+        # defaulting exists to absorb without a test edit here -- so this
+        # asserts against the same live default the CLI itself resolves,
+        # not a second, drifting copy of it).
+        default_version = find_release(REPO_ROOT).version
         created = self._cli("bootstrap", str(self.target))
         self.assertEqual(created.returncode, 0, created.stderr)
-        self.assertIn("bootstrapped workflow 2.3.1", created.stdout)
+        self.assertIn(f"bootstrapped workflow {default_version}", created.stdout)
 
         checked = self._cli("verify", str(self.target))
         self.assertEqual(checked.returncode, 0, checked.stdout + checked.stderr)

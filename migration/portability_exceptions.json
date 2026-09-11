@@ -1,14 +1,28 @@
 {
-  "schema_version": 1,
-  "workflow_version": "2.3.1",
-  "description": "Tests in the frozen v2.3.1 suite that cannot pass in a freshly bootstrapped target repository because they assert on the upstream host repository's own document history. Each one is green in the conformance fixture, where the frozen host documents are present. Nothing here is a Workflow regression and nothing here is repaired: frozen v2.3.1 semantics are preserved byte-for-byte.",
-  "exceptions": [
-    {
-      "suite": "workflow_integration_test.py",
-      "test": "TestRetiredScopedRemediationLeavesNoLiveSurface.test_the_historical_status_note_carries_a_dated_correction",
-      "requires": "docs/ACTIVE_MILESTONE.md",
-      "reason": "Asserts that a paragraph beginning '**Status note (2026-08-04)**' exists and is immediately followed by one beginning '**Correction (2026-08-26)**'. Both are RepFlow's own dated milestone history. A bootstrapped repository has no such history, and fabricating one would write a false record into the target.",
-      "defect": "docs/defects/v2.3.1-001-host-history-coupled-tests.md"
+  "schema_version": 2,
+  "description": "Tests in a release's own frozen/authored suite that cannot pass in a freshly bootstrapped target repository because they assert on the upstream host repository's own document history. Each one is green in the conformance fixture, where the frozen host documents are present. Nothing here is a regression and nothing here is repaired: v2.3.1 stays byte-for-byte frozen, and v2.4.0's own authored content preserves the same posture. Keyed by workflow_version (D-Authored-Release-2/CP6) so each release's own exception set is documented and verified independently -- never assumed to carry over from another release's own set.",
+  "by_version": {
+    "2.3.1": {
+      "exceptions": [
+        {
+          "suite": "workflow_integration_test.py",
+          "test": "TestRetiredScopedRemediationLeavesNoLiveSurface.test_the_historical_status_note_carries_a_dated_correction",
+          "requires": "docs/ACTIVE_MILESTONE.md",
+          "reason": "Asserts that a paragraph beginning '**Status note (2026-08-04)**' exists and is immediately followed by one beginning '**Correction (2026-08-26)**'. Both are RepFlow's own dated milestone history. A bootstrapped repository has no such history, and fabricating one would write a false record into the target.",
+          "defect": "docs/defects/v2.3.1-001-host-history-coupled-tests.md"
+        }
+      ]
+    },
+    "2.4.0": {
+      "exceptions": [
+        {
+          "suite": "workflow_integration_test.py",
+          "test": "TestRetiredScopedRemediationLeavesNoLiveSurface.test_the_historical_status_note_carries_a_dated_correction",
+          "requires": "docs/ACTIVE_MILESTONE.md",
+          "reason": "Same host-history-coupled assertion as v2.3.1's own entry above -- workflow_integration_test.py is copied forward into the v2.4.0 overlay payload unmodified (not one of CP2/CP3's replaced files), and the overlay does not touch docs/ACTIVE_MILESTONE.md, so a freshly bootstrapped v2.4.0 target repository fails this test for the identical reason.",
+          "defect": "docs/defects/v2.3.1-001-host-history-coupled-tests.md"
+        }
+      ]
     }
-  ]
+  }
 }
