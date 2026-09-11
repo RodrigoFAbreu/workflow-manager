@@ -868,3 +868,174 @@ overrides it.
   working-tree changes."
 - **Functional-verification outcome**: not applicable at this checkpoint.
 
+## `CP8` — Update-path validation: all three scenarios, plus dependency-closure, anchor-grammar, and reconciliation edge cases
+
+- **Implementation evidence**:
+  - **`migration/overlays/2.4.0/payload/scripts/workflow_state_test.py`**
+    (overlay-authored, then regenerated into
+    `distribution/workflow/2.4.0/` via `tools/build_release.py`): CP2/CP3
+    shipped `reconcile_checkpoints_after_amendment`,
+    `request_plan_amendment`, `apply_plan_approval`'s amendment branch, and
+    the `<!-- CPn -->` anchor grammar with **zero** dedicated tests (the
+    plan's own section 4 "items 11-15" note deferred them here). Added 32
+    new tests, all pure/unit-level except where a real plan-approval
+    commit is required: `TestCheckpointAnchorSpans`/
+    `TestCheckpointContentHash` (the balanced-tag grammar -- disjoint pairs
+    legal, nested/orphan/unterminated malformed in strict mode, non-strict
+    omits only the malformed id); `TestValidatePostAnchorCoverage` (missing
+    pair, overlapping-open, orphan-close -- item 13);
+    `TestReconcileCheckpointsAfterAmendment` (retained; row-changed;
+    row-identical-but-content-changed, B6.2/item 7; the legacy no-anchor
+    conservative default, B4-new.1/item 12; dropped; new; the
+    dependency-closure pass flipping an otherwise-unchanged dependent,
+    B6.3/item 6; a non-`COMPLETE` status left alone); `TestRequestPlanAmendment`
+    (success, both allowed phases, wrong phase refused, unreachable
+    approval commit refused *before* superseding anything, a second
+    request against an already-`AMENDING_PLAN` item refused);
+    `TestApplyPlanApprovalAmendmentBranch` (missing reconciliation inputs;
+    already-resolved amendment refused; missing post-anchor coverage
+    refused before any reconciliation; successful reconciliation resolves
+    the amendment and enters `IMPLEMENTING`; a dropped
+    `current_checkpoint_id`/`last_completed_checkpoint_id` nulled; no open
+    amendment is a byte-for-byte no-op for the four new parameters; an
+    already-resolved `amendment_history` never re-triggers reconciliation).
+  - **Real defect found and fixed while writing the above**: `apply_plan_approval`'s
+    `AmendmentAlreadyResolvedError` branch was dead code -- it lived inside
+    `if has_open_amendment:`, but `has_open_amendment` is defined as "the
+    last `amendment_history` entry's `resolved_at_plan_revision` **is**
+    `None`", so the branch checking whether that same field is **not**
+    `None` could never execute. Fixed by hoisting the check ahead of, and
+    independent of, `has_open_amendment`'s own gate: it now fires whenever
+    the last entry is already resolved *and* the caller supplies any of
+    the four reconciliation parameters (a re-run attempt), while a caller
+    that supplies none of them against an already-resolved amendment stays
+    the documented no-op/"never consulted" case. Covered by
+    `test_an_already_resolved_amendment_is_refused`, which failed against
+    the unpatched function and passes against the fix.
+  - **`tests/test_amendment_update_path.py`** (new): the actual disposable-
+    repository update-path validation (REQ-13/REQ-14, section 4), against
+    the real `2.3.1`/`2.4.0` releases this repository ships, never a
+    synthetic release and never `~/Workspace/workflow-controller`.
+    `TestUpdatePathNormalRepository` (scenario 1): bootstrap `2.3.1`,
+    `update` to `2.4.0`, state untouched, `drift`/`verify` clean, the new
+    `/request-plan-amendment` command present afterward.
+    `TestUpdatePathImplementingFullAmendmentRehearsal` (scenario 2, the
+    full sequence): drive a synthetic item to `IMPLEMENTING` (CP1/CP2
+    complete, CP3 open) under `2.3.1`; `update` to `2.4.0`, state
+    untouched, `drift` clean, `implementing_entry_reachable` still holds;
+    `request_plan_amendment` for the first time on the updated repo;
+    `load_pre_amendment_snapshot` retrieves the pinned pre-amendment
+    plan/registry from the superseded approval's own commit (proving that
+    round trip against a real repository, previously untested anywhere);
+    an amended registry/plan (CP1/CP2/CP3 rows carried forward, CP4 new)
+    reconciled and re-approved through the real
+    `apply_plan_approval`/`build_approval_record`/`compute_review_content_id_plan_stage_for_work_item`
+    path -- since `2.3.1`'s own `render_registry_markdown` output (the
+    fixture's original plan text) carries no anchors at all, CP1/CP2 both
+    conservatively flip to `NEEDS_REVALIDATION` (item 12, exercised here
+    against a real repository, not only the pure unit test above); item 5
+    (`implementing_entry_reachable` immediately after the amended plan's
+    approval, same unchanged `base_commit`) asserted directly; then every
+    checkpoint (CP1/CP2/CP3/CP4) driven to `COMPLETE`, reaching
+    `SELF_REVIEWING_IMPLEMENTATION` again. `TestUpdatePathSelfReviewingImplementation`
+    (scenario 3): the same update, from every-checkpoint-complete, then a
+    bare `/request-plan-amendment` succeeding from that phase.
+    `TestMigrateDoesNotDeleteASiblingAuthoredRelease` (item 8/B1):
+    `tools/migrate.py --check` still passes with `2.4.0` present, and an
+    ordinary (non-`--check`) regeneration leaves `2.4.0` byte-identical
+    and untouched (restored via `git checkout` regardless of outcome, so
+    the real repository's tracked `2.3.1` tree is never left modified).
+    `TestReleaseCliAgainstTheAuthoredManifest` (item 10):
+    `find_release(..., "2.4.0").provenance`/`.upstream` read correctly, the
+    CLI's `releases` subcommand lists both `2.3.1` and `2.4.0`, and
+    `--release-version 2.4.0 bootstrap`/`status`/`update` all work
+    end to end. Item 9 (pinned suites re-run with both releases present)
+    is not a new test: every existing suite in this repository already
+    runs with both `distribution/workflow/2.3.1/` and `.../2.4.0/`
+    committed side by side, which is exactly what that item asks for.
+    Item 16 (`Installation.from_dict` pre-provenance round trip) already
+    existed (`tests/test_bootstrap.py`'s
+    `test_a_pre_provenance_record_still_loads_and_defaults_to_upstream`);
+    item 17 (the full frozen conformance matrix against `2.4.0`) already
+    existed (`TestConformanceFixture240`/`TestBootstrappedTarget240`/
+    `TestOverlayStateWriterClosure`, CP6's own obligation) -- both
+    confirmed still green under this checkpoint's own final verification
+    run rather than re-authored.
+  - **A second, real defect found by scenario 2's own rehearsal, fixed
+    forward**: driving a live `IMPLEMENTING` item through a real
+    `update()` that commits `.workflow-manager/installation.json` (workflow_
+    manager's own installation-record bookkeeping, never Workflow-
+    distributed content, and named nowhere in
+    `workflow_fingerprint.PLAN_STAGE_EXCLUDED_PREFIXES`'s upstream-inherited
+    set) made every later plan-stage `review_content_id` recomputation for
+    that item -- `implementing_entry_reachable`/`/request-plan-amendment`
+    included -- raise an uncaught `UnclassifiedPathError` instead of a
+    clean refusal. Fixed forward, for any work item generated from this
+    point on, by adding `.workflow-manager/` to
+    `generate_artifacts_declarations`'s own plan-stage `excluded_prefixes`
+    default (same "widen the template, not the frozen constant" rule
+    salvage audit I7/I8 already established for this exact generator).
+    This cannot repair a work item whose declarations file was already
+    generated before the fix (this repository's own `plan-amendment-
+    mechanism` item included) -- written up as
+    `docs/defects/v2.4.0-001-workflow-manager-installation-record-unclassified-at-plan-stage.md`,
+    with the operator-facing mitigation (never commit
+    `.workflow-manager/installation.json` inside a live item's own
+    interval -- exclude it locally, e.g. `.git/info/exclude`, which is
+    exactly what this checkpoint's own test suite now does in its
+    `setUp`).
+  - **`tests/support.py`**: `CI_SUITES["2.4.0"]["workflow_state_test.py"]`
+    moved from 616 to 648 (+32, the exact count of new test methods this
+    checkpoint added to that file) -- otherwise
+    `test_every_suite_runs_the_frozen_number_of_tests` would fail the
+    moment the frozen conformance matrix next ran against `2.4.0`.
+  - **`tests/run_all.py`**: registered `test_amendment_update_path.py` in
+    `FAST_SUITES` (no frozen conformance matrix; ~2s for all nine tests).
+  - Deliberately **not** in this checkpoint's scope (recorded, not
+    silently dropped): item 4 (a `REVISE` verdict mid-amendment and
+    `AMENDMENT_DIFF.patch`'s own base-commit stability across rounds) and
+    item 15 (a bundle-identity check across an amendment's open/closed
+    state) both reach into `/approve-review`'s own command-level bundle/
+    journal plumbing rather than `workflow_state`'s pure functions or the
+    disposable-repository update path this checkpoint's own name names;
+    item 14 (trailing plan sections 5-8 changing without flipping any
+    checkpoint) is a direct, low-risk corollary of the anchor-span grammar
+    already proven by `TestCheckpointAnchorSpans`/
+    `TestReconcileCheckpointsAfterAmendment` (a paired span excludes
+    everything outside it, by construction) but was not separately
+    authored as its own test.
+- **Verification**:
+  - `python3 workflow_state_test.py` (run from a scratch copy of
+    `distribution/workflow/2.4.0/payload/scripts/`, narrowest check, run
+    first): 646 tests before the dead-code fix (1 failure, confirming the
+    unreachable branch), 646 after (0 failures; the pre-existing 3 errors
+    -- `TestCanonicalStateSerialization`'s two live-repository-path tests
+    and `TestGlobalLockOrderItem372h`'s `setUpClass` -- are environmental,
+    reproduced identically against the unmodified base file when run the
+    same way outside a real bootstrapped/conformance repository).
+  - `python3 -m unittest test_amendment_update_path -v` (run from
+    `tests/`): 9 tests, all green.
+  - `python3 tests/run_all.py --fast`: eight suites, all green.
+  - `python3 -m unittest test_conformance_suite.TestConformanceFixture240
+    test_conformance_suite.TestBootstrappedTarget240 -v` (the two 2.4.0
+    conformance classes this checkpoint's own `CI_SUITES` edit and
+    `workflow_state_test.py` growth bear directly on): 9 tests, all green
+    in 210.7s, including `test_every_suite_runs_the_frozen_number_of_tests`
+    -- confirming the corrected 648 count.
+  - `python3 tools/build_release.py --overlay migration/overlays/2.4.0
+    --base 2.3.1` then `--check`: matches, `overlay_replaced: 11`,
+    `overlay_added: 1` (unchanged from CP6 -- this checkpoint only edited
+    already-overlay-replaced files, added no new overlay path).
+- **Review findings**: self-review performed before commit (this
+  checkpoint's own diff, `git diff` against CP7's commit, read in full).
+  Two confirmed defects found and fixed, both described above under
+  Implementation evidence: (1) `AmendmentAlreadyResolvedError`'s
+  unreachable branch in `apply_plan_approval`; (2) `.workflow-manager/`
+  unclassified at the plan stage, fixed forward and written up for the
+  residual pre-existing-item gap. No other defect found. The unrelated,
+  pre-existing `docs/defects/v2.3.1-003-plan-approval-requires-precommitted-state-file.md`
+  (already untracked before this checkpoint began) is again left
+  uncommitted, unchanged, per `CLAUDE.md`'s "don't touch unrelated
+  working-tree changes."
+- **Functional-verification outcome**: not applicable at this checkpoint.
+

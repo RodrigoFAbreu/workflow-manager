@@ -6916,6 +6916,31 @@ def generate_artifacts_declarations(
     plan_stage_excluded_prefixes.setdefault(
         WORKFLOW_DOCS_PREFIX, _SIBLING_WORKFLOW_DOCS_JUSTIFICATION,
     )
+    # CP8 (`plan-amendment-mechanism`), disposable-repository update-path
+    # validation surfaced this: `workflow_manager.install`'s own
+    # `.workflow-manager/installation.json` record (never Workflow-
+    # distributed content, and unknown to `fingerprint.PLAN_STAGE_EXCLUDED_
+    # PREFIXES`, whose inherited set predates this tool entirely) changes on
+    # every `update()`, so an `update()` landing inside any in-flight work
+    # item's plan-approval..HEAD interval otherwise makes plan-stage
+    # `review_content_id` recomputation -- `implementing_entry_reachable`
+    # included -- raise `UnclassifiedPathError` rather than cleanly
+    # excluding a path this item never wrote. Excluded here, in the
+    # generated template (same "widen the template, not the frozen
+    # constant" rule salvage audit I7/I8 already established above), so no
+    # existing declaration file changes and no existing approval's identity
+    # moves. This does not by itself repair a work item whose own
+    # declarations file was already generated before this fix landed (any
+    # work item created under `2.3.1`, or under an earlier `2.4.0` overlay
+    # revision) -- see docs/defects/v2.4.0-001-workflow-manager-installation-
+    # record-unclassified-at-plan-stage.md for that residual, pre-existing-
+    # item gap and why it is not retroactively repaired here.
+    plan_stage_excluded_prefixes.setdefault(
+        ".workflow-manager/",
+        "workflow_manager's own installation-record bookkeeping (which release is "
+        "installed, managed/generated/merged file digests) -- tooling identity, "
+        "never this or any other work item's own plan-stage content",
+    )
     for path in sorted(fingerprint.PLAN_STAGE_PROTECTED):
         if path in own_declaration_paths:
             continue
@@ -10044,11 +10069,33 @@ def apply_plan_approval(
     item's own live `plan_revision` -- into the state this function
     returns, alongside its own unchanged write set (`plan_approval`,
     `phase`, `state_revision`, `last_transition`). `plan_revision` itself
-    is never written here -- it stays `publish_plan_revision`'s alone."""
+    is never written here -- it stays `publish_plan_revision`'s alone.
+
+    A caller that supplies any reconciliation input against a work item
+    whose last `amendment_history` entry is *already* resolved -- a re-run
+    reconciliation, the one case `AmendmentAlreadyResolvedError` names in
+    its own docstring -- is refused before anything else runs (checked
+    ahead of, and independent of, `has_open_amendment`'s own gate below;
+    that gate alone can never observe this state, since it is true only
+    when the last entry is *not* yet resolved). A caller that supplies none
+    of the four against an already-resolved amendment stays the ordinary,
+    unconsulted no-op case above."""
     validate_approval_record(record, stage="plan")
     new_state = copy.deepcopy(state)
     work_item = new_state["work_items"][work_item_id]
     amendment_history = work_item.get("amendment_history") or []
+    reconciliation_requested = any(
+        value is not None for value in (pre_registry, pre_plan_text, post_registry, post_plan_text)
+    )
+    if (
+        amendment_history and amendment_history[-1].get("resolved_at_plan_revision") is not None
+        and reconciliation_requested
+    ):
+        raise AmendmentAlreadyResolvedError(
+            f"{work_item_id}'s last amendment_history entry is already resolved at "
+            f"plan_revision {amendment_history[-1]['resolved_at_plan_revision']!r} -- "
+            f"refusing a re-run reconciliation"
+        )
     has_open_amendment = bool(amendment_history) and amendment_history[-1].get("resolved_at_plan_revision") is None
     if has_open_amendment:
         missing = [
@@ -10061,11 +10108,6 @@ def apply_plan_approval(
             raise AmendmentReconciliationInputsMissingError(
                 f"{work_item_id} has an open amendment -- reconciliation requires all of "
                 f"pre_registry/pre_plan_text/post_registry/post_plan_text; missing: {missing}"
-            )
-        if amendment_history[-1].get("resolved_at_plan_revision") is not None:
-            raise AmendmentAlreadyResolvedError(
-                f"{work_item_id}'s last amendment_history entry is already resolved at "
-                f"plan_revision {amendment_history[-1]['resolved_at_plan_revision']!r}"
             )
         validate_post_anchor_coverage(post_plan_text, post_registry)
         reconciliation = reconcile_checkpoints_after_amendment(

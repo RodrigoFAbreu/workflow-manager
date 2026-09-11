@@ -10267,5 +10267,404 @@ class TestPersistedPhaseWriterCensus(unittest.TestCase):
         )
 
 
+# ---------------------------------------------------------------------------
+# CP8 (`plan-amendment-mechanism`): D-Plan-Amendment-1..8's own unit-level
+# coverage -- CP2/CP3 authored request_plan_amendment/reconcile_checkpoints_
+# after_amendment/apply_plan_approval's amendment branch/the anchor grammar,
+# but (plan revision 34, section 4's own "items 11-15" note) deliberately
+# deferred their dedicated tests to this checkpoint. Every class below tests
+# functions that previously had zero coverage in this suite.
+# ---------------------------------------------------------------------------
+
+
+class TestCheckpointAnchorSpans(unittest.TestCase):
+    """`parse_checkpoint_anchor_spans`'s closed, non-nesting, per-id
+    balanced-tag grammar (D-Plan-Amendment-4, B5-new/I5-new)."""
+
+    def test_two_disjoint_pairs_for_the_same_id_are_legal(self):
+        text = "<!-- CP1 -->a<!-- /CP1 -->mid<!-- CP1 -->b<!-- /CP1 -->"
+        spans = ws.parse_checkpoint_anchor_spans(text)
+        self.assertEqual(len(spans["CP1"]), 2)
+
+    def test_nested_open_tag_is_malformed_in_strict_mode(self):
+        text = "<!-- CP1 --><!-- CP1 -->x<!-- /CP1 --><!-- /CP1 -->"
+        with self.assertRaises(ws.AmendmentAnchorMalformedError):
+            ws.parse_checkpoint_anchor_spans(text, strict=True)
+
+    def test_orphan_close_tag_is_malformed_in_strict_mode(self):
+        with self.assertRaises(ws.AmendmentAnchorMalformedError):
+            ws.parse_checkpoint_anchor_spans("<!-- /CP2 -->", strict=True)
+
+    def test_unterminated_open_tag_is_malformed_in_strict_mode(self):
+        with self.assertRaises(ws.AmendmentAnchorMalformedError):
+            ws.parse_checkpoint_anchor_spans("<!-- CP3 -->dangling", strict=True)
+
+    def test_non_strict_mode_omits_only_the_malformed_id_never_raises(self):
+        text = "<!-- CP1 -->ok<!-- /CP1 --><!-- /CP2 -->"
+        spans = ws.parse_checkpoint_anchor_spans(text, strict=False)
+        self.assertIn("CP1", spans)
+        self.assertNotIn("CP2", spans)
+
+
+class TestCheckpointContentHash(unittest.TestCase):
+    def test_none_when_the_id_has_no_well_formed_spans(self):
+        self.assertIsNone(ws.checkpoint_content_hash("no anchors here", "CP1"))
+
+    def test_changes_when_the_span_content_changes(self):
+        h1 = ws.checkpoint_content_hash("<!-- CP1 -->a<!-- /CP1 -->", "CP1", strict=True)
+        h2 = ws.checkpoint_content_hash("<!-- CP1 -->b<!-- /CP1 -->", "CP1", strict=True)
+        self.assertNotEqual(h1, h2)
+
+    def test_identical_when_the_span_content_is_identical_despite_surrounding_prose(self):
+        h1 = ws.checkpoint_content_hash("<!-- CP1 -->same<!-- /CP1 -->", "CP1", strict=True)
+        h2 = ws.checkpoint_content_hash("prefix <!-- CP1 -->same<!-- /CP1 --> suffix", "CP1", strict=True)
+        self.assertEqual(h1, h2)
+
+
+class TestValidatePostAnchorCoverage(unittest.TestCase):
+    @staticmethod
+    def _registry(ids):
+        return {"checkpoints": [{"id": cid} for cid in ids]}
+
+    def test_a_missing_anchor_pair_is_refused(self):
+        with self.assertRaises(ws.AmendmentAnchorCoverageError):
+            ws.validate_post_anchor_coverage(
+                "<!-- CP1 -->x<!-- /CP1 -->", self._registry(["CP1", "CP2"]),
+            )
+
+    def test_two_disjoint_pairs_for_the_same_id_are_legal_not_malformed(self):
+        text = "<!-- CP1 -->a<!-- /CP1 -->mid<!-- CP1 -->b<!-- /CP1 -->"
+        ws.validate_post_anchor_coverage(text, self._registry(["CP1"]))  # must not raise
+
+    def test_an_orphan_close_tag_anywhere_is_malformed(self):
+        with self.assertRaises(ws.AmendmentAnchorMalformedError):
+            ws.validate_post_anchor_coverage("<!-- /CP1 -->", self._registry(["CP1"]))
+
+    def test_an_overlapping_open_tag_anywhere_is_malformed(self):
+        text = "<!-- CP1 --><!-- CP1 -->x<!-- /CP1 --><!-- /CP1 -->"
+        with self.assertRaises(ws.AmendmentAnchorMalformedError):
+            ws.validate_post_anchor_coverage(text, self._registry(["CP1"]))
+
+
+class TestReconcileCheckpointsAfterAmendment(unittest.TestCase):
+    """`reconcile_checkpoints_after_amendment`'s three-outcome algorithm
+    plus its own dependency-closure pass -- pure and directly testable with
+    no repository at all."""
+
+    @staticmethod
+    def _row(cid, depends_on=(), name=None):
+        return {
+            "id": cid, "name": name or f"checkpoint {cid}",
+            "depends_on": list(depends_on), "complexity": 1, "session_target": 1,
+        }
+
+    @staticmethod
+    def _registry(rows):
+        return {"checkpoints": rows}
+
+    def test_retained_when_row_and_content_are_both_unchanged(self):
+        pre = self._registry([self._row("CP1")])
+        post = self._registry([self._row("CP1")])
+        text = "<!-- CP1 -->same<!-- /CP1 -->"
+        checkpoints = {"CP1": {"status": "COMPLETE", "start_commit": "x"}}
+        result = ws.reconcile_checkpoints_after_amendment(pre, post, text, text, checkpoints)
+        self.assertEqual(result["outcome"]["CP1"], "retained")
+        self.assertEqual(result["checkpoints"]["CP1"]["status"], "COMPLETE")
+
+    def test_needs_revalidation_when_the_registry_row_changed(self):
+        pre = self._registry([self._row("CP1", name="old name")])
+        post = self._registry([self._row("CP1", name="new name")])
+        text = "<!-- CP1 -->same<!-- /CP1 -->"
+        checkpoints = {"CP1": {"status": "COMPLETE", "start_commit": "x"}}
+        result = ws.reconcile_checkpoints_after_amendment(pre, post, text, text, checkpoints)
+        self.assertEqual(result["outcome"]["CP1"], "needs_revalidation")
+        self.assertEqual(result["checkpoints"]["CP1"]["status"], "NEEDS_REVALIDATION")
+
+    def test_needs_revalidation_when_the_row_is_byte_identical_but_content_changed(self):
+        """B6.2: the discriminator must see a redefinition the registry row
+        alone would miss."""
+        pre_row = self._row("CP1")
+        pre = self._registry([pre_row])
+        post = self._registry([dict(pre_row)])
+        pre_text = "<!-- CP1 -->old design<!-- /CP1 -->"
+        post_text = "<!-- CP1 -->new design<!-- /CP1 -->"
+        checkpoints = {"CP1": {"status": "COMPLETE", "start_commit": "x"}}
+        result = ws.reconcile_checkpoints_after_amendment(pre, post, pre_text, post_text, checkpoints)
+        self.assertEqual(result["outcome"]["CP1"], "needs_revalidation")
+
+    def test_a_pre_text_with_no_anchors_anywhere_is_conservative(self):
+        """B4-new.1: the legacy/no-anchor case flips every shared id rather
+        than ever silently treating it as unchanged."""
+        pre = self._registry([self._row("CP1")])
+        post = self._registry([self._row("CP1")])
+        pre_text = "plain legacy plan text with no anchors at all"
+        post_text = "<!-- CP1 -->new<!-- /CP1 -->"
+        checkpoints = {"CP1": {"status": "COMPLETE", "start_commit": "x"}}
+        result = ws.reconcile_checkpoints_after_amendment(pre, post, pre_text, post_text, checkpoints)
+        self.assertEqual(result["outcome"]["CP1"], "needs_revalidation")
+
+    def test_a_checkpoint_removed_from_the_registry_is_dropped(self):
+        pre = self._registry([self._row("CP1"), self._row("CP2", depends_on=["CP1"])])
+        post = self._registry([self._row("CP1")])
+        pre_text = "<!-- CP1 -->a<!-- /CP1 --><!-- CP2 -->b<!-- /CP2 -->"
+        post_text = "<!-- CP1 -->a<!-- /CP1 -->"
+        checkpoints = {"CP1": {"status": "COMPLETE"}, "CP2": {"status": "COMPLETE"}}
+        result = ws.reconcile_checkpoints_after_amendment(pre, post, pre_text, post_text, checkpoints)
+        self.assertEqual(result["outcome"]["CP2"], "dropped")
+        self.assertNotIn("CP2", result["checkpoints"])
+        self.assertEqual(result["dropped"], ["CP2"])
+
+    def test_a_checkpoint_new_to_the_registry_is_reported_new(self):
+        pre = self._registry([self._row("CP1")])
+        post = self._registry([self._row("CP1"), self._row("CP2", depends_on=["CP1"])])
+        pre_text = "<!-- CP1 -->a<!-- /CP1 -->"
+        post_text = "<!-- CP1 -->a<!-- /CP1 --><!-- CP2 -->b<!-- /CP2 -->"
+        checkpoints = {"CP1": {"status": "COMPLETE"}}
+        result = ws.reconcile_checkpoints_after_amendment(pre, post, pre_text, post_text, checkpoints)
+        self.assertEqual(result["outcome"]["CP2"], "new")
+        self.assertNotIn("CP2", result["checkpoints"])
+
+    def test_dependency_closure_flips_an_otherwise_unchanged_dependent(self):
+        """B6.3: CPj changed -> NEEDS_REVALIDATION; CPk depends_on CPj, CPk
+        itself unchanged -- CPk is also flipped by the closure pass."""
+        pre = self._registry([self._row("CP1"), self._row("CP2", depends_on=["CP1"])])
+        post = self._registry([self._row("CP1", name="changed"), self._row("CP2", depends_on=["CP1"])])
+        text = "<!-- CP1 -->a<!-- /CP1 --><!-- CP2 -->b<!-- /CP2 -->"
+        checkpoints = {"CP1": {"status": "COMPLETE"}, "CP2": {"status": "COMPLETE"}}
+        result = ws.reconcile_checkpoints_after_amendment(pre, post, text, text, checkpoints)
+        self.assertEqual(result["outcome"]["CP1"], "needs_revalidation")
+        self.assertEqual(result["outcome"]["CP2"], "needs_revalidation")
+        self.assertEqual(result["checkpoints"]["CP2"]["status"], "NEEDS_REVALIDATION")
+
+    def test_a_non_complete_status_is_left_alone_by_needs_revalidation(self):
+        """"any other status is left as-is (nothing to revalidate that has
+        not already completed)"."""
+        pre = self._registry([self._row("CP1", name="old")])
+        post = self._registry([self._row("CP1", name="new")])
+        text = "<!-- CP1 -->same<!-- /CP1 -->"
+        checkpoints = {"CP1": {"status": "IN_PROGRESS", "start_commit": "x"}}
+        result = ws.reconcile_checkpoints_after_amendment(pre, post, text, text, checkpoints)
+        self.assertEqual(result["outcome"]["CP1"], "needs_revalidation")
+        self.assertEqual(result["checkpoints"]["CP1"]["status"], "IN_PROGRESS")
+
+
+class TestRequestPlanAmendment(unittest.TestCase):
+    """`/request-plan-amendment`'s sole writer (D-Plan-Amendment-1/2/3)."""
+
+    @staticmethod
+    def _state_with_approved_plan(repo, work_item_id="wi", phase="IMPLEMENTING",
+                                  review_content_id="rc-1"):
+        approval_commit = repo.commit(
+            "approve plan",
+            trailers={"Workflow-Plan-Approval": review_content_id, "Workflow-Work-Item": work_item_id},
+        )
+        work_item = {
+            "work_item_id": work_item_id, "phase": phase, "plan_revision": 1,
+            "base_commit": repo.base,
+            "plan_approval": {"status": "CURRENT", "approved_review_content_id": review_content_id},
+            "checkpoints": {"CP1": {"status": "COMPLETE", "start_commit": approval_commit}},
+            "current_checkpoint_id": None, "last_completed_checkpoint_id": "CP1",
+        }
+        state = {"schema_version": 1, "active_work_item_id": work_item_id,
+                 "work_items": {work_item_id: work_item}}
+        return state, approval_commit
+
+    def test_success_supersedes_the_approval_and_enters_amending_plan(self):
+        with ScratchRepo() as repo:
+            state, approval_commit = self._state_with_approved_plan(repo)
+            head = repo.head()
+            new_state = ws.request_plan_amendment(
+                state, "wi", "amend for a real reason", repo_root=repo.root,
+                now="2026-01-01T00:00:00Z",
+            )
+            wi = new_state["work_items"]["wi"]
+            self.assertEqual(wi["phase"], "AMENDING_PLAN")
+            self.assertEqual(wi["plan_approval"]["status"], "SUPERSEDED")
+            self.assertEqual(wi["amendment_base_commit"], head)
+            self.assertEqual(len(wi["amendment_history"]), 1)
+            entry = wi["amendment_history"][0]
+            self.assertEqual(entry["pre_amendment_approval_commit"], approval_commit)
+            self.assertIsNone(entry["resolved_at_plan_revision"])
+            self.assertEqual(entry["requested_from_phase"], "IMPLEMENTING")
+            # The original input state is never mutated in place.
+            self.assertEqual(state["work_items"]["wi"]["phase"], "IMPLEMENTING")
+
+    def test_self_reviewing_implementation_is_also_an_allowed_phase(self):
+        with ScratchRepo() as repo:
+            state, _ = self._state_with_approved_plan(repo, phase="SELF_REVIEWING_IMPLEMENTATION")
+            new_state = ws.request_plan_amendment(
+                state, "wi", "reason", repo_root=repo.root, now="2026-01-01T00:00:00Z",
+            )
+            self.assertEqual(new_state["work_items"]["wi"]["phase"], "AMENDING_PLAN")
+
+    def test_wrong_phase_is_refused(self):
+        with ScratchRepo() as repo:
+            state, _ = self._state_with_approved_plan(repo, phase="PLANNING")
+            with self.assertRaises(ws.WrongPhaseForAmendmentRequestError):
+                ws.request_plan_amendment(
+                    state, "wi", "reason", repo_root=repo.root, now="2026-01-01T00:00:00Z",
+                )
+
+    def test_unreachable_approval_commit_is_refused_before_superseding_anything(self):
+        with ScratchRepo() as repo:
+            state, _ = self._state_with_approved_plan(repo, review_content_id="rc-real")
+            state["work_items"]["wi"]["plan_approval"]["approved_review_content_id"] = "rc-nonexistent"
+            with self.assertRaises(ws.AmendmentApprovalCommitUnreachableError):
+                ws.request_plan_amendment(
+                    state, "wi", "reason", repo_root=repo.root, now="2026-01-01T00:00:00Z",
+                )
+            self.assertEqual(state["work_items"]["wi"]["plan_approval"]["status"], "CURRENT")
+
+    def test_a_second_request_against_an_already_amending_item_is_refused(self):
+        with ScratchRepo() as repo:
+            state, _ = self._state_with_approved_plan(repo)
+            amended = ws.request_plan_amendment(
+                state, "wi", "first", repo_root=repo.root, now="2026-01-01T00:00:00Z",
+            )
+            with self.assertRaises(ws.WrongPhaseForAmendmentRequestError):
+                ws.request_plan_amendment(
+                    amended, "wi", "second", repo_root=repo.root, now="2026-01-01T00:00:01Z",
+                )
+
+
+class TestApplyPlanApprovalAmendmentBranch(unittest.TestCase):
+    """`apply_plan_approval`'s four new, optional, keyword-only reconciliation
+    parameters (D-Plan-Amendment-4)."""
+
+    @staticmethod
+    def _approval_record(review_content_id="rc-2"):
+        return ws.build_approval_record(
+            basis="EXTERNAL_APPROVE", stage="plan", user_confirmation="approve wi",
+            now="2026-01-01T00:00:00Z", reviewed_bundle_id="b" * 64,
+            approved_review_content_id=review_content_id,
+            review_content_manifest=[{"path": "docs/plan.md", "sha256": "d" * 64}],
+        )
+
+    @staticmethod
+    def _open_amendment_state():
+        return {
+            "schema_version": 1, "active_work_item_id": "wi",
+            "work_items": {"wi": {
+                "work_item_id": "wi", "phase": "AMENDING_PLAN", "plan_revision": 2,
+                "checkpoints": {"CP1": {"status": "COMPLETE"}},
+                "current_checkpoint_id": None, "last_completed_checkpoint_id": "CP1",
+                "amendment_history": [{
+                    "amendment_id": "0", "resolved_at_plan_revision": None,
+                    "pre_amendment_approval_commit": "a" * 40,
+                }],
+            }},
+        }
+
+    def test_an_open_amendment_with_missing_reconciliation_inputs_is_refused(self):
+        state = self._open_amendment_state()
+        with self.assertRaises(ws.AmendmentReconciliationInputsMissingError):
+            ws.apply_plan_approval(state, "wi", self._approval_record(), "2026-01-01T00:00:01Z")
+
+    def test_an_already_resolved_amendment_is_refused(self):
+        state = self._open_amendment_state()
+        state["work_items"]["wi"]["amendment_history"][0]["resolved_at_plan_revision"] = 2
+        registry = {"checkpoints": [
+            {"id": "CP1", "name": "n", "depends_on": [], "complexity": 1, "session_target": 1},
+        ]}
+        text = "<!-- CP1 -->a<!-- /CP1 -->"
+        with self.assertRaises(ws.AmendmentAlreadyResolvedError):
+            ws.apply_plan_approval(
+                state, "wi", self._approval_record(), "2026-01-01T00:00:01Z",
+                pre_registry=registry, pre_plan_text=text,
+                post_registry=registry, post_plan_text=text,
+            )
+
+    def test_missing_post_anchor_coverage_is_refused_before_any_reconciliation(self):
+        state = self._open_amendment_state()
+        pre_registry = {"checkpoints": [
+            {"id": "CP1", "name": "n", "depends_on": [], "complexity": 1, "session_target": 1},
+        ]}
+        post_registry = {"checkpoints": [
+            {"id": "CP1", "name": "n", "depends_on": [], "complexity": 1, "session_target": 1},
+            {"id": "CP2", "name": "new", "depends_on": ["CP1"], "complexity": 1, "session_target": 1},
+        ]}
+        pre_text = "<!-- CP1 -->a<!-- /CP1 -->"
+        post_text = "<!-- CP1 -->a<!-- /CP1 -->"  # CP2 has no anchor pair at all
+        with self.assertRaises(ws.AmendmentAnchorCoverageError):
+            ws.apply_plan_approval(
+                state, "wi", self._approval_record(), "2026-01-01T00:00:01Z",
+                pre_registry=pre_registry, pre_plan_text=pre_text,
+                post_registry=post_registry, post_plan_text=post_text,
+            )
+        # Refused before any write: the input work item is untouched.
+        self.assertEqual(state["work_items"]["wi"]["phase"], "AMENDING_PLAN")
+
+    def test_successful_reconciliation_resolves_the_amendment_and_enters_implementing(self):
+        state = self._open_amendment_state()
+        pre_registry = {"checkpoints": [
+            {"id": "CP1", "name": "n", "depends_on": [], "complexity": 1, "session_target": 1},
+        ]}
+        post_registry = {"checkpoints": [
+            {"id": "CP1", "name": "n", "depends_on": [], "complexity": 1, "session_target": 1},
+            {"id": "CP2", "name": "new", "depends_on": ["CP1"], "complexity": 1, "session_target": 1},
+        ]}
+        pre_text = "<!-- CP1 -->a<!-- /CP1 -->"
+        post_text = "<!-- CP1 -->a<!-- /CP1 --><!-- CP2 -->b<!-- /CP2 -->"
+        new_state = ws.apply_plan_approval(
+            state, "wi", self._approval_record(), "2026-01-01T00:00:01Z",
+            pre_registry=pre_registry, pre_plan_text=pre_text,
+            post_registry=post_registry, post_plan_text=post_text,
+        )
+        wi = new_state["work_items"]["wi"]
+        self.assertEqual(wi["phase"], "IMPLEMENTING")
+        self.assertEqual(wi["checkpoints"]["CP1"]["status"], "COMPLETE")
+        self.assertNotIn("CP2", wi["checkpoints"])
+        self.assertEqual(wi["amendment_history"][-1]["resolved_at_plan_revision"], 2)
+        self.assertEqual(wi["plan_approval"]["approved_review_content_id"], "rc-2")
+
+    def test_a_dropped_current_or_last_completed_checkpoint_id_is_nulled(self):
+        state = self._open_amendment_state()
+        state["work_items"]["wi"]["checkpoints"]["CP2"] = {"status": "IN_PROGRESS"}
+        state["work_items"]["wi"]["current_checkpoint_id"] = "CP2"
+        state["work_items"]["wi"]["last_completed_checkpoint_id"] = "CP2"
+        pre_registry = {"checkpoints": [
+            {"id": "CP1", "name": "n", "depends_on": [], "complexity": 1, "session_target": 1},
+            {"id": "CP2", "name": "n2", "depends_on": ["CP1"], "complexity": 1, "session_target": 1},
+        ]}
+        post_registry = {"checkpoints": [
+            {"id": "CP1", "name": "n", "depends_on": [], "complexity": 1, "session_target": 1},
+        ]}
+        pre_text = "<!-- CP1 -->a<!-- /CP1 --><!-- CP2 -->b<!-- /CP2 -->"
+        post_text = "<!-- CP1 -->a<!-- /CP1 -->"
+        new_state = ws.apply_plan_approval(
+            state, "wi", self._approval_record(), "2026-01-01T00:00:01Z",
+            pre_registry=pre_registry, pre_plan_text=pre_text,
+            post_registry=post_registry, post_plan_text=post_text,
+        )
+        wi = new_state["work_items"]["wi"]
+        self.assertIsNone(wi["current_checkpoint_id"])
+        self.assertIsNone(wi["last_completed_checkpoint_id"])
+        self.assertNotIn("CP2", wi["checkpoints"])
+
+    def test_with_no_open_amendment_the_four_parameters_are_never_consulted(self):
+        """For a work item with no open amendment, behavior is byte-for-byte
+        unchanged from v2.3.1 -- no existing call site needs to change."""
+        state = {
+            "schema_version": 1, "active_work_item_id": "wi",
+            "work_items": {"wi": {
+                "work_item_id": "wi", "phase": "PLANNING", "plan_revision": 1,
+                "checkpoints": {},
+            }},
+        }
+        new_state = ws.apply_plan_approval(state, "wi", self._approval_record(), "2026-01-01T00:00:01Z")
+        wi = new_state["work_items"]["wi"]
+        self.assertEqual(wi["phase"], "IMPLEMENTING")
+        self.assertNotIn("amendment_history", wi)
+
+    def test_a_resolved_amendment_history_never_re_triggers_reconciliation(self):
+        """`amendment_history` present but its last entry already resolved
+        -- `has_open_amendment` is false, so the four parameters stay
+        optional here too."""
+        state = self._open_amendment_state()
+        state["work_items"]["wi"]["amendment_history"][0]["resolved_at_plan_revision"] = 2
+        new_state = ws.apply_plan_approval(state, "wi", self._approval_record(), "2026-01-01T00:00:01Z")
+        self.assertEqual(new_state["work_items"]["wi"]["phase"], "IMPLEMENTING")
+
+
 if __name__ == "__main__":
     unittest.main()

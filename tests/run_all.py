@@ -23,6 +23,7 @@ FAST_SUITES = (
     "test_internal_references.py",
     "test_bootstrap.py",
     "test_disposable_repo_fixtures.py",
+    "test_amendment_update_path.py",
 )
 SLOW_SUITES = (
     "test_conformance_suite.py",

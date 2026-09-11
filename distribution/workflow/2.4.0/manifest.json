@@ -9,7 +9,7 @@
   "provenance": {
     "origin": "authored",
     "base_release": "2.3.1",
-    "overlay_commit": "5c0c32120e05435df0c7a169c9a71b628aa34917"
+    "overlay_commit": "0cd8ed6281c24717a2f66fe47b521d2c1baf16b2"
   },
   "categories": {
     "distribution": "Canonical Workflow implementation. Copied byte-for-byte into the payload and installed into every managed target repository.",
@@ -666,12 +666,12 @@
       "category": "distribution",
       "rule": "^scripts/workflow_state\\.py$",
       "rationale": "AMENDING_PLAN, /request-plan-amendment's writer, SUPERSEDED/NEEDS_REVALIDATION, apply_plan_approval's reconciliation parameters, load_pre_amendment_snapshot, and the widened vocabulary constants (D-Plan-Amendment-2..4). Preserves the base release's own distribution category for this path (I-R16-2).",
-      "sha256": "5474f9b239282a56d76f255609dcf9586a5eb7cbd67d6b25ad3253a46ba54df5",
-      "size": 630272,
+      "sha256": "74a05286599f1abf05529fc86e0819b7711867a41cdc5dd7327d32a9b8037518",
+      "size": 632823,
       "executable": false,
       "overlay_delta": {
         "base_sha256": "d9097f02bf78b53ee048d3bb5e5f674c9c246065d8ceb4c71d8dfd039032131e",
-        "diff_sha256": "0b3861d78979e36d0d1afd4b29e18d2c563d6605af5b8417047ed81af759f853"
+        "diff_sha256": "a3c6706af4e047ff54eee1b1dcb1f8c96fa0098fbe43132467d61be28a59a5e5"
       }
     },
     {
@@ -705,12 +705,12 @@
       "category": "distribution",
       "rule": "^scripts/workflow_state_test\\.py$",
       "rationale": "The payload's own conformance suite, updated for AMENDING_PLAN/its writer. Preserves the base release's own distribution category for this path (I-R16-2).",
-      "sha256": "a1d4d6ac48cfd3c531f04a1c701ecb741969aeb3e89851971eca6a6e7de8a35d",
-      "size": 566564,
+      "sha256": "b524beffe92a74a0ca35899b579352d392529ff0adbdbc5a86f24c8ab9ca3480",
+      "size": 587993,
       "executable": false,
       "overlay_delta": {
         "base_sha256": "f47575ccae74bf508945cb078cd2fc13dac76b02d207403f309cf9fcb45b7c92",
-        "diff_sha256": "7825fc9b043e78ef842632997a8dacad39147802f5a44c52a844c6aacae72ccb"
+        "diff_sha256": "7b93e5351696f271a4b3c18fbf924004df2758cbcf2819207f467b0f665d89bb"
       }
     },
     {
