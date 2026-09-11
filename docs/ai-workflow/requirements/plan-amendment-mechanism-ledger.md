@@ -513,3 +513,138 @@ overrides it.
 - **Review findings**: none yet -- self-review pending at
   `SELF_REVIEWING_IMPLEMENTATION`.
 - **Functional-verification outcome**: not applicable at this checkpoint.
+
+## `CP5` — Release-authoring tooling
+
+- **Implementation evidence**:
+  - **`tools/build_release.py` (new, D-Authored-Release-1/2/3)**: a second,
+    separate release-production tool, kept apart from `tools/migrate.py`
+    (whose "frozen upstream tag -> `distribution/`" contract stays
+    untouched -- no line of `tools/migrate.py` changed in this checkpoint).
+    `build(base_version, overlay_dir, base_dist_root, out_dist_root, *,
+    now_commit=None)`:
+    1. loads the overlay's own `classification.json`, cross-checks its
+       `base_workflow_version` against the requested base version;
+    2. verifies the base release
+       (`<base_dist_root>/workflow/<base_version>/`) against its own
+       committed `manifest.json` (`_verify_base_release`: every
+       artifact/template file present with the recorded sha256) --
+       refuses to build on top of a base that fails this check;
+    3. classifies every file under the overlay's own `payload/` tree
+       through the overlay's rules (same first-match-wins shape
+       `migration/classification.json` already uses), each rule declaring
+       an `expected_kind` (`added`/`replaced`) that is cross-checked
+       against the base release's own manifest by path -- a mismatch
+       (e.g. a rule claiming `added` for a path the base already has)
+       raises `BuildReleaseError` rather than guessing which is right,
+       and a rule matching no payload file also raises;
+    4. for every `replaced` file, records an additive `overlay_delta`
+       field, `{"base_sha256": ..., "diff_sha256": ...}` -- `diff_sha256`
+       is the sha256 of a unified diff between the base file and the
+       overlay file (`unified_diff_sha256`), reproducible from `base
+       payload + this recorded diff` alone (I2; CP6 owns the mirrored
+       reproduction assertion);
+    5. copies forward, byte-for-byte, every base artifact (`payload/` and
+       `fixtures/` locations alike -- both live in
+       `manifest["artifacts"]`, exactly as `tools/migrate.py` writes them)
+       the overlay does not replace, and every base template unchanged;
+    6. writes `<out_dist_root>/workflow/<successor-version>/manifest.json`
+       with `upstream` copied forward from the base manifest unchanged
+       (B3) and an additive `provenance: {"origin": "authored",
+       "base_release": <base_version>, "overlay_commit": <HEAD at build
+       time, or the caller-supplied `now_commit`>}` -- the producing half
+       of the field CP4 already taught `Release.__init__`/`cli.py`/
+       `install.py`/`installation.py` to read.
+  - **`--check` reproducibility (a design correction found and fixed
+    during this checkpoint's own manual verification, not part of any
+    prior round's text)**: `base_dist_root` and `out_dist_root` are two
+    separate parameters, not one shared `out_root` -- an ordinary build
+    reads the base release and writes the successor under the same real
+    `distribution/`, but `--check` must read the base from the real,
+    committed `distribution/` while writing its trial rebuild into a
+    throwaway temp root; collapsing them into one parameter (the first
+    draft) made `--check` fail to find the base release at all. Separately,
+    `overlay_commit` defaults to the live `git rev-parse HEAD` for an
+    ordinary build, but `--check` reads the *previously recorded*
+    `provenance.overlay_commit` back out of the already-committed manifest
+    and pins the trial rebuild to that same value instead of re-deriving
+    it from the current HEAD -- HEAD has necessarily moved forward by at
+    least the commit that added the built tree itself by the time anyone
+    runs `--check` again, so re-deriving it would make every `--check` run
+    report a spurious `differs: manifest.json` forever. Verified directly
+    (D-Authored-Release-3's own byte-identity discipline, exercised against
+    this new tool rather than `tools/migrate.py`): built into a scratch
+    `distribution/` under a real (throwaway) git repository, ran `--check`
+    immediately (`rc=0`), made an unrelated commit to advance HEAD, ran
+    `--check` again against the now-stale HEAD (`rc=0`, unchanged) --
+    confirming the fix before relying on it.
+  - **`migration/overlays/2.4.0/classification.json` (new, overlay
+    classification ruleset, I-R16-2)**: twelve rules, one per overlay
+    payload path (the eleven full-file replacements plus the one new
+    `.claude/commands/request-plan-amendment.md`, CP1-CP3's own
+    twelve-path set) -- every rule's `category` is `"distribution"`,
+    matching exactly the category `migration/classification.json`'s own
+    rules already assign each of the eleven replaced paths at `2.3.1`
+    (verified by reading each path's base manifest record directly, not
+    assumed), preserving install-profile membership across the
+    replacement (`src/workflow_manager/release.py:29-32`'s
+    `_PROFILE_CATEGORIES`: `distribution` installs under both `runtime`
+    and `full`). Each rule also declares `expected_kind` (`"replaced"` for
+    the eleven, `"added"` for the new command file), which `build()`
+    cross-checks rather than trusts.
+  - **The CI-workflow template: the deliberate no-op case
+    (D-Authored-Release-5)**: `2.4.0`'s own payload test-suite *file set*
+    is identical to `2.3.1`'s -- `workflow_state_test.py`,
+    `workflow_integration_test.py` and
+    `workflow_state_completion_obligations_test.py` gained content changes
+    in CP2/CP3, but no suite file was added, removed, or renamed, and
+    `workflow_fingerprint_test.py`/`workflow_test_harness_test.py`/
+    `workflow_acceptance_matrix_test.py`/
+    `workflow_fingerprint_generalization_test.py` are untouched. Per
+    D-Authored-Release-5's own decision ("the overlay simply omits a
+    `templates/` replacement and the base `2.3.1` template is copied
+    forward unchanged"), the overlay carries no
+    `templates/.github/workflows/workflow-conformance.yml` replacement,
+    and `build()`'s template-copy-forward loop carries the base `2.3.1`
+    template into `2.4.0` byte-for-byte, unchanged -- confirmed by the
+    manual verification run below (`workflow_fingerprint.py`, an unrelated
+    copied-forward payload file, and the template are both hash-identical
+    to their base counterparts in the built tree).
+- **Verification** (`tools/build_release.py` has no committed automated
+  test yet -- that is CP6's own scope, "extend conformance suite with the
+  parallel authored-release assertion set, overlay-delta verification";
+  this checkpoint's own manual verification, run against scratch/temporary
+  distribution roots so no real `distribution/workflow/2.4.0/` is written
+  by this checkpoint -- CP6 alone regenerates it for real):
+  - Built `migration/overlays/2.4.0` against a scratch copy of
+    `distribution/workflow/2.3.1`: 61 artifacts (35 `distribution`, 24
+    `conformance`, 2 `host-evidence` -- base's 60 plus the one new command
+    file), 6 templates, `overlay_replaced: 11`, `overlay_added: 1`.
+  - Every replaced file's `overlay_delta.diff_sha256` reproduces exactly
+    from `unified_diff_sha256(base_bytes, overlay_bytes, path)` recomputed
+    independently; every `overlay_delta.base_sha256` matches the base
+    manifest's own recorded sha256 for that path.
+  - A copied-forward, untouched file (`scripts/workflow_fingerprint.py`)
+    is byte-identical between the base and the built successor tree.
+  - Two consecutive builds with the same pinned `now_commit` produce a
+    byte-and-mode-identical output tree (`_tree_digest` equality) --
+    deterministic.
+  - Error paths exercised directly: wrong `--base` raises
+    `BuildReleaseError` naming the mismatch; a corrupted base payload file
+    fails `_verify_base_release` and refuses to build; an overlay rule
+    with a wrong `expected_kind` (claiming `added` for a path the base
+    already has) raises naming the path; an overlay rule matching no
+    payload file raises naming the unused pattern.
+  - `python3 tools/migrate.py --check` -- still reports
+    "`distribution/workflow/2.3.1/ matches a fresh extraction of the
+    frozen upstream release`" and exits 0: this checkpoint's new tool and
+    new overlay file touch nothing `tools/migrate.py` or
+    `distribution/workflow/2.3.1/` own (D-Authored-Release-3).
+  - `python3 tests/run_all.py --fast` -- all six suites green
+    (`test_migration_inventory.py`, `test_payload_bytes.py`,
+    `test_templates.py`, `test_no_live_state_imported.py`,
+    `test_internal_references.py`, `test_bootstrap.py`).
+  - `python3 -m py_compile tools/build_release.py` -- compiles clean.
+- **Review findings**: none yet -- self-review pending at
+  `SELF_REVIEWING_IMPLEMENTATION`.
+- **Functional-verification outcome**: not applicable at this checkpoint.
