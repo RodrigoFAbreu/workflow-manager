@@ -797,3 +797,74 @@ overrides it.
   unrelated working-tree changes."
 - **Functional-verification outcome**: not applicable at this checkpoint.
 
+## `CP7` — Disposable-repository fixtures for IMPLEMENTING/SELF_REVIEWING_IMPLEMENTATION
+
+- **Implementation evidence**:
+  - **`src/workflow_manager/fixture.py`'s new `drive_synthetic_work_item_through_checkpoints`**:
+    generalizes `tests/test_bootstrap_e2e.py`'s own `_write_live_state`
+    technique (direct `workflow_state` calls, scripted without a live
+    Claude session) into a reusable disposable-repository fixture: given a
+    `build_target_repo`/`bootstrap`-shaped repository, it authors a
+    synthetic work item's plan/registry/mapping/artifacts-declaration
+    files, routes it (`route_work_item`), publishes plan revision 1,
+    computes a real `review_content_id`
+    (`compute_review_content_id_plan_stage_for_work_item`), builds and
+    applies a `USER_OVERRIDE`-basis plan approval
+    (`build_approval_record`/`apply_plan_approval`), commits it with a
+    real `Workflow-Plan-Approval:`/`Workflow-Work-Item:` trailer pair,
+    then drives every checkpoint id in `complete_checkpoint_ids` (a
+    required prefix of `checkpoint_ids`) through
+    `transition_checkpoint_in_progress`/`complete_checkpoint`, each with
+    its own `Workflow-Checkpoint:`/`Workflow-Work-Item:` commit -- landing
+    the repository in `IMPLEMENTING` (a proper prefix) or
+    `SELF_REVIEWING_IMPLEMENTATION` (`complete_checkpoint_ids ==
+    checkpoint_ids`, `complete_checkpoint`'s own all-complete phase flip).
+  - Runs the driver as a subprocess with the target's own `scripts/`
+    inserted first on `sys.path` (never this repository's own), so the
+    exact `workflow_state`/`workflow_fingerprint` bytes a specific release
+    installs are what execute -- required because CP8's own scenarios
+    build fixtures from both `2.3.1` and `2.4.0` inside the same test
+    process, and Python's module cache would otherwise silently reuse
+    whichever release's copy imported first. Every caller-supplied value
+    is substituted into the driver script as a Python literal via
+    `repr()` (`_DRIVER_SCRIPT.format(...)`), never interpolated as text.
+  - **`tests/test_disposable_repo_fixtures.py`** (new): proves the fixture
+    itself, not CP8's own update-path scenarios -- both target phases
+    actually reached, `checkpoints[id].status` correct for each id,
+    `plan_approval.status == "CURRENT"`, a non-prefix
+    `complete_checkpoint_ids` refused (`ValueError`),
+    `implementing_entry_reachable` holds for the resulting fixture, and
+    both the plan-approval commit and every completed checkpoint's own
+    commit are discoverable by their trailers
+    (`discover_plan_approval_commit`/`discover_checkpoint_commits`) --
+    i.e. the fixture is realistic enough for `/request-plan-amendment`'s
+    own reachability precondition, not merely phase-labelled.
+  - **`tests/run_all.py`**: registered `test_disposable_repo_fixtures.py`
+    in `FAST_SUITES` (fast: builds one `build_target_repo` fixture per
+    test, no frozen conformance matrix).
+- **Verification**:
+  - `python3 -m unittest test_disposable_repo_fixtures -v` (run from
+    `tests/`) -- 6 tests, all green (narrowest check, run first).
+  - `python3 tests/run_all.py --fast` -- seven suites, all green.
+  - Manual check: `drive_synthetic_work_item_through_checkpoints` against
+    a `2.4.0`-release `build_target_repo` fixture (not only `2.3.1`),
+    landing `SELF_REVIEWING_IMPLEMENTATION` correctly -- confirms the
+    fixture is release-agnostic, as CP8's scenarios (2)/(3) need
+    (bootstrap at `2.3.1`, drive, then `update` to `2.4.0`).
+- **Review findings**: self-review performed before commit (this
+  checkpoint's own diff, `git diff` against CP6's commit, read in full).
+  Two defects found and fixed during authoring, before any commit: (1)
+  the plan/registry/mapping/artifacts paths must be `git add -N`
+  (intent-to-add) before `resolve_plan_stage_metadata`'s tracked-path
+  check runs, exactly as `/milestone-plan` step 3 already requires; (2)
+  the plan document's title needed a literal `(Revision N)` marker
+  (`load_plan_revision`'s own parser), and a `USER_OVERRIDE`-basis
+  approval record requires a non-null `reviewed_bundle_id` even though
+  nothing compares it to a real bundle. No other defect found. The
+  unrelated, pre-existing
+  `docs/defects/v2.3.1-003-plan-approval-requires-precommitted-state-file.md`
+  (already untracked before this checkpoint began) is again left
+  uncommitted, unchanged, per `CLAUDE.md`'s "don't touch unrelated
+  working-tree changes."
+- **Functional-verification outcome**: not applicable at this checkpoint.
+

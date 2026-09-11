@@ -22,6 +22,7 @@ FAST_SUITES = (
     "test_no_live_state_imported.py",
     "test_internal_references.py",
     "test_bootstrap.py",
+    "test_disposable_repo_fixtures.py",
 )
 SLOW_SUITES = (
     "test_conformance_suite.py",
