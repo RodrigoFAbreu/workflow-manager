@@ -241,3 +241,157 @@ overrides it.
 - **Review findings**: none yet -- self-review pending at
   `SELF_REVIEWING_IMPLEMENTATION`.
 - **Functional-verification outcome**: not applicable at this checkpoint.
+
+## `CP3` — Author command files
+
+- **Implementation evidence**, each an overlay_delta-recorded full-file
+  replacement/addition in `migration/overlays/2.4.0/payload/`:
+  - **`.claude/commands/request-plan-amendment.md` (new)**: opens with the
+    house "Enter the `AMENDING_PLAN` state of
+    `docs/ai-workflow/MILESTONE_WORKFLOW.md`." preamble; resolves the
+    target work item (step 0, refusing an item with no
+    `WORKFLOW_STATE.json` entry at all); states the user-only guard
+    (`disable-model-invocation: true` plus a literal confirmation naming
+    the work item and the word `amendment`, plus a required non-empty
+    `reason`) distinct from `USER_OVERRIDE`; states
+    `D-Plan-Amendment-1`'s three preconditions -- phase, no
+    `IN_PROGRESS`/claimed checkpoint (checked by this command itself, via
+    `work_item["checkpoints"]`/`resolve_claim`, since
+    `request_plan_amendment` does not check it), and no open plan-approval
+    transaction (`plan_approval_takeover_evidence`); calls
+    `workflow_state.request_plan_amendment` inside `state_transaction`;
+    commits `WORKFLOW_STATE.json` alone with a single
+    `Workflow-Work-Item:` trailer; its own "what happens next" prose names
+    `scripts/prepare-ai-review.sh` under the `I-R14-2` phrasing constraint
+    (no run/rerun-plus-backticked-invocation construction, so it never
+    matches `_GENERATOR_RUN_RE`).
+  - **`.claude/commands/approve-review.md`**: step 4c gains a new
+    paragraph, before the `open_plan_approval_journal` call, that calls
+    `workflow_fingerprint.resolve_plan_stage_metadata` fresh and reads
+    `post_plan_text`/`post_registry` from the current working tree, and
+    -- open amendment only -- `pre_plan_text`/`pre_registry` via
+    `workflow_state.load_pre_amendment_snapshot`; forwards all four,
+    verbatim, as new keyword arguments on the existing
+    `open_plan_approval_journal` call. The numbered sequence itself is
+    unchanged -- reconciliation adds no new guarded step.
+  - **`.claude/commands/apply-functional-review.md`**: the broad-branch's
+    sanctioned child sequence paragraph gains one new addendum paragraph
+    (placed after it, not inside its own pinned wrapped text) naming
+    `/request-plan-amendment <child-id>` -- a remediation child in
+    `IMPLEMENTING`/`SELF_REVIEWING_IMPLEMENTATION` may request its own
+    amendment on the same terms as its parent.
+  - **`scripts/prepare-ai-review.sh`**: a new `AMENDMENT_DIFF.patch`
+    generation step (plan stage only), written to
+    `$ROOT_DIR/AMENDMENT_DIFF.patch` -- a sibling of `$BUNDLE_DIR`, never a
+    descendant -- as `git diff <amendment_base_commit>..HEAD` restricted
+    to the plan-stage protected paths, for a work item with an open
+    amendment; deletes the file when none is open. The archive step widens
+    to `tar -czf "$ARCHIVE_TMP" -C "$ROOT_DIR" current $(cd "$ROOT_DIR" &&
+    [ -f AMENDMENT_DIFF.patch ] && echo AMENDMENT_DIFF.patch)`. Introduces
+    no `assert_local_generation_matches` call and no
+    `governing_workflow_version` awareness (confirmed by grep — the
+    literal string does not appear in the file).
+  - **`docs/ai-workflow/REVIEW_PROTOCOL.md`**: "Bundle structure" gains a
+    paragraph describing `AMENDMENT_DIFF.patch` as a sibling of
+    `<bundle_dir>`, never hashed; "Author-written files"' `REVIEW_REQUEST.md`
+    bullet gains the fixed, unconditional, non-authoritative marker-line
+    requirement (D-Plan-Amendment-5, EXT-R6-O1/O-R9-3). The two pinned
+    sentences ("Must state `review_content_id: <hex>` as a plain labelled
+    line", "`implementation_revision: <N>` matching the work item") are
+    left byte-identical.
+  - **`docs/ai-workflow/MILESTONE_WORKFLOW.md`**: a new `### AMENDING_PLAN
+    (workflow-2.4.0, D-Plan-Amendment-1)` section, placed immediately
+    after `### PLANNING` and before `### SELF_REVIEWING_PLAN` (so `##
+    State reference`'s never-persisted summary paragraph stays inside the
+    first-`### `-heading slice), carrying no *Vocabulary state — never
+    persisted* marker (it is real and persisted); `### IMPLEMENTING` and
+    `### SELF_REVIEWING_IMPLEMENTATION` each gain one clause on their own
+    **Exit**/**Stop for user/reviewer?** bullets naming the re-entry edge.
+  - **`docs/ai-workflow/WORKFLOW_V2_1_OPERATOR_REFERENCE.md`**: command
+    count/roster updated to 16 (new `### /request-plan-amendment
+    [work-item-id] — user-only` section); "Persisted phases" table gains
+    the `AMENDING_PLAN` row (`request_plan_amendment`), and its own
+    hand-maintained `expected` writer dict (in
+    `workflow_integration_test.py`) gains the matching entry;
+    "Declared/written" phase counts updated to eighteen/fourteen; "Enter
+    the `X` state" table/literal updated ten-of-fifteen → eleven-of-sixteen
+    and gains a `/request-plan-amendment` row; "Remediation children"
+    section gains an addendum paragraph naming
+    `/request-plan-amendment <child-id>`; the "whole plan lane persists
+    exactly three phases" claim gains a scoping clarification
+    (`I-R19-1`) distinguishing it from the new re-entry `AMENDING_PLAN`
+    phase, without altering the pinned sentence itself.
+  - **`scripts/workflow_integration_test.py`** (overlay copy): `_GOLDEN_COMMAND_FILE_SHA256`
+    entries for `approve-review.md`/`apply-functional-review.md`
+    recomputed against their edited bytes (with dated comments, no entry
+    added for `request-plan-amendment.md` itself, matching the census's
+    "thirteen of fifteen, not total" discipline); `_GENERATOR_MENTION_ONLY_COMMANDS`
+    gains a `request-plan-amendment.md` entry with its own justification
+    string (`I-R14-2`); `test_no_mention_only_command_instructs_its_own_generation`'s
+    docstring reworded to a three-population reading (`I-R15-2`); the
+    hardcoded `len(on_disk)` tripwire (two call sites) and its docstrings
+    updated 15 → 16; the "Enter ..." preamble literal list and its
+    docstring updated ten → eleven, gaining `request-plan-amendment`;
+    `test_every_persisted_phase_row_names_its_real_writer`'s `expected`
+    dict gains `"AMENDING_PLAN": ["request_plan_amendment"]`;
+    `NON_SYMBOL_NAMES` gains the three `amendment_history`-entry/top-level
+    state field names (`amendment_base_commit`, `amendment_history`,
+    `pre_amendment_approval_commit`) that `test_every_code_symbol_the_reference_names_actually_exists`'s
+    identifier scan would otherwise treat as unresolved code symbols.
+  - **`docs/ai-workflow/requirements/plan-amendment-mechanism-ledger.md`**:
+    this entry.
+- **Verification**:
+  - Constructed a disposable merged tree (`distribution/workflow/2.3.1/payload/`
+    as the base, this checkpoint's overlay files layered on top, plus the
+    `2.3.1` release's own `CLAUDE.md`/`docs/ACTIVE_MILESTONE.md` templates)
+    to exercise the full, otherwise-partial overlay against
+    `workflow_integration_test.py`'s complete corpus-derived checks --
+    the overlay alone cannot run this suite meaningfully, since it holds
+    only the files CP1-CP3 have touched, not a full sixteen-command
+    payload. Outside the repository, discarded after verification; no
+    output committed.
+  - `python3 -m unittest workflow_integration_test` against that merged
+    tree: 256 tests, 255 green / 1 error -- the one error is
+    `test_the_historical_status_note_carries_a_dated_correction`, a
+    `StopIteration` against the *template* `docs/ACTIVE_MILESTONE.md`
+    (which carries no 2026-08-04 status note; only this self-hosted
+    repository's own live copy does) -- not a regression from this
+    checkpoint, and not reachable through any file this checkpoint's own
+    scope touches.
+  - Targeted, pre-fix-iteration runs of `TestGoldenCommandFileHashes`,
+    `TestWorkItemTargetingContract`, `TestOperatorReferenceMatchesReality`,
+    `TestRetiredScopedRemediationLeavesNoLiveSurface`,
+    `TestGenerationCommandsNameTheCompleteAuthorInputSet`,
+    `TestVersion21OnlyCommandsRefuseCleanlyForV1`,
+    `TestBootstrapCommandStaticConformance`,
+    `TestGoldenV1BehaviorAgainstPreV21BaseCommit`,
+    `TestMatrixHelpersDoNotOutrunTheirCommands`,
+    `TestAssertLocalGenerationMatchesCallSiteConformance`,
+    `TestReviewPlanWriteSetConsistencyLint`,
+    `TestRequirementsMappingTableConformance`,
+    `TestLifecycleDiagramMatchesTheCode`, and
+    `TestPlanApprovalCommitTrailerFinalParagraphConformance` (97 tests) —
+    all green on the finished state.
+  - `python3 -m unittest workflow_state_test workflow_state_completion_obligations_test`
+    against the same merged tree: 722 tests, 720 green / 2 errors, both
+    `FileNotFoundError` against the live, self-hosted-only
+    `docs/ai-workflow/WORKFLOW_STATE.json` (not part of any release
+    payload or template) — the same class of pre-existing environment gap
+    CP2's own verification already documented for this merged-tree
+    technique, not a regression.
+  - `bash -n scripts/prepare-ai-review.sh` (syntax check) and a direct,
+    isolated exercise of the new `AMENDMENT_DIFF.patch` python block
+    against a real two-commit scratch Git repository (open-amendment case
+    producing the expected restricted diff; closed/absent case exercised
+    by inspection of the `unlink(missing_ok=True)` branch) — both
+    confirmed the `set -e`-safety of the widened archive line's
+    `$(... && echo ...)` construction when the file is absent.
+  - Confirmed the root, self-hosted `.claude/commands/`,
+    `scripts/prepare-ai-review.sh`, `scripts/workflow_integration_test.py`,
+    and the three `docs/ai-workflow/*.md` files touched here remain
+    byte-identical to `distribution/workflow/2.3.1/payload/`'s own
+    copies — nothing in this checkpoint touched the frozen, self-hosted
+    runtime this very command depends on.
+- **Review findings**: none yet -- self-review pending at
+  `SELF_REVIEWING_IMPLEMENTATION`.
+- **Functional-verification outcome**: not applicable at this checkpoint.
