@@ -86,7 +86,10 @@ release directory.
 - Frozen tests a clean target cannot pass, with reasons:
   `migration/portability_exceptions.json`
 
-## Adding a Workflow release
+## Adding an upstream Workflow release
+
+Use this when the new release is a fresh upstream tag (frozen content this
+repository only extracts, never authors) -- `2.3.1` is the instance.
 
 1. Add the new tag/commit to `migration/classification.json` (or a second
    classification file if the tree shape changed).
@@ -94,3 +97,46 @@ release directory.
 3. The conformance suite must be green against the fixture, and the clean
    target's failure set must equal the documented exceptions — no more, no
    fewer.
+
+## Adding an authored Workflow release
+
+Use this instead when the new release's content originates in this
+repository -- a base release plus a hand-written overlay, never a new
+upstream tag -- `2.4.0` (the plan-amendment mechanism) is the first instance.
+See `docs/ARCHITECTURE.md`'s "Authored releases" and `docs/MIGRATION.md`'s
+`2.4.0` record for the full mechanics and evidence.
+
+1. Author `migration/overlays/<version>/payload/` (new files, plus full
+   replacements of every base-release payload file the release changes) and
+   `migration/overlays/<version>/classification.json` (the same ruleset shape
+   as `migration/classification.json`, scoped to the overlay's own delta
+   files).
+2. Run `python3 tools/build_release.py --overlay migration/overlays/<version>`,
+   then `python3 tools/build_release.py --overlay migration/overlays/<version>
+   --check` — the committed `distribution/workflow/<version>/` must reproduce
+   exactly from the base release plus the overlay alone, and every replaced
+   file's recorded `overlay_delta` must reproduce from the base payload plus
+   the recorded diff.
+3. Add the new version to `tests/support.py`'s per-release `CI_SUITES` and,
+   if it needs one, `migration/portability_exceptions.json`'s `by_version`,
+   then run `python3 tests/run_all.py`. The conformance suite must be green
+   against the fixture, the clean target's failure set must equal the
+   documented exceptions, and any obligation the release's own checkpoints
+   declare (a compatibility audit against the finished overlay diff, for
+   instance) must actually be discharged, not merely inferred from suite
+   totals.
+
+**Downgrade posture.** Once a repository has run `workflow_manager update` to
+an authored release that introduces vocabulary an older release's
+`workflow_state.py` does not have (`2.4.0`'s `NEEDS_REVALIDATION` checkpoint
+status and `SUPERSEDED` plan-approval status, for instance), downgrading it
+back to that older release is **unsupported** — not merely unproven, actively
+broken: any already-committed `WORKFLOW_STATE.json` state that ever recorded
+one of those values reads back as permanently `"undecidable"` under the older
+release's own narrower vocabulary (git history does not change on downgrade),
+and checkpoint resume for that work item wedges with no in-band escape short
+of an explicit, evidence-bound override
+(`authorize_identity_reference_gap`). Never run `workflow_manager update
+--release-version <older>` against a repository that has ever requested a
+plan amendment, or has any checkpoint that ever held `NEEDS_REVALIDATION`, or
+a plan approval that ever held `SUPERSEDED`.

@@ -197,3 +197,50 @@ dependency-closure item.*
 
 All green. The one clean-target failure is classified, explained, and asserted
 to be the *only* one.
+
+## Workflow v2.4.0 — an authored release
+
+Everything above is the Phase-A record for `2.3.1` specifically, and does not
+apply to `2.4.0`. `2.4.0` is not extracted from an upstream tag; it is
+authored in this repository, to ship the plan-amendment mechanism
+(`docs/ai-workflow/PLAN_AMENDMENT_MECHANISM_PLAN.md`'s `AMENDING_PLAN` phase
+and `/request-plan-amendment`) on top of the frozen `2.3.1` base: a base
+release plus a hand-written overlay, composed by `tools/build_release.py`
+(mechanism in [`ARCHITECTURE.md`'s "Authored releases"](ARCHITECTURE.md#authored-releases)).
+
+| | |
+|---|---|
+| Base release | `2.3.1`, verified against its own manifest before the overlay is applied |
+| Overlay | `migration/overlays/2.4.0/` — 11 payload files replaced, 1 added (`.claude/commands/request-plan-amendment.md`) |
+| Provenance | `distribution/workflow/2.4.0/manifest.json`'s `provenance`: `{"origin": "authored", "base_release": "2.3.1", "overlay_commit": "0cd8ed6281c24717a2f66fe47b521d2c1baf16b2"}` |
+| Manifest | 61 artifacts (35 `distribution`, 24 `conformance`, 2 `host-evidence`), 6 templates |
+| Byte-level provenance | Every overlay-replaced file records an `overlay_delta` (the base file's own sha256 plus the sha256 of a unified diff against it). `tools/build_release.py --overlay migration/overlays/2.4.0 --check` reproduces the committed `distribution/workflow/2.4.0/` from the base release and the overlay alone; `TestAuthoredReleaseOverlayDelta` reproduces every `overlay_delta` from the base payload plus its recorded diff |
+| Frozen suite against the conformance fixture | 7/7 suites, 1472 tests — the same suite set as `2.3.1`, plus 32 additional `workflow_state_test.py` cases covering the new `AMENDING_PLAN` reconciliation code |
+| Frozen suite in a bootstrapped repository | 1471 of 1472, the same single documented exception as `2.3.1`'s own baseline (`docs/defects/v2.3.1-001-host-history-coupled-tests.md`) — `workflow_integration_test.py` is carried into the overlay unmodified, so the identical RepFlow-history assertion fails for the identical reason |
+| Compatibility audit (D-Plan-Amendment-7) | Every test in `workflow_state_test.py`, `workflow_state_completion_obligations_test.py` and `workflow_integration_test.py` whose read set intersects a path this release touches was run directly against the finished overlay diff and reported green or the one already-documented exception above — not merely inferred from the totals above |
+
+Both releases stay independently verifiable and independently frozen:
+`tools/migrate.py --check` still proves `2.3.1` byte-identical to the
+upstream tag; `tools/build_release.py --overlay migration/overlays/2.4.0
+--check` proves `2.4.0` byte-identical to its own recorded
+base-plus-overlay composition; and `python3 tests/run_all.py` runs the full
+frozen matrix against both releases independently
+(`migration/portability_exceptions.json`'s `by_version` keys each release's
+own exception set separately, never assumed to carry over from the other).
+
+### Downgrade posture
+
+Downgrading a repository that has ever run `2.4.0` back to `2.3.1` is
+**unsupported**. `2.3.1`'s `workflow_state.py` has no `NEEDS_REVALIDATION`
+(a `CHECKPOINT_STATUSES` member `2.4.0` introduces) and no `SUPERSEDED` plan-
+approval status; a downgraded repository's already-committed
+`WORKFLOW_STATE.json` reads any commit that ever recorded either value as
+permanently `"undecidable"` under `2.3.1`'s own narrower vocabulary (git
+history does not change on downgrade), and checkpoint resume for that work
+item wedges with no in-band escape short of the explicit,
+evidence-bound `authorize_identity_reference_gap` operation. A repository
+that has ever requested a plan amendment, or has any checkpoint that ever
+held `NEEDS_REVALIDATION`, or a plan approval that ever held `SUPERSEDED`,
+must not run `workflow_manager update --release-version 2.3.1` against
+itself again. `CLAUDE.md`'s "Adding an authored Workflow release" states the
+same warning as an operator instruction.

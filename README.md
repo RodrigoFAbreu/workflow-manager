@@ -9,22 +9,26 @@ overwriting the work-item state those repositories accumulate.
 
 ## Status
 
-| | |
-|---|---|
-| Migrated release | **Workflow v2.3.1** |
-| Source | `repflow-android` tag `workflow-v2.3.1` (`1f954fbb6c68`) |
-| Frozen suite against the conformance fixture | **7/7 suites, 1440 tests — matching the upstream baseline** |
-| Frozen suite in a bootstrapped repository | 1439 of 1440 ([one documented exception](docs/defects/v2.3.1-001-host-history-coupled-tests.md)) |
+| Release | Origin | Frozen/authored suite against the fixture | Bootstrapped repository |
+|---|---|---|---|
+| `2.3.1` | upstream — `repflow-android` tag `workflow-v2.3.1` (`1f954fbb6c68`) | 7/7 suites, 1440 tests — matching the upstream baseline | 1439 of 1440 ([one documented exception](docs/defects/v2.3.1-001-host-history-coupled-tests.md)) |
+| `2.4.0` | authored in this repository — `2.3.1` base plus the plan-amendment-mechanism overlay | 7/7 suites, 1472 tests — same suite set as `2.3.1`, plus 32 new cases | 1471 of 1472 (the same documented exception) |
+
+`workflow_manager releases` prints every release present, each release's own
+`provenance` distinguishing an upstream extraction from an authored one; both
+kinds install, update, and verify through the same commands below.
 
 ## Layout
 
 ```
-migration/       classification ruleset and portability exceptions
-tools/migrate.py frozen upstream release -> distribution/
-distribution/    the canonical, immutable release content
-src/             the bootstrapper
-tests/           stdlib unittest, no third-party dependencies
-docs/            the migration record, the architecture, and upstream defects
+migration/           classification ruleset, portability exceptions, and
+                     any authored release's own overlay
+tools/migrate.py     frozen upstream release -> distribution/
+tools/build_release.py  base release + overlay -> distribution/ (authored)
+distribution/        the canonical, immutable release content
+src/                 the bootstrapper
+tests/               stdlib unittest, no third-party dependencies
+docs/                the migration record, the architecture, and upstream defects
 ```
 
 ## Use
@@ -71,6 +75,19 @@ python3 tools/migrate.py --check    # prove the committed tree is reproducible
 Both read the upstream repository through `git show` only. Nothing here ever
 writes to it.
 
+An authored release (`2.4.0`) is re-derived the same way, from its own base
+release and overlay instead of an upstream tag:
+
+```bash
+python3 tools/build_release.py --overlay migration/overlays/2.4.0            # rebuild
+python3 tools/build_release.py --overlay migration/overlays/2.4.0 --check    # prove it reproduces
+```
+
+See [`docs/ARCHITECTURE.md`'s "Authored releases"](docs/ARCHITECTURE.md#authored-releases)
+for the mechanism and [`CLAUDE.md`](CLAUDE.md) for the operator procedure for
+adding either kind of release, including the downgrade posture an authored
+release that widens closed state vocabulary creates.
+
 ## Tests
 
 ```bash
@@ -83,9 +100,21 @@ present: a migrated release is verifiable from its own manifest alone.
 
 ## Reading order
 
-1. [`docs/MIGRATION.md`](docs/MIGRATION.md) — what was extracted, how the
-   dependency closure was derived, and the evidence.
+1. [`docs/MIGRATION.md`](docs/MIGRATION.md) — what was extracted from `2.3.1`
+   and how the dependency closure was derived, plus `2.4.0`'s own authored
+   provenance record, both with their evidence.
 2. [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — the distribution/state
-   boundary and why the layout is what it is.
+   boundary, why the layout is what it is, and how an authored release is
+   composed and verified.
 3. [`docs/defects/`](docs/defects/) — upstream defects found during migration,
    documented rather than repaired.
+
+For the plan-amendment mechanism itself — a work item's operator reopening
+its own approved plan mid-`IMPLEMENTING`/`SELF_REVIEWING_IMPLEMENTATION` via
+`/request-plan-amendment`, the `AMENDING_PLAN` state it enters, and how
+checkpoints reconcile against the revised plan — see
+`docs/ai-workflow/PLAN_AMENDMENT_MECHANISM_PLAN.md` (this repository's own
+design record) and, in a repository running the installed `2.4.0` release,
+its `docs/ai-workflow/WORKFLOW_V2_1_OPERATOR_REFERENCE.md`'s own
+`/request-plan-amendment` section (the operator-facing contract this release
+ships).

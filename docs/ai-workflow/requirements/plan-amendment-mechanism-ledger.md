@@ -1039,3 +1039,101 @@ overrides it.
   working-tree changes."
 - **Functional-verification outcome**: not applicable at this checkpoint.
 
+## `CP9` — Documentation: ARCHITECTURE.md, MIGRATION.md, README.md, CLAUDE.md release procedures (including the stated downgrade posture)
+
+- **Implementation evidence**: documentation only, by design (section 8's
+  own self-review notes state CP9 adds no test). REQ-15 ("Document the
+  authored-release convention and the amendment operator flow", CP3/CP9)
+  is discharged for this repository's own top-level docs; CP3 already
+  discharged the payload-facing half
+  (`WORKFLOW_V2_1_OPERATOR_REFERENCE.md`'s `/request-plan-amendment`
+  section, shipped in the `2.4.0` overlay).
+  - **`docs/MIGRATION.md`**: new "Workflow v2.4.0 — an authored release"
+    section (D-Authored-Release-2's own bullet: "gains a short new section
+    recording this second release's own provenance"), with a table of the
+    real, checked facts read directly from the committed artifacts rather
+    than restated from memory: `distribution/workflow/2.4.0/manifest.json`'s
+    `provenance` (`{"origin": "authored", "base_release": "2.3.1",
+    "overlay_commit": "0cd8ed6281c24717a2f66fe47b521d2c1baf16b2"}`) and
+    `counts` (61 artifacts -- 35 `distribution`/24 `conformance`/2
+    `host-evidence` -- 6 templates, `overlay_replaced: 11`,
+    `overlay_added: 1`); `tests/support.py`'s per-release `CI_SUITES` totals
+    (1440 for `2.3.1`, 1472 for `2.4.0` -- the +32 CP8 added to
+    `workflow_state_test.py`, confirmed by direct
+    `sum(CI_SUITES[version].values())` rather than assumed unchanged from
+    CP6's own note, which predates CP8's test additions); and
+    `migration/portability_exceptions.json`'s `by_version` (the identical
+    single host-history exception under both versions). A new "Downgrade
+    posture" subsection states D-Plan-Amendment-7's own paragraph as an
+    operator-facing warning naming the specific failure mode
+    (`_checkpoint_status_at_commit` reading a `NEEDS_REVALIDATION`/
+    `SUPERSEDED`-era commit as permanently `"undecidable"` after a
+    downgrade, checkpoint resume wedging with no in-band escape short of
+    `authorize_identity_reference_gap`) rather than leaving it to be
+    discovered, cross-checked directly against
+    `migration/overlays/2.4.0/payload/scripts/workflow_state.py`'s own
+    `CHECKPOINT_STATUSES`/`APPROVAL_STATUSES` (confirmed to add exactly
+    `NEEDS_REVALIDATION`/`SUPERSEDED` over `2.3.1`'s own two frozensets)
+    rather than the plan's own prose alone.
+  - **`CLAUDE.md`** (the repository-specific section below the
+    `workflow-manager:end` marker -- never the managed section above it):
+    the existing "Adding a Workflow release" procedure renamed "Adding an
+    upstream Workflow release" for symmetry, and a new, parallel "Adding an
+    authored Workflow release" procedure added alongside it (D-Authored-
+    Release-2: "gains a second, parallel procedure ... both remain valid,
+    chosen by whether the new release's content originates upstream or in
+    this repository"), naming the real `tools/build_release.py` invocation
+    (`--overlay migration/overlays/<version>` / `--check`) and the
+    `tests/support.py`/`migration/portability_exceptions.json` steps CP5/CP6
+    actually took, plus the same downgrade-posture warning stated as an
+    operator instruction (D-Plan-Amendment-7's own "CP4/CP9 document this
+    as an explicit operator-facing warning" -- CP4's own commit scoped
+    `migrate.py`/`CLAUDE.md` to per-release paths only and did not yet add
+    this warning, confirmed by re-reading CP4's own commit body before
+    writing this, so this checkpoint is where it is first stated rather
+    than a restatement).
+  - **`docs/ARCHITECTURE.md`**: repository-layout diagram widened with
+    `migration/overlays/<version>/` and `tools/build_release.py`; a new
+    top-level "Authored releases" section (composition, `overlay_delta`
+    byte-level provenance, `manifest.json.provenance`'s additive
+    alongside-`upstream` placement, and the claim that installing/updating/
+    reporting need no per-origin branch -- each claim stated the way the
+    rest of this document already argues its own, by naming the concrete
+    mechanism and check rather than asserting it); the existing "What a
+    second release needs" subsection renamed "What a second upstream
+    release needs" to stand as the sibling of the new section rather than
+    silently going stale as the only-ever-written path.
+  - **`README.md`**: the "Status" table widened to a two-row `2.3.1`/`2.4.0`
+    comparison (both releases' real suite/test counts, not just `2.3.1`'s);
+    a re-derivation block for `tools/build_release.py` alongside the
+    existing `tools/migrate.py` one; and a "Reading order" addition
+    pointing at `docs/ai-workflow/PLAN_AMENDMENT_MECHANISM_PLAN.md` (this
+    repository's own design record) and, for a repository running the
+    installed `2.4.0` release, its own shipped
+    `WORKFLOW_V2_1_OPERATOR_REFERENCE.md` `/request-plan-amendment` section
+    -- the amendment operator flow half of REQ-15.
+  - Every fact stated above (provenance values, counts, `CHECKPOINT_STATUSES`/
+    `APPROVAL_STATUSES` deltas, `cmd_releases`' own print format) was read
+    directly from the committed manifest, `tests/support.py`, the overlay's
+    own `workflow_state.py`, and `src/workflow_manager/cli.py` while writing
+    these sections, not carried over from the plan's own prose or an
+    earlier checkpoint's commit message unchecked.
+- **Verification**: `python3 -m unittest test_internal_references -v`
+  (narrowest relevant check for a documentation-only checkpoint that
+  touches no payload/distribution content -- 11 tests, all green,
+  confirming none of these four top-level docs are scanned by the
+  distribution's own reference-resolution lint, so nothing here could
+  regress it); `python3 tests/run_all.py --fast` (eight suites, all green).
+  The full frozen conformance matrix was not re-run: no payload, overlay,
+  or `distribution/` file changed in this checkpoint.
+- **Review findings**: self-review performed before commit (this
+  checkpoint's own diff read in full). No defect found; every quantitative
+  claim in the four documents was re-derived from the actual committed
+  artifacts rather than typed from memory, per the pattern above. The
+  unrelated, pre-existing
+  `docs/defects/v2.3.1-003-plan-approval-requires-precommitted-state-file.md`
+  (already untracked before this checkpoint began) is again left
+  uncommitted, unchanged, per `CLAUDE.md`'s "don't touch unrelated
+  working-tree changes."
+- **Functional-verification outcome**: not applicable at this checkpoint.
+

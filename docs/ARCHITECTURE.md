@@ -20,11 +20,17 @@ the reason for most of the structure below.
 migration/
   classification.json          ordered, first-match-wins ruleset over the frozen tree
   portability_exceptions.json  frozen tests a clean target cannot pass, with reasons
+  overlays/<version>/           hand-authored delta for an authored release (see below)
+    classification.json         same ruleset shape, scoped to the overlay's own files
+    payload/                     new files, plus full replacements of base payload files
 tools/
   migrate.py                   frozen upstream -> distribution/  (Phase A)
+  build_release.py             base release + overlay -> distribution/  (an authored release)
 distribution/
   workflow/<version>/
     manifest.json              every upstream path's disposition, with digests
+                               (an authored release's manifest also carries `provenance`
+                               and, per replaced file, `overlay_delta` -- see below)
     payload/                   Workflow files, byte-identical, target-relative paths
     fixtures/                  host documents the frozen suite asserts on
     templates/                 clean repository-local initial state, and the
@@ -38,7 +44,8 @@ src/workflow_manager/
   cli.py                       command-line entry point
 tests/                         stdlib unittest, no third-party dependencies
 docs/
-  MIGRATION.md                 the Phase-A record and its evidence
+  MIGRATION.md                 the Phase-A record and its evidence, plus each
+                               authored release's own provenance record
   ARCHITECTURE.md              this file
   defects/                     upstream defects found, documented, not repaired
 ```
@@ -238,7 +245,7 @@ history beyond `update()`'s symmetry, and any notion of a "real" consumer.
 Those are Controller concerns, and building them here would fix decisions that
 should stay open.
 
-### What a second release needs
+### What a second upstream release needs
 
 1. A classification entry for its tag and commit.
 2. `python3 tools/migrate.py`, producing `distribution/workflow/<version>/`.
@@ -254,3 +261,75 @@ release changes no code and no command line.
 synthesized second release rather than waiting for a real one, and
 `TestReleaseResolution` proves the resolution rules against a `distribution/`
 holding two.
+
+## Authored releases
+
+Not every new release is a new upstream tag. `2.4.0` (the plan-amendment
+mechanism, `docs/ai-workflow/PLAN_AMENDMENT_MECHANISM_PLAN.md`) originates in
+*this* repository: a small, hand-written change to Workflow behavior that has
+no upstream commit to extract it from. `tools/build_release.py` is a second,
+separate producer of a `distribution/workflow/<version>/` tree, kept apart
+from `tools/migrate.py` (whose "frozen upstream tag -> `distribution/`"
+contract stays untouched) precisely because the two trust boundaries differ:
+`migrate.py` only ever copies bytes it can check against `git show
+<commit>:<path>`; `build_release.py` composes bytes this repository itself
+authored.
+
+**The composition.** A base release (already migrated, already verified
+against its own manifest) plus an overlay
+(`migration/overlays/<version>/payload/` at the same target-relative paths
+`distribution/workflow/<version>/payload/` uses, classified by
+`migration/overlays/<version>/classification.json`, the same ruleset shape
+`migration/classification.json` uses): every base file the overlay does not
+name is copied forward byte-for-byte; every file it names either adds a new
+path or replaces a base one, cross-checked against the base release's own
+manifest rather than trusted blindly.
+
+**Byte-level provenance for the authored half.** `tools/migrate.py`'s
+manifest already gives the upstream half of a release "this exact file, this
+exact upstream commit." An authored release needs the same discipline for
+the half nothing upstream can vouch for: every file the overlay *replaces*
+(not merely adds) gets an additive `overlay_delta` field —
+`{"base_sha256": "<the base file's own hash>", "diff_sha256": "<sha256 of a
+unified diff between the base file and the overlay file>"}` — so a full-file
+replacement carries a record of *what changed*, not only what it changed to.
+`tools/build_release.py --check` re-derives the whole tree from the base
+release plus the overlay and diffs it against what is committed, exactly
+`tools/migrate.py --check`'s own contract adapted to a base+overlay input;
+`TestAuthoredReleaseOverlayDelta` additionally reproduces every recorded
+`overlay_delta` from `base payload + diff` alone.
+
+**`manifest.json.provenance`** is the field that distinguishes an authored
+release from an extracted one: `{"origin": "upstream"}` (the default a
+manifest predating this field reads as) for one `tools/migrate.py` produced,
+or `{"origin": "authored", "base_release": "<version>", "overlay_commit":
+"<this repository's own commit at build time>"}` for one
+`tools/build_release.py` produced. It sits *alongside* the existing
+`upstream` key, never replacing it — `Release.__init__`, `cli.py`,
+`install.py` and `installation.py` all read `manifest["upstream"]`
+unconditionally, so an authored release's manifest keeps the base release's
+own upstream triple, copied forward: an authored release is still,
+transitively, provenanced from that upstream tag, just not *directly*.
+`Installation` persists the same `provenance` into a bootstrapped target's
+own record, additively, so `status` can report which kind of release a
+target was bootstrapped from without a schema bump on either side.
+
+**Nothing about installing, updating, or reporting on a release changes.**
+`Release.installable(profile)`, `bootstrap`, `update`, `drift()`, `status`
+and `verify` all read a release through the same manifest/payload shape
+regardless of how it was produced — an authored release is exactly as
+installable as an extracted one, because by the time it is committed under
+`distribution/workflow/<version>/` the two are the same shape of tree. The
+per-release conformance matrix (`tests/support.py`'s `CI_SUITES` and
+`migration/portability_exceptions.json`'s `by_version`, both keyed by
+`workflow_version` since `2.4.0`) is what actually proves that: each
+release's own frozen/authored suite runs, and passes or documents its own
+exceptions, independently of any other release present in the same
+`distribution/`.
+
+See `docs/MIGRATION.md`'s "Workflow v2.4.0" section for the concrete record
+— what was authored, the exact provenance values, and the evidence — and
+`CLAUDE.md`'s "Adding an authored Workflow release" for the operator
+procedure, including the downgrade posture an authored release that widens a
+closed vocabulary (a new `CHECKPOINT_STATUSES`/`APPROVAL_STATUSES` member, for
+instance) creates.
