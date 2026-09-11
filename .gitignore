@@ -6,3 +6,8 @@ dist/
 build/
 .tmp/
 *.egg-info/
+
+# --- AI Workflow (managed by workflow-manager) ---
+.ai-review/
+__pycache__/
+*.pyc

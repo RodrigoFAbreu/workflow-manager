@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "active_work_item_id": "plan-amendment-mechanism",
+  "work_items": {
+    "plan-amendment-mechanism": {
+      "work_item_type": "process",
+      "work_item_kind": "process",
+      "work_item_id": "plan-amendment-mechanism",
+      "parent_work_item_id": null,
+      "plan_path": "docs/ai-workflow/PLAN_AMENDMENT_MECHANISM_PLAN.md",
+      "registry_path": "docs/ai-workflow/registry/plan-amendment-mechanism-registry.json",
+      "mapping_path": "docs/ai-workflow/requirements/plan-amendment-mechanism-mapping.json",
+      "governing_workflow_version": "2.1",
+      "phase": "AWAITING_PLAN_APPROVAL",
+      "plan_revision": 33,
+      "implementation_revision": null,
+      "functional_review_round": null,
+      "base_commit": "bd34aff1f626fb90e96e7aa8a9d8120ac55eee30",
+      "reviewed_implementation_head": null,
+      "current_checkpoint_id": null,
+      "last_completed_checkpoint_id": null,
+      "checkpoints": {},
+      "current_bundle_id": null,
+      "plan_approval": null,
+      "technical_approval": null,
+      "technical_review_block_pins": [],
+      "plan_review_stages": {
+        "review_content_id": "401b57fbdb8a5717552503052a224d52e08d833299230d2de9f5418cfc42b03c",
+        "LOCAL_MODEL_PLAN_REVIEW": {
+          "bundle_id": "125b3de273415d50b02403a4fc01b4d62dc84afe55e2a22d8818331648e35142",
+          "verdict": "APPROVE",
+          "round": 33,
+          "completed_at": "2026-09-11T13:52:04Z"
+        },
+        "MANUAL_EXTERNAL_PLAN_REVIEW": {
+          "bundle_id": "125b3de273415d50b02403a4fc01b4d62dc84afe55e2a22d8818331648e35142",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-09-11T13:06:32Z"
+        }
+      },
+      "functional_acceptance_status": null,
+      "blocking_decisions": [],
+      "state_revision": 102,
+      "last_transition": "2026-09-11T13:06:32Z"
+    }
+  }
+}
