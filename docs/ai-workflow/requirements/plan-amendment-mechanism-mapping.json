@@ -1,0 +1,111 @@
+{
+  "schema_version": 1,
+  "work_item_id": "plan-amendment-mechanism",
+  "requirements": {
+    "REQ-1": {
+      "description": "Which phases may request amendment (at least IMPLEMENTING and SELF_REVIEWING_IMPLEMENTATION)",
+      "checkpoint_ids": [
+        "CP1",
+        "CP2"
+      ]
+    },
+    "REQ-2": {
+      "description": "Explicit operator/user authority required to request amendment; never USER_OVERRIDE",
+      "checkpoint_ids": [
+        "CP1",
+        "CP2",
+        "CP3"
+      ]
+    },
+    "REQ-3": {
+      "description": "How the current plan approval becomes stale/superseded/retired safely",
+      "checkpoint_ids": [
+        "CP1",
+        "CP2"
+      ]
+    },
+    "REQ-4": {
+      "description": "How the work item legally re-enters plan revision/review",
+      "checkpoint_ids": [
+        "CP1",
+        "CP2"
+      ]
+    },
+    "REQ-5": {
+      "description": "Fresh local/manual two-stage plan review performed for the amended plan",
+      "checkpoint_ids": [
+        "CP1",
+        "CP2"
+      ]
+    },
+    "REQ-6": {
+      "description": "New plan approval becomes the implementation basis",
+      "checkpoint_ids": [
+        "CP1",
+        "CP2"
+      ]
+    },
+    "REQ-7": {
+      "description": "Disposition of already-completed checkpoints/commits; safe resumption of implementation",
+      "checkpoint_ids": [
+        "CP1",
+        "CP2"
+      ]
+    },
+    "REQ-8": {
+      "description": "review_content_id, bundle identity, approval commits, ancestry, protected-path bindings handled across the amendment",
+      "checkpoint_ids": [
+        "CP1",
+        "CP3"
+      ]
+    },
+    "REQ-9": {
+      "description": "Crash recovery, interruption recovery, and idempotence throughout the amendment flow",
+      "checkpoint_ids": [
+        "CP2"
+      ]
+    },
+    "REQ-10": {
+      "description": "Compatibility with repositories already managed by v2.3.1; whether schema/version migration is required",
+      "checkpoint_ids": [
+        "CP2",
+        "CP4",
+        "CP6"
+      ]
+    },
+    "REQ-11": {
+      "description": "Correct authored release-production path inside workflow-manager; v2.3.1 stays byte-identical/frozen",
+      "checkpoint_ids": [
+        "CP4",
+        "CP5",
+        "CP6"
+      ]
+    },
+    "REQ-12": {
+      "description": "Regeneration and release validation this repository's own conventions require",
+      "checkpoint_ids": [
+        "CP6"
+      ]
+    },
+    "REQ-13": {
+      "description": "Disposable-repository update-path validation: normal, IMPLEMENTING, and SELF_REVIEWING_IMPLEMENTATION repositories, with pre-existing approvals/state/bindings verified",
+      "checkpoint_ids": [
+        "CP7",
+        "CP8"
+      ]
+    },
+    "REQ-14": {
+      "description": "Exercise the new amendment mechanism, fresh plan re-review/re-approval, and safe resumption of implementation after update, before any real managed repository is touched",
+      "checkpoint_ids": [
+        "CP8"
+      ]
+    },
+    "REQ-15": {
+      "description": "Document the authored-release convention and the amendment operator flow",
+      "checkpoint_ids": [
+        "CP3",
+        "CP9"
+      ]
+    }
+  }
+}

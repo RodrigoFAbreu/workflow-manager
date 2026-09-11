@@ -11,8 +11,8 @@
       "registry_path": "docs/ai-workflow/registry/plan-amendment-mechanism-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/plan-amendment-mechanism-mapping.json",
       "governing_workflow_version": "2.1",
-      "phase": "AWAITING_PLAN_APPROVAL",
-      "plan_revision": 33,
+      "phase": "IMPLEMENTING",
+      "plan_revision": 34,
       "implementation_revision": null,
       "functional_review_round": null,
       "base_commit": "bd34aff1f626fb90e96e7aa8a9d8120ac55eee30",
@@ -21,28 +21,58 @@
       "last_completed_checkpoint_id": null,
       "checkpoints": {},
       "current_bundle_id": null,
-      "plan_approval": null,
+      "plan_approval": {
+        "status": "CURRENT",
+        "basis": "EXTERNAL_APPROVE",
+        "reviewed_bundle_id": "bab519a00d4b3c0fb4b791f3ce712606840a5e6d5f79ee8af610a7ab60d111ef",
+        "approved_review_content_id": "43457eb54fa6409a28ffb19cd8afa3e8506661b7c20119f8d76204caf4253257",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/PLAN_AMENDMENT_MECHANISM_PLAN.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "d933f1a4a581cae5a5fe911ad068253c0feb9c6e"
+          },
+          {
+            "path": "docs/ai-workflow/registry/plan-amendment-mechanism-registry.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "8241073e9b7a42db3bbc58e107b0956a71939f97"
+          },
+          {
+            "path": "docs/ai-workflow/requirements/plan-amendment-mechanism-mapping.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "f148a8bc2530c021264c132b22fb02c010b1c6fb"
+          }
+        ],
+        "reviewed_content_commit": null,
+        "legacy_evidence": null,
+        "user_confirmation": "I approve the plan stage for plan-amendment-mechanism.",
+        "waived_guarantees": [],
+        "recorded_at": "2026-09-11T18:05:00Z"
+      },
       "technical_approval": null,
       "technical_review_block_pins": [],
       "plan_review_stages": {
-        "review_content_id": "401b57fbdb8a5717552503052a224d52e08d833299230d2de9f5418cfc42b03c",
+        "review_content_id": "43457eb54fa6409a28ffb19cd8afa3e8506661b7c20119f8d76204caf4253257",
         "LOCAL_MODEL_PLAN_REVIEW": {
-          "bundle_id": "125b3de273415d50b02403a4fc01b4d62dc84afe55e2a22d8818331648e35142",
+          "bundle_id": "bab519a00d4b3c0fb4b791f3ce712606840a5e6d5f79ee8af610a7ab60d111ef",
           "verdict": "APPROVE",
-          "round": 33,
-          "completed_at": "2026-09-11T13:52:04Z"
+          "round": 35,
+          "completed_at": "2026-09-11T17:51:56Z"
         },
         "MANUAL_EXTERNAL_PLAN_REVIEW": {
-          "bundle_id": "125b3de273415d50b02403a4fc01b4d62dc84afe55e2a22d8818331648e35142",
+          "bundle_id": "bab519a00d4b3c0fb4b791f3ce712606840a5e6d5f79ee8af610a7ab60d111ef",
           "verdict": "APPROVE",
           "round": 1,
-          "completed_at": "2026-09-11T13:06:32Z"
+          "completed_at": "2026-09-11T18:03:01Z"
         }
       },
       "functional_acceptance_status": null,
       "blocking_decisions": [],
-      "state_revision": 102,
-      "last_transition": "2026-09-11T13:06:32Z"
+      "state_revision": 109,
+      "last_transition": "2026-09-11T18:05:00Z"
     }
   }
 }

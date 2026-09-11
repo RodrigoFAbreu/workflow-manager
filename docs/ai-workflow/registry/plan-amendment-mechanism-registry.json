@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "work_item_id": "plan-amendment-mechanism",
+  "plan_revision": 34,
+  "checkpoints": [
+    {
+      "id": "CP1",
+      "name": "Lock the amendment state-machine design (D-Plan-Amendment-1..8) into the successor's own normative design document, migration/overlays/2.4.0/payload/docs/ai-workflow/WORKFLOW_V2_PLAN.md (a new ### D-Plan-Amendment-1..8 section appended under its existing ### D-<name> convention, naming D-Plan-Amendment-1..8; writes, anywhere in the document, no D-Plan-Review-Stages `/review-plan` transition-table row (state cell `AWAITING_LOCAL_PLAN_REVIEW`, verdict cell `APPROVE`/`REVISE`/`BLOCK`, command cell `/review-plan`), no four-cell Requirements-traceability-table row keyed by a `WFR-nn` id, and no line beginning `85. `/`96. ` -- the patterns TestReviewPlanWriteSetConsistencyLint's three functions and TestRequirementsMappingTableConformance's three functions (workflow_integration_test.py:3384/:3470) actually match, not merely the 'Missing tests' section and the Requirements traceability table by name, I-R25-1, tightened I-R26-1 -- so all six stay green); an overlay_delta-recorded full-file replacement in migration/overlays/2.4.0/payload/ alongside D-Authored-Release-2's other ten replaced paths (O-R30-2: named here at its overlay payload path, not the bare host-relative path, to remove the ambiguity a mechanical derivation of the deliverable set from this row would otherwise hit); open docs/defects/v2.3.1-002-no-plan-amendment-edge.md (not an overlay member -- this repository's own defect record, not distributed payload)",
+      "depends_on": [],
+      "complexity": 3,
+      "session_target": 1
+    },
+    {
+      "id": "CP2",
+      "name": "Author workflow_state.py additions in the overlay: AMENDING_PLAN, /request-plan-amendment's writer (state_writer: declaration; assigns work_item[\"phase\"] = \"AMENDING_PLAN\" as a direct string literal, never through a local name, so the AST-derived phase census resolves it without a third hardcoded compensation entry; its widened precondition refusing by name via AmendmentApprovalCommitUnreachableError when the plan-approval commit is not discoverable/an ancestor of HEAD, before superseding anything; records amendment_history's bounded pre_amendment_approval_commit reference, never inline plan/registry snapshots), SUPERSEDED/NEEDS_REVALIDATION, apply_plan_approval's pre_registry/pre_plan_text/post_registry/post_plan_text keyword-only parameters (AmendmentReconciliationInputsMissingError) and reconcile_checkpoints_after_amendment folded into its own computation (load_pre_amendment_snapshot's on-demand, content-addressed load of the pre-amendment registry/plan-text from the pinned approval commit and blob SHAs, AmendmentPreSnapshotUnreproducibleError, total per-id anchor grammar with asymmetric pre-side-conservative/post-side-refusing validation, write-once resolved_at_plan_revision enforcement, dependency-closure propagation), APPROVAL_STATUSES/CHECKPOINT_STATUSES/KNOWN_PHASES + validate_approval_record updates, full compatibility audit of all three vocabularies' own reader call sites -- targeted at APPROVAL_STATUSES's real validation site (validate_approval_record, workflow_state.py:9558) rather than a raw SUPERSEDED grep, since _RECONCILIATION_STATUS_TOKENS's own unrelated reconciliation-table vocabulary (D-Plan-Amendment-3) shares that token and is not a collision (including the payload's own workflow_state_completion_obligations_test.py PERSISTED frozenset and workflow_state_test.py EXPECTED_WRITERS census, both updated for AMENDING_PLAN/its writer as overlay_delta-recorded full-file replacements in migration/overlays/2.4.0/payload/, the way CP3's own row separately describes its own three payload/command files), and the REVIEW_SUBJECT_ROSTER decision (deliberately leaving /request-plan-amendment off it, recorded rather than left unaddressed); introduces no new fcntl.flock(LOCK_EX) call or releasable os.link site (I-R21-1: workflow_state_test.py's TestGlobalLockOrderItem372h closed-set censuses would otherwise go red; if a future revision ever does add one, verify_372h_lock_primitive_predicate.py's DECLARED_PRIMITIVES and WORKFLOW_V2_PLAN.md's own ten-edge table must move in the same overlay change)",
+      "depends_on": [
+        "CP1"
+      ],
+      "complexity": 5,
+      "session_target": 3
+    },
+    {
+      "id": "CP3",
+      "name": "Author command files (state_writer: declaration; /request-plan-amendment.md opens with the house \"Enter the AMENDING_PLAN state of docs/ai-workflow/MILESTONE_WORKFLOW.md.\" preamble, the same convention every other phase-writing/gating command uses; approve-review.md's numbered sequence unchanged -- reconciliation adds no new guarded step; step 4c reads pre_registry/pre_plan_text via load_pre_amendment_snapshot and post_registry/post_plan_text via the working-tree read, and forwards all four to open_plan_approval_journal; /request-plan-amendment.md's own \"what happens next\" prose names scripts/prepare-ai-review.sh, explaining that AMENDMENT_DIFF.patch will appear in the next plan-stage bundle while this amendment stays open, I-R14-2, authored under an explicit phrasing constraint -- it names scripts/prepare-ai-review.sh without a run/rerun-plus-backticked-invocation construction, so its own invocation lines never match _GENERATOR_RUN_RE, I-R15-1), prepare-ai-review.sh's AMENDMENT_DIFF.patch generation outside bundle_dir, its inclusion in review-bundle.tar.gz, and REVIEW_REQUEST.md's fixed non-authoritative marker line for it, introducing neither assert_local_generation_matches nor governing_workflow_version awareness into prepare-ai-review.sh itself (I-R21-1: workflow_integration_test.py's TestAssertLocalGenerationMatchesCallSiteConformance and the governing_workflow_version half of test_bundle_scripts_are_deliberately_version_agnostic would otherwise go red), apply-functional-review.md's broad-remediation branch naming /request-plan-amendment <child-id> (a remediation child in IMPLEMENTING/SELF_REVIEWING_IMPLEMENTATION may request its own plan amendment, on the same terms as its parent), and distribution-doc updates in the overlay -- explicitly including the payload's own workflow_integration_test.py (its persisted-phase table check, its own hand-maintained phase-to-writer dict, its command-count/literal-string check, its argument-hint-heading check, its broad-remediation-branch/remediation-children-section completeness checks, its Enter-preamble ten-stem-to-eleven-stem literal/table check, its generator-mention census -- _GENERATOR_MENTION_ONLY_COMMANDS gains a third entry, request-plan-amendment.md, with its own justification string, I-R14-2; and test_no_mention_only_command_instructs_its_own_generation's two-population docstring updated to a three-population reading, I-R15-2 -- and, new at revision 18, B-R18-1, _GOLDEN_COMMAND_FILE_SHA256's approve-review.md and apply-functional-review.md entries, recomputed against the overlay's own edited command files; request-plan-amendment.md itself needs no entry, since the dict is thirteen of fifteen command files today and is not a total census) and, new at revision 19 (B-R19-1), test_the_broad_branch_states_the_real_child_entry_phase's own three-line pinned literal (workflow_integration_test.py:6227-6239) updated to match the reflowed broad-remediation-branch text once /request-plan-amendment <child-id> is inserted into the sanctioned child sequence) and WORKFLOW_V2_1_OPERATOR_REFERENCE.md itself (its Persisted phases table, its persisted-phase-writer table, its hand-maintained command-count pair updated to 16, its Remediation children section, its \"Enter the `X` state\" table and \"Ten of the fifteen\" sentence updated to eleven of sixteen, a new ### /request-plan-amendment section, and, new at revision 19 (I-R19-1), a small clarifying sentence scoping the \"whole plan lane persists exactly three phases\" claim to the pre-approval PLANNING->IMPLEMENTING sequence, distinct from the new re-entry AMENDING_PLAN phase) and docs/ai-workflow/REVIEW_PROTOCOL.md itself (its \"Author-written files\" list gaining AMENDMENT_DIFF.patch's own bullet -- a fixed non-authoritative marker line, D-Plan-Amendment-5 -- and its \"Bundle structure\" diagram gaining the same file; constrained, I-R22-2, to leave :199's \"Must state `review_content_id: <hex>` as a plain labelled line\" and :212's \"`implementation_revision: <N>` matching the work item\" sentences byte-identical, or to move test_the_ad_hoc_and_bootstrap_drivers_route_authoring_through_the_protocol's two pinned literals in the same overlay change) and docs/ai-workflow/MILESTONE_WORKFLOW.md itself (its state-machine listing gaining the AMENDING_PLAN state and its re-entry edges from IMPLEMENTING/SELF_REVIEWING_IMPLEMENTATION, I-R22-2, constrained, I-R23-1, to place the new ### AMENDING_PLAN section after ### PLANNING (so ## State reference's never-persisted summary paragraph stays inside the text.split(\"## State reference\", 1)[1].split(\"### \", 1)[0] slice) and to carry no *Vocabulary state \u2014 never persisted* marker on that section, the same shape the REVIEW_PROTOCOL.md:199/:212 constraint already takes), each an overlay_delta-recorded full-file replacement in migration/overlays/2.4.0/payload/",
+      "depends_on": [
+        "CP2"
+      ],
+      "complexity": 3,
+      "session_target": 1
+    },
+    {
+      "id": "CP4",
+      "name": "Fix workflow-manager's own release tooling and test suites for a second release: tools/migrate.py's spec-derived, release-scoped destructive step and common-root --check comparison, CLAUDE.md's distribution/ hard rule and its 'Before changing anything' --check sentence (both amended to the per-release scope), release.py/cli.py/install.py/installation.py's additive provenance handling (manifest and installation-record schema posture), pin every REPO_ROOT-rooted find_release call to 2.3.1 explicitly (exempting the synthetic-root defaulting test and test_conformance_suite.py:54's own workflow_version-parameterized _SuiteRun.build)",
+      "depends_on": [
+        "CP1"
+      ],
+      "complexity": 4,
+      "session_target": 2
+    },
+    {
+      "id": "CP5",
+      "name": "Release-authoring tooling: migration/overlays/2.4.0/ (including a regenerated CI-workflow template, authored against an explicit suite-name list fixed by CP2/CP3's own overlay payload files -- never against tests/support.py's CI_SUITES[\"2.4.0\"], which CP6 alone creates -- when 2.4.0's own suite list differs from 2.3.1's), tools/build_release.py (base-verify, overlay-apply, overlay_delta recording), overlay classification ruleset, manifest.json's additive provenance field, and preserving each replaced payload file's existing 2.3.1 category in the overlay's own classification.json (I-R16-2: category determines the install profile, src/workflow_manager/release.py:29-32)",
+      "depends_on": [
+        "CP2",
+        "CP3",
+        "CP4"
+      ],
+      "complexity": 5,
+      "session_target": 2
+    },
+    {
+      "id": "CP6",
+      "name": "Regenerate distribution/workflow/2.4.0/; prove 2.3.1 byte-identical/frozen via the fixed migrate.py --check; make tests/support.py's CI_SUITES/portability_exceptions.json per-release across both test_conformance_suite.py and test_bootstrap_e2e.py and run the full frozen conformance matrix against 2.4.0's own payload via _SuiteRun.build's workflow_version parameter; widen the WFO-STATE-SERIALIZATION closure verifier to the overlay payload; extend conformance suite with the parallel authored-release assertion set, overlay-delta verification, and the 2.4.0 CI-template suite-name assertion; discharge D-Plan-Amendment-7's own compatibility-audit acceptance obligation -- identify every payload-suite test function (workflow_state_test.py, workflow_state_completion_obligations_test.py, workflow_integration_test.py) whose read set intersects a path this release's checkpoints touch, run each one against the finished overlay diff, and report every member green or an already-documented red in migration/portability_exceptions.json",
+      "depends_on": [
+        "CP5"
+      ],
+      "complexity": 5,
+      "session_target": 3
+    },
+    {
+      "id": "CP7",
+      "name": "Disposable-repository fixtures for IMPLEMENTING/SELF_REVIEWING_IMPLEMENTATION",
+      "depends_on": [
+        "CP6"
+      ],
+      "complexity": 3,
+      "session_target": 1
+    },
+    {
+      "id": "CP8",
+      "name": "Update-path validation: all three scenarios, including a REVISE round mid-amendment, post-amendment implementing_entry_reachable, reconciliation dependency-closure and registry-row-unchanged/prose-changed cases, and safe resumption",
+      "depends_on": [
+        "CP7"
+      ],
+      "complexity": 5,
+      "session_target": 3
+    },
+    {
+      "id": "CP9",
+      "name": "Documentation: ARCHITECTURE.md, MIGRATION.md, README.md, CLAUDE.md release procedures (including the stated downgrade posture)",
+      "depends_on": [
+        "CP8"
+      ],
+      "complexity": 2,
+      "session_target": 1
+    }
+  ]
+}
