@@ -53,8 +53,10 @@ It is *not* RepFlow, and no RepFlow product work belongs here.
   (`1f954fbb6c689ec690fefe5a2f27b1e4a0ca6db6`). Never write to it, never
   create a worktree in it, never rely on its working tree — it carries an
   unrelated in-flight branch.
-- **`distribution/` is generated, not edited.** It is byte-identical to the
-  frozen release. Change `migration/classification.json` or `tools/migrate.py`
+- **Each `distribution/workflow/<version>/` is generated, not edited.**
+  `2.3.1` is byte-identical to the frozen upstream release; a later authored
+  release is byte-identical to its own recorded base-plus-overlay
+  composition. Change `migration/classification.json` or `tools/migrate.py`
   and re-run `python3 tools/migrate.py`.
 - **Never modify frozen Workflow semantics.** If migration surfaces a genuine
   upstream defect, write it up under `docs/defects/` and stop there. Repairing
@@ -70,8 +72,11 @@ python3 tests/run_all.py --fast     # ~10s, covers inventory/bytes/templates/boo
 python3 tests/run_all.py            # ~7min, adds the frozen conformance matrix
 ```
 
-`tools/migrate.py --check` proves `distribution/` is still exactly what a
-fresh extraction produces.
+`tools/migrate.py --check` proves each `distribution/workflow/<version>/` is
+still exactly what a fresh extraction (or, for an authored release, its
+recorded base-plus-overlay composition) produces; it does not by itself
+prove no unrelated file exists directly under `distribution/` outside every
+release directory.
 
 ## Where things are
 

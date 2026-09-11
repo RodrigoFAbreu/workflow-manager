@@ -82,6 +82,7 @@ def cmd_releases(args) -> int:
         release = find_release(args.manager_root, version)
         print(f"{release.version}  from {release.upstream['tag']} "
               f"({release.upstream['commit'][:12]})  "
+              f"[{release.provenance['origin']}]  "
               f"{len(release.installable(INSTALL_PROFILE_FULL))} files")
     return 0
 

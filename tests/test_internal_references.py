@@ -94,7 +94,7 @@ NARRATIVE_DOCS_EXCLUDED_FROM_RESOLUTION = tuple(
 
 class ReferenceCase(unittest.TestCase):
     def setUp(self):
-        self.release = find_release(REPO_ROOT)
+        self.release = find_release(REPO_ROOT, "2.3.1")
         self.shipped = {a.target_path for a in self.release.payload_artifacts("full")}
         self.generated = {t["target_path"] for t in self.release.templates()}
         self.generated |= set(STATE_TEMPLATES)

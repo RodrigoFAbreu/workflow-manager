@@ -49,9 +49,17 @@ class _SuiteRun:
     _tmp = None
 
     @classmethod
-    def build(cls, builder):
+    def build(cls, builder, workflow_version: str = "2.3.1"):
+        # `REPO_ROOT`-rooted, so pinned explicit per D-Authored-Release-4's
+        # rule -- except this call site is the one named carve-out: it
+        # decides which release's payload is under test, not merely what
+        # the assertions compare against, so it takes the version as a
+        # parameter (defaulting to today's only release) rather than a bare
+        # literal, leaving room for a later run against a second release
+        # without becoming a second copy of this method.
         cls._tmp = tempfile.TemporaryDirectory()
-        cls.root = builder(find_release(REPO_ROOT), Path(cls._tmp.name) / "repo")
+        cls.workflow_version = workflow_version
+        cls.root = builder(find_release(REPO_ROOT, workflow_version), Path(cls._tmp.name) / "repo")
         cls.results = {suite: run_suite(cls.root, suite) for suite in CI_SUITES}
 
     @classmethod

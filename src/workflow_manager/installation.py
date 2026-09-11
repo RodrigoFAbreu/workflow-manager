@@ -53,6 +53,7 @@ class Installation:
     workflow_version: str
     profile: str
     upstream: dict
+    provenance: dict = field(default_factory=lambda: {"origin": "upstream"})
     managed: dict = field(default_factory=dict)
     generated: dict = field(default_factory=dict)
     merged: dict = field(default_factory=dict)
@@ -70,6 +71,7 @@ class Installation:
             "workflow_version": self.workflow_version,
             "profile": self.profile,
             "upstream": self.upstream,
+            "provenance": self.provenance,
             "installed_at": self.installed_at,
             "updated_at": self.updated_at,
             "managed": dict(sorted(self.managed.items())),
@@ -91,6 +93,7 @@ class Installation:
             workflow_version=data["workflow_version"],
             profile=data["profile"],
             upstream=data["upstream"],
+            provenance=data.get("provenance", {"origin": "upstream"}),
             managed=dict(data.get("managed", {})),
             generated=dict(data.get("generated", {})),
             merged=dict(data.get("merged", {})),

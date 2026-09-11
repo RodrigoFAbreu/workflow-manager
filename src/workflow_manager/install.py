@@ -350,6 +350,7 @@ def bootstrap(target: Path, release: Release, profile: str = INSTALL_PROFILE_FUL
         workflow_version=release.version,
         profile=profile,
         upstream=release.upstream,
+        provenance=release.provenance,
         installed_at=stamp,
         updated_at=stamp,
     )
@@ -470,6 +471,7 @@ def update(target: Path, release: Release, profile: str | None = None,
         workflow_version=release.version,
         profile=profile,
         upstream=release.upstream,
+        provenance=release.provenance,
         installed_at=current.installed_at,
         updated_at=stamp,
         # A path the release has taken ownership of since the target was

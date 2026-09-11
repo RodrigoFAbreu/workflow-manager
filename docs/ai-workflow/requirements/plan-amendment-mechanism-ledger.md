@@ -395,3 +395,121 @@ overrides it.
 - **Review findings**: none yet -- self-review pending at
   `SELF_REVIEWING_IMPLEMENTATION`.
 - **Functional-verification outcome**: not applicable at this checkpoint.
+
+## `CP4` — Fix workflow-manager's own release tooling and test suites for a second release
+
+- **Implementation evidence**:
+  - **`tools/migrate.py`'s destructive step and `--check` comparison, made
+    release-scoped (D-Authored-Release-3, B1/I1-new)**: `main()` now reads
+    `migration/classification.json`'s `workflow_version` once (the same
+    field `migrate()` itself reads at `tools/migrate.py:333`) and derives
+    `release_root = REPO_ROOT / "distribution" / "workflow" / version`.
+    The ordinary regeneration path `shutil.rmtree`s only `release_root`,
+    never the whole `distribution/` tree, so a later authored sibling
+    (`distribution/workflow/2.4.0/`) survives an ordinary `2.3.1`
+    re-extraction. `--check`'s comparison is now taken at one common root
+    on both sides -- `_tree_digest(Path(tmp) / "workflow" / version)`
+    against `_tree_digest(release_root)` -- replacing the previous
+    disjoint-key-set comparison (`_tree_digest(Path(tmp))` against
+    `_tree_digest(REPO_ROOT / "distribution")`) that reported every path
+    both `missing:` and `extra:` unconditionally.
+  - **`CLAUDE.md`'s two per-release statements (D-Authored-Release-3,
+    I4-new)**: the hard-rule bullet now reads "Each
+    `distribution/workflow/<version>/` is generated, not edited. `2.3.1`
+    is byte-identical to the frozen upstream release; a later authored
+    release is byte-identical to its own recorded base-plus-overlay
+    composition."; the "Before changing anything" section's `--check`
+    sentence now reads "`tools/migrate.py --check` proves each
+    `distribution/workflow/<version>/` is still exactly what a fresh
+    extraction (or, for an authored release, its recorded
+    base-plus-overlay composition) produces; it does not by itself prove
+    no unrelated file exists directly under `distribution/` outside every
+    release directory." Neither sentence is asserted verbatim by any
+    payload or workflow-manager test, so no test-side change was needed
+    alongside it.
+  - **Additive `provenance` (D-Authored-Release-2)**:
+    `Release.__init__` (`src/workflow_manager/release.py`) gains
+    `self.provenance = self.manifest.get("provenance", {"origin":
+    "upstream"})`, alongside the existing `self.upstream` -- every
+    extracted release's manifest predates this key and defaults exactly
+    as `2.3.1`'s own would once `tools/build_release.py` (CP5) starts
+    writing it for an authored one. `cli.cmd_releases`
+    (`src/workflow_manager/cli.py`) prints `[{release.provenance
+    ['origin']}]` alongside the existing upstream tag/commit line.
+    `bootstrap`/`update` (`src/workflow_manager/install.py:349-355,
+    469-480`) both pass `provenance=release.provenance` into the
+    `Installation` they construct. `Installation`
+    (`src/workflow_manager/installation.py`) gains a `provenance: dict`
+    field (default `{"origin": "upstream"}`), placed immediately after
+    `upstream` and before `installed_at` in the dataclass, in
+    `to_dict()`'s fixed key order, and read in `from_dict` via
+    `data.get("provenance", {"origin": "upstream"})` -- additive, so a
+    pre-existing `2.3.1`-era record with no `provenance` key at all still
+    loads. `SCHEMA_VERSION` is not bumped (D-Authored-Release-2's
+    `Installation` schema-posture decision): the reader default already
+    makes an old/new record shape-indistinguishable to every caller.
+    Added `test_a_pre_provenance_record_still_loads_and_defaults_to_upstream`
+    to `tests/test_bootstrap.py`'s `TestInstallationRecord` (section 4
+    scenario 16) asserting exactly this round-trip.
+  - **Every `REPO_ROOT`-rooted `find_release` call pinned to `"2.3.1"`
+    explicitly (D-Authored-Release-4)**: a grep-verified, exhaustive pass
+    over every `find_release(REPO_ROOT)` call site (no pre-enumerated
+    list trusted) found and pinned all nineteen: `tests/test_bootstrap.py:69`,
+    `tests/test_bootstrap_e2e.py:59,124`,
+    `tests/test_internal_references.py:97`,
+    `tests/test_migration_inventory.py:42,131`,
+    `tests/test_no_live_state_imported.py:29,57,95`,
+    `tests/test_payload_bytes.py:27,66,121`, and
+    `tests/test_templates.py:63,78,106,134,153,185,207` -- each now reads
+    `find_release(REPO_ROOT, "2.3.1")`. Exempted, by the same rule rather
+    than by ad hoc carve-out: `tests/test_bootstrap.py:975-976`'s
+    `find_release(self.manager_root)`/`find_release(self.manager_root,
+    "2.3.1")` calls are not `REPO_ROOT`-rooted (a synthetic disposable
+    fixture proving the newest-wins default itself) and were left
+    untouched.
+  - **`tests/test_conformance_suite.py:54`'s own carve-out
+    (D-Authored-Release-4's named exception)**: `_SuiteRun.build` gained an
+    explicit `workflow_version: str = "2.3.1"` parameter; its
+    `find_release` call became `find_release(REPO_ROOT, workflow_version)`;
+    `cls.workflow_version = workflow_version` is now stored on the class.
+    This is the one `REPO_ROOT`-rooted call site this checkpoint does not
+    pin to a bare literal, since it decides which release's payload is
+    under test rather than only what the assertions compare against --
+    CP6 calls the same method a second time with `workflow_version="2.4.0"`
+    rather than duplicating it. `CI_SUITES`/`PORTABILITY_EXCEPTIONS`
+    themselves stay the flat, non-per-release mappings they are today;
+    restructuring them into `{"2.3.1": ..., "2.4.0": ...}` and adding the
+    second, `2.4.0`-parameterized run is explicitly CP6's own row (section
+    5), not this checkpoint's.
+- **Verification**:
+  - `python3 tools/migrate.py --check` — reports
+    "`distribution/workflow/2.3.1/ matches a fresh extraction of the
+    frozen upstream release`" and exits 0 (the release-scoped message and
+    comparison, proving the common-root fix).
+  - `python3 -m unittest test_bootstrap.TestInstallationRecord` (3 tests,
+    all green, including the new pre-provenance-record case).
+  - `python3 tests/run_all.py --fast` (`test_migration_inventory.py`,
+    `test_payload_bytes.py`, `test_templates.py`,
+    `test_no_live_state_imported.py`, `test_internal_references.py`,
+    `test_bootstrap.py` — 216 tests total, all green): every pinned
+    `find_release` call site and every `Installation`/`Release`
+    provenance reader still resolves correctly.
+  - `python3 -m unittest test_conformance_suite` (both `TestConformanceFixture`
+    and `TestBootstrappedTarget`, ~199s): `TestConformanceFixture` fully
+    green (proving `_SuiteRun.build`'s new `workflow_version` parameter
+    still defaults to and exercises `2.3.1` exactly as before).
+    `TestBootstrappedTarget` reproduces the same two pre-existing failures
+    this repository already carries on `main` before this checkpoint
+    (`test_failures_are_exactly_the_documented_portability_exceptions` and
+    `test_every_documented_exception_actually_fires`, both against the
+    same stale `TestRetiredScopedRemediationLeavesNoLiveSurface
+    .test_the_historical_status_note_carries_a_dated_correction` entry) —
+    confirmed via `git stash`/`git stash pop` that the identical failure,
+    with the identical test name, reproduces unmodified on `main` at
+    `HEAD` with none of this checkpoint's changes applied; not a
+    regression from this checkpoint, and not reachable through any path
+    this checkpoint's own scope touches, matching CP3's own prior note
+    about this same stale exception.
+- **Review findings**: none yet -- self-review pending at
+  `SELF_REVIEWING_IMPLEMENTATION`.
+- **Functional-verification outcome**: not applicable at this checkpoint.

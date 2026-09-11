@@ -24,7 +24,7 @@ from workflow_manager.release import find_release, sha256
 
 class TestReleaseIsSelfConsistent(unittest.TestCase):
     def setUp(self):
-        self.release = find_release(REPO_ROOT)
+        self.release = find_release(REPO_ROOT, "2.3.1")
 
     def test_no_missing_file_no_digest_mismatch_no_stray_file(self):
         self.assertEqual(self.release.verify(), [])
@@ -63,7 +63,7 @@ class TestPayloadMatchesFrozenUpstream(unittest.TestCase):
     def setUp(self):
         if not upstream_available():
             self.skipTest("frozen upstream repository not available")
-        self.release = find_release(REPO_ROOT)
+        self.release = find_release(REPO_ROOT, "2.3.1")
 
     def test_every_migrated_file_is_byte_identical_to_the_frozen_commit(self):
         mismatched = []
@@ -118,7 +118,7 @@ class TestNoUpstreamReachback(unittest.TestCase):
     NEEDLES = ("repflow-android", str(Path.home()))
 
     def setUp(self):
-        self.release = find_release(REPO_ROOT)
+        self.release = find_release(REPO_ROOT, "2.3.1")
 
     def _scan(self):
         """`{relative path: number of lines naming the upstream}` over the whole

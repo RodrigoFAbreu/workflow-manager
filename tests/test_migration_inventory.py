@@ -39,7 +39,7 @@ class TestClassificationRuleset(unittest.TestCase):
 
 class TestManifestInventoryIsClosed(unittest.TestCase):
     def setUp(self):
-        self.release = find_release(REPO_ROOT)
+        self.release = find_release(REPO_ROOT, "2.3.1")
         self.manifest = self.release.manifest
 
     def test_manifest_pins_the_frozen_upstream_release(self):
@@ -128,7 +128,7 @@ class TestInventoryAgainstFrozenUpstream(unittest.TestCase):
     def setUp(self):
         if not upstream_available():
             self.skipTest("frozen upstream repository not available")
-        self.manifest = find_release(REPO_ROOT).manifest
+        self.manifest = find_release(REPO_ROOT, "2.3.1").manifest
 
     def test_manifest_covers_exactly_the_frozen_tree(self):
         recorded = {a["upstream_path"] for a in self.manifest["artifacts"]}

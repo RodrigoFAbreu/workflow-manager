@@ -26,7 +26,7 @@ WORKFLOW_WORK_ITEMS = ("workflow-v2-1-core", "workflow-v2-3", "workflow-v2-3-fol
 
 class TestNoRuntimeStateMigrated(unittest.TestCase):
     def setUp(self):
-        self.release = find_release(REPO_ROOT)
+        self.release = find_release(REPO_ROOT, "2.3.1")
 
     def test_no_runtime_workspace_path_was_migrated(self):
         for artifact in self.release.artifacts:
@@ -54,7 +54,7 @@ class TestNoRuntimeStateMigrated(unittest.TestCase):
 
 class TestNoRepFlowWorkItemState(unittest.TestCase):
     def setUp(self):
-        self.release = find_release(REPO_ROOT)
+        self.release = find_release(REPO_ROOT, "2.3.1")
 
     def test_no_repflow_product_work_item_declaration_was_migrated(self):
         for artifact in self.release.payload_artifacts("full"):
@@ -92,7 +92,7 @@ class TestNoRepFlowWorkItemState(unittest.TestCase):
 
 class TestGeneratedStateIsEmpty(unittest.TestCase):
     def setUp(self):
-        self.release = find_release(REPO_ROOT)
+        self.release = find_release(REPO_ROOT, "2.3.1")
         self.state = json.loads(
             self.release.read("templates/docs/ai-workflow/WORKFLOW_STATE.json")
         )

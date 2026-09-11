@@ -450,11 +450,22 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: no git repository at {args.upstream}", file=sys.stderr)
         return 2
 
-    committed = REPO_ROOT / "distribution"
+    # The destructive step and the `--check` comparison are both scoped to
+    # this one release directory, derived from the same
+    # `migration/classification.json` field `migrate()` itself reads --
+    # never a literal version string -- so a later authored release
+    # (`distribution/workflow/<successor-version>/`, an untouched sibling)
+    # is neither destroyed by an ordinary regeneration nor reported as
+    # `extra:` by `--check` (D-Authored-Release-3).
+    spec = json.loads(CLASSIFICATION_PATH.read_text())
+    version = spec["workflow_version"]
+    out_root = REPO_ROOT / "distribution"
+    release_root = out_root / "workflow" / version
+
     if not args.check:
-        if committed.exists():
-            shutil.rmtree(committed)
-        manifest = migrate(args.upstream, committed)
+        if release_root.exists():
+            shutil.rmtree(release_root)
+        manifest = migrate(args.upstream, out_root)
         print(f"migrated Workflow v{manifest['workflow_version']} from "
               f"{manifest['upstream']['tag']} ({manifest['upstream']['commit'][:12]})")
         for key, value in manifest["counts"].items():
@@ -465,10 +476,11 @@ def main(argv: list[str] | None = None) -> int:
 
     with tempfile.TemporaryDirectory() as tmp:
         migrate(args.upstream, Path(tmp))
-        want = _tree_digest(Path(tmp))
-        have = _tree_digest(committed) if committed.exists() else {}
+        want = _tree_digest(Path(tmp) / "workflow" / version)
+        have = _tree_digest(release_root) if release_root.exists() else {}
     if want == have:
-        print("distribution/ matches a fresh extraction of the frozen upstream release")
+        print(f"distribution/workflow/{version}/ matches a fresh extraction of the "
+              f"frozen upstream release")
         return 0
     for rel in sorted(set(want) | set(have)):
         if want.get(rel) != have.get(rel):

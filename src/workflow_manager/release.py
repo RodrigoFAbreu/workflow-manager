@@ -87,6 +87,10 @@ class Release:
         self.manifest = json.loads(manifest_path.read_text())
         self.version = self.manifest["workflow_version"]
         self.upstream = self.manifest["upstream"]
+        # Additive: every extracted release predates this field and has none,
+        # so it defaults to the only origin that existed before an authored
+        # (overlay-built) release could exist (D-Authored-Release-2).
+        self.provenance = self.manifest.get("provenance", {"origin": "upstream"})
 
     # -- artifacts ---------------------------------------------------------
 

@@ -66,7 +66,7 @@ def empty_repo(root: Path) -> Path:
 
 class BootstrapCase(unittest.TestCase):
     def setUp(self):
-        self.release = find_release(REPO_ROOT)
+        self.release = find_release(REPO_ROOT, "2.3.1")
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
         self.target = empty_repo(Path(self._tmp.name) / "target")
@@ -441,6 +441,21 @@ class TestInstallationRecord(unittest.TestCase):
         )
         again = Installation.from_dict(json.loads(original.serialize()))
         self.assertEqual(again.serialize(), original.serialize())
+
+    def test_a_pre_provenance_record_still_loads_and_defaults_to_upstream(self):
+        """D-Authored-Release-2's `Installation` schema posture: `provenance`
+        is additive, `SCHEMA_VERSION` is not bumped for it, and a `2.3.1`-era
+        record written before this field existed -- no `provenance` key at
+        all -- must still load, reporting the only origin that could have
+        produced it (section 4 scenario 16)."""
+        pre_provenance_record = {
+            "schema_version": 1, "workflow_version": "2.3.1", "profile": "full",
+            "upstream": {"tag": "t"}, "installed_at": FIXED_NOW, "updated_at": FIXED_NOW,
+            "managed": {}, "generated": {}, "merged": {},
+        }
+        loaded = Installation.from_dict(pre_provenance_record)
+        self.assertEqual(loaded.provenance, {"origin": "upstream"})
+        self.assertEqual(loaded.to_dict()["provenance"], {"origin": "upstream"})
 
 def synthesize_next_release(source: Release, dest: Path, version: str,
                             change_ci: bool = False) -> Release:

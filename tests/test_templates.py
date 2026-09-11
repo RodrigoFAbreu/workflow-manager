@@ -60,7 +60,7 @@ class TestTemplateGenerationIsDeterministic(unittest.TestCase):
         )
 
     def test_generated_bytes_match_what_is_committed(self):
-        release = find_release(REPO_ROOT)
+        release = find_release(REPO_ROOT, "2.3.1")
         generated = migrate.build_templates(self.upstream, self.commit)
         committed = {t["target_path"]: release.read(t["location"]) for t in release.templates()}
         self.assertEqual({k: v["bytes"] for k, v in generated.items()}, committed)
@@ -75,7 +75,7 @@ class TestTemplateGenerationIsDeterministic(unittest.TestCase):
 
 class TestStateTemplateHonoursTheFrozenContract(unittest.TestCase):
     def setUp(self):
-        self.release = find_release(REPO_ROOT)
+        self.release = find_release(REPO_ROOT, "2.3.1")
         self.ws = _load_payload_module(self.release, "workflow_state")
         self.state_bytes = self.release.read(
             "templates/docs/ai-workflow/WORKFLOW_STATE.json"
@@ -103,7 +103,7 @@ class TestStateTemplateHonoursTheFrozenContract(unittest.TestCase):
 
 class TestConfigTemplateHonoursTheFrozenContract(unittest.TestCase):
     def setUp(self):
-        self.release = find_release(REPO_ROOT)
+        self.release = find_release(REPO_ROOT, "2.3.1")
         self.ws = _load_payload_module(self.release, "workflow_state")
         self.config_bytes = self.release.read(
             "templates/docs/ai-workflow/WORKFLOW_CONFIG.json"
@@ -131,7 +131,7 @@ class TestConfigTemplateHonoursTheFrozenContract(unittest.TestCase):
 
 class TestActiveMilestoneTemplateIsClean(unittest.TestCase):
     def setUp(self):
-        self.release = find_release(REPO_ROOT)
+        self.release = find_release(REPO_ROOT, "2.3.1")
         self.text = self.release.read("templates/docs/ACTIVE_MILESTONE.md").decode()
 
     def test_it_is_the_path_the_frozen_code_contracts_on(self):
@@ -150,7 +150,7 @@ class TestActiveMilestoneTemplateIsClean(unittest.TestCase):
 
 class TestClaudeMdTemplateIsClean(unittest.TestCase):
     def setUp(self):
-        self.release = find_release(REPO_ROOT)
+        self.release = find_release(REPO_ROOT, "2.3.1")
         self.text = self.release.read("templates/CLAUDE.md").decode()
 
     def test_it_carries_no_repflow_product_guidance(self):
@@ -182,7 +182,7 @@ class TestClaudeMdTemplateIsClean(unittest.TestCase):
 
 class TestGitignoreFragment(unittest.TestCase):
     def setUp(self):
-        self.release = find_release(REPO_ROOT)
+        self.release = find_release(REPO_ROOT, "2.3.1")
         self.text = self.release.read("templates/.gitignore.workflow-fragment").decode()
 
     def test_it_ignores_the_runtime_workspace(self):
@@ -204,7 +204,7 @@ class TestGitignoreFragment(unittest.TestCase):
 
 class TestCiWorkflowTemplate(unittest.TestCase):
     def setUp(self):
-        self.release = find_release(REPO_ROOT)
+        self.release = find_release(REPO_ROOT, "2.3.1")
         self.text = self.release.read(
             "templates/.github/workflows/workflow-conformance.yml"
         ).decode()

@@ -56,7 +56,7 @@ class TestBootstrappedRepositorySatisfiesTheFrozenSuite(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls._tmp = tempfile.TemporaryDirectory()
-        cls.release = find_release(REPO_ROOT)
+        cls.release = find_release(REPO_ROOT, "2.3.1")
         cls.target = _empty_repo(Path(cls._tmp.name) / "consumer")
         cls.installation = bootstrap(cls.target, cls.release, now=FIXED_NOW)
         _git(cls.target, "add", "-A")
@@ -121,7 +121,7 @@ class TestUpdatePreservesLiveWorkItemState(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls._tmp = tempfile.TemporaryDirectory()
-        cls.release = find_release(REPO_ROOT)
+        cls.release = find_release(REPO_ROOT, "2.3.1")
         cls.target = _empty_repo(Path(cls._tmp.name) / "consumer")
         bootstrap(cls.target, cls.release, now=FIXED_NOW)
 
