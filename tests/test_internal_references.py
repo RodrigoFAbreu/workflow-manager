@@ -12,6 +12,7 @@ caught by name rather than by a test that happens not to touch it.
 from __future__ import annotations
 
 import ast
+import json
 import re
 import unittest
 
@@ -330,6 +331,65 @@ class TestMigrationEvidenceCountsMatchCiSuites(unittest.TestCase):
             - CI_SUITES["2.3.1"]["workflow_state_test.py"]
         )
         self.assertEqual(recorded_additional, actual_additional)
+
+
+class TestMigrationEvidenceManifestFieldsMatchShippedManifest(unittest.TestCase):
+    """IMPL11-B1 missing test: `docs/MIGRATION.md`'s `2.4.0` evidence table
+    quotes `distribution/workflow/2.4.0/manifest.json` verbatim in three
+    places -- the Provenance row's full `provenance` JSON, the Manifest
+    row's artifact/template counts, and the Overlay row's replaced/added
+    counts. `TestMigrationEvidenceCountsMatchCiSuites` above pins the
+    *test*-count rows to `tests/support.py`; nothing pinned these
+    manifest-quoting rows, and the Provenance row's `overlay_commit` drifted
+    for a full round undetected (round 10's shipped manifest carried
+    `64c62ec0...`; the table still named round 9's `350a039d...`, caught
+    only by an external reviewer's sweep, `IMPL11-B1`). This pins all three
+    rows to the manifest they claim to quote, so the next `overlay_commit`
+    move -- or any manifest count drift -- fails a test instead of needing
+    one."""
+
+    _PROVENANCE_ROW_RE = re.compile(
+        r"Provenance \| `distribution/workflow/2\.4\.0/manifest\.json`'s "
+        r"`provenance`: `(\{.*?\})`"
+    )
+    _MANIFEST_ROW_RE = re.compile(
+        r"Manifest \| (\d+) artifacts \(\d+ `distribution`, \d+ `conformance`, "
+        r"\d+ `host-evidence`\), (\d+) templates"
+    )
+    _OVERLAY_ROW_RE = re.compile(
+        r"Overlay \| `migration/overlays/2\.4\.0/` . (\d+) payload files "
+        r"replaced, (\d+) added"
+    )
+
+    def _migration_text(self) -> str:
+        return (REPO_ROOT / "docs" / "MIGRATION.md").read_text()
+
+    def _manifest(self) -> dict:
+        return json.loads(
+            (REPO_ROOT / "distribution/workflow/2.4.0/manifest.json").read_text()
+        )
+
+    def test_provenance_row_matches_shipped_manifest(self):
+        match = self._PROVENANCE_ROW_RE.search(self._migration_text())
+        self.assertIsNotNone(match, "2.4.0 Provenance row not found")
+        recorded = json.loads(match.group(1))
+        self.assertEqual(recorded, self._manifest()["provenance"])
+
+    def test_manifest_row_counts_match_shipped_manifest(self):
+        match = self._MANIFEST_ROW_RE.search(self._migration_text())
+        self.assertIsNotNone(match, "2.4.0 Manifest row not found")
+        recorded_artifacts, recorded_templates = int(match.group(1)), int(match.group(2))
+        counts = self._manifest()["counts"]
+        self.assertEqual(recorded_artifacts, counts["artifacts"])
+        self.assertEqual(recorded_templates, counts["templates"])
+
+    def test_overlay_row_counts_match_shipped_manifest(self):
+        match = self._OVERLAY_ROW_RE.search(self._migration_text())
+        self.assertIsNotNone(match, "2.4.0 Overlay row not found")
+        recorded_replaced, recorded_added = int(match.group(1)), int(match.group(2))
+        counts = self._manifest()["counts"]
+        self.assertEqual(recorded_replaced, counts["overlay_replaced"])
+        self.assertEqual(recorded_added, counts["overlay_added"])
 
 
 _STDLIB = frozenset(
