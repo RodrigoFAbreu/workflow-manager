@@ -11,7 +11,7 @@
       "registry_path": "docs/ai-workflow/registry/plan-amendment-mechanism-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/plan-amendment-mechanism-mapping.json",
       "governing_workflow_version": "2.1",
-      "phase": "APPLYING_REVIEW_FEEDBACK",
+      "phase": "AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW",
       "plan_revision": 34,
       "implementation_revision": 6,
       "functional_review_round": null,
@@ -108,8 +108,8 @@
       },
       "functional_acceptance_status": null,
       "blocking_decisions": [],
-      "state_revision": 143,
-      "last_transition": "2026-09-12T13:53:28Z"
+      "state_revision": 144,
+      "last_transition": "2026-09-12T14:00:26Z"
     }
   }
 }
