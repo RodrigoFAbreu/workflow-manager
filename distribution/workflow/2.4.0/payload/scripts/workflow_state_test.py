@@ -10585,6 +10585,90 @@ class TestRequestPlanAmendment(unittest.TestCase):
             self.assertEqual(new_state["work_items"]["wi"]["amendment_history"][0]
                               ["pre_amendment_approval_commit"], approval_commit)
 
+    def test_dirty_plan_stage_document_does_not_refuse_the_amendment_request(self):
+        """IMPL3-R1: a work item with a `registry_path` whose plan-stage
+        protected `plan_path` carries an uncommitted edit -- the single
+        most likely working-tree state for an operator about to request a
+        plan amendment -- must not be refused by
+        `_assert_registry_covered_by_current_plan_approval`'s coverage
+        check. `.claude/commands/request-plan-amendment.md` step 1 says in
+        as many words that this command does not refuse on digest-only
+        staleness (`D-Plan-Amendment-1`, `B-R12-1`); IMPL2-R1's fix
+        reintroduced exactly that refusal through
+        `_load_authoritative_registry_or_none`'s default coverage check.
+        `require_plan_approval_coverage=False` (this round's fix) restores
+        the narrower, id-shape-only read."""
+        with ScratchRepo() as repo:
+            registry_path = "registry.json"
+            plan_path = "plan.md"
+            _write(repo, registry_path, json.dumps({
+                "work_item_id": "wi", "plan_revision": 1,
+                "checkpoints": [{"id": "CP1", "depends_on": []}],
+            }))
+            _write(repo, plan_path, "original plan content\n")
+            approval_commit = _commit_paths(
+                repo, [registry_path, plan_path], "add registry and plan",
+                trailers={"Workflow-Plan-Approval": "rc-1", "Workflow-Work-Item": "wi"},
+            )
+            plan_approval = _current_plan_approval_covering(repo, registry_path, plan_path)
+            plan_approval["approved_review_content_id"] = "rc-1"
+            work_item = _base_work_item(
+                base_commit=repo.base,
+                registry_path=registry_path,
+                plan_path=plan_path,
+                plan_approval=plan_approval,
+                checkpoints={}, current_checkpoint_id=None, last_completed_checkpoint_id=None,
+            )
+            state = _base_state(wi=work_item)
+
+            # Dirty the plan-stage protected plan_path in the working tree,
+            # uncommitted -- the exact IMPL3-R1 scenario.
+            (repo.root / plan_path).write_text("edited, not yet committed\n")
+
+            new_state = ws.request_plan_amendment(
+                state, "wi", "reason", repo_root=repo.root, now="2026-01-01T00:00:00Z",
+            )
+            self.assertEqual(new_state["work_items"]["wi"]["phase"], "AMENDING_PLAN")
+            self.assertEqual(new_state["work_items"]["wi"]["amendment_history"][0]
+                              ["pre_amendment_approval_commit"], approval_commit)
+
+    def test_legacy_v1_basis_plan_approval_does_not_refuse_the_amendment_request(self):
+        """IMPL3-R1, second arm: a `LEGACY_V1`-basis `plan_approval`
+        (`review_content_manifest: None`, schema-sanctioned per
+        `validate_approval_record`) must not be refused either -- the
+        coverage check's `registry_path` "not named in the manifest" arm
+        fires unconditionally for this basis whenever a `registry_path` is
+        declared, so a registry-bearing `LEGACY_V1` item was wrongly
+        refused before this round's fix."""
+        with ScratchRepo() as repo:
+            registry_path = "registry.json"
+            _write(repo, registry_path, json.dumps({
+                "work_item_id": "wi", "plan_revision": 1,
+                "checkpoints": [{"id": "CP1", "depends_on": []}],
+            }))
+            approval_commit = _commit_paths(
+                repo, [registry_path], "add registry",
+                trailers={"Workflow-Plan-Approval": "rc-1", "Workflow-Work-Item": "wi"},
+            )
+            work_item = _base_work_item(
+                base_commit=repo.base,
+                registry_path=registry_path,
+                plan_approval={
+                    "status": "CURRENT", "basis": "LEGACY_V1",
+                    "approved_review_content_id": "rc-1",
+                    "review_content_manifest": None,
+                    "reviewed_bundle_id": None, "reviewed_content_commit": None,
+                    "legacy_evidence": {"note": "pre-2.1 import"},
+                },
+                checkpoints={}, current_checkpoint_id=None, last_completed_checkpoint_id=None,
+            )
+            state = _base_state(wi=work_item)
+            new_state = ws.request_plan_amendment(
+                state, "wi", "reason", repo_root=repo.root, now="2026-01-01T00:00:00Z",
+            )
+            self.assertEqual(new_state["work_items"]["wi"]["phase"], "AMENDING_PLAN")
+            self.assertEqual(new_state["work_items"]["wi"]["amendment_history"][0]
+                              ["pre_amendment_approval_commit"], approval_commit)
 
 class TestApplyPlanApprovalAmendmentBranch(unittest.TestCase):
     """`apply_plan_approval`'s four new, optional, keyword-only reconciliation

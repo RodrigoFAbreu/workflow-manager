@@ -7330,7 +7330,9 @@ def resolve_own_registry_completion_status(repo_root: Path, work_item: dict) -> 
     return registry_completion_status(work_item, registry_data)
 
 
-def _load_authoritative_registry_or_none(repo_root: Path, work_item: dict) -> dict | None:
+def _load_authoritative_registry_or_none(
+    repo_root: Path, work_item: dict, *, require_plan_approval_coverage: bool = True,
+) -> dict | None:
     """The loading half of `resolve_own_registry_completion_status`,
     factored out so `resolve_completion_obligations` (item 356's own "no
     registry parameter" requirement) can resolve the same authoritative
@@ -7339,7 +7341,23 @@ def _load_authoritative_registry_or_none(repo_root: Path, work_item: dict) -> di
     caller-supplied dict -- the same trust boundary `GPT-R37-001` already
     removed from `complete_work_item` one layer up. `None` means a
     registry-less work item (e.g. the legacy `milestone-8` shape), never
-    a load failure -- a load failure always raises."""
+    a load failure -- a load failure always raises.
+
+    `require_plan_approval_coverage` (IMPL3-R1): the plan-approval-coverage
+    check (`_assert_registry_covered_by_current_plan_approval`) is a
+    completion-accounting trust boundary that belongs to
+    `resolve_own_registry_completion_status`/`resolve_completion_obligations`
+    -- both of the other two call sites, which need a proof the registry
+    bytes are the approved ones before trusting them for terminality.
+    `/request-plan-amendment`'s own `request_plan_amendment` needs only the
+    registry's self-declared checkpoint *ids* for its early anchor-shape
+    check (`AmendmentCheckpointIdShapeError`), never a coverage proof --
+    that command's own design (`D-Plan-Amendment-1`, `B-R12-1`) is to
+    *not* refuse on approval-manifest staleness, since an amendment is
+    precisely what is about to supersede and replace it. Passing `False`
+    here skips only that one assertion; safe-path resolution, existence,
+    JSON-object shape, and self-declared `work_item_id` are still checked
+    unconditionally for every caller."""
     work_item_id = work_item["work_item_id"]
     registry_path = work_item.get("registry_path")
     if registry_path is None:
@@ -7383,7 +7401,8 @@ def _load_authoritative_registry_or_none(repo_root: Path, work_item: dict) -> di
             f"work_item_id {registry_work_item_id!r}, expected {work_item_id!r}"
         )
 
-    _assert_registry_covered_by_current_plan_approval(repo_root, work_item, registry_path)
+    if require_plan_approval_coverage:
+        _assert_registry_covered_by_current_plan_approval(repo_root, work_item, registry_path)
 
     return registry_data
 
@@ -10249,9 +10268,10 @@ def request_plan_amendment(
     anything -- `plan_approval.status` is never set to `SUPERSEDED` when
     this fires.
 
-    Checkpoint-id-shape precondition (IMPL2-R1): before either of the
-    above, loads the work item's own current registry (via
-    `_load_authoritative_registry_or_none` -- `None` for a registry-less
+    Checkpoint-id-shape precondition (IMPL2-R1, narrowed by IMPL3-R1): before
+    either of the above, loads the work item's own current registry (via
+    `_load_authoritative_registry_or_none(repo_root, work_item,
+    require_plan_approval_coverage=False)` -- `None` for a registry-less
     work item, which skips this check) and raises
     `AmendmentCheckpointIdShapeError`, naming every offending id, if any
     checkpoint id in it is not of the shape `CP<digits>`. Such an id can
@@ -10260,6 +10280,24 @@ def request_plan_amendment(
     `plan_approval` is superseded -- replaces a refusal that would
     otherwise surface only after both plan-review stages have already
     been spent on the amended plan, with no in-band recovery.
+
+    `require_plan_approval_coverage=False` (IMPL3-R1): this call needs only
+    the registry's self-declared checkpoint ids, not a proof the registry
+    bytes are the ones the current `plan_approval` covers.
+    `_load_authoritative_registry_or_none`'s default coverage check
+    (`_assert_registry_covered_by_current_plan_approval`) is
+    `resolve_own_registry_completion_status`/`resolve_completion_obligations`'s
+    own completion-accounting trust boundary; reusing it verbatim here
+    reintroduced, through a different door, exactly the digest-only-
+    staleness refusal `.claude/commands/request-plan-amendment.md` step 1
+    explicitly forbids (`D-Plan-Amendment-1`, `B-R12-1`) -- an operator who
+    has started editing `plan_path`/`registry_path` before running this
+    command (the single most likely working-tree state for one about to
+    request an amendment) was refused with a `StalePlanApprovalRegistryReadError`
+    whose message talks about "registry-derived completion", though nothing
+    about this command is completion-accounting. Passing `False` restores
+    the narrower, id-shape-only read this precondition was designed for;
+    the coverage checks other two call sites still need are unaffected.
 
     In one `state_transaction`-compatible mutation: sets
     `plan_approval.status = "SUPERSEDED"`; appends one entry to the
@@ -10295,7 +10333,9 @@ def request_plan_amendment(
     # after both plan-review stages have been spent on it, with no anchor
     # text able to fix it. A registry-less work item (`registry_path` is
     # `None`) has nothing to check here.
-    registry = _load_authoritative_registry_or_none(repo_root, work_item)
+    registry = _load_authoritative_registry_or_none(
+        repo_root, work_item, require_plan_approval_coverage=False,
+    )
     if registry is not None:
         unsupported_ids = [
             entry["id"] for entry in registry.get("checkpoints", [])
