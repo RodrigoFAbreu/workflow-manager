@@ -148,6 +148,25 @@ experience — prefer this for at least one flow).
    `plan_approval` becomes `SUPERSEDED`; CP1/CP2 remain `COMPLETE`; nothing
    about the checkpoint registry is silently discarded.
 
+### Flow 1b — wrong-phase and redundant amendment requests (negative path)
+
+1. **Wrong phase:** drive a separate synthetic work item (a third item, or
+   reuse `repo-a`'s Flow-1 item's registry shape in a throwaway repo) to a
+   phase outside `{IMPLEMENTING, SELF_REVIEWING_IMPLEMENTATION}` — e.g.
+   `PLANNING` or `AWAITING_TECHNICAL_REVIEW`. Run `/request-plan-amendment
+   <work-item-id>` against it (supplying the confirmation text and reason
+   it asks for). **Expected:** refused cleanly, naming the actual phase
+   (`WrongPhaseForAmendmentRequestError`); `plan_approval`/`phase`
+   unchanged; no `amendment_history` entry written.
+2. **Redundant request:** immediately after Flow 1 lands `repo-a`'s work
+   item at `AMENDING_PLAN`, and before proceeding to Flow 2, run
+   `/request-plan-amendment <work-item-id>` against it again. **Expected:**
+   refused cleanly with the same `WrongPhaseForAmendmentRequestError` —
+   `AMENDING_PLAN` is not a member of the allowed phase set either;
+   `amendment_history` still has exactly the one entry Flow 1 wrote, still
+   unresolved. Once confirmed, proceed to Flow 2 normally — this sub-flow
+   must leave `repo-a`'s `AMENDING_PLAN` state undisturbed.
+
 ### Flow 2 — re-plan, re-review, re-approve, and reconcile checkpoints
 
 1. In `repo-a`, from `AMENDING_PLAN`, run `/milestone-plan <work-item-id>`
@@ -161,7 +180,17 @@ experience — prefer this for at least one flow).
 2. Take the amended plan through local review (`/review-plan`) and manual
    review (`/record-manual-plan-review`), then
    `/approve-review plan <work-item-id>`.
-3. **Expected:** `apply_plan_approval`'s amendment branch runs
+3. **Informational, not gating (`D-Plan-Amendment-5`):** while the
+   amendment is still open — after step 1, before step 2's
+   `/approve-review plan` succeeds — confirm
+   `.ai-review/<work-item-id>/AMENDMENT_DIFF.patch` exists as a sibling of
+   the plan-stage bundle directory and contains a non-empty diff from
+   `amendment_base_commit`. After step 2's `/approve-review plan` succeeds
+   and the amendment resolves, confirm that file is gone. This file is
+   reviewer convenience only, outside `bundle_id`/`review_content_id` —
+   record what you observed as functional evidence, but treat a mismatch
+   here as a finding to note, not a gate failure on its own.
+4. **Expected:** `apply_plan_approval`'s amendment branch runs
    `reconcile_checkpoints_after_amendment`; CP1 (untouched) reports
    `retained`; a checkpoint whose own requirement changed reports
    `needs_revalidation`; a checkpoint only affected via dependency closure
@@ -207,6 +236,28 @@ clean amendment to resolve once these are done.
    running `/approve-review plan <work-item-id>`. **Expected:** refused by
    name with `AmendmentPostRegistryMalformedError`, never an unnamed
    `KeyError`.
+
+### Flow 2b — already-resolved amendment reconciliation (negative path, run after Flow 2 resolves)
+
+Run this only after Flow 2's real reconciliation has succeeded and
+`amendment_history[-1]["resolved_at_plan_revision"]` is set (`repo-a`'s
+work item is back in ordinary, post-amendment `IMPLEMENTING` state).
+`/approve-review plan` itself re-derives amendment state fresh on every
+invocation and stops resupplying `pre_registry`/`pre_plan_text` once the
+amendment is resolved, so a plain second `/approve-review plan
+<work-item-id>` cannot reach this refusal — it only exercises the
+ordinary, already-resolved no-op path. To exercise the actual guard, use
+the fixture harness (`src/workflow_manager/fixture.py`) or a short
+throwaway script to call `workflow_state.apply_plan_approval` directly
+against the resolved work item, passing the same `pre_registry`/
+`pre_plan_text` pair Flow 2's real call used (obtainable again via
+`workflow_state.load_pre_amendment_snapshot` against the now-resolved
+`amendment_history[-1]`).
+
+**Expected:** refused with `AmendmentAlreadyResolvedError`, naming the
+work item and the `plan_revision` it was already resolved at;
+`amendment_history` is not mutated a second time, and no checkpoint is
+re-reconciled.
 
 ### Flow 3 — resume implementation after reconciliation
 
