@@ -3701,8 +3701,12 @@ class IllegalCheckpointStartPhaseError(Exception):
     `claim_checkpoint` itself (`XMODEL-R8-B1`): that function's own
     pre-publication phase check is this error's second, independent call
     site, closing the window this docstring's first paragraph describes
-    rather than merely detecting it after the fact -- a claim published
-    into that window would otherwise still be refused here, later, by
+    rather than merely detecting it after the fact -- within one worktree
+    root only; `XMODEL-R9-B1` (`docs/defects/v2.4.0-002-amendment-claim-
+    race-crosses-worktree-boundary.md`) records that the same claim
+    published from a different linked worktree of the same repository is
+    not caught by either call site -- a claim published into that window
+    would otherwise still be refused here, later, by
     `transition_checkpoint_in_progress`, but would already have leaked
     onto disk with nothing left to release it."""
 
@@ -4806,7 +4810,10 @@ def claim_checkpoint(repo_root: Path, work_item_id: str, checkpoint_id: str, *, 
                     f"published while phase is in {sorted(CHECKPOINT_START_LEGAL_PHASES)} "
                     f"(checked under WORKFLOW_STATE.lock immediately before publication, "
                     f"XMODEL-R8-B1, so a claim can never be published in the window between an "
-                    f"amendment's authoritative quiescence read and its AMENDING_PLAN commit)"
+                    f"amendment's authoritative quiescence read and its AMENDING_PLAN commit -- "
+                    f"within one worktree root; see XMODEL-R9-B1 and "
+                    f"docs/defects/v2.4.0-002-amendment-claim-race-crosses-worktree-boundary.md "
+                    f"for the cross-worktree residual this check does not close)"
                 )
         return _claim_or_refuse(repo_root, work_item_id, record)
 
