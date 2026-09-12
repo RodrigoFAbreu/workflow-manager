@@ -2,8 +2,8 @@
 
 ## Milestone
 
-**Approved-plan amendment: a first-class Workflow mechanism for safely
-amending an already-approved plan after implementation has begun.**
+**Complete.** Approved-plan amendment: a first-class Workflow mechanism for
+safely amending an already-approved plan after implementation has begun.
 
 Frozen Workflow v2.3.1 (`docs/ai-workflow/MILESTONE_WORKFLOW.md`) has no
 documented transition from `IMPLEMENTING` or `SELF_REVIEWING_IMPLEMENTATION`
@@ -19,10 +19,10 @@ not fixing the Controller.
 
 ## Goal
 
-Design and land, in this repository's own successor Workflow release (never
-by editing the frozen v2.3.1 `distribution/` in place), the smallest robust
-mechanism for amending an approved plan mid-implementation, plus what is
-needed to deliver and deploy it:
+Designed and landed, in this repository's own successor Workflow release
+(never by editing the frozen v2.3.1 `distribution/` in place), the smallest
+robust mechanism for amending an approved plan mid-implementation, plus what
+was needed to deliver and deploy it:
 
 1. **The amendment mechanism itself** (a new first-class state-machine
    capability, additive to v2.3.1's existing states/transitions):
@@ -69,7 +69,9 @@ review-history/context-scalability redesign, and it must never touch
 
 ## Current checkpoint
 
-None.
+None (milestone complete: `plan-amendment-mechanism` reached
+`MILESTONE_COMPLETE` via `/accept-milestone` after a clean functional review;
+all nine checkpoints are `COMPLETE`).
 
 ## Current blockers
 
@@ -77,8 +79,14 @@ None.
 
 ## Active plan
 
-None. `/milestone-plan` records the plan document path on the work item's
-`WORKFLOW_STATE.json` entry when a work item is created.
+None (milestone complete). `/milestone-plan` records the plan document path
+on the work item's `WORKFLOW_STATE.json` entry when a work item is created.
+
+## Next action
+
+No successor milestone is queued yet. Run `/milestone-plan` to define and
+plan the next one; `docs/ROADMAP.md` does not exist in this repository, so
+there is no separate roadmap entry to advance.
 
 ## Functional review checklist
 
