@@ -3413,7 +3413,13 @@ def reconcile_checkpoints_after_amendment(
     itself `COMPLETE` in the resulting map (rewritten, or absent because
     just removed) is also rewritten to `NEEDS_REVALIDATION`. No fixed-point
     loop needed, since every dependency precedes its dependents in that
-    order (B6.3)."""
+    order (B6.3) -- a precondition this function itself does not re-check,
+    but which its sole caller, `apply_plan_approval`, now enforces
+    mechanically immediately before calling this function
+    (`validate_registry_topological_order(post_registry)`, `OPUS-R145-002`)
+    rather than relying on `write_registry_and_mapping`-time validation of
+    a document that, by the time this runs, has already been re-read raw
+    off the working tree."""
     pre_rows = {entry["id"]: entry for entry in pre_registry.get("checkpoints", [])}
     post_rows = {entry["id"]: entry for entry in post_registry.get("checkpoints", [])}
 
@@ -10071,25 +10077,37 @@ def apply_plan_approval(
     `phase`, `state_revision`, `last_transition`). `plan_revision` itself
     is never written here -- it stays `publish_plan_revision`'s alone.
 
-    A caller that supplies any reconciliation input against a work item
-    whose last `amendment_history` entry is *already* resolved -- a re-run
+    A caller that supplies either pre-side reconciliation input
+    (`pre_registry`/`pre_plan_text`) against a work item whose last
+    `amendment_history` entry is *already* resolved -- a re-run
     reconciliation, the one case `AmendmentAlreadyResolvedError` names in
     its own docstring -- is refused before anything else runs (checked
     ahead of, and independent of, `has_open_amendment`'s own gate below;
     that gate alone can never observe this state, since it is true only
-    when the last entry is *not* yet resolved). A caller that supplies none
-    of the four against an already-resolved amendment stays the ordinary,
-    unconsulted no-op case above."""
+    when the last entry is *not* yet resolved). The guard is keyed on the
+    pre-side pair specifically, never on `post_registry`/`post_plan_text`
+    alone (`OPUS-R145-001`): the real caller, `approve-review.md` step 4c,
+    reads and forwards `post_plan_text`/`post_registry` *unconditionally*,
+    from the working tree, on every plan-stage approval regardless of
+    amendment state -- only `pre_registry`/`pre_plan_text` are gated there
+    on an open amendment. Keying this guard on "any of the four" made it
+    fire from that real caller for *any* plan approval following a
+    resolved amendment, non-amendment or not, degenerating into "a work
+    item that has ever amended once can never have a plan approval applied
+    again"; keying it on the pre-side pair alone matches the only shape a
+    genuine re-run reconciliation can take (a caller that itself believed
+    an amendment was still open). A caller that supplies neither pre-side
+    value against an already-resolved amendment stays the ordinary,
+    unconsulted no-op case -- the case the real caller always presents
+    once past its first, ordinary (never-amended) round."""
     validate_approval_record(record, stage="plan")
     new_state = copy.deepcopy(state)
     work_item = new_state["work_items"][work_item_id]
     amendment_history = work_item.get("amendment_history") or []
-    reconciliation_requested = any(
-        value is not None for value in (pre_registry, pre_plan_text, post_registry, post_plan_text)
-    )
+    pre_side_supplied = pre_registry is not None or pre_plan_text is not None
     if (
         amendment_history and amendment_history[-1].get("resolved_at_plan_revision") is not None
-        and reconciliation_requested
+        and pre_side_supplied
     ):
         raise AmendmentAlreadyResolvedError(
             f"{work_item_id}'s last amendment_history entry is already resolved at "
@@ -10110,6 +10128,7 @@ def apply_plan_approval(
                 f"pre_registry/pre_plan_text/post_registry/post_plan_text; missing: {missing}"
             )
         validate_post_anchor_coverage(post_plan_text, post_registry)
+        validate_registry_topological_order(post_registry)
         reconciliation = reconcile_checkpoints_after_amendment(
             pre_registry, post_registry, pre_plan_text, post_plan_text,
             work_item.get("checkpoints", {}),

@@ -19,7 +19,7 @@
           "suite": "workflow_integration_test.py",
           "test": "TestRetiredScopedRemediationLeavesNoLiveSurface.test_the_historical_status_note_carries_a_dated_correction",
           "requires": "docs/ACTIVE_MILESTONE.md",
-          "reason": "Same host-history-coupled assertion as v2.3.1's own entry above -- workflow_integration_test.py is copied forward into the v2.4.0 overlay payload unmodified (not one of CP2/CP3's replaced files), and the overlay does not touch docs/ACTIVE_MILESTONE.md, so a freshly bootstrapped v2.4.0 target repository fails this test for the identical reason.",
+          "reason": "Same host-history-coupled assertion as v2.3.1's own entry above -- the v2.4.0 overlay replaces workflow_integration_test.py (one of CP2/CP3's replaced files), but that replacement does not touch this specific test or docs/ACTIVE_MILESTONE.md, so a freshly bootstrapped v2.4.0 target repository fails this test for the identical reason.",
           "defect": "docs/defects/v2.3.1-001-host-history-coupled-tests.md"
         }
       ]

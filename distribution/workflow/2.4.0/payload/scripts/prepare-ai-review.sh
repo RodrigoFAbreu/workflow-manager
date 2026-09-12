@@ -416,6 +416,22 @@ git diff "$BASE_SHA" -- . > "$DIFF_FILE"
 # closes never leaves a stale copy sitting next to a fresh "current/". No
 # governing-version awareness -- this applies identically regardless of
 # which of the two plan-review protocols the work item follows.
+#
+# In practice this point is only ever reached once the PLAN_STAGE_BASE_CHECK
+# block above has already resolved this exact work item's plan-stage
+# metadata successfully (which itself requires docs/ai-workflow/
+# WORKFLOW_STATE.json to exist, parse, and carry this work item's entry --
+# any failure there reports "error::" and exits 1 before this point), so an
+# absent or unparseable state file is already provably unreachable here
+# today. The read below is still wrapped defensively (OPUS-R145-004): this
+# block runs unconditionally for every plan-stage generation, including the
+# overwhelming majority of work items that will never amend, so a later,
+# independent change to either guard must not turn a merely
+# reviewer-convenience file into a hard failure for those work items.
+# Failure of any kind here degenerates to "no amendment is open" (delete any
+# stale copy, write nothing) -- the same conservative, fail-toward-absent
+# direction `parse_checkpoint_anchor_spans`'s own non-strict mode already
+# takes for the pre side of this same mechanism.
 if [[ "$STAGE" == "plan" ]]; then
   AMENDMENT_DIFF_FILE="$ROOT_DIR/AMENDMENT_DIFF.patch"
   PYTHONPATH="$REPO_ROOT/scripts:${PYTHONPATH:-}" python3 - \
@@ -429,8 +445,11 @@ import workflow_fingerprint as fingerprint
 
 repo_root, work_item_id, out_path = Path(sys.argv[1]), sys.argv[2], Path(sys.argv[3])
 state_path = repo_root / "docs" / "ai-workflow" / "WORKFLOW_STATE.json"
-state = json.loads(state_path.read_text())
-work_item = state["work_items"].get(work_item_id) or {}
+try:
+    state = json.loads(state_path.read_text())
+    work_item = state.get("work_items", {}).get(work_item_id) or {}
+except (OSError, ValueError):
+    work_item = {}
 history = work_item.get("amendment_history") or []
 is_open = bool(history) and history[-1].get("resolved_at_plan_revision") is None
 if is_open:

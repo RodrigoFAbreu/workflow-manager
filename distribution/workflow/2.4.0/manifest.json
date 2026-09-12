@@ -9,7 +9,7 @@
   "provenance": {
     "origin": "authored",
     "base_release": "2.3.1",
-    "overlay_commit": "55a4271caea93872bf4e17175b52b1ba85a25f74"
+    "overlay_commit": "f86d43021ca6e1b60435b235673463e671743c49"
   },
   "categories": {
     "distribution": "Canonical Workflow implementation. Copied byte-for-byte into the payload and installed into every managed target repository.",
@@ -176,8 +176,8 @@
       "category": "distribution",
       "rule": "^\\.claude/commands/request-plan-amendment\\.md$",
       "rationale": "New command file authoring the AMENDING_PLAN re-entry gate (D-Plan-Amendment-1); the executable command contract, same category the base classification assigns every other .claude/commands/*.md file.",
-      "sha256": "4e409df31b1a7f661605e1d921be12cf7879b85a95bf1c3e3145c6fa1897e1e7",
-      "size": 8012,
+      "sha256": "fdb1828a4b14b3d837587c690c123c6dac6bf2aab253e316729f67c3529b46e7",
+      "size": 8513,
       "executable": false
     },
     {
@@ -280,12 +280,12 @@
       "category": "distribution",
       "rule": "^docs/ai-workflow/WORKFLOW_V2_1_OPERATOR_REFERENCE\\.md$",
       "rationale": "Persisted-phases/writer tables, command count, Remediation children section, and the new /request-plan-amendment section. Preserves the base release's own distribution category for this path (I-R16-2).",
-      "sha256": "84143ac69d961ac979bc530175d2bab15b03b5551047be69c0546479b105b523",
-      "size": 54916,
+      "sha256": "236e70acdbd600c0037b7b8df4cd861c2ddfb2ffd7cd51b111cc27875a06393d",
+      "size": 55179,
       "executable": false,
       "overlay_delta": {
         "base_sha256": "2e7a83a3298802133ce8af7a60e3096fd53dd010749647b25adf977cad1de562",
-        "diff_sha256": "23f0521dc5c5c56b6807b723c0280bb2cacc8a142d175523b0bd9a9d0338ac35"
+        "diff_sha256": "73a129f24f55c69181a652f43e947f6b8f98cd59c03ff897bf8a32770fb5d07d"
       }
     },
     {
@@ -583,12 +583,12 @@
       "category": "distribution",
       "rule": "^scripts/prepare-ai-review\\.sh$",
       "rationale": "AMENDMENT_DIFF.patch generation outside bundle_dir, its inclusion in review-bundle.tar.gz (D-Plan-Amendment-5). Preserves the base release's own distribution category for this path (I-R16-2).",
-      "sha256": "1560b178ed0f6092e5e6de017c5abb2db2ae7a75a90caf454f0a211f5f51b108",
-      "size": 31770,
+      "sha256": "89b0f03dc57681d20613876ad50d1c447bd1a6d76785a73e43ea0e9c1f6b97bc",
+      "size": 32904,
       "executable": true,
       "overlay_delta": {
         "base_sha256": "2d483e1d0f211725899d0cd5668a4293821d604c95e54f0e40abd26dfdaa75be",
-        "diff_sha256": "febaf94e92dc3dc8b4cdcbf1162d911d83ddb5505cac11afaaac670ee32c3bba"
+        "diff_sha256": "5a5a81918c123f6ada676afb9e0a59f2ae862df4513d274d4ba28048b8b90bc8"
       }
     },
     {
@@ -666,12 +666,12 @@
       "category": "distribution",
       "rule": "^scripts/workflow_state\\.py$",
       "rationale": "AMENDING_PLAN, /request-plan-amendment's writer, SUPERSEDED/NEEDS_REVALIDATION, apply_plan_approval's reconciliation parameters, load_pre_amendment_snapshot, and the widened vocabulary constants (D-Plan-Amendment-2..4). Preserves the base release's own distribution category for this path (I-R16-2).",
-      "sha256": "228b8ad044c29a70f05d76af88eef6d9908bb25b06b71e7594cfef1a3d944ac8",
-      "size": 632825,
+      "sha256": "c0ad5828c943b89e6e6abfe593ca64a8f5bbeb8aae5b2ce4f65bf07faa4bdc1c",
+      "size": 634258,
       "executable": false,
       "overlay_delta": {
         "base_sha256": "d9097f02bf78b53ee048d3bb5e5f674c9c246065d8ceb4c71d8dfd039032131e",
-        "diff_sha256": "58170510a76183d76bb9733ba9187258c3a4f2685579ed89ef5d8cdd95844122"
+        "diff_sha256": "6203b9d0420b8fc1581ad33c81e5b8f4ea92f4ef2d429e575c85b70ebef90fe2"
       }
     },
     {
@@ -705,12 +705,12 @@
       "category": "distribution",
       "rule": "^scripts/workflow_state_test\\.py$",
       "rationale": "The payload's own conformance suite, updated for AMENDING_PLAN/its writer. Preserves the base release's own distribution category for this path (I-R16-2).",
-      "sha256": "b524beffe92a74a0ca35899b579352d392529ff0adbdbc5a86f24c8ab9ca3480",
-      "size": 587993,
+      "sha256": "f147ad04ccc05a8a44c7fcb4649c0281044bc8519d4c3272a12380f16644d557",
+      "size": 591400,
       "executable": false,
       "overlay_delta": {
         "base_sha256": "f47575ccae74bf508945cb078cd2fc13dac76b02d207403f309cf9fcb45b7c92",
-        "diff_sha256": "7b93e5351696f271a4b3c18fbf924004df2758cbcf2819207f467b0f665d89bb"
+        "diff_sha256": "769cca9093ec77c70f9712f1f7d763ab98224958f36e60720d25088ed49a6bc2"
       }
     },
     {

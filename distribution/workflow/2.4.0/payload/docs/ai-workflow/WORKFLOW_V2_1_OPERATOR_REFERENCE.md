@@ -351,7 +351,11 @@ test fails and is authoritative about which one moved.
   full two-stage review protocol and `/approve-review plan` run completely
   unmodified. Checkpoint reconciliation happens once, folded into that
   eventual `/approve-review plan`'s own `apply_plan_approval` computation
-  (`D-Plan-Amendment-4`), never here.
+  (`D-Plan-Amendment-4`), never here. The amended plan document drafted in
+  response must delimit every registry checkpoint id with a
+  `<!-- CPn -->`/`<!-- /CPn -->` anchor pair, or `/approve-review plan`
+  step 4c's `validate_post_anchor_coverage` refuses approval naming the
+  first uncovered id.
 - **Refuses**: the wrong phase
   (`WrongPhaseForAmendmentRequestError`); an unreachable approval commit
   (`AmendmentApprovalCommitUnreachableError`, checked *before* superseding

@@ -10665,6 +10665,63 @@ class TestApplyPlanApprovalAmendmentBranch(unittest.TestCase):
         new_state = ws.apply_plan_approval(state, "wi", self._approval_record(), "2026-01-01T00:00:01Z")
         self.assertEqual(new_state["work_items"]["wi"]["phase"], "IMPLEMENTING")
 
+    def test_real_caller_shape_after_a_resolved_amendment_is_never_refused(self):
+        """`OPUS-R145-001` regression: `approve-review.md` step 4c reads and
+        forwards `post_plan_text`/`post_registry` *unconditionally* on every
+        plan-stage approval, from the working tree, regardless of amendment
+        state -- only `pre_registry`/`pre_plan_text` are gated there on an
+        open amendment. Reproduces exactly that call shape (post-side
+        supplied, pre-side `None`) against a work item whose last amendment
+        is already resolved: the guard must key on the pre-side pair alone,
+        never on "any of the four", or this ordinary, non-re-run call --
+        the only shape the real caller ever produces once a work item has
+        amended once -- would be wrongly refused forever after."""
+        state = self._open_amendment_state()
+        state["work_items"]["wi"]["amendment_history"][0]["resolved_at_plan_revision"] = 2
+        registry = {"checkpoints": [
+            {"id": "CP1", "name": "n", "depends_on": [], "complexity": 1, "session_target": 1},
+        ]}
+        text = "<!-- CP1 -->a<!-- /CP1 -->"
+        new_state = ws.apply_plan_approval(
+            state, "wi", self._approval_record(), "2026-01-01T00:00:01Z",
+            post_registry=registry, post_plan_text=text,
+        )
+        self.assertEqual(new_state["work_items"]["wi"]["phase"], "IMPLEMENTING")
+        # Reconciliation itself never ran (no open amendment) -- the last
+        # amendment_history entry is untouched.
+        self.assertEqual(
+            new_state["work_items"]["wi"]["amendment_history"][0]["resolved_at_plan_revision"], 2,
+        )
+
+    def test_non_topological_post_registry_is_refused_before_reconciliation(self):
+        """IMPL-O2: `reconcile_checkpoints_after_amendment`'s single
+        forward-pass dependency closure relies on `post_registry`'s own
+        order already being a valid topological order of `depends_on`
+        (B6.3) -- a precondition `write_registry_and_mapping` enforces at
+        write time, but `/approve-review plan` step 4c reads `post_registry`
+        straight off the working tree, which a hand-edited (reviewed, but
+        not mechanically re-checked) registry could violate. Now enforced
+        directly inside `apply_plan_approval`, alongside the existing
+        anchor-coverage validation, before any reconciliation runs."""
+        state = self._open_amendment_state()
+        pre_registry = {"checkpoints": [
+            {"id": "CP1", "name": "n", "depends_on": [], "complexity": 1, "session_target": 1},
+        ]}
+        pre_text = "<!-- CP1 -->a<!-- /CP1 -->"
+        # CP2 depends on CP1 but is listed *before* it -- not a valid
+        # topological order.
+        post_registry = {"checkpoints": [
+            {"id": "CP2", "name": "n2", "depends_on": ["CP1"], "complexity": 1, "session_target": 1},
+            {"id": "CP1", "name": "n", "depends_on": [], "complexity": 1, "session_target": 1},
+        ]}
+        post_text = "<!-- CP1 -->a<!-- /CP1 --><!-- CP2 -->b<!-- /CP2 -->"
+        with self.assertRaises(ws.NonTopologicalRegistryOrderError):
+            ws.apply_plan_approval(
+                state, "wi", self._approval_record(), "2026-01-01T00:00:01Z",
+                pre_registry=pre_registry, pre_plan_text=pre_text,
+                post_registry=post_registry, post_plan_text=post_text,
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

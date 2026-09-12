@@ -124,5 +124,12 @@ and wait.
    one additional file, `AMENDMENT_DIFF.patch`, alongside the ordinary
    `current/` contents -- see `docs/ai-workflow/REVIEW_PROTOCOL.md`'s
    "Bundle structure" for what it contains and how it is (and is not)
-   authoritative. Report the new phase and **stop** -- never chain into
-   drafting the amended plan in the same invocation.
+   authoritative. **The amended plan document itself must delimit every
+   registry checkpoint id with a `<!-- CPn -->`/`<!-- /CPn -->` anchor pair**
+   (one or more, non-overlapping, around that checkpoint's own content) --
+   `/approve-review plan` step 4c's `validate_post_anchor_coverage` refuses
+   approval outright, naming the first uncovered id, for any registry
+   checkpoint with no well-formed pair in the plan text, so add the anchors
+   while drafting or revising the amended plan, not after a refusal.
+   Report the new phase and **stop** -- never chain into drafting the
+   amended plan in the same invocation.
