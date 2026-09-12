@@ -71,17 +71,45 @@ and wait.
      `workflow_state.request_plan_amendment` itself**
      (`AmendmentCheckpointActiveError`, XMODEL-R4-B1) -- this step's own
      read is for reporting the refusal early, not a separate source of
-     truth. The authoritative check is load-bearing, not redundant: a
+     truth. **What actually closes the race, and its real scope
+     (corrected, round 9 external implementation review, `IMPL9-R1`,
+     superseding this step's own previous, round-4-era text)**: a
      checkpoint claim is published to the filesystem claims directory
      *before* `workflow_state.transition_checkpoint_in_progress` writes
      `WORKFLOW_STATE.json` (`/milestone-implement` step 1d's documented
      ordering), so a claim can become outstanding *after* this step's own
      read returns clean but *before* this command's own `state_transaction`
-     call below acquires the state lock -- exactly the race this
-     authoritative re-check, plus `transition_checkpoint_in_progress`'s own
-     independent `IllegalCheckpointStartPhaseError` guard (refusing to
-     publish `IN_PROGRESS` once the work item has left `IMPLEMENTING`),
-     together close.
+     call below acquires the state lock. Two independent guards, not one,
+     matter here, and only one of them actually closes that window:
+     `transition_checkpoint_in_progress`'s own independent
+     `IllegalCheckpointStartPhaseError` guard *detects* a claim published
+     into the window after the fact (the claim itself has already reached
+     disk); `workflow_state.claim_checkpoint`'s own pre-publication phase
+     check, run inside the identical `WORKFLOW_STATE.lock` this command's
+     own `state_transaction` call below acquires, is what actually *closes*
+     it, by serializing claim publication with this command's own
+     supersede-and-commit so neither can complete while the other holds the
+     lock (`XMODEL-R8-B1`). **That closure is real only within one worktree
+     root, not across the repository (`XMODEL-R9-B1`)**: `WORKFLOW_STATE.lock`
+     is per-worktree, so a checkpoint claimed from a *different* linked
+     worktree of the same repository is not serialized against this
+     command's own critical section, and `claim_checkpoint`'s phase check
+     in that other worktree reads its own working-tree `WORKFLOW_STATE.json`,
+     which cannot observe an `AMENDING_PLAN` this command committed only in
+     this worktree. This step's own read of
+     `workflow_state.resolve_claim(repo_root, work_item_id)` above *is*
+     shared across worktrees (`claims_dir` is `git_common_dir`-rooted), so
+     an *already-published* foreign-worktree claim is still caught here --
+     what is not closed is a claim publication racing this command's own
+     commit from another worktree, or a claim attempted from another
+     worktree after this command's `AMENDING_PLAN` is durable in this one.
+     This residual is deliberately left open for `2.4.0`; see
+     `docs/defects/v2.4.0-002-amendment-claim-race-crosses-worktree-boundary.md`.
+     An operator running this command and a concurrent `/milestone-implement`
+     from two different worktrees of the same work item's repository should
+     not rely on this command alone to prevent the race -- coordinate
+     out-of-band (finish or release the checkpoint claim first, from
+     whichever worktree holds it) when more than one worktree is in play.
    - **No open plan-approval transaction**: call `evidence =
      workflow_state.plan_approval_takeover_evidence(repo_root)`. A
      non-`None` `evidence["journal"]` means an `/approve-review plan`

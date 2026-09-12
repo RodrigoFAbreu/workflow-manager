@@ -29310,7 +29310,22 @@ stated at the strength each mechanism actually has:
   before the other's begins, so a claim can never be published into an
   amendment's own quiescence window, and `request_plan_amendment`'s
   pre-existing `resolve_claim(...)` check can never be evaded by one
-  published after it ran but before `AMENDING_PLAN` was durable.
+  published after it ran but before `AMENDING_PLAN` was durable --
+  **within one worktree root.** `(2)` (`WORKFLOW_STATE.lock`) resolves as
+  `repo_root / ".ai-review/runtime/WORKFLOW_STATE.lock"`, one file *per
+  worktree*, while `(8)`'s own home `claims_dir(repo_root)` is
+  `git_common_dir`-rooted and shared by every linked worktree of the same
+  repository -- so this closure does not extend to an amendment requested
+  in one linked worktree racing a checkpoint claim published from another
+  (`XMODEL-R9-B1`, round 9 external implementation review). A second,
+  independent reason it cannot: `claim_checkpoint`'s own phase check reads
+  `repo_root / DEFAULT_STATE_PATH`, that worktree's own working-tree copy
+  of `WORKFLOW_STATE.json`, which cannot observe a phase committed only to
+  another worktree's own branch, however well the two operations are
+  serialized. This release deliberately leaves that residual open rather
+  than half-fixing it -- see
+  `docs/defects/v2.4.0-002-amendment-claim-race-crosses-worktree-boundary.md`
+  for the full accounting and what a real fix would need.
 
 **The blocking edges are acyclic, and that is the property deadlock-freedom
 actually requires; the raw eleven-edge graph is not acyclic, and does not need
@@ -30753,7 +30768,20 @@ Two further preconditions, both refusals rather than silent handling:
   checkpoint `IN_PROGRESS`" closes the local half of that gap; requiring
   "no outstanding claim" closes the shared-claim half, so the precondition
   now excludes the case D-Plan-Amendment-7's own I4-new paragraph below
-  documents as reachable and refusing.
+  documents as reachable and refusing. **This precondition, and
+  `claim_checkpoint`'s own mirror-image guard, are authoritative only
+  within one worktree root (`XMODEL-R9-B1`, round 9 external
+  implementation review)**: a checkpoint claimed from a different linked
+  worktree of the same repository is not visible to either side with the
+  reliability this section otherwise describes -- `resolve_claim`'s own
+  read is shared (`claims_dir` is `git_common_dir`-rooted) so an already-
+  published foreign claim is seen, but a claim publication racing this
+  command's own critical section from another worktree is not serialized
+  against it, and a durable `AMENDING_PLAN` in one worktree is not visible
+  to another worktree's own `claim_checkpoint` phase check at all, since
+  that check reads its own worktree's working-tree `WORKFLOW_STATE.json`.
+  Left open for `2.4.0` rather than half-fixed; see
+  `docs/defects/v2.4.0-002-amendment-claim-race-crosses-worktree-boundary.md`.
 - **No open plan-approval or approval journal.** Mirrors
   `/approve-review`'s existing "already-open approval journal" refusal --
   an amendment must never race an in-flight approval commit.

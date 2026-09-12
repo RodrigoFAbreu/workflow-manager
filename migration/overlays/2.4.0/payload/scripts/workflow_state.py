@@ -4687,12 +4687,21 @@ def _publish_claim_exclusive(path: Path, record: dict) -> None:
 
 
 def _claim_or_refuse(repo_root: Path, work_item_id: str, record: dict) -> dict:
+    """IMPL9-O2: the contended branch below reuses `record["worktree_root"]`
+    -- already resolved once, outside any lock, by `_build_claim_record`'s
+    own `_git_identity` call before either caller (`claim_checkpoint`,
+    `adopt_claim`) enters its locked critical section -- rather than
+    spawning a second `git rev-parse` subprocess while `claim_checkpoint`'s
+    `state_lock` is held. `state_lock`'s own docstring frames the critical
+    section as a short read -> mutate -> publish window; a contending
+    writer should not additionally wait for a process spawn only needed to
+    format this function's own refusal message."""
     path = claim_path(repo_root, work_item_id)
     try:
         _publish_claim_exclusive(path, record)
     except FileExistsError:
         existing = resolve_claim(repo_root, work_item_id)
-        _, _, worktree_root = _git_identity(repo_root)
+        worktree_root = record["worktree_root"]
         if existing is not None and not claim_is_this_worktree(repo_root, existing):
             raise CheckpointOwnedByOtherWorktreeError(
                 f"{work_item_id!r} checkpoint {existing.get('checkpoint_id')!r} is already "
@@ -4742,15 +4751,49 @@ def claim_checkpoint(repo_root: Path, work_item_id: str, checkpoint_id: str, *, 
     entry) -- most of this module's own claim-record unit tests exercise
     exactly that unregistered-work-item shape, by design.
 
+    **Scoped to one worktree root, not the repository (`XMODEL-R9-B1`,
+    narrowing the claim above, round 9 external implementation review).**
+    `STATE_LOCK_PATH` resolves as `repo_root / ".ai-review/runtime/
+    WORKFLOW_STATE.lock"` -- one lock file *per worktree* -- while
+    `claims_dir(repo_root)` (this function's own claim-record home) is
+    `git_common_dir`-rooted and shared by every linked worktree of the
+    same repository. Two processes in two different worktrees therefore
+    take `flock` on two different inodes and are not serialized at all,
+    and this function's own phase check below reads `repo_root /
+    DEFAULT_STATE_PATH` -- *this worktree's own working-tree copy* of
+    `WORKFLOW_STATE.json` -- which cannot observe a phase committed only
+    to another worktree's own branch, so even perfect serialization would
+    not by itself make an amendment made from worktree A visible to a
+    claim attempted from worktree B. The guarantee above is real and
+    load-bearing *only within one worktree root*; deliberately left open
+    across linked worktrees for `2.4.0` rather than half-fixed --
+    `docs/defects/v2.4.0-002-amendment-claim-race-crosses-worktree-
+    boundary.md` records the residual, the two independent reasons above,
+    and what a future release closing it would need (a `claims_dir`-rooted
+    serialization primitive plus a repo-global witness for `AMENDING_PLAN`,
+    neither of which this release adds).
+
     Raises `IllegalCheckpointStartPhaseError` -- naming the actual phase
     and `CHECKPOINT_START_LEGAL_PHASES` -- and publishes nothing, when a
     registered work item's current phase (re-read fresh, under the lock,
     never from a caller-supplied snapshot) is not legal for a checkpoint
     start. This is what leaves no orphaned claim behind when the
-    amendment side of the race wins: `AMENDING_PLAN` is already durable
-    by the time this function's own lock acquisition succeeds, so the
-    claim this function would otherwise publish is refused before a
-    single byte of it reaches disk."""
+    amendment side of the race wins **in the same worktree**: `AMENDING_PLAN`
+    is already durable in this worktree's own working-tree state by the
+    time this function's own lock acquisition succeeds, so the claim this
+    function would otherwise publish is refused before a single byte of
+    it reaches disk.
+
+    IMPL9-O3: two other functions publish a claim without this check --
+    `adopt_claim` (through `_claim_or_refuse` directly) and
+    `take_over_claim` (through `_publish_claim_replacing`). Both are safe
+    only *transitively*, and only within one worktree: `adopt_claim`
+    refuses unless this worktree's own local state already shows the
+    checkpoint `IN_PROGRESS`, and `request_plan_amendment` refuses on any
+    checkpoint `IN_PROGRESS`; `take_over_claim` requires a pre-existing
+    claim, which the amendment also refuses on. Neither argument is
+    checked here, and under `XMODEL-R9-B1` neither holds across
+    worktrees either."""
     record = _build_claim_record(repo_root, work_item_id, checkpoint_id, now)
     with state_lock(repo_root):
         state = _load_json(repo_root / DEFAULT_STATE_PATH) or {}

@@ -4272,7 +4272,22 @@ class TestCheckpointStateTransitions(unittest.TestCase):
         state_transaction committed must not be able to publish
         IN_PROGRESS once the work item has moved on to `AMENDING_PLAN` --
         or, more generally, to any phase outside
-        `CHECKPOINT_START_LEGAL_PHASES`."""
+        `CHECKPOINT_START_LEGAL_PHASES`.
+
+        Also pins that this guard is not made redundant by
+        `claim_checkpoint`'s own newer, round-8 phase check (missing-test
+        item 3, round 9 external implementation review): this call goes
+        directly through `transition_checkpoint_in_progress` with no
+        `claim_checkpoint` call anywhere in this test, which is exactly the
+        shape three real call sites take in production --
+        `.claude/commands/milestone-implement.md`'s `CONTINUE_CLAIM`/
+        `RESUME` branches (the claim already exists from an earlier step
+        1c, so `claim_checkpoint` is never called again), `adopt_claim`
+        (publishes through `_claim_or_refuse` directly), and
+        `take_over_claim` (publishes through `_publish_claim_replacing`).
+        Removing this guard on the theory that `claim_checkpoint`'s own
+        check "already covers it" would silently reopen the
+        `IN_PROGRESS`-after-`AMENDING_PLAN` write on all three."""
         wi = _base_work_item(phase="AMENDING_PLAN", current_checkpoint_id=None, checkpoints={})
         state = _base_state(wi=wi)
         with self.assertRaises(ws.IllegalCheckpointStartPhaseError):
@@ -10919,6 +10934,120 @@ except ws.AmendmentCheckpointActiveError as exc:
     out_path.write_text(json.dumps({"outcome": "refused", "detail": str(exc)}))
 """
 
+_AMENDMENT_RACE_AMENDER_POST_RESOLVE_CLAIM_SOURCE = """
+import json
+import sys
+import time
+from pathlib import Path
+
+import workflow_state as ws
+
+repo_root = Path(sys.argv[1])
+work_item_id = sys.argv[2]
+reason = sys.argv[3]
+now = sys.argv[4]
+hold_seconds = float(sys.argv[5])
+ready_path = Path(sys.argv[6])
+go_path = Path(sys.argv[7])
+out_path = Path(sys.argv[8])
+
+# Cross-worktree reproduction (`XMODEL-R9-B1`): unlike
+# `_AMENDMENT_RACE_AMENDER_SOURCE` above (whose `mutator` sleeps *before*
+# calling `request_plan_amendment` at all -- fine for the same-worktree
+# case, since the identical shared lock is held for the whole sleep
+# either way), this worker places the delay exactly where the external
+# review placed it: immediately after `request_plan_amendment`'s own
+# authoritative `resolve_claim(...)` read returns, standing in for the
+# git rev-parse / discover_plan_approval_commit / registry-load work that
+# really follows it. That is the genuine window a claim published from a
+# *different* worktree (a different `WORKFLOW_STATE.lock` file entirely)
+# can land in undetected.
+_real_resolve_claim = ws.resolve_claim
+
+
+def _slow_resolve_claim(repo_root_arg, work_item_id_arg):
+    result = _real_resolve_claim(repo_root_arg, work_item_id_arg)
+    time.sleep(hold_seconds)
+    return result
+
+
+ws.resolve_claim = _slow_resolve_claim
+
+ready_path.write_text("ready")
+deadline = time.monotonic() + 15
+while not go_path.exists():
+    if time.monotonic() > deadline:
+        out_path.write_text(json.dumps({"outcome": "timeout"}))
+        sys.exit(0)
+    time.sleep(0.001)
+
+try:
+    ws.state_transaction(
+        repo_root,
+        lambda state: ws.request_plan_amendment(state, work_item_id, reason, repo_root=repo_root, now=now),
+    )
+    out_path.write_text(json.dumps({"outcome": "success"}))
+except ws.AmendmentCheckpointActiveError as exc:
+    out_path.write_text(json.dumps({"outcome": "refused", "detail": str(exc)}))
+"""
+
+_AMENDMENT_RACE_SLOW_CLAIMER_SOURCE = """
+import contextlib
+import json
+import sys
+import time
+from pathlib import Path
+
+import workflow_state as ws
+
+repo_root = Path(sys.argv[1])
+work_item_id = sys.argv[2]
+checkpoint_id = sys.argv[3]
+now = sys.argv[4]
+hold_seconds = float(sys.argv[5])
+ready_path = Path(sys.argv[6])
+go_path = Path(sys.argv[7])
+out_path = Path(sys.argv[8])
+
+# Missing-test item 1 (round 9 external implementation review): the
+# claimer-wins-the-lock ordering, under real contention rather than the
+# pre-existing deterministic unit test's claim-already-present setup.
+# `claim_checkpoint` has no `hold_seconds` parameter of its own (unlike
+# `request_plan_amendment`'s caller-supplied `mutator`, which the amender
+# worker already sleeps inside), so this worker holds the real, shared
+# `WORKFLOW_STATE.lock` for `hold_seconds` itself, standing in for the
+# real wall-clock work `claim_checkpoint`'s own critical section does --
+# by wrapping `state_lock`, the exact context manager `claim_checkpoint`
+# acquires by bare name, so the real production function still runs, only
+# with its held interval extended to something a concurrent process can
+# reliably observe blocking on.
+_real_state_lock = ws.state_lock
+
+
+@contextlib.contextmanager
+def _slow_state_lock(*a, **kw):
+    with _real_state_lock(*a, **kw):
+        time.sleep(hold_seconds)
+        yield
+
+
+ws.state_lock = _slow_state_lock
+
+ready_path.write_text("ready")
+deadline = time.monotonic() + 15
+while not go_path.exists():
+    if time.monotonic() > deadline:
+        out_path.write_text(json.dumps({"outcome": "timeout"}))
+        sys.exit(0)
+    time.sleep(0.001)
+
+try:
+    claim = ws.claim_checkpoint(repo_root, work_item_id, checkpoint_id, now=now)
+    out_path.write_text(json.dumps({"outcome": "success", "owner_token": claim["owner_token"]}))
+except ws.IllegalCheckpointStartPhaseError as exc:
+    out_path.write_text(json.dumps({"outcome": "refused", "detail": str(exc)}))
+"""
+
 
 class TestAmendmentClaimRaceRealProcesses(unittest.TestCase):
     """`XMODEL-R8-B1`: `request_plan_amendment`'s authoritative
@@ -10945,6 +11074,8 @@ class TestAmendmentClaimRaceRealProcesses(unittest.TestCase):
         cls._claimer.write_text(_AMENDMENT_RACE_CLAIMER_SOURCE)
         cls._amender = cls._worker_dir / "_amend_race_amender.py"
         cls._amender.write_text(_AMENDMENT_RACE_AMENDER_SOURCE)
+        cls._slow_claimer = cls._worker_dir / "_amend_race_slow_claimer.py"
+        cls._slow_claimer.write_text(_AMENDMENT_RACE_SLOW_CLAIMER_SOURCE)
 
     @classmethod
     def tearDownClass(cls):
@@ -11054,6 +11185,243 @@ class TestAmendmentClaimRaceRealProcesses(unittest.TestCase):
             self.assertIsNone(
                 claim, "a checkpoint claim survived alongside a committed AMENDING_PLAN phase -- "
                 "exactly the XMODEL-R8-B1 defect this fix closes")
+
+    def test_claimer_wins_the_lock_and_the_concurrent_amendment_genuinely_blocks_then_correctly_refuses(self):
+        """Round 8's own acceptance criterion 6, completed (missing-test
+        item 1, round 9 external implementation review): the claimer-wins
+        ordering under real contention. The pre-existing deterministic unit
+        test (`claim_checkpoint` called with a claim already present before
+        `request_plan_amendment` runs) does not prove mutual exclusion when
+        claim *publication* races the amendment's authoritative claim
+        *read* itself -- exactly the gap round 8's own feedback named. Here
+        the claimer is released first and made to hold the real,
+        shared `WORKFLOW_STATE.lock` for a real, measurable interval before
+        it does anything else, while a concurrent `request_plan_amendment`
+        call is issued against the identical lock file -- confirming it
+        genuinely blocks for the held duration, then correctly refuses
+        rather than superseding a plan approval a live claim already
+        stands against."""
+        with ScratchRepo() as repo:
+            state_path = self._state_with_approved_plan(repo)
+            with tempfile.TemporaryDirectory(prefix="wf-amend-race-io-") as scratch:
+                scratch_path = Path(scratch)
+                ready_claim, go_claim, out_claim = (
+                    scratch_path / "ready_claim", scratch_path / "go_claim", scratch_path / "out_claim.json")
+                ready_amend, go_amend, out_amend = (
+                    scratch_path / "ready_amend", scratch_path / "go_amend", scratch_path / "out_amend.json")
+
+                hold_seconds = 1.0
+                claimer = self._spawn(
+                    self._slow_claimer, repo.root, "wi", "CP2", "2026-01-01T00:00:00Z", hold_seconds,
+                    ready_claim, go_claim, out_claim,
+                )
+                amender = self._spawn(
+                    self._amender, repo.root, "wi", "reason", "2026-01-01T00:00:01Z", 0.0,
+                    ready_amend, go_amend, out_amend,
+                )
+                try:
+                    self._wait_for(ready_claim, "claimer")
+                    self._wait_for(ready_amend, "amender")
+
+                    # Release the claimer first, and give it a moment to
+                    # actually win the flock acquisition and enter its
+                    # held interval -- then release the amender while the
+                    # claimer is provably still inside its critical section.
+                    go_claim.write_text("go")
+                    time.sleep(0.2)
+                    started_blocking_at = time.monotonic()
+                    go_amend.write_text("go")
+
+                    self.assertEqual(claimer.wait(timeout=15), 0)
+                    self.assertEqual(amender.wait(timeout=15), 0)
+                    blocked_for = time.monotonic() - started_blocking_at
+
+                    claim_result = json.loads(out_claim.read_text())
+                    amend_result = json.loads(out_amend.read_text())
+
+                    self.assertEqual(claim_result["outcome"], "success", claim_result)
+                    self.assertEqual(amend_result["outcome"], "refused", amend_result)
+
+                    self.assertGreaterEqual(
+                        blocked_for, 0.5,
+                        "the amender resolved too quickly to have actually blocked on the "
+                        "shared WORKFLOW_STATE.lock")
+                finally:
+                    for p in (claimer, amender):
+                        if p.poll() is None:
+                            p.kill()
+                            p.wait(timeout=5)
+
+            final_state = json.loads(state_path.read_text())
+            final_item = final_state["work_items"]["wi"]
+            claim = ws.resolve_claim(repo.root, "wi")
+
+            self.assertEqual(final_item["phase"], "IMPLEMENTING")
+            self.assertEqual(final_item["plan_approval"]["status"], "CURRENT")
+            self.assertIsNotNone(
+                claim, "the claim published first must survive an amendment that lost the race "
+                "for the shared WORKFLOW_STATE.lock")
+
+
+class TestCrossWorktreeAmendmentClaimResidualXModelR9B1(unittest.TestCase):
+    """`XMODEL-R9-B1` (round 9 external implementation review,
+    `docs/defects/v2.4.0-002-amendment-claim-race-crosses-worktree-
+    boundary.md`): round 8's fix (`TestAmendmentClaimRaceRealProcesses`
+    above) closes the amendment-versus-claim-start race only *within one
+    worktree root*. These tests pin the documented residual across linked
+    worktrees of the same repository -- not a regression to silently
+    worsen, and not (yet) a bug to silently fix either: a future change to
+    either direction of this behavior must also update the defect
+    record above, which is exactly what a test failure here is meant to
+    surface. Missing-test item 2, round 9 external implementation review."""
+
+    def _write_state(self, repo_root: Path, *, phase: str, checkpoint_id: str | None = None,
+                     checkpoints: dict | None = None) -> Path:
+        state = {
+            "schema_version": 1, "active_work_item_id": "wi",
+            "work_items": {"wi": {
+                "work_item_id": "wi", "phase": phase, "plan_revision": 1,
+                "base_commit": "0" * 40,
+                "plan_approval": {"status": "CURRENT" if phase != "AMENDING_PLAN" else "SUPERSEDED",
+                                  "approved_review_content_id": "rc-1"},
+                "checkpoints": checkpoints or {},
+                "current_checkpoint_id": checkpoint_id,
+                "last_completed_checkpoint_id": None,
+            }},
+        }
+        state_path = repo_root / "docs" / "ai-workflow" / "WORKFLOW_STATE.json"
+        state_path.parent.mkdir(parents=True, exist_ok=True)
+        state_path.write_text(json.dumps(state))
+        return state_path
+
+    def test_deterministic_a_durable_amending_plan_in_one_worktree_does_not_block_a_claim_from_another(self):
+        """The second, independent reason named in `XMODEL-R9-B1`: no
+        concurrency at all is needed to reproduce this half. Worktree A's
+        own working-tree `WORKFLOW_STATE.json` durably records
+        `AMENDING_PLAN`; worktree B's own copy still says `IMPLEMENTING`
+        (as it would if B's branch has not merged A's amendment commit).
+        `claim_checkpoint` reads only its own worktree's copy, so it
+        succeeds from B even though the work item is, in worktree A,
+        already `AMENDING_PLAN`."""
+        with ScratchRepo() as repo:
+            wt_b = repo.worktree("b")
+            self._write_state(repo.root, phase="AMENDING_PLAN")
+            self._write_state(wt_b, phase="IMPLEMENTING")
+
+            claim = ws.claim_checkpoint(wt_b, "wi", "CP2", now="t1")
+
+            self.assertEqual(claim["checkpoint_id"], "CP2")
+            a_state = json.loads((repo.root / "docs/ai-workflow/WORKFLOW_STATE.json").read_text())
+            self.assertEqual(a_state["work_items"]["wi"]["phase"], "AMENDING_PLAN")
+
+    def test_racing_an_amendment_in_one_worktree_and_a_claim_in_another_are_not_serialized(self):
+        """The first, independent reason named in `XMODEL-R9-B1`, under
+        real contention: `WORKFLOW_STATE.lock` is per-worktree
+        (`repo_root`-scoped), so an amendment racing a claim start from a
+        *different* worktree take `flock` on two different inodes and are
+        not ordered by it at all -- both sides may succeed, unlike the
+        same race within one worktree (`TestAmendmentClaimRaceRealProcesses`
+        above), where exactly one must win and the other must be refused."""
+        with ScratchRepo() as repo:
+            wt_b = repo.worktree("b")
+            approval_commit = repo.commit(
+                "approve plan", trailers={"Workflow-Plan-Approval": "rc-1", "Workflow-Work-Item": "wi"},
+            )
+            state = {
+                "schema_version": 1, "active_work_item_id": "wi",
+                "work_items": {"wi": {
+                    "work_item_id": "wi", "phase": "IMPLEMENTING", "plan_revision": 1,
+                    "base_commit": repo.base,
+                    "plan_approval": {"status": "CURRENT", "approved_review_content_id": "rc-1"},
+                    "checkpoints": {"CP1": {"status": "COMPLETE", "start_commit": approval_commit}},
+                    "current_checkpoint_id": None, "last_completed_checkpoint_id": "CP1",
+                }},
+            }
+            for root in (repo.root, wt_b):
+                state_path = root / "docs" / "ai-workflow" / "WORKFLOW_STATE.json"
+                state_path.parent.mkdir(parents=True, exist_ok=True)
+                state_path.write_text(json.dumps(state))
+
+            scripts_dir = Path(__file__).resolve().parent
+            worker_dir = Path(tempfile.mkdtemp(prefix="wf-amend-race-xwt-worker-"))
+            amender = worker_dir / "_amend_race_amender_xwt.py"
+            amender.write_text(_AMENDMENT_RACE_AMENDER_POST_RESOLVE_CLAIM_SOURCE)
+            claimer = worker_dir / "_amend_race_claimer_xwt.py"
+            claimer.write_text(_AMENDMENT_RACE_CLAIMER_SOURCE)
+
+            def spawn(worker: Path, *args) -> subprocess.Popen:
+                env = dict(os.environ)
+                env["PYTHONPATH"] = str(scripts_dir) + (
+                    os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else "")
+                return subprocess.Popen(
+                    [sys.executable, str(worker), *[str(a) for a in args]], env=env,
+                )
+
+            def wait_for(path: Path, what: str) -> None:
+                deadline = time.monotonic() + 15
+                while not path.exists():
+                    if time.monotonic() > deadline:
+                        raise AssertionError(f"{what} did not become ready in time")
+                    time.sleep(0.001)
+
+            try:
+                with tempfile.TemporaryDirectory(prefix="wf-amend-race-xwt-io-") as scratch:
+                    scratch_path = Path(scratch)
+                    ready_amend, go_amend, out_amend = (
+                        scratch_path / "ready_amend", scratch_path / "go_amend", scratch_path / "out_amend.json")
+                    ready_claim, go_claim, out_claim = (
+                        scratch_path / "ready_claim", scratch_path / "go_claim", scratch_path / "out_claim.json")
+
+                    hold_seconds = 1.0
+                    amender_proc = spawn(
+                        amender, repo.root, "wi", "reason", "2026-01-01T00:00:00Z", hold_seconds,
+                        ready_amend, go_amend, out_amend,
+                    )
+                    claimer_proc = spawn(
+                        claimer, wt_b, "wi", "CP2", "2026-01-01T00:00:01Z",
+                        ready_claim, go_claim, out_claim,
+                    )
+                    try:
+                        wait_for(ready_amend, "amender")
+                        wait_for(ready_claim, "claimer")
+
+                        go_amend.write_text("go")
+                        time.sleep(0.2)
+                        go_claim.write_text("go")
+
+                        self.assertEqual(amender_proc.wait(timeout=15), 0)
+                        self.assertEqual(claimer_proc.wait(timeout=15), 0)
+
+                        amend_result = json.loads(out_amend.read_text())
+                        claim_result = json.loads(out_claim.read_text())
+
+                        # Both succeed: the amender's own authoritative
+                        # `resolve_claim(...)` read (released at t=0) finds
+                        # nothing yet and is not re-checked, so the claimer
+                        # (released at t=0.2, into the genuine window the
+                        # sleep stands in for) publishes into the shared
+                        # claims directory undetected -- the claimer never
+                        # blocks on the amender's own lock either, since it
+                        # is a different `repo_root`'s own
+                        # `WORKFLOW_STATE.lock` file. Unlike the
+                        # same-worktree race above, where exactly one of
+                        # these two outcomes must occur, both succeeding is
+                        # the documented `XMODEL-R9-B1` residual, not a
+                        # flake.
+                        self.assertEqual(amend_result["outcome"], "success", amend_result)
+                        self.assertEqual(claim_result["outcome"], "success", claim_result)
+                    finally:
+                        for p in (amender_proc, claimer_proc):
+                            if p.poll() is None:
+                                p.kill()
+                                p.wait(timeout=5)
+            finally:
+                import shutil
+                shutil.rmtree(worker_dir, ignore_errors=True)
+
+            a_state = json.loads((repo.root / "docs/ai-workflow/WORKFLOW_STATE.json").read_text())
+            self.assertEqual(a_state["work_items"]["wi"]["phase"], "AMENDING_PLAN")
+            self.assertIsNotNone(ws.resolve_claim(wt_b, "wi"))
 
 
 class TestApplyPlanApprovalAmendmentBranch(unittest.TestCase):

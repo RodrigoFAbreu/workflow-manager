@@ -9,7 +9,7 @@
   "provenance": {
     "origin": "authored",
     "base_release": "2.3.1",
-    "overlay_commit": "9e920263bab60bd1fbe72afaa3790d108db1e778"
+    "overlay_commit": "350a039dbcdad1f0f523de455b3f861804e6ee18"
   },
   "categories": {
     "distribution": "Canonical Workflow implementation. Copied byte-for-byte into the payload and installed into every managed target repository.",
@@ -176,8 +176,8 @@
       "category": "distribution",
       "rule": "^\\.claude/commands/request-plan-amendment\\.md$",
       "rationale": "New command file authoring the AMENDING_PLAN re-entry gate (D-Plan-Amendment-1); the executable command contract, same category the base classification assigns every other .claude/commands/*.md file.",
-      "sha256": "6e9022b168b30d3931ed0808520d5114b671b06a5af8606146130672ee39b7cd",
-      "size": 10403,
+      "sha256": "8c7dde16f6391dc14c38d5532a6d02c5e3cc1df58343de97591079c3d35100a4",
+      "size": 12459,
       "executable": false
     },
     {
@@ -338,12 +338,12 @@
       "category": "distribution",
       "rule": "^docs/ai-workflow/WORKFLOW_V2_PLAN\\.md$",
       "rationale": "The new D-Plan-Amendment-1..8 design-decision section and D-Authored-Release-1..5's successor-release mechanics. Preserves the base release's own distribution category for this path (I-R16-2).",
-      "sha256": "7b1ea6bf688514f4608f02bfdc7a520c62a1ed9d19353874a692880ee239f8ef",
-      "size": 3157469,
+      "sha256": "0446adb23e05bc09299cc9d34e084a36bc55b63f6691c1c21b9cced396e0c547",
+      "size": 3159448,
       "executable": false,
       "overlay_delta": {
         "base_sha256": "7ef20358be08a5c98e8803775ca03a234a7bda2a37d467d0078b2be634f975e5",
-        "diff_sha256": "5cbbc2aa3f4b827d54c4a64097ba0d04212f9323affcdf4a8f9d5aac1fa4e669"
+        "diff_sha256": "1d2df0b68b63c53011f0d80c6db80276dcb31b5c595de51ec54fdc481840a63b"
       }
     },
     {
@@ -669,12 +669,12 @@
       "category": "distribution",
       "rule": "^scripts/workflow_state\\.py$",
       "rationale": "AMENDING_PLAN, /request-plan-amendment's writer, SUPERSEDED/NEEDS_REVALIDATION, apply_plan_approval's reconciliation parameters, load_pre_amendment_snapshot, and the widened vocabulary constants (D-Plan-Amendment-2..4). Preserves the base release's own distribution category for this path (I-R16-2).",
-      "sha256": "643d8e9843c9ccc2d3f6f86cb834761f8d0ff38f748f3a0839e92d788dcde178",
-      "size": 657344,
+      "sha256": "dfb85a6f3c5539d4705076c4dca3dbefd8c48c3eaa9fd227911d28d9f7c55277",
+      "size": 660153,
       "executable": false,
       "overlay_delta": {
         "base_sha256": "d9097f02bf78b53ee048d3bb5e5f674c9c246065d8ceb4c71d8dfd039032131e",
-        "diff_sha256": "4806e0dead52e5a28e782bdf205fc1e2ac0ee690eba5a26fa9721862de27bf9f"
+        "diff_sha256": "e51688f9b304b2b2cf87b4e445d9c7fef1394ee1e276b9255568dcbba7935b96"
       }
     },
     {
@@ -708,12 +708,12 @@
       "category": "distribution",
       "rule": "^scripts/workflow_state_test\\.py$",
       "rationale": "The payload's own conformance suite, updated for AMENDING_PLAN/its writer. Preserves the base release's own distribution category for this path (I-R16-2).",
-      "sha256": "4c7d3d7b9a3a2f52ac3eb1fd2c8b98e4841a181282d02bfd60754e144dc921ef",
-      "size": 625205,
+      "sha256": "90919276d86f08cfebf24f70a0e9a003f8c610481879617d2eaba60b711a88eb",
+      "size": 643307,
       "executable": false,
       "overlay_delta": {
         "base_sha256": "f47575ccae74bf508945cb078cd2fc13dac76b02d207403f309cf9fcb45b7c92",
-        "diff_sha256": "b22d94ab7bd95bea38700ca16b3a27c1b57579419d6a06900ad697431e4efd99"
+        "diff_sha256": "d75b7051eb0d36be2ca97ce219e24f96844f195d39e4ac3d35fdc6c202bfda86"
       }
     },
     {
