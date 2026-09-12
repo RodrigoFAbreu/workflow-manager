@@ -72,11 +72,14 @@ python3 tests/run_all.py --fast     # ~10s, covers inventory/bytes/templates/boo
 python3 tests/run_all.py            # ~7min, adds the frozen conformance matrix
 ```
 
-`tools/migrate.py --check` proves each `distribution/workflow/<version>/` is
-still exactly what a fresh extraction (or, for an authored release, its
-recorded base-plus-overlay composition) produces; it does not by itself
-prove no unrelated file exists directly under `distribution/` outside every
-release directory.
+`tools/migrate.py --check` proves each upstream-derived
+`distribution/workflow/<version>/` (today, `2.3.1`) still reproduces from a
+fresh extraction; it does not by itself prove no unrelated file exists
+directly under `distribution/` outside every release directory. An authored
+release (today, `2.4.0`) is proved reproducible separately, by
+`python3 tools/build_release.py --overlay migration/overlays/<version>
+--check`, from the base release plus its overlay -- `migrate.py --check`
+does not cover it.
 
 ## Where things are
 
