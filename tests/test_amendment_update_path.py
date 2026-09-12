@@ -456,13 +456,26 @@ class TestMigrateDoesNotDeleteASiblingAuthoredRelease(unittest.TestCase):
             # untracked file behind (a renamed/added path under the same
             # directory), so `clean -fd` removes anything `checkout --`
             # itself cannot touch, scoped to this one directory alone.
-            subprocess.run(
+            #
+            # IMPL2-O3: each restore step is independent and must run even
+            # if the other one fails -- `check=True` on the first call
+            # would raise *inside* `finally:` the moment `checkout --`
+            # itself failed, skipping `clean -fd` entirely and replacing
+            # whatever exception was already propagating with an unrelated
+            # `CalledProcessError`, losing the original diagnostic. Neither
+            # call uses `check=True` here; both always run, and any
+            # restore failure is asserted (and so still reported) only
+            # after both have been attempted.
+            restore_failures = []
+            for restore_args in (
                 ["git", "-C", str(REPO_ROOT), "checkout", "--", "distribution/workflow/2.3.1"],
-                check=True, capture_output=True,
-            )
-            subprocess.run(
                 ["git", "-C", str(REPO_ROOT), "clean", "-fd", "--", "distribution/workflow/2.3.1"],
-                check=True, capture_output=True,
+            ):
+                result = subprocess.run(restore_args, capture_output=True, text=True)
+                if result.returncode != 0:
+                    restore_failures.append((restore_args, result.stdout + result.stderr))
+            assert not restore_failures, (
+                f"restoring distribution/workflow/2.3.1 failed: {restore_failures}"
             )
 
 
