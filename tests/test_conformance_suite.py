@@ -40,6 +40,7 @@ from __future__ import annotations
 
 import json
 import re
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -296,6 +297,141 @@ class TestAuthoredReleaseOverlayDelta(unittest.TestCase):
                 "overlay_commit": overlay_manifest["provenance"]["overlay_commit"],
             },
         )
+
+    def test_build_release_check_reproduces_2_4_0(self):
+        """Missing-tests item 1: `tools/migrate.py --check` is asserted
+        twice elsewhere (`test_payload_bytes.py`, `test_amendment_update_
+        path.py`), guarding `2.3.1`'s reproducibility from the suite --
+        `2.4.0`'s own `tools/build_release.py --check` reproducibility had
+        no equivalent, even though `CLAUDE.md`'s "Adding an authored
+        Workflow release" step 2 and `docs/MIGRATION.md`'s evidence table
+        both make it normative. `--check` builds into a throwaway temporary
+        root and only diffs against what is committed -- it writes nothing
+        under the real `distribution/`."""
+        proc = subprocess.run(
+            [sys.executable, str(REPO_ROOT / "tools" / "build_release.py"),
+             "--overlay", str(REPO_ROOT / "migration" / "overlays" / "2.4.0"), "--check"],
+            cwd=str(REPO_ROOT), capture_output=True, text=True,
+        )
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+
+
+class TestBuildReleaseCollisionGuards(unittest.TestCase):
+    """IMPL-O1/Missing-tests item 4: `tools/build_release.py`'s
+    `target_path` collision guards, exercised against small synthetic
+    base+overlay fixtures built fresh per test -- never against the real
+    `2.3.1`/`2.4.0` releases, which carry no such collision (latent, not
+    live, in both bases)."""
+
+    @classmethod
+    def setUpClass(cls):
+        tools_dir = REPO_ROOT / "tools"
+        if str(tools_dir) not in sys.path:
+            sys.path.insert(0, str(tools_dir))
+        import build_release
+        cls.build_release = build_release
+
+    def _write_base_release(self, base_root: Path, *, artifacts=(), templates=()):
+        """`artifacts`/`templates`: iterables of `(target_path, location, data)`."""
+        artifact_records = []
+        for target_path, location, data in artifacts:
+            path = base_root / location
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(data)
+            artifact_records.append({
+                "target_path": target_path, "location": location,
+                "category": "host-evidence" if location.startswith("fixtures/") else "distribution",
+                "sha256": self.build_release.sha256(data), "size": len(data), "executable": False,
+            })
+        template_records = []
+        for target_path, location, data in templates:
+            path = base_root / location
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(data)
+            template_records.append({
+                "target_path": target_path, "location": location,
+                "sha256": self.build_release.sha256(data), "size": len(data), "executable": False,
+            })
+        manifest = {
+            "schema_version": 1,
+            "workflow_version": "9.9.9",
+            "upstream": {"origin": "test"},
+            "provenance": {"origin": "upstream"},
+            "categories": {"distribution": "test", "host-evidence": "test"},
+            "artifacts": artifact_records,
+            "templates": template_records,
+        }
+        (base_root / "manifest.json").write_text(json.dumps(manifest))
+
+    def _write_overlay(self, overlay_dir: Path, *, rel_path: str, expected_kind: str, data: bytes):
+        classification = {
+            "schema_version": 1,
+            "workflow_version": "10.0.0",
+            "base_workflow_version": "9.9.9",
+            "categories": {"distribution": "test"},
+            "rules": [
+                {
+                    "pattern": f"^{re.escape(rel_path)}$", "category": "distribution",
+                    "rationale": "test", "expected_kind": expected_kind,
+                },
+            ],
+        }
+        overlay_dir.mkdir(parents=True, exist_ok=True)
+        (overlay_dir / "classification.json").write_text(json.dumps(classification))
+        payload_path = overlay_dir / "payload" / rel_path
+        payload_path.parent.mkdir(parents=True, exist_ok=True)
+        payload_path.write_bytes(data)
+
+    def test_overlay_payload_colliding_with_a_base_template_is_refused(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            base_dist_root = root / "base_dist"
+            base_root = base_dist_root / "workflow" / "9.9.9"
+            self._write_base_release(
+                base_root,
+                templates=[("collide.txt", "templates/collide.txt", b"base template bytes")],
+            )
+            overlay_dir = root / "overlay"
+            self._write_overlay(
+                overlay_dir, rel_path="collide.txt", expected_kind="added", data=b"overlay bytes",
+            )
+            out_dist_root = root / "out_dist"
+            with self.assertRaises(self.build_release.BuildReleaseError) as ctx:
+                self.build_release.build("9.9.9", overlay_dir, base_dist_root, out_dist_root)
+            self.assertIn("base template", str(ctx.exception))
+
+    def test_overlay_payload_colliding_with_a_non_payload_base_artifact_is_refused(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            base_dist_root = root / "base_dist"
+            base_root = base_dist_root / "workflow" / "9.9.9"
+            self._write_base_release(
+                base_root,
+                artifacts=[("collide.md", "fixtures/collide.md", b"base fixture bytes")],
+            )
+            overlay_dir = root / "overlay"
+            self._write_overlay(
+                overlay_dir, rel_path="collide.md", expected_kind="added", data=b"overlay bytes",
+            )
+            out_dist_root = root / "out_dist"
+            with self.assertRaises(self.build_release.BuildReleaseError) as ctx:
+                self.build_release.build("9.9.9", overlay_dir, base_dist_root, out_dist_root)
+            self.assertIn("non-payload base artifact", str(ctx.exception))
+
+
+class TestAuthoredReleaseIsSelfConsistent(unittest.TestCase):
+    """Missing-tests item 2: CP4 pinned every `find_release(REPO_ROOT)` in
+    `test_payload_bytes.py`, `test_migration_inventory.py`, `test_templates.py`
+    and `test_no_live_state_imported.py` to `"2.3.1"`, so the "no missing
+    file, no digest mismatch, no stray file" self-consistency check
+    (`Release.verify()`) covered only `2.3.1` -- `TestAuthoredReleaseOverlayDelta`
+    above covers the 11 replaced payload files' own `overlay_delta`
+    reproduction, but nothing gave `2.4.0` the same whole-release digest
+    guard `2.3.1` already has."""
+
+    def test_no_missing_file_no_digest_mismatch_no_stray_file(self):
+        release = find_release(REPO_ROOT, "2.4.0")
+        self.assertEqual(release.verify(), [])
 
 
 class TestAuthoredReleaseCiTemplateSuiteNames(unittest.TestCase):

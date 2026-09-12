@@ -269,6 +269,24 @@ def build(
                 f"{base_artifact['location']!r}, not 'payload/{rel_path}' -- an overlay "
                 f"payload file cannot replace a non-payload base artifact"
             )
+        if rel_path in base_templates_by_path:
+            # Same collision shape as the artifact-side refusal just above,
+            # on the templates side (latent in the 2.3.1 base -- no overlay
+            # payload path has ever collided with a template's own
+            # `target_path` -- but the same `target_path` namespace is
+            # shared by both, so nothing here guarantees it stays that way).
+            # Left unrefused, this rel_path would be classified `added`
+            # (`base_artifacts_by_path.get(rel_path)` is `None`), written to
+            # `payload/<rel_path>`, *and* the base template of the same
+            # `target_path` would still be copied forward to
+            # `templates/<location>` below -- two manifest records claiming
+            # the same `target_path` with different `location`s, which no
+            # installer-side consumer of the manifest expects.
+            raise BuildReleaseError(
+                f"{rel_path}: this target_path already names a base release template at "
+                f"{base_templates_by_path[rel_path]['location']!r} -- an overlay payload file "
+                f"cannot collide with a base template's target_path"
+            )
         actual_kind = "replaced" if base_artifact is not None else "added"
         expected_kind = rule["expected_kind"]
         if actual_kind != expected_kind:
@@ -329,6 +347,13 @@ def build(
     # that point.
     templates: list[dict] = []
     for _path, base_template in sorted(base_templates_by_path.items()):
+        # `seen_overlay_paths`-style skip, mirroring the artifact copy-
+        # forward loop above -- unreachable today since the collision
+        # refusal in the main loop above already raises before this point
+        # for any such overlay path, but kept as the same defense-in-depth
+        # the artifact side already has, not a second source of truth.
+        if _path in seen_overlay_paths:
+            continue
         data = (base_root / base_template["location"]).read_bytes()
         _write_file(release_root / base_template["location"], data, False)
         templates.append(dict(base_template))
