@@ -71,6 +71,33 @@ def _state(target: Path) -> dict:
     return json.loads((target / "docs/ai-workflow/WORKFLOW_STATE.json").read_text())
 
 
+def _implementing_entry_reachable(target: Path, work_item_id: str, base_commit: str) -> bool:
+    """Same "never an in-process import" discipline as `_run_installed`
+    itself (OPUS-R145-005): the two call sites in this file that used to
+    `sys.path.insert`/`__import__("workflow_state")` directly imported
+    whichever release's copy happened to already be on `sys.path` from an
+    earlier call in the same test process, rather than exercising the
+    target's own installed `scripts/` the way every other check in this
+    file does. Harmless in practice today (only the `2.4.0` copy is ever
+    imported in this module), but a needless divergence from the discipline
+    `fixture.py`'s own docstring states -- and it leaves deleted temp
+    directories on `sys.path` for the rest of the test process. Routed
+    through the same subprocess mechanism instead."""
+    scripts_dir = str(target / "scripts")
+    script = f"""
+import json
+import sys
+sys.path.insert(0, {scripts_dir!r})
+import workflow_state as ws
+from pathlib import Path
+root = Path({str(target)!r})
+state = json.loads((root / "docs/ai-workflow/WORKFLOW_STATE.json").read_text())
+entry = state["work_items"][{work_item_id!r}]
+print(ws.implementing_entry_reachable(root, entry, {base_commit!r}))
+"""
+    return _run_installed(target, script).strip().splitlines()[-1] == "True"
+
+
 class _RealReleaseCase(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -149,13 +176,9 @@ class TestUpdatePathImplementingFullAmendmentRehearsal(_RealReleaseCase):
         _git(self.target, "add", "-A")
         _git(self.target, "commit", "-q", "-m", "update workflow to 2.4.0")
 
-        entry = _state(self.target)["work_items"][self.WORK_ITEM_ID]
         scripts_dir = str(self.target / "scripts")
-        sys.path.insert(0, scripts_dir)
-        sys.modules.pop("workflow_state", None)
-        ws = __import__("workflow_state")
         self.assertTrue(
-            ws.implementing_entry_reachable(self.target, entry, result["base_commit"]),
+            _implementing_entry_reachable(self.target, self.WORK_ITEM_ID, result["base_commit"]),
             "the pre-existing plan approval must still be reachable immediately after update",
         )
 
@@ -292,10 +315,8 @@ print(review_content_id)
         # Item 5: implementing_entry_reachable holds immediately after the
         # amended plan's approval, against the item's own unchanged
         # base_commit.
-        sys.modules.pop("workflow_state", None)
-        ws = __import__("workflow_state")
         self.assertTrue(
-            ws.implementing_entry_reachable(self.target, entry, result["base_commit"]),
+            _implementing_entry_reachable(self.target, self.WORK_ITEM_ID, result["base_commit"]),
         )
 
         # --- Resume implementation: drive every remaining/revalidated
@@ -402,20 +423,45 @@ class TestMigrateDoesNotDeleteASiblingAuthoredRelease(unittest.TestCase):
         successor_dir = REPO_ROOT / "distribution" / "workflow" / "2.4.0"
         before = successor_dir / "manifest.json"
         before_bytes = before.read_bytes()
-        proc = subprocess.run(
-            [sys.executable, str(REPO_ROOT / "tools" / "migrate.py")],
-            cwd=str(REPO_ROOT), capture_output=True, text=True,
-        )
-        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        # `tools/migrate.py` (no `--check`) `shutil.rmtree`s the real,
+        # tracked `distribution/workflow/2.3.1/` before rebuilding it in
+        # place, against this developer's real working tree -- there is no
+        # temporary-root override to redirect that at (OPUS-R145-003). The
+        # restore below must therefore run on *every* exit from this point
+        # on, including a failed `returncode` assertion: a migrate failure
+        # after the `rmtree` (a partial write, a disk error, a
+        # `classification.json` mid-edit) must never leave the real
+        # `2.3.1/` deleted or partial with no restore at all -- which is
+        # exactly what happened when the `returncode` assertion sat ahead
+        # of this `try:` rather than inside it. This suite is in
+        # `run_all.py`'s `FAST_SUITES`, so it runs on `python3
+        # tests/run_all.py --fast` -- the very command `CLAUDE.md` tells
+        # every contributor to run *before changing anything*, i.e.
+        # precisely when `tools/migrate.py`/`migration/classification.json`
+        # are most likely to be mid-edit and this failure mode most likely
+        # to fire.
         try:
+            proc = subprocess.run(
+                [sys.executable, str(REPO_ROOT / "tools" / "migrate.py")],
+                cwd=str(REPO_ROOT), capture_output=True, text=True,
+            )
+            self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
             self.assertTrue(successor_dir.exists(), "the sibling authored release must survive")
             self.assertEqual(before.read_bytes(), before_bytes)
         finally:
             # Never leave the real repository's tracked distribution/
             # tree modified by this test -- restore it via git regardless
-            # of outcome.
+            # of outcome. `checkout --` alone restores tracked paths only;
+            # a divergent regeneration could also have left a stray
+            # untracked file behind (a renamed/added path under the same
+            # directory), so `clean -fd` removes anything `checkout --`
+            # itself cannot touch, scoped to this one directory alone.
             subprocess.run(
                 ["git", "-C", str(REPO_ROOT), "checkout", "--", "distribution/workflow/2.3.1"],
+                check=True, capture_output=True,
+            )
+            subprocess.run(
+                ["git", "-C", str(REPO_ROOT), "clean", "-fd", "--", "distribution/workflow/2.3.1"],
                 check=True, capture_output=True,
             )
 
