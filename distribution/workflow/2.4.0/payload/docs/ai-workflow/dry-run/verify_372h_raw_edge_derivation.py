@@ -16,7 +16,10 @@ alone.
 `XMODEL-R8-B1`):** `claim_checkpoint`'s own publication now runs inside a
 `with state_lock(repo_root):` block (closing the race between
 `request_plan_amendment`'s authoritative `resolve_claim(...)` read and its
-`AMENDING_PLAN` commit), which the "Guard-bracket nesting" shape already
+`AMENDING_PLAN` commit -- within one worktree root; see `XMODEL-R9-B1` and
+`docs/defects/v2.4.0-002-amendment-claim-race-crosses-worktree-boundary.md`
+for the cross-worktree residual this closure does not reach), which the
+"Guard-bracket nesting" shape already
 generalizes over -- `state_lock` is already one of the five bare
 `fcntl.flock` context managers this shape's own detection walks, so this is
 a new call site of an existing mechanism, not a new detection rule. This

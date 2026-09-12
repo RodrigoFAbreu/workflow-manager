@@ -9,7 +9,7 @@
   "provenance": {
     "origin": "authored",
     "base_release": "2.3.1",
-    "overlay_commit": "64c62ec0329e5ebe06b5030f599ffd7c5a3ab554"
+    "overlay_commit": "aa64695419b2dcaa75b9b4e4af4020dfd5f31bbb"
   },
   "categories": {
     "distribution": "Canonical Workflow implementation. Copied byte-for-byte into the payload and installed into every managed target repository.",
@@ -418,12 +418,12 @@
       "category": "conformance",
       "rule": "^docs/ai-workflow/dry-run/verify_372h_raw_edge_derivation\\.py$",
       "rationale": "The item 372(h) graph arm's CODE_DERIVABLE set, and its plan-table parser's edge-count assertion, gain the new (2)->(8) edge XMODEL-R8-B1's fix introduces (claim_checkpoint now publishes inside a with state_lock(...) block). Preserves the base release's own conformance category for this path (I-R16-2).",
-      "sha256": "b8415cc46d69b4d34c134f4c63ff62e621ee0b0d79fe47df02e355884b768588",
-      "size": 48726,
+      "sha256": "0a47dc57e8975a07af0af60a0a8a1afa65d3bf0d287d6066a1398c0bb42d6a0c",
+      "size": 48914,
       "executable": false,
       "overlay_delta": {
         "base_sha256": "b3870cfc5e7a5d7765b93fa8c45cad80c07acfa7d9cf665929e4321de64779ab",
-        "diff_sha256": "aa72c4d7ddcfdf374b211cdb59675387ca26862430243720b050d887b93c46f5"
+        "diff_sha256": "18aba73024dd74f1e90d961caea98617a370c1bb2dcda18a6220e4892754902d"
       }
     },
     {
