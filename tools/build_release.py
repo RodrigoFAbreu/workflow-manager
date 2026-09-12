@@ -280,8 +280,15 @@ def build(
             # `payload/<rel_path>`, *and* the base template of the same
             # `target_path` would still be copied forward to
             # `templates/<location>` below -- two manifest records claiming
-            # the same `target_path` with different `location`s, which no
-            # installer-side consumer of the manifest expects.
+            # the same `target_path` with different `location`s. That shape
+            # is not unprecedented in general (a `host-evidence` artifact
+            # and a `template` legitimately share a `target_path` today, e.g.
+            # `CLAUDE.md`/`docs/ACTIVE_MILESTONE.md` in both `2.3.1` and
+            # `2.4.0` -- fixture vs. template, a distinction every consumer
+            # of those two already resolves by category); what no
+            # installer-side consumer expects is specifically a `payload`
+            # artifact and a `template` sharing one, which is what this
+            # collision would produce (IMPL6-R1).
             raise BuildReleaseError(
                 f"{rel_path}: this target_path already names a base release template at "
                 f"{base_templates_by_path[rel_path]['location']!r} -- an overlay payload file "
