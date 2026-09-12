@@ -872,7 +872,13 @@ _GOLDEN_COMMAND_FILE_SHA256 = {
     # resolve_plan_stage_metadata call and a working-tree read) and forwards
     # all four into open_plan_approval_journal. Intentional content change,
     # not a regression.
-    "approve-review.md": "f490204bbdc556c755c461468f1224a333f82db78f9ac11e65c61dddee3de200",
+    # Updated by `workflow-2.4.0`'s round-6 implementation-review fix
+    # (`IMPL6-B1`): step 7 now instructs reporting
+    # `amendment_history[-1]["reconciliation_outcome"]`, by id, whenever
+    # this invocation's own plan-stage approval resolved an amendment --
+    # the reconciliation-outcome report `D-Plan-Amendment-4`'s own prose
+    # requires. Intentional content change, not a regression.
+    "approve-review.md": "c9630a9469b3124f8cbe9acd01594b18ff75387d06b42543555fc08da944f734",
     # accept-milestone.md updated, baseline-freeze correctness fix
     # (OPUS-R129-001): step 6's completion-commit instruction now states
     # the same "trailers must be the commit message's own final paragraph"
@@ -2340,6 +2346,28 @@ class TestGoldenCommandFileHashes(unittest.TestCase):
                     f"{filename} content changed since this golden hash was recorded -- "
                     f"if intentional, update _GOLDEN_COMMAND_FILE_SHA256",
                 )
+
+
+class TestReconciliationOutcomeReportingConformance(unittest.TestCase):
+    """workflow-2.4.0's round-6 implementation-review fix (`IMPL6-B1`):
+    `D-Plan-Amendment-4`'s own closing requirement --
+
+        Reconciliation's outcome (retained / needs-revalidation / dropped,
+        by id, including which flips came from the dependency-closure
+        pass) is included in `/approve-review plan`'s own output
+
+    -- names an operator-visible report that only a prior round's audit
+    caught as unimplemented despite the requirement appearing verbatim in
+    the shipped `WORKFLOW_V2_PLAN.md`. This is the "single test going red"
+    that finding's own "Architecture and maintainability concerns" section
+    says nothing previously bound the design paragraph to the command
+    text; this class is that binding, mirroring `TestGoldenCommandFileHashes`'s
+    pinned-literal shape rather than trusting prose alone again."""
+
+    def test_approve_review_step_7_instructs_reporting_the_reconciliation_outcome(self):
+        text = _command_text("approve-review.md")
+        self.assertIn("reconciliation_outcome", text)
+        self.assertIn("needs_revalidation_dependency", text)
 
 
 class TestPlanApprovalCommitTrailerFinalParagraphConformance(unittest.TestCase):

@@ -112,9 +112,9 @@ CI_SUITES = {
     },
     "2.4.0": {
         "workflow_fingerprint_test.py": 218,
-        "workflow_state_test.py": 665,
+        "workflow_state_test.py": 667,
         "workflow_test_harness_test.py": 19,
-        "workflow_integration_test.py": 256,
+        "workflow_integration_test.py": 257,
         "workflow_acceptance_matrix_test.py": 146,
         "workflow_state_completion_obligations_test.py": 106,
         "workflow_fingerprint_generalization_test.py": 79,

@@ -596,3 +596,22 @@ actually load-bearing control for the Skill exposure path, not mechanism
 7. Report the new phase (`IMPLEMENTING` or `AWAITING_FUNCTIONAL_REVIEW`) and
    **stop**. Never chain into the next state's actions in the same
    invocation.
+
+   **workflow-2.4.0, D-Plan-Amendment-4 — report the reconciliation
+   outcome (`IMPL6-B1`)**: plan stage only, and only when this
+   invocation's own `apply_plan_approval` call resolved an amendment (step
+   4c read a non-`None` `pre_registry`/`pre_plan_text` pair for it). Read
+   `amendment_history[-1]["reconciliation_outcome"]` from the
+   just-materialized `docs/ai-workflow/WORKFLOW_STATE.json` (the exact map
+   `reconcile_checkpoints_after_amendment` returned, keyed by checkpoint
+   id) and report it alongside the phase, by id: which ids were
+   `retained`, which were demoted to `needs_revalidation` directly (their
+   own registry row or checkpoint content changed) versus
+   `needs_revalidation_dependency` (unchanged themselves, demoted only
+   because a dependency was), which were `dropped`, and which are `new`.
+   This is the operator-visible distinction between "reconciliation ran
+   and legitimately did nothing" (every id `retained`) and "it never ran"
+   (no amendment resolved this round, so this paragraph does not apply at
+   all) -- never omit it for a round that did resolve an amendment, and
+   never fabricate it by re-deriving from anything other than this exact
+   field.

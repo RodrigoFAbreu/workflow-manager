@@ -9,7 +9,7 @@
   "provenance": {
     "origin": "authored",
     "base_release": "2.3.1",
-    "overlay_commit": "531a76137c4a58ca538633b5cea8c193a727d9c5"
+    "overlay_commit": "58bfd123ba8b18a40fdd6535d969f7b3383d4a34"
   },
   "categories": {
     "distribution": "Canonical Workflow implementation. Copied byte-for-byte into the payload and installed into every managed target repository.",
@@ -85,12 +85,12 @@
       "category": "distribution",
       "rule": "^\\.claude/commands/approve-review\\.md$",
       "rationale": "Step 4c's reconciliation read (D-Plan-Amendment-4: pre_registry/pre_plan_text/post_registry/post_plan_text forwarded to open_plan_approval_journal). Preserves the base release's own distribution category for this path (I-R16-2).",
-      "sha256": "f490204bbdc556c755c461468f1224a333f82db78f9ac11e65c61dddee3de200",
-      "size": 39321,
+      "sha256": "c9630a9469b3124f8cbe9acd01594b18ff75387d06b42543555fc08da944f734",
+      "size": 40529,
       "executable": false,
       "overlay_delta": {
         "base_sha256": "3efde74cddebf89cc7e07f5ddc1359a7b18cbc0aa8fe30ee4e886c8e111abf52",
-        "diff_sha256": "ff37d81ce2692680e8c69a865948344d66b4f8366b39ee46c396ad734077f675"
+        "diff_sha256": "33ba7501cdb6e5aece1eb90b9977dc83739aace303366e9116a655a0e87bd386"
       }
     },
     {
@@ -652,12 +652,12 @@
       "category": "distribution",
       "rule": "^scripts/workflow_integration_test\\.py$",
       "rationale": "Persisted-phase table, phase-to-writer census, command-count, broad-remediation-branch, and generator-mention checks updated for the new command/phase. Preserves the base release's own distribution category for this path (I-R16-2).",
-      "sha256": "f77c3673709fd9e8b586fcc3d652d61fed32d44de9eab3be59a86b108406355a",
-      "size": 374953,
+      "sha256": "a7ca02768eb84cb884c50c5bf10529a54be6e7117ed6fbf9ab0034180e1162b6",
+      "size": 376536,
       "executable": false,
       "overlay_delta": {
         "base_sha256": "335c894d2fae1712d0c5e675db086c502b3a78cb4f180255b7805ac70c3a8584",
-        "diff_sha256": "c9a032ce43b4d5f0010ea94965c3ad3f97b34da4c9db419c23e9abf9345d31d1"
+        "diff_sha256": "d7b3d955b716e9f870de0f485eb4812a1a631770199e42bc65c703f2f6ad2e7b"
       }
     },
     {
@@ -666,12 +666,12 @@
       "category": "distribution",
       "rule": "^scripts/workflow_state\\.py$",
       "rationale": "AMENDING_PLAN, /request-plan-amendment's writer, SUPERSEDED/NEEDS_REVALIDATION, apply_plan_approval's reconciliation parameters, load_pre_amendment_snapshot, and the widened vocabulary constants (D-Plan-Amendment-2..4). Preserves the base release's own distribution category for this path (I-R16-2).",
-      "sha256": "e931431a52d3618855526d7d177dc50880da0f7a31b1092a49f61d9e615a36d0",
-      "size": 651706,
+      "sha256": "a6e2b4fbf5c8405992ed08a2a2676ea744a26ea44da68b7babb3a0268058cb91",
+      "size": 653737,
       "executable": false,
       "overlay_delta": {
         "base_sha256": "d9097f02bf78b53ee048d3bb5e5f674c9c246065d8ceb4c71d8dfd039032131e",
-        "diff_sha256": "49bd0e03e89e77264608e279b4206d1de032134549997b82e0fb639f8ee52828"
+        "diff_sha256": "2f8d1e617661ea87f5f25228b6529e19129a17b931379e7a8bb4c42fc86d43dd"
       }
     },
     {
@@ -705,12 +705,12 @@
       "category": "distribution",
       "rule": "^scripts/workflow_state_test\\.py$",
       "rationale": "The payload's own conformance suite, updated for AMENDING_PLAN/its writer. Preserves the base release's own distribution category for this path (I-R16-2).",
-      "sha256": "a497d47f89276b2e78cd1dc973bcbf309be47c5fd442618bd471b9965da3f4c9",
-      "size": 610644,
+      "sha256": "7d80cd7c1864389ad9483296bb84109d8b267b126618182ca3a047d72a4d59c0",
+      "size": 613652,
       "executable": false,
       "overlay_delta": {
         "base_sha256": "f47575ccae74bf508945cb078cd2fc13dac76b02d207403f309cf9fcb45b7c92",
-        "diff_sha256": "58060a5d05bce7764a27496aa25e6a30d55a73325b73d142ddb8caa3816fb994"
+        "diff_sha256": "7d2d0bb05e9ea2c04dadf3dcd610bf433b6a43db7bd2fb41704f4d9019b59ac9"
       }
     },
     {

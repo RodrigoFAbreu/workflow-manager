@@ -3490,9 +3490,19 @@ def reconcile_checkpoints_after_amendment(
 ) -> dict:
     """workflow-2.4.0, D-Plan-Amendment-4's reconciliation algorithm, folded
     into `apply_plan_approval`'s own computation. Computes, per checkpoint
-    id, one of three outcomes -- never a free-text operator claim -- and
+    id, one of four outcomes -- never a free-text operator claim -- and
     returns `{"checkpoints": <new map>, "outcome": {id: "retained" |
-    "needs_revalidation" | "dropped" | "new"}, "dropped": [id, ...]}`.
+    "needs_revalidation" | "needs_revalidation_dependency" | "dropped" |
+    "new"}, "dropped": [id, ...]}`. `"needs_revalidation"` and
+    `"needs_revalidation_dependency"` are deliberately distinct tokens
+    (`IMPL6-B1`): both leave the checkpoint's own `status` at
+    `NEEDS_REVALIDATION`, but the former means *this* id's own registry row
+    or checkpoint content changed, and the latter means this id was itself
+    unchanged and was flipped only because a dependency it names was
+    demoted or dropped -- the "which flips came from the dependency-closure
+    pass" distinction `/approve-review plan`'s own report (see
+    `apply_plan_approval`) requires and that a single shared token could
+    not otherwise recover.
 
     - id present in both, identical registry row and identical checkpoint
       content (by `checkpoint_content_hash`, pre-side non-strict/
@@ -3515,15 +3525,19 @@ def reconcile_checkpoints_after_amendment(
     valid topological order) propagates dependency closure: any checkpoint
     left `COMPLETE` whose own `depends_on` includes an id that is not
     itself `COMPLETE` in the resulting map (rewritten, or absent because
-    just removed) is also rewritten to `NEEDS_REVALIDATION`. No fixed-point
-    loop needed, since every dependency precedes its dependents in that
-    order (B6.3) -- a precondition this function itself does not re-check,
-    but which its sole caller, `apply_plan_approval`, now enforces
-    mechanically immediately before calling this function
-    (`validate_registry_topological_order(post_registry)`, `OPUS-R145-002`)
-    rather than relying on `write_registry_and_mapping`-time validation of
-    a document that, by the time this runs, has already been re-read raw
-    off the working tree."""
+    just removed) is also rewritten to `NEEDS_REVALIDATION`, reported as
+    `"needs_revalidation_dependency"` regardless of what the direct pass
+    above recorded for that same id (a closure-derived demotion always
+    supersedes a direct one in the report, since the closure pass runs
+    strictly after and the id's `status` ends at `NEEDS_REVALIDATION`
+    either way). No fixed-point loop needed, since every dependency
+    precedes its dependents in that order (B6.3) -- a precondition this
+    function itself does not re-check, but which its sole caller,
+    `apply_plan_approval`, now enforces mechanically immediately before
+    calling this function (`validate_registry_topological_order(post_registry)`,
+    `OPUS-R145-002`) rather than relying on `write_registry_and_mapping`-time
+    validation of a document that, by the time this runs, has already been
+    re-read raw off the working tree."""
     pre_rows = {entry["id"]: entry for entry in pre_registry.get("checkpoints", [])}
     post_rows = {entry["id"]: entry for entry in post_registry.get("checkpoints", [])}
 
@@ -3562,7 +3576,7 @@ def reconcile_checkpoints_after_amendment(
         if any(dep not in complete_ids for dep in depends_on):
             new_checkpoints[checkpoint_id] = dict(new_checkpoints[checkpoint_id], status="NEEDS_REVALIDATION")
             complete_ids.discard(checkpoint_id)
-            outcome[checkpoint_id] = "needs_revalidation"
+            outcome[checkpoint_id] = "needs_revalidation_dependency"
 
     return {"checkpoints": new_checkpoints, "outcome": outcome, "dropped": dropped}
 
@@ -10244,12 +10258,22 @@ def apply_plan_approval(
     `post_plan_text`/`post_registry` before any outcome is computed, and
     `reconcile_checkpoints_after_amendment` folds its own outcome -- the
     rewritten `checkpoints` map, `current_checkpoint_id`/
-    `last_completed_checkpoint_id` nulled if either named a dropped id, and
+    `last_completed_checkpoint_id` nulled if either named a dropped id,
     `amendment_history[-1]["resolved_at_plan_revision"]` set to this work
-    item's own live `plan_revision` -- into the state this function
-    returns, alongside its own unchanged write set (`plan_approval`,
-    `phase`, `state_revision`, `last_transition`). `plan_revision` itself
-    is never written here -- it stays `publish_plan_revision`'s alone.
+    item's own live `plan_revision`, and (`IMPL6-B1`) that same
+    reconciliation call's own `{id: outcome}` map recorded verbatim as
+    `amendment_history[-1]["reconciliation_outcome"]` -- into the state
+    this function returns, alongside its own unchanged write set
+    (`plan_approval`, `phase`, `state_revision`, `last_transition`).
+    `reconciliation_outcome`'s tokens already distinguish a direct
+    row/content demotion (`"needs_revalidation"`) from a
+    dependency-closure-derived one (`"needs_revalidation_dependency"`),
+    so `/approve-review plan`'s own step 7 can report "it ran and did X"
+    (by id, closure flips distinguishable from direct ones) without this
+    function computing anything further -- it stores the map
+    `reconcile_checkpoints_after_amendment` already returns, unmodified.
+    `plan_revision` itself is never written here -- it stays
+    `publish_plan_revision`'s alone.
 
     A caller that supplies either pre-side reconciliation input
     (`pre_registry`/`pre_plan_text`) against a work item whose last
@@ -10343,6 +10367,12 @@ def apply_plan_approval(
             work_item["last_completed_checkpoint_id"] = None
         resolved_entry = copy.deepcopy(amendment_history[-1])
         resolved_entry["resolved_at_plan_revision"] = work_item.get("plan_revision")
+        # IMPL6-B1: record the reconciliation outcome, by id, onto the
+        # resolved amendment_history entry itself -- the durable home
+        # `/approve-review plan`'s own step 7 reads to report "it ran and
+        # did X" rather than only the new phase. Recorded verbatim; this
+        # function performs no further summarization of it.
+        resolved_entry["reconciliation_outcome"] = reconciliation["outcome"]
         work_item["amendment_history"] = amendment_history[:-1] + [resolved_entry]
     work_item["plan_approval"] = record
     work_item["phase"] = "IMPLEMENTING"

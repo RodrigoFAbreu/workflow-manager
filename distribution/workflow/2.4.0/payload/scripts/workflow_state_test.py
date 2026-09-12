@@ -10468,8 +10468,22 @@ class TestReconcileCheckpointsAfterAmendment(unittest.TestCase):
         checkpoints = {"CP1": {"status": "COMPLETE"}, "CP2": {"status": "COMPLETE"}}
         result = ws.reconcile_checkpoints_after_amendment(pre, post, text, text, checkpoints)
         self.assertEqual(result["outcome"]["CP1"], "needs_revalidation")
-        self.assertEqual(result["outcome"]["CP2"], "needs_revalidation")
+        self.assertEqual(result["outcome"]["CP2"], "needs_revalidation_dependency")
         self.assertEqual(result["checkpoints"]["CP2"]["status"], "NEEDS_REVALIDATION")
+
+    def test_closure_derived_flip_is_reported_with_a_distinct_token(self):
+        """IMPL6-B1: a closure-derived demotion must be distinguishable in
+        the reported outcome from a direct row/content demotion -- both
+        leave `status` at `NEEDS_REVALIDATION`, but only the outcome token
+        says which pass caused it."""
+        pre = self._registry([self._row("CP1"), self._row("CP2", depends_on=["CP1"])])
+        post = self._registry([self._row("CP1", name="changed"), self._row("CP2", depends_on=["CP1"])])
+        text = "<!-- CP1 -->a<!-- /CP1 --><!-- CP2 -->b<!-- /CP2 -->"
+        checkpoints = {"CP1": {"status": "COMPLETE"}, "CP2": {"status": "COMPLETE"}}
+        result = ws.reconcile_checkpoints_after_amendment(pre, post, text, text, checkpoints)
+        self.assertNotEqual(result["outcome"]["CP1"], result["outcome"]["CP2"])
+        self.assertEqual(result["outcome"]["CP1"], "needs_revalidation")
+        self.assertEqual(result["outcome"]["CP2"], "needs_revalidation_dependency")
 
     def test_a_non_complete_status_is_left_alone_by_needs_revalidation(self):
         """"any other status is left as-is (nothing to revalidate that has
@@ -10957,6 +10971,37 @@ class TestApplyPlanApprovalAmendmentBranch(unittest.TestCase):
         self.assertNotIn("CP2", wi["checkpoints"])
         self.assertEqual(wi["amendment_history"][-1]["resolved_at_plan_revision"], 2)
         self.assertEqual(wi["plan_approval"]["approved_review_content_id"], "rc-2")
+        # IMPL6-B1: the reconciliation outcome itself is recorded onto the
+        # resolved amendment_history entry -- the durable field
+        # `/approve-review plan` step 7 reports from, distinct from the
+        # `checkpoints`/`dropped` fields this function already consumed.
+        self.assertEqual(wi["amendment_history"][-1]["reconciliation_outcome"], {"CP1": "retained", "CP2": "new"})
+
+    def test_reconciliation_outcome_distinguishes_direct_from_closure_derived_flips(self):
+        """IMPL6-B1: the recorded `reconciliation_outcome` must retain the
+        distinction `reconcile_checkpoints_after_amendment` computes
+        between a direct demotion and a dependency-closure-derived one --
+        `apply_plan_approval` stores the map verbatim, never collapsing
+        it."""
+        state = self._open_amendment_state()
+        state["work_items"]["wi"]["checkpoints"]["CP2"] = {"status": "COMPLETE"}
+        pre_registry = {"checkpoints": [
+            {"id": "CP1", "name": "n", "depends_on": [], "complexity": 1, "session_target": 1},
+            {"id": "CP2", "name": "n2", "depends_on": ["CP1"], "complexity": 1, "session_target": 1},
+        ]}
+        post_registry = {"checkpoints": [
+            {"id": "CP1", "name": "changed", "depends_on": [], "complexity": 1, "session_target": 1},
+            {"id": "CP2", "name": "n2", "depends_on": ["CP1"], "complexity": 1, "session_target": 1},
+        ]}
+        text = "<!-- CP1 -->a<!-- /CP1 --><!-- CP2 -->b<!-- /CP2 -->"
+        new_state = ws.apply_plan_approval(
+            state, "wi", self._approval_record(), "2026-01-01T00:00:01Z",
+            pre_registry=pre_registry, pre_plan_text=text,
+            post_registry=post_registry, post_plan_text=text,
+        )
+        outcome = new_state["work_items"]["wi"]["amendment_history"][-1]["reconciliation_outcome"]
+        self.assertEqual(outcome["CP1"], "needs_revalidation")
+        self.assertEqual(outcome["CP2"], "needs_revalidation_dependency")
 
     def test_a_dropped_current_or_last_completed_checkpoint_id_is_nulled(self):
         state = self._open_amendment_state()
