@@ -630,6 +630,31 @@ class AmendmentAnchorMalformedError(Exception):
     the same id (D-Plan-Amendment-4, B5-new/I5-new)."""
 
 
+class AmendmentPostRegistryMalformedError(Exception):
+    """Raised by `apply_plan_approval`'s amendment-reconciliation branch
+    when `post_registry` has no `"checkpoints"` key at all (IMPL2-O2):
+    `validate_post_anchor_coverage` reads it via `.get("checkpoints", [])`
+    and would pass vacuously, but `validate_registry_topological_order`
+    reads `registry["checkpoints"]` directly and would raise an unnamed
+    `KeyError` for the identical malformed input -- named here, once,
+    before either validator runs, matching every other refusal in this
+    branch."""
+
+
+class AmendmentCheckpointIdShapeError(Exception):
+    """Raised by `request_plan_amendment` when the work item's own
+    registry already contains a checkpoint id that is not of the shape
+    `CP<digits>` (IMPL2-R1): `_CHECKPOINT_ANCHOR_RE`'s grammar can only
+    ever produce an anchor tag keyed `"CP" + digits`, so
+    `validate_post_anchor_coverage` is unsatisfiable for any such id --
+    there is no text an author could write in the amended plan that would
+    ever satisfy it. Raised *before* `plan_approval` is superseded, the
+    same "refuse before any supersede" discipline
+    `AmendmentApprovalCommitUnreachableError` already follows, naming
+    every offending id at once rather than wedging the item at
+    `AMENDING_PLAN` two review stages later with no in-band recovery."""
+
+
 class WrongReviewerRoleError(Exception):
     """Raised when `REVIEW_FEEDBACK.md`'s declared `Reviewer role:` does
     not match the stage being ingested (e.g. a local-role or unlabeled
@@ -3272,6 +3297,25 @@ def plan_approval_state_matches_pre_transaction(
 # ---------------------------------------------------------------------------
 
 _CHECKPOINT_ANCHOR_RE = re.compile(r"<!--\s*(/?)CP(\d+)\s*-->")
+
+#: Shape a checkpoint id must have for `_CHECKPOINT_ANCHOR_RE` to ever be
+#: able to produce a matching anchor tag for it (IMPL2-R1): the grammar
+#: only ever emits/consumes `"CP" + digits`, so any other id shape (e.g.
+#: `workflow-v2-1-core`'s own real `WF4a-i`) can never have a well-formed
+#: anchor pair -- `checkpoint_id_supports_anchor` below is the single
+#: place that fact is checked, so `request_plan_amendment` can refuse
+#: early rather than leave `validate_post_anchor_coverage` as the only,
+#: much later, signal.
+_ANCHOR_COMPATIBLE_CHECKPOINT_ID_RE = re.compile(r"^CP\d+$")
+
+
+def checkpoint_id_supports_anchor(checkpoint_id: str) -> bool:
+    """True iff `checkpoint_id` has the one shape (`CP<digits>`) the
+    paired-anchor grammar (`_CHECKPOINT_ANCHOR_RE`/
+    `parse_checkpoint_anchor_spans`) can ever match. False for any other
+    shape -- e.g. `WF4a-i` -- for which `validate_post_anchor_coverage` is
+    unconditionally unsatisfiable, no matter what the plan document says."""
+    return bool(_ANCHOR_COMPATIBLE_CHECKPOINT_ID_RE.match(checkpoint_id))
 
 
 def parse_checkpoint_anchor_spans(text: str, *, strict: bool = True) -> dict[str, list[tuple[int, int]]]:
@@ -10127,6 +10171,18 @@ def apply_plan_approval(
                 f"{work_item_id} has an open amendment -- reconciliation requires all of "
                 f"pre_registry/pre_plan_text/post_registry/post_plan_text; missing: {missing}"
             )
+        # IMPL2-O2: `validate_post_anchor_coverage` reads
+        # `post_registry.get("checkpoints", [])` (vacuously passes a
+        # registry missing the key), but `validate_registry_topological_order`
+        # reads `registry["checkpoints"]` directly and would raise an
+        # unnamed `KeyError` for the same malformed input -- against this
+        # branch's own "refuse and name it" discipline. Named here, once,
+        # before either validator runs.
+        if "checkpoints" not in post_registry:
+            raise AmendmentPostRegistryMalformedError(
+                f"{work_item_id}'s post_registry has no 'checkpoints' key -- cannot "
+                f"validate anchor coverage or topological order for this amendment"
+            )
         validate_post_anchor_coverage(post_plan_text, post_registry)
         validate_registry_topological_order(post_registry)
         reconciliation = reconcile_checkpoints_after_amendment(
@@ -10193,6 +10249,18 @@ def request_plan_amendment(
     anything -- `plan_approval.status` is never set to `SUPERSEDED` when
     this fires.
 
+    Checkpoint-id-shape precondition (IMPL2-R1): before either of the
+    above, loads the work item's own current registry (via
+    `_load_authoritative_registry_or_none` -- `None` for a registry-less
+    work item, which skips this check) and raises
+    `AmendmentCheckpointIdShapeError`, naming every offending id, if any
+    checkpoint id in it is not of the shape `CP<digits>`. Such an id can
+    never satisfy `validate_post_anchor_coverage`'s anchor grammar no
+    matter what the amended plan document says, so refusing here -- before
+    `plan_approval` is superseded -- replaces a refusal that would
+    otherwise surface only after both plan-review stages have already
+    been spent on the amended plan, with no in-band recovery.
+
     In one `state_transaction`-compatible mutation: sets
     `plan_approval.status = "SUPERSEDED"`; appends one entry to the
     work item's own append-only `amendment_history` list (bounded,
@@ -10219,6 +10287,29 @@ def request_plan_amendment(
             f"{work_item_id} is at phase {phase!r} -- /request-plan-amendment requires "
             f"phase in {sorted(_AMENDMENT_REQUEST_ALLOWED_PHASES)}"
         )
+
+    # IMPL2-R1: refuse by name, before anything is superseded, if the
+    # work item's own current registry already names a checkpoint id that
+    # is not of the shape `CP<digits>` -- `validate_post_anchor_coverage`
+    # would refuse the eventual amended plan for exactly this id, but only
+    # after both plan-review stages have been spent on it, with no anchor
+    # text able to fix it. A registry-less work item (`registry_path` is
+    # `None`) has nothing to check here.
+    registry = _load_authoritative_registry_or_none(repo_root, work_item)
+    if registry is not None:
+        unsupported_ids = [
+            entry["id"] for entry in registry.get("checkpoints", [])
+            if not checkpoint_id_supports_anchor(entry["id"])
+        ]
+        if unsupported_ids:
+            raise AmendmentCheckpointIdShapeError(
+                f"{work_item_id}'s registry ({work_item.get('registry_path')}) names "
+                f"checkpoint id(s) {unsupported_ids!r} that are not of the shape "
+                f"'CP<digits>' -- the plan-amendment anchor grammar "
+                f"(D-Plan-Amendment-4) can never be satisfied for these, so "
+                f"/request-plan-amendment refuses before superseding plan_approval"
+            )
+
     plan_approval = work_item.get("plan_approval") or {}
     base_commit = work_item["base_commit"]
     head = _run(["git", "rev-parse", "HEAD"], cwd=repo_root).strip()

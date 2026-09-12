@@ -15,7 +15,7 @@ import ast
 import re
 import unittest
 
-from support import REPO_ROOT
+from support import CI_SUITES, REPO_ROOT, expected_portability_exceptions
 
 from workflow_manager.release import STATE_TEMPLATES, find_release, sha256
 
@@ -272,6 +272,45 @@ class TestCommandInventoryAndGoldenHashes(ReferenceCase):
             artifact = next(a for a in self.release.payload_artifacts("full")
                             if a.target_path == rel)
             self.assertEqual(sha256(self.release.read(artifact.location)), expected, filename)
+
+
+class TestMigrationEvidenceCountsMatchCiSuites(unittest.TestCase):
+    """IMPL2-R2 missing-test 2: `docs/MIGRATION.md`'s `2.4.0` evidence-table
+    test counts must never drift from `tests/support.py`'s own
+    `CI_SUITES["2.4.0"]` -- the machine-read total `tests/run_all.py`
+    itself asserts. `CI_SUITES` cannot drift silently (the conformance/
+    bootstrap suites assert against it directly); the prose evidence table
+    that quotes it can, and did, for one whole commit -- this pins the two
+    together so a future test addition that forgets to update the table is
+    a failing test, not a silent contradiction between two tracked files."""
+
+    _FIXTURE_ROW_RE = re.compile(
+        r"Frozen suite against the conformance fixture \| 7/7 suites, (\d+) tests"
+    )
+    _BOOTSTRAPPED_ROW_RE = re.compile(
+        r"Frozen suite in a bootstrapped repository \| (\d+) of (\d+),"
+    )
+
+    def _migration_text(self) -> str:
+        return (REPO_ROOT / "docs" / "MIGRATION.md").read_text()
+
+    def test_2_4_0_fixture_total_matches_ci_suites(self):
+        match = self._FIXTURE_ROW_RE.search(self._migration_text())
+        self.assertIsNotNone(match, "2.4.0 conformance-fixture evidence row not found")
+        recorded_total = int(match.group(1))
+        actual_total = sum(CI_SUITES["2.4.0"].values())
+        self.assertEqual(recorded_total, actual_total)
+
+    def test_2_4_0_bootstrapped_row_matches_ci_suites_minus_documented_exceptions(self):
+        match = self._BOOTSTRAPPED_ROW_RE.search(self._migration_text())
+        self.assertIsNotNone(match, "2.4.0 bootstrapped-repository evidence row not found")
+        recorded_pass, recorded_total = int(match.group(1)), int(match.group(2))
+        actual_total = sum(CI_SUITES["2.4.0"].values())
+        exception_count = sum(
+            len(tests) for tests in expected_portability_exceptions("2.4.0").values()
+        )
+        self.assertEqual(recorded_total, actual_total)
+        self.assertEqual(recorded_pass, actual_total - exception_count)
 
 
 _STDLIB = frozenset(

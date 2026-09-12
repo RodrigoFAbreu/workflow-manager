@@ -333,7 +333,9 @@ test fails and is authoritative about which one moved.
 - **Expects**: no checkpoint `IN_PROGRESS` and no outstanding checkpoint
   claim; no open `/approve-review plan` transaction; the current
   `plan_approval`'s own approval commit still discoverable and an ancestor
-  of `HEAD`.
+  of `HEAD`; every checkpoint id in the work item's own current registry
+  of the shape `CP<digits>` (IMPL2-R1) -- the only shape
+  `validate_post_anchor_coverage` can ever match.
 - **Does**: supersedes the current plan approval and moves the item to
   `AMENDING_PLAN` in one transaction — same authority shape as
   `/approve-review`/`/accept-milestone` (`disable-model-invocation: true`
@@ -359,8 +361,11 @@ test fails and is authoritative about which one moved.
 - **Refuses**: the wrong phase
   (`WrongPhaseForAmendmentRequestError`); an unreachable approval commit
   (`AmendmentApprovalCommitUnreachableError`, checked *before* superseding
-  anything); a checkpoint still `IN_PROGRESS` or claimed; an open
-  plan-approval transaction; no literal confirmation/`reason` this turn.
+  anything); a registry checkpoint id not of the shape `CP<digits>`
+  (`AmendmentCheckpointIdShapeError`, also checked *before* superseding
+  anything, naming every offending id -- IMPL2-R1); a checkpoint still
+  `IN_PROGRESS` or claimed; an open plan-approval transaction; no literal
+  confirmation/`reason` this turn.
 
 ### `/review-implementation [work-item-id]` — review command
 - **When**: optional, repeatable, repository-local second opinion while a

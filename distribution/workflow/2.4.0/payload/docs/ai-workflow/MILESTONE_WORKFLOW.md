@@ -59,8 +59,11 @@ branches on governing version, unchanged.
   `/milestone-plan` call. Reachable only from `IMPLEMENTING` or
   `SELF_REVIEWING_IMPLEMENTATION` (see those sections' own re-entry note
   below), with no checkpoint `IN_PROGRESS` or claimed, no open
-  `/approve-review plan` transaction, and the current `plan_approval`'s own
-  approval commit still discoverable and an ancestor of `HEAD`.
+  `/approve-review plan` transaction, the current `plan_approval`'s own
+  approval commit still discoverable and an ancestor of `HEAD`, and every
+  checkpoint id in the work item's own current registry of the shape
+  `CP<digits>` (`AmendmentCheckpointIdShapeError` otherwise, naming every
+  offending id, before anything is superseded -- IMPL2-R1).
 - **Allowed actions**: none besides the request itself, which is one
   atomic transition: `plan_approval.status` becomes `SUPERSEDED`; one entry
   is appended to the work item's own append-only `amendment_history`
@@ -86,7 +89,11 @@ branches on governing version, unchanged.
   `/milestone-implement` path; one dropped from the amended registry is
   removed from the live `checkpoints` map (its history survives in the
   amendment's own `checkpoints_snapshot` and in git history via its commit
-  trailers).
+  trailers). **While drafting the amended plan**, delimit every registry
+  checkpoint id with a `<!-- CPn -->`/`<!-- /CPn -->` anchor pair (one or
+  more, non-overlapping, around that checkpoint's own content) -- add the
+  anchors now, not after `/approve-review plan` step 4c's
+  `validate_post_anchor_coverage` refuses naming the first uncovered id.
 - **Stop for user/reviewer?** No. `/request-plan-amendment` itself carries
   the same mechanism-independent user-only guard `/approve-review` and
   `/accept-milestone` use (Claude cannot invoke it), but once a human has

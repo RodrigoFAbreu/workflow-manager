@@ -84,6 +84,16 @@ and wait.
      here, which would incorrectly also refuse on a digest-only staleness
      this amendment is about to replace anyway (`D-Plan-Amendment-1`,
      `B-R12-1`).
+   - **Every checkpoint id in the work item's own current registry must be
+     of the shape `CP<digits>`** (IMPL2-R1): also checked, authoritatively,
+     inside `workflow_state.request_plan_amendment` itself
+     (`AmendmentCheckpointIdShapeError`, naming every offending id) --
+     *before* it supersedes anything. `<!-- CPn -->`/`<!-- /CPn -->` is the
+     *only* shape `/approve-review plan` step 4c's
+     `validate_post_anchor_coverage` can ever match; a registry id of any
+     other shape (e.g. `WF4a-i`) can never be given a well-formed anchor,
+     so this refuses here rather than two review stages later with no
+     in-band recovery. A registry-less work item has nothing to check.
 
 2. **Write the amendment request**: call `workflow_state.state_transaction(
    repo_root, lambda state: workflow_state.request_plan_amendment(state,

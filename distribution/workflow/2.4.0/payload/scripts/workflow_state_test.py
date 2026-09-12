@@ -10526,6 +10526,65 @@ class TestRequestPlanAmendment(unittest.TestCase):
                     amended, "wi", "second", repo_root=repo.root, now="2026-01-01T00:00:01Z",
                 )
 
+    def test_non_cp_digit_checkpoint_id_is_refused_before_superseding_anything(self):
+        """IMPL2-R1: `workflow-v2-1-core`'s own real checkpoint id shape
+        (`WF4a-i`) can never be given a well-formed `<!-- CPn -->` anchor
+        pair -- `validate_post_anchor_coverage` would refuse the amended
+        plan for it unconditionally, two review stages later, with no
+        anchor text able to fix it. `request_plan_amendment` must refuse by
+        name instead, before `plan_approval` is superseded."""
+        with ScratchRepo() as repo:
+            registry_path = "registry.json"
+            _write(repo, registry_path, json.dumps({
+                "work_item_id": "wi", "plan_revision": 1,
+                "checkpoints": [{"id": "WF4a-i", "depends_on": []}],
+            }))
+            _commit_paths(repo, [registry_path], "add registry")
+            work_item = _base_work_item(
+                base_commit=repo.base,
+                registry_path=registry_path,
+                plan_approval=_current_plan_approval_covering(repo, registry_path),
+                checkpoints={}, current_checkpoint_id=None, last_completed_checkpoint_id=None,
+            )
+            state = _base_state(wi=work_item)
+            with self.assertRaises(ws.AmendmentCheckpointIdShapeError) as ctx:
+                ws.request_plan_amendment(
+                    state, "wi", "reason", repo_root=repo.root, now="2026-01-01T00:00:00Z",
+                )
+            self.assertIn("WF4a-i", str(ctx.exception))
+            # Refused before any write: plan_approval is never superseded.
+            self.assertEqual(state["work_items"]["wi"]["plan_approval"]["status"], "CURRENT")
+
+    def test_all_cp_digit_checkpoint_ids_are_unaffected(self):
+        """The shape check is additive: a registry whose ids are already
+        all `CP<digits>` (the only shape this milestone's own registries
+        use) proceeds exactly as before."""
+        with ScratchRepo() as repo:
+            registry_path = "registry.json"
+            _write(repo, registry_path, json.dumps({
+                "work_item_id": "wi", "plan_revision": 1,
+                "checkpoints": [{"id": "CP1", "depends_on": []}],
+            }))
+            approval_commit = _commit_paths(
+                repo, [registry_path], "add registry",
+                trailers={"Workflow-Plan-Approval": "rc-1", "Workflow-Work-Item": "wi"},
+            )
+            plan_approval = _current_plan_approval_covering(repo, registry_path)
+            plan_approval["approved_review_content_id"] = "rc-1"
+            work_item = _base_work_item(
+                base_commit=repo.base,
+                registry_path=registry_path,
+                plan_approval=plan_approval,
+                checkpoints={}, current_checkpoint_id=None, last_completed_checkpoint_id=None,
+            )
+            state = _base_state(wi=work_item)
+            new_state = ws.request_plan_amendment(
+                state, "wi", "reason", repo_root=repo.root, now="2026-01-01T00:00:00Z",
+            )
+            self.assertEqual(new_state["work_items"]["wi"]["phase"], "AMENDING_PLAN")
+            self.assertEqual(new_state["work_items"]["wi"]["amendment_history"][0]
+                              ["pre_amendment_approval_commit"], approval_commit)
+
 
 class TestApplyPlanApprovalAmendmentBranch(unittest.TestCase):
     """`apply_plan_approval`'s four new, optional, keyword-only reconciliation
@@ -10592,6 +10651,28 @@ class TestApplyPlanApprovalAmendmentBranch(unittest.TestCase):
                 post_registry=post_registry, post_plan_text=post_text,
             )
         # Refused before any write: the input work item is untouched.
+        self.assertEqual(state["work_items"]["wi"]["phase"], "AMENDING_PLAN")
+
+    def test_post_registry_missing_checkpoints_key_is_a_named_refusal(self):
+        """IMPL2-O2: a `post_registry` with no `"checkpoints"` key at all
+        (e.g. a caller-side `json.loads` of a malformed on-disk registry)
+        must raise a named error, not an unnamed `KeyError` from inside
+        `validate_registry_topological_order` -- `validate_post_anchor_
+        coverage` alone would pass this input vacuously via its own
+        `.get("checkpoints", [])`."""
+        state = self._open_amendment_state()
+        pre_registry = {"checkpoints": [
+            {"id": "CP1", "name": "n", "depends_on": [], "complexity": 1, "session_target": 1},
+        ]}
+        post_registry = {"no_checkpoints_key": True}
+        pre_text = "<!-- CP1 -->a<!-- /CP1 -->"
+        post_text = "<!-- CP1 -->a<!-- /CP1 -->"
+        with self.assertRaises(ws.AmendmentPostRegistryMalformedError):
+            ws.apply_plan_approval(
+                state, "wi", self._approval_record(), "2026-01-01T00:00:01Z",
+                pre_registry=pre_registry, pre_plan_text=pre_text,
+                post_registry=post_registry, post_plan_text=post_text,
+            )
         self.assertEqual(state["work_items"]["wi"]["phase"], "AMENDING_PLAN")
 
     def test_successful_reconciliation_resolves_the_amendment_and_enters_implementing(self):
