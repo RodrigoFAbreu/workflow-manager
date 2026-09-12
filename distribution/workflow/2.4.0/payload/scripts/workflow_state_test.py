@@ -10670,6 +10670,33 @@ class TestRequestPlanAmendment(unittest.TestCase):
             self.assertEqual(new_state["work_items"]["wi"]["amendment_history"][0]
                               ["pre_amendment_approval_commit"], approval_commit)
 
+    def test_registry_checkpoint_missing_id_key_is_a_named_refusal(self):
+        """IMPL3-O2: `_load_authoritative_registry_or_none` validates the
+        registry's envelope but never its checkpoint-row shape, so a row
+        missing `id` must be named here rather than escaping as an unnamed
+        `KeyError` from the id-shape comprehension."""
+        with ScratchRepo() as repo:
+            registry_path = "registry.json"
+            _write(repo, registry_path, json.dumps({
+                "work_item_id": "wi", "plan_revision": 1,
+                "checkpoints": [{"depends_on": []}],  # no "id" key at all
+            }))
+            _commit_paths(repo, [registry_path], "add registry")
+            work_item = _base_work_item(
+                base_commit=repo.base,
+                registry_path=registry_path,
+                plan_approval=_current_plan_approval_covering(repo, registry_path),
+                checkpoints={}, current_checkpoint_id=None, last_completed_checkpoint_id=None,
+            )
+            state = _base_state(wi=work_item)
+            with self.assertRaises(ws.RegistryCoverageError) as ctx:
+                ws.request_plan_amendment(
+                    state, "wi", "reason", repo_root=repo.root, now="2026-01-01T00:00:00Z",
+                )
+            self.assertIn("no 'id' key", str(ctx.exception))
+            self.assertEqual(state["work_items"]["wi"]["plan_approval"]["status"], "CURRENT")
+
+
 class TestApplyPlanApprovalAmendmentBranch(unittest.TestCase):
     """`apply_plan_approval`'s four new, optional, keyword-only reconciliation
     parameters (D-Plan-Amendment-4)."""
@@ -10735,6 +10762,32 @@ class TestApplyPlanApprovalAmendmentBranch(unittest.TestCase):
                 post_registry=post_registry, post_plan_text=post_text,
             )
         # Refused before any write: the input work item is untouched.
+        self.assertEqual(state["work_items"]["wi"]["phase"], "AMENDING_PLAN")
+
+    def test_post_registry_only_non_cp_digit_id_is_a_named_shape_refusal(self):
+        """IMPL3-O1: an id introduced *by the amendment itself* (absent from
+        the pre-amendment registry, so `request_plan_amendment`'s own early
+        shape check never saw it) that is not of the shape `CP<digits>`
+        must raise `AmendmentCheckpointIdShapeError` here, not the
+        unactionable `AmendmentAnchorCoverageError` -- no anchor text could
+        ever satisfy the latter for this id."""
+        state = self._open_amendment_state()
+        pre_registry = {"checkpoints": [
+            {"id": "CP1", "name": "n", "depends_on": [], "complexity": 1, "session_target": 1},
+        ]}
+        post_registry = {"checkpoints": [
+            {"id": "CP1", "name": "n", "depends_on": [], "complexity": 1, "session_target": 1},
+            {"id": "WF-New", "name": "new", "depends_on": ["CP1"], "complexity": 1, "session_target": 1},
+        ]}
+        pre_text = "<!-- CP1 -->a<!-- /CP1 -->"
+        post_text = "<!-- CP1 -->a<!-- /CP1 -->"  # WF-New has no anchor either -- shape wins first
+        with self.assertRaises(ws.AmendmentCheckpointIdShapeError) as ctx:
+            ws.apply_plan_approval(
+                state, "wi", self._approval_record(), "2026-01-01T00:00:01Z",
+                pre_registry=pre_registry, pre_plan_text=pre_text,
+                post_registry=post_registry, post_plan_text=post_text,
+            )
+        self.assertIn("WF-New", str(ctx.exception))
         self.assertEqual(state["work_items"]["wi"]["phase"], "AMENDING_PLAN")
 
     def test_post_registry_missing_checkpoints_key_is_a_named_refusal(self):

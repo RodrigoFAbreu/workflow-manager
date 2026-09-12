@@ -3411,10 +3411,27 @@ def validate_post_anchor_coverage(post_plan_text: str, post_registry: dict) -> N
     `AmendmentAnchorCoverageError`; a malformed tag anywhere in
     `post_plan_text` raises `AmendmentAnchorMalformedError` (propagated
     from the strict parse below) -- both before any silent partial
-    reconciliation."""
+    reconciliation.
+
+    An id introduced by the amendment itself (not merely one inherited
+    from the pre-amendment registry) that is not of the shape `CP<digits>`
+    raises `AmendmentCheckpointIdShapeError` instead of the coverage error
+    (IMPL3-O1): `request_plan_amendment`'s own id-shape precondition only
+    ever inspects the *pre*-amendment registry, so an anchor-incompatible
+    id authored during the amendment would otherwise reach this function
+    and get the unactionable "add an anchor" message for an id no anchor
+    text can ever satisfy -- checked here, ahead of the coverage check, for
+    the same reason `request_plan_amendment` checks it early."""
     spans = parse_checkpoint_anchor_spans(post_plan_text, strict=True)
     for entry in post_registry.get("checkpoints", []):
         checkpoint_id = entry["id"]
+        if not checkpoint_id_supports_anchor(checkpoint_id):
+            raise AmendmentCheckpointIdShapeError(
+                f"{checkpoint_id} is not of the shape 'CP<digits>' -- the "
+                f"plan-amendment anchor grammar (D-Plan-Amendment-4) can never be "
+                f"satisfied for this id no matter what the amended plan document "
+                f"says; rename it via another /milestone-plan round"
+            )
         if not spans.get(checkpoint_id):
             raise AmendmentAnchorCoverageError(
                 f"{checkpoint_id} has no well-formed anchor pair in the plan document "
@@ -10337,6 +10354,23 @@ def request_plan_amendment(
         repo_root, work_item, require_plan_approval_coverage=False,
     )
     if registry is not None:
+        # IMPL3-O2: `_load_authoritative_registry_or_none` validates the
+        # registry's own envelope (safe path, JSON object, self-declared
+        # `work_item_id`) but never its checkpoint-row shape, so a row
+        # missing `id` must be named here rather than escaping as an
+        # unnamed `KeyError` from the comprehension below -- the same
+        # "refuse and name it" violation IMPL2-O2 was raised about, in a
+        # different registry read.
+        missing_id_indices = [
+            i for i, entry in enumerate(registry.get("checkpoints", []))
+            if "id" not in entry
+        ]
+        if missing_id_indices:
+            raise RegistryCoverageError(
+                f"{work_item_id}'s registry ({work_item.get('registry_path')}) has "
+                f"checkpoint entries with no 'id' key at index/indices "
+                f"{missing_id_indices} -- cannot check anchor-shape compatibility"
+            )
         unsupported_ids = [
             entry["id"] for entry in registry.get("checkpoints", [])
             if not checkpoint_id_supports_anchor(entry["id"])
