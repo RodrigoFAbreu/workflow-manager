@@ -3,9 +3,16 @@
   "workflow_version": "2.4.0",
   "base_workflow_version": "2.3.1",
   "categories": {
-    "distribution": "Canonical Workflow implementation. Copied byte-for-byte into the payload and installed into every managed target repository."
+    "distribution": "Canonical Workflow implementation. Copied byte-for-byte into the payload and installed into every managed target repository.",
+    "conformance": "Workflow-owned material the frozen v2.3.1 test suite reads but a target repository does not need in order to operate the Workflow. Carried in the payload, installed only under the 'full' profile."
   },
   "rules": [
+    {
+      "pattern": "^docs/ai-workflow/dry-run/verify_372h_raw_edge_derivation\\.py$",
+      "category": "conformance",
+      "rationale": "The item 372(h) graph arm's CODE_DERIVABLE set, and its plan-table parser's edge-count assertion, gain the new (2)->(8) edge XMODEL-R8-B1's fix introduces (claim_checkpoint now publishes inside a with state_lock(...) block). Preserves the base release's own conformance category for this path (I-R16-2).",
+      "expected_kind": "replaced"
+    },
     {
       "pattern": "^\\.claude/commands/request-plan-amendment\\.md$",
       "category": "distribution",

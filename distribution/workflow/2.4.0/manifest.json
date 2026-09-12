@@ -9,7 +9,7 @@
   "provenance": {
     "origin": "authored",
     "base_release": "2.3.1",
-    "overlay_commit": "58bfd123ba8b18a40fdd6535d969f7b3383d4a34"
+    "overlay_commit": "9e920263bab60bd1fbe72afaa3790d108db1e778"
   },
   "categories": {
     "distribution": "Canonical Workflow implementation. Copied byte-for-byte into the payload and installed into every managed target repository.",
@@ -28,7 +28,7 @@
       "distribution": 35,
       "host-evidence": 2
     },
-    "overlay_replaced": 11,
+    "overlay_replaced": 12,
     "overlay_added": 1
   },
   "artifacts": [
@@ -338,12 +338,12 @@
       "category": "distribution",
       "rule": "^docs/ai-workflow/WORKFLOW_V2_PLAN\\.md$",
       "rationale": "The new D-Plan-Amendment-1..8 design-decision section and D-Authored-Release-1..5's successor-release mechanics. Preserves the base release's own distribution category for this path (I-R16-2).",
-      "sha256": "8fa0760f202b38eefa2d1ebc1bcdf61f8688767275fb6c86ffd47a99bec80c35",
-      "size": 3153099,
+      "sha256": "7b1ea6bf688514f4608f02bfdc7a520c62a1ed9d19353874a692880ee239f8ef",
+      "size": 3157469,
       "executable": false,
       "overlay_delta": {
         "base_sha256": "7ef20358be08a5c98e8803775ca03a234a7bda2a37d467d0078b2be634f975e5",
-        "diff_sha256": "707669410716f9d535dcc2e4006d4d8c628dd45fe6f52996da60dc52bb0d1bdb"
+        "diff_sha256": "5cbbc2aa3f4b827d54c4a64097ba0d04212f9323affcdf4a8f9d5aac1fa4e669"
       }
     },
     {
@@ -413,15 +413,18 @@
       "executable": false
     },
     {
-      "upstream_path": "docs/ai-workflow/dry-run/verify_372h_raw_edge_derivation.py",
-      "category": "conformance",
-      "rule": "^docs/ai-workflow/dry-run/verify_372h_(lock_primitive_predicate|raw_edge_derivation)\\.py$",
-      "rationale": "Loaded by name and executed by workflow_state_test.py's TestDryRunVerifiers; the suite fails without them. Path depth is load-bearing (they resolve repo root via parents[3]).",
-      "location": "payload/docs/ai-workflow/dry-run/verify_372h_raw_edge_derivation.py",
       "target_path": "docs/ai-workflow/dry-run/verify_372h_raw_edge_derivation.py",
-      "sha256": "b3870cfc5e7a5d7765b93fa8c45cad80c07acfa7d9cf665929e4321de64779ab",
-      "size": 47158,
-      "executable": false
+      "location": "payload/docs/ai-workflow/dry-run/verify_372h_raw_edge_derivation.py",
+      "category": "conformance",
+      "rule": "^docs/ai-workflow/dry-run/verify_372h_raw_edge_derivation\\.py$",
+      "rationale": "The item 372(h) graph arm's CODE_DERIVABLE set, and its plan-table parser's edge-count assertion, gain the new (2)->(8) edge XMODEL-R8-B1's fix introduces (claim_checkpoint now publishes inside a with state_lock(...) block). Preserves the base release's own conformance category for this path (I-R16-2).",
+      "sha256": "b8415cc46d69b4d34c134f4c63ff62e621ee0b0d79fe47df02e355884b768588",
+      "size": 48726,
+      "executable": false,
+      "overlay_delta": {
+        "base_sha256": "b3870cfc5e7a5d7765b93fa8c45cad80c07acfa7d9cf665929e4321de64779ab",
+        "diff_sha256": "aa72c4d7ddcfdf374b211cdb59675387ca26862430243720b050d887b93c46f5"
+      }
     },
     {
       "upstream_path": "docs/ai-workflow/registry/workflow-v2-1-core-artifacts.json",
@@ -666,12 +669,12 @@
       "category": "distribution",
       "rule": "^scripts/workflow_state\\.py$",
       "rationale": "AMENDING_PLAN, /request-plan-amendment's writer, SUPERSEDED/NEEDS_REVALIDATION, apply_plan_approval's reconciliation parameters, load_pre_amendment_snapshot, and the widened vocabulary constants (D-Plan-Amendment-2..4). Preserves the base release's own distribution category for this path (I-R16-2).",
-      "sha256": "a6e2b4fbf5c8405992ed08a2a2676ea744a26ea44da68b7babb3a0268058cb91",
-      "size": 653737,
+      "sha256": "643d8e9843c9ccc2d3f6f86cb834761f8d0ff38f748f3a0839e92d788dcde178",
+      "size": 657344,
       "executable": false,
       "overlay_delta": {
         "base_sha256": "d9097f02bf78b53ee048d3bb5e5f674c9c246065d8ceb4c71d8dfd039032131e",
-        "diff_sha256": "2f8d1e617661ea87f5f25228b6529e19129a17b931379e7a8bb4c42fc86d43dd"
+        "diff_sha256": "4806e0dead52e5a28e782bdf205fc1e2ac0ee690eba5a26fa9721862de27bf9f"
       }
     },
     {
@@ -705,12 +708,12 @@
       "category": "distribution",
       "rule": "^scripts/workflow_state_test\\.py$",
       "rationale": "The payload's own conformance suite, updated for AMENDING_PLAN/its writer. Preserves the base release's own distribution category for this path (I-R16-2).",
-      "sha256": "7d80cd7c1864389ad9483296bb84109d8b267b126618182ca3a047d72a4d59c0",
-      "size": 613652,
+      "sha256": "4c7d3d7b9a3a2f52ac3eb1fd2c8b98e4841a181282d02bfd60754e144dc921ef",
+      "size": 625205,
       "executable": false,
       "overlay_delta": {
         "base_sha256": "f47575ccae74bf508945cb078cd2fc13dac76b02d207403f309cf9fcb45b7c92",
-        "diff_sha256": "7d2d0bb05e9ea2c04dadf3dcd610bf433b6a43db7bd2fb41704f4d9019b59ac9"
+        "diff_sha256": "b22d94ab7bd95bea38700ca16b3a27c1b57579419d6a06900ad697431e4efd99"
       }
     },
     {

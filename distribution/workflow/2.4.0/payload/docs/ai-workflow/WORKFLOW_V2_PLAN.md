@@ -29030,11 +29030,12 @@ This design has **eight** lock-shaped primitives:
    close applies to every object meeting the stated predicate regardless of
    what else the object also is.
 
-The whole order over them is **ten edges — six blocking and four
-non-blocking, widened from eight/four/four this revision (revision 95,
-`OPUS-R119-001`)** — and it is a **DAG rather than a
-forest** over its blocking half; the raw ten-edge relation itself contains
-one real two-cycle and is not, and does not need to be, acyclic as a whole
+The whole order over them is **eleven edges — six blocking and five
+non-blocking, widened from ten/six/four this round (workflow-v2.4.0,
+plan-amendment-mechanism round 8 external implementation review,
+`XMODEL-R8-B1`)** — and it is a **DAG rather than a
+forest** over its blocking half; the raw eleven-edge relation itself contains
+two real two-cycles and is not, and does not need to be, acyclic as a whole
 (see "Blocking vs. non-blocking edges" below) — revision 75's "forest with one
 edge" was a consequence of the two missing primitives, not an independent
 claim:
@@ -29050,18 +29051,22 @@ claim:
 (8) checkpoint-claims/<wi>.json   →  (6) …/<wi>.guardlock  [owner_mutation → acquire_guard, step 1d/1f, claim held across the guardlock's real flock acquisition]  -- blocking  [new, revision 94, `OPUS-R118-002`]
 (8) checkpoint-claims/<wi>.json   →  (2) WORKFLOW_STATE.lock  [step 1d: (8) published by claim_checkpoint before owner_mutation opens; the state write inside that window is reached while (8) is still held; repeated at step 1f]  -- blocking  [new, revision 95, `OPUS-R119-001`]
 (8) checkpoint-claims/<wi>.json   →  (3) WORKTREE_IDENTITY.lock  [step 1d: the identity refresh inside owner_mutation's window is reached while (8) is still held]  -- blocking  [new, revision 95, `OPUS-R119-001`]
+(2) WORKFLOW_STATE.lock           →  (8) checkpoint-claims/<wi>.json   [claim_checkpoint's own pre-publication phase check, XMODEL-R8-B1: publication now runs inside `state_lock`, closing the window in which a checkpoint claim could be published between `request_plan_amendment`'s authoritative `resolve_claim(...)` read and its `AMENDING_PLAN` commit]  -- non-blocking  [new, workflow-v2.4.0 plan-amendment-mechanism round 8, `XMODEL-R8-B1`]
 (4) identity-gap.lock                                             [isolated leaf, no edge either way]
 ```
 
-**Not all ten edges are code-derivable from `scripts/workflow_state.py`
+**Not all eleven edges are code-derivable from `scripts/workflow_state.py`
 alone, and this document no longer states one equality rule that silently
 requires both** (revision 95, `OPUS-R119-001`, resolving the reviewer's own
 `(1)→(2)` observation by generalizing it rather than leaving it a one-off
-exception). Six of the ten — `(7)→(1)`, `(6)→(5)`, `(6)→(8)`, `(8)→(6)`,
-`(8)→(5)`, `(5)→(3)` — are provable purely from this module's own AST, by
-two structural shapes (a nested acquisition inside a guard's own
-lexical `with`-block; or, for primitive (8), a function that both reaches a
-nested acquisition and later, in that same body, unlinks (8)'s own
+exception). Seven of the eleven — `(7)→(1)`, `(6)→(5)`, `(6)→(8)`, `(8)→(6)`,
+`(8)→(5)`, `(5)→(3)`, `(2)→(8)` — are provable purely from this module's own
+AST, by two structural shapes (a nested acquisition inside a guard's own
+lexical `with`-block — the shape `(2)→(8)` is itself an instance of,
+`claim_checkpoint`'s own body now running entirely inside a
+`with state_lock(repo_root):` block, `XMODEL-R8-B1`, workflow-v2.4.0
+plan-amendment-mechanism round 8; or, for primitive (8), a function that both
+reaches a nested acquisition and later, in that same body, unlinks (8)'s own
 pathname, proving it was already held), and are mechanically rediscovered,
 bidirectionally, by a new standalone reproduction,
 `docs/ai-workflow/dry-run/verify_372h_raw_edge_derivation.py`. The other
@@ -29071,8 +29076,8 @@ independently callable functions this module exposes get invoked next to
 each other), not on anything `scripts/workflow_state.py` itself enforces;
 `(1)→(2)` additionally has no production call site at all. These four are
 declared, cited to their command-file/design-intent evidence, and compared
-only as a literal set against this section's own ten-edge table — never
-claimed to pass the mechanical check the other six do. See item 372(h)'s
+only as a literal set against this section's own eleven-edge table — never
+claimed to pass the mechanical check the other seven do. See item 372(h)'s
 graph arm for the full two-tier statement of this distinction.
 
 Read `X → Y` as "X may be held while Y is acquired". Every edge is released in
@@ -29100,10 +29105,14 @@ or fails immediately with `EEXIST`, by construction (`D-Checkpoint-Ownership`:
 (2), (3), (4), (6), (7) — can make a second acquirer block. So an edge
 `X → Y` is a genuine deadlock hazard, one possible leg of a real circular
 wait, only when `Y` is one of those five; an edge landing on `(1)`, `(5)`, or
-`(8)` never is, whatever else nests inside it or nests it. Of the ten edges
+`(8)` never is, whatever else nests inside it or nests it — `(2)→(8)`
+(`XMODEL-R8-B1`, workflow-v2.4.0 plan-amendment-mechanism round 8) lands on
+`(8)`, so it is non-blocking on the identical footing, regardless of `(2)`
+being one of the five blocking primitives itself: the discriminator classifies
+by the *target*, never the source. Of the eleven edges
 above, the **blocking** ones are `(1)→(2)`, `(5)→(2)`, `(8)→(2)`, `(5)→(3)`,
 `(8)→(3)`, `(8)→(6)`; the **non-blocking** ones are `(7)→(1)`, `(6)→(5)`,
-`(6)→(8)`, `(8)→(5)`.
+`(6)→(8)`, `(8)→(5)`, `(2)→(8)`.
 
 **The discriminator's own limit, and the one normative clause that closes
 it** (added, revision 95, external plan review, `OPUS-R119-004`): the rule
@@ -29166,9 +29175,15 @@ would break the ownership/authority separation `D-Checkpoint-Ownership`
 depends on regardless of its own blocking classification, so this specific
 inversion stays forbidden unconditionally, not only because of the
 deadlock-freedom argument above. The `(6)`/`(8)` pair, both directions
-already declared and evidenced below, is the **sole** pre-approved exception
-to raw-graph antisymmetry; no other pair may acquire a second, opposite-
-direction edge without this section being updated first. **Two edges
+already declared and evidenced below, was through revision 99 the **sole**
+pre-approved exception to raw-graph antisymmetry; the `(2)`/`(8)` pair is now
+a **second** (workflow-v2.4.0, plan-amendment-mechanism round 8,
+`XMODEL-R8-B1`: `(8)→(2)` already existed, from step 1d/1f's own
+`claim_checkpoint`-then-`owner_mutation` command-file sequencing; `(2)→(8)`
+is the new, opposite-direction, genuinely nested edge `claim_checkpoint`'s own
+`state_lock`-guarded pre-publication phase check adds) — no other pair may
+acquire a second, opposite-direction edge without this section being updated
+first. **Two edges
 corrected in direction, revision 93, external plan review, `OPUS-R117-007`**
 (applied per explicit user direction; the reviewer's own disposition was
 "recorded only, no change requested" — see item 372(h)'s "Direction semantics
@@ -29229,8 +29244,10 @@ stated at the strength each mechanism actually has:
   matters; see "Blocking vs. non-blocking edges" above. Neither `(6)` nor
   `(7)` is ever held simultaneously with (2), and neither reaches (2)
   transitively through any blocking path.
-- **(8) has four out-edges and one in-edge, none reached only through (5)**
-  (corrected in place, revision 95, `OPUS-R119-002`: through revision 94 the
+- **(8) has four out-edges and two in-edges, none reached only through (5)**
+  (in-edge count corrected in place, workflow-v2.4.0 plan-amendment-mechanism
+  round 8, `XMODEL-R8-B1`, for the new `(2)→(8)` -- see below; out-edge count
+  corrected in place, revision 95, `OPUS-R119-002`: through revision 94 the
   heading itself said "one out-edge and one in-edge," contradicted by this
   same bullet's own body three sentences later, "`(8)` therefore contributes
   two new edges, not one," and by the declared edge table, which already
@@ -29267,15 +29284,43 @@ stated at the strength each mechanism actually has:
   `(8)→(2)`, `(8)→(3)`, are new only in the sense that this bullet now states
   them explicitly — none is a novel *kind* of edge, each following the same
   "held in the outstanding-existence sense" argument already established for
-  the first of the three.
+  the first of the three. `(2)→(8)` (new, workflow-v2.4.0 plan-amendment-mechanism round 8, external
+  implementation review, `XMODEL-R8-B1`) is `(8)`'s **second** in-edge, in the
+  direction that makes `(8)` its target — closing a second raw two-cycle, this
+  one with `(2)`, alongside the pre-existing `(6)→(8)`/`(8)→(6)` one:
+  `claim_checkpoint`'s own publication of `(8)` now runs entirely inside a
+  `with state_lock(...):` block, so `(2)` is genuinely held while `(8)` is
+  acquired — the mirror image of `(8)→(2)`'s own "held in the
+  outstanding-existence sense" fact above, which remains true and unaffected
+  (that edge is about a *later, separate* re-acquisition of `(2)` reached from
+  `owner_mutation` while `(8)`'s own file still exists on disk; `(2)→(8)` is
+  about a *nested* acquisition of `(8)` inside `(2)`'s own momentary
+  `flock`-held critical section — two different windows in the same command
+  flow, never open at once). This closes `XMODEL-R8-B1`: before this round, a
+  checkpoint claim could still be published, unguarded by anything in the
+  `WORKFLOW_STATE.json` domain, in the exact window between
+  `request_plan_amendment`'s own authoritative `resolve_claim(...)` read
+  (performed while `(2)` is held, inside `state_transaction`'s mutator) and
+  that same call's later `AMENDING_PLAN` commit (also while `(2)` is held, in
+  the same critical section) — because nothing about `(8)`'s own publication
+  took `(2)` at all. Sharing `(2)` between the two operations makes them
+  strictly ordered: whichever acquires `(2)` first completes its entire
+  critical section — either `claim_checkpoint`'s own phase check and
+  publication, or `request_plan_amendment`'s entire supersede-and-commit —
+  before the other's begins, so a claim can never be published into an
+  amendment's own quiescence window, and `request_plan_amendment`'s
+  pre-existing `resolve_claim(...)` check can never be evaded by one
+  published after it ran but before `AMENDING_PLAN` was durable.
 
 **The blocking edges are acyclic, and that is the property deadlock-freedom
-actually requires; the raw ten-edge graph is not acyclic, and does not need
+actually requires; the raw eleven-edge graph is not acyclic, and does not need
 to be** (restated, revision 95, `OPUS-R119-001`, widening revision 94's
 identical four-edge argument to six edges without changing its shape;
 revision 94, `OPUS-R118-001`/`-002`, had itself replaced the
 revision-75-through-93 blanket acyclicity claim, which the real `(6)→(8)`/
-`(8)→(6)` pair falsifies as a claim about the raw relation): the blocking
+`(8)→(6)` pair falsifies as a claim about the raw relation; the blocking
+sub-order itself is unwidened by workflow-v2.4.0 round 8's own new edge,
+`(2)→(8)`, since it is non-blocking): the blocking
 edges are `(1)→(2)`, `(5)→(2)`, `(8)→(2)`, `(5)→(3)`, `(8)→(3)`, `(8)→(6)`
 (see "Blocking vs. non-blocking edges" above for why these six, and only
 these six, are the ones a real circular wait could ever be built from).
@@ -29289,18 +29334,22 @@ edge ever chains into another and no cycle is constructible among them. This
 was checked the same way revision 94 checked the eight-edge graph: takeover,
 abandoned destructive-guard recovery, `authorize_identity_reference_gap`,
 identity establishment, state mutation and the bootstrap transaction were
-each traced again against the corrected ten-edge, blocking/non-blocking-
+each traced again against the corrected eleven-edge, blocking/non-blocking-
 classified graph, and no blocking cycle is constructible in any of them.
 
 The raw graph — blocking and non-blocking edges together, "X may be held
-while Y is acquired," with no distinction drawn — **does** contain a cycle:
+while Y is acquired," with no distinction drawn — **does** contain two cycles:
 `(6)→(8)` (`adopt_claim`, non-blocking) and `(8)→(6)` (`owner_mutation` →
 `acquire_guard`, blocking) both hold, both are real, live code, and neither
 is an ad-hoc exception or a rejected finding — see `OPUS-R118-001`/`-002`'s
-disposition below. This is stated plainly, once, so no future round mistakes
-the raw graph's two-cycle for an oversight the checks below failed to catch:
+disposition below; likewise `(2)→(8)` (`claim_checkpoint`'s own
+`state_lock`-guarded publication, non-blocking) and `(8)→(2)` (`owner_mutation`'s
+own later, separate state write, blocking) both hold, both real, live code,
+neither an ad-hoc exception (workflow-v2.4.0 round 8, `XMODEL-R8-B1`). This is
+stated plainly, once, so no future round mistakes
+the raw graph's two-cycles for an oversight the checks below failed to catch:
 those checks do not test the raw graph for acyclicity at all — they test the
-declared **edge set** (raw, all ten, by simple set equality — no
+declared **edge set** (raw, all eleven, by simple set equality — no
 acyclicity requirement) and the declared **blocking sub-order** (acyclicity,
 the property above) as two separate, independent assertions, exactly as item
 372(h)'s graph arm now states them. So the correction here is to the
@@ -29321,15 +29370,17 @@ discovered mechanically from the live code (corrected in place, revision 92,
 `OPUS-R116-003`, replacing the retired "every ... pathname this document
 defines" wording that named the very prose-derived mechanism `WF8C-S372H-001`
 proved structurally blind) and asserted to appear in this list, the derived
-edge set is asserted **equal** to the **ten** recorded edges (corrected in
+edge set is asserted **equal** to the **eleven** recorded edges (corrected in
 place, revision 92, `OPUS-R116-003`, from the stale "four" left uncorrected
 when revision 91 added `(1)→(7)`; corrected again, revision 93, `OPUS-R117-001`,
 from five to six for the new `(8)→(5)` edge; corrected again, revision 94,
 `OPUS-R118-001`/`-002`, from six to eight for `(6)→(8)` and `(8)→(6)`;
 corrected again, revision 95, `OPUS-R119-001`, from eight to ten for
-`(8)→(2)` and `(8)→(3)`) and names any unrecorded one — this is now stated
+`(8)→(2)` and `(8)→(3)`; corrected again, workflow-v2.4.0 plan-amendment-mechanism
+round 8, `XMODEL-R8-B1`, from ten to eleven for `(2)→(8)`) and names any
+unrecorded one — this is now stated
 as **two separate conformance obligations, not one** (revision 94): raw-set
-equality over all ten edges (no acyclicity requirement — this is the check
+equality over all eleven edges (no acyclicity requirement — this is the check
 that would catch a hypothetical `(2)→(5)` inversion, exactly as before), and
 acyclicity of the **blocking edges alone** ("Blocking vs. non-blocking
 edges" above). Three live control arms are carried — an inverted `(2) →
@@ -29346,24 +29397,27 @@ inheriting acyclicity from the raw-set check). The rule as revision 75
 wrote it was already violated by two primitives in use at the moment it was
 written, which is what a convention with no owner is worth.
 
-**Six of the ten edges are now mechanically re-derived from the live code,
-not merely asserted in prose** (added, revision 95, external plan review,
-`OPUS-R119-001`, per explicit user direction: "make its conformance evidence
-mechanically derive the raw edge set from the actual hold/acquire lifetimes,
-analogous to the now-code-derived primitive-membership arm, so a future
-extra edge fails automatically" — resolving the recurring class of defect
-this section's own history already names five times over, `OPUS-R92-004`,
-`OPUS-R93-002`, `WF8C-S372H-001`, `OPUS-R118-001`/`-002`, and this finding).
+**Seven of the eleven edges are now mechanically re-derived from the live
+code, not merely asserted in prose** (added, revision 95, external plan
+review, `OPUS-R119-001`, per explicit user direction: "make its conformance
+evidence mechanically derive the raw edge set from the actual hold/acquire
+lifetimes, analogous to the now-code-derived primitive-membership arm, so a
+future extra edge fails automatically" — resolving the recurring class of
+defect this section's own history already names five times over,
+`OPUS-R92-004`, `OPUS-R93-002`, `WF8C-S372H-001`, `OPUS-R118-001`/`-002`,
+and this finding; widened from six to seven, workflow-v2.4.0
+plan-amendment-mechanism round 8, `XMODEL-R8-B1`, for `(2)→(8)`).
 A new standalone reproduction,
 `docs/ai-workflow/dry-run/verify_372h_raw_edge_derivation.py`, walks the
 same AST the completeness arm's own script already parses and mechanically
-rediscovers, bidirectionally, exactly the six edges provable from
+rediscovers, bidirectionally, exactly the seven edges provable from
 `scripts/workflow_state.py` alone — `(7)→(1)`, `(6)→(5)`, `(6)→(8)`,
-`(8)→(6)`, `(8)→(5)`, `(5)→(3)` — by two structural shapes (a nested
-acquisition inside a guard's own lexical `with`-block; and, scoped
-specifically to primitive (8), a function that both reaches a nested
-acquisition and later, in that same body, unlinks (8)'s own pathname,
-proving it was already durably held). Both directions are checked: a
+`(8)→(6)`, `(8)→(5)`, `(5)→(3)`, `(2)→(8)` — by two structural shapes (a nested
+acquisition inside a guard's own lexical `with`-block, an instance
+`claim_checkpoint`'s own `with state_lock(repo_root):`-guarded publication
+now is too; and, scoped specifically to primitive (8), a function that both
+reaches a nested acquisition and later, in that same body, unlinks (8)'s own
+pathname, proving it was already durably held). Both directions are checked: a
 spurious extra edge (a synthetic nested acquisition injected into
 `write_worktree_identity`'s own guard) is asserted to make the forward
 check fail, naming it; a missing edge (both live call paths to `(5)→(3)`
@@ -29378,7 +29432,7 @@ each other — not on anything `scripts/workflow_state.py` itself enforces
 (`(1)→(2)` additionally has no production call site at all, per
 `OPUS-R116-004`). These four are tracked in the script as an explicit,
 separately-labeled, non-mechanical list, compared only as a literal set
-against this section's own declared ten-edge table, so a silent divergence
+against this section's own declared eleven-edge table, so a silent divergence
 between the script's Tier-2 list and this document's prose still fails —
 just not by re-deriving semantics the module's own AST cannot express.
 

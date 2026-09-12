@@ -3695,7 +3695,16 @@ class IllegalCheckpointStartPhaseError(Exception):
     on top of an already-superseded `plan_approval`. Names the actual phase
     and the legal set, the same behavioural-refusal shape
     `IllegalBundleGenerationSourcePhaseError`/`IllegalSelfReviewEntryPhaseError`
-    use for their own phase-guarded writers."""
+    use for their own phase-guarded writers.
+
+    Also raised, for the same reason and against the same legal set, by
+    `claim_checkpoint` itself (`XMODEL-R8-B1`): that function's own
+    pre-publication phase check is this error's second, independent call
+    site, closing the window this docstring's first paragraph describes
+    rather than merely detecting it after the fact -- a claim published
+    into that window would otherwise still be refused here, later, by
+    `transition_checkpoint_in_progress`, but would already have leaked
+    onto disk with nothing left to release it."""
 
 
 def transition_checkpoint_in_progress(
@@ -4706,9 +4715,57 @@ def claim_checkpoint(repo_root: Path, work_item_id: str, checkpoint_id: str, *, 
     **before** `transition_checkpoint_in_progress` -- both orderings are
     load-bearing, not stylistic, per "Where the check belongs, and the
     ordering" (future WF8b scope wires this call site; this function is
-    the primitive it will call)."""
+    the primitive it will call).
+
+    `XMODEL-R8-B1`: publication itself now runs inside `state_lock` --
+    the identical `WORKFLOW_STATE.lock` `state_transaction` holds across
+    `request_plan_amendment`'s complete authoritative-quiescence-read ->
+    supersede -> write critical section. Before round 8, this function
+    published the claim through `_claim_or_refuse` alone, which
+    synchronizes claim publication against other claim publications
+    (`os.link`'s own atomicity) but against nothing in the
+    `WORKFLOW_STATE.json` domain at all, so a claim could still be
+    published in the exact window between
+    `request_plan_amendment`'s own `resolve_claim(...)` read (which
+    observes no claim) and that same call's later `AMENDING_PLAN` commit
+    -- both reads/writes of `state`, and this function's own state read
+    below, are real Git-repo-relative file operations, not in-memory
+    values, so nothing but a shared lock can order them. Sharing the one
+    lock file makes the two operations strictly ordered: whichever
+    acquires it first completes its entire critical section --
+    including this function's own claim publication, or
+    `request_plan_amendment`'s entire supersede-and-commit -- before the
+    other's begins. A work item with no `WORKFLOW_STATE.json` entry at
+    all has no amendment mechanism that could race this call, so the
+    phase check below is skipped for it (matching every other
+    state-aware precondition in this module that stays silent absent an
+    entry) -- most of this module's own claim-record unit tests exercise
+    exactly that unregistered-work-item shape, by design.
+
+    Raises `IllegalCheckpointStartPhaseError` -- naming the actual phase
+    and `CHECKPOINT_START_LEGAL_PHASES` -- and publishes nothing, when a
+    registered work item's current phase (re-read fresh, under the lock,
+    never from a caller-supplied snapshot) is not legal for a checkpoint
+    start. This is what leaves no orphaned claim behind when the
+    amendment side of the race wins: `AMENDING_PLAN` is already durable
+    by the time this function's own lock acquisition succeeds, so the
+    claim this function would otherwise publish is refused before a
+    single byte of it reaches disk."""
     record = _build_claim_record(repo_root, work_item_id, checkpoint_id, now)
-    return _claim_or_refuse(repo_root, work_item_id, record)
+    with state_lock(repo_root):
+        state = _load_json(repo_root / DEFAULT_STATE_PATH) or {}
+        work_item = state.get("work_items", {}).get(work_item_id)
+        if work_item is not None:
+            phase = work_item.get("phase")
+            if phase not in CHECKPOINT_START_LEGAL_PHASES:
+                raise IllegalCheckpointStartPhaseError(
+                    f"{work_item_id!r} is at phase {phase!r} -- a checkpoint claim can only be "
+                    f"published while phase is in {sorted(CHECKPOINT_START_LEGAL_PHASES)} "
+                    f"(checked under WORKFLOW_STATE.lock immediately before publication, "
+                    f"XMODEL-R8-B1, so a claim can never be published in the window between an "
+                    f"amendment's authoritative quiescence read and its AMENDING_PLAN commit)"
+                )
+        return _claim_or_refuse(repo_root, work_item_id, record)
 
 
 def release_checkpoint(repo_root: Path, work_item_id: str, checkpoint_id: str, *,
