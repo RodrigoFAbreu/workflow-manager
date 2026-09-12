@@ -4265,6 +4265,21 @@ class TestCheckpointStateTransitions(unittest.TestCase):
         # Original state is untouched (functions return a new dict).
         self.assertEqual(state["work_items"]["wi"]["checkpoints"], {})
 
+    def test_transition_to_in_progress_refuses_once_the_work_item_has_left_implementing(self):
+        """XMODEL-R4-B1, missing-tests item 3: this is the second,
+        independent half of the amendment-vs-checkpoint-start race fix. A
+        checkpoint claim published before an amendment transition's own
+        state_transaction committed must not be able to publish
+        IN_PROGRESS once the work item has moved on to `AMENDING_PLAN` --
+        or, more generally, to any phase outside
+        `CHECKPOINT_START_LEGAL_PHASES`."""
+        wi = _base_work_item(phase="AMENDING_PLAN", current_checkpoint_id=None, checkpoints={})
+        state = _base_state(wi=wi)
+        with self.assertRaises(ws.IllegalCheckpointStartPhaseError):
+            ws.transition_checkpoint_in_progress(state, "wi", "A", "deadbeef", now="t1")
+        # Refused before any write: the original checkpoints map is untouched.
+        self.assertEqual(state["work_items"]["wi"]["checkpoints"], {})
+
     def test_complete_checkpoint_stays_implementing_when_others_remain(self):
         """Checkpoint-complete-vs-all-complete semantics: completing one
         checkpoint out of several never itself flips the phase."""
@@ -10277,6 +10292,26 @@ class TestPersistedPhaseWriterCensus(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 
+class TestCheckpointIdSupportsAnchor(unittest.TestCase):
+    """`checkpoint_id_supports_anchor`'s `CP<digits>` shape gate
+    (D-Plan-Amendment-4)."""
+
+    def test_plain_cp_digits_is_supported(self):
+        self.assertTrue(ws.checkpoint_id_supports_anchor("CP1"))
+        self.assertTrue(ws.checkpoint_id_supports_anchor("CP123"))
+
+    def test_non_cp_digits_shape_is_unsupported(self):
+        self.assertFalse(ws.checkpoint_id_supports_anchor("WF4a-i"))
+
+    def test_trailing_newline_is_unsupported(self):
+        """IMPL4-O3: Python's `$` matches immediately before a trailing
+        `\\n` as well as at the true end of string, so `"CP1\\n"` would
+        otherwise pass this shape gate while remaining unsatisfiable by
+        `_CHECKPOINT_ANCHOR_RE`'s own anchor-tag parser, which has no such
+        allowance. `\\Z` closes it."""
+        self.assertFalse(ws.checkpoint_id_supports_anchor("CP1\n"))
+
+
 class TestCheckpointAnchorSpans(unittest.TestCase):
     """`parse_checkpoint_anchor_spans`'s closed, non-nesting, per-id
     balanced-tag grammar (D-Plan-Amendment-4, B5-new/I5-new)."""
@@ -10671,10 +10706,13 @@ class TestRequestPlanAmendment(unittest.TestCase):
                               ["pre_amendment_approval_commit"], approval_commit)
 
     def test_registry_checkpoint_missing_id_key_is_a_named_refusal(self):
-        """IMPL3-O2: `_load_authoritative_registry_or_none` validates the
-        registry's envelope but never its checkpoint-row shape, so a row
-        missing `id` must be named here rather than escaping as an unnamed
-        `KeyError` from the id-shape comprehension."""
+        """IMPL3-O2, renamed IMPL4-O2: `_load_authoritative_registry_or_none`
+        validates the registry's envelope but never its checkpoint-row
+        shape, so a row missing `id` must be named here rather than
+        escaping as an unnamed `KeyError` from the id-shape comprehension.
+        Raises the amendment-specific `AmendmentRegistryMissingIdError`,
+        not the completion-accounting-flavored `RegistryCoverageError`
+        (IMPL4-O2)."""
         with ScratchRepo() as repo:
             registry_path = "registry.json"
             _write(repo, registry_path, json.dumps({
@@ -10689,12 +10727,71 @@ class TestRequestPlanAmendment(unittest.TestCase):
                 checkpoints={}, current_checkpoint_id=None, last_completed_checkpoint_id=None,
             )
             state = _base_state(wi=work_item)
-            with self.assertRaises(ws.RegistryCoverageError) as ctx:
+            with self.assertRaises(ws.AmendmentRegistryMissingIdError) as ctx:
                 ws.request_plan_amendment(
                     state, "wi", "reason", repo_root=repo.root, now="2026-01-01T00:00:00Z",
                 )
             self.assertIn("no 'id' key", str(ctx.exception))
             self.assertEqual(state["work_items"]["wi"]["plan_approval"]["status"], "CURRENT")
+
+    def test_checkpoint_already_in_progress_refuses(self):
+        """XMODEL-R4-B1, missing-tests item 1: `request_plan_amendment`
+        must refuse outright while a checkpoint is already IN_PROGRESS in
+        WORKFLOW_STATE.json, rather than superseding `plan_approval` with
+        live implementation state underneath it."""
+        with ScratchRepo() as repo:
+            state, _ = self._state_with_approved_plan(repo)
+            state["work_items"]["wi"]["checkpoints"]["CP2"] = {
+                "status": "IN_PROGRESS", "start_commit": repo.base,
+            }
+            state["work_items"]["wi"]["current_checkpoint_id"] = "CP2"
+            with self.assertRaises(ws.AmendmentCheckpointActiveError):
+                ws.request_plan_amendment(
+                    state, "wi", "reason", repo_root=repo.root, now="2026-01-01T00:00:00Z",
+                )
+            self.assertEqual(state["work_items"]["wi"]["plan_approval"]["status"], "CURRENT")
+
+    def test_outstanding_checkpoint_claim_with_no_local_in_progress_refuses(self):
+        """XMODEL-R4-B1, missing-tests item 2 -- the actual reported race:
+        `claim_checkpoint` (step 1d) is published to the filesystem claims
+        directory *before* `transition_checkpoint_in_progress` writes
+        `WORKFLOW_STATE.json`, so a claim can be outstanding while state
+        still looks completely idle (`resolve_checkpoint_ownership`'s own
+        supported `CONTINUE_CLAIM` window). A state-only IN_PROGRESS check
+        would miss this window entirely; `request_plan_amendment` must
+        also consult the shared claim record directly, exercising the real
+        claim mechanism rather than only a sequential command-level
+        precheck."""
+        with ScratchRepo() as repo:
+            state, _ = self._state_with_approved_plan(repo)
+            # The checkpoint claim is real and published (`claim_checkpoint`),
+            # but nothing in `state` reflects it -- CP2 is absent from
+            # `checkpoints` entirely, exactly the "claimed but not yet
+            # started in state" window.
+            ws.claim_checkpoint(repo.root, "wi", "CP2", now="2026-01-01T00:00:00Z")
+            with self.assertRaises(ws.AmendmentCheckpointActiveError):
+                ws.request_plan_amendment(
+                    state, "wi", "reason", repo_root=repo.root, now="2026-01-01T00:00:01Z",
+                )
+            self.assertEqual(state["work_items"]["wi"]["plan_approval"]["status"], "CURRENT")
+
+    def test_amendment_succeeds_once_the_claim_is_properly_released(self):
+        """XMODEL-R4-B1, missing-tests item 4: the ordinary quiescent
+        amendment path is unaffected once the checkpoint claim has been
+        released (step 1f, the normal end of a checkpoint's own
+        lifecycle) -- the new guard is additive, not a regression for the
+        uncontended case."""
+        with ScratchRepo() as repo:
+            state, _ = self._state_with_approved_plan(repo)
+            claim = ws.claim_checkpoint(repo.root, "wi", "CP2", now="2026-01-01T00:00:00Z")
+            ws.release_checkpoint(
+                repo.root, "wi", "CP2", owner_token=claim["owner_token"],
+                now="2026-01-01T00:00:01Z",
+            )
+            new_state = ws.request_plan_amendment(
+                state, "wi", "reason", repo_root=repo.root, now="2026-01-01T00:00:02Z",
+            )
+            self.assertEqual(new_state["work_items"]["wi"]["phase"], "AMENDING_PLAN")
 
 
 class TestApplyPlanApprovalAmendmentBranch(unittest.TestCase):
@@ -10810,6 +10907,32 @@ class TestApplyPlanApprovalAmendmentBranch(unittest.TestCase):
                 pre_registry=pre_registry, pre_plan_text=pre_text,
                 post_registry=post_registry, post_plan_text=post_text,
             )
+        self.assertEqual(state["work_items"]["wi"]["phase"], "AMENDING_PLAN")
+
+    def test_post_registry_checkpoint_missing_id_key_is_a_named_refusal(self):
+        """IMPL4-O1: `validate_post_anchor_coverage` and
+        `reconcile_checkpoints_after_amendment` both directly read
+        `entry["id"]` from `post_registry["checkpoints"]` -- a row with no
+        `id` key at all must raise a named error here, before either call,
+        rather than escape as a bare, unnamed `KeyError` from whichever one
+        happens to run first."""
+        state = self._open_amendment_state()
+        pre_registry = {"checkpoints": [
+            {"id": "CP1", "name": "n", "depends_on": [], "complexity": 1, "session_target": 1},
+        ]}
+        post_registry = {"checkpoints": [
+            {"id": "CP1", "name": "n", "depends_on": [], "complexity": 1, "session_target": 1},
+            {"name": "no id at all", "depends_on": ["CP1"], "complexity": 1, "session_target": 1},
+        ]}
+        pre_text = "<!-- CP1 -->a<!-- /CP1 -->"
+        post_text = "<!-- CP1 -->a<!-- /CP1 -->"
+        with self.assertRaises(ws.AmendmentPostRegistryMalformedError) as ctx:
+            ws.apply_plan_approval(
+                state, "wi", self._approval_record(), "2026-01-01T00:00:01Z",
+                pre_registry=pre_registry, pre_plan_text=pre_text,
+                post_registry=post_registry, post_plan_text=post_text,
+            )
+        self.assertIn("no 'id' key", str(ctx.exception))
         self.assertEqual(state["work_items"]["wi"]["phase"], "AMENDING_PLAN")
 
     def test_successful_reconciliation_resolves_the_amendment_and_enters_implementing(self):

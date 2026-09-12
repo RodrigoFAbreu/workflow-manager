@@ -655,6 +655,43 @@ class AmendmentCheckpointIdShapeError(Exception):
     `AMENDING_PLAN` two review stages later with no in-band recovery."""
 
 
+class AmendmentRegistryMissingIdError(Exception):
+    """Raised by `request_plan_amendment` when its own current registry
+    (loaded via `_load_authoritative_registry_or_none`) has a checkpoint
+    entry with no `id` key (IMPL3-O2, renamed IMPL4-O2): an amendment-
+    specific refusal, distinct from `RegistryCoverageError`, whose own
+    vocabulary is documented primarily around completion-accounting call
+    sites (`resolve_own_registry_completion_status`/
+    `resolve_completion_obligations`) this check has nothing to do with.
+    Named in `.claude/commands/request-plan-amendment.md`'s own refusal
+    list alongside `AmendmentCheckpointIdShapeError`, the sibling check it
+    runs immediately before."""
+
+
+class AmendmentCheckpointActiveError(Exception):
+    """Raised by `request_plan_amendment` (XMODEL-R4-B1, merged round-4
+    review) when this work item already has a checkpoint `IN_PROGRESS` in
+    `WORKFLOW_STATE.json`, or has an outstanding shared checkpoint claim
+    (`resolve_claim`) -- checked *before* superseding anything, the same
+    "refuse before any supersede" discipline every other precondition in
+    this function follows.
+
+    Both halves are checked, not only the state-only one, because they are
+    two different synchronization domains: `claim_checkpoint` is published
+    to the filesystem claims directory *before*
+    `transition_checkpoint_in_progress` writes `WORKFLOW_STATE.json`
+    (`/milestone-implement` step 1d's documented ordering), so
+    `resolve_checkpoint_ownership`'s own supported `CONTINUE_CLAIM` outcome
+    is a window in which a claim is real and outstanding while state still
+    looks completely idle. A state-only `IN_PROGRESS` check alone would
+    miss exactly that window and let `plan_approval` be superseded while a
+    checkpoint start is already in flight. The independent second half of
+    this fix -- refusing a checkpoint's own `IN_PROGRESS` publication once
+    the work item has left `IMPLEMENTING` -- is
+    `IllegalCheckpointStartPhaseError` on `transition_checkpoint_in_progress`
+    itself."""
+
+
 class WrongReviewerRoleError(Exception):
     """Raised when `REVIEW_FEEDBACK.md`'s declared `Reviewer role:` does
     not match the stage being ingested (e.g. a local-role or unlabeled
@@ -3306,7 +3343,7 @@ _CHECKPOINT_ANCHOR_RE = re.compile(r"<!--\s*(/?)CP(\d+)\s*-->")
 #: place that fact is checked, so `request_plan_amendment` can refuse
 #: early rather than leave `validate_post_anchor_coverage` as the only,
 #: much later, signal.
-_ANCHOR_COMPATIBLE_CHECKPOINT_ID_RE = re.compile(r"^CP\d+$")
+_ANCHOR_COMPATIBLE_CHECKPOINT_ID_RE = re.compile(r"^CP\d+\Z")
 
 
 def checkpoint_id_supports_anchor(checkpoint_id: str) -> bool:
@@ -3314,7 +3351,13 @@ def checkpoint_id_supports_anchor(checkpoint_id: str) -> bool:
     paired-anchor grammar (`_CHECKPOINT_ANCHOR_RE`/
     `parse_checkpoint_anchor_spans`) can ever match. False for any other
     shape -- e.g. `WF4a-i` -- for which `validate_post_anchor_coverage` is
-    unconditionally unsatisfiable, no matter what the plan document says."""
+    unconditionally unsatisfiable, no matter what the plan document says.
+
+    `\\Z` rather than `$` (IMPL4-O3): Python's `$` matches immediately
+    before a trailing `\\n` as well as at the true end of string, so an id
+    of `"CP1\\n"` would otherwise pass this shape gate while remaining
+    unsatisfiable by `_CHECKPOINT_ANCHOR_RE`'s own anchor-tag parser, which
+    has no such allowance."""
     return bool(_ANCHOR_COMPATIBLE_CHECKPOINT_ID_RE.match(checkpoint_id))
 
 
@@ -3603,6 +3646,44 @@ def select_next_checkpoint(work_item: dict, registry: dict) -> str | None:
     )
 
 
+# ---------------------------------------------------------------------------
+# workflow-2.4.0 round 4 (XMODEL-R4-B1): closing the amendment-vs-checkpoint-
+# start race. `request_plan_amendment`'s own new guard (below, in the
+# amendment error family) refuses to supersede `plan_approval` while a
+# checkpoint is IN_PROGRESS or a shared checkpoint claim is outstanding, but
+# that guard alone cannot close the race: `claim_checkpoint` is published
+# (step 1d, "before `transition_checkpoint_in_progress`") in a *separate*
+# synchronization domain (the filesystem claims directory) from
+# `WORKFLOW_STATE.json`'s own lock, so a claim can be outstanding while
+# state still looks idle (`resolve_checkpoint_ownership`'s own supported
+# `CONTINUE_CLAIM` window). The second, independent half of the fix lives
+# here: `transition_checkpoint_in_progress` itself refuses to publish
+# `IN_PROGRESS` once the work item has left a legal checkpoint-execution
+# phase -- so even if `request_plan_amendment`'s state_transaction commits
+# first (observing no claim yet), the checkpoint worker's own later
+# state_transaction, now reading `AMENDING_PLAN`, is refused rather than
+# publishing live implementation state on top of a superseded plan.
+# `IMPLEMENTING` is the only legal source phase: `SELF_REVIEWING_
+# IMPLEMENTATION` is reached only once every registry checkpoint is already
+# `COMPLETE` (`complete_checkpoint`), and no supported path ever restarts a
+# checkpoint from there.
+# ---------------------------------------------------------------------------
+
+CHECKPOINT_START_LEGAL_PHASES = frozenset({"IMPLEMENTING"})
+
+
+class IllegalCheckpointStartPhaseError(Exception):
+    """Raised when `transition_checkpoint_in_progress` is called from a
+    phase other than `IMPLEMENTING` (`CHECKPOINT_START_LEGAL_PHASES`,
+    XMODEL-R4-B1) -- most importantly `AMENDING_PLAN`, which a checkpoint
+    claim published before this work item's amendment transition committed
+    can otherwise reach, publishing live `IN_PROGRESS` implementation state
+    on top of an already-superseded `plan_approval`. Names the actual phase
+    and the legal set, the same behavioural-refusal shape
+    `IllegalBundleGenerationSourcePhaseError`/`IllegalSelfReviewEntryPhaseError`
+    use for their own phase-guarded writers."""
+
+
 def transition_checkpoint_in_progress(
     state: dict, work_item_id: str, checkpoint_id: str, start_commit: str, now: str,
 ) -> dict:
@@ -3611,9 +3692,22 @@ def transition_checkpoint_in_progress(
     sets `current_checkpoint_id`. The filesystem half --
     `write_worktree_identity` -- is a separate call the caller makes
     alongside this one, since it touches a local, gitignored file this
-    module's other state writers never touch. Returns a new state dict."""
+    module's other state writers never touch. Returns a new state dict.
+
+    Refuses (`IllegalCheckpointStartPhaseError`) unless the work item's
+    current phase is in `CHECKPOINT_START_LEGAL_PHASES` -- XMODEL-R4-B1's
+    second, independent guard, checked here against the freshly re-read
+    state inside this function's own `state_transaction`, so it applies
+    even when a checkpoint claim was published before an amendment
+    transition landed (see the section comment above)."""
     new_state = copy.deepcopy(state)
     work_item = new_state["work_items"][work_item_id]
+    phase = work_item.get("phase")
+    if phase not in CHECKPOINT_START_LEGAL_PHASES:
+        raise IllegalCheckpointStartPhaseError(
+            f"{work_item_id!r} is at phase {phase!r} -- a checkpoint can only start "
+            f"IN_PROGRESS from phase in {sorted(CHECKPOINT_START_LEGAL_PHASES)}"
+        )
     work_item["checkpoints"][checkpoint_id] = {"status": "IN_PROGRESS", "start_commit": start_commit}
     work_item["current_checkpoint_id"] = checkpoint_id
     work_item["state_revision"] = work_item.get("state_revision", 1) + 1
@@ -10219,6 +10313,23 @@ def apply_plan_approval(
                 f"{work_item_id}'s post_registry has no 'checkpoints' key -- cannot "
                 f"validate anchor coverage or topological order for this amendment"
             )
+        # IMPL4-O1: both `validate_post_anchor_coverage` and
+        # `reconcile_checkpoints_after_amendment` directly read `entry["id"]`
+        # from `post_registry["checkpoints"]` -- a row with no `id` key
+        # would otherwise escape as a bare, unnamed `KeyError` from either
+        # call below. Named here, once, ahead of both call paths, the same
+        # "refuse and name it" discipline the "checkpoints"-key check just
+        # above already applies to the coarser malformation.
+        missing_id_indices = [
+            i for i, entry in enumerate(post_registry.get("checkpoints", []))
+            if "id" not in entry
+        ]
+        if missing_id_indices:
+            raise AmendmentPostRegistryMalformedError(
+                f"{work_item_id}'s post_registry has checkpoint entries with no 'id' "
+                f"key at index/indices {missing_id_indices} -- cannot validate anchor "
+                f"coverage or topological order for this amendment"
+            )
         validate_post_anchor_coverage(post_plan_text, post_registry)
         validate_registry_topological_order(post_registry)
         reconciliation = reconcile_checkpoints_after_amendment(
@@ -10343,6 +10454,30 @@ def request_plan_amendment(
             f"phase in {sorted(_AMENDMENT_REQUEST_ALLOWED_PHASES)}"
         )
 
+    # XMODEL-R4-B1: refuse before anything else -- and before any of the
+    # checks below -- if a checkpoint is already IN_PROGRESS in state, or a
+    # shared filesystem checkpoint claim is outstanding for this work item.
+    # See `AmendmentCheckpointActiveError`'s own docstring for why both
+    # halves are checked (they are two different synchronization domains).
+    if any(
+        entry.get("status") == "IN_PROGRESS"
+        for entry in work_item.get("checkpoints", {}).values()
+    ):
+        raise AmendmentCheckpointActiveError(
+            f"{work_item_id!r} has a checkpoint IN_PROGRESS "
+            f"({work_item.get('current_checkpoint_id')!r}) -- /request-plan-amendment "
+            f"refuses while implementation is live"
+        )
+    outstanding_claim = resolve_claim(repo_root, work_item_id)
+    if outstanding_claim is not None:
+        raise AmendmentCheckpointActiveError(
+            f"{work_item_id!r} has an outstanding checkpoint claim "
+            f"(checkpoint {outstanding_claim.get('checkpoint_id')!r}, worktree "
+            f"{outstanding_claim.get('worktree_root')!r}) -- /request-plan-amendment "
+            f"refuses while a checkpoint start is in flight, even though "
+            f"WORKFLOW_STATE.json may not show it IN_PROGRESS yet"
+        )
+
     # IMPL2-R1: refuse by name, before anything is superseded, if the
     # work item's own current registry already names a checkpoint id that
     # is not of the shape `CP<digits>` -- `validate_post_anchor_coverage`
@@ -10366,7 +10501,7 @@ def request_plan_amendment(
             if "id" not in entry
         ]
         if missing_id_indices:
-            raise RegistryCoverageError(
+            raise AmendmentRegistryMissingIdError(
                 f"{work_item_id}'s registry ({work_item.get('registry_path')}) has "
                 f"checkpoint entries with no 'id' key at index/indices "
                 f"{missing_id_indices} -- cannot check anchor-shape compatibility"

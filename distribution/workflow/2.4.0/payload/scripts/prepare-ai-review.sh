@@ -428,10 +428,22 @@ git diff "$BASE_SHA" -- . > "$DIFF_FILE"
 # overwhelming majority of work items that will never amend, so a later,
 # independent change to either guard must not turn a merely
 # reviewer-convenience file into a hard failure for those work items.
-# Failure of any kind here degenerates to "no amendment is open" (delete any
-# stale copy, write nothing) -- the same conservative, fail-toward-absent
-# direction `parse_checkpoint_anchor_spans`'s own non-strict mode already
-# takes for the pre side of this same mechanism.
+# Only the state-file read/parse above is wrapped (IMPL4-O1 review round:
+# the previous wording here overstated this) -- a failure there degenerates
+# to "no amendment is open" (delete any stale copy, write nothing), the
+# same conservative, fail-toward-absent direction
+# `parse_checkpoint_anchor_spans`'s own non-strict mode already takes for
+# the pre side of this same mechanism. Once `is_open` is True, the branch
+# below (`resolve_plan_stage_metadata`, the `amendment_base_commit` read,
+# the `git diff` subprocess) is *not* similarly wrapped: an exception there
+# propagates out of the heredoc, `python3` exits non-zero, and `set -euo
+# pipefail` (line 19) aborts this entire script -- the same hard-failure
+# path every other unrecovered error in this file already takes, not a
+# silent "no amendment is open" degradation. This is deliberately not
+# widened to a broad `try/except Exception` around the whole branch: a
+# genuine amendment-diff generation failure for a work item that *does*
+# have an open amendment is exactly the class of error a reviewer needs to
+# see, not one this reviewer-convenience file should paper over.
 if [[ "$STAGE" == "plan" ]]; then
   AMENDMENT_DIFF_FILE="$ROOT_DIR/AMENDMENT_DIFF.patch"
   PYTHONPATH="$REPO_ROOT/scripts:${PYTHONPATH:-}" python3 - \

@@ -359,13 +359,22 @@ test fails and is authoritative about which one moved.
   step 4c's `validate_post_anchor_coverage` refuses approval naming the
   first uncovered id.
 - **Refuses**: the wrong phase
-  (`WrongPhaseForAmendmentRequestError`); an unreachable approval commit
-  (`AmendmentApprovalCommitUnreachableError`, checked *before* superseding
-  anything); a registry checkpoint id not of the shape `CP<digits>`
-  (`AmendmentCheckpointIdShapeError`, also checked *before* superseding
-  anything, naming every offending id -- IMPL2-R1); a checkpoint still
-  `IN_PROGRESS` or claimed; an open plan-approval transaction; no literal
-  confirmation/`reason` this turn.
+  (`WrongPhaseForAmendmentRequestError`); a checkpoint still `IN_PROGRESS`
+  or an outstanding checkpoint claim (`AmendmentCheckpointActiveError`,
+  XMODEL-R4-B1, checked *before* superseding anything and *authoritatively*
+  inside `request_plan_amendment` itself, not only this command's own
+  preflight read -- closing the race in which a checkpoint claim is
+  published to the filesystem claims directory, step 1d, before
+  `WORKFLOW_STATE.json` shows anything IN_PROGRESS; the independent second
+  half, refusing a checkpoint's own `IN_PROGRESS` publication once the item
+  has left `IMPLEMENTING`, is `transition_checkpoint_in_progress`'s own
+  `IllegalCheckpointStartPhaseError`); a registry row with no `id` key
+  (`AmendmentRegistryMissingIdError`, IMPL4-O2); an unreachable approval
+  commit (`AmendmentApprovalCommitUnreachableError`, checked *before*
+  superseding anything); a registry checkpoint id not of the shape
+  `CP<digits>` (`AmendmentCheckpointIdShapeError`, also checked *before*
+  superseding anything, naming every offending id -- IMPL2-R1); an open
+  plan-approval transaction; no literal confirmation/`reason` this turn.
 
 ### `/review-implementation [work-item-id]` — review command
 - **When**: optional, repeatable, repository-local second opinion while a

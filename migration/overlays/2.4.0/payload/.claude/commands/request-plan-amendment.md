@@ -67,7 +67,21 @@ and wait.
      through the existing claim-takeover mechanism before an amendment can
      be requested. Reconciliation (`D-Plan-Amendment-4`) is defined only
      over `COMPLETE` checkpoints; this is a scope-narrowing choice, not a
-     new mechanism.
+     new mechanism. **Checked again, authoritatively, inside
+     `workflow_state.request_plan_amendment` itself**
+     (`AmendmentCheckpointActiveError`, XMODEL-R4-B1) -- this step's own
+     read is for reporting the refusal early, not a separate source of
+     truth. The authoritative check is load-bearing, not redundant: a
+     checkpoint claim is published to the filesystem claims directory
+     *before* `workflow_state.transition_checkpoint_in_progress` writes
+     `WORKFLOW_STATE.json` (`/milestone-implement` step 1d's documented
+     ordering), so a claim can become outstanding *after* this step's own
+     read returns clean but *before* this command's own `state_transaction`
+     call below acquires the state lock -- exactly the race this
+     authoritative re-check, plus `transition_checkpoint_in_progress`'s own
+     independent `IllegalCheckpointStartPhaseError` guard (refusing to
+     publish `IN_PROGRESS` once the work item has left `IMPLEMENTING`),
+     together close.
    - **No open plan-approval transaction**: call `evidence =
      workflow_state.plan_approval_takeover_evidence(repo_root)`. A
      non-`None` `evidence["journal"]` means an `/approve-review plan`
@@ -93,7 +107,10 @@ and wait.
      `validate_post_anchor_coverage` can ever match; a registry id of any
      other shape (e.g. `WF4a-i`) can never be given a well-formed anchor,
      so this refuses here rather than two review stages later with no
-     in-band recovery. A registry-less work item has nothing to check.
+     in-band recovery. A registry-less work item has nothing to check. A
+     registry row with no `id` key at all is a distinct refusal
+     (`AmendmentRegistryMissingIdError`, IMPL4-O2) -- named separately from
+     the shape check above because there is no id to check the shape of.
 
 2. **Write the amendment request**: call `workflow_state.state_transaction(
    repo_root, lambda state: workflow_state.request_plan_amendment(state,

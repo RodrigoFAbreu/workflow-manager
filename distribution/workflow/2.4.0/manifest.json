@@ -9,7 +9,7 @@
   "provenance": {
     "origin": "authored",
     "base_release": "2.3.1",
-    "overlay_commit": "5108d14bfb7155337fccfdec0ab71d9c26ec0276"
+    "overlay_commit": "531a76137c4a58ca538633b5cea8c193a727d9c5"
   },
   "categories": {
     "distribution": "Canonical Workflow implementation. Copied byte-for-byte into the payload and installed into every managed target repository.",
@@ -176,8 +176,8 @@
       "category": "distribution",
       "rule": "^\\.claude/commands/request-plan-amendment\\.md$",
       "rationale": "New command file authoring the AMENDING_PLAN re-entry gate (D-Plan-Amendment-1); the executable command contract, same category the base classification assigns every other .claude/commands/*.md file.",
-      "sha256": "15db17723273d2d0db3de30f9380dff83fa362ad60ab6aada909ed030f1a70ef",
-      "size": 9210,
+      "sha256": "6e9022b168b30d3931ed0808520d5114b671b06a5af8606146130672ee39b7cd",
+      "size": 10403,
       "executable": false
     },
     {
@@ -241,12 +241,12 @@
       "category": "distribution",
       "rule": "^docs/ai-workflow/MILESTONE_WORKFLOW\\.md$",
       "rationale": "The AMENDING_PLAN state and its re-entry edges from IMPLEMENTING/SELF_REVIEWING_IMPLEMENTATION. Preserves the base release's own distribution category for this path (I-R16-2).",
-      "sha256": "24cbe3b54fd0e8bc174ae0f1e0e3b298d3b6e286c52357502507c4891bf7f7e2",
-      "size": 34721,
+      "sha256": "e337029f30df66d390181dd71c833dd8075550cbdc15d61c6ef2aff871ad6021",
+      "size": 35659,
       "executable": false,
       "overlay_delta": {
         "base_sha256": "caf4e055943ffb6149fe7f6ff09b8d72dc8537a9b016f6da6125e758b9092e39",
-        "diff_sha256": "9100336d90b74f2010055a03ea8f0119106bca4d24397ff2e92a263784c8df9e"
+        "diff_sha256": "1641a02666e9e7f524e382bc627d1f23e7b343f0c12062898e6ed955f4f657ba"
       }
     },
     {
@@ -280,12 +280,12 @@
       "category": "distribution",
       "rule": "^docs/ai-workflow/WORKFLOW_V2_1_OPERATOR_REFERENCE\\.md$",
       "rationale": "Persisted-phases/writer tables, command count, Remediation children section, and the new /request-plan-amendment section. Preserves the base release's own distribution category for this path (I-R16-2).",
-      "sha256": "2ccdebc2d66cb09c5121e8be942cc6154bea8a31104d476e2c4734e510694d2b",
-      "size": 55527,
+      "sha256": "b7dbb086019fa3437fe0c30b13203376265d749436d8d40c7fd226d52f1121b6",
+      "size": 56206,
       "executable": false,
       "overlay_delta": {
         "base_sha256": "2e7a83a3298802133ce8af7a60e3096fd53dd010749647b25adf977cad1de562",
-        "diff_sha256": "2d9b0083390ec7b7aa550a5fa949dedfe741cc5fb7d5a23f5638fcf190893be9"
+        "diff_sha256": "c359a4b729bea2fa06004eb5d81ec2146ba620cd8752811134c20b86afe40e3a"
       }
     },
     {
@@ -583,12 +583,12 @@
       "category": "distribution",
       "rule": "^scripts/prepare-ai-review\\.sh$",
       "rationale": "AMENDMENT_DIFF.patch generation outside bundle_dir, its inclusion in review-bundle.tar.gz (D-Plan-Amendment-5). Preserves the base release's own distribution category for this path (I-R16-2).",
-      "sha256": "89b0f03dc57681d20613876ad50d1c447bd1a6d76785a73e43ea0e9c1f6b97bc",
-      "size": 32904,
+      "sha256": "902c3be9b5ff54228c5635d044828af618246d6ccca81df856eac271bf495c5e",
+      "size": 33770,
       "executable": true,
       "overlay_delta": {
         "base_sha256": "2d483e1d0f211725899d0cd5668a4293821d604c95e54f0e40abd26dfdaa75be",
-        "diff_sha256": "5a5a81918c123f6ada676afb9e0a59f2ae862df4513d274d4ba28048b8b90bc8"
+        "diff_sha256": "f808d6162dafb7036528e4f75fd6f77c0259f75ce902ee2080b9abf00f173a1f"
       }
     },
     {
@@ -666,12 +666,12 @@
       "category": "distribution",
       "rule": "^scripts/workflow_state\\.py$",
       "rationale": "AMENDING_PLAN, /request-plan-amendment's writer, SUPERSEDED/NEEDS_REVALIDATION, apply_plan_approval's reconciliation parameters, load_pre_amendment_snapshot, and the widened vocabulary constants (D-Plan-Amendment-2..4). Preserves the base release's own distribution category for this path (I-R16-2).",
-      "sha256": "0b9deb96dd8490671246b5688b531f63e2445ab36912a4595a5db42dc3922323",
-      "size": 643986,
+      "sha256": "e931431a52d3618855526d7d177dc50880da0f7a31b1092a49f61d9e615a36d0",
+      "size": 651706,
       "executable": false,
       "overlay_delta": {
         "base_sha256": "d9097f02bf78b53ee048d3bb5e5f674c9c246065d8ceb4c71d8dfd039032131e",
-        "diff_sha256": "0182a94f7a7be77699aadd04136b03333adc0d0465bffc1bb5762b371acd5741"
+        "diff_sha256": "49bd0e03e89e77264608e279b4206d1de032134549997b82e0fb639f8ee52828"
       }
     },
     {
@@ -705,12 +705,12 @@
       "category": "distribution",
       "rule": "^scripts/workflow_state_test\\.py$",
       "rationale": "The payload's own conformance suite, updated for AMENDING_PLAN/its writer. Preserves the base release's own distribution category for this path (I-R16-2).",
-      "sha256": "81e9cd5cbf4cac914c1318c35d4883e5dfcd2934fa921146810b1ab85739c59f",
-      "size": 603619,
+      "sha256": "a497d47f89276b2e78cd1dc973bcbf309be47c5fd442618bd471b9965da3f4c9",
+      "size": 610644,
       "executable": false,
       "overlay_delta": {
         "base_sha256": "f47575ccae74bf508945cb078cd2fc13dac76b02d207403f309cf9fcb45b7c92",
-        "diff_sha256": "e91ab2613d294f642057cea37db00e4f40815c60f5e225129e5e484111317a6d"
+        "diff_sha256": "58060a5d05bce7764a27496aa25e6a30d55a73325b73d142ddb8caa3816fb994"
       }
     },
     {

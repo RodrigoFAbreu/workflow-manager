@@ -58,12 +58,26 @@ branches on governing version, unchanged.
   survive an interruption between the request and the first post-request
   `/milestone-plan` call. Reachable only from `IMPLEMENTING` or
   `SELF_REVIEWING_IMPLEMENTATION` (see those sections' own re-entry note
-  below), with no checkpoint `IN_PROGRESS` or claimed, no open
+  below), with no checkpoint `IN_PROGRESS` or claimed
+  (`AmendmentCheckpointActiveError` otherwise, XMODEL-R4-B1 -- checked
+  authoritatively inside `request_plan_amendment` itself, against both
+  `WORKFLOW_STATE.json` and the shared filesystem checkpoint-claim record,
+  not only this command's own preflight read; the claim record must be
+  checked separately because it is published, step 1d, *before*
+  `WORKFLOW_STATE.json` shows anything IN_PROGRESS, so a claim can be
+  outstanding while state still looks idle), no open
   `/approve-review plan` transaction, the current `plan_approval`'s own
   approval commit still discoverable and an ancestor of `HEAD`, and every
   checkpoint id in the work item's own current registry of the shape
   `CP<digits>` (`AmendmentCheckpointIdShapeError` otherwise, naming every
-  offending id, before anything is superseded -- IMPL2-R1).
+  offending id, before anything is superseded -- IMPL2-R1). The
+  independent, second half of XMODEL-R4-B1's fix lives on the other side
+  of the same race: `transition_checkpoint_in_progress` itself refuses
+  (`IllegalCheckpointStartPhaseError`) to publish a checkpoint's own
+  `IN_PROGRESS` once the work item has left `IMPLEMENTING` -- so a claim
+  acquired before this entry transition commits, but not yet reflected in
+  state, cannot publish live implementation state on top of an
+  already-superseded `plan_approval` either.
 - **Allowed actions**: none besides the request itself, which is one
   atomic transition: `plan_approval.status` becomes `SUPERSEDED`; one entry
   is appended to the work item's own append-only `amendment_history`
