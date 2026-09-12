@@ -353,7 +353,7 @@ class TestMigrationEvidenceManifestFieldsMatchShippedManifest(unittest.TestCase)
         r"`provenance`: `(\{.*?\})`"
     )
     _MANIFEST_ROW_RE = re.compile(
-        r"Manifest \| (\d+) artifacts \(\d+ `distribution`, \d+ `conformance`, "
+        r"2\.4\.0[\s\S]*?Manifest \| (\d+) artifacts \(\d+ `distribution`, \d+ `conformance`, "
         r"\d+ `host-evidence`\), (\d+) templates"
     )
     _OVERLAY_ROW_RE = re.compile(
