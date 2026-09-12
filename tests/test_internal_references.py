@@ -290,6 +290,9 @@ class TestMigrationEvidenceCountsMatchCiSuites(unittest.TestCase):
     _BOOTSTRAPPED_ROW_RE = re.compile(
         r"Frozen suite in a bootstrapped repository \| (\d+) of (\d+),"
     )
+    _ADDITIONAL_WORKFLOW_STATE_TEST_RE = re.compile(
+        r"plus (\d+) additional `workflow_state_test\.py` cases"
+    )
 
     def _migration_text(self) -> str:
         return (REPO_ROOT / "docs" / "MIGRATION.md").read_text()
@@ -311,6 +314,22 @@ class TestMigrationEvidenceCountsMatchCiSuites(unittest.TestCase):
         )
         self.assertEqual(recorded_total, actual_total)
         self.assertEqual(recorded_pass, actual_total - exception_count)
+
+    def test_2_4_0_additional_workflow_state_test_count_matches_ci_suites(self):
+        """IMPL3-O3: the fixture-row evidence text also claims "plus N
+        additional `workflow_state_test.py` cases" on top of `2.3.1`'s own
+        count -- correct at every round so far but, unlike the two counts
+        above, previously unpinned to `CI_SUITES` itself."""
+        match = self._ADDITIONAL_WORKFLOW_STATE_TEST_RE.search(self._migration_text())
+        self.assertIsNotNone(
+            match, "2.4.0 'additional workflow_state_test.py cases' evidence text not found"
+        )
+        recorded_additional = int(match.group(1))
+        actual_additional = (
+            CI_SUITES["2.4.0"]["workflow_state_test.py"]
+            - CI_SUITES["2.3.1"]["workflow_state_test.py"]
+        )
+        self.assertEqual(recorded_additional, actual_additional)
 
 
 _STDLIB = frozenset(
