@@ -1,0 +1,117 @@
+{
+  "schema_version": 1,
+  "work_item_id": "implementation-review-two-stage",
+  "requirements": {
+    "REQ-1": {
+      "description": "A two-stage local-then-manual-external implementation-review protocol exists, gated behind a new governing_workflow_version (\"2.2\"), with zero change to \"1\"/\"2.1\" review/lifecycle behavior in the protocol and version-gated inheritance surface this milestone adds, CP9's own enumerated forward-only fixes at REQ-12 excepted (narrowed at revision 32, `MANUAL_EXTERNAL_PLAN_REVIEW` round 2, finding I1)",
+      "checkpoint_ids": [
+        "CP1",
+        "CP2",
+        "CP3",
+        "CP4"
+      ]
+    },
+    "REQ-2": {
+      "description": "Both stages bind to the same implementation-stage review_content_id; ledger validity is by recomputation; staleness/advisory handling matches the plan side's rules exactly",
+      "checkpoint_ids": [
+        "CP2",
+        "CP3",
+        "CP4"
+      ]
+    },
+    "REQ-3": {
+      "description": "/approve-review implementation can never reach EXTERNAL_APPROVE on the strength of a single reviewer pass for a \"2.2\" item",
+      "checkpoint_ids": [
+        "CP3",
+        "CP4"
+      ]
+    },
+    "REQ-4": {
+      "description": "No bundle regeneration is required between the local-approve and manual-external stages",
+      "checkpoint_ids": [
+        "CP4",
+        "CP5"
+      ]
+    },
+    "REQ-5": {
+      "description": "Review-apparatus churn is reduced: a narrowly-scoped, demonstrated improvement in review convergence / token efficiency",
+      "checkpoint_ids": [
+        "CP5"
+      ]
+    },
+    "REQ-6": {
+      "description": "The authored 2.5.0 release reproduces byte-identically from the 2.4.0 base plus overlay; 2.3.1 and 2.4.0 remain untouched",
+      "checkpoint_ids": [
+        "CP11"
+      ]
+    },
+    "REQ-7": {
+      "description": "Disposable-repository functional validation covers the positive path, every negative path, and update-path compatibility",
+      "checkpoint_ids": [
+        "CP12"
+      ]
+    },
+    "REQ-8": {
+      "description": "Full regression suite is green and downgrade posture is documented for the new vocabulary",
+      "checkpoint_ids": [
+        "CP13"
+      ]
+    },
+    "REQ-9": {
+      "description": "Review/design material carries an explicit CURRENT or HISTORICAL lifecycle classification -- never inferred from incidental prose wording, heading names, or document structure; unclassified or ambiguous material fails closed as CURRENT (the convention's own definitional statement of classification's two states and its safe default, mirroring \u00a72.4 point 3's \"Two explicit states\" and \"Fail-closed default\" bullets -- the definitional form criterion 2 of `LOCAL_MODEL_PLAN_REVIEW` round 25's REVISE feedback left standing; which units must carry a marker at all is the separate, narrower obligation stated below, not this clause -- narrowed at revision 27, `LOCAL_MODEL_PLAN_REVIEW` round 26, optional finding O2); CURRENT -> HISTORICAL is only an intentional, explicit transition of material, never a side effect of an unrelated edit or of redrawing which unit material belongs to (revision 22, finding I3); within the milestone's own authored/marked material -- a unit carrying an explicit CURRENT marker, never a unit CURRENT only by the fail-closed default -- never WORKFLOW_V2_PLAN.md's pre-existing unmarked sections wholesale (scope stated explicitly at revision 23, finding I1; mechanical basis stated at revision 24, finding I1); a separate, mechanically-evaluable presence-only obligation (narrowed at revision 28, user-directed architectural correction applying together with round 27's finding B1: presence and value are independent -- this obligation never derives which value a unit's marker must hold from authorship, novelty, or which named section the unit sits under) requires every unit within a marker-presence scope -- the whole of IMPLEMENTATION_REVIEW_WORKFLOW.md; every top-level WORKFLOW_V2_PLAN.md design section any checkpoint's own registry entry adds, D-Review-Material-Lifecycle itself included (widened from \"CP1's own registry entry adds\" at revision 28, finding I2) -- each in full, with a nested unit reached once through its container's \"in full\" reach, never as a separately enumerated peer (revision 28, finding I1) -- to carry an explicit marker of either value, a missing marker there being a lint failure reported independently of and never disturbing the fail-closed classification default (revision 25, finding I1; subject corrected from a cross-corpus diff predicate to this enumerable set at revision 26, finding I3; widened and narrowed to presence-only at revision 28, findings B1/I1/I2); CP6 writes the markers this obligation requires that are still missing, as part of its own deliverable, never overwriting or reclassifying a unit that already carries an explicit marker of its own (added at revision 27, finding I2; scoped to unmarked units only at revision 28, finding B1) -- CURRENT-classified material additionally carries none of the inline provenance narrative excluded from disposition sections, checked over material the marker has already classified CURRENT, independently of the prose the marker classifies (revision 22, finding I1; clause corrected at revision 23, finding O2: \"checked independently of the classification marker itself\" had the dependency direction backwards -- the content check depends on the marker's own classification, never the reverse) -- enforced by a mechanical check for milestone-authored documents, proved with positive/negative/ambiguous/two-version-transition/boundary-redrawing/narrative-location/scope/carve-out-bound/marker-presence/already-marked-nested-unit/representation-conformance/pre-marking-partition fixtures (the last nine added at revisions 22-25, 28, 29 and 30, findings I4/I3/I1/I1/I3/I1/B1/B1/B1 (corrected at revision 31, round 30 optional finding O1, from \"the last eight added at revisions 23-25, 28, 29 and 30, findings I4/I3/I1/I3/I1/B1/B1/B1\", which opened with I4 -- two-version-transition's own finding, the ninth-from-last fixture -- while claiming to name only the last eight, and omitted one I1) -- the last, pre-marking-partition, durably pins guarantee (v)'s narrowed form past CP6's own marking pass, resolving round 29's finding B1) plus a real-corpus run of the finished marker-presence check itself, over every one of that obligation's actual subjects, once CP6 has written the markers it assigns itself (added at revision 27, finding I2's own required test; widened to cover D-Review-Material-Lifecycle itself at revision 28, finding I2's own required test 2) -- distinct from a regression run against migration/overlays/2.5.0/payload/docs/ai-workflow/WORKFLOW_V2_PLAN.md's own, real existing corpus -- the tree that exists when CP6 runs, corrected from the built distribution/workflow/2.5.0/ payload at revision 24, finding I2, since CP11 builds that tree only after CP6; this single run is the whole assertion for the classification partition, run **after** CP6 has made its carve-out-bound markings (post-marking, distinct from guarantee (v)'s own pre-marking read of that same tree -- the two states named explicitly at revision 27, restated here at revision 28, finding I3), transferred to the built distribution/workflow/2.5.0/ payload by build_release.py --check's own byte-identity proof (CP11) rather than asserted there a second time (revision 25, finding I2, resolution 1) -- asserting only the classification partition -- reclassifying none of it HISTORICAL except where CP6 deliberately and visibly marks a pre-existing section, itself bound by the sweep's own flagged output computed at CP6 implementation time against that same overlay-payload tree (revision 22, finding I2; carve-out's bound corrected at revision 23, finding I3; tree named at revision 24, finding I2) -- with no physical move of existing repository content required or forced",
+      "checkpoint_ids": [
+        "CP1",
+        "CP6"
+      ]
+    },
+    "REQ-10": {
+      "description": "A generic, reusable declaration-coverage helper exists in place of the duplicated, hand-authored per-work-item test pattern; the already-canonical census mechanism is documented as the precedent, not re-implemented",
+      "checkpoint_ids": [
+        "CP7"
+      ]
+    },
+    "REQ-11": {
+      "description": "Every Blocking/Important review finding carries an advisory substantive/apparatus tag (never parser-rejected; an untagged finding counts as substantive) without weakening REVIEW_PROTOCOL.md's existing resolve-or-reject-with-evidence rule; a fixed, advisory, non-phase-gating circuit-breaker signal (bound: 2 consecutive apparatus-only rounds) is available for both the plan-stage and implementation-stage two-stage review protocols, scoped to two consecutive same-stage local-model review rounds; manual-external convergence is explicitly left to operator judgment, with no durable recoverability claim made for it (resolves MANUAL_EXTERNAL_PLAN_REVIEW round 1, finding I3)",
+      "checkpoint_ids": [
+        "CP8"
+      ]
+    },
+    "REQ-12": {
+      "description": "v2.3.1-001, v2.3.1-003, and v2.4.0-001's implementation-stage classification symmetry are fixed forward-only in the 2.5.0 overlay, with no existing work item's own already-generated declarations file or already-committed history edited",
+      "checkpoint_ids": [
+        "CP9"
+      ]
+    },
+    "REQ-13": {
+      "description": "v2.4.0-002 is explicitly reconsidered with reasoning tied to this milestone's own scope; both full structural fixes and the cheap IMPL10-O1 partial mitigation are all resolved deferred (resolved MANUAL_EXTERNAL_PLAN_REVIEW round 1, required acceptance criterion 4)",
+      "checkpoint_ids": [
+        "CP10"
+      ]
+    },
+    "REQ-14": {
+      "description": "A \"2.2\" item's generation-record commits, in both the ordinary and recovered roles, are legally produced and legally validated at every round, including after an uncommitted implementation_review_stages ledger write and from every legal recovery source phase",
+      "checkpoint_ids": [
+        "CP3",
+        "CP12"
+      ]
+    },
+    "REQ-15": {
+      "description": "A \"2.2\" item inherits every \"2.1\"-gated behavior unchanged except the implementation-review stages this milestone adds -- across every code gate, command-contract document, and workflow document that behavior reaches; CP6's governing-version enumeration sweep is this requirement's own acceptance evidence, since a hand-enumerated surface list is exactly the pattern this requirement states generally instead of repeating; \"1\"/\"2.1\" review/lifecycle and version-gated behavior is byte-identical everywhere this milestone's own inheritance/enumeration surface reaches, CP9's own enumerated forward-only fixes at REQ-12 excepted (narrowed at revision 32, `MANUAL_EXTERNAL_PLAN_REVIEW` round 2, finding I1)",
+      "checkpoint_ids": [
+        "CP1",
+        "CP2",
+        "CP4",
+        "CP6",
+        "CP12"
+      ]
+    },
+    "REQ-16": {
+      "description": "A repository other than this one has a documented, operator-followable procedure to activate governing_workflow_version \"2.2\" as its own default -- the WORKFLOW_CONFIG.json two-field edit (default_workflow_version and supported_versions together) and the Workflow-Activation/Workflow-Rollback trailer discipline; a fresh 2.5.0 install is not \"2.2\"-enabled without that explicit act; the same procedure states explicitly that \"2.2\" is available only to a work item created after activation, never a promotion for an already-existing \"1\"/\"2.1\" work item (resolves MANUAL_EXTERNAL_PLAN_REVIEW round 1, finding I1)",
+      "checkpoint_ids": [
+        "CP1",
+        "CP2",
+        "CP12"
+      ]
+    }
+  }
+}
