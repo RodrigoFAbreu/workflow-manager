@@ -774,7 +774,7 @@
       "registry_path": "docs/ai-workflow/registry/implementation-review-two-stage-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/implementation-review-two-stage-mapping.json",
       "governing_workflow_version": "2.1",
-      "phase": "IMPLEMENTING",
+      "phase": "AMENDING_PLAN",
       "plan_revision": 33,
       "implementation_revision": null,
       "functional_review_round": null,
@@ -790,7 +790,7 @@
       },
       "current_bundle_id": null,
       "plan_approval": {
-        "status": "CURRENT",
+        "status": "SUPERSEDED",
         "basis": "EXTERNAL_APPROVE",
         "reviewed_bundle_id": "14cc3ac9970a159ebb9d192a18dfd8bbc6fa15cdff56a728aec0df6bb7da45a0",
         "approved_review_content_id": "1b6b216f8b5900ef9344e7349e93132e7c7510360be16f774cff05cd62d53c1f",
@@ -839,8 +839,57 @@
       },
       "functional_acceptance_status": null,
       "blocking_decisions": [],
-      "state_revision": 105,
-      "last_transition": "2026-09-14T01:00:00Z"
+      "state_revision": 106,
+      "last_transition": "2026-09-14T02:39:58Z",
+      "amendment_history": [
+        {
+          "amendment_id": "0",
+          "requested_at": "2026-09-14T02:39:58Z",
+          "requested_from_phase": "IMPLEMENTING",
+          "reason": "The approved artifact declaration omitted migration/ from plan_stage.excluded_prefixes even though the approved milestone explicitly produces migration/overlays/2.5.0 and protects migration outputs at implementation stage. After CP1 committed the first approved overlay content, subsequent /milestone-implement entry validation fails with UnclassifiedPathError. This amendment is narrowly scoped to correcting that declaration gap so the approved migration outputs are excluded from plan-stage identity while remaining implementation-stage protected and reviewed.",
+          "superseded_plan_revision": 33,
+          "superseded_plan_approval": {
+            "status": "CURRENT",
+            "basis": "EXTERNAL_APPROVE",
+            "reviewed_bundle_id": "14cc3ac9970a159ebb9d192a18dfd8bbc6fa15cdff56a728aec0df6bb7da45a0",
+            "approved_review_content_id": "1b6b216f8b5900ef9344e7349e93132e7c7510360be16f774cff05cd62d53c1f",
+            "review_content_manifest": [
+              {
+                "path": "docs/ai-workflow/IMPLEMENTATION_REVIEW_TWO_STAGE_PLAN.md",
+                "exists": true,
+                "mode": "100644",
+                "blob": "d1f70790896ce2822ab7020e680317682033aab5"
+              },
+              {
+                "path": "docs/ai-workflow/registry/implementation-review-two-stage-registry.json",
+                "exists": true,
+                "mode": "100644",
+                "blob": "1ec74061601eaf716689eb52e7efb209c14f7164"
+              },
+              {
+                "path": "docs/ai-workflow/requirements/implementation-review-two-stage-mapping.json",
+                "exists": true,
+                "mode": "100644",
+                "blob": "e3838637f9f28037ab1994262d347db23bc3e4da"
+              }
+            ],
+            "reviewed_content_commit": null,
+            "legacy_evidence": null,
+            "user_confirmation": "I confirm plan approval for implementation-review-two-stage.",
+            "waived_guarantees": [],
+            "recorded_at": "2026-09-14T00:11:32Z"
+          },
+          "checkpoints_snapshot": {
+            "CP1": {
+              "status": "COMPLETE",
+              "start_commit": "b1804776860c09881a19beeebb716c5f884fe730"
+            }
+          },
+          "pre_amendment_approval_commit": "b1804776860c09881a19beeebb716c5f884fe730",
+          "resolved_at_plan_revision": null
+        }
+      ],
+      "amendment_base_commit": "20a808d1ddd94e1fb2ad2efc3e4fdef6a1a64ad7"
     }
   }
 }
