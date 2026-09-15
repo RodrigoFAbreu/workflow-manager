@@ -522,5 +522,47 @@ class TestOverlayStateWriterClosure(unittest.TestCase):
         self.assertIn("scripts/workflow_state.py", files)
 
 
+class TestPortabilityExceptions250RequiredEmptyEntry(unittest.TestCase):
+    """`workflow-2.5.0` CP9 (`v2.3.1-001`'s own fix, revision 4 finding I4):
+    `tests/support.py`'s `expected_portability_exceptions` subscripts
+    `PORTABILITY_EXCEPTIONS["by_version"][workflow_version]["exceptions"]`
+    unguarded, so an absent `"2.5.0"` key would be a `KeyError` at
+    test-collection time for any future `2.5.0`-specific matrix, not a
+    clean pass. `2.5.0`'s own `by_version` entry is therefore required, not
+    conditional on whether this release's own suite happens to need one --
+    and it is empty, since `2.5.0`'s own overlay fixes the one test
+    (`v2.3.1-001`) that `2.3.1`'s and `2.4.0`'s entries exist for, while
+    those two releases' own entries are left untouched: both releases' own
+    payloads still carry the unfixed test (`2.3.1` is frozen; `2.4.0`'s own
+    overlay never touched this specific test), so removing either would
+    give a clean-target run against either release an undocumented
+    failure."""
+
+    def test_2_5_0_has_a_required_empty_entry(self):
+        self.assertEqual(expected_portability_exceptions("2.5.0"), {})
+
+    def test_2_3_1_entry_is_byte_unchanged_by_cp9(self):
+        self.assertEqual(
+            expected_portability_exceptions("2.3.1"),
+            {
+                "workflow_integration_test.py": {
+                    "TestRetiredScopedRemediationLeavesNoLiveSurface."
+                    "test_the_historical_status_note_carries_a_dated_correction",
+                },
+            },
+        )
+
+    def test_2_4_0_entry_is_byte_unchanged_by_cp9(self):
+        self.assertEqual(
+            expected_portability_exceptions("2.4.0"),
+            {
+                "workflow_integration_test.py": {
+                    "TestRetiredScopedRemediationLeavesNoLiveSurface."
+                    "test_the_historical_status_note_carries_a_dated_correction",
+                },
+            },
+        )
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

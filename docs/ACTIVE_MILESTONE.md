@@ -26,9 +26,107 @@ development.
 
 ## Current checkpoint
 
-**CP1-CP8 complete** (`implementation-review-two-stage`, 13 checkpoints
-total). Next: **CP9** (post-v2.3.1 backlog, tractable fixes, depends on
-CP2).
+**CP1-CP9 complete** (`implementation-review-two-stage`, 13 checkpoints
+total). Next: **CP10** (post-v2.3.1 backlog, `v2.4.0-002` reconsideration,
+depends on CP1).
+
+CP9 delivered the post-v2.3.1 backlog's tractable fixes (`§2.7`), in
+`migration/overlays/2.5.0/payload/`:
+
+- `scripts/workflow_state.py`: `v2.3.1-003` fixed --
+  `pin_plan_approval_state_blob` now falls back to file mode `100644`
+  (`_FALLBACK_STATE_BLOB_MODE`) when `_blob_mode_and_sha_at_commit` finds no
+  `HEAD` entry for `state_path`, instead of raising
+  `PlanApprovalStateBlobUnavailableError` unconditionally -- the first of
+  the defect record's own two stated portable forms, adopted verbatim. The
+  exception class is retained (documented, no longer raised by this
+  function) rather than deleted, since nothing else in this module's
+  public contract depends on its removal. `v2.4.0-001` widened further --
+  `_implementation_stage_default`'s `excluded_prefixes` now also excludes
+  `.workflow-manager/`, symmetric with the plan-stage default the `2.4.0`
+  fix already widened (this item's own CP2 had to hand-add the identical
+  exclusion to its own declarations file for the same reason). Forward-only:
+  no existing work item's already-generated declarations file is edited by
+  either change.
+- `scripts/workflow_integration_test.py` (new overlay file -- the first
+  checkpoint to give this base-2.4.0 payload file its own overlay copy):
+  `v2.3.1-001` fixed -- `test_the_historical_status_note_carries_a_dated_correction`
+  now looks for the host status note with `next((...), None)` and calls
+  `self.skipTest(...)` when it is absent, instead of `next(...)` raising
+  `StopIteration`. Verified live: running this exact test, unmodified,
+  against this very repository's own `docs/ACTIVE_MILESTONE.md` (which has
+  never carried RepFlow's dated note) raises `StopIteration` today: the
+  fix resolves a defect this repository is *currently* exposed to, not
+  only a hypothetical one. A repository that does carry a malformed note
+  (present but not immediately followed by a `**Correction (2026-08-26)**`
+  paragraph) still fails exactly as before -- confirmed against a
+  synthetic scratch repo. `test_pin_raises_when_state_path_absent_at_head`
+  is replaced by `test_pin_defaults_to_mode_100644_when_state_path_absent_at_head`,
+  proving the new fallback: the pin succeeds, stages mode `100644`, and the
+  staged content matches exactly.
+- `migration/portability_exceptions.json`: gains the required, empty
+  `by_version["2.5.0"]` entry (`tests/support.py`'s
+  `expected_portability_exceptions` subscripts `by_version[workflow_version]`
+  unguarded, so an absent key is a `KeyError`, not a pass). `2.3.1`'s and
+  `2.4.0`'s own entries for this same test are untouched -- both releases'
+  payloads still carry the unfixed test, and `2.3.1` is frozen.
+- `tests/test_conformance_suite.py` (this repository's own suite, not the
+  overlay payload): `TestPortabilityExceptions250RequiredEmptyEntry`
+  proves `expected_portability_exceptions("2.5.0")` resolves to `{}` and
+  that `expected_portability_exceptions("2.3.1")`/`("2.4.0")` are
+  byte-unchanged by this checkpoint.
+- `scripts/workflow_state_test.py`:
+  `GeneratedDeclarationsWorkflowManagerImplementationStageWideningTest`
+  (three tests) proves `generate_artifacts_declarations`'s
+  implementation-stage default classifies
+  `.workflow-manager/installation.json` `excluded` for both work-item
+  types, and that the widened prefix is symmetric with the plan-stage
+  default.
+
+**Known, out-of-scope pre-existing gap surfaced by introducing
+`workflow_integration_test.py` into the overlay for the first time**: run
+directly against this repository's own live `docs/ai-workflow/*`
+(governed by this repository's currently-installed release, not `2.5.0`)
+with the *overlay's* `workflow_state.py` imported as `ws`, two unrelated
+tests fail --
+`TestOperatorReferenceMatchesReality.test_the_persisted_phase_table_is_exactly_the_writer_census`
+and `.test_the_v1_plan_approval_gate_is_not_described_as_a_phase`. Checked
+directly against the overlay's own paired `docs/ai-workflow/
+WORKFLOW_V2_1_OPERATOR_REFERENCE.md`: the second is a genuine, pre-existing
+staleness from CP1/CP2's own already-approved widening of
+`_require_v2_1_plan_review` (no longer contains the literal `!= "2.1"`
+the assertion looks for); the first reflects `AWAITING_LOCAL_IMPLEMENTATION_REVIEW`
+missing from the reference's "Persisted phases" table. Neither is caused by
+CP9's own four fixes, both predate this checkpoint, and both are outside
+`D-Post-v2.3.1-Backlog`'s stated scope -- left for CP11's own "every
+payload document the sweep requires changing" step (or CP13's full
+regression) to catch and correct once the composed `2.5.0` distribution
+actually exists to run this suite against meaningfully. This checkpoint's
+own narrowest checks (below) verify only the four backlog fixes
+themselves, per its own registry scope.
+
+Verification run for CP9 (narrowest relevant check, not the full suite --
+`workflow_integration_test.py`'s full suite cannot be meaningfully run
+against the overlay until `distribution/workflow/2.5.0/` is composed at
+CP11, for the reason above):
+```
+PYTHONPATH=migration/overlays/2.5.0/payload/scripts:scripts \
+  python3 -m unittest \
+  workflow_state_test.GeneratedDeclarationsWorkflowManagerImplementationStageWideningTest \
+  workflow_integration_test.TestPlanApprovalStateBlobPinAndMaterialize.test_pin_defaults_to_mode_100644_when_state_path_absent_at_head \
+  workflow_integration_test.TestRetiredScopedRemediationLeavesNoLiveSurface.test_the_historical_status_note_carries_a_dated_correction \
+  -v
+python3 -m unittest test_conformance_suite.TestPortabilityExceptions250RequiredEmptyEntry -v   # run from tests/
+```
+Result: 6 passed, 1 skipped (the host-note test, correctly, against this
+repository's own history-free `docs/ACTIVE_MILESTONE.md`), 0 failed. A full
+`workflow_state_test` run under the same `PYTHONPATH` trick (822 tests, up
+from CP8's 819) shows only the same 3 pre-existing errors that trick itself
+is known to produce outside the composed release tree
+(`TestGlobalLockOrderItem372h.setUpClass` and
+`TestCanonicalStateSerialization`'s two dry-run-path-relative tests),
+unaffected by this checkpoint's changes. `python3 tests/run_all.py --fast`
+is green (8/8 suites).
 
 CP8 delivered `D-Review-Finding-Taxonomy-and-Circuit-Breaker` (`§2.6`), in
 `migration/overlays/2.5.0/payload/`:
@@ -356,7 +454,7 @@ plan approval `CURRENT`, both `LOCAL_MODEL_PLAN_REVIEW` (round 42) and
 
 ## Next action
 
-Continue `/milestone-implement` to implement CP7, one checkpoint per
+Continue `/milestone-implement` to implement CP10, one checkpoint per
 invocation (`workflow-2.1` resumable single-checkpoint session model).
 
 ## Functional review checklist

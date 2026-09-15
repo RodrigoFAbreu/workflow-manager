@@ -14017,5 +14017,71 @@ class ReviewProtocolManualExternalCircuitBreakerScopeTest(unittest.TestCase):
                 )
 
 
+# ---------------------------------------------------------------------------
+# CP9 -- post-v2.3.1 backlog, tractable fixes (`docs/ai-workflow/
+# IMPLEMENTATION_REVIEW_TWO_STAGE_PLAN.md` section 2.7). Forward-only:
+# `generate_artifacts_declarations`'s implementation-stage default template
+# gains the `.workflow-manager/` exclusion the plan-stage default already
+# carried (`v2.4.0-001`'s own plan-stage fix), so a freshly generated
+# declarations file is not exposed to the identical gap this item's own
+# CP2 (revision 2, finding B1) had to hand-fix for itself. No existing work
+# item's already-generated declarations file is edited by this change. The
+# other three backlog fixes (`v2.3.1-003`'s mode-`100644` fallback,
+# `v2.3.1-001`'s portable host-note skip, and `migration/
+# portability_exceptions.json`'s required empty `by_version["2.5.0"]`
+# entry) are regression-tested in this overlay's own
+# `workflow_integration_test.py` and this repository's own
+# `tests/test_conformance_suite.py`, respectively -- not here.
+# ---------------------------------------------------------------------------
+
+
+class GeneratedDeclarationsWorkflowManagerImplementationStageWideningTest(unittest.TestCase):
+    """CP9's own required regression test: `generate_artifacts_declarations`'s
+    implementation-stage default classifies
+    `.workflow-manager/installation.json` `excluded` for a freshly-generated
+    declarations file, for both work-item types -- the implementation-stage
+    twin of the plan-stage `.workflow-manager/` exclusion `v2.4.0-001`'s own
+    fix already added (`plan_stage_excluded_prefixes.setdefault('.workflow-
+    manager/', ...)`)."""
+
+    def _declarations(self, work_item_type: str) -> dict:
+        return ws.generate_artifacts_declarations(
+            "new-item", "docs/ai-workflow/new-item-plan.md",
+            "docs/ai-workflow/registry/new-item-registry.json",
+            "docs/ai-workflow/requirements/new-item-mapping.json",
+            work_item_type=work_item_type,
+        )
+
+    def _classify_impl(self, declarations: dict, path: str) -> str:
+        stage = declarations["implementation_stage"]
+        return fingerprint.classify_path_implementation_stage(
+            path, stage["protected_paths"], stage["protected_prefixes"],
+            stage["excluded_paths"], stage["excluded_prefixes"],
+        )
+
+    def test_process_item_implementation_stage_excludes_workflow_manager_installation_record(self):
+        declarations = self._declarations("process")
+        self.assertEqual(
+            self._classify_impl(declarations, ".workflow-manager/installation.json"),
+            "excluded",
+        )
+
+    def test_product_item_implementation_stage_excludes_workflow_manager_installation_record(self):
+        declarations = self._declarations("product")
+        self.assertEqual(
+            self._classify_impl(declarations, ".workflow-manager/installation.json"),
+            "excluded",
+        )
+
+    def test_the_widened_prefix_is_present_verbatim_symmetric_with_the_plan_stage_default(self):
+        declarations = self._declarations("process")
+        self.assertIn(
+            ".workflow-manager/", declarations["implementation_stage"]["excluded_prefixes"],
+        )
+        self.assertIn(
+            ".workflow-manager/", declarations["plan_stage"]["excluded_prefixes"],
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

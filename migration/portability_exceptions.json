@@ -23,6 +23,9 @@
           "defect": "docs/defects/v2.3.1-001-host-history-coupled-tests.md"
         }
       ]
+    },
+    "2.5.0": {
+      "exceptions": []
     }
   }
 }

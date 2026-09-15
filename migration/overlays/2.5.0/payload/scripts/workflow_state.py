@@ -3219,12 +3219,25 @@ def _replace_plan_approval_journal(
 # ---------------------------------------------------------------------------
 
 
+#: `workflow-2.5.0` CP9 (`v2.3.1-003`'s own first stated portable form,
+#: `docs/defects/v2.3.1-003-plan-approval-requires-precommitted-state-file.md`):
+#: the file mode `pin_plan_approval_state_blob` falls back to when
+#: `state_path` has no `HEAD` entry to read a real mode from -- the mode
+#: every other tracked path this Workflow ever commits already uses, per
+#: the defect record's own observation, not a guess.
+_FALLBACK_STATE_BLOB_MODE = "100644"
+
+
 class PlanApprovalStateBlobUnavailableError(Exception):
-    """Raised by `pin_plan_approval_state_blob` when `state_path` does not
-    exist at `HEAD` -- there is no committed file mode to pin a new blob
-    against. `WORKFLOW_STATE.json` always exists once `WF1a` has landed,
-    so this is not a case this transaction's own contract needs to
-    recover from, only fail closed on."""
+    """No longer raised by `pin_plan_approval_state_blob` itself
+    (`workflow-2.5.0` CP9, `v2.3.1-003`): a `state_path` absent at `HEAD`
+    -- this repository's own genuinely-first plan approval, before
+    `docs/ai-workflow/WORKFLOW_STATE.json` has ever been committed -- now
+    falls back to `_FALLBACK_STATE_BLOB_MODE` instead of refusing
+    unconditionally, since every other tracked path this Workflow ever
+    commits already uses that same mode. Retained as a documented
+    exception type for this module's own public contract; no code path in
+    this Workflow release raises it."""
 
 
 class StagedStateBlobMismatchError(Exception):
@@ -3282,7 +3295,15 @@ def pin_plan_approval_state_blob(
     verification against the journal's own pinned identity is
     `verify_staged_plan_approval_state_blob`, by content sha256, not this
     object id, so it is unaffected by which hash algorithm the repository
-    itself uses for Git objects)."""
+    itself uses for Git objects).
+
+    `workflow-2.5.0` CP9 (`v2.3.1-003`): when `state_path` has no entry at
+    `HEAD` at all -- a repository's own genuinely-first plan approval,
+    before `WORKFLOW_STATE.json` has ever been committed -- this no
+    longer refuses unconditionally. It falls back to
+    `_FALLBACK_STATE_BLOB_MODE` (`100644`), the mode every other tracked
+    path this Workflow ever commits already uses, and proceeds exactly as
+    if that mode had been read from `HEAD`."""
     already = _run(
         ["git", "diff", "--name-only", "--cached", "HEAD", "--", str(state_path)], cwd=repo_root,
     ).strip()
@@ -3292,12 +3313,7 @@ def pin_plan_approval_state_blob(
             f"step-6.1b-state-pin ran -- resolve or unstage it first"
         )
     mode_and_sha = _blob_mode_and_sha_at_commit(repo_root, "HEAD", str(state_path))
-    if mode_and_sha is None:
-        raise PlanApprovalStateBlobUnavailableError(
-            f"{state_path} does not exist at HEAD -- cannot determine its file mode "
-            f"to pin a new blob in its place"
-        )
-    mode, _head_blob = mode_and_sha
+    mode = mode_and_sha[0] if mode_and_sha is not None else _FALLBACK_STATE_BLOB_MODE
     blob_sha = subprocess.run(
         ["git", "hash-object", "-w", "--stdin"], cwd=repo_root,
         input=expected_state_bytes, capture_output=True, check=True,
@@ -7369,6 +7385,28 @@ def _implementation_stage_default(
     for prefix in _SHARED_REPOSITORY_PREFIXES:
         excluded_prefixes.setdefault(prefix, _SHARED_TERRITORY_JUSTIFICATION)
     excluded_prefixes.setdefault(WORKFLOW_DOCS_PREFIX, _SIBLING_WORKFLOW_DOCS_JUSTIFICATION)
+    # `workflow-2.5.0` CP9 (`v2.4.0-001`'s own implementation-stage symmetry
+    # widening, docs/defects/v2.4.0-001-workflow-manager-installation-record-
+    # unclassified-at-plan-stage.md): the `2.4.0` fix above widened only the
+    # *plan*-stage default; a freshly generated declarations file's
+    # implementation-stage half stayed silent on
+    # `.workflow-manager/installation.json`, so an `update()`-driven commit
+    # to it landing inside a live item's own implementation-stage interval
+    # still raised `UnclassifiedPathError`, exactly as the plan-stage gap
+    # once did. Excluded here, in the generated template (the same "widen
+    # the template, not an existing item's own already-generated
+    # declarations file" rule the plan-stage fix already established): no
+    # existing work item's own declarations file changes, so no existing
+    # approval's identity moves. Forward-only -- this does not by itself
+    # repair a work item whose own declarations file predates this fix; see
+    # the defect record for that residual and its operator mitigations.
+    excluded_prefixes.setdefault(
+        ".workflow-manager/",
+        "workflow_manager's own installation-record bookkeeping (which release is "
+        "installed, managed/generated/merged file digests) -- tooling identity, "
+        "never this or any other work item's own implementation-stage deliverable "
+        "(workflow-2.5.0 CP9, symmetric with the plan-stage exclusion above)",
+    )
 
     # The item's own declarations file is carved out by exact path and
     # checked first by `classify_path_implementation_stage`, so the
