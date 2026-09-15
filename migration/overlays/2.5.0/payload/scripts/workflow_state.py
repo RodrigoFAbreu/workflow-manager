@@ -277,6 +277,12 @@ _GIT_OBJECT_ID_RE = re.compile(r"^[0-9a-f]{40}$")
 # ingest from REVIEW_FEEDBACK.md's `Status:` field.
 PLAN_REVIEW_VERDICTS = frozenset({"APPROVE", "REVISE", "BLOCK"})
 
+# workflow-2.5.0 CP3: `D-Implementation-Review-Stages`' own verdict set,
+# mirroring `PLAN_REVIEW_VERDICTS` exactly -- the identical three verdicts,
+# ingested by `/review-implementation`/`/record-manual-implementation-review`
+# instead of `/review-plan`/`/record-manual-plan-review`.
+IMPLEMENTATION_REVIEW_VERDICTS = frozenset({"APPROVE", "REVISE", "BLOCK"})
+
 # Canonical, SCREAMING_SNAKE_CASE `plan_review_stages` key casing (item 8,
 # workflow-v2-3-followups CP3): every write past this checkpoint uses these
 # two constants, never the legacy lowercase literals directly. Legacy
@@ -789,6 +795,65 @@ class AmbiguousImplementationReviewStageKeyError(Exception):
     by a direct unit-test construction of a conflicting dict."""
 
 
+# ---------------------------------------------------------------------------
+# workflow-2.5.0 CP3: `D-Implementation-Review-Stages`' own review-stage
+# writer exceptions -- implementation-stage-named siblings of the
+# plan-review exceptions whose own name is literally plan-specific
+# (`WrongPhaseForPlanReviewStageError`, `WrongGoverningVersionForPlanReviewStageError`,
+# `MissingLocalApprovalForManualStageError`, `DuplicateManualStageIngestionError`,
+# `UnknownPlanReviewVerdictError`); `WrongReviewerRoleError`/
+# `StaleReviewContentIdError`/`check_manual_stage_bundle_id_advisory` are
+# already stage-agnostic and reused verbatim below, unchanged.
+# ---------------------------------------------------------------------------
+
+
+class UnknownImplementationReviewVerdictError(Exception):
+    """Raised when a verdict passed to `record_local_implementation_review`/
+    `record_manual_implementation_review` is not one of
+    `IMPLEMENTATION_REVIEW_VERDICTS` -- the implementation-stage counterpart
+    of `UnknownPlanReviewVerdictError`."""
+
+
+class WrongGoverningVersionForImplementationReviewStageError(Exception):
+    """Raised when `/review-implementation` or
+    `/record-manual-implementation-review` is invoked, in its authoritative
+    `"2.2"` role, against a work item whose `governing_workflow_version` is
+    not exactly `"2.2"` -- unlike the plan-review protocol
+    (`TWO_STAGE_PLAN_REVIEW_VERSIONS`, valid for both `"2.1"`/`"2.2"`), the
+    two-stage *implementation*-review protocol is `"2.2"`-only
+    (D-Implementation-Review-Version-Activation): a `"1"`/`"2.1"` item has
+    no two-stage implementation-review protocol to run. The
+    implementation-stage counterpart of
+    `WrongGoverningVersionForPlanReviewStageError`."""
+
+
+class WrongPhaseForImplementationReviewStageError(Exception):
+    """Raised when `/review-implementation` is invoked (in its `"2.2"`
+    authoritative role) outside `phase == AWAITING_LOCAL_IMPLEMENTATION_REVIEW`,
+    or `/record-manual-implementation-review` outside `phase ==
+    AWAITING_MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW` -- covers "already
+    completed this round" and a local `REVISE`'s work item never reaching
+    the manual stage. The implementation-stage counterpart of
+    `WrongPhaseForPlanReviewStageError`."""
+
+
+class MissingLocalApprovalForManualImplementationStageError(Exception):
+    """Raised when `/record-manual-implementation-review` is asked to
+    ingest an `APPROVE` while no current `LOCAL_IMPLEMENTATION_REVIEW`
+    `APPROVE` is recorded for the same `review_content_id` -- a restated
+    invariant, since entry to `AWAITING_MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW`
+    already requires it; defends against a corrupted or hand-edited state
+    file. The implementation-stage counterpart of
+    `MissingLocalApprovalForManualStageError`."""
+
+
+class DuplicateManualImplementationStageIngestionError(Exception):
+    """Raised when a `MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW` stage is
+    already recorded against the current `review_content_id` -- rejects
+    duplicate ingestion. The implementation-stage counterpart of
+    `DuplicateManualStageIngestionError`."""
+
+
 class ConfigMissingAfterActivationError(Exception):
     """Raised when `WORKFLOW_CONFIG.json` is missing or corrupt *after*
     Workflow activation -- a hard stop, never a silent downgrade (resolves
@@ -1113,16 +1178,27 @@ class MalformedBundleGenerationRecordCommitError(Exception):
     `WORKFLOW_STATE.json`, its own `work_items[work_item_id]` field
     changes must be a non-empty subset of `{phase,
     reviewed_implementation_head, implementation_revision, state_revision,
-    last_transition}` including `phase`, and it must carry exactly the
-    two-trailer ordinary set (`Workflow-Bundle-Generation-Record`,
+    last_transition, implementation_review_stages}` (workflow-2.5.0 CP3
+    widened the admitted set with the last field, unconditionally)
+    including `phase`, its committed `phase` must equal
+    `bundle_generation_target_phase(stage, governing_workflow_version)`'s
+    resolved value (read from the commit's own committed
+    `governing_workflow_version`, `AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW`
+    for `"1"`/`"2.1"`, byte-identical to before CP3), and it must carry
+    exactly the two-trailer ordinary set (`Workflow-Bundle-Generation-Record`,
     `Workflow-Work-Item`). A **recovered**-role commit (WF8c (c)/(b)) must
     touch only `WORKFLOW_STATE.json`, its own field changes must be a
-    non-empty subset of `{phase, state_revision, last_transition}` --
-    `reviewed_implementation_head`/`implementation_revision` must be
-    byte-identical to its parent -- its committed `phase` must equal
-    `AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW` and its parent's committed
-    `phase` must be one of the three legal recovered-role source phases,
-    and it must carry exactly the three-trailer recovered set
+    non-empty subset of `{phase, state_revision, last_transition,
+    implementation_review_stages}` -- `reviewed_implementation_head`/
+    `implementation_revision` must be byte-identical to its parent -- its
+    committed `phase` must be a member of
+    `bundle_generation_recovered_role_legal_committed_phases(
+    governing_workflow_version)` (a single-valued
+    `{AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW}` for `"1"`/`"2.1"`,
+    byte-identical to before CP3; the three-phase `"2.2"` set otherwise)
+    and its parent's committed `phase` must be one of the (additively
+    widened, workflow-2.5.0 CP3) legal recovered-role source phases, and
+    it must carry exactly the three-trailer recovered set
     (`Workflow-Bundle-Generation-Record`, `Workflow-Work-Item`,
     `Workflow-Supersedes`). A commit whose trailer set matches neither
     role's exact shape is rejected outright, naming the offending trailer
@@ -10266,6 +10342,9 @@ def technical_approval_gate_reachable(
     *, latest_round_status: str, protected_path_dirty: bool,
     head_matches_reviewed_implementation_head: bool,
     pinned_block: bool = False,
+    governing_workflow_version: str | None = None,
+    implementation_review_stages: dict | None = None,
+    current_review_content_id: str | None = None,
 ) -> bool:
     """`AWAITING_TECHNICAL_APPROVAL`'s entry condition: the shared
     reachability rule above, plus "no protected path is dirty" (D3;
@@ -10280,12 +10359,35 @@ def technical_approval_gate_reachable(
     pure and never reads state/bundles itself. A pinned bundle can never
     become reachable again by any later edit of the mutable feedback file,
     including a status-preserving-binding overwrite that changes only
-    `Status:` from `BLOCK` to `REVISE` (`GPT-R55-002`)."""
+    `Status:` from `BLOCK` to `REVISE` (`GPT-R55-002`).
+
+    workflow-2.5.0 CP3, widened exactly like `plan_approval_gate_reachable`
+    already is for `TWO_STAGE_PLAN_REVIEW_VERSIONS`: for a `"2.2"` item
+    only, this gate additionally requires the `implementation_review_stages`
+    ledger to record both `LOCAL_IMPLEMENTATION_REVIEW` and
+    `MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW` completed (`verdict: APPROVE`)
+    against the *current* implementation-stage `review_content_id`
+    (D-Implementation-Review-Stages). `governing_workflow_version` absent
+    (`None`, the default) or anything other than `"2.2"` runs exactly
+    today's shared rule, unchanged -- byte-identical to this function's
+    pre-CP3 behavior, including for every existing caller that omits these
+    three new keyword-only parameters entirely."""
+    if pinned_block or not approval_gate_reachable(latest_round_status):
+        return False
+    if protected_path_dirty or not head_matches_reviewed_implementation_head:
+        return False
+    if governing_workflow_version != "2.2":
+        return True
+    if implementation_review_stages is None:
+        return False
+    stages = normalize_implementation_review_stages(implementation_review_stages)
+    if stages.get("review_content_id") != current_review_content_id:
+        return False
+    local = stages.get(LOCAL_IMPLEMENTATION_REVIEW)
+    manual = stages.get(MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW)
     return (
-        not pinned_block
-        and approval_gate_reachable(latest_round_status)
-        and not protected_path_dirty
-        and head_matches_reviewed_implementation_head
+        local is not None and local.get("verdict") == "APPROVE"
+        and manual is not None and manual.get("verdict") == "APPROVE"
     )
 
 
@@ -10954,6 +11056,74 @@ def mark_technical_approval_stale(state: dict, work_item_id: str, now: str) -> d
     return new_state
 
 
+def bundle_generation_target_phase(stage: str, governing_workflow_version: str | None) -> str:
+    """workflow-2.5.0 CP3 (D-Implementation-Review-Stages "Provenance-
+    interval interaction"): the single function of `(stage,
+    governing_workflow_version)` replacing `record_bundle_generation`'s
+    and `validate_bundle_generation_record_commit`'s previously
+    hard-coded `"AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW"` target-phase
+    literal. Returns `AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW` for
+    `"1"`/`"2.1"` (both `stage` values, byte-identical to pre-CP3
+    behavior) and `AWAITING_LOCAL_IMPLEMENTATION_REVIEW` for `"2.2"` (both
+    `stage` values -- a `"2.2"` item's post-fix regeneration re-enters
+    local review exactly like its first-round generation does, never
+    going straight back to the terminal phase). `governing_workflow_version`
+    absent (`None`) resolves as the `"1"`/`"2.1"` literal, never a raise --
+    the same convention this module's other version-dependent resolvers
+    (e.g. `plan_approval_gate_reachable`) already follow for a work item
+    with no recorded version. `stage` itself must still be one of
+    `"implementation"`/`"post-fix"` (`InvalidBundleGenerationStageError`);
+    note that, for any single `governing_workflow_version`, both `stage`
+    values always resolve to the identical target -- the distinction
+    matters only for legal-source-phase checking
+    (`BUNDLE_GENERATION_LEGAL_SOURCE_PHASES_BY_STAGE`), never for the
+    target phase itself."""
+    if stage not in ("implementation", "post-fix"):
+        raise InvalidBundleGenerationStageError(
+            f"reviewed_implementation_head is written only at the "
+            f"\"implementation\"/\"post-fix\" bundle-generation stage, got {stage!r}"
+        )
+    if governing_workflow_version == "2.2":
+        return "AWAITING_LOCAL_IMPLEMENTATION_REVIEW"
+    return "AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW"
+
+
+def bundle_generation_recovered_role_legal_committed_phases(
+    governing_workflow_version: str | None,
+) -> frozenset[str]:
+    """workflow-2.5.0 CP3 (D-Implementation-Review-Stages "Provenance-
+    interval interaction", third fix): the recovered-role committed-phase
+    membership test replacing `validate_bundle_generation_record_commit`'s
+    former single-valued equality, and the identical set
+    `/recover-implementation-provenance`'s own invocation guard
+    (`verify_implementation_provenance_recovery`/
+    `apply_implementation_provenance_recovery`) admits. For `"1"`/`"2.1"`
+    (and an absent/`None` version, the same convention
+    `bundle_generation_target_phase` follows): the single-member set
+    `{AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW}`, byte-identical to pre-CP3
+    behavior. For `"2.2"`: the three-phase set
+    `{AWAITING_LOCAL_IMPLEMENTATION_REVIEW,
+    AWAITING_MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW,
+    AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW}` -- every phase a `"2.2"` item
+    can occupy between a generation-record commit `T` and technical
+    approval, since recovery never changes `phase`'s value and so must be
+    invocable from whichever of those three phases the round is currently
+    sitting at. The resulting invariant: for the recovered role, the
+    command guard and this function's own return value are the identical
+    set, and both are always a subset of the additively-widened
+    `RECOVERED_BUNDLE_GENERATION_RECORD_LEGAL_SOURCE_PHASES` (the legal
+    *parent* phases, a superset covering every source phase recovery's own
+    same-content interval walk may cross, not only the phase recovery is
+    invoked *from*)."""
+    if governing_workflow_version == "2.2":
+        return frozenset({
+            "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+            "AWAITING_MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW",
+            "AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW",
+        })
+    return frozenset({"AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW"})
+
+
 def record_bundle_generation(
     state: dict, work_item_id: str, *, stage: str, head: str, now: str, outcome: str = "ordinary",
 ) -> dict:
@@ -10974,9 +11144,12 @@ def record_bundle_generation(
     (`IllegalBundleGenerationSourcePhaseError`), or naming the non-`STALE`
     status for the `AWAITING_FUNCTIONAL_REVIEW` case specifically
     (`BundleGenerationRequiresStaleTechnicalApprovalError`). Always sets
-    the durable target `AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW` -- the
-    "Ordinary bundle-publication phase transition" contract, `WFR-61`'s
-    five-field mutation.
+    the durable target `bundle_generation_target_phase(stage,
+    governing_workflow_version)` -- version-dependent since workflow-2.5.0
+    CP3 (`AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW` for `"1"`/`"2.1"`,
+    byte-identical to before; `AWAITING_LOCAL_IMPLEMENTATION_REVIEW` for
+    `"2.2"`) -- the "Ordinary bundle-publication phase transition"
+    contract, `WFR-61`'s five-field mutation.
 
     `outcome` (WF8c (c), D-Commit-Provenance "Same-content post-fix
     republication") selects which of this function's two legal outcomes
@@ -11000,10 +11173,12 @@ def record_bundle_generation(
     intervening commits are all legitimately excluded-only; `head` itself
     is otherwise unused in this branch, kept only for call-shape symmetry.
     Both outcomes always perform a real `phase` transition into
-    `AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW` from whichever legal source
-    phase for the requested `stage` was current -- never value-wise
-    unchanged, since `AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW` itself is
-    never one of this function's own legal source phases for any stage."""
+    `bundle_generation_target_phase`'s own resolved value, from whichever
+    legal source phase for the requested `stage` was current -- never
+    value-wise unchanged, since neither
+    `AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW` nor (for `"2.2"`)
+    `AWAITING_LOCAL_IMPLEMENTATION_REVIEW` is ever itself one of this
+    function's own legal source phases for any stage."""
     if stage not in ("implementation", "post-fix"):
         raise InvalidBundleGenerationStageError(
             f"reviewed_implementation_head is written only at the "
@@ -11032,7 +11207,9 @@ def record_bundle_generation(
                 f"requires technical_approval.status == 'STALE' (the functional-review "
                 f"bounded-fix marker) -- got {technical_approval_status!r}"
             )
-    work_item["phase"] = "AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW"
+    work_item["phase"] = bundle_generation_target_phase(
+        stage, work_item.get("governing_workflow_version"),
+    )
     if outcome == "ordinary":
         work_item["reviewed_implementation_head"] = head
         work_item["implementation_revision"] = (work_item.get("implementation_revision") or 0) + 1
@@ -11087,14 +11264,35 @@ def enter_applying_review_feedback(state: dict, work_item_id: str, now: str) -> 
 ORDINARY_BUNDLE_GENERATION_RECORD_FIELDS = frozenset({
     "phase", "reviewed_implementation_head", "implementation_revision",
     "state_revision", "last_transition",
+    # workflow-2.5.0 CP3: widened unconditionally (not "2.2"-scoped) to
+    # admit a "2.2" REVISE loop's stale, uncommitted implementation_review_
+    # stages residue in a commit's own field diff -- see D-Implementation-
+    # Review-Stages' "Provenance-interval interaction", second fix. Safe
+    # for "1"/"2.1": that vocabulary is never written by their own
+    # state_transaction mutators, so it is always absent from their field
+    # diffs regardless of what this set admits.
+    "implementation_review_stages",
 })
 
 RECOVERED_BUNDLE_GENERATION_RECORD_FIELDS = frozenset({
     "phase", "state_revision", "last_transition",
+    # Same unconditional widening as ORDINARY_BUNDLE_GENERATION_RECORD_FIELDS
+    # above, for the identical reason -- a "2.2" same-content post-fix
+    # republication (record_bundle_generation(outcome="same_content"), the
+    # recovered role) can carry the same stale ledger residue.
+    "implementation_review_stages",
 })
 
 RECOVERED_BUNDLE_GENERATION_RECORD_LEGAL_SOURCE_PHASES = (
-    BUNDLE_GENERATION_LEGAL_SOURCE_PHASES | {"AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW"}
+    # workflow-2.5.0 CP3: additively widened with the two new "2.2" phases
+    # (D-Implementation-Review-Stages' "Provenance-interval interaction",
+    # third fix) -- AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW remains a legal
+    # parent phase for "1"/"2.1" (and for "2.2", as the terminal phase).
+    BUNDLE_GENERATION_LEGAL_SOURCE_PHASES | {
+        "AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW",
+        "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+        "AWAITING_MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW",
+    }
 )
 
 
@@ -11332,7 +11530,12 @@ def validate_bundle_generation_record_commit(repo_root: Path, commit: str, work_
         )
     field_diff = _work_item_field_diff(repo_root, commit, work_item_id)
     after = _read_json_at_commit_or_empty(repo_root, commit, state_rel)
-    committed_phase = after.get("work_items", {}).get(work_item_id, {}).get("phase")
+    committed_work_item = after.get("work_items", {}).get(work_item_id, {})
+    committed_phase = committed_work_item.get("phase")
+    # workflow-2.5.0 CP3: read anchored to this exact commit's own
+    # committed work_items[work_item_id] dict, never the live entry
+    # (D-Implementation-Review-Stages "Provenance-interval interaction").
+    governing_workflow_version = committed_work_item.get("governing_workflow_version")
     if role == "ordinary":
         if not field_diff or not field_diff <= ORDINARY_BUNDLE_GENERATION_RECORD_FIELDS:
             raise MalformedBundleGenerationRecordCommitError(
@@ -11346,10 +11549,16 @@ def validate_bundle_generation_record_commit(repo_root: Path, commit: str, work_
                 f"include 'phase' -- an ordinary bundle-generation-record commit must always "
                 f"transition phase (OPUS-R101-001)"
             )
-        if committed_phase != "AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW":
+        # Stage is irrelevant here -- bundle_generation_target_phase's
+        # value depends only on governing_workflow_version, identical for
+        # both "implementation"/"post-fix" at any single version -- so
+        # "implementation" is passed as an arbitrary, invariant witness.
+        required_target = bundle_generation_target_phase("implementation", governing_workflow_version)
+        if committed_phase != required_target:
             raise MalformedBundleGenerationRecordCommitError(
                 f"{commit} sets {work_item_id!r}'s phase to {committed_phase!r}, not the "
-                f"required target 'AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW'"
+                f"required target {required_target!r} (governing_workflow_version "
+                f"{governing_workflow_version!r})"
             )
         return
     # role == "recovered" (WF8c (c)/(b), D-Commit-Provenance condition 4's
@@ -11363,10 +11572,18 @@ def validate_bundle_generation_record_commit(repo_root: Path, commit: str, work_
             f"(recovered role) -- reviewed_implementation_head/implementation_revision "
             f"must never change in a recovered-role commit"
         )
-    if committed_phase != "AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW":
+    # workflow-2.5.0 CP3: a membership test, not a single-valued equality
+    # (D-Implementation-Review-Stages "Provenance-interval interaction",
+    # third fix) -- {AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW} for "1"/"2.1",
+    # the three-phase "2.2" set otherwise.
+    legal_committed_phases = bundle_generation_recovered_role_legal_committed_phases(
+        governing_workflow_version,
+    )
+    if committed_phase not in legal_committed_phases:
         raise MalformedBundleGenerationRecordCommitError(
-            f"{commit} sets {work_item_id!r}'s phase to {committed_phase!r}, not the "
-            f"required target 'AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW'"
+            f"{commit} sets {work_item_id!r}'s phase to {committed_phase!r}, not one of "
+            f"the required target phases {sorted(legal_committed_phases)} "
+            f"(governing_workflow_version {governing_workflow_version!r})"
         )
     parent = _run(["git", "rev-parse", f"{commit}^"], cwd=repo_root).strip()
     parent_phase = _read_json_at_commit_or_empty(repo_root, parent, state_rel).get(
@@ -11755,13 +11972,22 @@ def resolve_bundle_generation_outcome(
 class IllegalImplementationProvenanceRecoverySourcePhaseError(Exception):
     """Raised when `verify_implementation_provenance_recovery`/
     `apply_implementation_provenance_recovery` is invoked from a phase
-    other than `AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW` -- the only phase
+    outside `bundle_generation_recovered_role_legal_committed_phases(
+    governing_workflow_version)` -- for `"1"`/`"2.1"` (and an absent
+    version) that is the single phase `AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW`,
+    byte-identical to pre-workflow-2.5.0 behavior; for `"2.2"` it is the
+    three phases a `"2.2"` item can occupy between a generation-record
+    commit `T` and technical approval
+    (`AWAITING_LOCAL_IMPLEMENTATION_REVIEW`,
+    `AWAITING_MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW`,
+    `AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW`) -- the only phases
     `/recover-implementation-provenance` (WF8c (b)) may run from: recovery
     repairs a stale `generation_head` for the round *currently* awaiting
-    external review, never a round still being written
-    (`SELF_REVIEWING_IMPLEMENTATION`/`APPLYING_REVIEW_FEEDBACK` already
-    have their own same-content path through `record_bundle_generation`'s
-    `outcome="same_content"`, WF8c (c)) and never any other phase."""
+    (local, manual-external, or external) review, never a round still
+    being written (`SELF_REVIEWING_IMPLEMENTATION`/`APPLYING_REVIEW_FEEDBACK`
+    already have their own same-content path through
+    `record_bundle_generation`'s `outcome="same_content"`, WF8c (c)) and
+    never any other phase."""
 
 
 class ImplementationProvenanceRecoveryNotApplicableError(Exception):
@@ -11799,11 +12025,13 @@ def verify_implementation_provenance_recovery(
     no state mutation and no Git write of its own."""
     work_item_id = work_item["work_item_id"]
     phase = work_item.get("phase")
-    if phase != "AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW":
+    legal_phases = bundle_generation_recovered_role_legal_committed_phases(
+        work_item.get("governing_workflow_version"),
+    )
+    if phase not in legal_phases:
         raise IllegalImplementationProvenanceRecoverySourcePhaseError(
             f"recover_implementation_provenance invoked for {work_item_id!r} from phase "
-            f"{phase!r}, but the only legal source phase is "
-            f"'AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW'"
+            f"{phase!r}, but the only legal source phase(s) are {sorted(legal_phases)}"
         )
     outcome, t = resolve_bundle_generation_outcome(
         repo_root, work_item, base_commit=base_commit, head=head,
@@ -11857,34 +12085,37 @@ def validate_implementation_provenance_recovery_confirmation(
 def apply_implementation_provenance_recovery(state: dict, work_item_id: str, now: str) -> dict:
     """The state half of `/recover-implementation-provenance`'s `S2`
     commit (WF8c (b), `WFR-62`): recovery never changes `phase`'s *value*
-    -- the work item was already `AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW`
-    and remains there -- only `state_revision`/`last_transition` change,
-    the recovered-role field set `record_bundle_generation`'s own
-    `same_content` outcome already uses, minus `phase` itself since there
-    is no transition to *perform* here (unlike that function's own legal
-    source phases -- `SELF_REVIEWING_IMPLEMENTATION` for
-    `stage="implementation"`; `APPLYING_REVIEW_FEEDBACK`, or
-    `AWAITING_FUNCTIONAL_REVIEW` with a `STALE` `technical_approval`, for
-    `stage="post-fix"` -- every one of which does transition into this
-    phase; `workflow-v2-3-followups` continued scope widened this from two
-    to three).
+    -- the work item was already at one of
+    `bundle_generation_recovered_role_legal_committed_phases(
+    governing_workflow_version)` and remains there -- only
+    `state_revision`/`last_transition` change, the recovered-role field
+    set `record_bundle_generation`'s own `same_content` outcome already
+    uses, minus `phase` itself since there is no transition to *perform*
+    here (unlike that function's own legal source phases -- `SELF_
+    REVIEWING_IMPLEMENTATION` for `stage="implementation"`;
+    `APPLYING_REVIEW_FEEDBACK`, or `AWAITING_FUNCTIONAL_REVIEW` with a
+    `STALE` `technical_approval`, for `stage="post-fix"` -- every one of
+    which does transition into this phase; `workflow-v2-3-followups`
+    continued scope widened this from two to three).
     `reviewed_implementation_head`/`implementation_revision` are never
     touched, exactly as the recovered role requires. Refuses via
     `IllegalImplementationProvenanceRecoverySourcePhaseError` if the
-    freshly re-read state's phase is not
-    `AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW` at the moment this mutator
-    actually runs inside `state_transaction`'s lock -- an independent
-    check, never merely trusting the caller's own already-passed
-    `verify_implementation_provenance_recovery` precondition, since a race
-    could have moved the phase between that read and this write."""
+    freshly re-read state's phase is not a member of that legal set at the
+    moment this mutator actually runs inside `state_transaction`'s lock --
+    an independent check, never merely trusting the caller's own
+    already-passed `verify_implementation_provenance_recovery`
+    precondition, since a race could have moved the phase between that
+    read and this write."""
     new_state = copy.deepcopy(state)
     work_item = new_state["work_items"][work_item_id]
     phase = work_item.get("phase")
-    if phase != "AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW":
+    legal_phases = bundle_generation_recovered_role_legal_committed_phases(
+        work_item.get("governing_workflow_version"),
+    )
+    if phase not in legal_phases:
         raise IllegalImplementationProvenanceRecoverySourcePhaseError(
             f"apply_implementation_provenance_recovery invoked for {work_item_id!r} from "
-            f"phase {phase!r}, but the only legal source phase is "
-            f"'AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW'"
+            f"phase {phase!r}, but the only legal source phase(s) are {sorted(legal_phases)}"
         )
     work_item["state_revision"] = work_item.get("state_revision", 1) + 1
     work_item["last_transition"] = now
@@ -12200,6 +12431,222 @@ def transition_to_awaiting_local_plan_review(state: dict, work_item_id: str, now
 
 
 # ---------------------------------------------------------------------------
+# workflow-2.5.0 CP3: D-Implementation-Review-Stages -- two-stage
+# local-then-manual-external *implementation*-review protocol's ledger
+# writers and gate widening, mirroring WF4a-iv's plan-review-stage section
+# above function-for-function, substituted for the implementation stage
+# (`"2.2"`-only -- see `WrongGoverningVersionForImplementationReviewStageError`
+# for why this protocol never applies to `"1"`/`"2.1"`, unlike the
+# plan-review protocol, which is `TWO_STAGE_PLAN_REVIEW_VERSIONS`-governed
+# for both). No separate `transition_to_awaiting_local_implementation_review`
+# writer exists: `record_bundle_generation`'s own version-dependent
+# `bundle_generation_target_phase` resolver (further below in this module)
+# is the sole writer for both entries into `AWAITING_LOCAL_IMPLEMENTATION_
+# REVIEW`, first-round and post-fix alike.
+# ---------------------------------------------------------------------------
+
+
+def _require_implementation_review_stage_version(work_item: dict) -> None:
+    """The implementation-stage counterpart of `_require_v2_1_plan_review`:
+    unlike that check (membership in `TWO_STAGE_PLAN_REVIEW_VERSIONS`, both
+    `"2.1"`/`"2.2"`), this ledger's two-stage protocol is `"2.2"`-only, so
+    this is a single-valued equality, never a membership test."""
+    if work_item.get("governing_workflow_version") != "2.2":
+        raise WrongGoverningVersionForImplementationReviewStageError(
+            f"{work_item['work_item_id']}: governing_workflow_version is "
+            f"{work_item.get('governing_workflow_version')!r}, not \"2.2\" -- the "
+            f"two-stage implementation-review protocol applies only to \"2.2\" "
+            f"work items"
+        )
+
+
+def validate_local_implementation_review_preconditions(work_item: dict) -> None:
+    """`/review-implementation`'s resolution/phase preconditions, in its
+    `"2.2"` authoritative role (D-Implementation-Review-Stages): the item
+    must be `"2.2"`-governed and currently at
+    `AWAITING_LOCAL_IMPLEMENTATION_REVIEW`. Bundle/manifest staleness is a
+    separate, generic check (D-Bundle-Manifest, reused unchanged) run by
+    the command itself before this, not duplicated here -- the exact
+    discipline `validate_local_plan_review_preconditions` already
+    follows."""
+    _require_implementation_review_stage_version(work_item)
+    if work_item.get("phase") != "AWAITING_LOCAL_IMPLEMENTATION_REVIEW":
+        raise WrongPhaseForImplementationReviewStageError(
+            f"{work_item['work_item_id']}: phase is {work_item.get('phase')!r}, "
+            f"not \"AWAITING_LOCAL_IMPLEMENTATION_REVIEW\" -- /review-implementation "
+            f"refuses rather than silently re-running (e.g. already completed this "
+            f"round)"
+        )
+
+
+def record_local_implementation_review(
+    state: dict, work_item_id: str, *, verdict: str, bundle_id: str,
+    review_content_id: str, round: int, now: str,
+) -> dict:
+    """`/review-implementation`'s sole state write set in its `"2.2"`
+    authoritative role (D-Implementation-Review-Stages transition table),
+    mirroring `record_local_plan_review` exactly, substituted for the
+    implementation stage:
+
+    - `APPROVE`: records the completed `LOCAL_IMPLEMENTATION_REVIEW`
+      stage against `review_content_id` (starting a fresh ledger scoped to
+      this content id) and transitions to
+      `AWAITING_MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW`.
+    - `REVISE`: no ledger write; transitions directly to
+      `APPLYING_REVIEW_FEEDBACK` -- unlike the plan side's `REVISING_PLAN`,
+      since `/apply-implementation-review`'s own `"2.2"` branch makes no
+      separate `enter_applying_review_feedback` call (that command's own
+      "1"/"2.1" branch is the one that still calls it). Can never reach
+      `AWAITING_MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW`.
+    - `BLOCK`: no ledger write, no phase transition -- a true no-op; the
+      returned state is unchanged.
+    """
+    if verdict not in IMPLEMENTATION_REVIEW_VERDICTS:
+        raise UnknownImplementationReviewVerdictError(
+            f"unknown implementation-review verdict: {verdict!r}"
+        )
+    new_state = copy.deepcopy(state)
+    work_item = new_state["work_items"][work_item_id]
+    validate_local_implementation_review_preconditions(work_item)
+
+    if verdict == "APPROVE":
+        work_item["implementation_review_stages"] = {
+            "review_content_id": review_content_id,
+            LOCAL_IMPLEMENTATION_REVIEW: {
+                "bundle_id": bundle_id, "verdict": "APPROVE",
+                "round": round, "completed_at": now,
+            },
+            MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW: None,
+        }
+        work_item["phase"] = "AWAITING_MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW"
+    elif verdict == "REVISE":
+        work_item["phase"] = "APPLYING_REVIEW_FEEDBACK"
+    else:  # BLOCK
+        return state
+
+    work_item["state_revision"] = work_item.get("state_revision", 1) + 1
+    work_item["last_transition"] = now
+    _validate_implementation_review_stages(work_item)
+    return new_state
+
+
+def validate_manual_implementation_review_preconditions(
+    work_item: dict, *, current_review_content_id: str, feedback_role: str,
+    feedback_review_content_id: str,
+) -> None:
+    """`/record-manual-implementation-review`'s resolution/phase/role/
+    staleness/invariant preconditions (D-Implementation-Review-Stages
+    transition table), checked before writing anything -- mirroring
+    `validate_manual_plan_review_preconditions` exactly, substituted for
+    the implementation stage:
+
+    - `"2.2"`-governed and currently at
+      `AWAITING_MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW`.
+    - the feedback's declared role is exactly the canonical
+      `MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW` (rejects a local-role,
+      unlabeled, or any other feedback file) -- reuses
+      `WrongReviewerRoleError`, already stage-agnostic.
+    - the feedback's `review_content_id` matches the current recomputed
+      value -- **hard**, blocks ingestion (reuses `StaleReviewContentIdError`,
+      already stage-agnostic; distinct from the advisory-only `bundle_id`
+      check, `check_manual_stage_bundle_id_advisory`, also reused verbatim
+      and never performed here).
+    - a current `LOCAL_IMPLEMENTATION_REVIEW` `APPROVE` is recorded
+      for the same `review_content_id` (restated invariant).
+    - no `MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW` stage is already recorded
+      against the current `review_content_id` (rejects duplicate
+      ingestion).
+    """
+    _require_implementation_review_stage_version(work_item)
+    if work_item.get("phase") != "AWAITING_MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW":
+        raise WrongPhaseForImplementationReviewStageError(
+            f"{work_item['work_item_id']}: phase is {work_item.get('phase')!r}, "
+            f"not \"AWAITING_MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW\""
+        )
+    if feedback_role != MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW:
+        raise WrongReviewerRoleError(
+            f"REVIEW_FEEDBACK.md declares Reviewer role: {feedback_role!r}, "
+            f"expected \"{MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW}\""
+        )
+    if feedback_review_content_id != current_review_content_id:
+        raise StaleReviewContentIdError(
+            f"feedback review_content_id {feedback_review_content_id!r} does not "
+            f"match the current recomputed value {current_review_content_id!r} -- "
+            f"this is a hard block, unlike the manual stage's advisory bundle_id check"
+        )
+    stages = normalize_implementation_review_stages(work_item.get("implementation_review_stages") or {})
+    local = stages.get(LOCAL_IMPLEMENTATION_REVIEW)
+    if (
+        stages.get("review_content_id") != current_review_content_id
+        or local is None or local.get("verdict") != "APPROVE"
+    ):
+        raise MissingLocalApprovalForManualImplementationStageError(
+            f"{work_item['work_item_id']}: no current LOCAL_IMPLEMENTATION_REVIEW "
+            f"APPROVE recorded for review_content_id {current_review_content_id!r}"
+        )
+    if stages.get(MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW) is not None:
+        raise DuplicateManualImplementationStageIngestionError(
+            f"{work_item['work_item_id']}: MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW is "
+            f"already recorded against review_content_id {current_review_content_id!r}"
+        )
+
+
+def record_manual_implementation_review(
+    state: dict, work_item_id: str, *, verdict: str, bundle_id: str, round: int,
+    now: str, current_review_content_id: str, feedback_role: str,
+    feedback_review_content_id: str,
+) -> dict:
+    """`/record-manual-implementation-review`'s sole state write set
+    (D-Implementation-Review-Stages transition table), mirroring
+    `record_manual_plan_review` exactly, substituted for the
+    implementation stage:
+
+    - `APPROVE`: records the completed `MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW`
+      stage -- including the feedback's own `bundle_id` **verbatim**,
+      regardless of whether it matches the current recomputed one, so the
+      ledger records what the reviewer actually saw -- and transitions to
+      `AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW`, the terminal "ready for
+      approval" phase (reused, not a fresh name -- see
+      `D-Implementation-Review-Version-Activation`'s "terminal-phase
+      naming" decision). Unlike the plan side's own manual-`APPROVE` exit
+      (`AWAITING_PLAN_APPROVAL`, a distinct gate phase from the ledger
+      itself), the implementation side has no separate pre-existing
+      terminal-phase name to promote (the disposition record's own
+      divergence 2), so it reuses the phase name that already existed.
+    - `REVISE`: no ledger write; transitions directly to
+      `APPLYING_REVIEW_FEEDBACK`.
+    - `BLOCK`: no ledger write, no phase transition -- a true no-op; the
+      returned state is unchanged.
+    """
+    if verdict not in IMPLEMENTATION_REVIEW_VERDICTS:
+        raise UnknownImplementationReviewVerdictError(
+            f"unknown implementation-review verdict: {verdict!r}"
+        )
+    new_state = copy.deepcopy(state)
+    work_item = new_state["work_items"][work_item_id]
+    validate_manual_implementation_review_preconditions(
+        work_item, current_review_content_id=current_review_content_id,
+        feedback_role=feedback_role, feedback_review_content_id=feedback_review_content_id,
+    )
+
+    if verdict == "APPROVE":
+        work_item["implementation_review_stages"][MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW] = {
+            "bundle_id": bundle_id, "verdict": "APPROVE",
+            "round": round, "completed_at": now,
+        }
+        work_item["phase"] = "AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW"
+    elif verdict == "REVISE":
+        work_item["phase"] = "APPLYING_REVIEW_FEEDBACK"
+    else:  # BLOCK
+        return state
+
+    work_item["state_revision"] = work_item.get("state_revision", 1) + 1
+    work_item["last_transition"] = now
+    _validate_implementation_review_stages(work_item)
+    return new_state
+
+
+# ---------------------------------------------------------------------------
 # WF-M8a: D-Legacy phase 1 -- Milestone 8 legacy import (dormant
 # LEGACY_READY, resolves GPT-R9-005/OPUS-R6-006/OPUS-R6-009/OPUS-R10-011).
 # Phase 2 (the adoption transition on /prepare-functional-review) is
@@ -12336,13 +12783,30 @@ def promote_legacy_work_item(
 
     On success: `active_work_item_id` is set to `work_item_id`,
     `governing_workflow_version` transitions `"1"` -> `"2.1"` (an
-    ordinary, auditable version transition, legal only because adoption
-    runs from Workflow v2.1's own completed `/prepare-functional-review`,
-    so the repository default is already `"2.1"` -- resolves
-    `OPUS-R10-011`), and `phase` transitions to `AWAITING_FUNCTIONAL_REVIEW`
-    -- `technical_approval` itself is preserved exactly as imported
-    (`basis: LEGACY_V1`, untouched); adoption changes routing, never the
-    approval record.
+    ordinary, auditable version transition -- resolves `OPUS-R10-011`), and
+    `phase` transitions to `AWAITING_FUNCTIONAL_REVIEW` -- `technical_approval`
+    itself is preserved exactly as imported (`basis: LEGACY_V1`, untouched);
+    adoption changes routing, never the approval record.
+
+    **The `"2.1"` destination is a deliberate literal, corrected
+    workflow-2.5.0 (resolves `LOCAL_MODEL_PLAN_REVIEW` round 6, optional
+    finding 1): never `config["default_workflow_version"]`.** A legacy
+    item adopted here is, by construction, already past both
+    implementation-review stages `D-Implementation-Review-Stages` adds at
+    `"2.2"` -- it was built and reviewed entirely under Workflow v1, then
+    imported with a `LEGACY_V1`-basis `technical_approval` already in hand
+    (`import_legacy_work_item`), so there is no implementation-review round
+    left for it to run through, whatever the repository's own current
+    default version is. Promoting it to the current default instead --
+    even after this repository has separately activated `"2.2"`
+    (`workflow_state_activate`/`WF-Activate`) -- would retroactively assign
+    it a two-stage implementation-review obligation it can never satisfy,
+    since it has no future implementation round left in which to satisfy
+    it. `"2.1"` is therefore always correct: it is the version at which
+    `D-Legacy` phase 2 first became possible, still ahead of
+    `D-Implementation-Review-Stages`' own additional scope, and it names
+    that fact directly rather than deferring to whatever configuration
+    happens to be active at adoption time.
 
     **`artifacts_path` has no default** (salvage audit `I6`): it used to
     default to `fingerprint.DEFAULT_ARTIFACTS_PATH`, `workflow-v2-1-core`'s
