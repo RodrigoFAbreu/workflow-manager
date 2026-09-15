@@ -26,9 +26,52 @@ development.
 
 ## Current checkpoint
 
-**CP1-CP9 complete** (`implementation-review-two-stage`, 13 checkpoints
-total). Next: **CP10** (post-v2.3.1 backlog, `v2.4.0-002` reconsideration,
-depends on CP1).
+**CP1-CP10 complete** (`implementation-review-two-stage`, 13 checkpoints
+total). Next: **CP11** (release authoring: `migration/overlays/2.5.0/`
+classification.json plus payload, `build_release.py --check`, depends on
+CP1-CP10).
+
+CP10 delivered the post-v2.3.1 backlog's `v2.4.0-002` reconsideration
+(`§2.7` point 4, `§8`, `§9` point 3) -- a written disposition alone, no
+code change and no edit to the plan document itself (`IMPLEMENTATION_REVIEW_TWO_STAGE_PLAN.md`
+is this work item's own `plan_stage.protected_paths` entry; its
+`review_content_id` is fixed as of the current `plan_approval`, so nothing
+this checkpoint does may touch it). The reconsideration's full text
+already lives in the approved plan, produced during planning and settled
+at `MANUAL_EXTERNAL_PLAN_REVIEW` round 1's required acceptance criterion
+4 (plan revision 15, carried unchanged through revision 41's approval this
+milestone is executing against): both full structural fixes for
+`docs/defects/v2.4.0-002-amendment-claim-race-crosses-worktree-boundary.md`
+(a `claims_dir`-rooted lock; a repo-global phase witness) remain declined,
+as concurrency-correctness engineering this milestone's own
+review-tooling mission does not undertake; the cheap `IMPL10-O1` partial
+mitigation (a second `resolve_claim(...)` re-check immediately before
+`request_plan_amendment`'s own supersede) is declined too, deferred
+together with both structural fixes, for the same reason the defect
+record itself already gave when it first declined this exact option
+(round 10, under review pressure, in the same round the residual was
+found) -- narrowing one race window without establishing the documented
+cross-worktree guarantee adds surface to a critical section in a
+review-focused milestone without closing the defect. All four
+previously-deferred defects (`§8`) now carry a settled disposition; CP13
+copies this one's disposition, verbatim in substance, into the defect's
+own `docs/defects/v2.4.0-002-*.md` record (the other three copies land at
+CP13 too -- `docs/defects/*.md` is excluded, not protected, at both
+plan and implementation stage, so those four writes are deliberately
+non-review-bound mirrors of `§8`'s own already-reviewed text, never a
+second place its content could diverge from what was reviewed).
+
+Verification for CP10 (no code change; the narrowest relevant check is
+confirming the repository's own baseline suite is unaffected):
+```
+python3 tests/run_all.py --fast
+```
+Result: unaffected by this checkpoint (no file `run_all.py --fast`
+exercises changed). `git status` after this checkpoint's own narrative
+update shows only `docs/ai-workflow/WORKFLOW_STATE.json` (checkpoint
+bookkeeping) and `docs/ACTIVE_MILESTONE.md` (this section) touched --
+`IMPLEMENTATION_REVIEW_TWO_STAGE_PLAN.md` untouched, confirmed by `git
+diff --stat` against `HEAD` before committing.
 
 CP9 delivered the post-v2.3.1 backlog's tractable fixes (`§2.7`), in
 `migration/overlays/2.5.0/payload/`:
