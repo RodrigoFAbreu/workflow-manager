@@ -6612,7 +6612,10 @@ class TestValidateTechnicalApprovalCommit(unittest.TestCase):
     own exhaustive field-mutation check, mirroring items 267/254's
     generation-record coverage for the technical-approval commit
     (`apply_technical_approval`'s own `{"technical_approval", "phase",
-    "state_revision", "last_transition"}` exact field set)."""
+    "state_revision", "last_transition"}` exact field set, widened
+    workflow-2.5.0 CP12 with `implementation_review_stages` -- see
+    `TestTechnicalApprovalCommitAdmitsImplementationReviewStagesResidue`
+    below for why)."""
 
     WI = "wi"
 
@@ -6729,6 +6732,82 @@ class TestValidateTechnicalApprovalCommit(unittest.TestCase):
             commit = _commit_state_only(repo, self.WI, phase_only, "phase only")
             with self.assertRaises(ws.MalformedTechnicalApprovalCommitError):
                 ws.validate_technical_approval_commit(repo.root, commit, self.WI)
+
+
+class TestTechnicalApprovalCommitAdmitsImplementationReviewStagesResidue(unittest.TestCase):
+    """workflow-2.5.0 CP12 (disposable-repository functional validation):
+    `TECHNICAL_APPROVAL_COMMIT_FIELDS`' own widening, found live -- not
+    hand-derived -- by CP12's own end-to-end `"2.2"` scenario, whose
+    `/review-implementation` (local) then `/record-manual-implementation-
+    review` (manual) rounds leave `implementation_review_stages` uncommitted
+    (neither writer creates its own durability commit -- see `review-
+    implementation.md`'s "2.2" authoritative branch step A6 and
+    `record-manual-implementation-review.md`'s identical shape) until the
+    very next commit, which for a `"2.2"` item's ordinary positive path is
+    always `/approve-review implementation`'s own technical-approval commit.
+    Before this widening, that commit's own field diff always included
+    `implementation_review_stages` and `validate_technical_approval_commit`
+    always refused it outright -- the mainline, first-round positive path
+    for *every* `"2.2"` item, not an edge case."""
+
+    WI = "wi"
+
+    def test_technical_approval_commit_with_ledger_residue_passes(self):
+        with ScratchRepo() as repo:
+            _seed_base_provenance_state(repo, self.WI)
+            parent_state = {
+                "work_item_id": self.WI, "work_item_type": "process",
+                "phase": "AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW",
+                "technical_approval": None, "state_revision": 5, "last_transition": "t5",
+                "implementation_review_stages": {
+                    "review_content_id": "c-1",
+                    "LOCAL_IMPLEMENTATION_REVIEW": {
+                        "bundle_id": "b-1", "verdict": "APPROVE", "round": 1, "completed_at": "t3",
+                    },
+                    "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": None,
+                },
+            }
+            _commit_state_only(repo, self.WI, parent_state, "parent")
+            # The manual-approve round's own ledger write, uncommitted --
+            # exactly the residue a real /record-manual-implementation-review
+            # invocation leaves behind, riding into the very next commit.
+            child_state = parent_state | {
+                "technical_approval": {"status": "CURRENT"},
+                "phase": "AWAITING_FUNCTIONAL_REVIEW", "state_revision": 6, "last_transition": "t6",
+                "implementation_review_stages": {
+                    **parent_state["implementation_review_stages"],
+                    "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": {
+                        "bundle_id": "b-1", "verdict": "APPROVE", "round": 1, "completed_at": "t6",
+                    },
+                },
+            }
+            commit = _commit_state_only(repo, self.WI, child_state, "technical approval")
+            ws.validate_technical_approval_commit(repo.root, commit, self.WI)  # must not raise
+
+    def test_a_1_or_21_item_never_carries_this_residue_so_the_widening_is_moot_for_it(self):
+        """Safety argument, made concrete: `"1"`/`"2.1"`'s own state
+        mutators never write `implementation_review_stages` at all, so
+        widening this set can never let a genuinely unrelated field slip
+        through for them -- the field is simply always absent from their
+        own diffs."""
+        with ScratchRepo() as repo:
+            _seed_base_provenance_state(repo, self.WI)
+            parent_state = {
+                "work_item_id": self.WI, "work_item_type": "process",
+                "phase": "AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW",
+                "technical_approval": None, "state_revision": 5, "last_transition": "t5",
+            }
+            _commit_state_only(repo, self.WI, parent_state, "parent")
+            child_state = parent_state | {
+                "technical_approval": {"status": "CURRENT"},
+                "phase": "AWAITING_FUNCTIONAL_REVIEW", "state_revision": 6, "last_transition": "t6",
+            }
+            commit = _commit_state_only(repo, self.WI, child_state, "technical approval")
+            ws.validate_technical_approval_commit(repo.root, commit, self.WI)  # must not raise
+            self.assertNotIn(
+                "implementation_review_stages",
+                ws._work_item_field_diff(repo.root, commit, self.WI),
+            )
 
 
 class TestApplyImplementationProvenanceRecovery(unittest.TestCase):

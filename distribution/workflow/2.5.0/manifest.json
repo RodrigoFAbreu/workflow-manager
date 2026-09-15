@@ -9,7 +9,7 @@
   "provenance": {
     "origin": "authored",
     "base_release": "2.4.0",
-    "overlay_commit": "16b170117f71daff5aea305b8e7af17e99b9e8fb"
+    "overlay_commit": "36092c5e81380671b92aca35021b4fac81bf7f58"
   },
   "categories": {
     "distribution": "Canonical Workflow implementation. Copied byte-for-byte into the payload and installed into every managed target repository.",
@@ -729,12 +729,12 @@
       "category": "distribution",
       "rule": "^scripts/workflow_state\\.py$",
       "rationale": "KNOWN_PHASES additions, the generalized version-aware activation/rollback helpers, implementation_review_stages ledger writers (record_local_implementation_review, record_manual_implementation_review), the widened technical_approval_gate_reachable, and bundle_generation_target_phase/bundle_generation_recovered_role_legal_committed_phases (D-Implementation-Review-Stages, D-Implementation-Review-Version-Activation; CP1-CP3, CP9, CP10).",
-      "sha256": "21cfd8bc30bae45925ba8d7e38155c2e465330ff4251dcaaf438777849ff515d",
-      "size": 726140,
+      "sha256": "715d6e39022149cf90dc564cb323e38d898e6aa1f7a31a8ec5c1d49f7901ec16",
+      "size": 727962,
       "executable": false,
       "overlay_delta": {
         "base_sha256": "369ea8979a748674e082aa34ddd3f04fd4faf2c552e2aa9b6793fa8864833379",
-        "diff_sha256": "d9e8ed73b46e9cb2e14213bc21e9bfbbd765a28adaada338235581b2145e4142"
+        "diff_sha256": "f61def58f5bbe81f1562b190ab85eba88600b65cf46b2cefee121f49512e1ffa"
       }
     },
     {
@@ -768,12 +768,12 @@
       "category": "distribution",
       "rule": "^scripts/workflow_state_test\\.py$",
       "rationale": "The payload's own conformance suite, updated for the new review-stage writers/gates plus CP7's generic, parametric declaration-coverage helper generalizing the bespoke per-work-item pattern (D-Implementation-Review-Stages, D-Canonical-Review-Data; CP2, CP3, CP7).",
-      "sha256": "cd385348d442203ed9442594de74ffd9864ca4107cbec013e92898b8f28a07dd",
-      "size": 767915,
+      "sha256": "22fe383ff801388208424c09772292bbf77830077f020b7dbc96cdcbc25b9ad7",
+      "size": 772411,
       "executable": false,
       "overlay_delta": {
         "base_sha256": "90919276d86f08cfebf24f70a0e9a003f8c610481879617d2eaba60b711a88eb",
-        "diff_sha256": "116a2805ad40eed5e02c073b7189c840b723efadc01e73bf8f1afba5d7312fa9"
+        "diff_sha256": "df96f01c574e28ec36287571d53ac4b82c3e1457abdbbb475784c6a30327781b"
       }
     },
     {

@@ -26,11 +26,117 @@ development.
 
 ## Current checkpoint
 
-**CP1-CP11 complete** (`implementation-review-two-stage`, 13 checkpoints
-total). Next: **CP12** (disposable-repository functional validation:
-bootstrap directly on `2.5.0`, activate `"2.2"` by hand, drive the full
-two-stage implementation-review flow end to end including its negative
-paths and a bounded-fix scenario; depends on CP11).
+**CP1-CP12 complete** (`implementation-review-two-stage`, 13 checkpoints
+total). Next: **CP13** (full regression -- `python3 tests/run_all.py` --
+plus downgrade-posture documentation and the four previously-deferred
+defects' final disposition, mirroring `§8`; depends on CP12).
+
+CP12 delivered disposable-repository functional validation, in
+`tests/test_implementation_review_two_stage_disposable_repo.py` (new;
+declared under this item's own `plan_stage.excluded_prefixes['tests/']`/
+`implementation_stage.protected_prefixes['tests/']`) plus one execution
+evidence file, `docs/ai-workflow/dry-run/cp12-implementation-review-two-
+stage-disposable-repo-evidence.md` (plan/implementation-stage excluded, per
+`docs/ai-workflow/`'s existing classification):
+
+- **Activation, no repository-internal shortcut** (`LOCAL_MODEL_PLAN_REVIEW`
+  round 10, optional finding 1) -- `TestActivationProcedureOnComposedRelease`
+  bootstraps a disposable repo directly (`workflow_manager.install.bootstrap`)
+  on the real, composed `distribution/workflow/2.5.0/` release and performs
+  `IMPLEMENTATION_REVIEW_WORKFLOW.md`'s documented `WORKFLOW_CONFIG.json`
+  hand edit verbatim (both fields, one commit, `Workflow-Activation: 2.2`
+  trailer) -- never `build_activated_config` (checked separately). Also
+  covers the post-activation `ConfigMissingAfterActivationError` hard stop,
+  a fail-closed unresolvable `Workflow-Rollback` value, and rollback to
+  `"2.1"` (never bare `"1"`).
+- **Update-path compatibility** -- `TestUpdatePathLeavesLiveV21ItemUnaffected`
+  bootstraps on `2.4.0`, writes a live `"2.1"` item mid-
+  `AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW`, updates to `2.5.0`, and proves
+  the state/config are byte-identical afterward and the item is never
+  retroactively upgraded even once the repository separately activates
+  `"2.2"`.
+- **The full two-stage implementation-review protocol**, against a
+  disposable repository carrying the real, composed `"2.2"`-aware tooling
+  (reusing `workflow_acceptance_matrix_test.py`'s own proven `Scratch`/
+  `Item` harness via a minimal `Item22` extension, pointed at
+  `distribution/workflow/2.5.0/payload/scripts/`): the plan-stage two-stage
+  traversal (`LOCAL_MODEL_PLAN_REVIEW`\`round 5, finding B1's plan-side
+  fix, proven end to end); the checkpoint loop through
+  `enter_self_reviewing_implementation`/`record_bundle_generation(stage=
+  "implementation")`, asserting the **committed** phase at the durability
+  commit is `AWAITING_LOCAL_IMPLEMENTATION_REVIEW` (round 6, finding B1's
+  second "Missing tests" item); the positive path (local `APPROVE` ->
+  manual `APPROVE` -> `/approve-review implementation`); every negative path
+  the registry names (local/manual `REVISE`/`BLOCK`, wrong-phase and
+  wrong-version refusals, stale `review_content_id`, duplicate manual
+  ingestion, advisory-only `bundle_id` mismatch); `/recover-implementation-
+  provenance` from each of the three phases a `"2.2"` item can occupy
+  between a generation-record commit and technical approval (B1(a)/B2); and
+  the `"2.2"` functional-review bounded-fix scenario routing back through
+  both implementation-review stages before `/approve-review implementation`
+  is reachable again (I2).
+- **CP7's generic declaration-coverage helper**, exercised directly against
+  this file's own synthetic `"2.2"` item (no second hand-written copy).
+- **CP9's four backlog fixes against fresh disposable-repo scenarios**:
+  three (mode-100644 fallback, the portable host-note skip, the required
+  empty `2.5.0` portability-exceptions entry) are already covered by
+  `tests/test_bootstrap_e2e.py`'s own `TestBootstrappedRepositorySatisfiesThe
+  FrozenSuite250`, which runs the complete frozen suite against a
+  bootstrapped-on-2.5.0 repository; the fourth (the widened
+  implementation-stage `.workflow-manager/` exclusion) gets its own new,
+  disposable-repo-level proof here.
+
+**A defect this validation found and fixed** (in scope: authored,
+unreleased `2.5.0` content, not frozen Workflow semantics -- mirrors CP9's/
+CP11's own precedent of a later checkpoint correcting an earlier
+checkpoint's gap its own required validation sweep discovers, within the
+same protected `migration/` tree): driving the real local-approve-then-
+manual-approve-then-`/approve-review implementation` sequence end to end
+for the first time (CP3/CP4's own hermetic tests each start from a
+hand-built dict-state fixture *after* the ledger write, never one that
+carries it through to the following commit) showed that **every `"2.2"`
+item's very first technical-approval commit failed outright** --
+`MalformedTechnicalApprovalCommitError` -- because `TECHNICAL_APPROVAL_
+COMMIT_FIELDS` had not been widened the way its sibling `ORDINARY_
+BUNDLE_GENERATION_RECORD_FIELDS`/`RECOVERED_BUNDLE_GENERATION_RECORD_
+FIELDS` already were, to admit a `"2.2"` item's uncommitted `implementation_
+review_stages` ledger residue (neither `/review-implementation`'s
+local-approve write nor `/record-manual-implementation-review`'s
+manual-approve write creates its own durability commit; both ride into
+whatever commit comes next -- for the ordinary positive path, always
+`/approve-review implementation`'s own). This was the mainline path, not an
+edge case. Fixed in `migration/overlays/2.5.0/payload/scripts/
+workflow_state.py` (`TECHNICAL_APPROVAL_COMMIT_FIELDS` widened, mirroring
+the generation-record sets' own identical widening) and
+`workflow_state_test.py` (`TestTechnicalApprovalCommitAdmitsImplementation
+ReviewStagesResidue`, two tests); `distribution/workflow/2.5.0/` rebuilt
+(`python3 tools/build_release.py --overlay migration/overlays/2.5.0`) and
+reproduces byte-for-byte (`--check`). `tests/support.py`'s
+`CI_SUITES["2.5.0"]["workflow_state_test.py"]` updated `819` -> `821` to
+match the two new tests; `tests/run_all.py`'s `SLOW_SUITES` gained this
+checkpoint's own new suite.
+
+Verification for CP12 (narrower than the full suite -- CP13 owns the full-
+regression obligation):
+```
+cd tests && python3 test_implementation_review_two_stage_disposable_repo.py -v
+PYTHONPATH=migration/overlays/2.5.0/payload/scripts:scripts python3 -m unittest \
+  workflow_state_test.TestValidateTechnicalApprovalCommit \
+  workflow_state_test.TestTechnicalApprovalCommitAdmitsImplementationReviewStagesResidue -v
+python3 tools/build_release.py --overlay migration/overlays/2.5.0
+python3 tools/build_release.py --overlay migration/overlays/2.5.0 --check
+cd distribution/workflow/2.5.0/payload/scripts && python3 workflow_state_test.py
+```
+Result: the new disposable-repo suite is 28/28 green (~11s); the two
+narrow `workflow_state_test.py` classes are 5/5 green; the release build
+succeeds and `--check` confirms byte-for-byte reproduction; the composed
+release's own full `workflow_state_test.py` run is 821/821 outright with
+only the same 2 pre-existing `TestCanonicalStateSerialization`
+dry-run-path-relative errors this invocation shape is already known to
+produce outside a real repository root (819 tests, same 2 errors, confirmed
+via `git stash` against the pre-fix tree). Full detail and the complete
+`-v` transcript: `docs/ai-workflow/dry-run/cp12-implementation-review-two-
+stage-disposable-repo-evidence.md`.
 
 CP11 delivered release authoring: `migration/overlays/2.5.0/classification.json`
 (25 rules -- 23 `replaced`, 2 `added`) plus the overlay's own payload tree.
@@ -579,14 +685,14 @@ plan approval `CURRENT`, both `LOCAL_MODEL_PLAN_REVIEW` (round 42) and
 
 ## Next action
 
-Continue `/milestone-implement` to implement CP12, one checkpoint per
-invocation (`workflow-2.1` resumable single-checkpoint session model).
+Continue `/milestone-implement` to implement CP13 (full regression and
+downgrade posture, the final checkpoint), one checkpoint per invocation
+(`workflow-2.1` resumable single-checkpoint session model).
 
 ## Functional review checklist
 
-Not yet applicable — the milestone is still in `IMPLEMENTING`. A
-disposable-repository functional-validation checklist is CP12's own
-deliverable (bootstrap on `2.5.0`, activate `"2.2"` by hand per
-`IMPLEMENTATION_REVIEW_WORKFLOW.md`, drive the full two-stage
-implementation-review flow end-to-end including a `"2.2"`
-functional-review bounded-fix scenario).
+Not yet applicable — the milestone is still in `IMPLEMENTING`. CP12's own
+disposable-repository functional-validation suite (`tests/
+test_implementation_review_two_stage_disposable_repo.py`) is automated
+regression coverage, not the manual functional-review checklist itself --
+that is prepared once the milestone reaches `AWAITING_FUNCTIONAL_REVIEW`.

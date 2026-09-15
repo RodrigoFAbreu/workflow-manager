@@ -28,6 +28,7 @@ FAST_SUITES = (
 SLOW_SUITES = (
     "test_conformance_suite.py",
     "test_bootstrap_e2e.py",
+    "test_implementation_review_two_stage_disposable_repo.py",
 )
 
 

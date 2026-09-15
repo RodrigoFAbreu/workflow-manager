@@ -11474,6 +11474,29 @@ def _forbidden_state_mutation(repo_root: Path, commit: str, work_item_id: str) -
 
 TECHNICAL_APPROVAL_COMMIT_FIELDS = frozenset({
     "technical_approval", "phase", "state_revision", "last_transition",
+    # workflow-2.5.0 CP12 (disposable-repository functional validation):
+    # widened unconditionally, mirroring ORDINARY_BUNDLE_GENERATION_RECORD_
+    # FIELDS/RECOVERED_BUNDLE_GENERATION_RECORD_FIELDS' own identical
+    # widening and identical reasoning -- a "2.2" item's ordinary positive
+    # path always leaves MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW's own ledger
+    # write (`record_manual_implementation_review`, itself never its own
+    # dedicated durability commit -- see review-implementation.md's "2.2"
+    # authoritative branch, step A6, and record-manual-implementation-
+    # review.md's identical shape) sitting uncommitted until the very next
+    # commit, which for a "2.2" item is always this one:
+    # `/approve-review implementation`'s own technical-approval commit. Found
+    # by CP12's own disposable-repository end-to-end scenario, which
+    # exercises the real local-approve-then-manual-approve-then-approve-
+    # sequence a hand-authored dict-state fixture never drove: every "2.2"
+    # item's very first technical-approval commit failed
+    # MalformedTechnicalApprovalCommitError outright before this widening,
+    # since `implementation_review_stages` was missing from this set even
+    # though its sibling generation-record sets already admit the identical
+    # residue for the identical reason. Safe for "1"/"2.1": that vocabulary
+    # is never written by their own state_transaction mutators, so it is
+    # always absent from their own field diffs regardless of what this set
+    # admits.
+    "implementation_review_stages",
 })
 
 
@@ -11484,11 +11507,15 @@ class MalformedTechnicalApprovalCommitError(Exception):
     exhaustive field set -- mirroring items 267/254's exact-field-set
     discipline for generation-record commits, applied here to the
     technical-approval commit `D-States`'s own "Exit" bullet already names
-    exhaustively (`GPT-R51-001`): exactly `technical_approval`, `phase`
+    exhaustively (`GPT-R51-001`): `technical_approval`, `phase`
     (`AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW` ->
     `AWAITING_FUNCTIONAL_REVIEW`), `state_revision`, `last_transition` --
-    no other field, and never another work item's own entry or a
-    top-level routing field in the same commit."""
+    plus, for a "2.2" item only, the uncommitted `implementation_review_
+    stages` ledger residue a "2.2" item's own manual-approve round always
+    leaves behind (workflow-2.5.0 CP12, mirroring the generation-record
+    commit's own identical widening) -- no other field, and never another
+    work item's own entry or a top-level routing field in the same
+    commit."""
 
 
 def validate_technical_approval_commit(repo_root: Path, commit: str, work_item_id: str) -> None:
