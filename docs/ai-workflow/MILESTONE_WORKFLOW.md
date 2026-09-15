@@ -44,6 +44,76 @@ system audit, convergence pass 12, ledger row `O34`).
 - **Exit**: a concrete, checkpointed plan exists.
 - **Stop for user/reviewer?** No.
 
+### AMENDING_PLAN (`workflow-2.4.0`, `D-Plan-Amendment-1`)
+
+A re-entry into plan revision/review for a work item whose plan was already
+approved and whose implementation has already begun -- additive to v2.3.1's
+existing states/transitions, not a replacement for any of them. Applies to
+`governing_workflow_version: "1"` and `"2.1"` work items alike; only the
+downstream two-stage-vs-single-stage plan review that follows it still
+branches on governing version, unchanged.
+
+- **Entry**: `/request-plan-amendment [work-item-id]` -- a real, persisted
+  phase, unlike the vocabulary states above, because the mechanism must
+  survive an interruption between the request and the first post-request
+  `/milestone-plan` call. Reachable only from `IMPLEMENTING` or
+  `SELF_REVIEWING_IMPLEMENTATION` (see those sections' own re-entry note
+  below), with no checkpoint `IN_PROGRESS` or claimed
+  (`AmendmentCheckpointActiveError` otherwise, XMODEL-R4-B1 -- checked
+  authoritatively inside `request_plan_amendment` itself, against both
+  `WORKFLOW_STATE.json` and the shared filesystem checkpoint-claim record,
+  not only this command's own preflight read; the claim record must be
+  checked separately because it is published, step 1d, *before*
+  `WORKFLOW_STATE.json` shows anything IN_PROGRESS, so a claim can be
+  outstanding while state still looks idle), no open
+  `/approve-review plan` transaction, the current `plan_approval`'s own
+  approval commit still discoverable and an ancestor of `HEAD`, and every
+  checkpoint id in the work item's own current registry of the shape
+  `CP<digits>` (`AmendmentCheckpointIdShapeError` otherwise, naming every
+  offending id, before anything is superseded -- IMPL2-R1). The
+  independent, second half of XMODEL-R4-B1's fix lives on the other side
+  of the same race: `transition_checkpoint_in_progress` itself refuses
+  (`IllegalCheckpointStartPhaseError`) to publish a checkpoint's own
+  `IN_PROGRESS` once the work item has left `IMPLEMENTING` -- so a claim
+  acquired before this entry transition commits, but not yet reflected in
+  state, cannot publish live implementation state on top of an
+  already-superseded `plan_approval` either.
+- **Allowed actions**: none besides the request itself, which is one
+  atomic transition: `plan_approval.status` becomes `SUPERSEDED`; one entry
+  is appended to the work item's own append-only `amendment_history`
+  (bounded, content-addressed -- a single `pre_amendment_approval_commit`,
+  never a stored copy of the plan/registry documents); `amendment_base_commit`
+  is set to the pre-amendment `HEAD`. Completion accounting is provisional
+  while an item sits here: the live `checkpoints` map still reads
+  all-`COMPLETE` under a plan that is being rewritten, and only the next
+  reconciliation (below) resolves it.
+- **Artifacts**: the `amendment_history` entry; a commit of
+  `docs/ai-workflow/WORKFLOW_STATE.json` alone.
+- **Exit**: the very next `/milestone-plan [work-item-id]` invocation resumes
+  it through that command's own existing dual-mode branch, exactly like any
+  other non-terminal entry -- no new plan-review machinery. The entire
+  two-stage local-then-manual-external review protocol (or the single-stage
+  one, for a `"1"` item) and the `AWAITING_PLAN_APPROVAL` gate below run
+  completely unmodified for the amended plan. **Checkpoint reconciliation**
+  happens exactly once per amendment, folded into the eventual
+  `/approve-review plan`'s own `apply_plan_approval` computation: a
+  registry checkpoint unchanged in both content and prose stays `COMPLETE`;
+  one whose registry row or checkpoint content changed is rewritten to
+  `NEEDS_REVALIDATION` and re-run through the ordinary, unmodified
+  `/milestone-implement` path; one dropped from the amended registry is
+  removed from the live `checkpoints` map (its history survives in the
+  amendment's own `checkpoints_snapshot` and in git history via its commit
+  trailers). **While drafting the amended plan**, delimit every registry
+  checkpoint id with a `<!-- CPn -->`/`<!-- /CPn -->` anchor pair (one or
+  more, non-overlapping, around that checkpoint's own content) -- add the
+  anchors now, not after `/approve-review plan` step 4c's
+  `validate_post_anchor_coverage` refuses naming the first uncovered id.
+- **Stop for user/reviewer?** No. `/request-plan-amendment` itself carries
+  the same mechanism-independent user-only guard `/approve-review` and
+  `/accept-milestone` use (Claude cannot invoke it), but once a human has
+  invoked it, work continues autonomously from here exactly as it would
+  from `PLANNING`.
+
 ### SELF_REVIEWING_PLAN
 
 *Vocabulary state — never persisted (see "Vocabulary states" above).*
@@ -210,7 +280,10 @@ re-enters manual-external review without a fresh local pass first.
   authorized intermediate commits; update `docs/ACTIVE_MILESTONE.md` as
   checkpoints complete.
 - **Artifacts**: source/test changes; updated `docs/ACTIVE_MILESTONE.md`; commits.
-- **Exit**: all plan checkpoints implemented.
+- **Exit**: all plan checkpoints implemented, **or** (`workflow-2.4.0`,
+  `D-Plan-Amendment-1`) an authorized `/request-plan-amendment
+  [work-item-id]` re-enters `AMENDING_PLAN` above -- never Claude's own
+  choice to make.
 - **Stop for user/reviewer?** No — continue across checkpoints without
   stopping, subject to the stop conditions in `AGENTS.md`.
 
@@ -222,7 +295,9 @@ re-enters manual-external review without a fresh local pass first.
   per `CLAUDE.md` commands).
 - **Artifacts**: fixed diff; verification results (actually run, not
   assumed).
-- **Exit**: no known blocking/important self-review findings remain open.
+- **Exit**: no known blocking/important self-review findings remain open,
+  **or** (`workflow-2.4.0`, `D-Plan-Amendment-1`) an authorized
+  `/request-plan-amendment [work-item-id]` re-enters `AMENDING_PLAN` above.
 - **Stop for user/reviewer?** No.
 
 ### AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW

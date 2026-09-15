@@ -233,10 +233,17 @@ def validate_work_item_kind(work_item_kind: str) -> None:
     if not isinstance(work_item_kind, str) or work_item_kind not in WORK_ITEM_KINDS:
         raise InvalidWorkItemTypeError(f"unknown work_item_kind: {work_item_kind!r}")
 
-CHECKPOINT_STATUSES = frozenset({"IN_PROGRESS", "COMPLETE"})
+CHECKPOINT_STATUSES = frozenset({"IN_PROGRESS", "COMPLETE", "NEEDS_REVALIDATION"})
 
 # D2's unified plan_approval/technical_approval record shape.
-APPROVAL_STATUSES = frozenset({"CURRENT", "STALE"})
+# "SUPERSEDED" is additive (D-Plan-Amendment-3, workflow-2.4.0): an
+# explicit, authorized `/request-plan-amendment` retired this approval on
+# purpose, distinct from "STALE" (the same reviewed plan document changed
+# under us, by accident or a later REVISE). No live writer ever produces
+# "STALE" for `plan_approval` today (`apply_plan_approval` always writes
+# "CURRENT"), so this addition disambiguates a value that was previously
+# only theoretical, not one any existing record actually held.
+APPROVAL_STATUSES = frozenset({"CURRENT", "STALE", "SUPERSEDED"})
 APPROVAL_BASES = frozenset({"EXTERNAL_APPROVE", "USER_OVERRIDE", "LEGACY_V1"})
 # Narrowed per OPUS-R10-014: no_content_id removed -- the only basis that
 # uses waivers (LEGACY_V1) always backfills a real content ID at import
@@ -312,6 +319,14 @@ KNOWN_PHASES = frozenset({
     "AWAITING_TECHNICAL_APPROVAL",
     # D-Legacy phase 1 -- dormant, not terminal
     "LEGACY_READY",
+    # workflow-2.4.0 addition (D-Plan-Amendment-1): real and persisted,
+    # unlike the four vocabulary-only states above, because the mechanism
+    # must survive an interruption between the request and the first
+    # post-request /milestone-plan call. Entered by /request-plan-amendment
+    # alone (its sole writer, `request_plan_amendment`), left by the very
+    # next /milestone-plan invocation reusing that command's existing
+    # step 3/[2.1] machinery unchanged.
+    "AMENDING_PLAN",
 })
 
 
@@ -540,6 +555,141 @@ class StaleReviewContentIdError(Exception):
     match the freshly recomputed current one -- hard, blocks ingestion at
     either stage (D-Plan-Review-Stages transition table; distinct from the
     manual stage's advisory-only `bundle_id` check, `OPUS-R14-005`)."""
+
+
+# ---------------------------------------------------------------------------
+# workflow-2.4.0: D-Plan-Amendment-1..8 -- amending an approved plan after
+# implementation has begun. New error family, amendment-prefixed (I-R32-1)
+# to stay clear of this module's own pre-existing, unrelated
+# `ReconciliationTableParseError`/`_RECONCILIATION_STATUS_TOKENS` vocabulary.
+# ---------------------------------------------------------------------------
+
+
+class WrongPhaseForAmendmentRequestError(Exception):
+    """Raised when `/request-plan-amendment` is invoked outside `phase in
+    {"IMPLEMENTING", "SELF_REVIEWING_IMPLEMENTATION"}` (D-Plan-Amendment-1) --
+    the two phases this release supports, and deliberately the only two.
+    Also the refusal a second, redundant `/request-plan-amendment` against
+    an item already at `AMENDING_PLAN` hits, since that phase is not a
+    member of the allowed set either."""
+
+
+class AmendmentApprovalCommitUnreachableError(Exception):
+    """Raised by `request_plan_amendment` when the work item's current
+    `plan_approval`'s own approval commit is not discoverable, or not an
+    ancestor of `HEAD` (D-Plan-Amendment-1's widened precondition,
+    corrected revision 12, B-R12-1). Checked, and this error raised,
+    *before* superseding anything -- `plan_approval.status` is never set
+    to `SUPERSEDED` when this fires, so the item never wedges at
+    `AMENDING_PLAN` with an unreproducible `pre_amendment_approval_commit`."""
+
+
+class AmendmentAlreadyResolvedError(Exception):
+    """Raised when reconciliation (folded into `apply_plan_approval`) finds
+    `amendment_history[-1]["resolved_at_plan_revision"]` already non-`None`
+    -- the same "wrong state, refuse and name it" discipline
+    `WrongPhaseForAmendmentRequestError` applies to a re-run
+    `/request-plan-amendment`, applied here to a re-run reconciliation
+    (D-Plan-Amendment-3's write-once-field discipline)."""
+
+
+class AmendmentReconciliationInputsMissingError(Exception):
+    """Raised by `apply_plan_approval` when the work item has an open
+    amendment (`amendment_history` non-empty, last entry's
+    `resolved_at_plan_revision` still `None`) but one or more of
+    `pre_registry`/`pre_plan_text`/`post_registry`/`post_plan_text` is
+    `None` -- an internal-caller bug (the command procedure failed to read
+    and pass all four), never a data condition this silently tolerates or
+    skips reconciliation for (D-Plan-Amendment-4, B2-new)."""
+
+
+class AmendmentPreSnapshotUnreproducibleError(Exception):
+    """Raised by `load_pre_amendment_snapshot` when a pinned blob SHA
+    cannot be retrieved via `git cat-file -p`, or the cross-check
+    (`git ls-tree <pre_amendment_approval_commit> -- <path>`) disagrees
+    with the manifest's own pinned blob -- naming the path and the blob SHA
+    it could not reproduce, rather than silently substituting empty
+    content or crashing on an unhandled `git` failure (D-Plan-Amendment-3,
+    EXT-R6-I1's bounded, content-addressed reference redesign)."""
+
+
+class AmendmentAnchorCoverageError(Exception):
+    """Raised by `validate_post_anchor_coverage` (called from
+    `apply_plan_approval`, before it computes any reconciliation outcome)
+    when a checkpoint id present in `post_registry` has zero well-formed
+    `<!-- CP<n> -->`/`<!-- /CP<n> -->` anchor pairs in `post_plan_text` --
+    a forgotten anchor on the side where a refusal is always actionable
+    (D-Plan-Amendment-4, B5-new)."""
+
+
+class AmendmentAnchorMalformedError(Exception):
+    """Raised by `parse_checkpoint_anchor_spans` (in `strict` mode, used
+    only for `post_plan_text`) when a checkpoint id's own anchor tags are
+    not a closed, non-nesting, per-id balanced grammar: an unmatched open
+    tag, an orphan close tag, or a tag nested inside another open span for
+    the same id (D-Plan-Amendment-4, B5-new/I5-new)."""
+
+
+class AmendmentPostRegistryMalformedError(Exception):
+    """Raised by `apply_plan_approval`'s amendment-reconciliation branch
+    when `post_registry` has no `"checkpoints"` key at all (IMPL2-O2):
+    `validate_post_anchor_coverage` reads it via `.get("checkpoints", [])`
+    and would pass vacuously, but `validate_registry_topological_order`
+    reads `registry["checkpoints"]` directly and would raise an unnamed
+    `KeyError` for the identical malformed input -- named here, once,
+    before either validator runs, matching every other refusal in this
+    branch."""
+
+
+class AmendmentCheckpointIdShapeError(Exception):
+    """Raised by `request_plan_amendment` when the work item's own
+    registry already contains a checkpoint id that is not of the shape
+    `CP<digits>` (IMPL2-R1): `_CHECKPOINT_ANCHOR_RE`'s grammar can only
+    ever produce an anchor tag keyed `"CP" + digits`, so
+    `validate_post_anchor_coverage` is unsatisfiable for any such id --
+    there is no text an author could write in the amended plan that would
+    ever satisfy it. Raised *before* `plan_approval` is superseded, the
+    same "refuse before any supersede" discipline
+    `AmendmentApprovalCommitUnreachableError` already follows, naming
+    every offending id at once rather than wedging the item at
+    `AMENDING_PLAN` two review stages later with no in-band recovery."""
+
+
+class AmendmentRegistryMissingIdError(Exception):
+    """Raised by `request_plan_amendment` when its own current registry
+    (loaded via `_load_authoritative_registry_or_none`) has a checkpoint
+    entry with no `id` key (IMPL3-O2, renamed IMPL4-O2): an amendment-
+    specific refusal, distinct from `RegistryCoverageError`, whose own
+    vocabulary is documented primarily around completion-accounting call
+    sites (`resolve_own_registry_completion_status`/
+    `resolve_completion_obligations`) this check has nothing to do with.
+    Named in `.claude/commands/request-plan-amendment.md`'s own refusal
+    list alongside `AmendmentCheckpointIdShapeError`, the sibling check it
+    runs immediately before."""
+
+
+class AmendmentCheckpointActiveError(Exception):
+    """Raised by `request_plan_amendment` (XMODEL-R4-B1, merged round-4
+    review) when this work item already has a checkpoint `IN_PROGRESS` in
+    `WORKFLOW_STATE.json`, or has an outstanding shared checkpoint claim
+    (`resolve_claim`) -- checked *before* superseding anything, the same
+    "refuse before any supersede" discipline every other precondition in
+    this function follows.
+
+    Both halves are checked, not only the state-only one, because they are
+    two different synchronization domains: `claim_checkpoint` is published
+    to the filesystem claims directory *before*
+    `transition_checkpoint_in_progress` writes `WORKFLOW_STATE.json`
+    (`/milestone-implement` step 1d's documented ordering), so
+    `resolve_checkpoint_ownership`'s own supported `CONTINUE_CLAIM` outcome
+    is a window in which a claim is real and outstanding while state still
+    looks completely idle. A state-only `IN_PROGRESS` check alone would
+    miss exactly that window and let `plan_approval` be superseded while a
+    checkpoint start is already in flight. The independent second half of
+    this fix -- refusing a checkpoint's own `IN_PROGRESS` publication once
+    the work item has left `IMPLEMENTING` -- is
+    `IllegalCheckpointStartPhaseError` on `transition_checkpoint_in_progress`
+    itself."""
 
 
 class WrongReviewerRoleError(Exception):
@@ -1031,6 +1181,15 @@ def _run(args: list[str], cwd: Path) -> str:
     return result.stdout
 
 
+def _run_bytes(args: list[str], cwd: Path) -> bytes:
+    """Binary-safe counterpart of `_run` -- `git cat-file -p` on a blob
+    must never go through `text=True`'s own decode, since
+    `load_pre_amendment_snapshot` (workflow-2.4.0) needs the exact bytes a
+    Git blob holds, before this function's own caller decodes them."""
+    result = subprocess.run(args, cwd=cwd, check=True, capture_output=True)
+    return result.stdout
+
+
 def _load_json(path: Path):
     try:
         text = path.read_text()
@@ -1486,6 +1645,74 @@ def _is_ancestor(repo_root: Path, ancestor: str, descendant: str) -> bool:
     return result.returncode == 0
 
 
+def load_pre_amendment_snapshot(
+    repo_root: Path, work_item_id: str, plan_path: str, registry_path: str, entry: dict,
+) -> tuple[str, dict]:
+    """workflow-2.4.0, D-Plan-Amendment-3's bounded, content-addressed
+    reference model (EXT-R6-I1): given one `amendment_history` entry,
+    reads the pinned `blob` SHA for `plan_path`/`registry_path` out of
+    `entry["superseded_plan_approval"]["review_content_manifest"]` (a
+    lookup by `path`, never a re-derivation of the manifest), retrieves
+    each blob's bytes via `git cat-file -p <blob>`, and cross-checks each
+    retrieved blob is still reachable from
+    `entry["pre_amendment_approval_commit"]` via `git ls-tree
+    <pre_amendment_approval_commit> -- <path>` reporting the identical SHA,
+    before decoding. Returns `(pre_plan_text, pre_registry)` -- the plan
+    bytes decoded as UTF-8, the registry bytes parsed as JSON.
+
+    Raises `AmendmentPreSnapshotUnreproducibleError`, naming the path and
+    the blob SHA it could not reproduce, rather than silently substituting
+    empty content or crashing on an unhandled `git` failure."""
+    manifest = entry.get("superseded_plan_approval", {}).get("review_content_manifest") or []
+    manifest_by_path = {m.get("path"): m.get("blob") for m in manifest if isinstance(m, dict)}
+    commit = entry.get("pre_amendment_approval_commit")
+
+    def _resolve_blob(path: str) -> bytes:
+        blob = manifest_by_path.get(path)
+        if not blob:
+            raise AmendmentPreSnapshotUnreproducibleError(
+                f"{work_item_id}: {path!r} has no pinned blob in this amendment's own "
+                f"superseded_plan_approval.review_content_manifest"
+            )
+        try:
+            ls_tree_out = _run(["git", "ls-tree", commit, "--", path], cwd=repo_root)
+        except subprocess.CalledProcessError as exc:
+            raise AmendmentPreSnapshotUnreproducibleError(
+                f"{work_item_id}: could not run 'git ls-tree {commit} -- {path}' to "
+                f"cross-check pinned blob {blob}: {exc}"
+            ) from exc
+        fields = ls_tree_out.strip().split(None, 3)
+        found_blob = fields[2] if len(fields) >= 3 else None
+        if found_blob != blob:
+            raise AmendmentPreSnapshotUnreproducibleError(
+                f"{work_item_id}: pinned blob {blob} for {path!r} is not reachable from "
+                f"pre_amendment_approval_commit {commit} (git ls-tree reports {found_blob!r})"
+            )
+        try:
+            return _run_bytes(["git", "cat-file", "-p", blob], cwd=repo_root)
+        except subprocess.CalledProcessError as exc:
+            raise AmendmentPreSnapshotUnreproducibleError(
+                f"{work_item_id}: could not retrieve blob {blob} for {path!r} via "
+                f"'git cat-file -p': {exc}"
+            ) from exc
+
+    plan_bytes = _resolve_blob(str(plan_path))
+    registry_bytes = _resolve_blob(str(registry_path))
+    try:
+        pre_plan_text = plan_bytes.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise AmendmentPreSnapshotUnreproducibleError(
+            f"{work_item_id}: {plan_path!r}'s pinned blob is not valid UTF-8"
+        ) from exc
+    try:
+        pre_registry = json.loads(registry_bytes)
+    except json.JSONDecodeError as exc:
+        raise AmendmentPreSnapshotUnreproducibleError(
+            f"{work_item_id}: {registry_path!r}'s pinned blob is not valid JSON"
+        ) from exc
+    return pre_plan_text, pre_registry
+
+
 def verify_checkpoint_completions(
     work_item: dict, repo_root: Path, base_commit: str, head: str = "HEAD",
 ) -> None:
@@ -1895,6 +2122,8 @@ def open_plan_approval_journal(
     fifth_member_applies: bool, fifth_member_sha256: str | None,
     user_confirmation: str, quiescence_authorization: str,
     path: Path = PLAN_APPROVAL_JOURNAL_PATH,
+    pre_registry: dict | None = None, pre_plan_text: str | None = None,
+    post_registry: dict | None = None, post_plan_text: str | None = None,
 ) -> dict:
     """Opens the durable, crash-resumable plan-approval transaction
     journal (`WFR-63`, missing-test item 349): this invocation's own
@@ -1922,13 +2151,24 @@ def open_plan_approval_journal(
     window in which a reader can observe a partially-written journal,
     and a crash between the two file operations leaves nothing at the
     final pathname at all. Gitignored (`.ai-review/`), worktree-local,
-    never a `WORKFLOW_STATE.json` field."""
+    never a `WORKFLOW_STATE.json` field.
+
+    workflow-2.4.0, D-Plan-Amendment-4: `pre_registry`/`pre_plan_text`/
+    `post_registry`/`post_plan_text` are a pure pass-through into the one
+    internal `apply_plan_approval` call above -- this function performs no
+    read of its own to obtain them and no amendment-specific logic; it
+    stays a thin, journal-writing orchestrator exactly as it already is
+    for `record`/`base_commit`/every other caller-supplied argument."""
     full_path = plan_approval_journal_path(repo_root, path)
     full_path.parent.mkdir(parents=True, exist_ok=True)
     repo_root_id, git_common_dir, worktree_root = _git_identity(repo_root)
     pre_procedure_head = _run(["git", "rev-parse", "HEAD"], cwd=repo_root).strip()
     pre_state_bytes = _serialize_state(pre_state)
-    expected_post_state = apply_plan_approval(pre_state, work_item_id, record, approval_now)
+    expected_post_state = apply_plan_approval(
+        pre_state, work_item_id, record, approval_now,
+        pre_registry=pre_registry, pre_plan_text=pre_plan_text,
+        post_registry=post_registry, post_plan_text=post_plan_text,
+    )
     expected_post_state_bytes = _serialize_state(expected_post_state)
     journal = {
         "schema_version": PLAN_APPROVAL_JOURNAL_SCHEMA_VERSION,
@@ -3084,6 +3324,264 @@ def plan_approval_state_matches_pre_transaction(
 
 
 # ---------------------------------------------------------------------------
+# workflow-2.4.0, D-Plan-Amendment-4: paired-anchor checkpoint-content
+# hashing and checkpoint reconciliation after an amendment. Every plan
+# document written or amended under this mechanism marks each checkpoint's
+# own design-decision prose with paired anchor comments, `<!-- CP<n> -->`
+# immediately before and `<!-- /CP<n> -->` immediately after each block of
+# prose that describes it -- a checkpoint may have any number of such
+# disjoint, non-contiguous pairs.
+# ---------------------------------------------------------------------------
+
+_CHECKPOINT_ANCHOR_RE = re.compile(r"<!--\s*(/?)CP(\d+)\s*-->")
+
+#: Shape a checkpoint id must have for `_CHECKPOINT_ANCHOR_RE` to ever be
+#: able to produce a matching anchor tag for it (IMPL2-R1): the grammar
+#: only ever emits/consumes `"CP" + digits`, so any other id shape (e.g.
+#: `workflow-v2-1-core`'s own real `WF4a-i`) can never have a well-formed
+#: anchor pair -- `checkpoint_id_supports_anchor` below is the single
+#: place that fact is checked, so `request_plan_amendment` can refuse
+#: early rather than leave `validate_post_anchor_coverage` as the only,
+#: much later, signal.
+_ANCHOR_COMPATIBLE_CHECKPOINT_ID_RE = re.compile(r"^CP\d+\Z")
+
+
+def checkpoint_id_supports_anchor(checkpoint_id: str) -> bool:
+    """True iff `checkpoint_id` has the one shape (`CP<digits>`) the
+    paired-anchor grammar (`_CHECKPOINT_ANCHOR_RE`/
+    `parse_checkpoint_anchor_spans`) can ever match. False for any other
+    shape -- e.g. `WF4a-i` -- for which `validate_post_anchor_coverage` is
+    unconditionally unsatisfiable, no matter what the plan document says.
+
+    `\\Z` rather than `$` (IMPL4-O3): Python's `$` matches immediately
+    before a trailing `\\n` as well as at the true end of string, so an id
+    of `"CP1\\n"` would otherwise pass this shape gate while remaining
+    unsatisfiable by `_CHECKPOINT_ANCHOR_RE`'s own anchor-tag parser, which
+    has no such allowance."""
+    return bool(_ANCHOR_COMPATIBLE_CHECKPOINT_ID_RE.match(checkpoint_id))
+
+
+def parse_checkpoint_anchor_spans(text: str, *, strict: bool = True) -> dict[str, list[tuple[int, int]]]:
+    """Parses `text` for `<!-- CP<n> -->`/`<!-- /CP<n> -->` anchor pairs,
+    returning `{checkpoint_id: [(content_start, content_end), ...]}` in
+    document order -- the content *between* each matched pair, never
+    including the tags themselves.
+
+    Grammar (D-Plan-Amendment-4, B5-new/I5-new), a closed, non-nesting,
+    per-id balanced-tag grammar with no undefined case: for a given id,
+    every open tag must be followed, before any other open/close tag for
+    that same id and before end of document, by exactly one matching close
+    tag. An unmatched open tag, an orphan close tag, or a tag nested inside
+    another open span for the same id is malformed. Any number of disjoint,
+    non-overlapping, well-formed pairs for the same id is legal.
+
+    When `strict` is true (the only mode used for `post_plan_text` --
+    D-Plan-Amendment-4's post side is "validated, and a refusal here is
+    always actionable"), a malformed tag raises
+    `AmendmentAnchorMalformedError`. When `strict` is false (the only mode
+    used for `pre_amendment_plan_text` -- "never a refusal, always
+    conservative"), a checkpoint id with a malformed shape is simply
+    omitted from the returned map -- indistinguishable, to this function's
+    caller, from an id with zero anchors at all, which is exactly the
+    fail-closed "no information" direction the pre side requires."""
+    spans: dict[str, list[tuple[int, int]]] = {}
+    open_at: dict[str, int] = {}
+    malformed: set[str] = set()
+    for match in _CHECKPOINT_ANCHOR_RE.finditer(text):
+        is_close = match.group(1) == "/"
+        # The registry's own checkpoint ids are "CP<n>" strings (e.g.
+        # "CP1"); the anchor tag's own digits are joined back onto that
+        # prefix so this map's keys line up with `depends_on`/registry
+        # `id` values directly, never a bare digit that would silently
+        # never match anything.
+        checkpoint_id = "CP" + match.group(2)
+        if not is_close:
+            if checkpoint_id in open_at:
+                # Nested/overlapping open tag for the same id.
+                if strict:
+                    raise AmendmentAnchorMalformedError(
+                        f"{checkpoint_id}: nested <!-- {checkpoint_id} --> tag "
+                        f"(an earlier span for this id is still open)"
+                    )
+                malformed.add(checkpoint_id)
+                continue
+            open_at[checkpoint_id] = match.end()
+        else:
+            if checkpoint_id not in open_at:
+                # Orphan close tag with no preceding matching open.
+                if strict:
+                    raise AmendmentAnchorMalformedError(
+                        f"{checkpoint_id}: <!-- /{checkpoint_id} --> with no "
+                        f"preceding matching <!-- {checkpoint_id} -->"
+                    )
+                malformed.add(checkpoint_id)
+                continue
+            start = open_at.pop(checkpoint_id)
+            spans.setdefault(checkpoint_id, []).append((start, match.start()))
+    for checkpoint_id in open_at:
+        # Unterminated final anchor.
+        if strict:
+            raise AmendmentAnchorMalformedError(
+                f"{checkpoint_id}: <!-- {checkpoint_id} --> with no matching "
+                f"<!-- /{checkpoint_id} --> before end of document"
+            )
+        malformed.add(checkpoint_id)
+    for checkpoint_id in malformed:
+        spans.pop(checkpoint_id, None)
+    return spans
+
+
+def checkpoint_content_hash(text: str, checkpoint_id: str, *, strict: bool = False) -> str | None:
+    """The per-checkpoint content hash D-Plan-Amendment-4's "identical
+    checkpoint content" test uses: sha256 over the concatenation, in
+    document order, of every well-formed anchor span for `checkpoint_id`.
+    Returns `None` when the id has zero well-formed spans in `text` -- the
+    "no information" case, which every caller must treat as "content
+    changed" (conservatively), never as "unchanged"."""
+    spans = parse_checkpoint_anchor_spans(text, strict=strict)
+    ids_spans = spans.get(checkpoint_id)
+    if not ids_spans:
+        return None
+    content = "".join(text[start:end] for start, end in ids_spans)
+    return hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+
+def validate_post_anchor_coverage(post_plan_text: str, post_registry: dict) -> None:
+    """D-Plan-Amendment-4's post-side validation, run by `apply_plan_approval`
+    before it computes any reconciliation outcome: every checkpoint id
+    present in `post_registry` must have at least one well-formed anchor
+    pair in `post_plan_text`. A missing id raises
+    `AmendmentAnchorCoverageError`; a malformed tag anywhere in
+    `post_plan_text` raises `AmendmentAnchorMalformedError` (propagated
+    from the strict parse below) -- both before any silent partial
+    reconciliation.
+
+    An id introduced by the amendment itself (not merely one inherited
+    from the pre-amendment registry) that is not of the shape `CP<digits>`
+    raises `AmendmentCheckpointIdShapeError` instead of the coverage error
+    (IMPL3-O1): `request_plan_amendment`'s own id-shape precondition only
+    ever inspects the *pre*-amendment registry, so an anchor-incompatible
+    id authored during the amendment would otherwise reach this function
+    and get the unactionable "add an anchor" message for an id no anchor
+    text can ever satisfy -- checked here, ahead of the coverage check, for
+    the same reason `request_plan_amendment` checks it early."""
+    spans = parse_checkpoint_anchor_spans(post_plan_text, strict=True)
+    for entry in post_registry.get("checkpoints", []):
+        checkpoint_id = entry["id"]
+        if not checkpoint_id_supports_anchor(checkpoint_id):
+            raise AmendmentCheckpointIdShapeError(
+                f"{checkpoint_id} is not of the shape 'CP<digits>' -- the "
+                f"plan-amendment anchor grammar (D-Plan-Amendment-4) can never be "
+                f"satisfied for this id no matter what the amended plan document "
+                f"says; rename it via another /milestone-plan round"
+            )
+        if not spans.get(checkpoint_id):
+            raise AmendmentAnchorCoverageError(
+                f"{checkpoint_id} has no well-formed anchor pair in the plan document "
+                f"being approved -- every registry checkpoint id must have at least one"
+            )
+
+
+_RECONCILIATION_ROW_FIELDS = ("name", "depends_on", "complexity", "session_target")
+
+
+def reconcile_checkpoints_after_amendment(
+    pre_registry: dict, post_registry: dict, pre_plan_text: str, post_plan_text: str, checkpoints: dict,
+) -> dict:
+    """workflow-2.4.0, D-Plan-Amendment-4's reconciliation algorithm, folded
+    into `apply_plan_approval`'s own computation. Computes, per checkpoint
+    id, one of four outcomes -- never a free-text operator claim -- and
+    returns `{"checkpoints": <new map>, "outcome": {id: "retained" |
+    "needs_revalidation" | "needs_revalidation_dependency" | "dropped" |
+    "new"}, "dropped": [id, ...]}`. `"needs_revalidation"` and
+    `"needs_revalidation_dependency"` are deliberately distinct tokens
+    (`IMPL6-B1`): both leave the checkpoint's own `status` at
+    `NEEDS_REVALIDATION`, but the former means *this* id's own registry row
+    or checkpoint content changed, and the latter means this id was itself
+    unchanged and was flipped only because a dependency it names was
+    demoted or dropped -- the "which flips came from the dependency-closure
+    pass" distinction `/approve-review plan`'s own report (see
+    `apply_plan_approval`) requires and that a single shared token could
+    not otherwise recover.
+
+    - id present in both, identical registry row and identical checkpoint
+      content (by `checkpoint_content_hash`, pre-side non-strict/
+      conservative, post-side already validated strict by
+      `validate_post_anchor_coverage`) -- untouched (`retained`).
+    - id present in both, registry row changed or checkpoint content
+      changed (including the zero-anchor legacy default: `pre_plan_text`
+      has no anchors anywhere, so every shared id is conservatively
+      `needs_revalidation`) -- if it was `COMPLETE`, rewritten to
+      `NEEDS_REVALIDATION`; any other status is left as-is (nothing to
+      revalidate that has not already completed).
+    - id removed from the amended registry -- dropped from the live
+      `checkpoints` map (its history survives in this amendment's own
+      `checkpoints_snapshot` and in git history via commit trailers).
+    - id new to the amended registry -- absent from `checkpoints`, picked
+      up by `select_next_checkpoint` exactly as any new checkpoint always
+      is; reported as `"new"`.
+
+    Then a single forward pass over `post_registry`'s own order (already a
+    valid topological order) propagates dependency closure: any checkpoint
+    left `COMPLETE` whose own `depends_on` includes an id that is not
+    itself `COMPLETE` in the resulting map (rewritten, or absent because
+    just removed) is also rewritten to `NEEDS_REVALIDATION`, reported as
+    `"needs_revalidation_dependency"` regardless of what the direct pass
+    above recorded for that same id (a closure-derived demotion always
+    supersedes a direct one in the report, since the closure pass runs
+    strictly after and the id's `status` ends at `NEEDS_REVALIDATION`
+    either way). No fixed-point loop needed, since every dependency
+    precedes its dependents in that order (B6.3) -- a precondition this
+    function itself does not re-check, but which its sole caller,
+    `apply_plan_approval`, now enforces mechanically immediately before
+    calling this function (`validate_registry_topological_order(post_registry)`,
+    `OPUS-R145-002`) rather than relying on `write_registry_and_mapping`-time
+    validation of a document that, by the time this runs, has already been
+    re-read raw off the working tree."""
+    pre_rows = {entry["id"]: entry for entry in pre_registry.get("checkpoints", [])}
+    post_rows = {entry["id"]: entry for entry in post_registry.get("checkpoints", [])}
+
+    new_checkpoints = copy.deepcopy(checkpoints)
+    outcome: dict[str, str] = {}
+
+    for checkpoint_id in post_rows:
+        if checkpoint_id not in pre_rows:
+            outcome[checkpoint_id] = "new"
+            continue
+        pre_row = pre_rows[checkpoint_id]
+        post_row = post_rows[checkpoint_id]
+        row_changed = any(pre_row.get(field) != post_row.get(field) for field in _RECONCILIATION_ROW_FIELDS)
+        pre_hash = checkpoint_content_hash(pre_plan_text, checkpoint_id, strict=False)
+        post_hash = checkpoint_content_hash(post_plan_text, checkpoint_id, strict=True)
+        content_changed = pre_hash is None or pre_hash != post_hash
+        entry = new_checkpoints.get(checkpoint_id)
+        if row_changed or content_changed:
+            if entry is not None and entry.get("status") == "COMPLETE":
+                new_checkpoints[checkpoint_id] = dict(entry, status="NEEDS_REVALIDATION")
+            outcome[checkpoint_id] = "needs_revalidation"
+        else:
+            outcome[checkpoint_id] = "retained"
+
+    dropped = [checkpoint_id for checkpoint_id in pre_rows if checkpoint_id not in post_rows]
+    for checkpoint_id in dropped:
+        new_checkpoints.pop(checkpoint_id, None)
+        outcome[checkpoint_id] = "dropped"
+
+    complete_ids = {cid for cid, entry in new_checkpoints.items() if entry.get("status") == "COMPLETE"}
+    for row in post_registry.get("checkpoints", []):
+        checkpoint_id = row["id"]
+        if checkpoint_id not in complete_ids:
+            continue
+        depends_on = row.get("depends_on", [])
+        if any(dep not in complete_ids for dep in depends_on):
+            new_checkpoints[checkpoint_id] = dict(new_checkpoints[checkpoint_id], status="NEEDS_REVALIDATION")
+            complete_ids.discard(checkpoint_id)
+            outcome[checkpoint_id] = "needs_revalidation_dependency"
+
+    return {"checkpoints": new_checkpoints, "outcome": outcome, "dropped": dropped}
+
+
+# ---------------------------------------------------------------------------
 # WF2: D-Selection's deterministic four-rule checkpoint-selection algorithm,
 # the IN_PROGRESS/COMPLETE state writers, and D3's worktree-scoped dirty-
 # resume mechanics (WORKTREE_IDENTITY.json writer + resume check).
@@ -3162,6 +3660,57 @@ def select_next_checkpoint(work_item: dict, registry: dict) -> str | None:
     )
 
 
+# ---------------------------------------------------------------------------
+# workflow-2.4.0 round 4 (XMODEL-R4-B1): closing the amendment-vs-checkpoint-
+# start race. `request_plan_amendment`'s own new guard (below, in the
+# amendment error family) refuses to supersede `plan_approval` while a
+# checkpoint is IN_PROGRESS or a shared checkpoint claim is outstanding, but
+# that guard alone cannot close the race: `claim_checkpoint` is published
+# (step 1d, "before `transition_checkpoint_in_progress`") in a *separate*
+# synchronization domain (the filesystem claims directory) from
+# `WORKFLOW_STATE.json`'s own lock, so a claim can be outstanding while
+# state still looks idle (`resolve_checkpoint_ownership`'s own supported
+# `CONTINUE_CLAIM` window). The second, independent half of the fix lives
+# here: `transition_checkpoint_in_progress` itself refuses to publish
+# `IN_PROGRESS` once the work item has left a legal checkpoint-execution
+# phase -- so even if `request_plan_amendment`'s state_transaction commits
+# first (observing no claim yet), the checkpoint worker's own later
+# state_transaction, now reading `AMENDING_PLAN`, is refused rather than
+# publishing live implementation state on top of a superseded plan.
+# `IMPLEMENTING` is the only legal source phase: `SELF_REVIEWING_
+# IMPLEMENTATION` is reached only once every registry checkpoint is already
+# `COMPLETE` (`complete_checkpoint`), and no supported path ever restarts a
+# checkpoint from there.
+# ---------------------------------------------------------------------------
+
+CHECKPOINT_START_LEGAL_PHASES = frozenset({"IMPLEMENTING"})
+
+
+class IllegalCheckpointStartPhaseError(Exception):
+    """Raised when `transition_checkpoint_in_progress` is called from a
+    phase other than `IMPLEMENTING` (`CHECKPOINT_START_LEGAL_PHASES`,
+    XMODEL-R4-B1) -- most importantly `AMENDING_PLAN`, which a checkpoint
+    claim published before this work item's amendment transition committed
+    can otherwise reach, publishing live `IN_PROGRESS` implementation state
+    on top of an already-superseded `plan_approval`. Names the actual phase
+    and the legal set, the same behavioural-refusal shape
+    `IllegalBundleGenerationSourcePhaseError`/`IllegalSelfReviewEntryPhaseError`
+    use for their own phase-guarded writers.
+
+    Also raised, for the same reason and against the same legal set, by
+    `claim_checkpoint` itself (`XMODEL-R8-B1`): that function's own
+    pre-publication phase check is this error's second, independent call
+    site, closing the window this docstring's first paragraph describes
+    rather than merely detecting it after the fact -- within one worktree
+    root only; `XMODEL-R9-B1` (`docs/defects/v2.4.0-002-amendment-claim-
+    race-crosses-worktree-boundary.md`) records that the same claim
+    published from a different linked worktree of the same repository is
+    not caught by either call site -- a claim published into that window
+    would otherwise still be refused here, later, by
+    `transition_checkpoint_in_progress`, but would already have leaked
+    onto disk with nothing left to release it."""
+
+
 def transition_checkpoint_in_progress(
     state: dict, work_item_id: str, checkpoint_id: str, start_commit: str, now: str,
 ) -> dict:
@@ -3170,9 +3719,22 @@ def transition_checkpoint_in_progress(
     sets `current_checkpoint_id`. The filesystem half --
     `write_worktree_identity` -- is a separate call the caller makes
     alongside this one, since it touches a local, gitignored file this
-    module's other state writers never touch. Returns a new state dict."""
+    module's other state writers never touch. Returns a new state dict.
+
+    Refuses (`IllegalCheckpointStartPhaseError`) unless the work item's
+    current phase is in `CHECKPOINT_START_LEGAL_PHASES` -- XMODEL-R4-B1's
+    second, independent guard, checked here against the freshly re-read
+    state inside this function's own `state_transaction`, so it applies
+    even when a checkpoint claim was published before an amendment
+    transition landed (see the section comment above)."""
     new_state = copy.deepcopy(state)
     work_item = new_state["work_items"][work_item_id]
+    phase = work_item.get("phase")
+    if phase not in CHECKPOINT_START_LEGAL_PHASES:
+        raise IllegalCheckpointStartPhaseError(
+            f"{work_item_id!r} is at phase {phase!r} -- a checkpoint can only start "
+            f"IN_PROGRESS from phase in {sorted(CHECKPOINT_START_LEGAL_PHASES)}"
+        )
     work_item["checkpoints"][checkpoint_id] = {"status": "IN_PROGRESS", "start_commit": start_commit}
     work_item["current_checkpoint_id"] = checkpoint_id
     work_item["state_revision"] = work_item.get("state_revision", 1) + 1
@@ -4129,12 +4691,21 @@ def _publish_claim_exclusive(path: Path, record: dict) -> None:
 
 
 def _claim_or_refuse(repo_root: Path, work_item_id: str, record: dict) -> dict:
+    """IMPL9-O2: the contended branch below reuses `record["worktree_root"]`
+    -- already resolved once, outside any lock, by `_build_claim_record`'s
+    own `_git_identity` call before either caller (`claim_checkpoint`,
+    `adopt_claim`) enters its locked critical section -- rather than
+    spawning a second `git rev-parse` subprocess while `claim_checkpoint`'s
+    `state_lock` is held. `state_lock`'s own docstring frames the critical
+    section as a short read -> mutate -> publish window; a contending
+    writer should not additionally wait for a process spawn only needed to
+    format this function's own refusal message."""
     path = claim_path(repo_root, work_item_id)
     try:
         _publish_claim_exclusive(path, record)
     except FileExistsError:
         existing = resolve_claim(repo_root, work_item_id)
-        _, _, worktree_root = _git_identity(repo_root)
+        worktree_root = record["worktree_root"]
         if existing is not None and not claim_is_this_worktree(repo_root, existing):
             raise CheckpointOwnedByOtherWorktreeError(
                 f"{work_item_id!r} checkpoint {existing.get('checkpoint_id')!r} is already "
@@ -4157,9 +4728,94 @@ def claim_checkpoint(repo_root: Path, work_item_id: str, checkpoint_id: str, *, 
     **before** `transition_checkpoint_in_progress` -- both orderings are
     load-bearing, not stylistic, per "Where the check belongs, and the
     ordering" (future WF8b scope wires this call site; this function is
-    the primitive it will call)."""
+    the primitive it will call).
+
+    `XMODEL-R8-B1`: publication itself now runs inside `state_lock` --
+    the identical `WORKFLOW_STATE.lock` `state_transaction` holds across
+    `request_plan_amendment`'s complete authoritative-quiescence-read ->
+    supersede -> write critical section. Before round 8, this function
+    published the claim through `_claim_or_refuse` alone, which
+    synchronizes claim publication against other claim publications
+    (`os.link`'s own atomicity) but against nothing in the
+    `WORKFLOW_STATE.json` domain at all, so a claim could still be
+    published in the exact window between
+    `request_plan_amendment`'s own `resolve_claim(...)` read (which
+    observes no claim) and that same call's later `AMENDING_PLAN` commit
+    -- both reads/writes of `state`, and this function's own state read
+    below, are real Git-repo-relative file operations, not in-memory
+    values, so nothing but a shared lock can order them. Sharing the one
+    lock file makes the two operations strictly ordered: whichever
+    acquires it first completes its entire critical section --
+    including this function's own claim publication, or
+    `request_plan_amendment`'s entire supersede-and-commit -- before the
+    other's begins. A work item with no `WORKFLOW_STATE.json` entry at
+    all has no amendment mechanism that could race this call, so the
+    phase check below is skipped for it (matching every other
+    state-aware precondition in this module that stays silent absent an
+    entry) -- most of this module's own claim-record unit tests exercise
+    exactly that unregistered-work-item shape, by design.
+
+    **Scoped to one worktree root, not the repository (`XMODEL-R9-B1`,
+    narrowing the claim above, round 9 external implementation review).**
+    `STATE_LOCK_PATH` resolves as `repo_root / ".ai-review/runtime/
+    WORKFLOW_STATE.lock"` -- one lock file *per worktree* -- while
+    `claims_dir(repo_root)` (this function's own claim-record home) is
+    `git_common_dir`-rooted and shared by every linked worktree of the
+    same repository. Two processes in two different worktrees therefore
+    take `flock` on two different inodes and are not serialized at all,
+    and this function's own phase check below reads `repo_root /
+    DEFAULT_STATE_PATH` -- *this worktree's own working-tree copy* of
+    `WORKFLOW_STATE.json` -- which cannot observe a phase committed only
+    to another worktree's own branch, so even perfect serialization would
+    not by itself make an amendment made from worktree A visible to a
+    claim attempted from worktree B. The guarantee above is real and
+    load-bearing *only within one worktree root*; deliberately left open
+    across linked worktrees for `2.4.0` rather than half-fixed --
+    `docs/defects/v2.4.0-002-amendment-claim-race-crosses-worktree-
+    boundary.md` records the residual, the two independent reasons above,
+    and what a future release closing it would need (a `claims_dir`-rooted
+    serialization primitive plus a repo-global witness for `AMENDING_PLAN`,
+    neither of which this release adds).
+
+    Raises `IllegalCheckpointStartPhaseError` -- naming the actual phase
+    and `CHECKPOINT_START_LEGAL_PHASES` -- and publishes nothing, when a
+    registered work item's current phase (re-read fresh, under the lock,
+    never from a caller-supplied snapshot) is not legal for a checkpoint
+    start. This is what leaves no orphaned claim behind when the
+    amendment side of the race wins **in the same worktree**: `AMENDING_PLAN`
+    is already durable in this worktree's own working-tree state by the
+    time this function's own lock acquisition succeeds, so the claim this
+    function would otherwise publish is refused before a single byte of
+    it reaches disk.
+
+    IMPL9-O3: two other functions publish a claim without this check --
+    `adopt_claim` (through `_claim_or_refuse` directly) and
+    `take_over_claim` (through `_publish_claim_replacing`). Both are safe
+    only *transitively*, and only within one worktree: `adopt_claim`
+    refuses unless this worktree's own local state already shows the
+    checkpoint `IN_PROGRESS`, and `request_plan_amendment` refuses on any
+    checkpoint `IN_PROGRESS`; `take_over_claim` requires a pre-existing
+    claim, which the amendment also refuses on. Neither argument is
+    checked here, and under `XMODEL-R9-B1` neither holds across
+    worktrees either."""
     record = _build_claim_record(repo_root, work_item_id, checkpoint_id, now)
-    return _claim_or_refuse(repo_root, work_item_id, record)
+    with state_lock(repo_root):
+        state = _load_json(repo_root / DEFAULT_STATE_PATH) or {}
+        work_item = state.get("work_items", {}).get(work_item_id)
+        if work_item is not None:
+            phase = work_item.get("phase")
+            if phase not in CHECKPOINT_START_LEGAL_PHASES:
+                raise IllegalCheckpointStartPhaseError(
+                    f"{work_item_id!r} is at phase {phase!r} -- a checkpoint claim can only be "
+                    f"published while phase is in {sorted(CHECKPOINT_START_LEGAL_PHASES)} "
+                    f"(checked under WORKFLOW_STATE.lock immediately before publication, "
+                    f"XMODEL-R8-B1, so a claim can never be published in the window between an "
+                    f"amendment's authoritative quiescence read and its AMENDING_PLAN commit -- "
+                    f"within one worktree root; see XMODEL-R9-B1 and "
+                    f"docs/defects/v2.4.0-002-amendment-claim-race-crosses-worktree-boundary.md "
+                    f"for the cross-worktree residual this check does not close)"
+                )
+        return _claim_or_refuse(repo_root, work_item_id, record)
 
 
 def release_checkpoint(repo_root: Path, work_item_id: str, checkpoint_id: str, *,
@@ -6542,6 +7198,31 @@ def generate_artifacts_declarations(
     plan_stage_excluded_prefixes.setdefault(
         WORKFLOW_DOCS_PREFIX, _SIBLING_WORKFLOW_DOCS_JUSTIFICATION,
     )
+    # CP8 (`plan-amendment-mechanism`), disposable-repository update-path
+    # validation surfaced this: `workflow_manager.install`'s own
+    # `.workflow-manager/installation.json` record (never Workflow-
+    # distributed content, and unknown to `fingerprint.PLAN_STAGE_EXCLUDED_
+    # PREFIXES`, whose inherited set predates this tool entirely) changes on
+    # every `update()`, so an `update()` landing inside any in-flight work
+    # item's plan-approval..HEAD interval otherwise makes plan-stage
+    # `review_content_id` recomputation -- `implementing_entry_reachable`
+    # included -- raise `UnclassifiedPathError` rather than cleanly
+    # excluding a path this item never wrote. Excluded here, in the
+    # generated template (same "widen the template, not the frozen
+    # constant" rule salvage audit I7/I8 already established above), so no
+    # existing declaration file changes and no existing approval's identity
+    # moves. This does not by itself repair a work item whose own
+    # declarations file was already generated before this fix landed (any
+    # work item created under `2.3.1`, or under an earlier `2.4.0` overlay
+    # revision) -- see docs/defects/v2.4.0-001-workflow-manager-installation-
+    # record-unclassified-at-plan-stage.md for that residual, pre-existing-
+    # item gap and why it is not retroactively repaired here.
+    plan_stage_excluded_prefixes.setdefault(
+        ".workflow-manager/",
+        "workflow_manager's own installation-record bookkeeping (which release is "
+        "installed, managed/generated/merged file digests) -- tooling identity, "
+        "never this or any other work item's own plan-stage content",
+    )
     for path in sorted(fingerprint.PLAN_STAGE_PROTECTED):
         if path in own_declaration_paths:
             continue
@@ -6881,7 +7562,9 @@ def resolve_own_registry_completion_status(repo_root: Path, work_item: dict) -> 
     return registry_completion_status(work_item, registry_data)
 
 
-def _load_authoritative_registry_or_none(repo_root: Path, work_item: dict) -> dict | None:
+def _load_authoritative_registry_or_none(
+    repo_root: Path, work_item: dict, *, require_plan_approval_coverage: bool = True,
+) -> dict | None:
     """The loading half of `resolve_own_registry_completion_status`,
     factored out so `resolve_completion_obligations` (item 356's own "no
     registry parameter" requirement) can resolve the same authoritative
@@ -6890,7 +7573,23 @@ def _load_authoritative_registry_or_none(repo_root: Path, work_item: dict) -> di
     caller-supplied dict -- the same trust boundary `GPT-R37-001` already
     removed from `complete_work_item` one layer up. `None` means a
     registry-less work item (e.g. the legacy `milestone-8` shape), never
-    a load failure -- a load failure always raises."""
+    a load failure -- a load failure always raises.
+
+    `require_plan_approval_coverage` (IMPL3-R1): the plan-approval-coverage
+    check (`_assert_registry_covered_by_current_plan_approval`) is a
+    completion-accounting trust boundary that belongs to
+    `resolve_own_registry_completion_status`/`resolve_completion_obligations`
+    -- both of the other two call sites, which need a proof the registry
+    bytes are the approved ones before trusting them for terminality.
+    `/request-plan-amendment`'s own `request_plan_amendment` needs only the
+    registry's self-declared checkpoint *ids* for its early anchor-shape
+    check (`AmendmentCheckpointIdShapeError`), never a coverage proof --
+    that command's own design (`D-Plan-Amendment-1`, `B-R12-1`) is to
+    *not* refuse on approval-manifest staleness, since an amendment is
+    precisely what is about to supersede and replace it. Passing `False`
+    here skips only that one assertion; safe-path resolution, existence,
+    JSON-object shape, and self-declared `work_item_id` are still checked
+    unconditionally for every caller."""
     work_item_id = work_item["work_item_id"]
     registry_path = work_item.get("registry_path")
     if registry_path is None:
@@ -6934,7 +7633,8 @@ def _load_authoritative_registry_or_none(repo_root: Path, work_item: dict) -> di
             f"work_item_id {registry_work_item_id!r}, expected {work_item_id!r}"
         )
 
-    _assert_registry_covered_by_current_plan_approval(repo_root, work_item, registry_path)
+    if require_plan_approval_coverage:
+        _assert_registry_covered_by_current_plan_approval(repo_root, work_item, registry_path)
 
     return registry_data
 
@@ -7322,6 +8022,15 @@ REVIEW_SUBJECT_ROSTER = frozenset({
     ".claude/commands/review-functional.md",
     ".claude/commands/review-implementation.md",
     ".claude/commands/review-plan.md",
+    # workflow-2.4.0's own new command, `/request-plan-amendment.md`
+    # (CP3), is deliberately *not* added here: it never reads
+    # `REVIEW_FEEDBACK.md`, never recomputes/compares a `bundle_id`, and
+    # never presents a bundle as ready for review -- none of the three
+    # semantic disjuncts this roster exists to classify apply to it. Its
+    # own review-subject posture is `none` in substance, exactly like a
+    # command already absent from this frozenset; recorded here so the
+    # omission reads as a decision, not an oversight (D-Plan-Amendment,
+    # CP2's own compatibility-audit deliverable).
 })
 
 _REVIEW_SUBJECT_DECLARATION_RE = re.compile(
@@ -9635,14 +10344,143 @@ def record_technical_review_block_pin(
     return new_state
 
 
-def apply_plan_approval(state: dict, work_item_id: str, record: dict, now: str) -> dict:
+def apply_plan_approval(
+    state: dict, work_item_id: str, record: dict, now: str, *,
+    pre_registry: dict | None = None, pre_plan_text: str | None = None,
+    post_registry: dict | None = None, post_plan_text: str | None = None,
+) -> dict:
     """`/approve-review plan`'s state-write step (D-Approval-Commits): sets
     `plan_approval` and transitions the work item to `IMPLEMENTING`. Commit
     creation itself is `/approve-review`'s own concern (D-Approval-Commits),
-    not this function's."""
+    not this function's.
+
+    workflow-2.4.0, D-Plan-Amendment-4: four new, optional, keyword-only
+    parameters. For a work item with no open amendment (`amendment_history`
+    empty, or its last entry's `resolved_at_plan_revision` already set),
+    all four stay `None` and are never consulted -- this function's
+    behavior for that case is byte-for-byte unchanged from v2.3.1, so no
+    existing call site needs to change. For a work item *with* an open
+    amendment, all four must be non-`None` (`AmendmentReconciliationInputsMissingError`
+    naming which is absent), `validate_post_anchor_coverage` runs against
+    `post_plan_text`/`post_registry` before any outcome is computed, and
+    `reconcile_checkpoints_after_amendment` folds its own outcome -- the
+    rewritten `checkpoints` map, `current_checkpoint_id`/
+    `last_completed_checkpoint_id` nulled if either named a dropped id,
+    `amendment_history[-1]["resolved_at_plan_revision"]` set to this work
+    item's own live `plan_revision`, and (`IMPL6-B1`) that same
+    reconciliation call's own `{id: outcome}` map recorded verbatim as
+    `amendment_history[-1]["reconciliation_outcome"]` -- into the state
+    this function returns, alongside its own unchanged write set
+    (`plan_approval`, `phase`, `state_revision`, `last_transition`).
+    `reconciliation_outcome`'s tokens already distinguish a direct
+    row/content demotion (`"needs_revalidation"`) from a
+    dependency-closure-derived one (`"needs_revalidation_dependency"`),
+    so `/approve-review plan`'s own step 7 can report "it ran and did X"
+    (by id, closure flips distinguishable from direct ones) without this
+    function computing anything further -- it stores the map
+    `reconcile_checkpoints_after_amendment` already returns, unmodified.
+    `plan_revision` itself is never written here -- it stays
+    `publish_plan_revision`'s alone.
+
+    A caller that supplies either pre-side reconciliation input
+    (`pre_registry`/`pre_plan_text`) against a work item whose last
+    `amendment_history` entry is *already* resolved -- a re-run
+    reconciliation, the one case `AmendmentAlreadyResolvedError` names in
+    its own docstring -- is refused before anything else runs (checked
+    ahead of, and independent of, `has_open_amendment`'s own gate below;
+    that gate alone can never observe this state, since it is true only
+    when the last entry is *not* yet resolved). The guard is keyed on the
+    pre-side pair specifically, never on `post_registry`/`post_plan_text`
+    alone (`OPUS-R145-001`): the real caller, `approve-review.md` step 4c,
+    reads and forwards `post_plan_text`/`post_registry` *unconditionally*,
+    from the working tree, on every plan-stage approval regardless of
+    amendment state -- only `pre_registry`/`pre_plan_text` are gated there
+    on an open amendment. Keying this guard on "any of the four" made it
+    fire from that real caller for *any* plan approval following a
+    resolved amendment, non-amendment or not, degenerating into "a work
+    item that has ever amended once can never have a plan approval applied
+    again"; keying it on the pre-side pair alone matches the only shape a
+    genuine re-run reconciliation can take (a caller that itself believed
+    an amendment was still open). A caller that supplies neither pre-side
+    value against an already-resolved amendment stays the ordinary,
+    unconsulted no-op case -- the case the real caller always presents
+    once past its first, ordinary (never-amended) round."""
     validate_approval_record(record, stage="plan")
     new_state = copy.deepcopy(state)
     work_item = new_state["work_items"][work_item_id]
+    amendment_history = work_item.get("amendment_history") or []
+    pre_side_supplied = pre_registry is not None or pre_plan_text is not None
+    if (
+        amendment_history and amendment_history[-1].get("resolved_at_plan_revision") is not None
+        and pre_side_supplied
+    ):
+        raise AmendmentAlreadyResolvedError(
+            f"{work_item_id}'s last amendment_history entry is already resolved at "
+            f"plan_revision {amendment_history[-1]['resolved_at_plan_revision']!r} -- "
+            f"refusing a re-run reconciliation"
+        )
+    has_open_amendment = bool(amendment_history) and amendment_history[-1].get("resolved_at_plan_revision") is None
+    if has_open_amendment:
+        missing = [
+            name for name, value in (
+                ("pre_registry", pre_registry), ("pre_plan_text", pre_plan_text),
+                ("post_registry", post_registry), ("post_plan_text", post_plan_text),
+            ) if value is None
+        ]
+        if missing:
+            raise AmendmentReconciliationInputsMissingError(
+                f"{work_item_id} has an open amendment -- reconciliation requires all of "
+                f"pre_registry/pre_plan_text/post_registry/post_plan_text; missing: {missing}"
+            )
+        # IMPL2-O2: `validate_post_anchor_coverage` reads
+        # `post_registry.get("checkpoints", [])` (vacuously passes a
+        # registry missing the key), but `validate_registry_topological_order`
+        # reads `registry["checkpoints"]` directly and would raise an
+        # unnamed `KeyError` for the same malformed input -- against this
+        # branch's own "refuse and name it" discipline. Named here, once,
+        # before either validator runs.
+        if "checkpoints" not in post_registry:
+            raise AmendmentPostRegistryMalformedError(
+                f"{work_item_id}'s post_registry has no 'checkpoints' key -- cannot "
+                f"validate anchor coverage or topological order for this amendment"
+            )
+        # IMPL4-O1: both `validate_post_anchor_coverage` and
+        # `reconcile_checkpoints_after_amendment` directly read `entry["id"]`
+        # from `post_registry["checkpoints"]` -- a row with no `id` key
+        # would otherwise escape as a bare, unnamed `KeyError` from either
+        # call below. Named here, once, ahead of both call paths, the same
+        # "refuse and name it" discipline the "checkpoints"-key check just
+        # above already applies to the coarser malformation.
+        missing_id_indices = [
+            i for i, entry in enumerate(post_registry.get("checkpoints", []))
+            if "id" not in entry
+        ]
+        if missing_id_indices:
+            raise AmendmentPostRegistryMalformedError(
+                f"{work_item_id}'s post_registry has checkpoint entries with no 'id' "
+                f"key at index/indices {missing_id_indices} -- cannot validate anchor "
+                f"coverage or topological order for this amendment"
+            )
+        validate_post_anchor_coverage(post_plan_text, post_registry)
+        validate_registry_topological_order(post_registry)
+        reconciliation = reconcile_checkpoints_after_amendment(
+            pre_registry, post_registry, pre_plan_text, post_plan_text,
+            work_item.get("checkpoints", {}),
+        )
+        work_item["checkpoints"] = reconciliation["checkpoints"]
+        if work_item.get("current_checkpoint_id") in reconciliation["dropped"]:
+            work_item["current_checkpoint_id"] = None
+        if work_item.get("last_completed_checkpoint_id") in reconciliation["dropped"]:
+            work_item["last_completed_checkpoint_id"] = None
+        resolved_entry = copy.deepcopy(amendment_history[-1])
+        resolved_entry["resolved_at_plan_revision"] = work_item.get("plan_revision")
+        # IMPL6-B1: record the reconciliation outcome, by id, onto the
+        # resolved amendment_history entry itself -- the durable home
+        # `/approve-review plan`'s own step 7 reads to report "it ran and
+        # did X" rather than only the new phase. Recorded verbatim; this
+        # function performs no further summarization of it.
+        resolved_entry["reconciliation_outcome"] = reconciliation["outcome"]
+        work_item["amendment_history"] = amendment_history[:-1] + [resolved_entry]
     work_item["plan_approval"] = record
     work_item["phase"] = "IMPLEMENTING"
     work_item["state_revision"] = work_item.get("state_revision", 1) + 1
@@ -9661,6 +10499,196 @@ def apply_technical_approval(state: dict, work_item_id: str, record: dict, now: 
     work_item["phase"] = "AWAITING_FUNCTIONAL_REVIEW"
     work_item["state_revision"] = work_item.get("state_revision", 1) + 1
     work_item["last_transition"] = now
+    return new_state
+
+
+# ---------------------------------------------------------------------------
+# workflow-2.4.0, D-Plan-Amendment-1/2/3: /request-plan-amendment's sole
+# writer -- amending an approved plan after implementation has begun.
+# ---------------------------------------------------------------------------
+
+
+_AMENDMENT_REQUEST_ALLOWED_PHASES = frozenset({"IMPLEMENTING", "SELF_REVIEWING_IMPLEMENTATION"})
+
+
+def request_plan_amendment(
+    state: dict, work_item_id: str, reason: str, *, repo_root: Path, now: str,
+) -> dict:
+    """`/request-plan-amendment`'s sole writer (D-Plan-Amendment-1/2/3).
+
+    Entry condition: `phase in {"IMPLEMENTING", "SELF_REVIEWING_IMPLEMENTATION"}`
+    -- the two phases this release supports, and deliberately the only two
+    (`WrongPhaseForAmendmentRequestError` otherwise, naming the actual
+    phase; this is also what refuses a second, redundant request against
+    an item already at `AMENDING_PLAN`).
+
+    Widened precondition (revision 11/12, I-R11-1/B-R12-1): the current
+    `plan_approval`'s own approval commit must actually be discoverable and
+    an ancestor of `HEAD` -- checked directly via
+    `discover_plan_approval_commit`/`_is_ancestor`, the identical pair
+    `implementing_entry_reachable` itself evaluates, never through that
+    four-exit composite (which would also, incorrectly, refuse on a
+    digest-only staleness this amendment is about to replace anyway).
+    Raises `AmendmentApprovalCommitUnreachableError` *before* superseding
+    anything -- `plan_approval.status` is never set to `SUPERSEDED` when
+    this fires.
+
+    Checkpoint-id-shape precondition (IMPL2-R1, narrowed by IMPL3-R1): before
+    either of the above, loads the work item's own current registry (via
+    `_load_authoritative_registry_or_none(repo_root, work_item,
+    require_plan_approval_coverage=False)` -- `None` for a registry-less
+    work item, which skips this check) and raises
+    `AmendmentCheckpointIdShapeError`, naming every offending id, if any
+    checkpoint id in it is not of the shape `CP<digits>`. Such an id can
+    never satisfy `validate_post_anchor_coverage`'s anchor grammar no
+    matter what the amended plan document says, so refusing here -- before
+    `plan_approval` is superseded -- replaces a refusal that would
+    otherwise surface only after both plan-review stages have already
+    been spent on the amended plan, with no in-band recovery.
+
+    `require_plan_approval_coverage=False` (IMPL3-R1): this call needs only
+    the registry's self-declared checkpoint ids, not a proof the registry
+    bytes are the ones the current `plan_approval` covers.
+    `_load_authoritative_registry_or_none`'s default coverage check
+    (`_assert_registry_covered_by_current_plan_approval`) is
+    `resolve_own_registry_completion_status`/`resolve_completion_obligations`'s
+    own completion-accounting trust boundary; reusing it verbatim here
+    reintroduced, through a different door, exactly the digest-only-
+    staleness refusal `.claude/commands/request-plan-amendment.md` step 1
+    explicitly forbids (`D-Plan-Amendment-1`, `B-R12-1`) -- an operator who
+    has started editing `plan_path`/`registry_path` before running this
+    command (the single most likely working-tree state for one about to
+    request an amendment) was refused with a `StalePlanApprovalRegistryReadError`
+    whose message talks about "registry-derived completion", though nothing
+    about this command is completion-accounting. Passing `False` restores
+    the narrower, id-shape-only read this precondition was designed for;
+    the coverage checks other two call sites still need are unaffected.
+
+    In one `state_transaction`-compatible mutation: sets
+    `plan_approval.status = "SUPERSEDED"`; appends one entry to the
+    work item's own append-only `amendment_history` list (bounded,
+    content-addressed reference model, EXT-R6-I1: `superseded_plan_approval`
+    is a deep copy of the record just superseded -- its own
+    `review_content_manifest` already pins the exact blob SHAs of
+    `plan_path`/`registry_path` at the moment it was made;
+    `pre_amendment_approval_commit` is the single commit SHA that
+    reproduces those bytes later via `load_pre_amendment_snapshot`, never
+    a stored copy of the documents themselves); sets `amendment_base_commit`
+    to the current `HEAD`; and writes `phase = "AMENDING_PLAN"` as a direct
+    string literal (never through a local name), so the AST-derived phase
+    census resolves it without a third hardcoded compensation entry.
+
+    This function performs one read of Git identity (`HEAD`'s own SHA, and
+    the reachability check above) -- both are needed to compute the exact
+    `amendment_history` entry this function itself writes, the same
+    narrow exception to pure-`state`-only mutators D-Plan-Amendment-3
+    grants this one writer and no other."""
+    work_item = state["work_items"][work_item_id]
+    phase = work_item.get("phase")
+    if phase not in _AMENDMENT_REQUEST_ALLOWED_PHASES:
+        raise WrongPhaseForAmendmentRequestError(
+            f"{work_item_id} is at phase {phase!r} -- /request-plan-amendment requires "
+            f"phase in {sorted(_AMENDMENT_REQUEST_ALLOWED_PHASES)}"
+        )
+
+    # XMODEL-R4-B1: refuse before anything else -- and before any of the
+    # checks below -- if a checkpoint is already IN_PROGRESS in state, or a
+    # shared filesystem checkpoint claim is outstanding for this work item.
+    # See `AmendmentCheckpointActiveError`'s own docstring for why both
+    # halves are checked (they are two different synchronization domains).
+    if any(
+        entry.get("status") == "IN_PROGRESS"
+        for entry in work_item.get("checkpoints", {}).values()
+    ):
+        raise AmendmentCheckpointActiveError(
+            f"{work_item_id!r} has a checkpoint IN_PROGRESS "
+            f"({work_item.get('current_checkpoint_id')!r}) -- /request-plan-amendment "
+            f"refuses while implementation is live"
+        )
+    outstanding_claim = resolve_claim(repo_root, work_item_id)
+    if outstanding_claim is not None:
+        raise AmendmentCheckpointActiveError(
+            f"{work_item_id!r} has an outstanding checkpoint claim "
+            f"(checkpoint {outstanding_claim.get('checkpoint_id')!r}, worktree "
+            f"{outstanding_claim.get('worktree_root')!r}) -- /request-plan-amendment "
+            f"refuses while a checkpoint start is in flight, even though "
+            f"WORKFLOW_STATE.json may not show it IN_PROGRESS yet"
+        )
+
+    # IMPL2-R1: refuse by name, before anything is superseded, if the
+    # work item's own current registry already names a checkpoint id that
+    # is not of the shape `CP<digits>` -- `validate_post_anchor_coverage`
+    # would refuse the eventual amended plan for exactly this id, but only
+    # after both plan-review stages have been spent on it, with no anchor
+    # text able to fix it. A registry-less work item (`registry_path` is
+    # `None`) has nothing to check here.
+    registry = _load_authoritative_registry_or_none(
+        repo_root, work_item, require_plan_approval_coverage=False,
+    )
+    if registry is not None:
+        # IMPL3-O2: `_load_authoritative_registry_or_none` validates the
+        # registry's own envelope (safe path, JSON object, self-declared
+        # `work_item_id`) but never its checkpoint-row shape, so a row
+        # missing `id` must be named here rather than escaping as an
+        # unnamed `KeyError` from the comprehension below -- the same
+        # "refuse and name it" violation IMPL2-O2 was raised about, in a
+        # different registry read.
+        missing_id_indices = [
+            i for i, entry in enumerate(registry.get("checkpoints", []))
+            if "id" not in entry
+        ]
+        if missing_id_indices:
+            raise AmendmentRegistryMissingIdError(
+                f"{work_item_id}'s registry ({work_item.get('registry_path')}) has "
+                f"checkpoint entries with no 'id' key at index/indices "
+                f"{missing_id_indices} -- cannot check anchor-shape compatibility"
+            )
+        unsupported_ids = [
+            entry["id"] for entry in registry.get("checkpoints", [])
+            if not checkpoint_id_supports_anchor(entry["id"])
+        ]
+        if unsupported_ids:
+            raise AmendmentCheckpointIdShapeError(
+                f"{work_item_id}'s registry ({work_item.get('registry_path')}) names "
+                f"checkpoint id(s) {unsupported_ids!r} that are not of the shape "
+                f"'CP<digits>' -- the plan-amendment anchor grammar "
+                f"(D-Plan-Amendment-4) can never be satisfied for these, so "
+                f"/request-plan-amendment refuses before superseding plan_approval"
+            )
+
+    plan_approval = work_item.get("plan_approval") or {}
+    base_commit = work_item["base_commit"]
+    head = _run(["git", "rev-parse", "HEAD"], cwd=repo_root).strip()
+    approval_commit = discover_plan_approval_commit(
+        repo_root, work_item_id, plan_approval.get("approved_review_content_id"), base_commit, head=head,
+    )
+    if approval_commit is None or not _is_ancestor(repo_root, approval_commit, head):
+        raise AmendmentApprovalCommitUnreachableError(
+            f"{work_item_id}'s current plan_approval commit is not discoverable in "
+            f"{base_commit}..{head}, or not an ancestor of it -- refusing before "
+            f"superseding anything"
+        )
+
+    new_state = copy.deepcopy(state)
+    new_work_item = new_state["work_items"][work_item_id]
+    history = new_work_item.setdefault("amendment_history", [])
+    entry = {
+        "amendment_id": str(len(history)),
+        "requested_at": now,
+        "requested_from_phase": phase,
+        "reason": reason,
+        "superseded_plan_revision": new_work_item.get("plan_revision"),
+        "superseded_plan_approval": copy.deepcopy(new_work_item.get("plan_approval")),
+        "checkpoints_snapshot": copy.deepcopy(new_work_item.get("checkpoints", {})),
+        "pre_amendment_approval_commit": approval_commit,
+        "resolved_at_plan_revision": None,
+    }
+    history.append(entry)
+    new_work_item["plan_approval"]["status"] = "SUPERSEDED"
+    new_work_item["amendment_base_commit"] = head
+    new_work_item["phase"] = "AMENDING_PLAN"
+    new_work_item["state_revision"] = new_work_item.get("state_revision", 1) + 1
+    new_work_item["last_transition"] = now
     return new_state
 
 

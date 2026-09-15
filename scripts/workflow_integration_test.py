@@ -866,7 +866,19 @@ _GOLDEN_COMMAND_FILE_SHA256 = {
     # at all) and `verify_post_approval_manifest_match` -- applied to the
     # commit the invocation just created, never retroactively to
     # discovered history. Intentional content change, not a regression.
-    "approve-review.md": "3efde74cddebf89cc7e07f5ddc1359a7b18cbc0aa8fe30ee4e886c8e111abf52",
+    # Updated by `workflow-2.4.0` CP3 (`D-Plan-Amendment-4`): step 4c now
+    # reads pre_registry/pre_plan_text (via load_pre_amendment_snapshot,
+    # open-amendment only) and post_registry/post_plan_text (via a fresh
+    # resolve_plan_stage_metadata call and a working-tree read) and forwards
+    # all four into open_plan_approval_journal. Intentional content change,
+    # not a regression.
+    # Updated by `workflow-2.4.0`'s round-6 implementation-review fix
+    # (`IMPL6-B1`): step 7 now instructs reporting
+    # `amendment_history[-1]["reconciliation_outcome"]`, by id, whenever
+    # this invocation's own plan-stage approval resolved an amendment --
+    # the reconciliation-outcome report `D-Plan-Amendment-4`'s own prose
+    # requires. Intentional content change, not a regression.
+    "approve-review.md": "c9630a9469b3124f8cbe9acd01594b18ff75387d06b42543555fc08da944f734",
     # accept-milestone.md updated, baseline-freeze correctness fix
     # (OPUS-R129-001): step 6's completion-commit instruction now states
     # the same "trailers must be the commit message's own final paragraph"
@@ -1045,7 +1057,13 @@ _GOLDEN_COMMAND_FILE_SHA256 = {
     # them, what each outcome does to the counter, and the two different
     # consequences (withdrawal vs outright refusal). Intentional content
     # change, not a regression.
-    "apply-functional-review.md": "2a8380524d3aad1eb50d87164b84af15a92f8510d3a35a7952f8202c9e338ef6",
+    # Updated by `workflow-2.4.0` CP3 (`D-Plan-Amendment-1`): the broad-
+    # remediation branch's sanctioned child sequence now names
+    # `/request-plan-amendment <child-id>` as an addendum a child may use
+    # once it reaches `IMPLEMENTING`/`SELF_REVIEWING_IMPLEMENTATION`, on the
+    # same terms as its parent. Intentional content change, not a
+    # regression.
+    "apply-functional-review.md": "60728153d8168b7fb2d5dbe67e8070b410d60789b09c30d4ea24c7e98af10e48",
 }
 
 
@@ -1224,6 +1242,13 @@ _GENERATOR_MENTION_ONLY_COMMANDS = {
         "report-only: names the omitted-id invocation as the documented cause "
         "of a MissingRequiredBundleFileError refusal, and tells the *user* to "
         "regenerate scoped; it never generates anything itself"
+    ),
+    "request-plan-amendment.md": (
+        "workflow-2.4.0, I-R14-2: its own 'what happens next' prose names "
+        "prepare-ai-review.sh to explain that AMENDMENT_DIFF.patch will "
+        "appear in the next plan-stage bundle while this amendment stays "
+        "open -- deliberately phrased without a run/rerun-plus-backticked-"
+        "invocation construction, so it never generates anything itself"
     ),
 }
 
@@ -1692,8 +1717,8 @@ class TestGenerationCommandsNameTheCompleteAuthorInputSet(unittest.TestCase):
 
     def test_no_mention_only_command_instructs_its_own_generation(self):
         """The negative half of the partition, asserted directly rather
-        than inferred from the regex that produced it: neither
-        report-only command tells *itself* to run the generator."""
+        than inferred from the regex that produced it: none of the three
+        report-only commands tells *itself* to run the generator."""
         for filename in _GENERATOR_MENTION_ONLY_COMMANDS:
             with self.subTest(filename=filename):
                 self.assertIsNone(_GENERATOR_RUN_RE.search(_command_text(filename)))
@@ -2321,6 +2346,28 @@ class TestGoldenCommandFileHashes(unittest.TestCase):
                     f"{filename} content changed since this golden hash was recorded -- "
                     f"if intentional, update _GOLDEN_COMMAND_FILE_SHA256",
                 )
+
+
+class TestReconciliationOutcomeReportingConformance(unittest.TestCase):
+    """workflow-2.4.0's round-6 implementation-review fix (`IMPL6-B1`):
+    `D-Plan-Amendment-4`'s own closing requirement --
+
+        Reconciliation's outcome (retained / needs-revalidation / dropped,
+        by id, including which flips came from the dependency-closure
+        pass) is included in `/approve-review plan`'s own output
+
+    -- names an operator-visible report that only a prior round's audit
+    caught as unimplemented despite the requirement appearing verbatim in
+    the shipped `WORKFLOW_V2_PLAN.md`. This is the "single test going red"
+    that finding's own "Architecture and maintainability concerns" section
+    says nothing previously bound the design paragraph to the command
+    text; this class is that binding, mirroring `TestGoldenCommandFileHashes`'s
+    pinned-literal shape rather than trusting prose alone again."""
+
+    def test_approve_review_step_7_instructs_reporting_the_reconciliation_outcome(self):
+        text = _command_text("approve-review.md")
+        self.assertIn("reconciliation_outcome", text)
+        self.assertIn("needs_revalidation_dependency", text)
 
 
 class TestPlanApprovalCommitTrailerFinalParagraphConformance(unittest.TestCase):
@@ -6057,13 +6104,15 @@ class TestRetiredScopedRemediationLeavesNoLiveSurface(unittest.TestCase):
         `/accept-scoped-remediation`. Removing that section left 13, plus a
         second, older gap: `workflow-v2-3` added `/review-implementation`
         and `/review-functional` without ever sectioning them here. Both
-        gaps are now closed -- the reference sections all 15 live commands
-        -- and this test derives the expected count from the real files
-        rather than hand-maintaining a number that can go stale again."""
+        gaps are now closed -- and `workflow-2.4.0` CP3 added a sixteenth,
+        `/request-plan-amendment` -- the reference sections all 16 live
+        commands -- and this test derives the expected count from the real
+        files rather than hand-maintaining a number that can go stale
+        again."""
         text = (_repo_root() / "docs/ai-workflow/WORKFLOW_V2_1_OPERATOR_REFERENCE.md").read_text()
         sections = re.findall(r"(?m)^### `/([a-z0-9-]+)", text)
         on_disk = sorted(p.stem for p in (_repo_root() / ".claude" / "commands").glob("*.md"))
-        self.assertEqual(len(on_disk), 15)
+        self.assertEqual(len(on_disk), 16)
         self.assertNotIn("accept-scoped-remediation", sections)
         self.assertNotIn("accept-scoped-remediation", on_disk)
         # Every live command has exactly one section, and vice versa.
@@ -6362,6 +6411,7 @@ class TestOperatorReferenceMatchesReality(unittest.TestCase):
                                            "promote_legacy_work_item"],
             "MILESTONE_COMPLETE": ["complete_work_item"],
             "LEGACY_READY": ["import_legacy_work_item"],
+            "AMENDING_PLAN": ["request_plan_amendment"],
         }
         for phase, names in expected.items():
             for name in names:
@@ -6453,7 +6503,7 @@ class TestOperatorReferenceMatchesReality(unittest.TestCase):
         equality is derived; the count is a hardcoded tripwire."""
         text = _operator_reference_text()
         self.assertNotIn("not\nhand-maintained", text)
-        self.assertIn("assertEqual(len(on_disk), 15)", text)
+        self.assertIn("assertEqual(len(on_disk), 16)", text)
         self.assertIn("hardcoded tripwire", text)
         # And the claim it makes about the derivation is itself true.
         sections = re.findall(r"(?m)^### `/([a-z0-9-]+)", text)
@@ -6511,6 +6561,10 @@ class TestOperatorReferenceMatchesReality(unittest.TestCase):
         "state_revision", "technical_approval", "work_item_id",
         "work_item_kind", "work_item_type", "work_items", "worktree_root",
         "test_the_operator_reference_command_count_matches_reality",
+        # workflow-2.4.0, D-Plan-Amendment-3: amendment_history entry/
+        # top-level state field names, not code symbols.
+        "amendment_base_commit", "amendment_history",
+        "pre_amendment_approval_commit",
     })
 
     def test_every_code_symbol_the_reference_names_actually_exists(self):
@@ -6536,8 +6590,8 @@ class TestOperatorReferenceMatchesReality(unittest.TestCase):
         self.assertEqual(shadowed, [])
 
     def test_the_enter_the_state_preamble_convention_is_documented_correctly(self):
-        """Re-audit finding `O22`: ten command files open with an `Enter ...`
-        line naming a phase -- inherited v1 wording that
+        """Re-audit finding `O22`: eleven command files open with an
+        `Enter ...` line naming a phase -- inherited v1 wording that
         does not mean the command writes `X` -- which is the root of the
         `FIXING_FUNCTIONAL_FINDINGS` and `AWAITING_TECHNICAL_APPROVAL`
         confusion. The reference's three-way table is checked here against
@@ -6566,7 +6620,7 @@ class TestOperatorReferenceMatchesReality(unittest.TestCase):
             "apply-implementation-review", "apply-plan-review",
             "approve-review", "milestone-implement", "milestone-plan",
             "prepare-functional-review", "record-manual-plan-review",
-            "review-plan",
+            "request-plan-amendment", "review-plan",
         ])
         # Every command with such a preamble appears in the reference's table.
         table = _operator_reference_text().split(

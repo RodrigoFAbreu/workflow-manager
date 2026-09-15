@@ -384,6 +384,9 @@ class TestNeverPersistedPhaseVocabulary(unittest.TestCase):
         "AWAITING_PLAN_APPROVAL", "IMPLEMENTING", "SELF_REVIEWING_IMPLEMENTATION",
         "AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW", "APPLYING_REVIEW_FEEDBACK",
         "AWAITING_FUNCTIONAL_REVIEW", "MILESTONE_COMPLETE", "LEGACY_READY",
+        # workflow-2.4.0, D-Plan-Amendment-1: real and persisted (its sole
+        # writer is `request_plan_amendment`), unlike NEVER_PERSISTED's four.
+        "AMENDING_PLAN",
     })
 
     def test_exactly_four_known_phases_are_never_persisted(self):

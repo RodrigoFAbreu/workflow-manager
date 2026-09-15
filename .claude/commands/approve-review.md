@@ -313,7 +313,30 @@ actually load-bearing control for the Skill exposure path, not mechanism
     still be caught. Read `docs/ai-workflow/WORKFLOW_STATE.json`'s
     current working-tree bytes fresh and parse them (`pre_state`). Build
     the record via step 4 above (`record`, `approval_now = <now>`) if not
-    already built. Then call
+    already built.
+
+    **workflow-2.4.0, D-Plan-Amendment-4 — reconciliation inputs, read here
+    and only here.** Call `metadata =
+    workflow_fingerprint.resolve_plan_stage_metadata(repo_root,
+    work_item_id)` -- one additional, cheap, idempotent resolver call, not
+    a value inherited from an earlier step -- and read `metadata.plan_path`'s
+    current working-tree bytes as `post_plan_text` and
+    `metadata.registry_path`'s current working-tree bytes, parsed as JSON,
+    as `post_registry`: the exact bytes the two-stage review just approved.
+    When `pre_state`'s own `work_items[work_item_id]` has an open amendment
+    (`amendment_history` non-empty and its last entry's
+    `resolved_at_plan_revision` still `null`), also call `pre_plan_text,
+    pre_registry = workflow_state.load_pre_amendment_snapshot(repo_root,
+    work_item_id, metadata.plan_path, metadata.registry_path,
+    amendment_history[-1])` -- never a re-read of the live
+    `plan_path`/`registry_path`, which by this point in `AMENDING_PLAN`'s
+    lifecycle already hold the *post*-amendment content. No open amendment:
+    `pre_plan_text`/`pre_registry` stay `None`. All four values are read
+    exactly once, at this call site, in this order, and forwarded verbatim
+    into `open_plan_approval_journal` below -- never re-derived, and never
+    consulted by this step itself.
+
+    Then call
     `journal = workflow_state.open_plan_approval_journal(repo_root,
     work_item_id=work_item_id, base_commit=base_commit, pre_state=pre_state,
     record=record, approval_now=approval_now, expected_bundle_id=<step 2's
@@ -325,7 +348,9 @@ actually load-bearing control for the Skill exposure path, not mechanism
     steps 6.2/6c's own fresh whole-file compare-and-swap
     (plan_approval_state_matches_pre_transaction) closes the concurrent-
     writer race the bootstrap's quiescence window instead bridges by
-    convention")`. `owner_token = journal["owner_token"]`. Unlike the
+    convention", pre_registry=pre_registry, pre_plan_text=pre_plan_text,
+    post_registry=post_registry, post_plan_text=post_plan_text)`.
+    `owner_token = journal["owner_token"]`. Unlike the
     now-superseded prior revision of this step, **no**
     `docs/ai-workflow/WORKFLOW_STATE.json` working-tree write happens
     here or anywhere below — the transaction's expected post-approval
@@ -571,3 +596,22 @@ actually load-bearing control for the Skill exposure path, not mechanism
 7. Report the new phase (`IMPLEMENTING` or `AWAITING_FUNCTIONAL_REVIEW`) and
    **stop**. Never chain into the next state's actions in the same
    invocation.
+
+   **workflow-2.4.0, D-Plan-Amendment-4 — report the reconciliation
+   outcome (`IMPL6-B1`)**: plan stage only, and only when this
+   invocation's own `apply_plan_approval` call resolved an amendment (step
+   4c read a non-`None` `pre_registry`/`pre_plan_text` pair for it). Read
+   `amendment_history[-1]["reconciliation_outcome"]` from the
+   just-materialized `docs/ai-workflow/WORKFLOW_STATE.json` (the exact map
+   `reconcile_checkpoints_after_amendment` returned, keyed by checkpoint
+   id) and report it alongside the phase, by id: which ids were
+   `retained`, which were demoted to `needs_revalidation` directly (their
+   own registry row or checkpoint content changed) versus
+   `needs_revalidation_dependency` (unchanged themselves, demoted only
+   because a dependency was), which were `dropped`, and which are `new`.
+   This is the operator-visible distinction between "reconciliation ran
+   and legitimately did nothing" (every id `retained`) and "it never ran"
+   (no amendment resolved this round, so this paragraph does not apply at
+   all) -- never omit it for a round that did resolve an amendment, and
+   never fabricate it by re-deriving from anything other than this exact
+   field.

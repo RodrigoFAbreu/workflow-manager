@@ -233,6 +233,16 @@ all in the same invocation.
      parent's `IncompleteChildWorkItemError` block, so the parent cannot
      complete until the child does.
 
+     **`workflow-2.4.0` addendum: the child may amend its own plan too.**
+     A remediation child is a work item like any other, so once it reaches
+     `IMPLEMENTING`/`SELF_REVIEWING_IMPLEMENTATION` it may request its own
+     plan amendment on exactly the terms `D-Plan-Amendment-1`/`-2` set for
+     any work item: `/request-plan-amendment <child-id>` followed by
+     `/milestone-plan <child-id>`, re-entering the sanctioned sequence
+     above at its own `/milestone-plan <child-id>` step. This is not a
+     remediation-specific mechanism and grants the child no authority its
+     parent lacks.
+
 5. Commit coherent fixes for any "no code change"/narrative-only findings
    resolved in step 4 (the bounded branch already committed its own fix
    above; a round that is entirely bounded- or broad-branch findings may

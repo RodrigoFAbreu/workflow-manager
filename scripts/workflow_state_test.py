@@ -4265,6 +4265,36 @@ class TestCheckpointStateTransitions(unittest.TestCase):
         # Original state is untouched (functions return a new dict).
         self.assertEqual(state["work_items"]["wi"]["checkpoints"], {})
 
+    def test_transition_to_in_progress_refuses_once_the_work_item_has_left_implementing(self):
+        """XMODEL-R4-B1, missing-tests item 3: this is the second,
+        independent half of the amendment-vs-checkpoint-start race fix. A
+        checkpoint claim published before an amendment transition's own
+        state_transaction committed must not be able to publish
+        IN_PROGRESS once the work item has moved on to `AMENDING_PLAN` --
+        or, more generally, to any phase outside
+        `CHECKPOINT_START_LEGAL_PHASES`.
+
+        Also pins that this guard is not made redundant by
+        `claim_checkpoint`'s own newer, round-8 phase check (missing-test
+        item 3, round 9 external implementation review): this call goes
+        directly through `transition_checkpoint_in_progress` with no
+        `claim_checkpoint` call anywhere in this test, which is exactly the
+        shape three real call sites take in production --
+        `.claude/commands/milestone-implement.md`'s `CONTINUE_CLAIM`/
+        `RESUME` branches (the claim already exists from an earlier step
+        1c, so `claim_checkpoint` is never called again), `adopt_claim`
+        (publishes through `_claim_or_refuse` directly), and
+        `take_over_claim` (publishes through `_publish_claim_replacing`).
+        Removing this guard on the theory that `claim_checkpoint`'s own
+        check "already covers it" would silently reopen the
+        `IN_PROGRESS`-after-`AMENDING_PLAN` write on all three."""
+        wi = _base_work_item(phase="AMENDING_PLAN", current_checkpoint_id=None, checkpoints={})
+        state = _base_state(wi=wi)
+        with self.assertRaises(ws.IllegalCheckpointStartPhaseError):
+            ws.transition_checkpoint_in_progress(state, "wi", "A", "deadbeef", now="t1")
+        # Refused before any write: the original checkpoints map is untouched.
+        self.assertEqual(state["work_items"]["wi"]["checkpoints"], {})
+
     def test_complete_checkpoint_stays_implementing_when_others_remain(self):
         """Checkpoint-complete-vs-all-complete semantics: completing one
         checkpoint out of several never itself flips the phase."""
@@ -10211,6 +10241,11 @@ class TestPersistedPhaseWriterCensus(unittest.TestCase):
         "AWAITING_FUNCTIONAL_REVIEW": {"apply_technical_approval", "promote_legacy_work_item"},
         "MILESTONE_COMPLETE": {"complete_work_item"},
         "LEGACY_READY": {"import_legacy_work_item"},
+        # workflow-2.4.0, D-Plan-Amendment-1: real and persisted, unlike
+        # DECLARED_BUT_UNWRITTEN's four -- the mechanism must survive an
+        # interruption between the request and the first post-request
+        # /milestone-plan call.
+        "AMENDING_PLAN": {"request_plan_amendment"},
     }
 
     def test_every_write_site_resolves_to_a_named_phase(self):
@@ -10260,6 +10295,1434 @@ class TestPersistedPhaseWriterCensus(unittest.TestCase):
             "AWAITING_TECHNICAL_APPROVAL",
             {wi["phase"] for wi in new_state["work_items"].values()},
         )
+
+
+# ---------------------------------------------------------------------------
+# CP8 (`plan-amendment-mechanism`): D-Plan-Amendment-1..8's own unit-level
+# coverage -- CP2/CP3 authored request_plan_amendment/reconcile_checkpoints_
+# after_amendment/apply_plan_approval's amendment branch/the anchor grammar,
+# but (plan revision 34, section 4's own "items 11-15" note) deliberately
+# deferred their dedicated tests to this checkpoint. Every class below tests
+# functions that previously had zero coverage in this suite.
+# ---------------------------------------------------------------------------
+
+
+class TestCheckpointIdSupportsAnchor(unittest.TestCase):
+    """`checkpoint_id_supports_anchor`'s `CP<digits>` shape gate
+    (D-Plan-Amendment-4)."""
+
+    def test_plain_cp_digits_is_supported(self):
+        self.assertTrue(ws.checkpoint_id_supports_anchor("CP1"))
+        self.assertTrue(ws.checkpoint_id_supports_anchor("CP123"))
+
+    def test_non_cp_digits_shape_is_unsupported(self):
+        self.assertFalse(ws.checkpoint_id_supports_anchor("WF4a-i"))
+
+    def test_trailing_newline_is_unsupported(self):
+        """IMPL4-O3: Python's `$` matches immediately before a trailing
+        `\\n` as well as at the true end of string, so `"CP1\\n"` would
+        otherwise pass this shape gate while remaining unsatisfiable by
+        `_CHECKPOINT_ANCHOR_RE`'s own anchor-tag parser, which has no such
+        allowance. `\\Z` closes it."""
+        self.assertFalse(ws.checkpoint_id_supports_anchor("CP1\n"))
+
+
+class TestCheckpointAnchorSpans(unittest.TestCase):
+    """`parse_checkpoint_anchor_spans`'s closed, non-nesting, per-id
+    balanced-tag grammar (D-Plan-Amendment-4, B5-new/I5-new)."""
+
+    def test_two_disjoint_pairs_for_the_same_id_are_legal(self):
+        text = "<!-- CP1 -->a<!-- /CP1 -->mid<!-- CP1 -->b<!-- /CP1 -->"
+        spans = ws.parse_checkpoint_anchor_spans(text)
+        self.assertEqual(len(spans["CP1"]), 2)
+
+    def test_nested_open_tag_is_malformed_in_strict_mode(self):
+        text = "<!-- CP1 --><!-- CP1 -->x<!-- /CP1 --><!-- /CP1 -->"
+        with self.assertRaises(ws.AmendmentAnchorMalformedError):
+            ws.parse_checkpoint_anchor_spans(text, strict=True)
+
+    def test_orphan_close_tag_is_malformed_in_strict_mode(self):
+        with self.assertRaises(ws.AmendmentAnchorMalformedError):
+            ws.parse_checkpoint_anchor_spans("<!-- /CP2 -->", strict=True)
+
+    def test_unterminated_open_tag_is_malformed_in_strict_mode(self):
+        with self.assertRaises(ws.AmendmentAnchorMalformedError):
+            ws.parse_checkpoint_anchor_spans("<!-- CP3 -->dangling", strict=True)
+
+    def test_non_strict_mode_omits_only_the_malformed_id_never_raises(self):
+        text = "<!-- CP1 -->ok<!-- /CP1 --><!-- /CP2 -->"
+        spans = ws.parse_checkpoint_anchor_spans(text, strict=False)
+        self.assertIn("CP1", spans)
+        self.assertNotIn("CP2", spans)
+
+
+class TestCheckpointContentHash(unittest.TestCase):
+    def test_none_when_the_id_has_no_well_formed_spans(self):
+        self.assertIsNone(ws.checkpoint_content_hash("no anchors here", "CP1"))
+
+    def test_changes_when_the_span_content_changes(self):
+        h1 = ws.checkpoint_content_hash("<!-- CP1 -->a<!-- /CP1 -->", "CP1", strict=True)
+        h2 = ws.checkpoint_content_hash("<!-- CP1 -->b<!-- /CP1 -->", "CP1", strict=True)
+        self.assertNotEqual(h1, h2)
+
+    def test_identical_when_the_span_content_is_identical_despite_surrounding_prose(self):
+        h1 = ws.checkpoint_content_hash("<!-- CP1 -->same<!-- /CP1 -->", "CP1", strict=True)
+        h2 = ws.checkpoint_content_hash("prefix <!-- CP1 -->same<!-- /CP1 --> suffix", "CP1", strict=True)
+        self.assertEqual(h1, h2)
+
+
+class TestValidatePostAnchorCoverage(unittest.TestCase):
+    @staticmethod
+    def _registry(ids):
+        return {"checkpoints": [{"id": cid} for cid in ids]}
+
+    def test_a_missing_anchor_pair_is_refused(self):
+        with self.assertRaises(ws.AmendmentAnchorCoverageError):
+            ws.validate_post_anchor_coverage(
+                "<!-- CP1 -->x<!-- /CP1 -->", self._registry(["CP1", "CP2"]),
+            )
+
+    def test_two_disjoint_pairs_for_the_same_id_are_legal_not_malformed(self):
+        text = "<!-- CP1 -->a<!-- /CP1 -->mid<!-- CP1 -->b<!-- /CP1 -->"
+        ws.validate_post_anchor_coverage(text, self._registry(["CP1"]))  # must not raise
+
+    def test_an_orphan_close_tag_anywhere_is_malformed(self):
+        with self.assertRaises(ws.AmendmentAnchorMalformedError):
+            ws.validate_post_anchor_coverage("<!-- /CP1 -->", self._registry(["CP1"]))
+
+    def test_an_overlapping_open_tag_anywhere_is_malformed(self):
+        text = "<!-- CP1 --><!-- CP1 -->x<!-- /CP1 --><!-- /CP1 -->"
+        with self.assertRaises(ws.AmendmentAnchorMalformedError):
+            ws.validate_post_anchor_coverage(text, self._registry(["CP1"]))
+
+
+class TestReconcileCheckpointsAfterAmendment(unittest.TestCase):
+    """`reconcile_checkpoints_after_amendment`'s three-outcome algorithm
+    plus its own dependency-closure pass -- pure and directly testable with
+    no repository at all."""
+
+    @staticmethod
+    def _row(cid, depends_on=(), name=None):
+        return {
+            "id": cid, "name": name or f"checkpoint {cid}",
+            "depends_on": list(depends_on), "complexity": 1, "session_target": 1,
+        }
+
+    @staticmethod
+    def _registry(rows):
+        return {"checkpoints": rows}
+
+    def test_retained_when_row_and_content_are_both_unchanged(self):
+        pre = self._registry([self._row("CP1")])
+        post = self._registry([self._row("CP1")])
+        text = "<!-- CP1 -->same<!-- /CP1 -->"
+        checkpoints = {"CP1": {"status": "COMPLETE", "start_commit": "x"}}
+        result = ws.reconcile_checkpoints_after_amendment(pre, post, text, text, checkpoints)
+        self.assertEqual(result["outcome"]["CP1"], "retained")
+        self.assertEqual(result["checkpoints"]["CP1"]["status"], "COMPLETE")
+
+    def test_needs_revalidation_when_the_registry_row_changed(self):
+        pre = self._registry([self._row("CP1", name="old name")])
+        post = self._registry([self._row("CP1", name="new name")])
+        text = "<!-- CP1 -->same<!-- /CP1 -->"
+        checkpoints = {"CP1": {"status": "COMPLETE", "start_commit": "x"}}
+        result = ws.reconcile_checkpoints_after_amendment(pre, post, text, text, checkpoints)
+        self.assertEqual(result["outcome"]["CP1"], "needs_revalidation")
+        self.assertEqual(result["checkpoints"]["CP1"]["status"], "NEEDS_REVALIDATION")
+
+    def test_needs_revalidation_when_the_row_is_byte_identical_but_content_changed(self):
+        """B6.2: the discriminator must see a redefinition the registry row
+        alone would miss."""
+        pre_row = self._row("CP1")
+        pre = self._registry([pre_row])
+        post = self._registry([dict(pre_row)])
+        pre_text = "<!-- CP1 -->old design<!-- /CP1 -->"
+        post_text = "<!-- CP1 -->new design<!-- /CP1 -->"
+        checkpoints = {"CP1": {"status": "COMPLETE", "start_commit": "x"}}
+        result = ws.reconcile_checkpoints_after_amendment(pre, post, pre_text, post_text, checkpoints)
+        self.assertEqual(result["outcome"]["CP1"], "needs_revalidation")
+
+    def test_a_pre_text_with_no_anchors_anywhere_is_conservative(self):
+        """B4-new.1: the legacy/no-anchor case flips every shared id rather
+        than ever silently treating it as unchanged."""
+        pre = self._registry([self._row("CP1")])
+        post = self._registry([self._row("CP1")])
+        pre_text = "plain legacy plan text with no anchors at all"
+        post_text = "<!-- CP1 -->new<!-- /CP1 -->"
+        checkpoints = {"CP1": {"status": "COMPLETE", "start_commit": "x"}}
+        result = ws.reconcile_checkpoints_after_amendment(pre, post, pre_text, post_text, checkpoints)
+        self.assertEqual(result["outcome"]["CP1"], "needs_revalidation")
+
+    def test_a_checkpoint_removed_from_the_registry_is_dropped(self):
+        pre = self._registry([self._row("CP1"), self._row("CP2", depends_on=["CP1"])])
+        post = self._registry([self._row("CP1")])
+        pre_text = "<!-- CP1 -->a<!-- /CP1 --><!-- CP2 -->b<!-- /CP2 -->"
+        post_text = "<!-- CP1 -->a<!-- /CP1 -->"
+        checkpoints = {"CP1": {"status": "COMPLETE"}, "CP2": {"status": "COMPLETE"}}
+        result = ws.reconcile_checkpoints_after_amendment(pre, post, pre_text, post_text, checkpoints)
+        self.assertEqual(result["outcome"]["CP2"], "dropped")
+        self.assertNotIn("CP2", result["checkpoints"])
+        self.assertEqual(result["dropped"], ["CP2"])
+
+    def test_a_checkpoint_new_to_the_registry_is_reported_new(self):
+        pre = self._registry([self._row("CP1")])
+        post = self._registry([self._row("CP1"), self._row("CP2", depends_on=["CP1"])])
+        pre_text = "<!-- CP1 -->a<!-- /CP1 -->"
+        post_text = "<!-- CP1 -->a<!-- /CP1 --><!-- CP2 -->b<!-- /CP2 -->"
+        checkpoints = {"CP1": {"status": "COMPLETE"}}
+        result = ws.reconcile_checkpoints_after_amendment(pre, post, pre_text, post_text, checkpoints)
+        self.assertEqual(result["outcome"]["CP2"], "new")
+        self.assertNotIn("CP2", result["checkpoints"])
+
+    def test_dependency_closure_flips_an_otherwise_unchanged_dependent(self):
+        """B6.3: CPj changed -> NEEDS_REVALIDATION; CPk depends_on CPj, CPk
+        itself unchanged -- CPk is also flipped by the closure pass."""
+        pre = self._registry([self._row("CP1"), self._row("CP2", depends_on=["CP1"])])
+        post = self._registry([self._row("CP1", name="changed"), self._row("CP2", depends_on=["CP1"])])
+        text = "<!-- CP1 -->a<!-- /CP1 --><!-- CP2 -->b<!-- /CP2 -->"
+        checkpoints = {"CP1": {"status": "COMPLETE"}, "CP2": {"status": "COMPLETE"}}
+        result = ws.reconcile_checkpoints_after_amendment(pre, post, text, text, checkpoints)
+        self.assertEqual(result["outcome"]["CP1"], "needs_revalidation")
+        self.assertEqual(result["outcome"]["CP2"], "needs_revalidation_dependency")
+        self.assertEqual(result["checkpoints"]["CP2"]["status"], "NEEDS_REVALIDATION")
+
+    def test_closure_derived_flip_is_reported_with_a_distinct_token(self):
+        """IMPL6-B1: a closure-derived demotion must be distinguishable in
+        the reported outcome from a direct row/content demotion -- both
+        leave `status` at `NEEDS_REVALIDATION`, but only the outcome token
+        says which pass caused it."""
+        pre = self._registry([self._row("CP1"), self._row("CP2", depends_on=["CP1"])])
+        post = self._registry([self._row("CP1", name="changed"), self._row("CP2", depends_on=["CP1"])])
+        text = "<!-- CP1 -->a<!-- /CP1 --><!-- CP2 -->b<!-- /CP2 -->"
+        checkpoints = {"CP1": {"status": "COMPLETE"}, "CP2": {"status": "COMPLETE"}}
+        result = ws.reconcile_checkpoints_after_amendment(pre, post, text, text, checkpoints)
+        self.assertNotEqual(result["outcome"]["CP1"], result["outcome"]["CP2"])
+        self.assertEqual(result["outcome"]["CP1"], "needs_revalidation")
+        self.assertEqual(result["outcome"]["CP2"], "needs_revalidation_dependency")
+
+    def test_a_non_complete_status_is_left_alone_by_needs_revalidation(self):
+        """"any other status is left as-is (nothing to revalidate that has
+        not already completed)"."""
+        pre = self._registry([self._row("CP1", name="old")])
+        post = self._registry([self._row("CP1", name="new")])
+        text = "<!-- CP1 -->same<!-- /CP1 -->"
+        checkpoints = {"CP1": {"status": "IN_PROGRESS", "start_commit": "x"}}
+        result = ws.reconcile_checkpoints_after_amendment(pre, post, text, text, checkpoints)
+        self.assertEqual(result["outcome"]["CP1"], "needs_revalidation")
+        self.assertEqual(result["checkpoints"]["CP1"]["status"], "IN_PROGRESS")
+
+
+class TestRequestPlanAmendment(unittest.TestCase):
+    """`/request-plan-amendment`'s sole writer (D-Plan-Amendment-1/2/3)."""
+
+    @staticmethod
+    def _state_with_approved_plan(repo, work_item_id="wi", phase="IMPLEMENTING",
+                                  review_content_id="rc-1"):
+        approval_commit = repo.commit(
+            "approve plan",
+            trailers={"Workflow-Plan-Approval": review_content_id, "Workflow-Work-Item": work_item_id},
+        )
+        work_item = {
+            "work_item_id": work_item_id, "phase": phase, "plan_revision": 1,
+            "base_commit": repo.base,
+            "plan_approval": {"status": "CURRENT", "approved_review_content_id": review_content_id},
+            "checkpoints": {"CP1": {"status": "COMPLETE", "start_commit": approval_commit}},
+            "current_checkpoint_id": None, "last_completed_checkpoint_id": "CP1",
+        }
+        state = {"schema_version": 1, "active_work_item_id": work_item_id,
+                 "work_items": {work_item_id: work_item}}
+        return state, approval_commit
+
+    def test_success_supersedes_the_approval_and_enters_amending_plan(self):
+        with ScratchRepo() as repo:
+            state, approval_commit = self._state_with_approved_plan(repo)
+            head = repo.head()
+            new_state = ws.request_plan_amendment(
+                state, "wi", "amend for a real reason", repo_root=repo.root,
+                now="2026-01-01T00:00:00Z",
+            )
+            wi = new_state["work_items"]["wi"]
+            self.assertEqual(wi["phase"], "AMENDING_PLAN")
+            self.assertEqual(wi["plan_approval"]["status"], "SUPERSEDED")
+            self.assertEqual(wi["amendment_base_commit"], head)
+            self.assertEqual(len(wi["amendment_history"]), 1)
+            entry = wi["amendment_history"][0]
+            self.assertEqual(entry["pre_amendment_approval_commit"], approval_commit)
+            self.assertIsNone(entry["resolved_at_plan_revision"])
+            self.assertEqual(entry["requested_from_phase"], "IMPLEMENTING")
+            # The original input state is never mutated in place.
+            self.assertEqual(state["work_items"]["wi"]["phase"], "IMPLEMENTING")
+
+    def test_self_reviewing_implementation_is_also_an_allowed_phase(self):
+        with ScratchRepo() as repo:
+            state, _ = self._state_with_approved_plan(repo, phase="SELF_REVIEWING_IMPLEMENTATION")
+            new_state = ws.request_plan_amendment(
+                state, "wi", "reason", repo_root=repo.root, now="2026-01-01T00:00:00Z",
+            )
+            self.assertEqual(new_state["work_items"]["wi"]["phase"], "AMENDING_PLAN")
+
+    def test_wrong_phase_is_refused(self):
+        with ScratchRepo() as repo:
+            state, _ = self._state_with_approved_plan(repo, phase="PLANNING")
+            with self.assertRaises(ws.WrongPhaseForAmendmentRequestError):
+                ws.request_plan_amendment(
+                    state, "wi", "reason", repo_root=repo.root, now="2026-01-01T00:00:00Z",
+                )
+
+    def test_unreachable_approval_commit_is_refused_before_superseding_anything(self):
+        with ScratchRepo() as repo:
+            state, _ = self._state_with_approved_plan(repo, review_content_id="rc-real")
+            state["work_items"]["wi"]["plan_approval"]["approved_review_content_id"] = "rc-nonexistent"
+            with self.assertRaises(ws.AmendmentApprovalCommitUnreachableError):
+                ws.request_plan_amendment(
+                    state, "wi", "reason", repo_root=repo.root, now="2026-01-01T00:00:00Z",
+                )
+            self.assertEqual(state["work_items"]["wi"]["plan_approval"]["status"], "CURRENT")
+
+    def test_a_second_request_against_an_already_amending_item_is_refused(self):
+        with ScratchRepo() as repo:
+            state, _ = self._state_with_approved_plan(repo)
+            amended = ws.request_plan_amendment(
+                state, "wi", "first", repo_root=repo.root, now="2026-01-01T00:00:00Z",
+            )
+            with self.assertRaises(ws.WrongPhaseForAmendmentRequestError):
+                ws.request_plan_amendment(
+                    amended, "wi", "second", repo_root=repo.root, now="2026-01-01T00:00:01Z",
+                )
+
+    def test_non_cp_digit_checkpoint_id_is_refused_before_superseding_anything(self):
+        """IMPL2-R1: `workflow-v2-1-core`'s own real checkpoint id shape
+        (`WF4a-i`) can never be given a well-formed `<!-- CPn -->` anchor
+        pair -- `validate_post_anchor_coverage` would refuse the amended
+        plan for it unconditionally, two review stages later, with no
+        anchor text able to fix it. `request_plan_amendment` must refuse by
+        name instead, before `plan_approval` is superseded."""
+        with ScratchRepo() as repo:
+            registry_path = "registry.json"
+            _write(repo, registry_path, json.dumps({
+                "work_item_id": "wi", "plan_revision": 1,
+                "checkpoints": [{"id": "WF4a-i", "depends_on": []}],
+            }))
+            _commit_paths(repo, [registry_path], "add registry")
+            work_item = _base_work_item(
+                base_commit=repo.base,
+                registry_path=registry_path,
+                plan_approval=_current_plan_approval_covering(repo, registry_path),
+                checkpoints={}, current_checkpoint_id=None, last_completed_checkpoint_id=None,
+            )
+            state = _base_state(wi=work_item)
+            with self.assertRaises(ws.AmendmentCheckpointIdShapeError) as ctx:
+                ws.request_plan_amendment(
+                    state, "wi", "reason", repo_root=repo.root, now="2026-01-01T00:00:00Z",
+                )
+            self.assertIn("WF4a-i", str(ctx.exception))
+            # Refused before any write: plan_approval is never superseded.
+            self.assertEqual(state["work_items"]["wi"]["plan_approval"]["status"], "CURRENT")
+
+    def test_all_cp_digit_checkpoint_ids_are_unaffected(self):
+        """The shape check is additive: a registry whose ids are already
+        all `CP<digits>` (the only shape this milestone's own registries
+        use) proceeds exactly as before."""
+        with ScratchRepo() as repo:
+            registry_path = "registry.json"
+            _write(repo, registry_path, json.dumps({
+                "work_item_id": "wi", "plan_revision": 1,
+                "checkpoints": [{"id": "CP1", "depends_on": []}],
+            }))
+            approval_commit = _commit_paths(
+                repo, [registry_path], "add registry",
+                trailers={"Workflow-Plan-Approval": "rc-1", "Workflow-Work-Item": "wi"},
+            )
+            plan_approval = _current_plan_approval_covering(repo, registry_path)
+            plan_approval["approved_review_content_id"] = "rc-1"
+            work_item = _base_work_item(
+                base_commit=repo.base,
+                registry_path=registry_path,
+                plan_approval=plan_approval,
+                checkpoints={}, current_checkpoint_id=None, last_completed_checkpoint_id=None,
+            )
+            state = _base_state(wi=work_item)
+            new_state = ws.request_plan_amendment(
+                state, "wi", "reason", repo_root=repo.root, now="2026-01-01T00:00:00Z",
+            )
+            self.assertEqual(new_state["work_items"]["wi"]["phase"], "AMENDING_PLAN")
+            self.assertEqual(new_state["work_items"]["wi"]["amendment_history"][0]
+                              ["pre_amendment_approval_commit"], approval_commit)
+
+    def test_dirty_plan_stage_document_does_not_refuse_the_amendment_request(self):
+        """IMPL3-R1: a work item with a `registry_path` whose plan-stage
+        protected `plan_path` carries an uncommitted edit -- the single
+        most likely working-tree state for an operator about to request a
+        plan amendment -- must not be refused by
+        `_assert_registry_covered_by_current_plan_approval`'s coverage
+        check. `.claude/commands/request-plan-amendment.md` step 1 says in
+        as many words that this command does not refuse on digest-only
+        staleness (`D-Plan-Amendment-1`, `B-R12-1`); IMPL2-R1's fix
+        reintroduced exactly that refusal through
+        `_load_authoritative_registry_or_none`'s default coverage check.
+        `require_plan_approval_coverage=False` (this round's fix) restores
+        the narrower, id-shape-only read."""
+        with ScratchRepo() as repo:
+            registry_path = "registry.json"
+            plan_path = "plan.md"
+            _write(repo, registry_path, json.dumps({
+                "work_item_id": "wi", "plan_revision": 1,
+                "checkpoints": [{"id": "CP1", "depends_on": []}],
+            }))
+            _write(repo, plan_path, "original plan content\n")
+            approval_commit = _commit_paths(
+                repo, [registry_path, plan_path], "add registry and plan",
+                trailers={"Workflow-Plan-Approval": "rc-1", "Workflow-Work-Item": "wi"},
+            )
+            plan_approval = _current_plan_approval_covering(repo, registry_path, plan_path)
+            plan_approval["approved_review_content_id"] = "rc-1"
+            work_item = _base_work_item(
+                base_commit=repo.base,
+                registry_path=registry_path,
+                plan_path=plan_path,
+                plan_approval=plan_approval,
+                checkpoints={}, current_checkpoint_id=None, last_completed_checkpoint_id=None,
+            )
+            state = _base_state(wi=work_item)
+
+            # Dirty the plan-stage protected plan_path in the working tree,
+            # uncommitted -- the exact IMPL3-R1 scenario.
+            (repo.root / plan_path).write_text("edited, not yet committed\n")
+
+            new_state = ws.request_plan_amendment(
+                state, "wi", "reason", repo_root=repo.root, now="2026-01-01T00:00:00Z",
+            )
+            self.assertEqual(new_state["work_items"]["wi"]["phase"], "AMENDING_PLAN")
+            self.assertEqual(new_state["work_items"]["wi"]["amendment_history"][0]
+                              ["pre_amendment_approval_commit"], approval_commit)
+
+    def test_legacy_v1_basis_plan_approval_does_not_refuse_the_amendment_request(self):
+        """IMPL3-R1, second arm: a `LEGACY_V1`-basis `plan_approval`
+        (`review_content_manifest: None`, schema-sanctioned per
+        `validate_approval_record`) must not be refused either -- the
+        coverage check's `registry_path` "not named in the manifest" arm
+        fires unconditionally for this basis whenever a `registry_path` is
+        declared, so a registry-bearing `LEGACY_V1` item was wrongly
+        refused before this round's fix."""
+        with ScratchRepo() as repo:
+            registry_path = "registry.json"
+            _write(repo, registry_path, json.dumps({
+                "work_item_id": "wi", "plan_revision": 1,
+                "checkpoints": [{"id": "CP1", "depends_on": []}],
+            }))
+            approval_commit = _commit_paths(
+                repo, [registry_path], "add registry",
+                trailers={"Workflow-Plan-Approval": "rc-1", "Workflow-Work-Item": "wi"},
+            )
+            work_item = _base_work_item(
+                base_commit=repo.base,
+                registry_path=registry_path,
+                plan_approval={
+                    "status": "CURRENT", "basis": "LEGACY_V1",
+                    "approved_review_content_id": "rc-1",
+                    "review_content_manifest": None,
+                    "reviewed_bundle_id": None, "reviewed_content_commit": None,
+                    "legacy_evidence": {"note": "pre-2.1 import"},
+                },
+                checkpoints={}, current_checkpoint_id=None, last_completed_checkpoint_id=None,
+            )
+            state = _base_state(wi=work_item)
+            new_state = ws.request_plan_amendment(
+                state, "wi", "reason", repo_root=repo.root, now="2026-01-01T00:00:00Z",
+            )
+            self.assertEqual(new_state["work_items"]["wi"]["phase"], "AMENDING_PLAN")
+            self.assertEqual(new_state["work_items"]["wi"]["amendment_history"][0]
+                              ["pre_amendment_approval_commit"], approval_commit)
+
+    def test_registry_checkpoint_missing_id_key_is_a_named_refusal(self):
+        """IMPL3-O2, renamed IMPL4-O2: `_load_authoritative_registry_or_none`
+        validates the registry's envelope but never its checkpoint-row
+        shape, so a row missing `id` must be named here rather than
+        escaping as an unnamed `KeyError` from the id-shape comprehension.
+        Raises the amendment-specific `AmendmentRegistryMissingIdError`,
+        not the completion-accounting-flavored `RegistryCoverageError`
+        (IMPL4-O2)."""
+        with ScratchRepo() as repo:
+            registry_path = "registry.json"
+            _write(repo, registry_path, json.dumps({
+                "work_item_id": "wi", "plan_revision": 1,
+                "checkpoints": [{"depends_on": []}],  # no "id" key at all
+            }))
+            _commit_paths(repo, [registry_path], "add registry")
+            work_item = _base_work_item(
+                base_commit=repo.base,
+                registry_path=registry_path,
+                plan_approval=_current_plan_approval_covering(repo, registry_path),
+                checkpoints={}, current_checkpoint_id=None, last_completed_checkpoint_id=None,
+            )
+            state = _base_state(wi=work_item)
+            with self.assertRaises(ws.AmendmentRegistryMissingIdError) as ctx:
+                ws.request_plan_amendment(
+                    state, "wi", "reason", repo_root=repo.root, now="2026-01-01T00:00:00Z",
+                )
+            self.assertIn("no 'id' key", str(ctx.exception))
+            self.assertEqual(state["work_items"]["wi"]["plan_approval"]["status"], "CURRENT")
+
+    def test_checkpoint_already_in_progress_refuses(self):
+        """XMODEL-R4-B1, missing-tests item 1: `request_plan_amendment`
+        must refuse outright while a checkpoint is already IN_PROGRESS in
+        WORKFLOW_STATE.json, rather than superseding `plan_approval` with
+        live implementation state underneath it."""
+        with ScratchRepo() as repo:
+            state, _ = self._state_with_approved_plan(repo)
+            state["work_items"]["wi"]["checkpoints"]["CP2"] = {
+                "status": "IN_PROGRESS", "start_commit": repo.base,
+            }
+            state["work_items"]["wi"]["current_checkpoint_id"] = "CP2"
+            with self.assertRaises(ws.AmendmentCheckpointActiveError):
+                ws.request_plan_amendment(
+                    state, "wi", "reason", repo_root=repo.root, now="2026-01-01T00:00:00Z",
+                )
+            self.assertEqual(state["work_items"]["wi"]["plan_approval"]["status"], "CURRENT")
+
+    def test_outstanding_checkpoint_claim_with_no_local_in_progress_refuses(self):
+        """XMODEL-R4-B1, missing-tests item 2 -- the actual reported race:
+        `claim_checkpoint` (step 1d) is published to the filesystem claims
+        directory *before* `transition_checkpoint_in_progress` writes
+        `WORKFLOW_STATE.json`, so a claim can be outstanding while state
+        still looks completely idle (`resolve_checkpoint_ownership`'s own
+        supported `CONTINUE_CLAIM` window). A state-only IN_PROGRESS check
+        would miss this window entirely; `request_plan_amendment` must
+        also consult the shared claim record directly, exercising the real
+        claim mechanism rather than only a sequential command-level
+        precheck."""
+        with ScratchRepo() as repo:
+            state, _ = self._state_with_approved_plan(repo)
+            # The checkpoint claim is real and published (`claim_checkpoint`),
+            # but nothing in `state` reflects it -- CP2 is absent from
+            # `checkpoints` entirely, exactly the "claimed but not yet
+            # started in state" window.
+            ws.claim_checkpoint(repo.root, "wi", "CP2", now="2026-01-01T00:00:00Z")
+            with self.assertRaises(ws.AmendmentCheckpointActiveError):
+                ws.request_plan_amendment(
+                    state, "wi", "reason", repo_root=repo.root, now="2026-01-01T00:00:01Z",
+                )
+            self.assertEqual(state["work_items"]["wi"]["plan_approval"]["status"], "CURRENT")
+
+    def test_amendment_succeeds_once_the_claim_is_properly_released(self):
+        """XMODEL-R4-B1, missing-tests item 4: the ordinary quiescent
+        amendment path is unaffected once the checkpoint claim has been
+        released (step 1f, the normal end of a checkpoint's own
+        lifecycle) -- the new guard is additive, not a regression for the
+        uncontended case."""
+        with ScratchRepo() as repo:
+            state, _ = self._state_with_approved_plan(repo)
+            claim = ws.claim_checkpoint(repo.root, "wi", "CP2", now="2026-01-01T00:00:00Z")
+            ws.release_checkpoint(
+                repo.root, "wi", "CP2", owner_token=claim["owner_token"],
+                now="2026-01-01T00:00:01Z",
+            )
+            new_state = ws.request_plan_amendment(
+                state, "wi", "reason", repo_root=repo.root, now="2026-01-01T00:00:02Z",
+            )
+            self.assertEqual(new_state["work_items"]["wi"]["phase"], "AMENDING_PLAN")
+
+    def test_claim_checkpoint_refuses_once_amending_plan_is_already_durable(self):
+        """XMODEL-R8-B1: `claim_checkpoint`'s own new pre-publication phase
+        check (under `WORKFLOW_STATE.lock`) refuses, and publishes nothing,
+        once the work item has already committed `AMENDING_PLAN` -- the half
+        of the closed race in which the amendment side won the shared lock
+        first. Deterministic, no concurrency needed: the on-disk state
+        already shows `AMENDING_PLAN` before `claim_checkpoint` is ever
+        called, exactly what a claim attempt arriving after the amendment's
+        own critical section has already closed would observe."""
+        with ScratchRepo() as repo:
+            state_path = repo.root / "docs" / "ai-workflow" / "WORKFLOW_STATE.json"
+            state_path.parent.mkdir(parents=True, exist_ok=True)
+            state_path.write_text(json.dumps({
+                "schema_version": 1, "active_work_item_id": "wi",
+                "work_items": {"wi": {"work_item_id": "wi", "phase": "AMENDING_PLAN"}},
+            }))
+            with self.assertRaises(ws.IllegalCheckpointStartPhaseError):
+                ws.claim_checkpoint(repo.root, "wi", "CP2", now="2026-01-01T00:00:00Z")
+            self.assertIsNone(ws.resolve_claim(repo.root, "wi"))
+
+    def test_claim_checkpoint_with_no_state_entry_is_unaffected(self):
+        """The phase check is skipped entirely for a work item with no
+        `WORKFLOW_STATE.json` entry at all -- no amendment mechanism could
+        ever race a claim for a work item state does not track, matching
+        every other state-aware precondition in this module (`D1`)."""
+        with ScratchRepo() as repo:
+            state_path = repo.root / "docs" / "ai-workflow" / "WORKFLOW_STATE.json"
+            state_path.parent.mkdir(parents=True, exist_ok=True)
+            state_path.write_text(json.dumps({
+                "schema_version": 1, "active_work_item_id": "someone-else",
+                "work_items": {"someone-else": {"work_item_id": "someone-else", "phase": "IMPLEMENTING"}},
+            }))
+            claim = ws.claim_checkpoint(repo.root, "wi", "CP2", now="2026-01-01T00:00:00Z")
+            self.assertEqual(claim["checkpoint_id"], "CP2")
+
+
+_AMENDMENT_RACE_CLAIMER_SOURCE = """
+import json
+import sys
+import time
+from pathlib import Path
+
+import workflow_state as ws
+
+repo_root = Path(sys.argv[1])
+work_item_id = sys.argv[2]
+checkpoint_id = sys.argv[3]
+now = sys.argv[4]
+ready_path = Path(sys.argv[5])
+go_path = Path(sys.argv[6])
+out_path = Path(sys.argv[7])
+
+ready_path.write_text("ready")
+deadline = time.monotonic() + 15
+while not go_path.exists():
+    if time.monotonic() > deadline:
+        out_path.write_text(json.dumps({"outcome": "timeout"}))
+        sys.exit(0)
+    time.sleep(0.001)
+
+try:
+    claim = ws.claim_checkpoint(repo_root, work_item_id, checkpoint_id, now=now)
+    out_path.write_text(json.dumps({"outcome": "success", "owner_token": claim["owner_token"]}))
+except ws.IllegalCheckpointStartPhaseError as exc:
+    out_path.write_text(json.dumps({"outcome": "refused", "detail": str(exc)}))
+"""
+
+_AMENDMENT_RACE_AMENDER_SOURCE = """
+import json
+import sys
+import time
+from pathlib import Path
+
+import workflow_state as ws
+
+repo_root = Path(sys.argv[1])
+work_item_id = sys.argv[2]
+reason = sys.argv[3]
+now = sys.argv[4]
+hold_seconds = float(sys.argv[5])
+ready_path = Path(sys.argv[6])
+go_path = Path(sys.argv[7])
+out_path = Path(sys.argv[8])
+
+ready_path.write_text("ready")
+deadline = time.monotonic() + 15
+while not go_path.exists():
+    if time.monotonic() > deadline:
+        out_path.write_text(json.dumps({"outcome": "timeout"}))
+        sys.exit(0)
+    time.sleep(0.001)
+
+
+def mutator(state):
+    # Holds WORKFLOW_STATE.lock (state_transaction's own, acquired before
+    # this function is ever called) for `hold_seconds` before doing any of
+    # request_plan_amendment's own work -- simulating the real, non-zero
+    # wall-clock time that function's own git/registry reads take, so a
+    # concurrent claim_checkpoint call issued during this window has a real
+    # chance to actually block on the shared lock rather than merely run
+    # before or after it.
+    time.sleep(hold_seconds)
+    return ws.request_plan_amendment(state, work_item_id, reason, repo_root=repo_root, now=now)
+
+
+try:
+    ws.state_transaction(repo_root, mutator)
+    out_path.write_text(json.dumps({"outcome": "success"}))
+except ws.AmendmentCheckpointActiveError as exc:
+    out_path.write_text(json.dumps({"outcome": "refused", "detail": str(exc)}))
+"""
+
+_AMENDMENT_RACE_AMENDER_POST_RESOLVE_CLAIM_SOURCE = """
+import json
+import sys
+import time
+from pathlib import Path
+
+import workflow_state as ws
+
+repo_root = Path(sys.argv[1])
+work_item_id = sys.argv[2]
+reason = sys.argv[3]
+now = sys.argv[4]
+hold_seconds = float(sys.argv[5])
+ready_path = Path(sys.argv[6])
+go_path = Path(sys.argv[7])
+out_path = Path(sys.argv[8])
+
+# Cross-worktree reproduction (`XMODEL-R9-B1`): unlike
+# `_AMENDMENT_RACE_AMENDER_SOURCE` above (whose `mutator` sleeps *before*
+# calling `request_plan_amendment` at all -- fine for the same-worktree
+# case, since the identical shared lock is held for the whole sleep
+# either way), this worker places the delay exactly where the external
+# review placed it: immediately after `request_plan_amendment`'s own
+# authoritative `resolve_claim(...)` read returns, standing in for the
+# git rev-parse / discover_plan_approval_commit / registry-load work that
+# really follows it. That is the genuine window a claim published from a
+# *different* worktree (a different `WORKFLOW_STATE.lock` file entirely)
+# can land in undetected.
+_real_resolve_claim = ws.resolve_claim
+
+
+def _slow_resolve_claim(repo_root_arg, work_item_id_arg):
+    result = _real_resolve_claim(repo_root_arg, work_item_id_arg)
+    time.sleep(hold_seconds)
+    return result
+
+
+ws.resolve_claim = _slow_resolve_claim
+
+ready_path.write_text("ready")
+deadline = time.monotonic() + 15
+while not go_path.exists():
+    if time.monotonic() > deadline:
+        out_path.write_text(json.dumps({"outcome": "timeout"}))
+        sys.exit(0)
+    time.sleep(0.001)
+
+try:
+    ws.state_transaction(
+        repo_root,
+        lambda state: ws.request_plan_amendment(state, work_item_id, reason, repo_root=repo_root, now=now),
+    )
+    out_path.write_text(json.dumps({"outcome": "success"}))
+except ws.AmendmentCheckpointActiveError as exc:
+    out_path.write_text(json.dumps({"outcome": "refused", "detail": str(exc)}))
+"""
+
+_AMENDMENT_RACE_SLOW_CLAIMER_SOURCE = """
+import contextlib
+import json
+import sys
+import time
+from pathlib import Path
+
+import workflow_state as ws
+
+repo_root = Path(sys.argv[1])
+work_item_id = sys.argv[2]
+checkpoint_id = sys.argv[3]
+now = sys.argv[4]
+hold_seconds = float(sys.argv[5])
+ready_path = Path(sys.argv[6])
+go_path = Path(sys.argv[7])
+out_path = Path(sys.argv[8])
+
+# Missing-test item 1 (round 9 external implementation review): the
+# claimer-wins-the-lock ordering, under real contention rather than the
+# pre-existing deterministic unit test's claim-already-present setup.
+# `claim_checkpoint` has no `hold_seconds` parameter of its own (unlike
+# `request_plan_amendment`'s caller-supplied `mutator`, which the amender
+# worker already sleeps inside), so this worker holds the real, shared
+# `WORKFLOW_STATE.lock` for `hold_seconds` itself, standing in for the
+# real wall-clock work `claim_checkpoint`'s own critical section does --
+# by wrapping `state_lock`, the exact context manager `claim_checkpoint`
+# acquires by bare name, so the real production function still runs, only
+# with its held interval extended to something a concurrent process can
+# reliably observe blocking on.
+_real_state_lock = ws.state_lock
+
+
+@contextlib.contextmanager
+def _slow_state_lock(*a, **kw):
+    with _real_state_lock(*a, **kw):
+        time.sleep(hold_seconds)
+        yield
+
+
+ws.state_lock = _slow_state_lock
+
+ready_path.write_text("ready")
+deadline = time.monotonic() + 15
+while not go_path.exists():
+    if time.monotonic() > deadline:
+        out_path.write_text(json.dumps({"outcome": "timeout"}))
+        sys.exit(0)
+    time.sleep(0.001)
+
+try:
+    claim = ws.claim_checkpoint(repo_root, work_item_id, checkpoint_id, now=now)
+    out_path.write_text(json.dumps({"outcome": "success", "owner_token": claim["owner_token"]}))
+except ws.IllegalCheckpointStartPhaseError as exc:
+    out_path.write_text(json.dumps({"outcome": "refused", "detail": str(exc)}))
+"""
+
+
+class TestAmendmentClaimRaceRealProcesses(unittest.TestCase):
+    """`XMODEL-R8-B1`: `request_plan_amendment`'s authoritative
+    `resolve_claim(...)` read and `claim_checkpoint`'s own publication now
+    share one real, on-disk lock (`WORKFLOW_STATE.lock`, `state_lock`), run
+    as genuinely separate OS processes racing on it -- a single-process or
+    threaded fixture cannot reproduce two independent holders contending for
+    the same `fcntl.flock` (`TestRealProcessConcurrentTakeover`'s own
+    reasoning, applied to this pair). Proves the specific window the finding
+    named: the amendment worker is made to hold the lock for a real,
+    measurable interval (`mutator`'s own `time.sleep`, standing in for
+    `request_plan_amendment`'s own git/registry work) before it does
+    anything else, while a concurrent `claim_checkpoint` call is issued
+    against the identical lock file -- and confirms it does not merely run
+    before or after unrelated to the amendment, but genuinely blocks for the
+    held duration and only then resolves, correctly, against whatever the
+    amendment committed."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls._scripts_dir = Path(__file__).resolve().parent
+        cls._worker_dir = Path(tempfile.mkdtemp(prefix="wf-amend-race-worker-"))
+        cls._claimer = cls._worker_dir / "_amend_race_claimer.py"
+        cls._claimer.write_text(_AMENDMENT_RACE_CLAIMER_SOURCE)
+        cls._amender = cls._worker_dir / "_amend_race_amender.py"
+        cls._amender.write_text(_AMENDMENT_RACE_AMENDER_SOURCE)
+        cls._slow_claimer = cls._worker_dir / "_amend_race_slow_claimer.py"
+        cls._slow_claimer.write_text(_AMENDMENT_RACE_SLOW_CLAIMER_SOURCE)
+
+    @classmethod
+    def tearDownClass(cls):
+        import shutil
+        shutil.rmtree(cls._worker_dir, ignore_errors=True)
+
+    def _spawn(self, worker: Path, *args) -> subprocess.Popen:
+        env = dict(os.environ)
+        env["PYTHONPATH"] = str(self._scripts_dir) + (
+            os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else "")
+        return subprocess.Popen(
+            [sys.executable, str(worker), *[str(a) for a in args]], env=env,
+        )
+
+    @staticmethod
+    def _wait_for(path: Path, what: str) -> None:
+        deadline = time.monotonic() + 15
+        while not path.exists():
+            if time.monotonic() > deadline:
+                raise AssertionError(f"{what} did not become ready in time")
+            time.sleep(0.001)
+
+    def _state_with_approved_plan(self, repo):
+        approval_commit = repo.commit(
+            "approve plan", trailers={"Workflow-Plan-Approval": "rc-1", "Workflow-Work-Item": "wi"},
+        )
+        state = {
+            "schema_version": 1, "active_work_item_id": "wi",
+            "work_items": {"wi": {
+                "work_item_id": "wi", "phase": "IMPLEMENTING", "plan_revision": 1,
+                "base_commit": repo.base,
+                "plan_approval": {"status": "CURRENT", "approved_review_content_id": "rc-1"},
+                "checkpoints": {"CP1": {"status": "COMPLETE", "start_commit": approval_commit}},
+                "current_checkpoint_id": None, "last_completed_checkpoint_id": "CP1",
+            }},
+        }
+        state_path = repo.root / "docs" / "ai-workflow" / "WORKFLOW_STATE.json"
+        state_path.parent.mkdir(parents=True, exist_ok=True)
+        state_path.write_text(json.dumps(state))
+        return state_path
+
+    def test_amendment_holds_the_lock_and_the_concurrent_claim_genuinely_blocks_then_correctly_refuses(self):
+        with ScratchRepo() as repo:
+            state_path = self._state_with_approved_plan(repo)
+            with tempfile.TemporaryDirectory(prefix="wf-amend-race-io-") as scratch:
+                scratch_path = Path(scratch)
+                ready_amend, go_amend, out_amend = (
+                    scratch_path / "ready_amend", scratch_path / "go_amend", scratch_path / "out_amend.json")
+                ready_claim, go_claim, out_claim = (
+                    scratch_path / "ready_claim", scratch_path / "go_claim", scratch_path / "out_claim.json")
+
+                hold_seconds = 1.0
+                amender = self._spawn(
+                    self._amender, repo.root, "wi", "reason", "2026-01-01T00:00:00Z", hold_seconds,
+                    ready_amend, go_amend, out_amend,
+                )
+                claimer = self._spawn(
+                    self._claimer, repo.root, "wi", "CP2", "2026-01-01T00:00:01Z",
+                    ready_claim, go_claim, out_claim,
+                )
+                try:
+                    self._wait_for(ready_amend, "amender")
+                    self._wait_for(ready_claim, "claimer")
+
+                    # Release the amender first, and give it a moment to
+                    # actually win the flock acquisition and enter its
+                    # sleep -- then release the claimer while the amender
+                    # is provably still inside its held critical section.
+                    go_amend.write_text("go")
+                    time.sleep(0.2)
+                    started_blocking_at = time.monotonic()
+                    go_claim.write_text("go")
+
+                    self.assertEqual(amender.wait(timeout=15), 0)
+                    self.assertEqual(claimer.wait(timeout=15), 0)
+                    blocked_for = time.monotonic() - started_blocking_at
+
+                    amend_result = json.loads(out_amend.read_text())
+                    claim_result = json.loads(out_claim.read_text())
+
+                    self.assertEqual(amend_result["outcome"], "success", amend_result)
+                    self.assertEqual(claim_result["outcome"], "refused", claim_result)
+
+                    # The claimer, released 0.2s into the amender's 1.0s
+                    # held interval, could not have resolved in a few
+                    # milliseconds the way an unheld `os.link` acquisition
+                    # would -- proof it genuinely blocked on the shared lock
+                    # rather than racing past an unheld one. A generous
+                    # threshold, well under the ~0.8s actually expected,
+                    # avoids flaking on process-startup jitter while still
+                    # clearly distinguishing "blocked" from "raced past."
+                    self.assertGreaterEqual(
+                        blocked_for, 0.5,
+                        "the claimer resolved too quickly to have actually blocked on the "
+                        "shared WORKFLOW_STATE.lock")
+                finally:
+                    for p in (amender, claimer):
+                        if p.poll() is None:
+                            p.kill()
+                            p.wait(timeout=5)
+
+            final_state = json.loads(state_path.read_text())
+            final_phase = final_state["work_items"]["wi"]["phase"]
+            claim = ws.resolve_claim(repo.root, "wi")
+
+            self.assertEqual(final_phase, "AMENDING_PLAN")
+            self.assertIsNone(
+                claim, "a checkpoint claim survived alongside a committed AMENDING_PLAN phase -- "
+                "exactly the XMODEL-R8-B1 defect this fix closes")
+
+    def test_claimer_wins_the_lock_and_the_concurrent_amendment_genuinely_blocks_then_correctly_refuses(self):
+        """Round 8's own acceptance criterion 6, completed (missing-test
+        item 1, round 9 external implementation review): the claimer-wins
+        ordering under real contention. The pre-existing deterministic unit
+        test (`claim_checkpoint` called with a claim already present before
+        `request_plan_amendment` runs) does not prove mutual exclusion when
+        claim *publication* races the amendment's authoritative claim
+        *read* itself -- exactly the gap round 8's own feedback named. Here
+        the claimer is released first and made to hold the real,
+        shared `WORKFLOW_STATE.lock` for a real, measurable interval before
+        it does anything else, while a concurrent `request_plan_amendment`
+        call is issued against the identical lock file -- confirming it
+        genuinely blocks for the held duration, then correctly refuses
+        rather than superseding a plan approval a live claim already
+        stands against."""
+        with ScratchRepo() as repo:
+            state_path = self._state_with_approved_plan(repo)
+            with tempfile.TemporaryDirectory(prefix="wf-amend-race-io-") as scratch:
+                scratch_path = Path(scratch)
+                ready_claim, go_claim, out_claim = (
+                    scratch_path / "ready_claim", scratch_path / "go_claim", scratch_path / "out_claim.json")
+                ready_amend, go_amend, out_amend = (
+                    scratch_path / "ready_amend", scratch_path / "go_amend", scratch_path / "out_amend.json")
+
+                hold_seconds = 1.0
+                claimer = self._spawn(
+                    self._slow_claimer, repo.root, "wi", "CP2", "2026-01-01T00:00:00Z", hold_seconds,
+                    ready_claim, go_claim, out_claim,
+                )
+                amender = self._spawn(
+                    self._amender, repo.root, "wi", "reason", "2026-01-01T00:00:01Z", 0.0,
+                    ready_amend, go_amend, out_amend,
+                )
+                try:
+                    self._wait_for(ready_claim, "claimer")
+                    self._wait_for(ready_amend, "amender")
+
+                    # Release the claimer first, and give it a moment to
+                    # actually win the flock acquisition and enter its
+                    # held interval -- then release the amender while the
+                    # claimer is provably still inside its critical section.
+                    go_claim.write_text("go")
+                    time.sleep(0.2)
+                    started_blocking_at = time.monotonic()
+                    go_amend.write_text("go")
+
+                    self.assertEqual(claimer.wait(timeout=15), 0)
+                    self.assertEqual(amender.wait(timeout=15), 0)
+                    blocked_for = time.monotonic() - started_blocking_at
+
+                    claim_result = json.loads(out_claim.read_text())
+                    amend_result = json.loads(out_amend.read_text())
+
+                    self.assertEqual(claim_result["outcome"], "success", claim_result)
+                    self.assertEqual(amend_result["outcome"], "refused", amend_result)
+
+                    self.assertGreaterEqual(
+                        blocked_for, 0.5,
+                        "the amender resolved too quickly to have actually blocked on the "
+                        "shared WORKFLOW_STATE.lock")
+                finally:
+                    for p in (claimer, amender):
+                        if p.poll() is None:
+                            p.kill()
+                            p.wait(timeout=5)
+
+            final_state = json.loads(state_path.read_text())
+            final_item = final_state["work_items"]["wi"]
+            claim = ws.resolve_claim(repo.root, "wi")
+
+            self.assertEqual(final_item["phase"], "IMPLEMENTING")
+            self.assertEqual(final_item["plan_approval"]["status"], "CURRENT")
+            self.assertIsNotNone(
+                claim, "the claim published first must survive an amendment that lost the race "
+                "for the shared WORKFLOW_STATE.lock")
+
+
+class TestCrossWorktreeAmendmentClaimResidualXModelR9B1(unittest.TestCase):
+    """`XMODEL-R9-B1` (round 9 external implementation review,
+    `docs/defects/v2.4.0-002-amendment-claim-race-crosses-worktree-
+    boundary.md`): round 8's fix (`TestAmendmentClaimRaceRealProcesses`
+    above) closes the amendment-versus-claim-start race only *within one
+    worktree root*. These tests pin the documented residual across linked
+    worktrees of the same repository -- not a regression to silently
+    worsen, and not (yet) a bug to silently fix either: a future change to
+    either direction of this behavior must also update the defect
+    record above, which is exactly what a test failure here is meant to
+    surface. Missing-test item 2, round 9 external implementation review."""
+
+    def _write_state(self, repo_root: Path, *, phase: str, checkpoint_id: str | None = None,
+                     checkpoints: dict | None = None) -> Path:
+        state = {
+            "schema_version": 1, "active_work_item_id": "wi",
+            "work_items": {"wi": {
+                "work_item_id": "wi", "phase": phase, "plan_revision": 1,
+                "base_commit": "0" * 40,
+                "plan_approval": {"status": "CURRENT" if phase != "AMENDING_PLAN" else "SUPERSEDED",
+                                  "approved_review_content_id": "rc-1"},
+                "checkpoints": checkpoints or {},
+                "current_checkpoint_id": checkpoint_id,
+                "last_completed_checkpoint_id": None,
+            }},
+        }
+        state_path = repo_root / "docs" / "ai-workflow" / "WORKFLOW_STATE.json"
+        state_path.parent.mkdir(parents=True, exist_ok=True)
+        state_path.write_text(json.dumps(state))
+        return state_path
+
+    def test_deterministic_a_durable_amending_plan_in_one_worktree_does_not_block_a_claim_from_another(self):
+        """The second, independent reason named in `XMODEL-R9-B1`: no
+        concurrency at all is needed to reproduce this half. Worktree A's
+        own working-tree `WORKFLOW_STATE.json` durably records
+        `AMENDING_PLAN`; worktree B's own copy still says `IMPLEMENTING`
+        (as it would if B's branch has not merged A's amendment commit).
+        `claim_checkpoint` reads only its own worktree's copy, so it
+        succeeds from B even though the work item is, in worktree A,
+        already `AMENDING_PLAN`."""
+        with ScratchRepo() as repo:
+            wt_b = repo.worktree("b")
+            self._write_state(repo.root, phase="AMENDING_PLAN")
+            self._write_state(wt_b, phase="IMPLEMENTING")
+
+            claim = ws.claim_checkpoint(wt_b, "wi", "CP2", now="t1")
+
+            self.assertEqual(claim["checkpoint_id"], "CP2")
+            a_state = json.loads((repo.root / "docs/ai-workflow/WORKFLOW_STATE.json").read_text())
+            self.assertEqual(a_state["work_items"]["wi"]["phase"], "AMENDING_PLAN")
+
+    def test_racing_an_amendment_in_one_worktree_and_a_claim_in_another_are_not_serialized(self):
+        """The first, independent reason named in `XMODEL-R9-B1`, under
+        real contention: `WORKFLOW_STATE.lock` is per-worktree
+        (`repo_root`-scoped), so an amendment racing a claim start from a
+        *different* worktree take `flock` on two different inodes and are
+        not ordered by it at all -- both sides may succeed, unlike the
+        same race within one worktree (`TestAmendmentClaimRaceRealProcesses`
+        above), where exactly one must win and the other must be refused."""
+        with ScratchRepo() as repo:
+            wt_b = repo.worktree("b")
+            approval_commit = repo.commit(
+                "approve plan", trailers={"Workflow-Plan-Approval": "rc-1", "Workflow-Work-Item": "wi"},
+            )
+            state = {
+                "schema_version": 1, "active_work_item_id": "wi",
+                "work_items": {"wi": {
+                    "work_item_id": "wi", "phase": "IMPLEMENTING", "plan_revision": 1,
+                    "base_commit": repo.base,
+                    "plan_approval": {"status": "CURRENT", "approved_review_content_id": "rc-1"},
+                    "checkpoints": {"CP1": {"status": "COMPLETE", "start_commit": approval_commit}},
+                    "current_checkpoint_id": None, "last_completed_checkpoint_id": "CP1",
+                }},
+            }
+            for root in (repo.root, wt_b):
+                state_path = root / "docs" / "ai-workflow" / "WORKFLOW_STATE.json"
+                state_path.parent.mkdir(parents=True, exist_ok=True)
+                state_path.write_text(json.dumps(state))
+
+            scripts_dir = Path(__file__).resolve().parent
+            worker_dir = Path(tempfile.mkdtemp(prefix="wf-amend-race-xwt-worker-"))
+            amender = worker_dir / "_amend_race_amender_xwt.py"
+            amender.write_text(_AMENDMENT_RACE_AMENDER_POST_RESOLVE_CLAIM_SOURCE)
+            claimer = worker_dir / "_amend_race_claimer_xwt.py"
+            claimer.write_text(_AMENDMENT_RACE_CLAIMER_SOURCE)
+
+            def spawn(worker: Path, *args) -> subprocess.Popen:
+                env = dict(os.environ)
+                env["PYTHONPATH"] = str(scripts_dir) + (
+                    os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else "")
+                return subprocess.Popen(
+                    [sys.executable, str(worker), *[str(a) for a in args]], env=env,
+                )
+
+            def wait_for(path: Path, what: str) -> None:
+                deadline = time.monotonic() + 15
+                while not path.exists():
+                    if time.monotonic() > deadline:
+                        raise AssertionError(f"{what} did not become ready in time")
+                    time.sleep(0.001)
+
+            try:
+                with tempfile.TemporaryDirectory(prefix="wf-amend-race-xwt-io-") as scratch:
+                    scratch_path = Path(scratch)
+                    ready_amend, go_amend, out_amend = (
+                        scratch_path / "ready_amend", scratch_path / "go_amend", scratch_path / "out_amend.json")
+                    ready_claim, go_claim, out_claim = (
+                        scratch_path / "ready_claim", scratch_path / "go_claim", scratch_path / "out_claim.json")
+
+                    hold_seconds = 1.0
+                    amender_proc = spawn(
+                        amender, repo.root, "wi", "reason", "2026-01-01T00:00:00Z", hold_seconds,
+                        ready_amend, go_amend, out_amend,
+                    )
+                    claimer_proc = spawn(
+                        claimer, wt_b, "wi", "CP2", "2026-01-01T00:00:01Z",
+                        ready_claim, go_claim, out_claim,
+                    )
+                    try:
+                        wait_for(ready_amend, "amender")
+                        wait_for(ready_claim, "claimer")
+
+                        go_amend.write_text("go")
+                        time.sleep(0.2)
+                        go_claim.write_text("go")
+
+                        self.assertEqual(amender_proc.wait(timeout=15), 0)
+                        self.assertEqual(claimer_proc.wait(timeout=15), 0)
+
+                        amend_result = json.loads(out_amend.read_text())
+                        claim_result = json.loads(out_claim.read_text())
+
+                        # Both succeed: the amender's own authoritative
+                        # `resolve_claim(...)` read (released at t=0) finds
+                        # nothing yet and is not re-checked, so the claimer
+                        # (released at t=0.2, into the genuine window the
+                        # sleep stands in for) publishes into the shared
+                        # claims directory undetected -- the claimer never
+                        # blocks on the amender's own lock either, since it
+                        # is a different `repo_root`'s own
+                        # `WORKFLOW_STATE.lock` file. Unlike the
+                        # same-worktree race above, where exactly one of
+                        # these two outcomes must occur, both succeeding is
+                        # the documented `XMODEL-R9-B1` residual, not a
+                        # flake.
+                        self.assertEqual(amend_result["outcome"], "success", amend_result)
+                        self.assertEqual(claim_result["outcome"], "success", claim_result)
+                    finally:
+                        for p in (amender_proc, claimer_proc):
+                            if p.poll() is None:
+                                p.kill()
+                                p.wait(timeout=5)
+            finally:
+                import shutil
+                shutil.rmtree(worker_dir, ignore_errors=True)
+
+            a_state = json.loads((repo.root / "docs/ai-workflow/WORKFLOW_STATE.json").read_text())
+            self.assertEqual(a_state["work_items"]["wi"]["phase"], "AMENDING_PLAN")
+            self.assertIsNotNone(ws.resolve_claim(wt_b, "wi"))
+
+
+class TestApplyPlanApprovalAmendmentBranch(unittest.TestCase):
+    """`apply_plan_approval`'s four new, optional, keyword-only reconciliation
+    parameters (D-Plan-Amendment-4)."""
+
+    @staticmethod
+    def _approval_record(review_content_id="rc-2"):
+        return ws.build_approval_record(
+            basis="EXTERNAL_APPROVE", stage="plan", user_confirmation="approve wi",
+            now="2026-01-01T00:00:00Z", reviewed_bundle_id="b" * 64,
+            approved_review_content_id=review_content_id,
+            review_content_manifest=[{"path": "docs/plan.md", "sha256": "d" * 64}],
+        )
+
+    @staticmethod
+    def _open_amendment_state():
+        return {
+            "schema_version": 1, "active_work_item_id": "wi",
+            "work_items": {"wi": {
+                "work_item_id": "wi", "phase": "AMENDING_PLAN", "plan_revision": 2,
+                "checkpoints": {"CP1": {"status": "COMPLETE"}},
+                "current_checkpoint_id": None, "last_completed_checkpoint_id": "CP1",
+                "amendment_history": [{
+                    "amendment_id": "0", "resolved_at_plan_revision": None,
+                    "pre_amendment_approval_commit": "a" * 40,
+                }],
+            }},
+        }
+
+    def test_an_open_amendment_with_missing_reconciliation_inputs_is_refused(self):
+        state = self._open_amendment_state()
+        with self.assertRaises(ws.AmendmentReconciliationInputsMissingError):
+            ws.apply_plan_approval(state, "wi", self._approval_record(), "2026-01-01T00:00:01Z")
+
+    def test_an_already_resolved_amendment_is_refused(self):
+        state = self._open_amendment_state()
+        state["work_items"]["wi"]["amendment_history"][0]["resolved_at_plan_revision"] = 2
+        registry = {"checkpoints": [
+            {"id": "CP1", "name": "n", "depends_on": [], "complexity": 1, "session_target": 1},
+        ]}
+        text = "<!-- CP1 -->a<!-- /CP1 -->"
+        with self.assertRaises(ws.AmendmentAlreadyResolvedError):
+            ws.apply_plan_approval(
+                state, "wi", self._approval_record(), "2026-01-01T00:00:01Z",
+                pre_registry=registry, pre_plan_text=text,
+                post_registry=registry, post_plan_text=text,
+            )
+
+    def test_missing_post_anchor_coverage_is_refused_before_any_reconciliation(self):
+        state = self._open_amendment_state()
+        pre_registry = {"checkpoints": [
+            {"id": "CP1", "name": "n", "depends_on": [], "complexity": 1, "session_target": 1},
+        ]}
+        post_registry = {"checkpoints": [
+            {"id": "CP1", "name": "n", "depends_on": [], "complexity": 1, "session_target": 1},
+            {"id": "CP2", "name": "new", "depends_on": ["CP1"], "complexity": 1, "session_target": 1},
+        ]}
+        pre_text = "<!-- CP1 -->a<!-- /CP1 -->"
+        post_text = "<!-- CP1 -->a<!-- /CP1 -->"  # CP2 has no anchor pair at all
+        with self.assertRaises(ws.AmendmentAnchorCoverageError):
+            ws.apply_plan_approval(
+                state, "wi", self._approval_record(), "2026-01-01T00:00:01Z",
+                pre_registry=pre_registry, pre_plan_text=pre_text,
+                post_registry=post_registry, post_plan_text=post_text,
+            )
+        # Refused before any write: the input work item is untouched.
+        self.assertEqual(state["work_items"]["wi"]["phase"], "AMENDING_PLAN")
+
+    def test_post_registry_only_non_cp_digit_id_is_a_named_shape_refusal(self):
+        """IMPL3-O1: an id introduced *by the amendment itself* (absent from
+        the pre-amendment registry, so `request_plan_amendment`'s own early
+        shape check never saw it) that is not of the shape `CP<digits>`
+        must raise `AmendmentCheckpointIdShapeError` here, not the
+        unactionable `AmendmentAnchorCoverageError` -- no anchor text could
+        ever satisfy the latter for this id."""
+        state = self._open_amendment_state()
+        pre_registry = {"checkpoints": [
+            {"id": "CP1", "name": "n", "depends_on": [], "complexity": 1, "session_target": 1},
+        ]}
+        post_registry = {"checkpoints": [
+            {"id": "CP1", "name": "n", "depends_on": [], "complexity": 1, "session_target": 1},
+            {"id": "WF-New", "name": "new", "depends_on": ["CP1"], "complexity": 1, "session_target": 1},
+        ]}
+        pre_text = "<!-- CP1 -->a<!-- /CP1 -->"
+        post_text = "<!-- CP1 -->a<!-- /CP1 -->"  # WF-New has no anchor either -- shape wins first
+        with self.assertRaises(ws.AmendmentCheckpointIdShapeError) as ctx:
+            ws.apply_plan_approval(
+                state, "wi", self._approval_record(), "2026-01-01T00:00:01Z",
+                pre_registry=pre_registry, pre_plan_text=pre_text,
+                post_registry=post_registry, post_plan_text=post_text,
+            )
+        self.assertIn("WF-New", str(ctx.exception))
+        self.assertEqual(state["work_items"]["wi"]["phase"], "AMENDING_PLAN")
+
+    def test_post_registry_missing_checkpoints_key_is_a_named_refusal(self):
+        """IMPL2-O2: a `post_registry` with no `"checkpoints"` key at all
+        (e.g. a caller-side `json.loads` of a malformed on-disk registry)
+        must raise a named error, not an unnamed `KeyError` from inside
+        `validate_registry_topological_order` -- `validate_post_anchor_
+        coverage` alone would pass this input vacuously via its own
+        `.get("checkpoints", [])`."""
+        state = self._open_amendment_state()
+        pre_registry = {"checkpoints": [
+            {"id": "CP1", "name": "n", "depends_on": [], "complexity": 1, "session_target": 1},
+        ]}
+        post_registry = {"no_checkpoints_key": True}
+        pre_text = "<!-- CP1 -->a<!-- /CP1 -->"
+        post_text = "<!-- CP1 -->a<!-- /CP1 -->"
+        with self.assertRaises(ws.AmendmentPostRegistryMalformedError):
+            ws.apply_plan_approval(
+                state, "wi", self._approval_record(), "2026-01-01T00:00:01Z",
+                pre_registry=pre_registry, pre_plan_text=pre_text,
+                post_registry=post_registry, post_plan_text=post_text,
+            )
+        self.assertEqual(state["work_items"]["wi"]["phase"], "AMENDING_PLAN")
+
+    def test_post_registry_checkpoint_missing_id_key_is_a_named_refusal(self):
+        """IMPL4-O1: `validate_post_anchor_coverage` and
+        `reconcile_checkpoints_after_amendment` both directly read
+        `entry["id"]` from `post_registry["checkpoints"]` -- a row with no
+        `id` key at all must raise a named error here, before either call,
+        rather than escape as a bare, unnamed `KeyError` from whichever one
+        happens to run first."""
+        state = self._open_amendment_state()
+        pre_registry = {"checkpoints": [
+            {"id": "CP1", "name": "n", "depends_on": [], "complexity": 1, "session_target": 1},
+        ]}
+        post_registry = {"checkpoints": [
+            {"id": "CP1", "name": "n", "depends_on": [], "complexity": 1, "session_target": 1},
+            {"name": "no id at all", "depends_on": ["CP1"], "complexity": 1, "session_target": 1},
+        ]}
+        pre_text = "<!-- CP1 -->a<!-- /CP1 -->"
+        post_text = "<!-- CP1 -->a<!-- /CP1 -->"
+        with self.assertRaises(ws.AmendmentPostRegistryMalformedError) as ctx:
+            ws.apply_plan_approval(
+                state, "wi", self._approval_record(), "2026-01-01T00:00:01Z",
+                pre_registry=pre_registry, pre_plan_text=pre_text,
+                post_registry=post_registry, post_plan_text=post_text,
+            )
+        self.assertIn("no 'id' key", str(ctx.exception))
+        self.assertEqual(state["work_items"]["wi"]["phase"], "AMENDING_PLAN")
+
+    def test_successful_reconciliation_resolves_the_amendment_and_enters_implementing(self):
+        state = self._open_amendment_state()
+        pre_registry = {"checkpoints": [
+            {"id": "CP1", "name": "n", "depends_on": [], "complexity": 1, "session_target": 1},
+        ]}
+        post_registry = {"checkpoints": [
+            {"id": "CP1", "name": "n", "depends_on": [], "complexity": 1, "session_target": 1},
+            {"id": "CP2", "name": "new", "depends_on": ["CP1"], "complexity": 1, "session_target": 1},
+        ]}
+        pre_text = "<!-- CP1 -->a<!-- /CP1 -->"
+        post_text = "<!-- CP1 -->a<!-- /CP1 --><!-- CP2 -->b<!-- /CP2 -->"
+        new_state = ws.apply_plan_approval(
+            state, "wi", self._approval_record(), "2026-01-01T00:00:01Z",
+            pre_registry=pre_registry, pre_plan_text=pre_text,
+            post_registry=post_registry, post_plan_text=post_text,
+        )
+        wi = new_state["work_items"]["wi"]
+        self.assertEqual(wi["phase"], "IMPLEMENTING")
+        self.assertEqual(wi["checkpoints"]["CP1"]["status"], "COMPLETE")
+        self.assertNotIn("CP2", wi["checkpoints"])
+        self.assertEqual(wi["amendment_history"][-1]["resolved_at_plan_revision"], 2)
+        self.assertEqual(wi["plan_approval"]["approved_review_content_id"], "rc-2")
+        # IMPL6-B1: the reconciliation outcome itself is recorded onto the
+        # resolved amendment_history entry -- the durable field
+        # `/approve-review plan` step 7 reports from, distinct from the
+        # `checkpoints`/`dropped` fields this function already consumed.
+        self.assertEqual(wi["amendment_history"][-1]["reconciliation_outcome"], {"CP1": "retained", "CP2": "new"})
+
+    def test_reconciliation_outcome_distinguishes_direct_from_closure_derived_flips(self):
+        """IMPL6-B1: the recorded `reconciliation_outcome` must retain the
+        distinction `reconcile_checkpoints_after_amendment` computes
+        between a direct demotion and a dependency-closure-derived one --
+        `apply_plan_approval` stores the map verbatim, never collapsing
+        it."""
+        state = self._open_amendment_state()
+        state["work_items"]["wi"]["checkpoints"]["CP2"] = {"status": "COMPLETE"}
+        pre_registry = {"checkpoints": [
+            {"id": "CP1", "name": "n", "depends_on": [], "complexity": 1, "session_target": 1},
+            {"id": "CP2", "name": "n2", "depends_on": ["CP1"], "complexity": 1, "session_target": 1},
+        ]}
+        post_registry = {"checkpoints": [
+            {"id": "CP1", "name": "changed", "depends_on": [], "complexity": 1, "session_target": 1},
+            {"id": "CP2", "name": "n2", "depends_on": ["CP1"], "complexity": 1, "session_target": 1},
+        ]}
+        text = "<!-- CP1 -->a<!-- /CP1 --><!-- CP2 -->b<!-- /CP2 -->"
+        new_state = ws.apply_plan_approval(
+            state, "wi", self._approval_record(), "2026-01-01T00:00:01Z",
+            pre_registry=pre_registry, pre_plan_text=text,
+            post_registry=post_registry, post_plan_text=text,
+        )
+        outcome = new_state["work_items"]["wi"]["amendment_history"][-1]["reconciliation_outcome"]
+        self.assertEqual(outcome["CP1"], "needs_revalidation")
+        self.assertEqual(outcome["CP2"], "needs_revalidation_dependency")
+
+    def test_a_dropped_current_or_last_completed_checkpoint_id_is_nulled(self):
+        state = self._open_amendment_state()
+        state["work_items"]["wi"]["checkpoints"]["CP2"] = {"status": "IN_PROGRESS"}
+        state["work_items"]["wi"]["current_checkpoint_id"] = "CP2"
+        state["work_items"]["wi"]["last_completed_checkpoint_id"] = "CP2"
+        pre_registry = {"checkpoints": [
+            {"id": "CP1", "name": "n", "depends_on": [], "complexity": 1, "session_target": 1},
+            {"id": "CP2", "name": "n2", "depends_on": ["CP1"], "complexity": 1, "session_target": 1},
+        ]}
+        post_registry = {"checkpoints": [
+            {"id": "CP1", "name": "n", "depends_on": [], "complexity": 1, "session_target": 1},
+        ]}
+        pre_text = "<!-- CP1 -->a<!-- /CP1 --><!-- CP2 -->b<!-- /CP2 -->"
+        post_text = "<!-- CP1 -->a<!-- /CP1 -->"
+        new_state = ws.apply_plan_approval(
+            state, "wi", self._approval_record(), "2026-01-01T00:00:01Z",
+            pre_registry=pre_registry, pre_plan_text=pre_text,
+            post_registry=post_registry, post_plan_text=post_text,
+        )
+        wi = new_state["work_items"]["wi"]
+        self.assertIsNone(wi["current_checkpoint_id"])
+        self.assertIsNone(wi["last_completed_checkpoint_id"])
+        self.assertNotIn("CP2", wi["checkpoints"])
+
+    def test_with_no_open_amendment_the_four_parameters_are_never_consulted(self):
+        """For a work item with no open amendment, behavior is byte-for-byte
+        unchanged from v2.3.1 -- no existing call site needs to change."""
+        state = {
+            "schema_version": 1, "active_work_item_id": "wi",
+            "work_items": {"wi": {
+                "work_item_id": "wi", "phase": "PLANNING", "plan_revision": 1,
+                "checkpoints": {},
+            }},
+        }
+        new_state = ws.apply_plan_approval(state, "wi", self._approval_record(), "2026-01-01T00:00:01Z")
+        wi = new_state["work_items"]["wi"]
+        self.assertEqual(wi["phase"], "IMPLEMENTING")
+        self.assertNotIn("amendment_history", wi)
+
+    def test_a_resolved_amendment_history_never_re_triggers_reconciliation(self):
+        """`amendment_history` present but its last entry already resolved
+        -- `has_open_amendment` is false, so the four parameters stay
+        optional here too."""
+        state = self._open_amendment_state()
+        state["work_items"]["wi"]["amendment_history"][0]["resolved_at_plan_revision"] = 2
+        new_state = ws.apply_plan_approval(state, "wi", self._approval_record(), "2026-01-01T00:00:01Z")
+        self.assertEqual(new_state["work_items"]["wi"]["phase"], "IMPLEMENTING")
+
+    def test_real_caller_shape_after_a_resolved_amendment_is_never_refused(self):
+        """`OPUS-R145-001` regression: `approve-review.md` step 4c reads and
+        forwards `post_plan_text`/`post_registry` *unconditionally* on every
+        plan-stage approval, from the working tree, regardless of amendment
+        state -- only `pre_registry`/`pre_plan_text` are gated there on an
+        open amendment. Reproduces exactly that call shape (post-side
+        supplied, pre-side `None`) against a work item whose last amendment
+        is already resolved: the guard must key on the pre-side pair alone,
+        never on "any of the four", or this ordinary, non-re-run call --
+        the only shape the real caller ever produces once a work item has
+        amended once -- would be wrongly refused forever after."""
+        state = self._open_amendment_state()
+        state["work_items"]["wi"]["amendment_history"][0]["resolved_at_plan_revision"] = 2
+        registry = {"checkpoints": [
+            {"id": "CP1", "name": "n", "depends_on": [], "complexity": 1, "session_target": 1},
+        ]}
+        text = "<!-- CP1 -->a<!-- /CP1 -->"
+        new_state = ws.apply_plan_approval(
+            state, "wi", self._approval_record(), "2026-01-01T00:00:01Z",
+            post_registry=registry, post_plan_text=text,
+        )
+        self.assertEqual(new_state["work_items"]["wi"]["phase"], "IMPLEMENTING")
+        # Reconciliation itself never ran (no open amendment) -- the last
+        # amendment_history entry is untouched.
+        self.assertEqual(
+            new_state["work_items"]["wi"]["amendment_history"][0]["resolved_at_plan_revision"], 2,
+        )
+
+    def test_non_topological_post_registry_is_refused_before_reconciliation(self):
+        """IMPL-O2: `reconcile_checkpoints_after_amendment`'s single
+        forward-pass dependency closure relies on `post_registry`'s own
+        order already being a valid topological order of `depends_on`
+        (B6.3) -- a precondition `write_registry_and_mapping` enforces at
+        write time, but `/approve-review plan` step 4c reads `post_registry`
+        straight off the working tree, which a hand-edited (reviewed, but
+        not mechanically re-checked) registry could violate. Now enforced
+        directly inside `apply_plan_approval`, alongside the existing
+        anchor-coverage validation, before any reconciliation runs."""
+        state = self._open_amendment_state()
+        pre_registry = {"checkpoints": [
+            {"id": "CP1", "name": "n", "depends_on": [], "complexity": 1, "session_target": 1},
+        ]}
+        pre_text = "<!-- CP1 -->a<!-- /CP1 -->"
+        # CP2 depends on CP1 but is listed *before* it -- not a valid
+        # topological order.
+        post_registry = {"checkpoints": [
+            {"id": "CP2", "name": "n2", "depends_on": ["CP1"], "complexity": 1, "session_target": 1},
+            {"id": "CP1", "name": "n", "depends_on": [], "complexity": 1, "session_target": 1},
+        ]}
+        post_text = "<!-- CP1 -->a<!-- /CP1 --><!-- CP2 -->b<!-- /CP2 -->"
+        with self.assertRaises(ws.NonTopologicalRegistryOrderError):
+            ws.apply_plan_approval(
+                state, "wi", self._approval_record(), "2026-01-01T00:00:01Z",
+                pre_registry=pre_registry, pre_plan_text=pre_text,
+                post_registry=post_registry, post_plan_text=post_text,
+            )
 
 
 if __name__ == "__main__":

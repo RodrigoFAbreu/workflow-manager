@@ -173,9 +173,10 @@ unreachable dead contract (ledger `I10`).
 
 ## Command reference
 
-`.claude/commands/` holds 15 files today, and all 15 are sectioned below
+`.claude/commands/` holds 16 files today, and all 16 are sectioned below
 — including `/review-implementation` and `/review-functional`
-(`workflow-v2-3`), previously undocumented here. `[work-item-id]` defaults
+(`workflow-v2-3`) and `/request-plan-amendment` (`workflow-2.4.0`),
+previously undocumented here. `[work-item-id]` defaults
 to `active_work_item_id` where accepted; naming it explicitly is what lets
 you drive a work item that is **not** the active one, which is exactly how
 a remediation child is run (see [Remediation
@@ -187,8 +188,8 @@ What is actually guaranteed about that inventory, precisely:
 set of `### /<name>` sections in this document and the set of
 `.claude/commands/*.md` stems on disk and asserts the two are **equal** —
 that part is derived, so a command added or removed without a section here
-fails. The number 15 itself is *not* derived: it is a hardcoded tripwire
-in that same test (`assertEqual(len(on_disk), 15)`) whose job is to make a
+fails. The number 16 itself is *not* derived: it is a hardcoded tripwire
+in that same test (`assertEqual(len(on_disk), 16)`) whose job is to make a
 change in the roster size a deliberate, reviewed edit. So the set equality
 is mechanical; the count in this paragraph and in the test is a
 hand-maintained pair that must be updated together. If they disagree, the
@@ -325,6 +326,55 @@ test fails and is authoritative about which one moved.
   another worktree; a blocked checkpoint with unmet dependencies. Never loops
   across checkpoints, and never crosses the last-checkpoint→wrap-up boundary
   in one invocation.
+
+### `/request-plan-amendment [work-item-id]` — user-only
+- **When**: `IMPLEMENTING` or `SELF_REVIEWING_IMPLEMENTATION` — the only two
+  phases this release supports (`workflow-2.4.0`, `D-Plan-Amendment-1`).
+- **Expects**: no checkpoint `IN_PROGRESS` and no outstanding checkpoint
+  claim; no open `/approve-review plan` transaction; the current
+  `plan_approval`'s own approval commit still discoverable and an ancestor
+  of `HEAD`; every checkpoint id in the work item's own current registry
+  of the shape `CP<digits>` (IMPL2-R1) -- the only shape
+  `validate_post_anchor_coverage` can ever match.
+- **Does**: supersedes the current plan approval and moves the item to
+  `AMENDING_PLAN` in one transaction — same authority shape as
+  `/approve-review`/`/accept-milestone` (`disable-model-invocation: true`
+  plus a literal confirmation naming the work item and the word
+  `amendment`, plus a required, non-empty `reason` recorded verbatim). It
+  never reads, writes, or compares against `USER_OVERRIDE`.
+- **Writes**: `plan_approval.status = "SUPERSEDED"`; one append-only
+  `amendment_history` entry (bounded, content-addressed — a single
+  `pre_amendment_approval_commit` SHA, never a stored copy of the plan or
+  registry documents); `amendment_base_commit`; `WORKFLOW_STATE.json`,
+  committed alone.
+- **Next**: `AMENDING_PLAN` — the very next `/milestone-plan [work-item-id]`
+  resumes it through that command's own existing dual-mode branch, exactly
+  like any other non-terminal entry. No new plan-review machinery: the
+  full two-stage review protocol and `/approve-review plan` run completely
+  unmodified. Checkpoint reconciliation happens once, folded into that
+  eventual `/approve-review plan`'s own `apply_plan_approval` computation
+  (`D-Plan-Amendment-4`), never here. The amended plan document drafted in
+  response must delimit every registry checkpoint id with a
+  `<!-- CPn -->`/`<!-- /CPn -->` anchor pair, or `/approve-review plan`
+  step 4c's `validate_post_anchor_coverage` refuses approval naming the
+  first uncovered id.
+- **Refuses**: the wrong phase
+  (`WrongPhaseForAmendmentRequestError`); a checkpoint still `IN_PROGRESS`
+  or an outstanding checkpoint claim (`AmendmentCheckpointActiveError`,
+  XMODEL-R4-B1, checked *before* superseding anything and *authoritatively*
+  inside `request_plan_amendment` itself, not only this command's own
+  preflight read -- closing the race in which a checkpoint claim is
+  published to the filesystem claims directory, step 1d, before
+  `WORKFLOW_STATE.json` shows anything IN_PROGRESS; the independent second
+  half, refusing a checkpoint's own `IN_PROGRESS` publication once the item
+  has left `IMPLEMENTING`, is `transition_checkpoint_in_progress`'s own
+  `IllegalCheckpointStartPhaseError`); a registry row with no `id` key
+  (`AmendmentRegistryMissingIdError`, IMPL4-O2); an unreachable approval
+  commit (`AmendmentApprovalCommitUnreachableError`, checked *before*
+  superseding anything); a registry checkpoint id not of the shape
+  `CP<digits>` (`AmendmentCheckpointIdShapeError`, also checked *before*
+  superseding anything, naming every offending id -- IMPL2-R1); an open
+  plan-approval transaction; no literal confirmation/`reason` this turn.
 
 ### `/review-implementation [work-item-id]` — review command
 - **When**: optional, repeatable, repository-local second opinion while a
@@ -575,7 +625,7 @@ test fails and is authoritative about which one moved.
   file says it is "retired — deleted — only at this work item's own
   `MILESTONE_COMPLETE`". That condition is now met — `workflow-v2-1-core`
   is `MILESTONE_COMPLETE` — but the file has not been deleted, so the
-  command is still on disk and still in this reference's roster of 15.
+  command is still on disk and still in this reference's roster of 16.
   Retiring it is a scoped act of its own (the way
   `/accept-scoped-remediation`'s retirement was); until then, treat it as
   live-but-unreachable: its target is terminal, so every invocation refuses
@@ -615,8 +665,9 @@ These apply across most commands and are usually what you are hitting:
 ## Phases
 
 `KNOWN_PHASES` in `scripts/workflow_state.py` is an **allowlist, not a
-transition graph** — its own comment says so. Seventeen names are declared;
-thirteen are ever written into `work_items[<id>].phase`. Confusing the two
+transition graph** — its own comment says so. Eighteen names are declared
+(`workflow-2.4.0` added `AMENDING_PLAN`, additive); fourteen are ever
+written into `work_items[<id>].phase`. Confusing the two
 sets is the single most common way to misread this workflow, so the census
 below is derived mechanically and kept honest by
 `workflow_state_test.TestPersistedPhaseWriterCensus` (an AST walk of every
@@ -641,6 +692,7 @@ phase assignment) and independently by
 | `AWAITING_FUNCTIONAL_REVIEW` | `apply_technical_approval`; `promote_legacy_work_item` |
 | `MILESTONE_COMPLETE` | `complete_work_item` — the only terminal phase |
 | `LEGACY_READY` | `import_legacy_work_item` — dormant, **not** terminal |
+| `AMENDING_PLAN` (`workflow-2.4.0`) | `request_plan_amendment` — a re-entry phase, left by the next `/milestone-plan` invocation, not a fresh-item phase |
 
 **Declared but never written** — vocabulary only. Nothing assigns these,
 so no work item is ever found at one, and no command can be "run from"
@@ -666,16 +718,25 @@ whole plan lane persists exactly three phases — `PLANNING` →
 `IMPLEMENTING`. For that version, `REVISING_PLAN` and
 `AWAITING_PLAN_APPROVAL` are names, like the four above.
 
+**Scope of that claim (`workflow-2.4.0`, `I-R19-1`)**: it describes the
+one-shot, pre-approval `PLANNING` → `IMPLEMENTING` sequence only. It says
+nothing about `AMENDING_PLAN` (`workflow-2.4.0`): that phase is reached
+only *after* a first `IMPLEMENTING`/`SELF_REVIEWING_IMPLEMENTATION` entry,
+by `/request-plan-amendment`, and re-enters this same lane via
+`/milestone-plan`'s existing dual-mode branch — a `"1"`-governed item can
+be amended too, and re-runs the identical three-phase lane above on its way
+back to `IMPLEMENTING`, one or more times.
+
 ### "Enter the `X` state" in a command file
 
-Ten of the fifteen command files open with an `Enter ...` line naming a
+Eleven of the sixteen command files open with an `Enter ...` line naming a
 phase. It is inherited v1 wording and does **not** mean the command writes
 that phase. Three things it can mean, and which command means which —
 derived from whether the file actually calls a writer of it:
 
 | Meaning | Commands |
 |---|---|
-| It really writes that phase | `/accept-milestone` (`complete_work_item`), `/apply-implementation-review` (`enter_applying_review_feedback`), `/prepare-functional-review` — but only on the `LEGACY_READY` adoption branch (`promote_legacy_work_item`) |
+| It really writes that phase | `/accept-milestone` (`complete_work_item`), `/apply-implementation-review` (`enter_applying_review_feedback`), `/prepare-functional-review` — but only on the `LEGACY_READY` adoption branch (`promote_legacy_work_item`), `/request-plan-amendment` (`request_plan_amendment`, `workflow-2.4.0`) |
 | It names the phase the command runs **in**, and writes a different one | `/milestone-plan` (writes `PLANNING` only when creating a fresh item, then moves it on), `/review-plan`, `/milestone-implement`, `/apply-plan-review`, and `/record-manual-plan-review`, whose "Enter the **exit of** `AWAITING_MANUAL_EXTERNAL_PLAN_REVIEW`" is the one phrasing that says so precisely |
 | It names a **gate**, not a phase | `/approve-review` ("Enter `AWAITING_PLAN_APPROVAL` or `AWAITING_TECHNICAL_APPROVAL`" — the first is a real phase for a `"2.1"` item only, the second never; what it writes is `IMPLEMENTING` or `AWAITING_FUNCTIONAL_REVIEW`) and `/apply-functional-review` (`FIXING_FUNCTIONAL_FINDINGS`, which nothing writes at all) |
 
@@ -768,6 +829,14 @@ action.
 Proven end to end by acceptance-matrix rows `C6`/`C7`
 (`workflow_acceptance_matrix_test.py`), including a plan-review `REVISE`
 round driven while the parent still holds the pointer.
+
+**`workflow-2.4.0`: the child can amend its own plan too.** Once it reaches
+`IMPLEMENTING`/`SELF_REVIEWING_IMPLEMENTATION`, running
+`/request-plan-amendment <child-id>` followed by `/milestone-plan
+<child-id>` re-enters the sequence above at its own `/milestone-plan
+<child-id>` step, on exactly the terms `D-Plan-Amendment-1`/`-2` grant any
+work item — never `active_work_item_id`, same as every other command on
+this child's own lifecycle.
 
 ## Known discrepancies
 

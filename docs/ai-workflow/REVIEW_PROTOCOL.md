@@ -167,6 +167,20 @@ warns on) any such entry as defense in depth.
 └── files/                     # generated: final copies of changed + listed context files
 ```
 
+**`workflow-2.4.0`, `D-Plan-Amendment-5`**: `AMENDMENT_DIFF.patch`, when
+present, is a **sibling** of `<bundle_dir>` itself, at
+`.ai-review/<work_item_id>/AMENDMENT_DIFF.patch` — never a member of the
+tree above, and never hashed into `bundle_id`/`review_content_id`, both of
+which walk only `<bundle_dir>`. `scripts/prepare-ai-review.sh` writes it
+during a plan-stage generation for a work item whose `amendment_history`'s
+last entry is still open (`resolved_at_plan_revision` still `null`) —
+`git diff <amendment_base_commit>..HEAD` restricted to the plan-stage
+protected paths, reviewer convenience only — and deletes any stale copy
+once no amendment is open. The manual-external-review archive
+(`review-bundle.tar.gz`) bundles it alongside `current/` when present, so
+both the local and the manual-external reviewer see the identical
+convenience diff.
+
 ### Generation diagnostic metadata (`worktree_root`/`generation_head`)
 
 `MANIFEST.md` records the absolute worktree root and HEAD SHA the bundle
@@ -202,6 +216,14 @@ This is **portability vs. local staleness, split by consumer**:
   `review_content_id`" below — the same computation the
   generator's own `--write-manifest` step performs, so a line written this
   way agrees with `MANIFEST.md` by construction rather than by care.
+  **`workflow-2.4.0`, `D-Plan-Amendment-5`**: at the `plan` stage, the
+  author appends one fixed line, unconditionally — never gated on whether
+  this generation's own work item currently has an open amendment: "
+  `AMENDMENT_DIFF.patch` (if present in this archive) is reviewer
+  convenience only: it sits outside `bundle_dir`/`bundle_id`/
+  `review_content_id` and is not covered by the Reviewed bundle ID above."
+  No validator enforces this line's presence — author-written prose like
+  every other field on this list.
 - **PLAN.md** — populated at the `plan` stage: the actual execution plan
   being reviewed. Leave empty (or omit updating it) at later stages. Must
   state the plan's current `(Revision N)` marker — a bundle whose `PLAN.md`
