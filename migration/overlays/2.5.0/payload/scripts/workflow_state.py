@@ -286,6 +286,26 @@ PLAN_REVIEW_VERDICTS = frozenset({"APPROVE", "REVISE", "BLOCK"})
 LOCAL_MODEL_PLAN_REVIEW = "LOCAL_MODEL_PLAN_REVIEW"
 MANUAL_EXTERNAL_PLAN_REVIEW = "MANUAL_EXTERNAL_PLAN_REVIEW"
 
+# workflow-2.5.0 (D-Implementation-Review-Version-Activation, "Inheritance
+# rule, general"): the single named membership constant replacing the exact
+# `governing_workflow_version == "2.1"` / `!= "2.1"` literal at every site
+# that gates the two-stage plan-review protocol -- `publish_plan_revision`,
+# `plan_approval_gate_reachable`, `_require_v2_1_plan_review`, and
+# `_validate_plan_review_stages`. A `"2.2"` item is a `"2.1"` item for plan
+# review purposes: it runs the identical two-stage mechanism, unchanged.
+TWO_STAGE_PLAN_REVIEW_VERSIONS = frozenset({"2.1", "2.2"})
+
+# Canonical, SCREAMING_SNAKE_CASE `implementation_review_stages` key casing
+# (workflow-2.5.0, D-Implementation-Review-Stages), mirroring
+# `LOCAL_MODEL_PLAN_REVIEW`/`MANUAL_EXTERNAL_PLAN_REVIEW` above exactly.
+# This ledger is introduced fresh at `"2.2"` -- no legacy lowercase variant
+# has ever existed for it -- but `normalize_implementation_review_stages`
+# still mirrors `normalize_plan_review_stages`'s own collision-aware read
+# contract below, so a future legacy alias (if one is ever introduced) is
+# handled by the same discipline from day one rather than bolted on later.
+LOCAL_IMPLEMENTATION_REVIEW = "LOCAL_IMPLEMENTATION_REVIEW"
+MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW = "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW"
+
 # Only MILESTONE_COMPLETE is terminal -- LEGACY_READY is explicitly
 # "dormant, not terminal" (D-Legacy phase 1, resolves GPT-R9-005).
 TERMINAL_PHASES = frozenset({"MILESTONE_COMPLETE"})
@@ -327,6 +347,17 @@ KNOWN_PHASES = frozenset({
     # next /milestone-plan invocation reusing that command's existing
     # step 3/[2.1] machinery unchanged.
     "AMENDING_PLAN",
+    # workflow-2.5.0 addition (D-Implementation-Review-Stages): "2.2"-only,
+    # real and persisted. Entered in place of
+    # AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW for a "2.2"-governed item's
+    # implementation review, mirroring AWAITING_LOCAL_PLAN_REVIEW/
+    # AWAITING_MANUAL_EXTERNAL_PLAN_REVIEW's own local-then-manual-external
+    # shape at the implementation stage. "Terminal-phase naming, decided"
+    # keeps AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW itself as the "2.2"
+    # terminal phase too -- its entry condition, not its name, grows the
+    # extra ledger check (see D-Implementation-Review-Version-Activation).
+    "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+    "AWAITING_MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW",
 })
 
 
@@ -517,12 +548,35 @@ class UnownedCheckpointError(Exception):
 
 class PlanReviewStagesInvalidForVersionError(Exception):
     """Raised when `plan_review_stages` is non-null on a work item whose
-    `governing_workflow_version` is not `"2.1"` (resolves GPT-R11-001)."""
+    `governing_workflow_version` is not one of `TWO_STAGE_PLAN_REVIEW_
+    VERSIONS` (resolves GPT-R11-001; widened workflow-2.5.0 from a bare
+    `"2.1"` check to the membership constant)."""
 
 
 class ManualStageWithoutLocalStageError(Exception):
     """Raised when `MANUAL_EXTERNAL_PLAN_REVIEW` is recorded while
     `LOCAL_MODEL_PLAN_REVIEW` is absent (resolves GPT-R11-001)."""
+
+
+class ImplementationReviewStagesInvalidForVersionError(Exception):
+    """workflow-2.5.0 (D-Implementation-Review-Stages): the
+    `implementation_review_stages` ledger's own ledger-shape counterpart of
+    `PlanReviewStagesInvalidForVersionError`, a new exception class rather
+    than a reuse -- unlike `WrongReviewerRoleError`/`StaleReviewContentIdError`/
+    `check_manual_stage_bundle_id_advisory`, which are already stage-
+    agnostic, `PlanReviewStagesInvalidForVersionError`'s own message names
+    `plan_review_stages` specifically. Raised when `implementation_review_
+    stages` is non-null on a work item whose `governing_workflow_version`
+    is not `"2.2"` -- unlike the plan-review ledger, this one is never
+    valid for `"2.1"`: the two-stage *implementation*-review protocol is
+    `"2.2"`-only (D-Implementation-Review-Version-Activation)."""
+
+
+class ManualImplementationStageWithoutLocalStageError(Exception):
+    """workflow-2.5.0: the `implementation_review_stages` counterpart of
+    `ManualStageWithoutLocalStageError`. Raised when `MANUAL_EXTERNAL_
+    IMPLEMENTATION_REVIEW` is recorded while `LOCAL_IMPLEMENTATION_REVIEW`
+    is absent."""
 
 
 class StageVerdictNotApproveError(Exception):
@@ -724,23 +778,44 @@ class AmbiguousPlanReviewStageKeyError(Exception):
     raises."""
 
 
+class AmbiguousImplementationReviewStageKeyError(Exception):
+    """workflow-2.5.0: `normalize_implementation_review_stages`'s own
+    counterpart of `AmbiguousPlanReviewStageKeyError`, raised on a genuine
+    conflict between two raw keys that normalize to the same
+    `implementation_review_stages` canonical stage. No legacy-cased key
+    has ever existed for this ledger, so this is unreachable through any
+    supported write path today -- defined for structural parity with the
+    plan-review ledger's own collision-aware read contract, exercised only
+    by a direct unit-test construction of a conflicting dict."""
+
+
 class ConfigMissingAfterActivationError(Exception):
     """Raised when `WORKFLOW_CONFIG.json` is missing or corrupt *after*
-    Workflow v2.1 activation -- a hard stop, never a silent downgrade
-    (resolves OPUS-R6-015)."""
+    Workflow activation -- a hard stop, never a silent downgrade (resolves
+    OPUS-R6-015). Generalized (workflow-2.5.0,
+    `D-Implementation-Review-Version-Activation`) off the original
+    hard-coded `"Workflow v2.1"` text: `load_config`'s raise message names
+    the resolved destination version when the latest activation/rollback
+    event resolves to one (e.g. `"Workflow 2.2"`), and names the
+    unresolved `Workflow-Rollback` trailer's own value verbatim in the
+    fail-closed miss case -- never a version name that, in the miss case,
+    by construction does not exist."""
 
 
 class AlreadyActivatedError(Exception):
     """Raised by `build_activated_config` when the config's
-    `default_workflow_version` is already `"2.1"` -- `WF-Activate` is a
-    sole, one-time boundary (WFR-10), never an idempotent no-op call."""
+    `default_workflow_version` is already the requested `target_version`
+    (default `"2.1"`, generalized workflow-2.5.0 for the `"2.1"` -> `"2.2"`
+    bump) -- `WF-Activate` is a sole, one-time boundary (WFR-10), never an
+    idempotent no-op call."""
 
 
 class NotActivatedError(Exception):
     """Raised by `build_rolled_back_config` when the config's
-    `default_workflow_version` is not `"2.1"` -- there is nothing to roll
-    back (WFR-10/WFR-12's rollback is a real state reversal, not a bare
-    field reset)."""
+    `default_workflow_version` is not the requested `target_version`
+    (default `"2.1"`, generalized workflow-2.5.0 for the `"2.1"` -> `"2.2"`
+    bump) -- there is nothing to roll back (WFR-10/WFR-12's rollback is a
+    real state reversal, not a bare field reset)."""
 
 
 class UnsupportedGoverningVersionError(Exception):
@@ -6597,58 +6672,147 @@ def any_protected_path_changed_since(
 # ---------------------------------------------------------------------------
 
 
-def find_latest_activation_event(repo_root: Path, head: str = "HEAD") -> tuple[str, str] | None:
+# workflow-2.5.0 (D-Implementation-Review-Version-Activation): the explicit,
+# declared predecessor mapping generalizing the prior hard-coded `"1"`
+# rollback-destination literal. Rollback targets the version activation
+# actually superseded -- `"2.2"` rolls back to `"2.1"`, `"2.1"` rolls back
+# to `"1"` -- never a derived value and never a version-string ordering
+# comparison (lexicographic comparison is unsound for these values:
+# `"2.10" < "2.2"`). This is also the sole legal domain for a
+# `Workflow-Rollback` trailer's own value: a value outside it (bare/empty,
+# a typo, or an unrecognized future version) is a resolution *miss*,
+# handled explicitly and fail-closed everywhere it is looked up below,
+# never a silent `dict.get` fall-through and never an uncaught `KeyError`.
+ACTIVATION_ROLLBACK_PREDECESSOR = {"2.1": "1", "2.2": "2.1"}
+
+
+def find_latest_activation_event(
+    repo_root: Path, head: str = "HEAD",
+) -> tuple[str, str | None, str] | None:
     """Most recent `Workflow-Activation`/`Workflow-Rollback` trailer event
     by first-parent ancestry from `head` (resolves GPT-R9-007's missing-
     config recovery rule: "the latest event", not just "any activation
-    trailer"). Returns `(kind, commit)` where `kind` is `"activation"` or
-    `"rollback"`, or `None` if neither has ever landed."""
+    trailer"). Returns `(kind, destination_version, commit)` where `kind`
+    is `"activation"` or `"rollback"`, or `None` if neither has ever
+    landed.
+
+    `destination_version` (workflow-2.5.0, D-Implementation-Review-
+    Version-Activation, version-aware event model) is the event's own
+    resolved destination: an activation trailer's value, used directly
+    (any value other than `"1"` already answers `is_activated` `True`); a
+    rollback trailer's value, resolved through `ACTIVATION_ROLLBACK_
+    PREDECESSOR`'s explicit domain. `destination_version` is `None` only
+    for a `"rollback"` kind whose trailer value falls outside that
+    domain -- the fail-closed miss case `is_activated` treats as
+    activated, never as not-activated."""
     for commit in _first_parent_commits_ordered(repo_root, head):
         trailers = _commit_trailers(repo_root, commit)
         if "Workflow-Activation" in trailers:
-            return ("activation", commit)
+            return ("activation", trailers["Workflow-Activation"].strip(), commit)
         if "Workflow-Rollback" in trailers:
-            return ("rollback", commit)
+            value = trailers["Workflow-Rollback"].strip()
+            return ("rollback", ACTIVATION_ROLLBACK_PREDECESSOR.get(value), commit)
     return None
+
+
+def _activation_event_description(repo_root: Path, event: tuple[str, str | None, str]) -> tuple[bool, str]:
+    """Shared by `is_activated` and `load_config`'s missing-config recovery
+    message (workflow-2.5.0): resolves a non-`None`
+    `find_latest_activation_event` result to `(activated, description)`.
+    `description` names the resolved destination version (e.g.
+    `"Workflow 2.2"`) when one exists, or the unresolved `Workflow-Rollback`
+    trailer's own raw value verbatim in the fail-closed miss case -- never
+    a version name that, in the miss case, by construction does not
+    exist. This is the module's one computation of "is this event
+    activated", never duplicated at either call site."""
+    kind, destination_version, commit = event
+    if destination_version is not None:
+        return destination_version != "1", f"Workflow {destination_version}"
+    # `kind` must be "rollback" here with an unresolvable trailer value --
+    # an activation trailer's own value is used directly and is never
+    # `None`. Fail closed: an unresolvable rollback trailer reports
+    # activated, never a silent fall-through to not-activated.
+    raw_value = _commit_trailers(repo_root, commit).get("Workflow-Rollback")
+    return True, f"an unresolvable Workflow-Rollback trailer value {raw_value!r}"
 
 
 def is_activated(repo_root: Path, head: str = "HEAD") -> bool:
     event = find_latest_activation_event(repo_root, head)
-    return event is not None and event[0] == "activation"
+    if event is None:
+        return False
+    activated, _description = _activation_event_description(repo_root, event)
+    return activated
 
 
-def build_activated_config(config: dict) -> dict:
-    """`WF-Activate`'s own transform: `default_workflow_version` -> `"2.1"`,
-    every other field untouched. The caller writes the returned dict to
-    `WORKFLOW_CONFIG.json` and commits it carrying a `Workflow-Activation:
-    2.1` trailer (D-Self-Governance) -- this function only computes the
-    new content, never touches Git or the filesystem itself, matching
-    every other state-transform function in this module. Rejects a config
-    already at `"2.1"`: activation is a sole, one-time boundary, not an
-    idempotent setter (`AlreadyActivatedError`)."""
-    if config.get("default_workflow_version") == "2.1":
-        raise AlreadyActivatedError(
-            "config.default_workflow_version is already \"2.1\" -- WF-Activate "
-            "is a one-time boundary, not an idempotent call"
+def build_activated_config(config: dict, target_version: str = "2.1") -> dict:
+    """`WF-Activate`'s own transform, generalized (workflow-2.5.0,
+    D-Implementation-Review-Version-Activation) to a `target_version`
+    parameter -- default `"2.1"`, preserving the original `"1"` -> `"2.1"`
+    call shape byte-for-byte -- rather than the prior hard-coded `"2.1"`
+    literal, reused (not duplicated) for the `"2.1"` -> `"2.2"` bump.
+    Sets `default_workflow_version` to `target_version` and appends
+    `target_version` to `supported_versions` if not already present -- a
+    genuinely new piece of behavior, since neither activation wrote that
+    field before; every other field is untouched. The caller writes the
+    returned dict to `WORKFLOW_CONFIG.json` and commits it carrying a
+    `Workflow-Activation: <target_version>` trailer (D-Self-Governance) --
+    this function only computes the new content, never touches Git or the
+    filesystem itself, matching every other state-transform function in
+    this module. Rejects a config already at `target_version`: activation
+    is a sole, one-time boundary, not an idempotent setter
+    (`AlreadyActivatedError`)."""
+    if target_version not in ACTIVATION_ROLLBACK_PREDECESSOR:
+        raise ValueError(
+            f"build_activated_config: unsupported target_version {target_version!r}, "
+            f"expected one of {sorted(ACTIVATION_ROLLBACK_PREDECESSOR)}"
         )
-    return {**config, "default_workflow_version": "2.1"}
+    if config.get("default_workflow_version") == target_version:
+        raise AlreadyActivatedError(
+            f"config.default_workflow_version is already {target_version!r} -- "
+            f"WF-Activate is a one-time boundary, not an idempotent call"
+        )
+    supported_versions = list(config.get("supported_versions", []))
+    if target_version not in supported_versions:
+        supported_versions.append(target_version)
+    return {
+        **config,
+        "default_workflow_version": target_version,
+        "supported_versions": supported_versions,
+    }
 
 
-def build_rolled_back_config(config: dict) -> dict:
-    """The rollback counterpart of `build_activated_config`: `"2.1"` ->
-    `"1"`. The caller commits the result carrying a `Workflow-Rollback:
-    2.1` trailer. This reverts only the repository-level default -- it
-    never touches any work item's own `governing_workflow_version`, fixed
-    at creation and immune to this change (D-Self-Governance). Rejects a
-    config not currently at `"2.1"`: there is nothing to roll back
-    (`NotActivatedError`)."""
-    if config.get("default_workflow_version") != "2.1":
+def build_rolled_back_config(config: dict, target_version: str = "2.1") -> dict:
+    """The rollback counterpart of `build_activated_config`, generalized
+    (workflow-2.5.0) the same way: rolls `default_workflow_version` back
+    from `target_version` (default `"2.1"`, preserving the original
+    `"2.1"` -> `"1"` call shape byte-for-byte) to `target_version`'s own
+    predecessor under `ACTIVATION_ROLLBACK_PREDECESSOR`'s explicit domain
+    -- `"2.1"` -> `"1"`, `"2.2"` -> `"2.1"` -- never the prior hard-coded
+    `"1"` literal and never a version-string ordering comparison
+    (lexicographic comparison is unsound: `"2.10" < "2.2"`). The caller
+    commits the result carrying a `Workflow-Rollback: <target_version>`
+    trailer. This reverts only the repository-level default -- it never
+    touches any work item's own `governing_workflow_version`, fixed at
+    creation and immune to this change (D-Self-Governance). Does not
+    remove `target_version` from `supported_versions` -- asymmetric with
+    activation's append, deliberately: `validate_governing_version` is
+    only ever called with `config["default_workflow_version"]` itself, so
+    a stale `supported_versions` member grants nothing today. Rejects a
+    config not currently at `target_version`: there is nothing to roll
+    back (`NotActivatedError`)."""
+    if config.get("default_workflow_version") != target_version:
         raise NotActivatedError(
             f"config.default_workflow_version is "
-            f"{config.get('default_workflow_version')!r}, not \"2.1\" -- "
+            f"{config.get('default_workflow_version')!r}, not {target_version!r} -- "
             f"nothing to roll back"
         )
-    return {**config, "default_workflow_version": "1"}
+    predecessor = ACTIVATION_ROLLBACK_PREDECESSOR.get(target_version)
+    if predecessor is None:
+        raise ValueError(
+            f"build_rolled_back_config: unsupported target_version {target_version!r}, "
+            f"expected one of {sorted(ACTIVATION_ROLLBACK_PREDECESSOR)}"
+        )
+    return {**config, "default_workflow_version": predecessor}
 
 
 # ---------------------------------------------------------------------------
@@ -6681,7 +6845,13 @@ def load_config(repo_root: Path, config_path: Path = DEFAULT_CONFIG_PATH) -> dic
     """Load `WORKFLOW_CONFIG.json` with D3's pre-/post-activation fail-safe
     rule: missing or corrupt before activation -> default to
     `default_workflow_version: "1"`; missing or corrupt after activation
-    -> hard stop (resolves OPUS-R6-015)."""
+    -> hard stop (resolves OPUS-R6-015). The raise message is generalized
+    (workflow-2.5.0, D-Implementation-Review-Version-Activation) off the
+    prior hard-coded `"Workflow v2.1"` text: it names the resolved
+    destination version when the latest activation/rollback event
+    resolves to one, and the unresolved `Workflow-Rollback` trailer's own
+    value verbatim in the fail-closed miss case (`_activation_event_
+    description`, shared with `is_activated` so the two never disagree)."""
     try:
         config = _load_json(repo_root / config_path)
     except CorruptJsonError:
@@ -6689,12 +6859,15 @@ def load_config(repo_root: Path, config_path: Path = DEFAULT_CONFIG_PATH) -> dic
     if config is not None:
         validate_config(config)
         return config
-    if is_activated(repo_root):
-        raise ConfigMissingAfterActivationError(
-            f"{config_path} is missing or corrupt, and Workflow v2.1 is activated -- "
-            f"restore or recreate it from the activation commit's own tree, "
-            f"per D-Self-Governance's missing-config recovery rule"
-        )
+    event = find_latest_activation_event(repo_root)
+    if event is not None:
+        activated, description = _activation_event_description(repo_root, event)
+        if activated:
+            raise ConfigMissingAfterActivationError(
+                f"{config_path} is missing or corrupt, and {description} is activated -- "
+                f"restore or recreate it from the activation commit's own tree, "
+                f"per D-Self-Governance's missing-config recovery rule"
+            )
     return default_config()
 
 
@@ -7432,8 +7605,11 @@ def publish_plan_revision(state: dict, work_item_id: str, plan_revision: int, no
     to `WORKFLOW_STATE.json`'s non-authoritative mirror through this one
     entry point -- never as a plain JSON edit. Sets `plan_revision` to the
     given value and `phase` to `AWAITING_EXTERNAL_PLAN_REVIEW` for a
-    `"1"`-governed item or `AWAITING_LOCAL_PLAN_REVIEW` for a `"2.1"`-governed
-    one (`D-Plan-Review-Stages` enters local review first).
+    `"1"`-governed item or `AWAITING_LOCAL_PLAN_REVIEW` for a
+    `TWO_STAGE_PLAN_REVIEW_VERSIONS`-governed (`"2.1"`/`"2.2"`) one
+    (`D-Plan-Review-Stages` enters local review first; workflow-2.5.0
+    widens this from a bare `"2.1"` literal to the membership constant --
+    a `"2.2"` item is a `"2.1"` item for plan review purposes).
 
     Exhaustive call sites (named, not left to convention): `/milestone-plan`
     step 3's `[2.1]` registry write; `/apply-plan-review` step 5, on both
@@ -7455,14 +7631,14 @@ def publish_plan_revision(state: dict, work_item_id: str, plan_revision: int, no
             f"a plan revision can never be published against a completed work item"
         )
     governing_version = work_item.get("governing_workflow_version")
-    if governing_version == "2.1":
+    if governing_version in TWO_STAGE_PLAN_REVIEW_VERSIONS:
         target_phase = "AWAITING_LOCAL_PLAN_REVIEW"
     elif governing_version == "1":
         target_phase = "AWAITING_EXTERNAL_PLAN_REVIEW"
     else:
         raise UnsupportedGoverningVersionError(
             f"{work_item_id!r} has governing_workflow_version {governing_version!r}, "
-            f"expected \"1\" or \"2.1\""
+            f"expected \"1\" or one of {sorted(TWO_STAGE_PLAN_REVIEW_VERSIONS)}"
         )
 
     if work_item.get("plan_revision") == plan_revision and work_item.get("phase") == target_phase:
@@ -10019,6 +10195,58 @@ def migrate_plan_review_stage_keys(state: dict) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# workflow-2.5.0 CP2: `implementation_review_stages` ledger normalize/read
+# helpers, mirroring `normalize_plan_review_stages`/
+# `_normalize_plan_review_stage_key` exactly. CP3 (D-Implementation-Review-
+# Stages' own review-stage writers and gate widening) is the ledger's sole
+# writer set (`record_local_implementation_review`/
+# `record_manual_implementation_review`); this plumbing exists ahead of
+# those writers so CP3 imports one already-reviewed normalize/read
+# contract rather than deriving its own.
+# ---------------------------------------------------------------------------
+
+
+def _normalize_implementation_review_stage_key(key: str) -> str:
+    """Identity mapping today -- no legacy lowercase variant has ever
+    existed for `implementation_review_stages`, introduced fresh at
+    `"2.2"` (unlike `plan_review_stages`, which inherited two real legacy
+    keys from a pre-`SCREAMING_SNAKE_CASE` era). Kept as its own named
+    function, mirroring `_normalize_plan_review_stage_key`'s own shape,
+    so `normalize_implementation_review_stages` below never needs to
+    change if a legacy alias is ever introduced later."""
+    return key
+
+
+def normalize_implementation_review_stages(stages: dict) -> dict:
+    """Reads an `implementation_review_stages` dict, mirroring
+    `normalize_plan_review_stages`'s own collision-aware read contract
+    exactly: `review_content_id` passes through unchanged as a value,
+    never a stage key; a byte-identical (`==`) duplicate under two raw
+    keys that normalize to the same canonical stage collapses silently;
+    a genuine conflict raises `AmbiguousImplementationReviewStageKeyError`,
+    independent of dict insertion order. Used at every
+    `implementation_review_stages` read site CP3 adds."""
+    normalized: dict = {}
+    raw_key_by_canonical: dict[str, str] = {}
+    for key, value in stages.items():
+        if key == "review_content_id":
+            normalized[key] = value
+            continue
+        canonical = _normalize_implementation_review_stage_key(key)
+        if canonical in normalized:
+            if normalized[canonical] != value:
+                raise AmbiguousImplementationReviewStageKeyError(
+                    f"implementation_review_stages: raw keys "
+                    f"{raw_key_by_canonical[canonical]!r} and {key!r} both normalize "
+                    f"to {canonical!r} but disagree: {normalized[canonical]!r} vs. {value!r}"
+                )
+            continue
+        normalized[canonical] = value
+        raw_key_by_canonical[canonical] = key
+    return normalized
+
+
+# ---------------------------------------------------------------------------
 # D-States: non-circular gate-reachability for AWAITING_PLAN_APPROVAL /
 # AWAITING_TECHNICAL_APPROVAL (never reads plan_approval/technical_approval
 # themselves -- resolves OPUS-R6-004/-011)
@@ -10066,16 +10294,17 @@ def plan_approval_gate_reachable(
     plan_review_stages: dict | None, current_review_content_id: str,
 ) -> bool:
     """`AWAITING_PLAN_APPROVAL`'s entry condition: the shared reachability
-    rule above, plus -- for a `governing_workflow_version: "2.1"` work item
-    only (resolves GPT-R11-001/-003) -- the `plan_review_stages` ledger
-    must record both `LOCAL_MODEL_PLAN_REVIEW` and
+    rule above, plus -- for a `TWO_STAGE_PLAN_REVIEW_VERSIONS`-governed
+    (`"2.1"`/`"2.2"`, widened workflow-2.5.0 from a bare `"2.1"` literal)
+    work item only (resolves GPT-R11-001/-003) -- the `plan_review_stages`
+    ledger must record both `LOCAL_MODEL_PLAN_REVIEW` and
     `MANUAL_EXTERNAL_PLAN_REVIEW` completed (`verdict: APPROVE`) against
     the *current* plan-stage `review_content_id`. A `"1"` item's condition
     is exactly the shared rule, unchanged. Tolerant of legacy lowercase
     keys via `normalize_plan_review_stages` (workflow-v2-3-followups CP3)."""
     if not approval_gate_reachable(latest_round_status):
         return False
-    if governing_workflow_version != "2.1":
+    if governing_workflow_version not in TWO_STAGE_PLAN_REVIEW_VERSIONS:
         return True
     if plan_review_stages is None:
         return False
@@ -11750,11 +11979,19 @@ def discover_current_functional_checklist_evidence(
 
 
 def _require_v2_1_plan_review(work_item: dict) -> None:
-    if work_item.get("governing_workflow_version") != "2.1":
+    """Widened workflow-2.5.0 from a bare `governing_workflow_version !=
+    "2.1"` check to `TWO_STAGE_PLAN_REVIEW_VERSIONS` membership: a `"2.2"`
+    item runs the identical two-stage plan-review protocol a `"2.1"` item
+    does (D-Implementation-Review-Version-Activation's inheritance rule).
+    Function name kept unchanged -- it is a private helper, and every
+    caller's own name (`validate_local_plan_review_preconditions`, etc.)
+    already reads as version-neutral."""
+    if work_item.get("governing_workflow_version") not in TWO_STAGE_PLAN_REVIEW_VERSIONS:
         raise WrongGoverningVersionForPlanReviewStageError(
             f"{work_item['work_item_id']}: governing_workflow_version is "
-            f"{work_item.get('governing_workflow_version')!r}, not \"2.1\" -- "
-            f"the two-stage plan-review protocol only applies to \"2.1\" work items"
+            f"{work_item.get('governing_workflow_version')!r}, not one of "
+            f"{sorted(TWO_STAGE_PLAN_REVIEW_VERSIONS)} -- the two-stage plan-review "
+            f"protocol applies to \"2.1\"/\"2.2\" work items alike"
         )
 
 
@@ -11938,9 +12175,13 @@ def record_manual_plan_review(
 
 
 def transition_to_awaiting_local_plan_review(state: dict, work_item_id: str, now: str) -> dict:
-    """`/apply-plan-review`'s `"2.1"`-only revised exit step (D-Plan-Review-
-    Stages, resolves `GPT-R11-003`/`-007`): after every accepted plan edit,
-    the work item transitions to `AWAITING_LOCAL_PLAN_REVIEW` -- never
+    """`/apply-plan-review`'s revised exit step for a `TWO_STAGE_PLAN_
+    REVIEW_VERSIONS`-governed (`"2.1"`/`"2.2"`) item alike (D-Plan-Review-
+    Stages, resolves `GPT-R11-003`/`-007`; corrected workflow-2.5.0 from
+    describing this as `"2.1"`-only -- the exit step is identical for
+    `"2.2"`, D-Implementation-Review-Version-Activation's inheritance
+    rule): after every accepted plan edit, the work item transitions to
+    `AWAITING_LOCAL_PLAN_REVIEW` -- never
     self-declaring plan readiness. The stale `plan_review_stages` ledger
     (if any) is left as-is, never explicitly cleared: its own
     `review_content_id` no longer matches the freshly recomputed one the
@@ -12157,11 +12398,11 @@ def _validate_plan_review_stages(work_item: dict) -> None:
     stages = work_item.get("plan_review_stages")
     if stages is None:
         return
-    if work_item.get("governing_workflow_version") != "2.1":
+    if work_item.get("governing_workflow_version") not in TWO_STAGE_PLAN_REVIEW_VERSIONS:
         raise PlanReviewStagesInvalidForVersionError(
             f"{work_item['work_item_id']}: plan_review_stages is non-null but "
             f"governing_workflow_version is {work_item.get('governing_workflow_version')!r}, "
-            f"not \"2.1\""
+            f"not one of {sorted(TWO_STAGE_PLAN_REVIEW_VERSIONS)}"
         )
     stages = normalize_plan_review_stages(stages)
     local = stages.get(LOCAL_MODEL_PLAN_REVIEW)
@@ -12177,6 +12418,45 @@ def _validate_plan_review_stages(work_item: dict) -> None:
                 f"{work_item['work_item_id']}.{stage_name}.verdict is "
                 f"{stage.get('verdict')!r}, expected \"APPROVE\" -- only a completed "
                 f"APPROVE is ever recorded at either stage (GPT-R14-010)"
+            )
+
+
+def _validate_implementation_review_stages(work_item: dict) -> None:
+    """workflow-2.5.0 CP2: the `implementation_review_stages` ledger's own
+    shape check, mirroring `_validate_plan_review_stages` exactly except
+    for its version domain -- this ledger is `"2.2"`-only, never valid for
+    `"2.1"` (unlike `plan_review_stages`, valid for both). CP3's own
+    writers (`record_local_implementation_review`/
+    `record_manual_implementation_review`) are this ledger's sole write
+    path; this validator exists ahead of them, exercised today only by a
+    directly-constructed test fixture, so a shape defect introduced by
+    CP3's writers is caught here from the moment they land, rather than
+    only once a test happens to cover it."""
+    stages = work_item.get("implementation_review_stages")
+    if stages is None:
+        return
+    if work_item.get("governing_workflow_version") != "2.2":
+        raise ImplementationReviewStagesInvalidForVersionError(
+            f"{work_item['work_item_id']}: implementation_review_stages is non-null "
+            f"but governing_workflow_version is "
+            f"{work_item.get('governing_workflow_version')!r}, not \"2.2\""
+        )
+    stages = normalize_implementation_review_stages(stages)
+    local = stages.get(LOCAL_IMPLEMENTATION_REVIEW)
+    manual = stages.get(MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW)
+    if manual is not None and local is None:
+        raise ManualImplementationStageWithoutLocalStageError(
+            f"{work_item['work_item_id']}: {MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW} is "
+            f"recorded while {LOCAL_IMPLEMENTATION_REVIEW} is absent"
+        )
+    for stage_name, stage in (
+        (LOCAL_IMPLEMENTATION_REVIEW, local), (MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW, manual),
+    ):
+        if stage is not None and stage.get("verdict") != "APPROVE":
+            raise StageVerdictNotApproveError(
+                f"{work_item['work_item_id']}.{stage_name}.verdict is "
+                f"{stage.get('verdict')!r}, expected \"APPROVE\" -- only a completed "
+                f"APPROVE is ever recorded at either stage"
             )
 
 
@@ -12237,6 +12517,7 @@ def _validate_work_item(work_item_id: str, work_item: dict) -> None:
         )
 
     _validate_plan_review_stages(work_item)
+    _validate_implementation_review_stages(work_item)
     _validate_technical_review_block_pins(work_item)
 
     # I2 (workflow-v2-3-followups continued scope, external cross-model
