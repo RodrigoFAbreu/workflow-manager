@@ -3,9 +3,10 @@
 ## Milestone
 
 **In progress.** `implementation-review-two-stage` (`governing_workflow_version:
-"2.1"`, plan approved at revision 33): Workflow `2.5.0` — implementation
-review, review scalability, and post-v2.3.1 remediation. Full plan:
-`docs/ai-workflow/IMPLEMENTATION_REVIEW_TWO_STAGE_PLAN.md`.
+"2.1"`, plan approved at revision 41, superseding the revision-33 approval
+CP1 originally executed against via amendment 0): Workflow `2.5.0` —
+implementation review, review scalability, and post-v2.3.1 remediation.
+Full plan: `docs/ai-workflow/IMPLEMENTATION_REVIEW_TWO_STAGE_PLAN.md`.
 
 ## Goal
 
@@ -25,9 +26,26 @@ development.
 
 ## Current checkpoint
 
-**CP1 complete** (`implementation-review-two-stage`, 13 checkpoints total).
-Next: **CP2** (`workflow_state.py` plumbing in the overlay — `KNOWN_PHASES`
-additions, generalized activation helpers, `TWO_STAGE_PLAN_REVIEW_VERSIONS`).
+**CP1 revalidated and complete** (`implementation-review-two-stage`, 13
+checkpoints total). Next: **CP2** (`workflow_state.py` plumbing in the
+overlay — `KNOWN_PHASES` additions, generalized activation helpers,
+`TWO_STAGE_PLAN_REVIEW_VERSIONS`).
+
+Amendment 0 (requested from `IMPLEMENTING` after CP1's original commit,
+`20a808d`, to fix `implementation-review-two-stage-artifacts.json`'s
+`plan_stage.excluded_prefixes` gap for `migration/`/`tests/`/`distribution/`)
+downgraded every registry checkpoint, CP1 included, to
+`NEEDS_REVALIDATION` as part of its reconciliation. Revalidating CP1 against
+the amended, re-approved plan (revision 41): `git diff 20a808d..HEAD --
+docs/ai-workflow/registry/implementation-review-two-stage-registry.json`
+shows CP1's own registry entry is byte-for-byte unchanged by the amendment
+and every subsequent plan-review round (only CP7's and CP13's entries
+gained clarifying text); the amendment's actual delta is confined to
+`implementation-review-two-stage-artifacts.json`'s declaration sets. CP1's
+already-committed deliverable therefore required no rework — this
+invocation re-ran CP1's own narrowest check (below, unchanged result) and
+re-marks it `COMPLETE` under the new plan approval so the registry's own
+per-checkpoint status again matches reality.
 
 CP1 delivered, in `migration/overlays/2.5.0/payload/`:
 - `docs/ai-workflow/WORKFLOW_V2_PLAN.md`: new `D-Implementation-Review-Stages`
@@ -78,9 +96,9 @@ None.
 
 ## Active plan
 
-`docs/ai-workflow/IMPLEMENTATION_REVIEW_TWO_STAGE_PLAN.md` (revision 33,
-plan approval `CURRENT`, both `LOCAL_MODEL_PLAN_REVIEW` and
-`MANUAL_EXTERNAL_PLAN_REVIEW` recorded `APPROVE`).
+`docs/ai-workflow/IMPLEMENTATION_REVIEW_TWO_STAGE_PLAN.md` (revision 41,
+plan approval `CURRENT`, both `LOCAL_MODEL_PLAN_REVIEW` (round 42) and
+`MANUAL_EXTERNAL_PLAN_REVIEW` (round 1) recorded `APPROVE`).
 
 ## Next action
 

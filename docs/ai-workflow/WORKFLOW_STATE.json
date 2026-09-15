@@ -784,8 +784,8 @@
       "last_completed_checkpoint_id": "CP1",
       "checkpoints": {
         "CP1": {
-          "status": "NEEDS_REVALIDATION",
-          "start_commit": "b1804776860c09881a19beeebb716c5f884fe730"
+          "status": "COMPLETE",
+          "start_commit": "7ba5f77d8cb63ee3c0f47b19d0f16795afced1e8"
         }
       },
       "current_bundle_id": null,
@@ -839,8 +839,8 @@
       },
       "functional_acceptance_status": null,
       "blocking_decisions": [],
-      "state_revision": 134,
-      "last_transition": "2026-09-15T08:56:44Z",
+      "state_revision": 136,
+      "last_transition": "2026-09-15T18:04:24Z",
       "amendment_history": [
         {
           "amendment_id": "0",
