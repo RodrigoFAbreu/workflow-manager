@@ -239,3 +239,123 @@ stays continuous from the work item's first checkpoint.
   identified and confirmed unaffected (`TestCanonicalStateSerialization`'s
   two "live `WORKFLOW_STATE.json`" tests and `TestGlobalLockOrderItem372h`'s
   `setUpClass`). `python3 tests/run_all.py --fast` — all green.
+
+## `CP4` — Command updates in the overlay
+
+Docs-only checkpoint: no `scripts/workflow_state.py` change (CP2/CP3 already
+delivered every function/constant this checkpoint's command files
+reference). All thirteen command files below live under
+`migration/overlays/2.5.0/payload/.claude/commands/` (full-file copies of
+the `2.4.0` base plus this item's own edits, or new files, per this
+repository's own authored-release process) plus one reference doc under
+`migration/overlays/2.5.0/payload/docs/ai-workflow/`.
+
+- **Implementation evidence**:
+  - **`review-implementation.md`**: gained a `"2.2"` authoritative branch
+    (new step 0 dual-mode branch, a new "`"2.2"` authoritative branch"
+    section at the end of the file with its own A1-A7 steps mirroring
+    `/review-plan`'s `"2.1"` role exactly, substituted for the
+    implementation stage). Its existing `"1"`/`"2.1"` advisory branch
+    (steps 1-8) is byte-unchanged.
+  - **`record-manual-implementation-review.md`** (new file): mirrors
+    `/record-manual-plan-review.md` exactly, substituted for the
+    implementation stage and the `"2.2"`-only version guard (no legacy
+    role-string alias, unlike the plan side).
+  - **`apply-implementation-review.md`**: documents that a `"2.2"` item
+    makes no `enter_applying_review_feedback` call (its own only legal
+    source phase is wrong for a `"2.2"` `REVISE` round) and that step 7's
+    `record_bundle_generation(stage="post-fix")` resolves to
+    `AWAITING_LOCAL_IMPLEMENTATION_REVIEW` for it via the version-dependent
+    resolver, never a second writer (resolves I1). Its own `"1"`/`"2.1"`
+    step-0 dual-mode enumeration stays byte-unchanged (`LOCAL_MODEL_PLAN_REVIEW`
+    round 8, optional finding 3); gained an explicit
+    "any other `governing_workflow_version`: refuse" addition (round-7
+    optional finding 2).
+  - **`approve-review.md`**: step 0 gained an explicit `"2.2"` branch (the
+    plan stage reuses the `"2.1"` branch verbatim via
+    `TWO_STAGE_PLAN_REVIEW_VERSIONS`; the implementation stage additionally
+    requires `technical_approval_gate_reachable`'s own `"2.2"`-only ledger
+    check, restating the plan stage's `plan_review_stages` check for
+    `implementation_review_stages`) and an explicit
+    "any other version: refuse" branch; corrected step 0's stale claim that
+    the `"2.1"` plan-ledger branch is inert only because this repository's
+    own work item is fixed at `"1"` (untrue since `plan-amendment-mechanism`
+    and this item itself are both `"2.1"`-governed).
+  - **`milestone-implement.md`**: step 0 gained an explicit `"2.2"` branch
+    (takes the `"2.1"` resumable-checkpoint branch identically) and an
+    explicit "any other version: refuse" branch (round-7 optional finding
+    2); step 4 documents that its own `record_bundle_generation(stage=
+    "implementation")` call resolves to `AWAITING_LOCAL_IMPLEMENTATION_REVIEW`
+    for a `"2.2"` item via the version-dependent target-phase resolver, as
+    an item distinct from the step-0 branch-selection documentation above.
+  - **`apply-functional-review.md`**: the remediation-child sentence now
+    states a `"2.2"` child enters review at `AWAITING_LOCAL_PLAN_REVIEW`
+    identically to a `"2.1"` child (`publish_plan_revision`'s own
+    `TWO_STAGE_PLAN_REVIEW_VERSIONS` branch covers both); the bounded-fix
+    branch's own post-fix regeneration step documents that a `"2.2"`
+    item's target phase resolves to `AWAITING_LOCAL_IMPLEMENTATION_REVIEW`
+    (resolves I2) — a `"2.2"` functional bounded fix re-enters both
+    implementation-review stages before `/approve-review implementation`
+    is reachable again.
+  - **`recover-implementation-provenance.md`**: the phase guard and the
+    recovered-role field-set note now name
+    `bundle_generation_recovered_role_legal_committed_phases(
+    governing_workflow_version)`'s own membership test (the single-member
+    `"1"`/`"2.1"` set, or the three-phase `"2.2"` set) rather than a bare
+    `AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW` equality, stating explicitly
+    that this command's own guard and that function's return value are the
+    identical set (resolves round-4 finding B1).
+  - **Plan-stage command-contract widening** (resolves `LOCAL_MODEL_PLAN_REVIEW`
+    round 5, finding B1): `milestone-plan.md` (step 0's `"2.1"` branch note
+    gained an explicit `"2.2"` sibling), `apply-plan-review.md` (step 0's
+    `"2.1"` branch note gained an explicit `"2.2"` sibling plus an explicit
+    refusal branch, and corrected the same stale "inert" claim
+    `approve-review.md` corrected; step 7' widened from a bare `"2.1"`
+    check to `"2.1"`/`"2.2"`), `review-plan.md`/`record-manual-plan-review.md`
+    (governing-version guards widened to `TWO_STAGE_PLAN_REVIEW_VERSIONS`
+    membership, plus their frontmatter `description:` lines dropping the
+    "(`"2.1"` work items only)" framing), `request-plan-amendment.md`
+    (applies-uniformly sentence widened to name `"2.2"` alongside `"1"`/`"2.1"`).
+  - **Round-6/round-7 plan-review-inheritance widening** (resolves
+    `LOCAL_MODEL_PLAN_REVIEW` round 6 finding B1(a)/(c), round 7 finding
+    B1(e)/(g)): `accept-milestone.md`, `review-functional.md` (their
+    version-independence sentences widened to name `"2.2"` alongside
+    `"1"`/`"2.1"`); `prepare-functional-review.md` (the legacy-adoption
+    success clause restates that adoption promotes to the literal `"2.1"`
+    even once a repository has activated `"2.2"`, plus an added
+    version-independence sentence for its own steps 1-5).
+  - **`WORKFLOW_V2_1_OPERATOR_REFERENCE.md`** (new overlay copy, full
+    replacement of the `2.4.0` base): "Two governing versions" restated as
+    three; the `AWAITING_LOCAL_PLAN_REVIEW`/`AWAITING_MANUAL_EXTERNAL_PLAN_REVIEW`
+    `"2.1"` only precondition lines widened to `"2.1"`/`"2.2"`; new
+    persisted-phase table rows for `AWAITING_LOCAL_IMPLEMENTATION_REVIEW`/
+    `AWAITING_MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW`; widened
+    `AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW`/`APPLYING_REVIEW_FEEDBACK`
+    rows; new `/record-manual-implementation-review` command-reference
+    section; widened `/review-implementation`, `/apply-implementation-review`,
+    `/recover-implementation-provenance`, `/approve-review` sections; the
+    "Enter the `X` state" table's writer list gained
+    `/review-implementation`'s `"2.2"` branch and
+    `/record-manual-implementation-review`; the "Hard gates" paragraph
+    extended to state a `"2.2"` item stops in nine places (the six named
+    hard gates, plus the two plan-review states, plus the two new
+    implementation-review states).
+- **Verification**: this is a docs-only checkpoint (no `scripts/
+  workflow_state.py` change) — the narrowest relevant check is confirming
+  every symbol these command files now reference (`record_local_implementation_review`,
+  `record_manual_implementation_review`, `bundle_generation_target_phase`,
+  `bundle_generation_recovered_role_legal_committed_phases`,
+  `TWO_STAGE_PLAN_REVIEW_VERSIONS`, the six new/reused exception classes,
+  etc.) actually exists in the overlay's `workflow_state.py` (grep-verified,
+  all present) and re-running `workflow_state_test`'s own declaration-
+  coverage test, unaffected by a docs-only change but the narrowest
+  automated check that touches this item's own declared deliverable set:
+  `PYTHONPATH="migration/overlays/2.5.0/payload/scripts:scripts" python3 -m
+  unittest workflow_state_test.TestImplementationReviewTwoStageDeclarationCoverage`
+  — 2/2 passed. Full re-run for regression confidence:
+  `python3 -m unittest workflow_state_test` — 759 tests, same result as
+  `CP3` (all green except the same three pre-existing environment-only
+  errors, confirmed unaffected). `python3 tests/run_all.py --fast` — all
+  green. `tools/build_release.py --overlay migration/overlays/2.5.0 --check`
+  is not runnable until `CP11` (`migration/overlays/2.5.0/classification.json`
+  does not exist yet), unchanged from `CP1`/`CP2`/`CP3`'s own note.
