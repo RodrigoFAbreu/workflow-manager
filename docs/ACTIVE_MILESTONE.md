@@ -26,8 +26,70 @@ development.
 
 ## Current checkpoint
 
-**CP1-CP7 complete** (`implementation-review-two-stage`, 13 checkpoints
-total). Next: **CP8** (review-scalability branch 3, depends on CP1).
+**CP1-CP8 complete** (`implementation-review-two-stage`, 13 checkpoints
+total). Next: **CP9** (post-v2.3.1 backlog, tractable fixes, depends on
+CP2).
+
+CP8 delivered `D-Review-Finding-Taxonomy-and-Circuit-Breaker` (`§2.6`), in
+`migration/overlays/2.5.0/payload/`:
+
+- `docs/ai-workflow/REVIEW_PROTOCOL.md`: a new "Finding taxonomy and
+  circuit breaker" subsection under the existing "Feedback protocol"
+  section, additive only. An advisory, never parser-enforced,
+  `[substantive]`/`[apparatus]` tag on every Blocking/Important
+  `REVIEW_FEEDBACK.md` finding — a missing, malformed, or ambiguous tag
+  is never rejected and defaults, conservatively, to `[substantive]` for
+  every purpose (I5), so no live work item's existing feedback shape
+  breaks on update and silence can never manufacture an apparatus-only
+  streak. The existing resolve-or-reject-with-evidence rule is
+  unchanged regardless of tag or its absence. A bounded, advisory
+  circuit-breaker signal — fixed at 2, not left open (I6), since neither
+  `record_local_plan_review`'s/`record_manual_plan_review`'s `REVISE`
+  branch (nor their implementation-stage mirrors') writes any durable
+  finding-classification-bearing ledger entry, so a reviewer can never
+  observe more than one prior round beyond its own — stated in the
+  reviewer's own next report after two consecutive apparatus-only
+  `REVISE` rounds for the **same local-model** review stage
+  (`LOCAL_MODEL_PLAN_REVIEW` or `LOCAL_MODEL_IMPLEMENTATION_REVIEW`,
+  distinguished by `REVIEW_FEEDBACK.md`'s own `Reviewer role:` line).
+  Never phase-gating, no new `WORKFLOW_STATE.json` field, no
+  governing-version bump. Explicitly scoped away from two consecutive
+  manual-external rounds: the single-prior-visibility mechanism the
+  signal relies on does not hold there (a fresh required local pass
+  always overwrites the shared `REVIEW_FEEDBACK.md` path before the next
+  manual reviewer ever sees the prior one), so the added text states no
+  corresponding recoverability claim for that case — manual-external
+  convergence stays operator judgment, as it already is today.
+- `scripts/workflow_state_test.py`: `FindingTaxonomyCircuitBreakerTest`
+  (six tests: the signal fires after two consecutive apparatus-only
+  rounds for each local-model stage independently; never fires across
+  differing stages, for manual-external rounds, when only one round is
+  apparatus-only, or when a missing tag could otherwise have
+  masqueraded as apparatus; and the resolve-or-reject rule's own prose
+  is unaffected by tag or its absence) and
+  `ReviewProtocolManualExternalCircuitBreakerScopeTest` (two tests:
+  `REVIEW_PROTOCOL.md`'s own text states no manual-external
+  recoverability claim, and no sentence mentioning manual-external
+  rounds makes an affirmative circuit-breaker claim). Both classes use
+  test-only reference logic (`circuit_breaker_fires`, `_finding_tag`,
+  etc.) modeling exactly the algorithm the new prose describes — never
+  imported by `workflow_state.py` or any review command, matching the
+  "advisory, never machine-enforced" framing; the declarations file
+  needs no update (`migration/` is already a plan-stage excluded prefix
+  and an implementation-stage protected prefix, per CP1/CP6/CP7).
+
+Verification run for CP8 (narrowest relevant check, not the full suite):
+```
+PYTHONPATH=migration/overlays/2.5.0/payload/scripts:scripts \
+  python3 -m unittest workflow_state_test.FindingTaxonomyCircuitBreakerTest \
+  workflow_state_test.ReviewProtocolManualExternalCircuitBreakerScopeTest -v
+```
+Result: 8/8 passed. A full `workflow_state_test` run under the same
+`PYTHONPATH` trick (819 tests, up from CP7's 811) shows only the same 3
+pre-existing errors that trick itself is known to produce outside the
+composed release tree (`TestGlobalLockOrderItem372h.setUpClass` and
+`TestCanonicalStateSerialization`'s two dry-run-path-relative tests),
+unaffected by this checkpoint's changes.
 
 CP7 delivered `D-Canonical-Review-Data` (`§2.5`):
 

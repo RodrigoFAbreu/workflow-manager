@@ -13816,5 +13816,206 @@ class DeclarationSymmetryHelperTest(unittest.TestCase):
         assert_declaration_coverage("implementation-review-two-stage", repo_root)
 
 
+# ---------------------------------------------------------------------------
+# CP8 -- D-Review-Finding-Taxonomy-and-Circuit-Breaker. Purely advisory
+# prose (REVIEW_PROTOCOL.md's "Feedback protocol" section): no
+# WORKFLOW_STATE.json field, no phase gate, no governing-version bump, and
+# no runtime parser rejects a missing/malformed tag. The helpers below are
+# test-only reference logic modeling exactly the algorithm the prose
+# describes -- they are never imported by workflow_state.py or by any
+# review command, matching the "advisory, never machine-enforced" framing.
+# ---------------------------------------------------------------------------
+
+
+import re as _re
+
+_FINDING_TAG_RE = _re.compile(r"\[(substantive|apparatus)\]", _re.IGNORECASE)
+_REVIEWER_ROLE_RE = _re.compile(r"^Reviewer role:\s*(\S+)\s*$", _re.MULTILINE)
+_STATUS_RE = _re.compile(r"^Status:\s*(APPROVE|REVISE|BLOCK)\s*$", _re.MULTILINE)
+_LOCAL_MODEL_STAGES = {"LOCAL_MODEL_PLAN_REVIEW", "LOCAL_MODEL_IMPLEMENTATION_REVIEW"}
+
+
+def _finding_blocks(feedback_text):
+    """Every Blocking/Important finding entry, as the raw text following
+    each leading '- ' bullet under those two headings -- fixture-only
+    parsing, deliberately naive (no REVIEW_FEEDBACK.md structural
+    validation), since only the tag's own presence/value matters here."""
+    blocks = []
+    for heading in ("Blocking findings", "Important findings"):
+        match = _re.search(
+            rf"^## {heading}\n(.*?)(?=\n## |\Z)", feedback_text, _re.MULTILINE | _re.DOTALL,
+        )
+        if not match:
+            continue
+        body = match.group(1)
+        blocks.extend(line for line in body.splitlines() if line.strip().startswith("-"))
+    return blocks
+
+
+def _finding_tag(finding_line):
+    """The advisory tag for one finding line -- 'apparatus' only when
+    exactly and unambiguously tagged so; a missing, malformed, or (were one
+    ever present) multiply-tagged line defaults, conservatively, to
+    'substantive' (D-Review-Finding-Taxonomy-and-Circuit-Breaker point 1),
+    so a missing tag can never masquerade as an apparatus-only finding."""
+    tags = _FINDING_TAG_RE.findall(finding_line)
+    if len(tags) == 1 and tags[0].lower() == "apparatus":
+        return "apparatus"
+    return "substantive"
+
+
+def _reviewer_role(feedback_text):
+    match = _REVIEWER_ROLE_RE.search(feedback_text)
+    return match.group(1) if match else None
+
+
+def _status(feedback_text):
+    match = _STATUS_RE.search(feedback_text)
+    return match.group(1) if match else None
+
+
+def _is_apparatus_only_revise_round(feedback_text):
+    """A REVISE round is apparatus-only when at least one Blocking/
+    Important finding is present and every one of them tags 'apparatus'
+    (an untagged/malformed one, defaulting to 'substantive', breaks this).
+    A round with no Blocking/Important findings at all is not a REVISE
+    round to begin with under REVIEW_PROTOCOL.md's own rule, so it is
+    never treated as apparatus-only here."""
+    if _status(feedback_text) != "REVISE":
+        return False
+    findings = _finding_blocks(feedback_text)
+    if not findings:
+        return False
+    return all(_finding_tag(line) == "apparatus" for line in findings)
+
+
+def circuit_breaker_fires(previous_feedback_text, current_feedback_text):
+    """Reference model of the advisory signal: fires exactly when both
+    rounds declare the *same* local-model `Reviewer role:` stage, both are
+    REVISE, and both are apparatus-only -- the exact scope
+    D-Review-Finding-Taxonomy-and-Circuit-Breaker states, narrowed to the
+    two local-model stages only (never a manual-external one)."""
+    prev_role = _reviewer_role(previous_feedback_text)
+    curr_role = _reviewer_role(current_feedback_text)
+    if prev_role is None or prev_role != curr_role or prev_role not in _LOCAL_MODEL_STAGES:
+        return False
+    return (
+        _is_apparatus_only_revise_round(previous_feedback_text)
+        and _is_apparatus_only_revise_round(current_feedback_text)
+    )
+
+
+def _feedback(role, status, findings):
+    """Builds a minimal, schema-shaped REVIEW_FEEDBACK.md fixture: findings
+    is a list of (heading, tag_or_None) pairs, tag_or_None omitted meaning
+    'untagged'."""
+    lines = [
+        "# Review Decision", "", f"Status: {status}", "",
+        "Reviewed bundle ID: deadbeef", "Reviewed base commit: cafef00d",
+        "Work item: implementation-review-two-stage", "",
+        f"Reviewer role: {role}", "",
+        "## Blocking findings", "",
+    ]
+    for heading, tag in findings:
+        tagged = f"[{tag}] " if tag else ""
+        lines.append(f"- {tagged}{heading}")
+    lines += ["", "## Important findings", "", "## Optional findings", ""]
+    return "\n".join(lines)
+
+
+class FindingTaxonomyCircuitBreakerTest(unittest.TestCase):
+    """CP8's first required test: the signal fires after two consecutive
+    apparatus-only REVISE rounds for the same local-model stage -- for
+    each of the two local-model stages independently -- and never
+    otherwise, including the missing-tag-can't-masquerade case."""
+
+    def test_fires_after_two_consecutive_apparatus_only_rounds_for_each_local_model_stage(self):
+        for role in sorted(_LOCAL_MODEL_STAGES):
+            with self.subTest(role=role):
+                previous = _feedback(role, "REVISE", [("stale prose", "apparatus")])
+                current = _feedback(role, "REVISE", [("another stale reference", "apparatus")])
+                self.assertTrue(circuit_breaker_fires(previous, current))
+
+    def test_does_not_fire_across_different_stages(self):
+        previous = _feedback("LOCAL_MODEL_PLAN_REVIEW", "REVISE", [("x", "apparatus")])
+        current = _feedback("LOCAL_MODEL_IMPLEMENTATION_REVIEW", "REVISE", [("y", "apparatus")])
+        self.assertFalse(circuit_breaker_fires(previous, current))
+
+    def test_does_not_fire_for_manual_external_rounds(self):
+        previous = _feedback("MANUAL_EXTERNAL_PLAN_REVIEW", "REVISE", [("x", "apparatus")])
+        current = _feedback("MANUAL_EXTERNAL_PLAN_REVIEW", "REVISE", [("y", "apparatus")])
+        self.assertFalse(circuit_breaker_fires(previous, current))
+
+    def test_a_missing_tag_defaults_to_substantive_and_cannot_masquerade_as_apparatus(self):
+        # An untagged finding never manufactures an apparatus-only streak
+        # by silence (point 1 of the design decision).
+        previous = _feedback("LOCAL_MODEL_PLAN_REVIEW", "REVISE", [("untagged finding", None)])
+        current = _feedback("LOCAL_MODEL_PLAN_REVIEW", "REVISE", [("also apparatus", "apparatus")])
+        self.assertFalse(circuit_breaker_fires(previous, current))
+        self.assertEqual(_finding_tag("- untagged finding"), "substantive")
+
+    def test_a_single_substantive_round_never_fires_regardless_of_the_other_round(self):
+        previous = _feedback("LOCAL_MODEL_IMPLEMENTATION_REVIEW", "REVISE",
+                              [("a real defect", "substantive")])
+        current = _feedback("LOCAL_MODEL_IMPLEMENTATION_REVIEW", "REVISE",
+                             [("cleanup only", "apparatus")])
+        self.assertFalse(circuit_breaker_fires(previous, current))
+
+    def test_resolve_or_reject_rule_is_unaffected_by_tag_or_its_absence(self):
+        # D-Review-Finding-Taxonomy-and-Circuit-Breaker point 2: the tag
+        # (or its absence) changes nothing about which findings must be
+        # resolved or explicitly rejected -- REVIEW_PROTOCOL.md's own text
+        # states this for both tags and for an untagged finding alike.
+        protocol_path = Path(__file__).resolve().parent.parent / "docs/ai-workflow/REVIEW_PROTOCOL.md"
+        text = protocol_path.read_text(encoding="utf-8")
+        self.assertIn(
+            "Every blocking and\nimportant finding must end up either resolved, or explicitly rejected",
+            text,
+        )
+        self.assertIn('never means "may be\nignored"', text)
+
+
+class ReviewProtocolManualExternalCircuitBreakerScopeTest(unittest.TestCase):
+    """CP8's second required test: REVIEW_PROTOCOL.md's own added text
+    makes no manual-external recoverability claim a reader could act on
+    (revision 15, MANUAL_EXTERNAL_PLAN_REVIEW round 1, finding I3) --
+    proved against the prose itself, not assumed."""
+
+    def _circuit_breaker_section(self):
+        protocol_path = Path(__file__).resolve().parent.parent / "docs/ai-workflow/REVIEW_PROTOCOL.md"
+        text = protocol_path.read_text(encoding="utf-8")
+        match = _re.search(
+            r"### Finding taxonomy and circuit breaker.*?(?=\n## )", text, _re.DOTALL,
+        )
+        self.assertIsNotNone(match, "D-Review-Finding-Taxonomy-and-Circuit-Breaker section not found")
+        return match.group(0)
+
+    def test_section_states_no_manual_external_recoverability_claim(self):
+        section = self._circuit_breaker_section()
+        self.assertIn("no", section)
+        self.assertIn("recoverability claim", section)
+        self.assertIn("manual-external", section.lower())
+        self.assertIn("operator\njudgment", section)
+
+    def test_section_never_affirmatively_claims_the_bound_fires_for_manual_external_rounds(self):
+        section = self._circuit_breaker_section()
+        flat = _re.sub(r"\s+", " ", section)
+        sentences = _re.split(r"(?<=[.:])\s+", flat)
+        manual_external_sentences = [s for s in sentences if "manual-external" in s.lower()]
+        self.assertTrue(manual_external_sentences, "no sentence mentions manual-external at all")
+        affirmative_claim_markers = (
+            "fires", "applies to", "also applies", "the same bound", "recovers the signal",
+            "is available for", "holds across two consecutive manual",
+        )
+        for sentence in manual_external_sentences:
+            lowered = sentence.lower()
+            for marker in affirmative_claim_markers:
+                self.assertNotIn(
+                    marker, lowered,
+                    f"sentence {sentence!r} makes an affirmative manual-external "
+                    f"circuit-breaker claim via {marker!r}",
+                )
+
+
 if __name__ == "__main__":
     unittest.main()

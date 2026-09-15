@@ -482,6 +482,78 @@ important finding must end up either resolved, or explicitly rejected in the
 plan/summary with repository evidence (file, line, test, or doc reference)
 and a clear explanation.
 
+### Finding taxonomy and circuit breaker (`D-Review-Finding-Taxonomy-and-Circuit-Breaker`)
+
+**Advisory tag, never parser-enforced.** Every Blocking/Important finding
+may carry a `[substantive]` or `[apparatus]` tag: `[substantive]` names a
+defect in the design or implementation actually being reviewed;
+`[apparatus]` names a defect confined to bundle metadata, a declarations-
+file justification string, a stale table embed, or similar supporting
+material that does not itself indicate the reviewed content is wrong. The
+tag is recommended prose, not a required field — a missing, malformed, or
+ambiguous tag is **never rejected**; `WFR-03`'s binding-field strictness
+(`parse_review_feedback_binding_fields`/`assert_feedback_matches_bundle`)
+governs only the three binding fields above and is not extended to this
+tag, so no live work item's existing feedback shape breaks on update. An
+untagged or ambiguously-tagged Blocking/Important finding is instead
+treated, conservatively, as `[substantive]` for every purpose below —
+silence can never manufacture an apparatus-only streak. Optional findings
+are unaffected either way.
+
+**No weakening of resolution requirements.** The rule immediately above —
+every Blocking/Important finding ends up resolved or explicitly rejected
+with repository evidence — is completely unchanged by this tag, and
+unchanged for an untagged finding too. `[apparatus]` never means "may be
+ignored"; it means only "does not by itself cast doubt on the substantive
+design or implementation."
+
+**Bounded, advisory circuit-breaker signal.** When two consecutive `REVISE`
+rounds for the **same local-model review stage** — `LOCAL_MODEL_PLAN_REVIEW`
+or `LOCAL_MODEL_IMPLEMENTATION_REVIEW`, distinguished by
+`REVIEW_FEEDBACK.md`'s own `Reviewer role:` line, never by
+`<feedback_dir>/REVIEW_FEEDBACK.md`'s path (which stays stage-agnostic and
+shared by both stage protocols) — have carried **no** `[substantive]`
+Blocking/Important finding (every one `[apparatus]`; an untagged finding
+counts as `[substantive]`, per above), the reviewer's own next report
+states this explicitly (for example, "2 consecutive apparatus-only
+rounds") as a visible diminishing-returns signal an operator can act on —
+requesting a lighter confirmation pass, or accepting the standing
+substantive verdict — rather than treating every apparatus fix as
+resetting the convergence clock to zero. The bound is fixed at **2**: the
+same reviewing command reads the immediately-prior `REVIEW_FEEDBACK.md`
+before overwriting it with its own, which is exactly enough visibility for
+a bound of 2 and no more — neither `record_local_plan_review`'s nor its
+implementation-stage mirror's `REVISE` branch writes any durable,
+finding-classification-bearing ledger entry, so no reviewer can observe
+more than one prior round beyond its own.
+
+This signal is deliberately advisory prose in the reviewer's own report,
+never a new `docs/ai-workflow/WORKFLOW_STATE.json` field or a
+phase-machinery gate: it changes no existing work item's behavior on
+update (no governing-version bump), never itself approves anything, and
+`/approve-review` and its `EXTERNAL_APPROVE`/local-plus-manual-ledger bases
+are completely unaffected.
+
+**Scoped to the local-model loop only — no corresponding claim for
+consecutive manual-external rounds.** The signal above is checkable only
+because the *same* reviewing command reads the immediately-prior
+`REVIEW_FEEDBACK.md` before overwriting it — true for two consecutive
+`LOCAL_MODEL_PLAN_REVIEW`/`LOCAL_MODEL_IMPLEMENTATION_REVIEW` rounds, since
+`/review-plan`/`/review-implementation` run before the file is replaced. It
+does **not** hold across two consecutive manual-external rounds: a manual
+`REVISE` is consumed by `/apply-*-review`, and no path re-enters
+manual-external review without a fresh local pass first, which overwrites
+the same stage-agnostic path with its own `REVIEW_FEEDBACK.md` before the
+next manual reviewer ever sees the prior one. Neither
+`record_local_plan_review`'s/`record_manual_plan_review`'s (nor their
+implementation-stage mirrors') `REVISE` branch writes any durable,
+finding-classification-bearing ledger entry, and the review bundle itself
+never includes `feedback/`. This document makes **no** corresponding
+recoverability claim for two consecutive manual-external rounds: recovering
+that signal would need a minimal durable per-round history this addition
+deliberately does not add. Manual-external convergence stays operator
+judgment, as it already is today.
+
 ## Local reviewer commands (operator ergonomics)
 
 Two commands (`workflow-v2-3`) give an operator a repository-local, second
