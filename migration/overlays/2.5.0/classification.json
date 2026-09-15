@@ -1,0 +1,160 @@
+{
+  "schema_version": 1,
+  "workflow_version": "2.5.0",
+  "base_workflow_version": "2.4.0",
+  "categories": {
+    "distribution": "Canonical Workflow implementation. Copied byte-for-byte into the payload and installed into every managed target repository."
+  },
+  "rules": [
+    {
+      "pattern": "^\\.claude/commands/record-manual-implementation-review\\.md$",
+      "category": "distribution",
+      "rationale": "New command mirroring /record-manual-plan-review.md: ingests the MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW stage of the two-stage implementation-review protocol (D-Implementation-Review-Stages, CP4).",
+      "expected_kind": "added"
+    },
+    {
+      "pattern": "^docs/ai-workflow/IMPLEMENTATION_REVIEW_WORKFLOW\\.md$",
+      "category": "distribution",
+      "rationale": "New operator guide for the two-stage implementation-review protocol, mirroring PLAN_REVIEW_WORKFLOW.md (D-Implementation-Review-Stages, CP1).",
+      "expected_kind": "added"
+    },
+    {
+      "pattern": "^\\.claude/commands/review-implementation\\.md$",
+      "category": "distribution",
+      "rationale": "Gains a \"2.2\" authoritative branch (phase guard AWAITING_LOCAL_IMPLEMENTATION_REVIEW, ledger write plus phase transition on APPROVE/REVISE); the existing \"1\"/\"2.1\" advisory branch stays byte-unchanged (D-Implementation-Review-Stages, CP4). Preserves the base release's own distribution category for this path.",
+      "expected_kind": "replaced"
+    },
+    {
+      "pattern": "^\\.claude/commands/apply-implementation-review\\.md$",
+      "category": "distribution",
+      "rationale": "Gains a \"2.2\" branch: no enter_applying_review_feedback call; post-fix regeneration reaches AWAITING_LOCAL_IMPLEMENTATION_REVIEW via record_bundle_generation's own version-dependent resolver (D-Implementation-Review-Stages, CP4). Preserves the base release's own distribution category for this path.",
+      "expected_kind": "replaced"
+    },
+    {
+      "pattern": "^\\.claude/commands/approve-review\\.md$",
+      "category": "distribution",
+      "rationale": "technical_approval_gate_reachable's widened entry condition (a \"2.2\"-only ledger check mirroring plan_approval_gate_reachable) and the version-dependent bundle-generation provenance-interval check (D-Implementation-Review-Stages, CP1/CP3).",
+      "expected_kind": "replaced"
+    },
+    {
+      "pattern": "^\\.claude/commands/accept-milestone\\.md$",
+      "category": "distribution",
+      "rationale": "Trailer/provenance references widened for the \"2.2\" implementation-review-stage vocabulary the milestone-acceptance record now names (D-Implementation-Review-Stages, CP1).",
+      "expected_kind": "replaced"
+    },
+    {
+      "pattern": "^\\.claude/commands/apply-functional-review\\.md$",
+      "category": "distribution",
+      "rationale": "Post-fix bounded-fix regeneration routes back through both implementation-review stages for a \"2.2\" work item before /approve-review implementation is reachable again (D-Implementation-Review-Stages, CP5).",
+      "expected_kind": "replaced"
+    },
+    {
+      "pattern": "^\\.claude/commands/apply-plan-review\\.md$",
+      "category": "distribution",
+      "rationale": "governing_workflow_version activation references widened to include the new \"2.2\" target (D-Implementation-Review-Version-Activation, CP1/CP2).",
+      "expected_kind": "replaced"
+    },
+    {
+      "pattern": "^\\.claude/commands/milestone-implement\\.md$",
+      "category": "distribution",
+      "rationale": "Bundle-generation-record step's target-phase reference generalized to bundle_generation_target_phase(stage, governing_workflow_version) (D-Implementation-Review-Stages \"Provenance-interval interaction\", CP3).",
+      "expected_kind": "replaced"
+    },
+    {
+      "pattern": "^\\.claude/commands/milestone-plan\\.md$",
+      "category": "distribution",
+      "rationale": "governing_workflow_version references widened for the new \"2.2\" activation target (D-Implementation-Review-Version-Activation, CP1/CP2).",
+      "expected_kind": "replaced"
+    },
+    {
+      "pattern": "^\\.claude/commands/prepare-functional-review\\.md$",
+      "category": "distribution",
+      "rationale": "References to the implementation-review stage ledger widened for the \"2.2\" bounded-fix regeneration path (D-Implementation-Review-Stages, CP5).",
+      "expected_kind": "replaced"
+    },
+    {
+      "pattern": "^\\.claude/commands/record-manual-plan-review\\.md$",
+      "category": "distribution",
+      "rationale": "Shared prose/structure kept consistent with its new sibling, /record-manual-implementation-review.md (D-Implementation-Review-Stages, CP4).",
+      "expected_kind": "replaced"
+    },
+    {
+      "pattern": "^\\.claude/commands/recover-implementation-provenance\\.md$",
+      "category": "distribution",
+      "rationale": "Recovered-role committed-phase membership test widened to bundle_generation_recovered_role_legal_committed_phases(governing_workflow_version)'s three-phase \"2.2\" set (D-Implementation-Review-Stages \"Provenance-interval interaction\", CP3).",
+      "expected_kind": "replaced"
+    },
+    {
+      "pattern": "^\\.claude/commands/request-plan-amendment\\.md$",
+      "category": "distribution",
+      "rationale": "governing_workflow_version references widened for the \"2.2\" activation target (D-Implementation-Review-Version-Activation, CP1/CP2).",
+      "expected_kind": "replaced"
+    },
+    {
+      "pattern": "^\\.claude/commands/review-functional\\.md$",
+      "category": "distribution",
+      "rationale": "References to the implementation-review stage ledger widened for the \"2.2\" bounded-fix regeneration path (D-Implementation-Review-Stages, CP5).",
+      "expected_kind": "replaced"
+    },
+    {
+      "pattern": "^\\.claude/commands/review-plan\\.md$",
+      "category": "distribution",
+      "rationale": "governing_workflow_version references widened for the \"2.2\" activation target (D-Implementation-Review-Version-Activation, CP1/CP2).",
+      "expected_kind": "replaced"
+    },
+    {
+      "pattern": "^docs/ai-workflow/MILESTONE_WORKFLOW\\.md$",
+      "category": "distribution",
+      "rationale": "The two new AWAITING_LOCAL_IMPLEMENTATION_REVIEW / AWAITING_MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW states and their transition edges (D-Implementation-Review-Stages, CP1).",
+      "expected_kind": "replaced"
+    },
+    {
+      "pattern": "^docs/ai-workflow/PLAN_REVIEW_WORKFLOW\\.md$",
+      "category": "distribution",
+      "rationale": "Cross-references to the new mirrored implementation-review protocol document (D-Implementation-Review-Stages, CP1).",
+      "expected_kind": "replaced"
+    },
+    {
+      "pattern": "^docs/ai-workflow/REVIEW_PROTOCOL\\.md$",
+      "category": "distribution",
+      "rationale": "D-Review-Finding-Taxonomy-and-Circuit-Breaker's advisory [substantive]/[apparatus] tagging convention and circuit-breaker signal (CP8); implementation-review-stage bundle/manifest references widened for \"2.2\" (CP1).",
+      "expected_kind": "replaced"
+    },
+    {
+      "pattern": "^docs/ai-workflow/WORKFLOW_V2_1_OPERATOR_REFERENCE\\.md$",
+      "category": "distribution",
+      "rationale": "Persisted-phases/writer tables, command count and the new /record-manual-implementation-review section, widened for the \"2.2\" implementation-review stages (D-Implementation-Review-Stages, CP1/CP4).",
+      "expected_kind": "replaced"
+    },
+    {
+      "pattern": "^docs/ai-workflow/WORKFLOW_V2_PLAN\\.md$",
+      "category": "distribution",
+      "rationale": "D-Implementation-Review-Stages, D-Implementation-Review-Version-Activation, D-Review-Material-Lifecycle, D-Canonical-Review-Data, D-Review-Finding-Taxonomy-and-Circuit-Breaker and D-Post-v2.3.1-Backlog design-decision sections (CP1, CP6, CP7, CP8, CP9, CP10).",
+      "expected_kind": "replaced"
+    },
+    {
+      "pattern": "^scripts/workflow_integration_test\\.py$",
+      "category": "distribution",
+      "rationale": "Persisted-phase table, phase-to-writer census, command-count and generator-mention checks updated for the two new commands and phases (D-Implementation-Review-Stages, CP2/CP3/CP4).",
+      "expected_kind": "replaced"
+    },
+    {
+      "pattern": "^scripts/workflow_state\\.py$",
+      "category": "distribution",
+      "rationale": "KNOWN_PHASES additions, the generalized version-aware activation/rollback helpers, implementation_review_stages ledger writers (record_local_implementation_review, record_manual_implementation_review), the widened technical_approval_gate_reachable, and bundle_generation_target_phase/bundle_generation_recovered_role_legal_committed_phases (D-Implementation-Review-Stages, D-Implementation-Review-Version-Activation; CP1-CP3, CP9, CP10).",
+      "expected_kind": "replaced"
+    },
+    {
+      "pattern": "^scripts/workflow_state_completion_obligations_test\\.py$",
+      "category": "distribution",
+      "rationale": "TestNeverPersistedPhaseVocabulary's PERSISTED frozenset and its AST-derivation helper widened for the two new persisted phases, one of them (AWAITING_LOCAL_IMPLEMENTATION_REVIEW) reachable only through bundle_generation_target_phase's call indirection (D-Implementation-Review-Stages, CP11).",
+      "expected_kind": "replaced"
+    },
+    {
+      "pattern": "^scripts/workflow_state_test\\.py$",
+      "category": "distribution",
+      "rationale": "The payload's own conformance suite, updated for the new review-stage writers/gates plus CP7's generic, parametric declaration-coverage helper generalizing the bespoke per-work-item pattern (D-Implementation-Review-Stages, D-Canonical-Review-Data; CP2, CP3, CP7).",
+      "expected_kind": "replaced"
+    }
+  ]
+}

@@ -26,10 +26,92 @@ development.
 
 ## Current checkpoint
 
-**CP1-CP10 complete** (`implementation-review-two-stage`, 13 checkpoints
-total). Next: **CP11** (release authoring: `migration/overlays/2.5.0/`
-classification.json plus payload, `build_release.py --check`, depends on
-CP1-CP10).
+**CP1-CP11 complete** (`implementation-review-two-stage`, 13 checkpoints
+total). Next: **CP12** (disposable-repository functional validation:
+bootstrap directly on `2.5.0`, activate `"2.2"` by hand, drive the full
+two-stage implementation-review flow end to end including its negative
+paths and a bounded-fix scenario; depends on CP11).
+
+CP11 delivered release authoring: `migration/overlays/2.5.0/classification.json`
+(25 rules -- 23 `replaced`, 2 `added`) plus the overlay's own payload tree.
+`python3 tools/build_release.py --overlay migration/overlays/2.5.0` composes
+`distribution/workflow/2.5.0/` from the `2.4.0` base plus the overlay
+(63 artifacts, 6 templates, `by_category` `{conformance: 24, distribution:
+37, host-evidence: 2}`, `overlay_replaced: 25` -- 23 from this overlay's own
+rules plus 2 already-`overlay_delta`-bearing base-2.4.0 artifacts copied
+forward unchanged -- `overlay_added: 2`); `--check` confirms
+`distribution/workflow/2.5.0/` reproduces byte-for-byte from that same base
+plus overlay. `tests/support.py` gains the `2.5.0` `CI_SUITES` entry (its
+counts pinned to what the composed overlay payload actually produces).
+`migration/portability_exceptions.json`'s required, empty
+`by_version["2.5.0"]` entry was already written by CP9 -- confirmed present
+and untouched here, correcting revision 3's framing that CP11 itself writes
+it.
+
+The release-authoring sweep (`LOCAL_MODEL_PLAN_REVIEW` round 8, finding I2)
+found and fixed every payload document CP1-CP10's own widenings left
+stale, beyond the two gaps CP9 already flagged as its own out-of-scope
+find (`AWAITING_LOCAL_IMPLEMENTATION_REVIEW` missing from the operator
+reference's persisted-phase table; `review-plan.md`'s/
+`record-manual-plan-review.md`'s `_require_v2_1_plan_review` golden text
+still reading the pre-widening `!= "2.1"` literal) -- both now fixed, in
+`migration/overlays/2.5.0/payload/`:
+- `.claude/commands/apply-functional-review.md`: the `"2.2"` child-item
+  driver sequence now names `/review-implementation`'s authoritative role
+  and the new `/record-manual-implementation-review` step explicitly,
+  rather than describing `/review-implementation` as uniformly optional.
+- `.claude/commands/review-plan.md`: prose rewrap only, no content change,
+  keeping the paragraph's line-wrap consistent after CP1/CP2's own
+  `TWO_STAGE_PLAN_REVIEW_VERSIONS` widening.
+- `docs/ai-workflow/WORKFLOW_V2_1_OPERATOR_REFERENCE.md`: `/review-implementation`'s
+  `state_writer` reclassified `false` -> `conditional` (true only for a
+  `"2.2"` item at `AWAITING_LOCAL_IMPLEMENTATION_REVIEW`); the "Enter `X`
+  state"/full-sequence-diagram sections widened for the two new `"2.2"`
+  implementation-review commands and phases; the command count corrected
+  16 -> 17.
+- `scripts/workflow_integration_test.py`: golden hashes updated for every
+  payload command CP1-CP10 actually changed; the `_require_v2_1_plan_review`
+  golden-text assertions and the persisted-phase-table/writer-census/
+  state-writer-false/command-count tests all restated to match the fixes
+  above, closing both of CP9's flagged gaps.
+- `scripts/workflow_state_test.py`: `TestImplementationReviewTwoStageDeclarationCoverage`
+  and `DeclarationSymmetryHelperTest`'s two real-corpus methods removed --
+  both were self-referential to this exact repository at a hardcoded
+  commit SHA and could never pass once installed into any other target
+  repository via the general release payload (CP12's disposable-repository
+  validation exercises the same generic helper against a synthetic work
+  item instead).
+- `scripts/workflow_state_completion_obligations_test.py` (new overlay
+  copy): `TestNeverPersistedPhaseVocabulary`'s AST-derivation helper
+  widened with a third shape -- `work_item["phase"] = some_resolver(...)`,
+  resolved by walking the called function's own `return` statements --
+  so `AWAITING_LOCAL_IMPLEMENTATION_REVIEW` (reachable only through
+  `record_bundle_generation`'s call to `bundle_generation_target_phase`)
+  and `AWAITING_MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW` both count as
+  persisted, widening `PERSISTED` from thirteen to fifteen phases.
+- `tests/test_conformance_suite.py`/`tests/test_bootstrap_e2e.py` (this
+  repository's own suites, not the overlay payload): `TestConformanceFixture250`,
+  `TestBootstrappedTarget250`, and `TestBootstrappedRepositorySatisfiesTheFrozenSuite250`
+  added, mirroring their `240` siblings exactly, running the frozen suite
+  and a real bootstrap-and-update cycle against `2.5.0` for the first time.
+
+Verification for CP11 (build/check plus the new `2.5.0` test classes --
+narrower than the full suite, since CP13 owns the full-regression
+obligation):
+```
+python3 tools/build_release.py --overlay migration/overlays/2.5.0
+python3 tools/build_release.py --overlay migration/overlays/2.5.0 --check
+PYTHONPATH=tests python3 -m unittest \
+  tests.test_conformance_suite.TestConformanceFixture250 \
+  tests.test_conformance_suite.TestBootstrappedTarget250 \
+  tests.test_bootstrap_e2e.TestBootstrappedRepositorySatisfiesTheFrozenSuite250 -v
+python3 tests/run_all.py --fast
+```
+Result: build succeeds, `--check` confirms byte-for-byte reproduction; all
+new `2.5.0` test classes pass outright (`TestConformanceFixture250`: 4/4;
+`TestBootstrappedTarget250`: 5/5; `TestBootstrappedRepositorySatisfiesTheFrozenSuite250`:
+6/6, ~112s, a real bootstrap-and-CI-suite-and-update cycle against the
+composed `2.5.0` release); `tests/run_all.py --fast` is green (8/8 suites).
 
 CP10 delivered the post-v2.3.1 backlog's `v2.4.0-002` reconsideration
 (`§2.7` point 4, `§8`, `§9` point 3) -- a written disposition alone, no
@@ -497,7 +579,7 @@ plan approval `CURRENT`, both `LOCAL_MODEL_PLAN_REVIEW` (round 42) and
 
 ## Next action
 
-Continue `/milestone-implement` to implement CP10, one checkpoint per
+Continue `/milestone-implement` to implement CP12, one checkpoint per
 invocation (`workflow-2.1` resumable single-checkpoint session model).
 
 ## Functional review checklist

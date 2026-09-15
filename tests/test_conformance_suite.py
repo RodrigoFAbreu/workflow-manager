@@ -152,6 +152,19 @@ class TestConformanceFixture240(_ConformanceFixtureAssertions, unittest.TestCase
         pass
 
 
+class TestConformanceFixture250(_ConformanceFixtureAssertions, unittest.TestCase):
+    """workflow-2.5.0's own CP11 obligation, mirroring `TestConformance
+    Fixture240` exactly: the same frozen suite, run a third time against
+    `distribution/workflow/2.5.0/`'s own authored payload, in addition to
+    (never instead of) `TestConformanceFixture231`/`TestConformanceFixture240`
+    above."""
+
+    WORKFLOW_VERSION = "2.5.0"
+
+    class Run(_SuiteRun):
+        pass
+
+
 class _BootstrappedTargetAssertions:
     """Shared assertions for `TestBootstrappedTarget*` -- mirrors
     `_ConformanceFixtureAssertions`'s own mixin shape and reasoning."""
@@ -221,6 +234,17 @@ class TestBootstrappedTarget240(_BootstrappedTargetAssertions, unittest.TestCase
     time, against `2.4.0`'s own authored payload."""
 
     WORKFLOW_VERSION = "2.4.0"
+
+    class Run(_SuiteRun):
+        pass
+
+
+class TestBootstrappedTarget250(_BootstrappedTargetAssertions, unittest.TestCase):
+    """workflow-2.5.0's own CP11 obligation, mirroring `TestBootstrappedTarget240`
+    exactly: the same clean-target run, a third time, against `2.5.0`'s own
+    authored payload."""
+
+    WORKFLOW_VERSION = "2.5.0"
 
     class Run(_SuiteRun):
         pass
