@@ -26,9 +26,94 @@ development.
 
 ## Current checkpoint
 
-**CP1-CP5 complete** (`implementation-review-two-stage`, 13 checkpoints
-total). Next: **CP6** (review-material lifecycle — the marker-presence
-lint and governing-version enumeration sweep, `§2.4`, depends on CP1).
+**CP1-CP6 complete** (`implementation-review-two-stage`, 13 checkpoints
+total). Next: **CP7** (review-scalability branch 2, depends on CP2).
+
+CP6 delivered `D-Review-Material-Lifecycle` (`§2.4`), in
+`migration/overlays/2.5.0/payload/`:
+
+- `docs/ai-workflow/WORKFLOW_V2_PLAN.md`: the new `### D-Review-Material-Lifecycle`
+  top-level design section (unit/nesting definition, fail-closed default,
+  the marker-edit-only-route-to-HISTORICAL invariant, the narrative-content
+  guarantee's scope, the two-subject marker-presence obligation, the
+  marking pass, and the governing-version enumeration sweep). CP6's own
+  marking pass wrote an explicit `<!-- review-material-lifecycle: CURRENT
+  -->` marker onto `D-Implementation-Review-Stages`,
+  `D-Implementation-Review-Version-Activation`, and this section itself —
+  the three in-scope top-level sections that had none of their own; CP1's
+  already-marked `2.5.0 disposition record` subsection was left untouched.
+  Two pre-existing, genuinely-closed disposition sections the
+  governing-version sweep itself flagged — `## Round 11 finding
+  disposition (revision 10)` and `## Checkpoint registry` — were marked
+  `HISTORICAL` as a deliberate, diff-visible act (never a reword of
+  otherwise-untouched historical prose).
+- `docs/ai-workflow/IMPLEMENTATION_REVIEW_WORKFLOW.md`: one top-of-file
+  `CURRENT` marker (its own marker-presence subject is the whole document).
+- `scripts/workflow_state.py`: `parse_markdown_units`/`document_level_unit`
+  (heading-delimited unit parsing, with nesting — a nested unit's own
+  explicit marker is never folded into its container's search, which is
+  what keeps a merge-by-heading-demotion from silently promoting material
+  to `HISTORICAL`), `unit_state` (classification via the first non-blank
+  line of a unit's own text, reusing CP1's `render_marker`/`parse_marker`
+  exclusively), `check_marker_presence_whole_document`/
+  `check_marker_presence_plan_sections` (the marker-presence obligation),
+  `find_forbidden_narrative`/`check_narrative_content` (the
+  narrative-content guarantee, scoped to explicit-`CURRENT` units only),
+  `mark_missing_units_current` (the marking pass), and
+  `find_governing_version_occurrences`/`sweep_governing_version_enumeration`
+  (the governing-version enumeration sweep: both detection forms, a
+  plan-review-context requirement, negation-cue exclusion, and the
+  occurrence-granular/whole-document allowlist).
+- `scripts/workflow_state_test.py`: `ReviewMaterialLifecycleClassificationTest`,
+  `ReviewMaterialLifecycleMarkerPresenceTest`,
+  `ReviewMaterialLifecycleMarkingPassTest`,
+  `ReviewMaterialLifecyclePreMarkingPartitionFixtureTest`,
+  `ReviewMaterialLifecycleRealCorpusTest`, and
+  `GoverningVersionEnumerationSweepTest` (32 new tests, all passing) —
+  positive/negative/ambiguous/malformed-marker, two-version-transition,
+  boundary-redrawing, narrative-location, scope, already-marked-nested-unit,
+  marker-presence, a pre-marking classification-partition fixture, a
+  real-corpus run of both the marker-presence obligation and the
+  narrative-content guarantee over their actual subjects, and the sweep's
+  own two detection forms, negation/widened-form exclusions, occurrence
+  allowlist, whole-document allowlist, and a real-corpus run.
+
+Running the finished governing-version sweep against the overlay's own
+`.claude/commands/*.md`/`docs/ai-workflow/*.md` (before any fix) flagged 10
+occurrences beyond CP1's/CP4's own already-fixed sites — all bare
+`"2.1"`-scoped or `{"1","2.1"}`-exhaustive claims about the two-stage
+plan-review protocol's own applicability, now stale since
+`TWO_STAGE_PLAN_REVIEW_VERSIONS = {"2.1", "2.2"}`. Two lived inside
+genuinely-closed disposition sections (marked `HISTORICAL` per the
+carve-out); the other eight were widened in place (`docs/ai-workflow/MILESTONE_WORKFLOW.md`
+twice; `docs/ai-workflow/WORKFLOW_V2_PLAN.md`'s `D-Plan-Review-Stages`/`D-Self-Governance`/`D3`
+sections six times). The sweep is now clean over the real corpus (asserted
+by `test_real_corpus_sweep_is_clean`).
+
+A before/after classification-partition check (every `WORKFLOW_V2_PLAN.md`
+unit, pre- vs. post-CP6, via `git show HEAD:...` against the CP6 start
+commit) confirmed exactly the two deliberately-marked sections above
+became `HISTORICAL` and no other pre-existing unmarked unit was
+reclassified — guarantee (v) holds for this checkpoint's own real
+introduction, not only the fixture.
+
+Verification run for CP6 (narrowest relevant check, not the full suite):
+```
+PYTHONPATH=migration/overlays/2.5.0/payload/scripts:scripts \
+  python3 -m unittest \
+  workflow_state_test.ReviewMaterialLifecycleClassificationTest \
+  workflow_state_test.ReviewMaterialLifecycleMarkerPresenceTest \
+  workflow_state_test.ReviewMaterialLifecycleMarkingPassTest \
+  workflow_state_test.ReviewMaterialLifecyclePreMarkingPartitionFixtureTest \
+  workflow_state_test.ReviewMaterialLifecycleRealCorpusTest \
+  workflow_state_test.GoverningVersionEnumerationSweepTest -v
+```
+Result: 32/32 passed. A full `workflow_state_test` run under the same
+`PYTHONPATH` trick (794 tests, up from CP5's 762) shows only the same 3
+pre-existing errors that trick itself is known to produce outside the
+composed release tree (`TestGlobalLockOrderItem372h.setUpClass` and
+`TestCanonicalStateSerialization`'s two dry-run-path-relative tests),
+unaffected by this checkpoint's changes.
 
 Amendment 0 (requested from `IMPLEMENTING` after CP1's original commit,
 `20a808d`, to fix `implementation-review-two-stage-artifacts.json`'s
@@ -146,7 +231,7 @@ plan approval `CURRENT`, both `LOCAL_MODEL_PLAN_REVIEW` (round 42) and
 
 ## Next action
 
-Continue `/milestone-implement` to implement CP6, one checkpoint per
+Continue `/milestone-implement` to implement CP7, one checkpoint per
 invocation (`workflow-2.1` resumable single-checkpoint session model).
 
 ## Functional review checklist

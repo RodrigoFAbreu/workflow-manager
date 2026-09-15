@@ -13067,5 +13067,304 @@ class TestPromoteLegacyWorkItemDestinationLiteral(unittest.TestCase):
             self.assertEqual(promoted["phase"], "AWAITING_FUNCTIONAL_REVIEW")
 
 
+# ---------------------------------------------------------------------------
+# workflow-2.5.0 CP6: D-Review-Material-Lifecycle -- unit classification,
+# the marker-presence obligation, the narrative-content guarantee, the
+# marking pass, and the governing-version enumeration sweep. Reuses CP1's
+# canonical render_marker/parse_marker throughout -- never a second,
+# independently-derived grammar.
+# ---------------------------------------------------------------------------
+
+
+class ReviewMaterialLifecycleClassificationTest(unittest.TestCase):
+    """Guarantees (i)-(vi): explicit marker precedence, fail-closed
+    default, non-cascading nesting, and the narrative-content guarantee's
+    own scope."""
+
+    def test_positive_explicit_current_stays_review_visible(self):
+        text = "# Doc\n\n" + ws.render_marker("CURRENT") + "\n\nBody text.\n"
+        unit = ws.document_level_unit(text)
+        self.assertEqual(ws.unit_state(unit), ("CURRENT", True))
+
+    def test_negative_explicit_historical_excluded(self):
+        text = "## Section\n\n" + ws.render_marker("HISTORICAL") + "\n\nOld stuff.\n"
+        unit = ws.parse_markdown_units(text)[0]
+        self.assertEqual(ws.unit_state(unit), ("HISTORICAL", True))
+
+    def test_ambiguous_unmarked_fails_closed_to_current(self):
+        text = "## Section\n\nNo marker here at all.\n"
+        unit = ws.parse_markdown_units(text)[0]
+        self.assertEqual(ws.unit_state(unit), ("CURRENT", False))
+
+    def test_ambiguous_malformed_marker_fails_closed_to_current(self):
+        text = "## Section\n\n<!-- review-material-lifecycle: WEIRD -->\n\nBody.\n"
+        unit = ws.parse_markdown_units(text)[0]
+        self.assertEqual(ws.unit_state(unit), ("CURRENT", False))
+
+    def test_two_version_transition_non_marker_edit_leaves_classification_unchanged(self):
+        v1 = "## Original Heading\n\nSome prose.\n"
+        v2 = "## Reworded Heading\n\nSome reworded prose, same material.\n"
+        self.assertEqual(
+            ws.unit_state(ws.parse_markdown_units(v1)[0])[0],
+            ws.unit_state(ws.parse_markdown_units(v2)[0])[0],
+        )
+
+    def test_two_version_transition_marker_only_edit_performs_transition(self):
+        v1 = "## Heading\n\nProse.\n"
+        v2 = "## Heading\n\n" + ws.render_marker("HISTORICAL") + "\n\nProse.\n"
+        self.assertEqual(ws.unit_state(ws.parse_markdown_units(v1)[0])[0], "CURRENT")
+        self.assertEqual(ws.unit_state(ws.parse_markdown_units(v2)[0])[0], "HISTORICAL")
+
+    def test_boundary_redrawing_merge_without_marker_edit_does_not_promote_to_historical(self):
+        # A CURRENT unit and an adjacent HISTORICAL-marked unit, merged by
+        # demoting/deleting the heading between them with no marker edit
+        # anywhere in the diff, must not report the merged material
+        # HISTORICAL.
+        before = (
+            "## Current section\n\nCurrent prose.\n\n"
+            "## Historical section\n\n" + ws.render_marker("HISTORICAL") + "\n\nOld prose.\n"
+        )
+        before_units = ws.parse_markdown_units(before)
+        self.assertEqual(ws.unit_state(before_units[0])[0], "CURRENT")
+        self.assertEqual(ws.unit_state(before_units[1])[0], "HISTORICAL")
+
+        # The merge: demote the boundary heading to plain prose, touching
+        # no marker anywhere in the diff.
+        after = (
+            "## Current section\n\nCurrent prose.\n\n"
+            "Historical section (no longer its own heading)\n\n"
+            + ws.render_marker("HISTORICAL") + "\n\nOld prose.\n"
+        )
+        after_units = ws.parse_markdown_units(after)
+        self.assertEqual(len(after_units), 1)
+        # The merged unit's own marker is no longer its own_text's first
+        # non-blank line (the former CURRENT prose and the demoted heading
+        # text now precede it) -- so the merge falls to the fail-closed
+        # CURRENT default rather than silently inheriting a marker deeper
+        # in its own text. This is the mechanical basis for the guarantee:
+        # a merge can never *promote* material to HISTORICAL without an
+        # explicit marker edit of its own.
+        self.assertEqual(ws.unit_state(after_units[0]), ("CURRENT", False))
+
+    def test_narrative_location_forbidden_inside_current_fails(self):
+        text = (
+            "### D-Something\n\n" + ws.render_marker("CURRENT") + "\n\n"
+            "Corrected at revision 5, finding B1: the design now does X.\n"
+        )
+        unit = ws.parse_markdown_units(text)[0]
+        self.assertTrue(ws.check_narrative_content(unit))
+
+    def test_narrative_location_identical_narrative_inside_historical_passes(self):
+        text = (
+            "### D-Something\n\n" + ws.render_marker("HISTORICAL") + "\n\n"
+            "Corrected at revision 5, finding B1: the design now does X.\n"
+        )
+        unit = ws.parse_markdown_units(text)[0]
+        self.assertEqual(ws.check_narrative_content(unit), [])
+
+    def test_scope_unmarked_pre_existing_section_with_forbidden_narrative_passes(self):
+        # CURRENT only by the fail-closed default (no marker at all) is
+        # outside guarantee (vi)'s reach.
+        text = "### D-PreExisting\n\nCorrected at revision 5, finding B1: the design now does X.\n"
+        unit = ws.parse_markdown_units(text)[0]
+        self.assertEqual(ws.check_narrative_content(unit), [])
+
+    def test_already_marked_nested_unit_survives_and_is_not_folded_into_parent(self):
+        text = (
+            "### D-Container\n\n" + ws.render_marker("CURRENT") + "\n\n"
+            "Current prose with no forbidden narrative.\n\n"
+            "#### Disposition record\n\n" + ws.render_marker("HISTORICAL") + "\n\n"
+            "Corrected at revision 5, finding B1: history here.\n"
+        )
+        units = ws.parse_markdown_units(text)
+        container, nested = units[0], units[1]
+        self.assertEqual(ws.unit_state(container), ("CURRENT", True))
+        self.assertEqual(ws.unit_state(nested), ("HISTORICAL", True))
+        # A separately, explicitly marked descendant is never folded into
+        # its container's own guarantee-(vi) walk.
+        self.assertEqual(ws.check_narrative_content(container), [])
+
+
+class ReviewMaterialLifecycleMarkerPresenceTest(unittest.TestCase):
+    def test_marker_presence_fixture_in_scope_unit_missing_fails(self):
+        text = "### D-InScope\n\nNo marker.\n"
+        self.assertEqual(
+            ws.check_marker_presence_plan_sections(text, ("### D-InScope",)), ["### D-InScope"],
+        )
+
+    def test_marker_presence_unit_elsewhere_in_same_document_unaffected(self):
+        text = (
+            "### D-InScope\n\n" + ws.render_marker("CURRENT") + "\n\nBody.\n\n"
+            "### D-OutOfScope\n\nNo marker here, not a named subject.\n"
+        )
+        self.assertEqual(ws.check_marker_presence_plan_sections(text, ("### D-InScope",)), [])
+
+    def test_whole_document_marker_presence_fails_when_absent(self):
+        text = "# Title\n\nNo marker anywhere in the intro.\n\n## Section\n\nBody.\n"
+        self.assertFalse(ws.check_marker_presence_whole_document(text))
+
+    def test_whole_document_marker_presence_passes_when_present(self):
+        text = "# Title\n\n" + ws.render_marker("CURRENT") + "\n\nIntro.\n\n## Section\n\nBody.\n"
+        self.assertTrue(ws.check_marker_presence_whole_document(text))
+
+    def test_already_marked_nested_unit_discharges_its_own_presence_obligation(self):
+        text = (
+            "### D-Container\n\n" + ws.render_marker("CURRENT") + "\n\nProse.\n\n"
+            "#### Disposition\n\n" + ws.render_marker("HISTORICAL") + "\n\nHistory.\n"
+        )
+        self.assertEqual(ws.check_marker_presence_plan_sections(text, ("### D-Container",)), [])
+
+
+class ReviewMaterialLifecycleMarkingPassTest(unittest.TestCase):
+    def test_marks_missing_units_current_and_never_touches_already_marked(self):
+        text = (
+            "### D-Unmarked\n\nProse one.\n\n"
+            "### D-AlreadyMarked\n\n" + ws.render_marker("HISTORICAL") + "\n\nProse two.\n"
+        )
+        names = ("### D-Unmarked", "### D-AlreadyMarked")
+        result = ws.mark_missing_units_current(text, names)
+        units = ws.parse_markdown_units(result)
+        self.assertEqual(ws.unit_state(units[0]), ("CURRENT", True))
+        self.assertEqual(ws.unit_state(units[1]), ("HISTORICAL", True))
+        # Idempotent: a second pass changes nothing further.
+        self.assertEqual(ws.mark_missing_units_current(result, names), result)
+
+
+class ReviewMaterialLifecyclePreMarkingPartitionFixtureTest(unittest.TestCase):
+    """A corpus-shaped fixture proving guarantee (v)'s classification
+    partition: only the deliberately, visibly marked unit is HISTORICAL;
+    every unmarked unit stays CURRENT. Fixture-based (not a one-shot
+    real-corpus read) so it keeps catching a future edit that re-widens
+    guarantee (v) even once this repository's own real corpus has moved
+    past its own pre-marking moment."""
+
+    FIXTURE = (
+        "# Fixture corpus\n\n"
+        "## Marked Historical Section\n\n" + ws.render_marker("HISTORICAL") + "\n\nOld.\n\n"
+        "## Unmarked Section One\n\nCurrent by default.\n\n"
+        "## Unmarked Section Two\n\nAlso current by default.\n"
+    )
+
+    def test_classification_partition_matches_expected(self):
+        units = ws.parse_markdown_units(self.FIXTURE)
+        states = {u.heading: ws.unit_state(u)[0] for u in units}
+        self.assertEqual(states["Marked Historical Section"], "HISTORICAL")
+        self.assertEqual(states["Unmarked Section One"], "CURRENT")
+        self.assertEqual(states["Unmarked Section Two"], "CURRENT")
+
+    def test_mutated_copy_claiming_every_unit_current_including_marked_fails(self):
+        units = ws.parse_markdown_units(self.FIXTURE)
+        states = {u.heading: ws.unit_state(u)[0] for u in units}
+        with self.assertRaises(AssertionError):
+            for state in states.values():
+                self.assertEqual(state, "CURRENT")
+
+
+class ReviewMaterialLifecycleRealCorpusTest(unittest.TestCase):
+    """Guarantee (vii)'s real-corpus run of the finished marker-presence
+    check over every one of that obligation's actual subjects, plus the
+    narrative-content guarantee over the same named sections."""
+
+    def _read(self, relative_path):
+        overlay_root = Path(__file__).resolve().parent
+        return (overlay_root.parent / "docs" / "ai-workflow" / relative_path).read_text()
+
+    PLAN_SECTION_NAMES = (
+        "### D-Implementation-Review-Stages",
+        "### D-Implementation-Review-Version-Activation",
+        "### D-Review-Material-Lifecycle",
+    )
+
+    def test_implementation_review_workflow_carries_its_own_marker(self):
+        text = self._read("IMPLEMENTATION_REVIEW_WORKFLOW.md")
+        self.assertTrue(ws.check_marker_presence_whole_document(text))
+
+    def test_workflow_v2_plan_named_sections_all_carry_markers(self):
+        text = self._read("WORKFLOW_V2_PLAN.md")
+        self.assertEqual(ws.check_marker_presence_plan_sections(text, self.PLAN_SECTION_NAMES), [])
+
+    def test_named_sections_carry_no_forbidden_narrative(self):
+        text = self._read("WORKFLOW_V2_PLAN.md")
+        units = ws.parse_markdown_units(text)
+        resolved = ws.find_named_top_level_units(units, self.PLAN_SECTION_NAMES)
+        for name, unit in resolved.items():
+            self.assertEqual(ws.check_narrative_content(unit), [], name)
+
+    def test_disposition_record_subsection_survived_untouched_as_historical(self):
+        text = self._read("WORKFLOW_V2_PLAN.md")
+        units = ws.parse_markdown_units(text)
+        disposition = [u for u in units if u.heading.startswith("2.5.0 disposition record")]
+        self.assertEqual(len(disposition), 1)
+        self.assertEqual(ws.unit_state(disposition[0]), ("HISTORICAL", True))
+
+
+class GoverningVersionEnumerationSweepTest(unittest.TestCase):
+    def test_exhaustive_enumeration_form_flagged(self):
+        text = (
+            'For plan review, only work items with governing_workflow_version '
+            '"1" or "2.1" use the single-stage flow.'
+        )
+        findings = ws.find_governing_version_occurrences("doc.md", text)
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0].form, "exhaustive_enumeration")
+
+    def test_bare_21_scoped_form_flagged(self):
+        text = 'The two-stage plan review protocol is scoped entirely to "2.1" work items.'
+        findings = ws.find_governing_version_occurrences("doc.md", text)
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0].form, "bare_21_scoped")
+
+    def test_negated_version_independence_assertion_not_flagged(self):
+        text = 'Plan review is not a "2.1"-only mechanism; "2.2" items use it identically.'
+        self.assertEqual(ws.find_governing_version_occurrences("doc.md", text), [])
+
+    def test_widened_form_mentioning_both_versions_not_flagged(self):
+        text = 'Plan review applies to work items whose governing version is "2.1"/"2.2" only.'
+        self.assertEqual(ws.find_governing_version_occurrences("doc.md", text), [])
+
+    def test_occurrence_inside_historical_unit_is_allowlisted(self):
+        text = (
+            "## Old plan review disposition\n\n" + ws.render_marker("HISTORICAL") + "\n\n"
+            'At the time, plan review was scoped entirely to "2.1" work items.\n'
+        )
+        self.assertEqual(ws.find_governing_version_occurrences("doc.md", text), [])
+
+    def test_allowlist_pin_negative_fixture_new_current_section_still_flagged(self):
+        # Even though the document's own historical sections stay exempt,
+        # a stale claim inside a *new*, non-HISTORICAL current design
+        # section must still fail -- proving the allowlist is
+        # occurrence-scoped, never a whole-document grant.
+        text = (
+            "## Old plan review disposition\n\n" + ws.render_marker("HISTORICAL") + "\n\n"
+            'At the time, plan review was scoped entirely to "2.1" work items.\n\n'
+            "## New plan review design\n\n" + ws.render_marker("CURRENT") + "\n\n"
+            'This plan review mechanism is scoped entirely to "2.1" work items.\n'
+        )
+        findings = ws.find_governing_version_occurrences("doc.md", text)
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0].form, "bare_21_scoped")
+        self.assertIn("New plan review design", text[:findings[0].offset].rsplit("##", 1)[-1] or "")
+
+    def test_whole_document_allowlist_for_named_history_documents(self):
+        text = 'Plan review is scoped entirely to "2.1" work items.'
+        findings = ws.find_governing_version_occurrences(
+            "docs/ai-workflow/WORKFLOW_V2_3_PLAN.md", text,
+        )
+        self.assertEqual(findings, [])
+
+    def test_positive_fixture_negated_assertion_only_occurrence_passes_clean(self):
+        text = 'For plan review, this is not a single-governing-version-only mechanism; "2.1" and "2.2" both use it.'
+        self.assertEqual(ws.sweep_governing_version_enumeration({"doc.md": text}), [])
+
+    def test_real_corpus_sweep_is_clean(self):
+        overlay_root = Path(__file__).resolve().parent
+        payload_root = overlay_root.parent
+        paths = list((payload_root / ".claude" / "commands").glob("*.md")) + \
+            list((payload_root / "docs" / "ai-workflow").glob("*.md"))
+        texts = {str(p): p.read_text() for p in paths}
+        findings = ws.sweep_governing_version_enumeration(texts)
+        self.assertEqual(findings, [], [repr(f) for f in findings])
+
+
 if __name__ == "__main__":
     unittest.main()

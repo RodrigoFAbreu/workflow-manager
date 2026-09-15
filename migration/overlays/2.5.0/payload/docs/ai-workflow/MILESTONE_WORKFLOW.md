@@ -177,8 +177,9 @@ that was `"2.1"` alone through `workflow-v2-1-core`/`workflow-2.4.0`) — a
 `AWAITING_PLAN_APPROVAL`, unchanged.
 
 - **Entry**: `REVISING_PLAN`'s exit condition is met, or `/apply-plan-review`
-  has just applied an accepted plan edit (its `"2.1"`-only revised exit
-  step, below).
+  has just applied an accepted plan edit (its `TWO_STAGE_PLAN_REVIEW_VERSIONS`-only
+  revised exit step, below -- widened `workflow-2.5.0` from a bare `"2.1"`
+  check).
 - **Allowed actions**: run `/review-plan` (recommended in a fresh session,
   for genuine independence from the session that wrote the plan — strongly
   recommended operational guidance, not a verified precondition).
@@ -245,7 +246,9 @@ Any protected plan edit after either or both stages complete invalidates
 both — by the recomputation rule (validity is by recomputation, not an
 active clear step), never an explicit clear — and the work item's next
 required stage is always `AWAITING_LOCAL_PLAN_REVIEW`
-(`/apply-plan-review`'s `"2.1"`-only revised exit step, below), whether the
+(`/apply-plan-review`'s `TWO_STAGE_PLAN_REVIEW_VERSIONS`-only revised exit
+step, below -- widened `workflow-2.5.0` from a bare `"2.1"` check),
+whether the
 edit was driven by a local-model or a manual-external `REVISE`. No path
 re-enters manual-external review without a fresh local pass first.
 

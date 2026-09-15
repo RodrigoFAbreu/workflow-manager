@@ -781,7 +781,7 @@
       "base_commit": "38114204a4eca46930b0a6fb7e7a1cc4d4810798",
       "reviewed_implementation_head": null,
       "current_checkpoint_id": null,
-      "last_completed_checkpoint_id": "CP5",
+      "last_completed_checkpoint_id": "CP6",
       "checkpoints": {
         "CP1": {
           "status": "COMPLETE",
@@ -802,6 +802,10 @@
         "CP5": {
           "status": "COMPLETE",
           "start_commit": "7d737fa50aa733cabf3df286346bb9aa9dfbf3da"
+        },
+        "CP6": {
+          "status": "COMPLETE",
+          "start_commit": "a561268a62a8f4ba62aced8be173fc36940b27de"
         }
       },
       "current_bundle_id": null,
@@ -855,8 +859,8 @@
       },
       "functional_acceptance_status": null,
       "blocking_decisions": [],
-      "state_revision": 144,
-      "last_transition": "2026-09-15T19:28:52Z",
+      "state_revision": 146,
+      "last_transition": "2026-09-15T19:54:57Z",
       "amendment_history": [
         {
           "amendment_id": "0",

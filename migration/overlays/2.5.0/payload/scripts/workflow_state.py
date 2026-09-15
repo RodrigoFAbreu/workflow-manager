@@ -13313,3 +13313,404 @@ def parse_marker(text: str) -> str | None:
     if state not in REVIEW_MATERIAL_LIFECYCLE_STATES:
         return None
     return state
+
+
+# ---------------------------------------------------------------------------
+# D-Review-Material-Lifecycle (`workflow-2.5.0` CP6): unit parsing,
+# classification, the marker-presence obligation, the marking pass, the
+# narrative-content check, and the governing-version enumeration sweep. All
+# of this imports and reuses `render_marker`/`parse_marker` above -- never a
+# second, independently-derived grammar. See `docs/ai-workflow/
+# WORKFLOW_V2_PLAN.md`'s `D-Review-Material-Lifecycle` design section.
+# ---------------------------------------------------------------------------
+
+_MARKDOWN_HEADING_RE = re.compile(r"^(#{1,6})\s+(.*)$")
+
+
+class MarkdownUnit:
+    """One Markdown heading-delimited unit: `own_text` is everything
+    between this heading's line and the next heading line at *any* level
+    (never a descendant unit's own text); `full_text` additionally includes
+    every descendant unit, down to the next heading at a level <= this
+    unit's own (or end of document). Classification (`unit_state`) is
+    decided from `own_text` alone, exactly so a nested unit's own marker
+    never gets folded into its container's search."""
+
+    __slots__ = ("level", "heading", "own_text", "full_text", "start_line", "children")
+
+    def __init__(self, level, heading, own_text, full_text, start_line):
+        self.level = level
+        self.heading = heading
+        self.own_text = own_text
+        self.full_text = full_text
+        self.start_line = start_line
+        self.children: list["MarkdownUnit"] = []
+
+
+def parse_markdown_units(text: str) -> list[MarkdownUnit]:
+    """Parse `text` into a flat list of every heading-delimited unit at
+    every level, each carrying its own `MarkdownUnit.children` (the units
+    whose heading is the next thing encountered at a deeper level, before
+    the next heading at <= this unit's level closes it). A document with no
+    heading at all yields an empty list -- callers that need "the whole
+    document" as a single unit when it has no heading of its own handle
+    that case separately (see `document_level_unit`)."""
+    lines = text.splitlines(keepends=True)
+    headings: list[tuple[int, int, str]] = []  # (line_index, level, heading_text)
+    for i, line in enumerate(lines):
+        m = _MARKDOWN_HEADING_RE.match(line.rstrip("\n"))
+        if m:
+            headings.append((i, len(m.group(1)), m.group(2).strip()))
+
+    units: list[MarkdownUnit] = []
+    for idx, (line_i, level, heading) in enumerate(headings):
+        # own_text: up to the very next heading of any level (or EOF).
+        own_end = headings[idx + 1][0] if idx + 1 < len(headings) else len(lines)
+        own_text = "".join(lines[line_i + 1:own_end])
+
+        # full_text: up to the next heading at level <= this one (or EOF).
+        full_end = len(lines)
+        for later_i, later_level, _ in headings[idx + 1:]:
+            if later_level <= level:
+                full_end = later_i
+                break
+        full_text = "".join(lines[line_i:full_end])
+
+        units.append(MarkdownUnit(level, heading, own_text, full_text, line_i))
+
+    # Wire up direct children: the nearest following unit at level+? that is
+    # not itself enclosed by an intervening same-or-shallower unit. Simple
+    # stack-based construction, standard heading-nesting algorithm.
+    stack: list[MarkdownUnit] = []
+    roots: list[MarkdownUnit] = []
+    for unit in units:
+        while stack and stack[-1].level >= unit.level:
+            stack.pop()
+        if stack:
+            stack[-1].children.append(unit)
+        else:
+            roots.append(unit)
+        stack.append(unit)
+    return units
+
+
+def document_level_unit(text: str) -> MarkdownUnit:
+    """Treat the whole document as a single unit, for a document (like
+    `IMPLEMENTATION_REVIEW_WORKFLOW.md`) whose marker-presence subject is
+    "the whole document" rather than an enumerated set of named sections.
+
+    A document opening with exactly one top-level heading (the ordinary
+    `# Title` case) treats that heading's own `own_text` -- the prose
+    directly under the title, before its first subsection -- as the
+    document-level unit's own text, since that is where the document's own
+    top-of-file marker lives; every subsection below it is a child,
+    classified independently, exactly like any other nested unit. A
+    document with no heading, or more than one top-level heading, falls
+    back to the raw text preceding the first heading (or the whole text,
+    absent any heading)."""
+    units = parse_markdown_units(text)
+    if not units:
+        return MarkdownUnit(0, "(document)", text, text, 0)
+
+    top_level = min(u.level for u in units)
+    roots = [u for u in units if u.level == top_level]
+    if len(roots) == 1:
+        doc = MarkdownUnit(0, "(document)", roots[0].own_text, text, 0)
+        doc.children = roots[0].children
+        return doc
+
+    lines = text.splitlines(keepends=True)
+    own_text = "".join(lines[:units[0].start_line])
+    doc = MarkdownUnit(0, "(document)", own_text, text, 0)
+    doc.children = roots
+    return doc
+
+
+def _first_nonblank_line(text: str) -> str:
+    for line in text.splitlines():
+        if line.strip():
+            return line
+    return ""
+
+
+def unit_state(unit: MarkdownUnit) -> tuple[str, bool]:
+    """`(state, explicit)`: `state` is `parse_marker` of the *first
+    non-blank line* of `unit.own_text` if that line is an explicit marker,
+    else the fail-closed `"CURRENT"` default; `explicit` says which. Never
+    looks at `unit.full_text` or any descendant's own text -- a nested
+    unit's own marker classifies only that nested unit
+    (`D-Review-Material-Lifecycle`'s "Unit and nesting").
+
+    Restricted to the *first* non-blank line, not a search over the whole
+    of `own_text`, precisely so the boundary-redrawing guarantee holds
+    mechanically rather than by convention alone: merging a `CURRENT`
+    region into an adjacent `HISTORICAL`-marked unit by deleting or
+    demoting the heading between them (with no marker edit anywhere in the
+    diff) leaves that unit's own marker no longer the first line of the
+    merged `own_text` -- content from the former `CURRENT` region now
+    precedes it -- so the merge falls to the fail-closed default instead of
+    inheriting the marker its own text still happens to contain deeper
+    in. Every marker this checkpoint or CP1 writes is placed as the first
+    line after its heading for exactly this reason."""
+    marker = parse_marker(_first_nonblank_line(unit.own_text))
+    if marker is not None:
+        return marker, True
+    return "CURRENT", False
+
+
+def find_named_top_level_units(units: list[MarkdownUnit], names: tuple[str, ...]) -> dict[str, MarkdownUnit | None]:
+    """Resolve each of `names` (an exact heading-text prefix, e.g.
+    `"### D-Review-Material-Lifecycle"`'s own heading text without the
+    leading `#`s) to the first top-level unit whose heading starts with it,
+    or `None` if absent. Used for `WORKFLOW_V2_PLAN.md`'s enumerable,
+    registry-named subject set -- never a diff or a cross-corpus match."""
+    stripped_names = [name.lstrip("#").strip() for name in names]
+    result: dict[str, MarkdownUnit | None] = {name: None for name in names}
+    for unit in units:
+        for name, stripped in zip(names, stripped_names):
+            if result[name] is None and unit.heading.startswith(stripped):
+                result[name] = unit
+    return result
+
+
+class MissingLifecycleMarkerError(Exception):
+    """Raised by `check_marker_presence` (or returned as a finding list by
+    its non-raising sibling) naming every in-scope unit with no explicit
+    marker of its own."""
+
+
+def check_marker_presence_whole_document(text: str) -> bool:
+    """`IMPLEMENTATION_REVIEW_WORKFLOW.md`'s own marker-presence subject:
+    the whole document, read as one unit. Returns True iff that unit's own
+    text (excluding every top-level heading's own subtree, each classified
+    independently) carries an explicit marker of either value."""
+    doc = document_level_unit(text)
+    _, explicit = unit_state(doc)
+    return explicit
+
+
+def check_marker_presence_plan_sections(text: str, section_names: tuple[str, ...]) -> list[str]:
+    """`WORKFLOW_V2_PLAN.md`'s own marker-presence subject: each of
+    `section_names` (registry-named top-level `### D-*` headings). Returns
+    the list of names with no explicit marker of their own -- empty when
+    every named section is explicitly marked. A missing name entirely
+    (the section does not exist in `text` at all) is also reported, since
+    an absent registry-named section can never satisfy the obligation."""
+    units = parse_markdown_units(text)
+    resolved = find_named_top_level_units(units, section_names)
+    missing = []
+    for name, unit in resolved.items():
+        if unit is None:
+            missing.append(name)
+            continue
+        _, explicit = unit_state(unit)
+        if not explicit:
+            missing.append(name)
+    return missing
+
+
+_FORBIDDEN_NARRATIVE_RE = re.compile(
+    r"\b(?:corrected|revised|narrowed|widened|reassigned|added)\b[^.\n]{0,120}"
+    r"\brevision\s+\d+\b[^.\n]{0,160}\bfinding\b",
+    re.IGNORECASE,
+)
+
+
+def find_forbidden_narrative(text: str) -> list[str]:
+    """The concrete textual shape `D-Review-Material-Lifecycle`'s
+    narrative-content guarantee forbids inside an explicit-`CURRENT` unit:
+    a "corrected/revised/narrowed/widened/reassigned/added at revision N
+    ... finding X"-shaped sentence. Returns every matched snippet (empty
+    when none found)."""
+    return [m.group(0) for m in _FORBIDDEN_NARRATIVE_RE.finditer(text)]
+
+
+def check_narrative_content(unit: MarkdownUnit) -> list[str]:
+    """Guarantee (vi): asserted only over a unit carrying an *explicit*
+    `CURRENT` marker (never over one `CURRENT` only by the fail-closed
+    default) -- checked over `own_text` plus every descendant unit's
+    `own_text` that is not itself separately, explicitly marked (a
+    descendant with its own explicit marker -- `CURRENT` or `HISTORICAL`
+    -- is a unit of its own, checked independently, never folded into this
+    walk). Returns every forbidden-narrative snippet found; empty means the
+    guarantee holds."""
+    state, explicit = unit_state(unit)
+    if not (explicit and state == "CURRENT"):
+        return []
+
+    findings = list(find_forbidden_narrative(unit.own_text))
+
+    def walk(u: MarkdownUnit) -> None:
+        for child in u.children:
+            _, child_explicit = unit_state(child)
+            if child_explicit:
+                continue  # separately classified unit; not this guarantee's concern
+            findings.extend(find_forbidden_narrative(child.own_text))
+            walk(child)
+
+    walk(unit)
+    return findings
+
+
+def mark_missing_units_current(text: str, section_names: tuple[str, ...]) -> str:
+    """CP6's marking pass: for each of `section_names` present in `text`
+    with no explicit marker of its own, insert `render_marker("CURRENT")`
+    as the first line of its `own_text` (immediately after the heading
+    line, before any other content). Never touches a section that already
+    carries an explicit marker, and never touches any other text. Returns
+    the modified document text unchanged if every named section is already
+    explicitly marked (or absent)."""
+    lines = text.splitlines(keepends=True)
+    units = parse_markdown_units(text)
+    resolved = find_named_top_level_units(units, section_names)
+
+    insertions = []  # (line_index, marker_line) sorted descending so indices stay valid
+    for name, unit in resolved.items():
+        if unit is None:
+            continue
+        _, explicit = unit_state(unit)
+        if explicit:
+            continue
+        newline = "\n" if (not lines or lines[unit.start_line].endswith("\n")) else ""
+        insertions.append((unit.start_line, f"\n{render_marker('CURRENT')}\n"))
+
+    for line_index, marker_block in sorted(insertions, key=lambda t: -t[0]):
+        lines.insert(line_index + 1, marker_block)
+    return "".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# Governing-version enumeration sweep: no document may present a bare
+# "2.1" governing-version reference as exhaustive of the two-stage
+# plan-review protocol's own applicability, now that
+# TWO_STAGE_PLAN_REVIEW_VERSIONS = {"2.1", "2.2"}.
+# ---------------------------------------------------------------------------
+
+_EXHAUSTIVE_ENUMERATION_RE = re.compile(
+    r'"1"\s*(?:,|/|\band\b|\bor\b)\s*"2\.1"|"2\.1"\s*(?:,|/|\band\b|\bor\b)\s*"1"'
+)
+_BARE_21_SCOPED_RE = re.compile(
+    r'(?:only[\s-]+`?"2\.1"`?|`?"2\.1"`?[\s-]+only|scoped entirely to\s+`?"2\.1"`?)',
+    re.IGNORECASE,
+)
+_NEGATION_CUE_RE = re.compile(r"\bnot\b|\bnever\b|\bindependent(?:ly|ence)?\b", re.IGNORECASE)
+_CONTEXT_WINDOW = 200
+
+# Both detection forms exist to catch a stale claim about the *two-stage
+# plan-review protocol's own applicability* specifically -- not every
+# unrelated "1"/"2.1" enumeration anywhere in the corpus (the dual-mode
+# implementation-review branches, for instance, correctly distinguish
+# "1"/"2.1" from "2.2" for a wholly different reason: which review contract
+# `/review-implementation` runs, not which items get two-stage plan
+# review). An occurrence counts only when its surrounding context is
+# actually about plan review.
+_PLAN_REVIEW_CONTEXT_RE = re.compile(
+    r"plan[\s_-]*review|plan[\s_-]*approval|AWAITING_(?:LOCAL|MANUAL_EXTERNAL)_PLAN|"
+    r"/review-plan\b|/apply-plan-review\b|/record-manual-plan-review\b|"
+    r"TWO_STAGE_PLAN_REVIEW_VERSIONS",
+    re.IGNORECASE,
+)
+
+
+class GoverningVersionSweepFinding:
+    __slots__ = ("path", "offset", "line", "form", "snippet")
+
+    def __init__(self, path, offset, line, form, snippet):
+        self.path = path
+        self.offset = offset
+        self.line = line
+        self.form = form
+        self.snippet = snippet
+
+    def __repr__(self):
+        return f"GoverningVersionSweepFinding({self.path!r}, line={self.line!r}, form={self.form!r})"
+
+
+WHOLE_DOCUMENT_ALLOWLIST = (
+    "WORKFLOW_V2_3_PLAN.md",
+    "WORKFLOW_V2_3_FOLLOWUPS_PLAN.md",
+    "WORKFLOW_V2_AUDIT.md",
+)
+
+
+def _line_number_at(text: str, offset: int) -> int:
+    return text.count("\n", 0, offset) + 1
+
+
+def _is_allowlisted_occurrence(text: str, offset: int, historical_spans: list[tuple[int, int]]) -> bool:
+    return any(start <= offset < end for start, end in historical_spans)
+
+
+def _historical_spans(text: str) -> list[tuple[int, int]]:
+    """Byte-offset spans of every unit (at any nesting depth) classified
+    `HISTORICAL` -- computed over the unit's *heading line plus* `own_text`,
+    mapped back to the full document, used by the sweep's occurrence-level
+    allowlist. The heading line itself is included in the span (not just
+    the text after it): this corpus authors some headings as a single,
+    very long ATX line whose "rest of the line" carries the bulk of a
+    changelog entry's own prose -- an occurrence sitting inside the heading
+    line's own text must still count as inside that heading's own unit."""
+    lines = text.splitlines(keepends=True)
+    line_offsets = [0]
+    for line in lines:
+        line_offsets.append(line_offsets[-1] + len(line))
+
+    spans: list[tuple[int, int]] = []
+    units = parse_markdown_units(text)
+    for unit in units:
+        state, explicit = unit_state(unit)
+        if explicit and state == "HISTORICAL":
+            heading_start = line_offsets[unit.start_line]
+            own_text_start = line_offsets[unit.start_line + 1] if unit.start_line + 1 < len(line_offsets) else len(text)
+            # own_text runs to the next heading at any level (or EOF); reuse
+            # its length to compute the end offset precisely.
+            end = own_text_start + len(unit.own_text)
+            spans.append((heading_start, end))
+    return spans
+
+
+def find_governing_version_occurrences(
+    path: str, text: str, *, allowlist_whole_document: tuple[str, ...] = WHOLE_DOCUMENT_ALLOWLIST,
+) -> list[GoverningVersionSweepFinding]:
+    """Both detection forms, occurrence-granular, with the sweep's own
+    allowlist applied (whole-document for the three named closed-history
+    documents; occurrence-inside-a-HISTORICAL-unit otherwise). A negated or
+    version-independence assertion near the match is never an occurrence of
+    either form."""
+    import os as _os
+    basename = _os.path.basename(path)
+    if basename in allowlist_whole_document:
+        return []
+
+    historical_spans = _historical_spans(text)
+    findings: list[GoverningVersionSweepFinding] = []
+    for form, pattern in (("exhaustive_enumeration", _EXHAUSTIVE_ENUMERATION_RE), ("bare_21_scoped", _BARE_21_SCOPED_RE)):
+        for m in pattern.finditer(text):
+            window_start = max(0, m.start() - _CONTEXT_WINDOW)
+            window_end = min(len(text), m.end() + _CONTEXT_WINDOW)
+            window = text[window_start:window_end]
+            if not _PLAN_REVIEW_CONTEXT_RE.search(window):
+                continue
+            if _NEGATION_CUE_RE.search(text[max(0, m.start() - 40):m.start()]):
+                continue
+            if form == "bare_21_scoped" and ('"2.2"' in window or '"1"' in window):
+                continue
+            if _is_allowlisted_occurrence(text, m.start(), historical_spans):
+                continue
+            findings.append(
+                GoverningVersionSweepFinding(
+                    path=path, offset=m.start(), line=_line_number_at(text, m.start()),
+                    form=form, snippet=text[max(0, m.start() - 40):m.end() + 40].replace("\n", " "),
+                )
+            )
+    return findings
+
+
+def sweep_governing_version_enumeration(paths_and_texts: dict[str, str]) -> list[GoverningVersionSweepFinding]:
+    """Run `find_governing_version_occurrences` over every `(path, text)`
+    pair. Returns the combined, still-flagged finding list -- empty means
+    the sweep is clean."""
+    findings: list[GoverningVersionSweepFinding] = []
+    for path, text in paths_and_texts.items():
+        findings.extend(find_governing_version_occurrences(path, text))
+    return findings

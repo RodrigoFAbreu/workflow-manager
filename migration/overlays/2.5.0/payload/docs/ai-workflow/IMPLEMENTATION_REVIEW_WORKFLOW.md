@@ -1,5 +1,7 @@
 # Two-Stage Implementation-Review Protocol (`governing_workflow_version: "2.2"` only)
 
+<!-- review-material-lifecycle: CURRENT -->
+
 Concise operator guide for the local-then-manual-external
 implementation-review protocol (`workflow-2.5.0`). Full design and
 rationale live in `docs/ai-workflow/WORKFLOW_V2_PLAN.md`'s
