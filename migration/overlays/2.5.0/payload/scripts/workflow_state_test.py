@@ -12503,6 +12503,124 @@ class TestRecordManualImplementationReview(unittest.TestCase):
         self.assertEqual(new_state["work_items"]["wi"]["phase"], "AWAITING_MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW")
 
 
+# ---------------------------------------------------------------------------
+# workflow-2.5.0 CP5: the §2.3 convergence/token-efficiency disposable-repo
+# fixture -- REQ-4 (no bundle regeneration between the local-approve and
+# manual-external stages) and REQ-5 (a single reviewer pass can no longer,
+# by itself, exhaust a manual-external round on an issue the local pass
+# would have caught for free), demonstrated end to end against a real Git
+# history rather than asserted only structurally.
+# ---------------------------------------------------------------------------
+
+
+class TestLocalStageCatchesPlantedDefectWithoutManualRound(unittest.TestCase):
+    """§2.3 point 4's disposable-repo fixture: a realistic planted defect,
+    caught by the `LOCAL_MODEL_IMPLEMENTATION_REVIEW` stage, never reaches
+    -- and never opens or consumes a round of -- the manual-external
+    stage."""
+
+    def test_planted_defect_is_caught_locally_without_opening_a_manual_round(self):
+        with ScratchRepo() as repo:
+            # The disposable repo's own planted defect: a commit standing in
+            # for an implementation checkpoint that a careful reviewer
+            # should catch (e.g. a missing test, or a layering violation) --
+            # the fixture only needs the review-stage state machine's own
+            # reaction to a REVISE verdict, not a real static-analysis
+            # finding.
+            repo.commit("implement checkpoint with a planted defect", filename="src/planted_defect.py")
+            wi = _v22_work_item(base_commit=repo.base, implementation_review_stages={
+                "review_content_id": "c-defect",
+                "LOCAL_IMPLEMENTATION_REVIEW": None,
+                "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": None,
+            })
+            state = _base_state(wi=wi)
+
+            # LOCAL_MODEL_IMPLEMENTATION_REVIEW catches the planted defect on
+            # its very first round.
+            new_state = ws.record_local_implementation_review(
+                state, "wi", verdict="REVISE", bundle_id="b-defect",
+                review_content_id="c-defect", round=1, now="t1",
+            )
+            item = new_state["work_items"]["wi"]
+
+            # The defect is routed straight back for a fix -- it never
+            # reached, and never consumed a round of, the manual-external
+            # stage. This is REQ-5's convergence claim demonstrated, not
+            # merely the structural argument that the split makes it
+            # possible.
+            self.assertEqual(item["phase"], "APPLYING_REVIEW_FEEDBACK")
+            self.assertNotEqual(item["phase"], "AWAITING_MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW")
+            self.assertIsNone(item["implementation_review_stages"]["MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW"])
+
+
+class TestNoBundleRegenerationBetweenImplementationReviewStages(unittest.TestCase):
+    """REQ-4: the same bundle, `bundle_id`, and `review_content_id` the
+    local stage approved is what the manual-external stage is fed -- mirrors
+    the plan side, which already has this property structurally
+    (`D-Plan-Review-Stages`). Demonstrated two ways against the same
+    disposable-repo fixture: the ordinary carry-through succeeds unchanged,
+    and a simulated regeneration between the two stages is hard-blocked
+    rather than silently accepted under the stale local approval."""
+
+    def _locally_approved_wi(self, repo, **overrides):
+        defaults = {
+            "base_commit": repo.base,
+            "phase": "AWAITING_MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW",
+            "implementation_review_stages": {
+                "review_content_id": "c-original",
+                "LOCAL_IMPLEMENTATION_REVIEW": {
+                    "bundle_id": "b-original", "verdict": "APPROVE", "round": 1, "completed_at": "t1",
+                },
+                "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": None,
+            },
+        }
+        defaults.update(overrides)
+        return _v22_work_item(**defaults)
+
+    def test_ordinary_carry_through_ingests_the_same_bundle_unchanged(self):
+        with ScratchRepo() as repo:
+            repo.commit("implement checkpoint", filename="src/feature.py")
+            state = _base_state(wi=self._locally_approved_wi(repo))
+            new_state = ws.record_manual_implementation_review(
+                state, "wi", verdict="APPROVE", bundle_id="b-original", round=1, now="t2",
+                current_review_content_id="c-original",
+                feedback_role="MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW",
+                feedback_review_content_id="c-original",
+            )
+            self.assertEqual(new_state["work_items"]["wi"]["phase"], "AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW")
+
+    def test_regeneration_between_stages_is_hard_blocked_not_silently_ingested(self):
+        with ScratchRepo() as repo:
+            repo.commit("implement checkpoint", filename="src/feature.py")
+            state = _base_state(wi=self._locally_approved_wi(repo))
+
+            # A bundle-refresh step run between the two stages (exactly the
+            # accident §2.3 point 1 warns is "easy to accidentally regress
+            # by adding... where none belongs") changes the protected
+            # content the manual stage would see, so its own live
+            # review_content_id no longer matches what
+            # LOCAL_MODEL_IMPLEMENTATION_REVIEW actually approved. The
+            # reviewer's own feedback still carries the value they were
+            # shown -- the now-stale one -- which is exactly what makes this
+            # a hard block rather than a silent re-approval of different
+            # content under the old ledger entry.
+            repo.commit("accidental bundle regeneration", filename="src/feature.py")
+            with self.assertRaises(ws.StaleReviewContentIdError):
+                ws.record_manual_implementation_review(
+                    state, "wi", verdict="APPROVE", bundle_id="b-regenerated", round=1, now="t2",
+                    current_review_content_id="c-regenerated",
+                    feedback_role="MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW",
+                    feedback_review_content_id="c-original",
+                )
+            # No regeneration-tolerant fallback exists: the work item is left
+            # exactly where it was, still awaiting a genuine, matching manual
+            # round.
+            self.assertEqual(state["work_items"]["wi"]["phase"], "AWAITING_MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW")
+            self.assertIsNone(
+                state["work_items"]["wi"]["implementation_review_stages"]["MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW"]
+            )
+
+
 class TestBundleGenerationTargetPhaseResolver(unittest.TestCase):
     """`bundle_generation_target_phase`/`bundle_generation_recovered_role_
     legal_committed_phases` -- both version-dependent resolvers CP3

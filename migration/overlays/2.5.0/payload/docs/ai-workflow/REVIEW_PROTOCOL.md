@@ -548,6 +548,46 @@ does consult that marker before composing its report — a withdrawn work item
 must not receive an advisory functional-review opinion either, even though
 `/review-functional` itself touches no bundle at all.
 
+### No bundle regeneration between the local and manual-external implementation-review stages
+
+`workflow-2.5.0`, `§2.3` point 1 (`REQ-4`). For a `"2.2"` item, the same
+bundle -- the same `bundle_id`, and the same implementation-stage
+`review_content_id` -- that `LOCAL_MODEL_IMPLEMENTATION_REVIEW` approved is
+exactly what the manual-external reviewer is handed, and exactly what
+`/record-manual-implementation-review` ingests. Nothing regenerates the
+bundle, and nothing recomputes a fresh `review_content_id` to check the
+manual round against, in between `AWAITING_LOCAL_IMPLEMENTATION_REVIEW`'s
+own `APPROVE` and `AWAITING_MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW`'s own
+ingestion. This mirrors the plan-review side (`D-Plan-Review-Stages`),
+which already has this property structurally: `LOCAL_MODEL_PLAN_REVIEW`'s
+`APPROVE` and `MANUAL_EXTERNAL_PLAN_REVIEW`'s ingestion are bound to the
+same `review_content_id` the same way, with no bundle-refresh step of its
+own between them either.
+
+It is easy to accidentally regress this by adding a bundle-refresh step
+where none belongs -- so the property is enforced mechanically, not only
+by omission: `record_manual_implementation_review`'s own precondition
+(`validate_manual_implementation_review_preconditions`,
+`scripts/workflow_state.py`) hard-blocks with `StaleReviewContentIdError`
+the moment the manual round's own `review_content_id` (whether recomputed
+fresh by the operator running `/record-manual-implementation-review`, or
+carried in the reviewer's own feedback text) disagrees with the value
+`implementation_review_stages["review_content_id"]` already recorded when
+`LOCAL_MODEL_IMPLEMENTATION_REVIEW` approved -- there is no fallback path
+that silently re-approves different content under the old local-approval
+ledger entry. The advisory-only `bundle_id` check
+(`check_manual_stage_bundle_id_advisory`) is deliberately weaker (a warning,
+not a block) since a reviewer-facing wrapper artifact's own `bundle_id` can
+legitimately differ in shape from the recomputed one without the
+underlying protected content having changed; `review_content_id` is the
+one binding identity this rule is stated over. `workflow-2.5.0` CP5's own
+disposable-repo fixture
+(`scripts/workflow_state_test.py`'s
+`TestNoBundleRegenerationBetweenImplementationReviewStages`) demonstrates
+both halves of this against a real Git history: the ordinary carry-through
+succeeds unchanged, and a simulated regeneration between the two stages is
+hard-blocked rather than silently ingested.
+
 ## Context-efficiency rules
 
 - Load only the active status (`docs/ACTIVE_MILESTONE.md`), `docs/ROADMAP.md`,

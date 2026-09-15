@@ -26,10 +26,9 @@ development.
 
 ## Current checkpoint
 
-**CP1 revalidated and complete** (`implementation-review-two-stage`, 13
-checkpoints total). Next: **CP2** (`workflow_state.py` plumbing in the
-overlay — `KNOWN_PHASES` additions, generalized activation helpers,
-`TWO_STAGE_PLAN_REVIEW_VERSIONS`).
+**CP1-CP5 complete** (`implementation-review-two-stage`, 13 checkpoints
+total). Next: **CP6** (review-material lifecycle — the marker-presence
+lint and governing-version enumeration sweep, `§2.4`, depends on CP1).
 
 Amendment 0 (requested from `IMPLEMENTING` after CP1's original commit,
 `20a808d`, to fix `implementation-review-two-stage-artifacts.json`'s
@@ -81,14 +80,59 @@ CP1 delivered, in `migration/overlays/2.5.0/payload/`:
   tests, all passing) pinning `render_marker`/`parse_marker`'s exact
   output bytes, roundtrip, and fail-closed malformed-input handling.
 
-Verification run for CP1 (narrowest relevant check, not the full suite —
+CP2 delivered `scripts/workflow_state.py`/`workflow_state_test.py` plumbing
+(`KNOWN_PHASES` additions, the version-aware activation/rollback event
+model, `TWO_STAGE_PLAN_REVIEW_VERSIONS`, the `implementation_review_stages`
+ledger helpers). CP3 delivered the review-stage writers and gate widening
+(`record_local_implementation_review`, `record_manual_implementation_review`,
+`technical_approval_gate_reachable`'s `"2.2"` ledger check,
+`bundle_generation_target_phase`, the widened field-set constants, the
+recovered-role committed-phase membership test). CP4 delivered the command
+contracts (`"2.2"` branches across the dual-mode commands, the new
+`/record-manual-implementation-review.md`, and
+`WORKFLOW_V2_1_OPERATOR_REFERENCE.md`'s widening). See those checkpoints'
+own commits (`61e04a8`, `0f06771`, `7d737fa`) for their full detail.
+
+CP5 delivered the `§2.3` convergence/token-efficiency measures, in
+`migration/overlays/2.5.0/payload/`:
+- `.claude/commands/review-implementation.md`: tightened the `"2.2"`
+  authoritative branch's A4 verification-bar text to state explicitly that
+  it must be at least as rigorous as today's combined
+  `SELF_REVIEWING_IMPLEMENTATION` self-review plus the pre-existing
+  advisory `/review-implementation` pass — never a weaker substitute for
+  either, since this pass now gates a real phase transition.
+- `docs/ai-workflow/REVIEW_PROTOCOL.md`: a new "No bundle regeneration
+  between the local and manual-external implementation-review stages"
+  subsection stating `REQ-4` explicitly and naming the mechanical
+  enforcement (`StaleReviewContentIdError` in
+  `validate_manual_implementation_review_preconditions`) and its
+  advisory-only `bundle_id` counterpart.
+- `scripts/workflow_state_test.py`: the disposable-repo fixture scenario —
+  `TestLocalStageCatchesPlantedDefectWithoutManualRound` (a planted defect
+  caught by the local stage on round 1, routed straight to
+  `APPLYING_REVIEW_FEEDBACK` without ever opening a manual-external round —
+  `REQ-5`) and `TestNoBundleRegenerationBetweenImplementationReviewStages`
+  (the ordinary carry-through succeeds unchanged; a simulated regeneration
+  between the two stages is hard-blocked — `REQ-4`), both built against a
+  real `ScratchRepo` Git history rather than isolated dict-state
+  assertions alone.
+
+Verification run for CP5 (narrowest relevant check, not the full suite —
 `migration/overlays/2.5.0/classification.json` does not exist yet, so
 `tools/build_release.py --check` is not runnable until CP11):
 ```
 PYTHONPATH=migration/overlays/2.5.0/payload/scripts:scripts \
-  python3 -m unittest workflow_state_test.ReviewMaterialLifecycleMarkerTest -v
+  python3 -m unittest \
+  workflow_state_test.TestLocalStageCatchesPlantedDefectWithoutManualRound \
+  workflow_state_test.TestNoBundleRegenerationBetweenImplementationReviewStages -v
 ```
-Result: 6/6 passed.
+Result: 3/3 passed. A full `workflow_state_test` run under the same
+`PYTHONPATH` trick (762 tests) shows only the 3 pre-existing errors that
+trick itself is known to produce outside the composed release tree
+(`TestGlobalLockOrderItem372h.setUpClass` and
+`TestCanonicalStateSerialization`'s two `dry-run`-path-relative tests,
+unaffected by this checkpoint's changes — confirmed unchanged by running
+the same command against the pre-CP5 tree via `git stash`).
 
 ## Current blockers
 
@@ -102,7 +146,7 @@ plan approval `CURRENT`, both `LOCAL_MODEL_PLAN_REVIEW` (round 42) and
 
 ## Next action
 
-Continue `/milestone-implement` to implement CP2, one checkpoint per
+Continue `/milestone-implement` to implement CP6, one checkpoint per
 invocation (`workflow-2.1` resumable single-checkpoint session model).
 
 ## Functional review checklist

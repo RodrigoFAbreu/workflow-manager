@@ -385,6 +385,24 @@ A4. **Independently verify** every claim `IMPLEMENTATION_SUMMARY.md`/
     the implementation against the approved plan -- exactly as thoroughly
     as the advisory branch's own step 5/6 and
     `/apply-implementation-review`'s own step 2 validation requirement.
+    **Verification-bar floor (workflow-2.5.0, `§2.3` point 3): this pass
+    gates real state -- the `AWAITING_LOCAL_IMPLEMENTATION_REVIEW` ->
+    `AWAITING_MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW`/`APPLYING_REVIEW_FEEDBACK`
+    transition itself -- so it must be at least as rigorous as today's
+    combined `SELF_REVIEWING_IMPLEMENTATION` self-review
+    (`/milestone-implement` step 2's own "review the full milestone diff
+    for correctness, layer-boundary violations, missing tests, and
+    maintainability" pass) plus the pre-workflow-2.5.0 advisory
+    `/review-implementation` pass this step already mirrors -- never a
+    weaker substitute for either.** Concretely: cover every finding
+    category `/milestone-implement` step 2 and the advisory branch's step
+    5/6 each separately require (correctness, layer-boundary/architecture
+    violations, migration/data-integrity risk, missing tests, usability,
+    and plan conformance), and never treat the implementer's own prior
+    `SELF_REVIEWING_IMPLEMENTATION` pass as a reason to look less closely
+    at any one of them -- this stage is the sole independent check standing
+    between that self-review and a real phase transition, exactly the gap
+    `§2.3` point 3 exists to close.
 A5. **Decide the verdict** (`Status: APPROVE | REVISE | BLOCK`) and write
     `<feedback_dir>/REVIEW_FEEDBACK.md` per
     `docs/ai-workflow/REVIEW_PROTOCOL.md`'s required structure, **plus**
