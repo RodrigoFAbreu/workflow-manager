@@ -13366,5 +13366,455 @@ class GoverningVersionEnumerationSweepTest(unittest.TestCase):
         self.assertEqual(findings, [], [repr(f) for f in findings])
 
 
+# ---------------------------------------------------------------------------
+# workflow-2.5.0 CP7: D-Canonical-Review-Data's generic, parametric
+# declaration-coverage helper. This replaces the bespoke, hand-authored
+# per-work-item declaration-coverage pattern this item's own CP2
+# (`TestImplementationReviewTwoStageDeclarationCoverage`, above) and
+# `plan-amendment-mechanism` each separately hand-derived from their own
+# registry/declarations data -- the identical mechanical check
+# (checkpoint-declared deliverable paths classify `protected`, never
+# `UnclassifiedPathError`/`excluded`) re-authored twice by hand from data
+# that already exists. Both of those existing tests are left exactly as
+# they are (rewriting another, already-approved work item's own test file
+# is out of this milestone's scope, and CP2's own test predates CP7 in
+# the checkpoint order); every *future* work item's plan calls
+# `assert_declaration_coverage` below instead of re-authoring the check.
+#
+# Precedent, not a second defect (D-Canonical-Review-Data): this is the
+# same "mechanically discovered, never hand-maintained" model
+# `workflow_state_completion_obligations_test.py`'s own
+# `surface_census`/`verifier_census` mechanism already follows -- that
+# census is *computed* from the real module surface each run rather than
+# typed out by a plan author. This helper generalizes the identical idea
+# to per-work-item declaration coverage; it is not a rediscovery of a gap
+# that mechanism has, it is the same pattern applied one level up.
+# ---------------------------------------------------------------------------
+
+
+def _implementation_stage_declaration_pairs(implementation_stage: dict) -> list[tuple[str, bool]]:
+    """Every implementation-stage declaration as `(entry, is_prefix)`
+    pairs -- exact paths (`protected_paths`/`excluded_paths`) and
+    prefixes (`protected_prefixes`/`excluded_prefixes`) alike."""
+    pairs: list[tuple[str, bool]] = []
+    for entry in implementation_stage.get("protected_paths", {}):
+        pairs.append((entry, False))
+    for entry in implementation_stage.get("excluded_paths", {}):
+        pairs.append((entry, False))
+    for entry in implementation_stage.get("protected_prefixes", {}):
+        pairs.append((entry, True))
+    for entry in implementation_stage.get("excluded_prefixes", {}):
+        pairs.append((entry, True))
+    return pairs
+
+
+def _contained_by(excepted_entry: str, excepted_is_prefix: bool,
+                   candidate_entry: str, candidate_is_prefix: bool) -> bool:
+    """Whether `candidate_entry` (an implementation-stage declaration,
+    exact path or prefix alike) is contained by `excepted_entry` (a
+    `plan_stage.excluded_paths`/`excluded_prefixes` entry): equal to it,
+    and itself an exact path, when `excepted_entry` is an exact path --
+    nothing counts as contained under a plan-stage exact path beyond that
+    same exact path, since nothing can be nested beneath a file -- or
+    itself starting with `excepted_entry` when `excepted_entry` is a
+    prefix, exact paths and prefixes alike."""
+    if not excepted_is_prefix:
+        return (not candidate_is_prefix) and candidate_entry == excepted_entry
+    return candidate_entry.startswith(excepted_entry)
+
+
+def implementation_declarations_contained_by(
+    excepted_entry: str, excepted_is_prefix: bool, implementation_stage: dict,
+) -> list[str]:
+    """The complete set of implementation-stage declarations -- exact
+    paths and prefixes, `protected_*`/`excluded_*` alike -- contained by
+    `excepted_entry`, sorted. This is the set `narrowing_exceptions`'
+    exhaustiveness requirement measures a listed entry set against."""
+    return sorted(
+        entry for entry, is_prefix in _implementation_stage_declaration_pairs(implementation_stage)
+        if _contained_by(excepted_entry, excepted_is_prefix, entry, is_prefix)
+    )
+
+
+def find_declaration_symmetry_gaps(plan_stage: dict, implementation_stage: dict) -> tuple[list[str], list[str]]:
+    """`D-Canonical-Review-Data`'s plan-stage/implementation-stage
+    declaration-symmetry check, both directions -- never raises itself,
+    so a caller can assert on the complete failure set at once rather
+    than stopping at the first one found:
+
+    (a) every `implementation_stage.protected_paths`/`protected_prefixes`
+        entry's own literal key must classify under the plan-stage sets
+        (`fingerprint.classify_path`) without raising
+        `UnclassifiedPathError`.
+    (b) every `plan_stage.excluded_paths`/`excluded_prefixes` entry's own
+        literal key must be either (i) classifiable outright under the
+        implementation-stage sets (`fingerprint.classify_path_implementation_stage`),
+        or (ii) named as a key in `plan_stage.narrowing_exceptions`, whose
+        mapped list is non-empty, every listed entry declared at
+        implementation stage and contained by the entry it excepts, and
+        the list exhaustive -- equal to (not merely a subset of) the
+        complete set of implementation-stage declarations contained by
+        that entry (`implementation_declarations_contained_by`).
+        Partial overlap alone, with no `narrowing_exceptions` entry, is
+        never accepted as coverage. A `narrowing_exceptions` key that
+        does not itself equal a real `plan_stage.excluded_paths`/
+        `excluded_prefixes` entry is flagged too, closing the same
+        staleness from the declaration side.
+
+    Returns `(direction_a_gaps, direction_b_gaps)`, each a list of
+    human-readable failure descriptions (empty when that direction is
+    clean)."""
+    protected = frozenset(plan_stage.get("protected_paths", []))
+    excluded_paths = plan_stage.get("excluded_paths", {})
+    excluded_prefixes = plan_stage.get("excluded_prefixes", {})
+    narrowing_exceptions = plan_stage.get("narrowing_exceptions", {})
+
+    impl_protected_paths = implementation_stage.get("protected_paths", {})
+    impl_protected_prefixes = implementation_stage.get("protected_prefixes", {})
+    impl_excluded_paths = implementation_stage.get("excluded_paths", {})
+    impl_excluded_prefixes = implementation_stage.get("excluded_prefixes", {})
+
+    direction_a_gaps: list[str] = []
+    for entry in list(impl_protected_paths) + list(impl_protected_prefixes):
+        try:
+            fingerprint.classify_path(entry, protected, excluded_paths, excluded_prefixes)
+        except fingerprint.UnclassifiedPathError:
+            direction_a_gaps.append(
+                f"implementation_stage entry {entry!r} is not classifiable by any plan_stage set"
+            )
+
+    declared_implementation_entries = {
+        entry for entry, _is_prefix in _implementation_stage_declaration_pairs(implementation_stage)
+    }
+    implementation_prefix_entries = set(impl_protected_prefixes) | set(impl_excluded_prefixes)
+
+    direction_b_gaps: list[str] = []
+    excepted_entries = ([(p, False) for p in excluded_paths]
+                        + [(p, True) for p in excluded_prefixes])
+    for excepted_entry, is_prefix in excepted_entries:
+        try:
+            fingerprint.classify_path_implementation_stage(
+                excepted_entry, impl_protected_paths, impl_protected_prefixes,
+                impl_excluded_paths, impl_excluded_prefixes,
+            )
+            continue  # clause (i): classifiable outright
+        except fingerprint.UnclassifiedPathError:
+            pass
+        # clause (ii): must be named in narrowing_exceptions
+        if excepted_entry not in narrowing_exceptions:
+            direction_b_gaps.append(
+                f"plan_stage entry {excepted_entry!r} is not classifiable by any implementation_stage "
+                f"set and has no narrowing_exceptions entry"
+            )
+            continue
+        listed = narrowing_exceptions[excepted_entry]
+        if not listed:
+            direction_b_gaps.append(
+                f"narrowing_exceptions[{excepted_entry!r}] is empty -- no implementation_stage "
+                f"narrowing declared for it at all"
+            )
+            continue
+        complete = implementation_declarations_contained_by(excepted_entry, is_prefix, implementation_stage)
+        problems: list[str] = []
+        for listed_entry in listed:
+            if listed_entry not in declared_implementation_entries:
+                problems.append(f"{listed_entry!r} is not declared at implementation stage")
+                continue
+            listed_is_prefix = listed_entry in implementation_prefix_entries
+            if not _contained_by(excepted_entry, is_prefix, listed_entry, listed_is_prefix):
+                problems.append(f"{listed_entry!r} is not contained by {excepted_entry!r}")
+        if sorted(listed) != complete:
+            missing = sorted(set(complete) - set(listed))
+            if missing:
+                problems.append(
+                    f"omits {missing!r}, also contained by {excepted_entry!r} (not exhaustive)"
+                )
+        for problem in problems:
+            direction_b_gaps.append(f"narrowing_exceptions[{excepted_entry!r}]: {problem}")
+
+    # A narrowing_exceptions key that does not itself equal a real
+    # plan_stage.excluded_paths/excluded_prefixes entry must fail too.
+    for key in narrowing_exceptions:
+        if key not in excluded_paths and key not in excluded_prefixes:
+            direction_b_gaps.append(
+                f"narrowing_exceptions key {key!r} is not itself a plan_stage.excluded_paths/"
+                f"excluded_prefixes entry"
+            )
+
+    return direction_a_gaps, direction_b_gaps
+
+
+def assert_declaration_coverage(work_item_id: str, repo_root: Path) -> None:
+    """The generic, parametric declaration-coverage assertion
+    `D-Canonical-Review-Data` extracts from this item's own CP2
+    (`TestImplementationReviewTwoStageDeclarationCoverage`) and
+    `plan-amendment-mechanism`'s own separately hand-authored test: reads
+    `<work_item_id>-registry.json` and `<work_item_id>-artifacts.json`
+    straight off disk, then asserts (1) every
+    `implementation_stage.protected_paths`/`protected_prefixes` entry
+    classifies `protected` under the implementation-stage classifier, and
+    (2) both plan-stage/implementation-stage declaration-symmetry
+    directions (`find_declaration_symmetry_gaps`) are clean. A future
+    work item's plan calls this instead of re-authoring the check by
+    hand; CP12 (`workflow-2.5.0`'s own disposable-repository validation)
+    exercises this helper directly for its own synthetic work item rather
+    than hand-writing another copy."""
+    registry_path = repo_root / f"docs/ai-workflow/registry/{work_item_id}-registry.json"
+    registry = json.loads(registry_path.read_text(encoding="utf-8"))
+    if registry.get("work_item_id") != work_item_id:
+        raise AssertionError(
+            f"{registry_path}: registry work_item_id {registry.get('work_item_id')!r} != {work_item_id!r}"
+        )
+
+    artifacts_path = repo_root / fingerprint.artifacts_path_for_work_item(work_item_id)
+    declarations = json.loads(artifacts_path.read_text(encoding="utf-8"))
+    plan_stage = declarations["plan_stage"]
+    implementation_stage = declarations["implementation_stage"]
+
+    impl_protected_paths = implementation_stage.get("protected_paths", {})
+    impl_protected_prefixes = implementation_stage.get("protected_prefixes", {})
+    impl_excluded_paths = implementation_stage.get("excluded_paths", {})
+    impl_excluded_prefixes = implementation_stage.get("excluded_prefixes", {})
+
+    for path in impl_protected_paths:
+        classification = fingerprint.classify_path_implementation_stage(
+            path, impl_protected_paths, impl_protected_prefixes, impl_excluded_paths, impl_excluded_prefixes,
+        )
+        if classification != "protected":
+            raise AssertionError(f"{path}: classifies {classification!r}, expected 'protected'")
+    for prefix in impl_protected_prefixes:
+        sample = prefix + "some_deliverable_file.txt"
+        classification = fingerprint.classify_path_implementation_stage(
+            sample, impl_protected_paths, impl_protected_prefixes, impl_excluded_paths, impl_excluded_prefixes,
+        )
+        if classification != "protected":
+            raise AssertionError(f"{sample}: classifies {classification!r}, expected 'protected'")
+
+    direction_a_gaps, direction_b_gaps = find_declaration_symmetry_gaps(plan_stage, implementation_stage)
+    if direction_a_gaps:
+        raise AssertionError(f"declaration symmetry direction (a) failed: {direction_a_gaps}")
+    if direction_b_gaps:
+        raise AssertionError(f"declaration symmetry direction (b) failed: {direction_b_gaps}")
+
+
+class DeclarationSymmetryHelperTest(unittest.TestCase):
+    """The seventeen required fixtures (`IMPLEMENTATION_REVIEW_TWO_STAGE_PLAN.md`
+    §CP7, revision 41) pinning `find_declaration_symmetry_gaps`'s every
+    documented case, plus the real-corpus before/after check against this
+    item's own live declarations file."""
+
+    # -- direction (a) -----------------------------------------------------
+
+    def test_direction_a_fails_when_implementation_protected_path_unclaimed_by_plan_stage(self):
+        plan_stage = {"protected_paths": [], "excluded_paths": {}, "excluded_prefixes": {}}
+        implementation_stage = {"protected_paths": {"src/x.py": "j"}, "protected_prefixes": {},
+                                 "excluded_paths": {}, "excluded_prefixes": {}}
+        gaps_a, gaps_b = find_declaration_symmetry_gaps(plan_stage, implementation_stage)
+        self.assertEqual(gaps_b, [])
+        self.assertEqual(len(gaps_a), 1)
+        self.assertIn("src/x.py", gaps_a[0])
+
+    # -- direction (b): no coverage at all ----------------------------------
+
+    def test_direction_b_fails_when_plan_excluded_path_has_no_implementation_declaration_at_all(self):
+        plan_stage = {"protected_paths": [], "excluded_paths": {"foo.txt": "j"}, "excluded_prefixes": {}}
+        implementation_stage = {"protected_paths": {}, "protected_prefixes": {},
+                                 "excluded_paths": {}, "excluded_prefixes": {}}
+        gaps_a, gaps_b = find_declaration_symmetry_gaps(plan_stage, implementation_stage)
+        self.assertEqual(gaps_a, [])
+        self.assertEqual(len(gaps_b), 1)
+        self.assertIn("foo.txt", gaps_b[0])
+        self.assertIn("no narrowing_exceptions entry", gaps_b[0])
+
+    def test_direction_b_fails_when_plan_excluded_prefix_is_only_partially_covered_with_no_exception(self):
+        # foo/bar.txt is declared at implementation stage, but the
+        # excepted entry's own literal key ("foo/") still does not
+        # classify -- partial overlap alone is never accepted.
+        plan_stage = {"protected_paths": [], "excluded_paths": {}, "excluded_prefixes": {"foo/": "j"}}
+        implementation_stage = {"protected_paths": {}, "protected_prefixes": {},
+                                 "excluded_paths": {"foo/bar.txt": "j"}, "excluded_prefixes": {}}
+        gaps_a, gaps_b = find_declaration_symmetry_gaps(plan_stage, implementation_stage)
+        self.assertEqual(gaps_a, [])
+        self.assertEqual(len(gaps_b), 1)
+        self.assertIn("foo/", gaps_b[0])
+        self.assertIn("no narrowing_exceptions entry", gaps_b[0])
+
+    def test_direction_b_fails_on_pre_cp7_live_declarations_file(self):
+        # The live instance of the partial-overlap case above: pre-CP7,
+        # .workflow-manager/installation.json is already declared
+        # implementation-stage excluded, but no narrowing_exceptions
+        # entry yet narrows plan_stage.excluded_prefixes['.workflow-manager/']
+        # to it. Pinned against CP7's own start commit, never against a
+        # moving HEAD.
+        cp7_start_commit = "2af606ac8b30a3db24d77e9f2429eebf6a212aaf"
+        raw = subprocess.run(
+            ["git", "show", f"{cp7_start_commit}:docs/ai-workflow/registry/implementation-review-two-stage-artifacts.json"],
+            cwd=Path(__file__).resolve().parents[5], capture_output=True, text=True, check=True,
+        ).stdout
+        declarations = json.loads(raw)
+        gaps_a, gaps_b = find_declaration_symmetry_gaps(
+            declarations["plan_stage"], declarations["implementation_stage"],
+        )
+        self.assertEqual(gaps_a, [])
+        self.assertTrue(any(".workflow-manager/" in gap for gap in gaps_b), gaps_b)
+
+    # -- direction (b): narrowing_exceptions present but malformed ----------
+
+    def test_direction_b_fails_when_narrowing_exceptions_value_is_empty(self):
+        plan_stage = {"protected_paths": [], "excluded_paths": {},
+                       "excluded_prefixes": {"foo/": "j"},
+                       "narrowing_exceptions": {"foo/": []}}
+        implementation_stage = {"protected_paths": {}, "protected_prefixes": {},
+                                 "excluded_paths": {}, "excluded_prefixes": {}}
+        gaps_a, gaps_b = find_declaration_symmetry_gaps(plan_stage, implementation_stage)
+        self.assertEqual(gaps_a, [])
+        self.assertEqual(len(gaps_b), 1)
+        self.assertIn("is empty", gaps_b[0])
+
+    def test_direction_b_fails_when_narrowing_exceptions_listed_path_is_undeclared(self):
+        plan_stage = {"protected_paths": [], "excluded_paths": {},
+                       "excluded_prefixes": {"foo/": "j"},
+                       "narrowing_exceptions": {"foo/": ["foo/bar.txt"]}}
+        implementation_stage = {"protected_paths": {}, "protected_prefixes": {},
+                                 "excluded_paths": {}, "excluded_prefixes": {}}
+        gaps_a, gaps_b = find_declaration_symmetry_gaps(plan_stage, implementation_stage)
+        self.assertEqual(gaps_a, [])
+        self.assertEqual(len(gaps_b), 1)
+        self.assertIn("not declared at implementation stage", gaps_b[0])
+
+    def test_direction_b_fails_when_narrowing_exceptions_listed_path_is_not_contained(self):
+        plan_stage = {"protected_paths": [], "excluded_paths": {},
+                       "excluded_prefixes": {"foo/": "j"},
+                       "narrowing_exceptions": {"foo/": ["bar/baz.txt"]}}
+        implementation_stage = {"protected_paths": {}, "protected_prefixes": {},
+                                 "excluded_paths": {"bar/baz.txt": "j"}, "excluded_prefixes": {}}
+        gaps_a, gaps_b = find_declaration_symmetry_gaps(plan_stage, implementation_stage)
+        self.assertEqual(gaps_a, [])
+        self.assertEqual(len(gaps_b), 1)
+        self.assertIn("not contained by", gaps_b[0])
+
+    def test_direction_b_fails_when_narrowing_exceptions_list_omits_a_contained_exact_child(self):
+        plan_stage = {"protected_paths": [], "excluded_paths": {},
+                       "excluded_prefixes": {"foo/": "j"},
+                       "narrowing_exceptions": {"foo/": ["foo/a.txt"]}}
+        implementation_stage = {"protected_paths": {}, "protected_prefixes": {},
+                                 "excluded_paths": {"foo/a.txt": "j", "foo/b.txt": "j"}, "excluded_prefixes": {}}
+        gaps_a, gaps_b = find_declaration_symmetry_gaps(plan_stage, implementation_stage)
+        self.assertEqual(gaps_a, [])
+        self.assertEqual(len(gaps_b), 1)
+        self.assertIn("not exhaustive", gaps_b[0])
+        self.assertIn("foo/b.txt", gaps_b[0])
+
+    def test_direction_b_fails_when_narrowing_exceptions_list_omits_a_contained_prefix_child(self):
+        # The prefix twin of the exact-child exhaustiveness fixture above:
+        # exhaustiveness is measured against the complete set (exact
+        # paths and prefixes alike), never the exact-only subset.
+        plan_stage = {"protected_paths": [], "excluded_paths": {},
+                       "excluded_prefixes": {"foo/": "j"},
+                       "narrowing_exceptions": {"foo/": ["foo/a.txt"]}}
+        implementation_stage = {"protected_paths": {}, "protected_prefixes": {},
+                                 "excluded_paths": {"foo/a.txt": "j"},
+                                 "excluded_prefixes": {"foo/sub/": "j"}}
+        gaps_a, gaps_b = find_declaration_symmetry_gaps(plan_stage, implementation_stage)
+        self.assertEqual(gaps_a, [])
+        self.assertEqual(len(gaps_b), 1)
+        self.assertIn("not exhaustive", gaps_b[0])
+        self.assertIn("foo/sub/", gaps_b[0])
+
+    def test_direction_b_live_regression_exact_path_addition_without_updating_the_exception(self):
+        # The exact-path live-regression fixture: a state that passes
+        # today must fail the moment a further implementation-stage exact
+        # path lands under an already-excepted entry without that
+        # entry's own narrowing_exceptions list being updated to match.
+        plan_stage = {"protected_paths": [], "excluded_paths": {},
+                       "excluded_prefixes": {"foo/": "j"},
+                       "narrowing_exceptions": {"foo/": ["foo/a.txt", "foo/b.txt"]}}
+        good_implementation_stage = {"protected_paths": {}, "protected_prefixes": {},
+                                      "excluded_paths": {"foo/a.txt": "j", "foo/b.txt": "j"},
+                                      "excluded_prefixes": {}}
+        gaps_a, gaps_b = find_declaration_symmetry_gaps(plan_stage, good_implementation_stage)
+        self.assertEqual((gaps_a, gaps_b), ([], []))
+
+        regressed_implementation_stage = copy.deepcopy(good_implementation_stage)
+        regressed_implementation_stage["excluded_paths"]["foo/c.txt"] = "j"
+        gaps_a, gaps_b = find_declaration_symmetry_gaps(plan_stage, regressed_implementation_stage)
+        self.assertEqual(gaps_a, [])
+        self.assertEqual(len(gaps_b), 1)
+        self.assertIn("foo/c.txt", gaps_b[0])
+
+    def test_direction_b_live_regression_prefix_addition_without_updating_the_exception(self):
+        # The prefix twin of the live-regression fixture above.
+        plan_stage = {"protected_paths": [], "excluded_paths": {},
+                       "excluded_prefixes": {"foo/": "j"},
+                       "narrowing_exceptions": {"foo/": ["foo/a.txt", "foo/sub/"]}}
+        good_implementation_stage = {"protected_paths": {}, "protected_prefixes": {},
+                                      "excluded_paths": {"foo/a.txt": "j"},
+                                      "excluded_prefixes": {"foo/sub/": "j"}}
+        gaps_a, gaps_b = find_declaration_symmetry_gaps(plan_stage, good_implementation_stage)
+        self.assertEqual((gaps_a, gaps_b), ([], []))
+
+        regressed_implementation_stage = copy.deepcopy(good_implementation_stage)
+        regressed_implementation_stage["excluded_prefixes"]["foo/sub2/"] = "j"
+        gaps_a, gaps_b = find_declaration_symmetry_gaps(plan_stage, regressed_implementation_stage)
+        self.assertEqual(gaps_a, [])
+        self.assertEqual(len(gaps_b), 1)
+        self.assertIn("foo/sub2/", gaps_b[0])
+
+    def test_direction_b_fails_when_narrowing_exceptions_key_is_not_a_real_plan_stage_entry(self):
+        plan_stage = {"protected_paths": [], "excluded_paths": {"real.txt": "j"}, "excluded_prefixes": {},
+                       "narrowing_exceptions": {"fake/": ["fake/child.txt"]}}
+        implementation_stage = {"protected_paths": {}, "protected_prefixes": {},
+                                 "excluded_paths": {"fake/child.txt": "j", "real.txt": "j"}, "excluded_prefixes": {}}
+        gaps_a, gaps_b = find_declaration_symmetry_gaps(plan_stage, implementation_stage)
+        self.assertEqual(gaps_a, [])
+        self.assertEqual(len(gaps_b), 1)
+        self.assertIn("not itself a plan_stage.excluded_paths/excluded_prefixes entry", gaps_b[0])
+
+    # -- direction (b): passing cases ---------------------------------------
+
+    def test_direction_b_passes_for_the_declared_workflow_manager_narrowing_exception(self):
+        plan_stage = {"protected_paths": [], "excluded_paths": {},
+                       "excluded_prefixes": {".workflow-manager/": "j"},
+                       "narrowing_exceptions": {".workflow-manager/": [".workflow-manager/installation.json"]}}
+        implementation_stage = {"protected_paths": {}, "protected_prefixes": {},
+                                 "excluded_paths": {".workflow-manager/installation.json": "j"},
+                                 "excluded_prefixes": {}}
+        self.assertEqual(find_declaration_symmetry_gaps(plan_stage, implementation_stage), ([], []))
+
+    def test_direction_b_passes_when_plan_entry_is_fully_covered_without_needing_an_exception(self):
+        plan_stage = {"protected_paths": [], "excluded_paths": {"tools/build_release.py": "j"},
+                       "excluded_prefixes": {}}
+        implementation_stage = {"protected_paths": {"tools/build_release.py": "j"}, "protected_prefixes": {},
+                                 "excluded_paths": {}, "excluded_prefixes": {}}
+        self.assertEqual(find_declaration_symmetry_gaps(plan_stage, implementation_stage), ([], []))
+
+    def test_direction_b_passes_when_narrowing_exception_names_a_contained_prefix_not_an_exact_path(self):
+        # A plan-stage entry whose only implementation-stage narrowing is
+        # itself a prefix -- contained by, not equal to, the excepted
+        # entry -- must be representable and pass.
+        plan_stage = {"protected_paths": [], "excluded_paths": {},
+                       "excluded_prefixes": {"foo/": "j"},
+                       "narrowing_exceptions": {"foo/": ["foo/sub/"]}}
+        implementation_stage = {"protected_paths": {}, "protected_prefixes": {},
+                                 "excluded_paths": {}, "excluded_prefixes": {"foo/sub/": "j"}}
+        self.assertEqual(find_declaration_symmetry_gaps(plan_stage, implementation_stage), ([], []))
+
+    # -- real corpus ---------------------------------------------------------
+
+    def test_post_cp7_live_declarations_file_passes_both_directions_complete(self):
+        repo_root = Path(__file__).resolve().parents[5]
+        artifacts_path = repo_root / "docs/ai-workflow/registry/implementation-review-two-stage-artifacts.json"
+        declarations = json.loads(artifacts_path.read_text(encoding="utf-8"))
+        gaps_a, gaps_b = find_declaration_symmetry_gaps(
+            declarations["plan_stage"], declarations["implementation_stage"],
+        )
+        self.assertEqual(gaps_a, [], gaps_a)
+        self.assertEqual(gaps_b, [], gaps_b)
+
+    def test_assert_declaration_coverage_passes_for_this_work_item(self):
+        repo_root = Path(__file__).resolve().parents[5]
+        assert_declaration_coverage("implementation-review-two-stage", repo_root)
+
+
 if __name__ == "__main__":
     unittest.main()

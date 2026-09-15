@@ -26,8 +26,71 @@ development.
 
 ## Current checkpoint
 
-**CP1-CP6 complete** (`implementation-review-two-stage`, 13 checkpoints
-total). Next: **CP7** (review-scalability branch 2, depends on CP2).
+**CP1-CP7 complete** (`implementation-review-two-stage`, 13 checkpoints
+total). Next: **CP8** (review-scalability branch 3, depends on CP1).
+
+CP7 delivered `D-Canonical-Review-Data` (`§2.5`):
+
+- `migration/overlays/2.5.0/payload/scripts/workflow_state_test.py`: one
+  generic, parametric declaration-coverage helper --
+  `find_declaration_symmetry_gaps` (the plan-stage/implementation-stage
+  declaration-symmetry check, both directions, `narrowing_exceptions`
+  included) and `assert_declaration_coverage` (the full per-work-item
+  check: every `implementation_stage.protected_paths`/`protected_prefixes`
+  entry classifies `protected`, plus both symmetry directions) --
+  replacing the bespoke, hand-authored pattern this item's own CP2 and
+  `plan-amendment-mechanism` each separately hand-derived from their own
+  registry/declarations data. Both existing bespoke tests are left as-is
+  (out of this milestone's scope to retrofit an already-approved work
+  item's own test file); a future work item's plan calls the shared
+  helper instead. The module docstring records
+  `workflow_state_completion_obligations_test.py`'s own
+  `surface_census`/`verifier_census` mechanism as this helper's own
+  precedent (already mechanically discovered, never a second defect),
+  per the plan's explicit instruction not to re-flag it.
+- `DeclarationSymmetryHelperTest`: the seventeen required fixtures
+  (revision 41's own list) pinning every documented case -- direction
+  (a) failure; direction (b) failure with no coverage at all, with
+  partial coverage and no exception, and against this item's own live
+  pre-CP7 declarations file (pinned to CP7's own start commit,
+  `2af606ac8b30a3db24d77e9f2429eebf6a212aaf`); `narrowing_exceptions`
+  malformed in every documented way (empty value, undeclared listed
+  path, listed path not contained, omits a contained exact child, omits
+  a contained prefix child, a live-regression addition of each shape
+  without updating the exception, and a key that is not itself a real
+  plan-stage entry); the passing cases (the declared
+  `.workflow-manager/` exception, a plan-stage entry fully covered
+  without needing an exception, and a narrowing exception naming a
+  contained prefix rather than an exact path); and the real-corpus
+  check that this item's own post-CP7 declarations file passes both
+  directions complete, plus `assert_declaration_coverage` itself
+  against this same live work item.
+- `docs/ai-workflow/registry/implementation-review-two-stage-artifacts.json`:
+  CP7's own one write outside `migration/` (P-exc via
+  `plan_stage.excluded_prefixes['docs/ai-workflow/registry/']`, I-prot as
+  an `implementation_stage.protected_paths` exact entry -- the
+  declarations file's own self-protection): added
+  `plan_stage.narrowing_exceptions['.workflow-manager/'] =
+  ['.workflow-manager/installation.json']`, restating as data what
+  revision 36 stated only in prose. Recomputing
+  `compute_review_content_id_plan_stage`'s own projection
+  (`sorted(protected_paths)`/`sorted(excluded_paths)`/
+  `sorted(excluded_prefixes)`) before and after this edit confirms it is
+  byte-for-byte unchanged -- the new key sits outside that projection, so
+  this edit does not breach §2.7/REQ-12's forward-only rule and does not
+  stale the existing `plan_approval`.
+
+Verification run for CP7 (narrowest relevant check, not the full suite):
+```
+PYTHONPATH=migration/overlays/2.5.0/payload/scripts:scripts \
+  python3 -m unittest workflow_state_test.DeclarationSymmetryHelperTest -v
+```
+Result: 17/17 passed. A full `workflow_state_test` run under the same
+`PYTHONPATH` trick (811 tests, up from CP6's 794) shows only the same 3
+pre-existing errors that trick itself is known to produce outside the
+composed release tree (`TestGlobalLockOrderItem372h.setUpClass` and
+`TestCanonicalStateSerialization`'s two dry-run-path-relative tests),
+unaffected by this checkpoint's changes.
 
 CP6 delivered `D-Review-Material-Lifecycle` (`§2.4`), in
 `migration/overlays/2.5.0/payload/`:
