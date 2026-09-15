@@ -1,7 +1,7 @@
 ---
 description: Independently review the current implementation bundle for the active (or named) work item. For a "1"/"2.1" item, advisory only (writes REVIEW_FEEDBACK.md; never WORKFLOW_STATE.json). For a "2.2" item at AWAITING_LOCAL_IMPLEMENTATION_REVIEW, this IS the authoritative LOCAL_MODEL_IMPLEMENTATION_REVIEW stage writer (workflow-2.5.0, D-Implementation-Review-Stages).
 argument-hint: "[work-item-id]"
-state_writer: conditional -- false for "1"/"2.1" (or a "2.2" item outside AWAITING_LOCAL_IMPLEMENTATION_REVIEW); true for a "2.2" item at AWAITING_LOCAL_IMPLEMENTATION_REVIEW
+state_writer: true
 review-subject: bundle
 ---
 
@@ -18,6 +18,20 @@ workflow_state.record_local_implementation_review(state, ...)`), applied to
 freshly re-read state rather than to a snapshot taken before the lock was
 acquired. The advisory branch (steps 1-8 below, unchanged) writes no state at
 all.
+
+**Why the frontmatter declares `state_writer: true` even though only one
+branch writes** (workflow-2.5.0): `discover_state_writers`' declaration
+vocabulary is exactly `true`/`false`/`"publisher"` (item 357) and a missing
+or unparseable value fails closed rather than defaulting -- there is no
+"conditional" value, and inventing one would make every repository's own
+`WFO-STATE-SERIALIZATION` conformance `UNRESOLVABLE`. `true` is the correct
+member of that closed set here: this file really can write
+`WORKFLOW_STATE.json`, so it must be inventoried as a writer, and `false`
+would be doubly wrong (the non-writer check forbids a declared non-writer
+from calling `state_transaction(` at all). The branch that does and does not
+write is stated in `description:` above and enforced by step 0's own dual-mode
+dispatch -- the declaration is a census membership, never a claim that every
+invocation writes.
 
 0. **Dual-mode branch** (workflow-2.5.0, `D-Implementation-Review-Stages`;
    round-7 plan-review-inheritance widening applied identically here): resolve

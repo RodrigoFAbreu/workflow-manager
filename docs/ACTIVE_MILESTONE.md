@@ -26,10 +26,149 @@ development.
 
 ## Current checkpoint
 
-**CP1-CP12 complete** (`implementation-review-two-stage`, 13 checkpoints
-total). Next: **CP13** (full regression -- `python3 tests/run_all.py` --
-plus downgrade-posture documentation and the four previously-deferred
-defects' final disposition, mirroring `§8`; depends on CP12).
+**CP1-CP13 complete** (`implementation-review-two-stage`, 13 checkpoints
+total -- every registry checkpoint is now `COMPLETE`). `complete_checkpoint`
+therefore moved `phase` from `IMPLEMENTING` to
+`SELF_REVIEWING_IMPLEMENTATION` in the same write that completed CP13. Next:
+one more `/milestone-implement` invocation, which runs the full-milestone
+self-review and generates the implementation-review bundle.
+
+CP13 delivered the full regression and the downgrade posture:
+
+- **`CLAUDE.md`'s "Downgrade posture" paragraph** (plan-stage excluded,
+  implementation-stage protected -- both as exact paths) gains `2.5.0`'s own
+  vocabulary beside `2.4.0`'s `NEEDS_REVALIDATION`/`SUPERSEDED`: a
+  `work_items[...]` entry that has ever held `governing_workflow_version:
+  "2.2"`, either of the two new persisted phases
+  (`AWAITING_LOCAL_IMPLEMENTATION_REVIEW`,
+  `AWAITING_MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW`), or an
+  `implementation_review_stages` ledger, plus the activation-trailer
+  direction: `2.5.0`'s version-aware event model reports a
+  `Workflow-Rollback: 2.2` repository *activated* (its resolved destination
+  is `"2.1"`, not `"1"`), while every pre-`2.5.0`, version-blind
+  `is_activated` answers *not activated* on that same unchangeable history
+  -- a silent wrong answer, not a refusal, which is why the paragraph names
+  it. (`2.5.0`'s own fail-closed miss rule -- an unresolvable
+  `Workflow-Rollback` value reports activated -- is stated there too, so the
+  posture and `§2.2`'s rule agree without restating the mechanism.)
+- **The four previously-deferred defects' final disposition**, written into
+  each defect's own `docs/defects/*.md` record and matching `§8` exactly:
+  `v2.3.1-001` fixed (CP9), `v2.3.1-003` fixed (CP9), `v2.4.0-001`'s
+  implementation-stage symmetry widened (CP9, still not retroactively
+  repaired), `v2.4.0-002` reconsidered and still deferred in full (CP10),
+  including the optional `IMPL10-O1` mitigation, per `§9`'s resolved
+  decision 3. Never into this plan document itself: `§8` already carries the
+  disposition in full, and `IMPLEMENTATION_REVIEW_TWO_STAGE_PLAN.md` is this
+  item's own `plan_stage.protected_paths` entry, which no checkpoint writes
+  (revision 36, `LOCAL_MODEL_PLAN_REVIEW` round 36, finding B1). These four
+  writes are deliberately non-review-bound mirrors of `§8`'s
+  already-reviewed text -- `docs/defects/` is `excluded_prefixes` at *both*
+  stages, confirmed against this item's own
+  `implementation-review-two-stage-artifacts.json` -- so `§8` stays the one
+  normative, already-approved disposition and these records are its copy.
+
+  **One of the four is deliberately not staged.**
+  `docs/defects/v2.3.1-003-plan-approval-requires-precommitted-state-file.md`
+  has been an *untracked* working-tree file since before this milestone
+  began -- `§7` names it by path as "prior work this milestone must not
+  touch," and CP1-CP12 each left it untracked while committing around it
+  (`.ai-review/runtime/WORKTREE_IDENTITY.json`'s own
+  `expected_dirty_paths_by_work_item` entry for this item records it as
+  expected residue, which is how the dirty-resume rule tolerated it at every
+  checkpoint). Its `2.5.0` disposition section is written, and it stays in
+  the working tree exactly where it has always been. Adding a file that
+  predates the milestone to Git history is not something `CP13`'s registry
+  row asks for -- it asks for the disposition to be recorded in the record,
+  which it now is -- and it is the one irreversible direction here, so it is
+  left for the user to decide. `docs/defects/v2.4.0-003-amendment-diff-
+  anchored-at-head-is-always-empty.md` (this milestone's own
+  `LOCAL_MODEL_PLAN_REVIEW` round 35 write-up, not one of the four) is
+  untracked for the same reason and is likewise untouched.
+
+**Two failures the full regression surfaced, both resolved here** -- one a
+genuine shipped defect, one working-tree pollution.
+No checkpoint in this milestone recorded a full `tests/run_all.py` run --
+every recorded verification was `--fast` or narrower, by design, with the
+full-regression obligation assigned to this checkpoint. Run here for the
+first time, it failed with two failures in `test_conformance_suite.py`
+(`test_bootstrap_e2e.py` and CP12's own disposable-repo suite were green):
+
+- `TestOverlayStateWriterClosure.test_every_overlay_writer_surface_file_declares_state_writer`
+  failed on `2.5.0:.claude/commands/review-implementation.md` -- "missing or
+  contradictory state_writer declaration (found [])". CP11 had reclassified
+  that command's frontmatter from `state_writer: false` to `state_writer:
+  conditional -- false for "1"/"2.1" ...; true for a "2.2" item at
+  AWAITING_LOCAL_IMPLEMENTATION_REVIEW`. **`conditional` is not in the
+  declaration vocabulary.** `discover_state_writers`' closed set is exactly
+  `true`/`false`/`"publisher"` (item 357, `WORKFLOW_V2_PLAN.md`'s own
+  D-Completion-Obligations text), and a value outside it parses to nothing
+  and **fails closed** -- so every `2.5.0` repository's own
+  `WFO-STATE-SERIALIZATION` conformance would have returned `FAIL`/
+  `UNRESOLVABLE`, and `complete_work_item` with it. Fixed to `state_writer:
+  true`, the only admissible member for this file: it really can write
+  `WORKFLOW_STATE.json` (so it must be inventoried as a writer, and the
+  writer check that a declared writer names `state_transaction`/`state_lock`
+  passes), and `false` would be doubly wrong, since the non-writer check
+  forbids a declared non-writer from calling `state_transaction(` at all.
+  The branch-dependence is not lost -- it is stated in the command's own
+  `description:` frontmatter, in a new "Why the frontmatter declares
+  `state_writer: true`" paragraph in its body, and in the operator
+  reference's `/prepare-review` entry, none of which the machine-read value
+  was ever the right place for. Widening the vocabulary instead was rejected
+  as an architecture change to a frozen mechanism that would also require
+  editing this repository's own *installed* `scripts/workflow_state.py`,
+  which is what `tests/test_conformance_suite.py` imports the parser from.
+  Sites: the overlay's `review-implementation.md`,
+  `workflow_integration_test.py` (the `state_writer: conditional` assertion,
+  its `_GOLDEN_COMMAND_FILE_SHA256` entry, and
+  `test_the_state_writer_false_claim_matches_the_frontmatter`'s docstring --
+  that test's own assertions were already correct and are unchanged), and
+  `WORKFLOW_V2_1_OPERATOR_REFERENCE.md`'s `/prepare-review` entry.
+  `distribution/workflow/2.5.0/` rebuilt; `--check` reproduces byte-for-byte.
+- `TestAuthoredReleaseOverlayDelta.test_build_release_check_reproduces_2_4_0`
+  failed with `extra: payload/scripts/__pycache__/*.pyc`. Not a code defect:
+  stale bytecode caches left in `distribution/workflow/2.4.0/payload/scripts/`,
+  `distribution/workflow/2.5.0/payload/scripts/` and
+  `migration/overlays/2.5.0/payload/scripts/` by earlier checkpoints' own
+  verification runs -- CP12's recorded `cd distribution/workflow/2.5.0/
+  payload/scripts && python3 workflow_state_test.py` and CP5/CP9/CP12's
+  `PYTHONPATH=migration/overlays/2.5.0/payload/scripts` invocations are the
+  direct causes. They are gitignored, so they never entered history, but
+  `tools/build_release.py --check` walks the filesystem rather than the
+  index and counts them as stray files. Removed.
+  `tools/build_release.py` itself is deliberately **not** changed to ignore
+  them: it is this item's `implementation_stage.protected_paths` entry that
+  the plan explicitly declines to modify ("would require unauthorized
+  build_release.py changes"). Worth knowing for the next release: any ad hoc
+  `python3` run pointed at a payload `scripts/` directory re-creates them and
+  re-breaks `--check` until they are cleared.
+
+Verification for CP13 (this checkpoint's own narrowest relevant check *is*
+the full regression -- that is its deliverable):
+```
+python3 tests/run_all.py                                                  # before the two fixes
+python3 tools/build_release.py --overlay migration/overlays/2.5.0
+python3 tools/build_release.py --overlay migration/overlays/2.5.0 --check
+cd tests && python3 -m unittest -v \
+  test_conformance_suite.TestAuthoredReleaseOverlayDelta \
+  test_conformance_suite.TestOverlayStateWriterClosure \
+  test_conformance_suite.TestAuthoredReleaseIsSelfConsistent \
+  test_conformance_suite.TestAuthoredReleaseCiTemplateSuiteNames \
+  test_conformance_suite.TestPortabilityExceptions250RequiredEmptyEntry
+python3 tests/run_all.py                                                  # after
+```
+Result: the first full run failed with exactly the two failures above --
+`test_conformance_suite.py` `FAILED (failures=2)` after 646.8s over 40
+tests, with `test_bootstrap_e2e.py` (319.5s) and
+`test_implementation_review_two_stage_disposable_repo.py` (11.2s) green.
+After both fixes: the release build succeeds and `--check` confirms
+byte-for-byte reproduction; the five narrow conformance classes are 11/11
+green; and the **full `python3 tests/run_all.py` is green, 11/11 suites,
+exit 0** (`test_conformance_suite.py` 639.5s, `test_bootstrap_e2e.py`
+319.3s, the disposable-repo suite 11.2s, the eight fast suites ~8s), with no
+`__pycache__` re-created under any release tree by the run itself and
+`--check` still clean afterwards. This is the first end-to-end green full
+regression of the milestone.
 
 CP12 delivered disposable-repository functional validation, in
 `tests/test_implementation_review_two_stage_disposable_repo.py` (new;
@@ -685,9 +824,15 @@ plan approval `CURRENT`, both `LOCAL_MODEL_PLAN_REVIEW` (round 42) and
 
 ## Next action
 
-Continue `/milestone-implement` to implement CP13 (full regression and
-downgrade posture, the final checkpoint), one checkpoint per invocation
-(`workflow-2.1` resumable single-checkpoint session model).
+All 13 checkpoints are `COMPLETE` and `complete_checkpoint` moved the phase
+to `SELF_REVIEWING_IMPLEMENTATION` in the same write that completed CP13.
+Run `/milestone-implement` once more: per the `workflow-2.1` resumable
+single-checkpoint session model this command never crosses the
+checkpoint-vs-wrap-up boundary in one invocation, so the next invocation
+resolves `NO_CHECKPOINT`, performs the (now no-op)
+`enter_self_reviewing_implementation` call, reviews the full milestone diff,
+runs the required verification, and generates the implementation-review
+bundle at `AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW`.
 
 ## Functional review checklist
 

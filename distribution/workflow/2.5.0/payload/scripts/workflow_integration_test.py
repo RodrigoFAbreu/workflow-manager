@@ -430,10 +430,16 @@ class TestReviewImplementationCommandStaticConformance(unittest.TestCase):
     def test_frontmatter_has_description_and_argument_hint(self):
         self.assertIn("description:", self.text)
         self.assertIn("argument-hint:", self.text)
-        # workflow-2.5.0: widened from an unconditional `false` to
-        # `conditional` -- true for a "2.2" item at
-        # AWAITING_LOCAL_IMPLEMENTATION_REVIEW, false otherwise.
-        self.assertIn("state_writer: conditional", self.text)
+        # workflow-2.5.0: reclassified from `false` to `true` -- this
+        # command is now the authoritative LOCAL_MODEL_IMPLEMENTATION_REVIEW
+        # stage writer for a "2.2" item at
+        # AWAITING_LOCAL_IMPLEMENTATION_REVIEW, so it belongs in
+        # `discover_state_writers`' writer census. The declaration
+        # vocabulary is the closed set `true`/`false`/`"publisher"` (item
+        # 357) -- a "conditional" value is unparseable and fails closed, so
+        # the branch-dependence is documented in `description:` and the
+        # command body instead, never in the machine-read value.
+        self.assertIn("state_writer: true", self.text)
         self.assertIn("review-subject: bundle", self.text)
 
     def test_states_model_independence(self):
@@ -1008,7 +1014,15 @@ _GOLDEN_COMMAND_FILE_SHA256 = {
     # values, immediately before the write -- so step 6's "hard
     # precondition" wording is now actually enforced -- intentional
     # content change.
-    "review-implementation.md": "536746de9af783e64b0d585ae70c87262495137da7a9ca7a7f3bb77a35180abf",
+    #
+    # review-implementation.md further updated, workflow-2.5.0 CP11/CP13:
+    # the "2.2" authoritative LOCAL_MODEL_IMPLEMENTATION_REVIEW branch and
+    # its State-writer discipline paragraph, with the frontmatter
+    # declaration reclassified `false` -> `true` (CP13: CP11 had written an
+    # unparseable `conditional` value, which `discover_state_writers` fails
+    # closed on -- see that paragraph's own "Why the frontmatter declares
+    # state_writer: true" note) -- intentional content change.
+    "review-implementation.md": "3d1820870401c53ddf2057cf09eda97d66239e4ae9375ffe6400fb22619ccaf6",
     # review-functional.md: new, workflow-v2-3 CP2 -- the first recorded
     # hash, not a change.
     #
@@ -6505,9 +6519,11 @@ class TestOperatorReferenceMatchesReality(unittest.TestCase):
     def test_the_state_writer_false_claim_matches_the_frontmatter(self):
         """Finding `A3`: `/prepare-review` was called "the only command with
         `state_writer: false`". There were three -- `workflow-2.5.0`
-        widened `/review-implementation`'s own frontmatter from an
-        unconditional `false` to `conditional`, so exactly two remain
-        unconditional."""
+        reclassified `/review-implementation`'s own frontmatter from
+        `false` to `true` (it is the authoritative
+        `LOCAL_MODEL_IMPLEMENTATION_REVIEW` stage writer for a `"2.2"` item
+        at `AWAITING_LOCAL_IMPLEMENTATION_REVIEW`), so exactly two
+        remain."""
         stems = _declared_state_writer_false()
         self.assertEqual(stems, {"prepare-review", "review-functional"})
         text = _operator_reference_text()

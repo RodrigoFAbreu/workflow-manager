@@ -686,13 +686,17 @@ test fails and is authoritative about which one moved.
   unconditionally declaring `state_writer: false`; the other is the
   report-only review command `/review-functional` (writes nothing at all).
   `/review-implementation` (`workflow-2.5.0`) is no longer among them: its
-  frontmatter now declares `state_writer: conditional` -- unconditionally
-  `false` writes `REVIEW_FEEDBACK.md` only, as before, for a `"1"`/`"2.1"`
-  item or a `"2.2"` item outside `AWAITING_LOCAL_IMPLEMENTATION_REVIEW`, but
-  `true` for a `"2.2"` item at `AWAITING_LOCAL_IMPLEMENTATION_REVIEW`, where
-  it is the authoritative `LOCAL_MODEL_IMPLEMENTATION_REVIEW` stage writer.
-  `/review-plan` is *not* one of them either: it records a ledger stage and
-  a phase, so it declares `state_writer: true` unconditionally.
+  frontmatter now declares `state_writer: true`, because for a `"2.2"` item
+  at `AWAITING_LOCAL_IMPLEMENTATION_REVIEW` it is the authoritative
+  `LOCAL_MODEL_IMPLEMENTATION_REVIEW` stage writer. It still writes
+  `REVIEW_FEEDBACK.md` and nothing else, exactly as before, for a
+  `"1"`/`"2.1"` item or a `"2.2"` item outside that phase -- the declaration
+  is membership in `discover_state_writers`' writer census, whose vocabulary
+  is the closed set `true`/`false`/`"publisher"` (a missing or unparseable
+  value fails closed, so there is no "conditional" to declare), never a claim
+  that every invocation writes. `/review-plan` is *not* one of them either:
+  it records a ledger stage and a phase, so it declares `state_writer: true`
+  on every branch it has.
 - **Does**: writes the author-side bundle files and runs
   `scripts/prepare-ai-review.sh <base-sha> <stage> [work-item-id]`.
 - **Writes**: bundle files only. No state, no commits.

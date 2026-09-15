@@ -9,7 +9,7 @@
   "provenance": {
     "origin": "authored",
     "base_release": "2.4.0",
-    "overlay_commit": "36092c5e81380671b92aca35021b4fac81bf7f58"
+    "overlay_commit": "f895bf0d736bd28845785dd7220b2be16df4dfdf"
   },
   "categories": {
     "distribution": "Canonical Workflow implementation. Copied byte-for-byte into the payload and installed into every managed target repository.",
@@ -238,12 +238,12 @@
       "category": "distribution",
       "rule": "^\\.claude/commands/review-implementation\\.md$",
       "rationale": "Gains a \"2.2\" authoritative branch (phase guard AWAITING_LOCAL_IMPLEMENTATION_REVIEW, ledger write plus phase transition on APPROVE/REVISE); the existing \"1\"/\"2.1\" advisory branch stays byte-unchanged (D-Implementation-Review-Stages, CP4). Preserves the base release's own distribution category for this path.",
-      "sha256": "536746de9af783e64b0d585ae70c87262495137da7a9ca7a7f3bb77a35180abf",
-      "size": 30292,
+      "sha256": "3d1820870401c53ddf2057cf09eda97d66239e4ae9375ffe6400fb22619ccaf6",
+      "size": 31038,
       "executable": false,
       "overlay_delta": {
         "base_sha256": "a017359a961ac5dc3e9cee1c3c2f8265e38f924f1af2cdbe984b381f79f4de6a",
-        "diff_sha256": "992609cd9f0bf96c17ac70c09d039379348602fe275fb9f35828c07af1c008be"
+        "diff_sha256": "00eee5540ce38048ab18447738890d8cb2e59c3b059a0d8475c98566e0bbac97"
       }
     },
     {
@@ -340,12 +340,12 @@
       "category": "distribution",
       "rule": "^docs/ai-workflow/WORKFLOW_V2_1_OPERATOR_REFERENCE\\.md$",
       "rationale": "Persisted-phases/writer tables, command count and the new /record-manual-implementation-review section, widened for the \"2.2\" implementation-review stages (D-Implementation-Review-Stages, CP1/CP4).",
-      "sha256": "4247bbeb6878fd73b891769bab932746988b11a110a4a46f1a3403a9dd74315b",
-      "size": 64558,
+      "sha256": "8841f8c1ec773fcccbce0e36a8d6d6b13908578a7dcb4449d187752ee06eb559",
+      "size": 64803,
       "executable": false,
       "overlay_delta": {
         "base_sha256": "b7dbb086019fa3437fe0c30b13203376265d749436d8d40c7fd226d52f1121b6",
-        "diff_sha256": "9d207a1f57ca8a81a69b9305ef5ba6c99d114fd15703b6013925a27f287b9c34"
+        "diff_sha256": "756080c8442553af78d1988845da858a9a6bef914e2749371d673189863bc8c0"
       }
     },
     {
@@ -715,12 +715,12 @@
       "category": "distribution",
       "rule": "^scripts/workflow_integration_test\\.py$",
       "rationale": "Persisted-phase table, phase-to-writer census, command-count and generator-mention checks updated for the two new commands and phases (D-Implementation-Review-Stages, CP2/CP3/CP4).",
-      "sha256": "253f9e524e44406cacd8be9a06abae85cd2e4fa24d57bd395d31e42b51ab2202",
-      "size": 381833,
+      "sha256": "40f2cb979d26d6e0fcb7e5aa9b48b6278bd8d77b28ecb0509e5406bacd0a318a",
+      "size": 382880,
       "executable": false,
       "overlay_delta": {
         "base_sha256": "a7ca02768eb84cb884c50c5bf10529a54be6e7117ed6fbf9ab0034180e1162b6",
-        "diff_sha256": "539e3dec14c8b5d2cc5df885c87dbf448870f8eb64ca9544bc971876ad315681"
+        "diff_sha256": "4d6b2a1cc5e34c52c667f3db942a972df8c21ba3c7ec5da902afefb5114a76eb"
       }
     },
     {

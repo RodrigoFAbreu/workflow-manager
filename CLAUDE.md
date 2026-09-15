@@ -143,3 +143,36 @@ of an explicit, evidence-bound override
 --release-version <older>` against a repository that has ever requested a
 plan amendment, or has any checkpoint that ever held `NEEDS_REVALIDATION`, or
 a plan approval that ever held `SUPERSEDED`.
+
+`2.5.0` adds its own vocabulary to that same list, and the posture is
+identical — same reasoning, one release later. Never run `workflow_manager
+update --release-version <older than 2.5.0>` against a repository that has
+activated `"2.2"` (`WORKFLOW_CONFIG.json`'s `default_workflow_version`, plus
+the `Workflow-Activation: 2.2` trailer) or that has committed any work item
+which has ever held one of:
+
+- `governing_workflow_version: "2.2"` on a `work_items[...]` entry — the
+  field every `"2.2"`-only branch dispatches on, so an older release reads
+  the item as an unknown governing version;
+- `phase: "AWAITING_LOCAL_IMPLEMENTATION_REVIEW"` or
+  `phase: "AWAITING_MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW"` — the two
+  persisted phases `2.5.0` adds, absent from an older release's
+  `KNOWN_PHASES`;
+- an `implementation_review_stages` ledger on a `work_items[...]` entry —
+  `2.5.0`'s implementation-stage counterpart of `plan_review_stages`, which
+  an older release's validators neither normalize nor admit into their
+  committed-field sets.
+
+The activation trailer itself reads back differently too, and this one is
+silent. `2.5.0`'s activation-event model is version-aware: it resolves each
+trailer's own destination version (`Workflow-Rollback: 2.2` → `"2.1"`) and
+reports *activated* whenever that destination is not `"1"` — so a repository
+that activated `"2.2"` and then rolled it back is still, correctly, an
+activated `"2.1"` repository. Every pre-`2.5.0` `is_activated` is
+version-blind: it reads any rollback event as a return to `"1"` and answers
+*not activated* on that same, unchangeable history. A downgrade therefore
+re-answers the activation question wrongly, with no error to notice.
+(`2.5.0` itself fails closed in the one case it cannot resolve — a
+`Workflow-Rollback` trailer whose value falls outside its declared
+predecessor mapping reports *activated*, never a silent fall-through to
+not-activated.)
