@@ -1,4 +1,4 @@
-# Workflow 2.5.0: Implementation Review, Review Scalability, and Post-v2.3.1 Remediation (Revision 33)
+# Workflow 2.5.0: Implementation Review, Review Scalability, and Post-v2.3.1 Remediation (Revision 41)
 
 `work_item_id: implementation-review-two-stage` -- `governing_workflow_version: "2.1"`
 
@@ -3049,13 +3049,384 @@ embedded verbatim — never hand-edited.
 | CP4 | Command updates in the overlay: /review-implementation.md gains a "2.2" authoritative branch (phase guard AWAITING_LOCAL_IMPLEMENTATION_REVIEW, ledger write plus phase transition on APPROVE/REVISE; its existing "1"/"2.1" advisory branch stays byte-unchanged); new /record-manual-implementation-review.md mirroring /record-manual-plan-review.md; /apply-implementation-review.md gains a "2.2" branch (no enter_applying_review_feedback call; step 7's post-fix regeneration reaches AWAITING_LOCAL_IMPLEMENTATION_REVIEW via record_bundle_generation's own version-dependent resolver, not a second writer, resolves I1); its own existing "1"/"2.1" step-0 dual-mode enumeration stays byte-unchanged, correctly, mirroring the note already stated for /review-implementation.md's own advisory branch above (resolves `LOCAL_MODEL_PLAN_REVIEW` round 8, optional finding 3); /approve-review.md's implementation branch gains the restated implementation_review_stages ledger-check invariant mirroring its existing plan_review_stages check, and corrects step 0's stale claim that the "2.1" plan-ledger branch is inert only because this repository's own work item is fixed at "1" (untrue: this repository now has two "2.1" work items); /milestone-implement.md's step performing record_bundle_generation(stage="implementation") documented against the version-dependent target phase; /apply-functional-review.md's bounded-fix branch (technical_approval.status == "STALE", entered from AWAITING_FUNCTIONAL_REVIEW) documented as resolving, for a "2.2" item, to AWAITING_LOCAL_IMPLEMENTATION_REVIEW via the same post-fix resolver -- a "2.2" functional bounded fix re-enters both implementation-review stages before /approve-review implementation is reachable again (resolves I2); /recover-implementation-provenance.md's own stated phase guard updated to name all three phases a "2.2" item can occupy between T and approval (the two new phases plus the terminal AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW phase) and the recovered-role committed-phase membership test explicitly, and to state that the command guard and committed-phase set are identical (resolves round-4 finding B1); WORKFLOW_V2_1_OPERATOR_REFERENCE.md's phase and command tables updated; the plan-stage command-contract documents' own two-version ("1"/"2.1") enumerations widen to include "2.2" alongside "2.1" (resolves `LOCAL_MODEL_PLAN_REVIEW` round 5, finding B1): /milestone-plan.md (`:59-67`), /apply-plan-review.md (`:41`, `:135`), /approve-review.md (`:62-64`, `:97`), /review-plan.md (`:39`), /record-manual-plan-review.md (`:46`), and /request-plan-amendment.md (`:21-25`, whose own "downstream /milestone-plan re-entry" sentence names /milestone-plan's two-branch set); plan-review inheritance widening, round 6 (resolves `LOCAL_MODEL_PLAN_REVIEW` round 6, finding B1(a)/(c)): /milestone-implement.md's step 0 branch set states a "2.2" item takes the "2.1" branch, as an item distinct from this checkpoint's own record_bundle_generation(stage="implementation") documentation item above; /accept-milestone.md:43-49, /review-functional.md:61-64 and /prepare-functional-review.md:47-51 restate their version-independence sentences to include "2.2" alongside "1"/"2.1"; /apply-functional-review.md:227-231's remediation-child sentence states that a "2.2" child enters review at AWAITING_LOCAL_PLAN_REVIEW identically to a "2.1" child; round-7 plan-review inheritance widening (resolves `LOCAL_MODEL_PLAN_REVIEW` round 7, finding B1(e)/(g)), as items distinct from this checkpoint's existing "phase and command tables" item: WORKFLOW_V2_1_OPERATOR_REFERENCE.md's own governing-version overview (:21-24, "Two governing versions" restated as three) and its AWAITING_LOCAL_PLAN_REVIEW/AWAITING_MANUAL_EXTERNAL_PLAN_REVIEW precondition lines (:229, :246, "`"2.1"` only" restated as the `"2.1"`/`"2.2"` membership); /review-plan.md:2 and /record-manual-plan-review.md:2's own frontmatter description: lines, dropping the "(`"2.1"` work items only)" framing to match their own in-body guards (:39, :46) this checkpoint already widens; round-7 optional finding 2: every dual-mode command's step 0 branch set (/apply-plan-review, /milestone-implement, /apply-implementation-review, /review-implementation, /record-manual-implementation-review) gains an explicit "any other governing_workflow_version: refuse, naming it" final branch | CP3 | 4 | 2 |
 | CP5 | Convergence / token-efficiency measures, narrowly scoped: state explicitly, and test, that no bundle regeneration occurs between the local-approve and manual-external stages (the same bundle_id carried through, mirroring the plan side's rule); tighten /review-implementation's "2.2" independent-verification bar to be at least as rigorous as today's combined self-review plus advisory pass; a disposable-repo fixture scenario demonstrating a planted defect is caught by the local stage without consuming a manual-external round | CP4 | 3 | 1 |
 | CP6 | Review-scalability, branch 1 (added revision 3): author D-Review-Material-Lifecycle into the overlay's WORKFLOW_V2_PLAN.md -- the normative-vs-historical-disposition convention (current design text stays free of inline revision-correction narrative; one or more disposition sections, each explicitly classified HISTORICAL, carry provenance instead), explicitly deciding no physical move of existing docs/ai-workflow/ content this milestone (no repository-analysis support for a specific folder scheme, per D-Review-Material-Lifecycle's own reasoning); **revised at revision 21** (user-directed architectural correction, applying together with `LOCAL_MODEL_PLAN_REVIEW` round 20's own convergence recommendation, which independently reached the same conclusion -- full history of revisions 15-20's heading/prose-inference design, superseded by this revision, is retained at the plan's own §7 revision-21 disposition entry): CP6's mechanical lint moves from inferring lifecycle status out of heading text/level/position to explicit lifecycle classification -- classification, where present, is always by explicit marker the author writes, never inferred from prose or heading structure (narrowed at revision 26, `LOCAL_MODEL_PLAN_REVIEW` round 25, finding I2, from "every unit... carries an explicit marker": that wider, authorship-scoped subject was unevaluable and stood beside the marker-presence obligation below asserting a different, narrower, evaluable subject; the marker-presence obligation below is now the sole statement of which units must carry a marker); a unit with no marker, or an unparseable/ambiguous one, is classified CURRENT (fail-closed default: classification can only narrow what a reviewer sees, never silently widen what a reviewer does not see); CURRENT -> HISTORICAL is only ever an explicit, intentional marker edit affecting material -- never a side effect of any other edit, including an edit that redraws which unit material belongs to without itself changing a marker (restated over material rather than units at revision 22, `LOCAL_MODEL_PLAN_REVIEW` round 21, finding I3, closing the merge-direction gap: folding a CURRENT region into an adjacent HISTORICAL-marked unit by deleting or demoting the heading between them, with no marker edit, must not report that material HISTORICAL); a unit classified CURRENT never carries the inline "revision N corrected finding X"-shaped provenance narrative D-Review-Material-Lifecycle point 1 forbids, with no corresponding requirement on HISTORICAL material (added at revision 22, `LOCAL_MODEL_PLAN_REVIEW` round 21, finding I1: without this, points 1-2's own substance was enforced by nothing, and CP1's carry sentence's appeal to "CP6's lint" had nothing behind it); the marker is machine-checkable independently of the prose it classifies, with its concrete representation -- one canonical `render_marker`/`parse_marker` machine-readable definition, restricted to exactly the two-member state domain {CURRENT, HISTORICAL}, never a written instance alone and never a second hand-maintained prose grammar (revised at revision 32, `MANUAL_EXTERNAL_PLAN_REVIEW` round 2, finding I2) -- fixed by CP1, as part of CP1's own deliverable, no later than CP1 time (reassigned at revision 29, `LOCAL_MODEL_PLAN_REVIEW` round 28, finding B1, resolution 1); the lint built against the parser, and the concrete textual shape treated as forbidden narrative above, remain left to this checkpoint's own implementation -- the parser itself is CP1's own `parse_marker`, imported by CP6 rather than re-derived (narrowed at revision 33, `LOCAL_MODEL_PLAN_REVIEW` round 32, finding B2, from "the parser that reads it, the parsing grammar, and the concrete textual shape treated as forbidden narrative above remain left to this checkpoint's own implementation"); a separate, mechanically-evaluable marker-presence obligation (added at revision 25, `LOCAL_MODEL_PLAN_REVIEW` round 24, finding I1; narrowed to a pure presence obligation, and widened, at revision 28, user-directed architectural correction applying together with round 27's findings B1/I1/I2) requires every unit within a marker-presence scope -- the whole of IMPLEMENTATION_REVIEW_WORKFLOW.md; every top-level WORKFLOW_V2_PLAN.md design section any checkpoint's own registry entry adds -- today D-Implementation-Review-Stages and D-Implementation-Review-Version-Activation (CP1) and D-Review-Material-Lifecycle itself (CP6) -- (widened from "CP1's own registry entry adds" at revision 28, finding I2: the prior wording excluded CP6's own defining section from the obligation it defines) -- each in full, with a nested unit such as CP1's carried 2.5.0-scoped disposition-record subsection reached once, through its container's "in full" reach, never as a separately enumerated peer (corrected at revision 28, finding I1: naming it a third, nested member of a scope whose other two members already contained it was both wrong and the proximate cause of finding B1) -- to carry an explicit marker of either value; a unit within that scope carrying none is a lint failure, reported independently of and never disturbing the fail-closed classification default above, which still classifies that same unit CURRENT unaffected; this obligation never derives which value a unit's marker must hold from who authored the unit, whether it is new, or which named section it sits under -- that is guarantee (iii)'s classification default and the unit author's own explicit choice alone (stated explicitly at revision 28); CP6 writes the markers this obligation requires that are still missing, as part of this checkpoint's own deliverable (added at revision 27, `LOCAL_MODEL_PLAN_REVIEW` round 26, finding I2; scoped to unmarked units only, at revision 28, round 27 finding B1: CP1 authors both D-* subjects and no checkpoint before this one was ever assigned to write the markers this obligation then requires on them -- but CP1's own carried disposition-record subsection already carries an explicit HISTORICAL marker by CP1's own deliverable, so revision 27's blanket "every unit ... CURRENT" instruction collided with it directly): using the same canonical render_marker/parse_marker definition CP1 has already fixed (reassigned at revision 29, finding B1, resolution 1: CP6 no longer chooses the representation, since CP1's own marker must exist in it before CP6 runs at all; the definition is canonical rather than a written instance alone as of revision 32, `MANUAL_EXTERNAL_PLAN_REVIEW` round 2, finding I2), CP6 marks CURRENT every unit, within the scope stated above, that does not already carry an explicit marker of its own; CP6 never overwrites or reclassifies an already-marked unit, whatever its value -- CP1's disposition-record subsection's own HISTORICAL marker discharges this obligation for that unit and is left untouched; this marking pass is distinct from -- and never bounded by -- the sweep-flagged carve-out below, and it reasons only about which in-scope units already carry an explicit marker, never about which units are "new material CP1 authored" versus pre-existing; CP6 proves the mechanism, not merely asserts it, with fixtures covering -- every fixture in this list blocking CP6's own completion, stated once here rather than per-fixture (added at revision 31, round 30 optional finding O2) -- a positive case (explicit CURRENT material stays review-visible), a negative case (explicit HISTORICAL material is excluded from review-visible surface), an ambiguous case (unmarked or malformed-marker material fails closed to CURRENT), a two-version transition case (added at revision 23, finding I4, restating round 21's own outstanding missing test 1: a non-marker edit -- heading reword, prose restructure -- leaves every unit's reported classification unchanged across two fixture versions; a marker-only edit alone performs the CURRENT -> HISTORICAL transition), a boundary-redrawing case (added at revision 22, finding I3: merging a CURRENT region into an adjacent HISTORICAL-marked unit by deleting or demoting the heading between them, with no marker edit, must not report that material HISTORICAL), a narrative-location case (added at revision 22, finding I1: the forbidden narrative inside CURRENT material fails the lint; the identical narrative inside HISTORICAL material passes), a scope case (added at revision 23, discriminator restated at revision 24, finding I1: an unmarked pre-existing section carrying the forbidden narrative must pass, since it is CURRENT only by the fail-closed default -- carrying no explicit marker -- and is therefore outside guarantee (vi)'s reach, whose mechanical basis is that guarantee (vi) applies only to a unit carrying an explicit CURRENT marker), a carve-out-bound case (added at revision 23, finding I3, restating round 21's own outstanding missing test 4: a pre-existing disposition-titled section containing only occurrences the governing-version sweep below does not flag must not be marked HISTORICAL by CP6's own deliverable, and the corpus regression below must fail if it is), a marker-presence fixture (added at revision 25, finding I1: an in-scope unit carrying no marker must fail the marker-presence obligation above, unaffected by and never disturbing the ambiguous fixture's own CURRENT classification verdict for the same unmarked input; one-corpus-shaped for WORKFLOW_V2_PLAN.md (restated at revision 26, finding I3, and for the widened scope at revision 28, finding I2: a fixture unit inside one of the in-scope sections, unmarked, must fail; a fixture unit elsewhere in the same fixture document, unmarked, must pass), mirroring §2.4 point 3's own statement of the same fixture); an already-marked-nested-unit fixture (added at revision 28, round 27 finding B1, required test 1: an in-scope unit already carrying an explicit HISTORICAL marker, nested inside another in-scope unit, must survive CP6's own marking pass unchanged -- not overwritten, reported satisfied for the marker-presence obligation by presence alone, and not failing the narrative-content guarantee); a representation-conformance fixture (added at revision 29, round 28 finding B1, required test 1: CP1's own disposition-record subsection, in the fixture, carries its HISTORICAL marker written in exactly the representation CP1 fixes, and CP6's own parser, built against that same fixed representation, recognizes it as an explicit marker rather than defaulting it to CURRENT; widened at revision 31, round 30 finding I1, resolution 1, to additionally assert the exclusivity direction: a mutated copy of the fixture's marker, written in a form outside CP1's fixed representation, must not be recognized as an explicit marker and must instead fall to the CURRENT fail-closed default; widened again at revision 32, `MANUAL_EXTERNAL_PLAN_REVIEW` round 2, finding I2's own required test, to exercise the canonical render_marker/parse_marker pair directly rather than only CP1's one written instance: parse_marker accepts render_marker("HISTORICAL")'s own output as HISTORICAL, accepts render_marker("CURRENT")'s own output as an explicit CURRENT marker distinct from the fail-closed default a missing marker also classifies CURRENT, and rejects representative malformed/out-of-contract forms -- a mutated delimiter, a third state value, truncated or duplicated marker text -- back to the CURRENT fail-closed default; CP1's own written instance and every marker CP6's marking pass writes are additionally required to equal render_marker's own output bytes for their respective state, a mechanical equality check rather than a second grammar comparison; and asserting that CP6's own lint reaches its CURRENT/HISTORICAL/malformed classification verdicts by calling this same parse_marker, so a lint whose own grammar tolerates a form outside the canonical pair cannot pass with the fixture green (added at revision 33, `LOCAL_MODEL_PLAN_REVIEW` round 32, finding B2's own missing-test note)); a pre-marking-partition fixture (added at revision 30, `LOCAL_MODEL_PLAN_REVIEW` round 29, finding B1, resolution 2, missing test 1: a corpus-shaped fixture document containing one unit already carrying an explicit HISTORICAL marker -- mirroring CP1's own disposition-record subsection -- alongside units carrying no marker at all; the check run against it must classify the marked unit HISTORICAL and every unmarked unit CURRENT, and a mutated copy asserting every unit classifies CURRENT, the marked one included, must fail; being a fixture rather than a one-shot real-corpus read, it survives CP6's own marking pass and so remains available to catch a future edit that re-widens guarantee (v), which the real-corpus read below cannot, since that read's own pre-marking moment stops existing in the worktree once CP6 completes); a real-corpus run of the finished marker-presence check itself, over every one of that obligation's actual subjects -- IMPLEMENTATION_REVIEW_WORKFLOW.md in full and every top-level WORKFLOW_V2_PLAN.md section any checkpoint's registry entry adds, D-Review-Material-Lifecycle itself included (widened at revision 28, required test 2 of finding I2) -- as part of CP6's own completion requirement, once CP6 has written the markers this checkpoint assigns itself above (added at revision 27, `LOCAL_MODEL_PLAN_REVIEW` round 26, finding I2's own required test, distinct from the guarantee (v) classification-partition regression below); and that guarantee (v) partition regression run of the finished lint against migration/overlays/2.5.0/payload/docs/ai-workflow/WORKFLOW_V2_PLAN.md's own, real existing corpus, run after CP6 has made its carve-out-bound markings (post-marking, distinct from guarantee (v)'s own pre-marking read of that same tree at §2.4 point 3 and §6 -- the two states named explicitly at revision 27, `LOCAL_MODEL_PLAN_REVIEW` round 26, finding I3) (corpus and timing corrected at revision 24, finding I2: revision 23 named the built distribution/workflow/2.5.0/ payload, which CP11 builds only after CP6 and so does not exist while this checkpoint's own blocking fixture would need to run against it; CP1 and CP6 both author this overlay file directly, so it exists when CP6 runs; CP6's own read of this overlay-payload tree is never repeated a second time against the built distribution/workflow/2.5.0/ payload -- "single run" names that omission, restated at revision 27 to mean exactly that (revision 25, finding I2, resolution 1), transferred to the built distribution/workflow/2.5.0/ payload by build_release.py --check's own byte-identity proof (CP11) rather than asserted there a second time) proving the lint's introduction reclassifies none of that corpus's existing content as HISTORICAL except where CP6 has deliberately and visibly marked a pre-existing section HISTORICAL as part of this checkpoint's own deliverable (carve-out restated to match D-Review-Material-Lifecycle's own regression-run carve-out at revision 22, finding I2), asserting the classification partition only, never the narrative-content guarantee -- any reclassification not traceable to such a deliberate marker addition is a fixture failure blocking this checkpoint's own completion; the carve-out's own bound is corrected at revision 23 (finding I3: bounded by the sweep's own flagged output computed at CP6 implementation time against that same overlay-payload tree -- tree named explicitly at revision 24, finding I2 -- never the hand-measured "9 sections / 24 occurrences" proxy retained below only as a scale indication, since at least two of the 24 proxy-counted occurrences are not occurrences of either of the sweep's own two detection forms); CP6's own D-Review-Material-Lifecycle section and CP1's carried subsection are covered by the same positive/negative fixture pair as any other unit, with no special-cased predicate for the document's own required provenance content; a mechanical governing-version enumeration sweep (resolves `LOCAL_MODEL_PLAN_REVIEW` round 6's "Missing tests" item; predicate and allowlist corrected at revision 8, round 7, finding B1(a)): a lint over the built release payload's own .claude/commands/*.md and docs/ai-workflow/*.md asserting that no document presents a "2.1" governing-version reference as exhaustive of the two-stage plan-review protocol's own applicability, in either of two textual forms -- the {"1", "2.1"}-exhaustive-enumeration form, or the bare "2.1"-scoped-assertion form (`"2.1"` only, "Scoped entirely to `"2.1"`", etc.) that never mentions "1" at all, which round 7 found to be the dominant, previously-undetected form; an allowlist at occurrence granularity, not whole-document grant, exempting only an occurrence inside a section explicitly classified HISTORICAL -- including, at revision 22 (`LOCAL_MODEL_PLAN_REVIEW` round 21, finding I2), any pre-existing disposition-titled section of WORKFLOW_V2_PLAN.md that the sweep itself flags (approximately 9 sections / 24 occurrences by a hand-measured proxy against the 2.4.0 payload -- payload named explicitly at revision 24, finding O2 -- corrected at revision 23, finding I3: the exact set is the sweep's own flagged output computed at CP6 implementation time against migration/overlays/2.5.0/payload/docs/ai-workflow/WORKFLOW_V2_PLAN.md -- tree named explicitly at revision 24, finding I2, since the built distribution/workflow/2.5.0/ tree does not exist until CP11 builds it -- never this proxy, since at least two of the 24 proxy-counted occurrences are not occurrences of either of the sweep's own two detection forms): CP6 marks each such sweep-flagged section HISTORICAL as a deliberate, diff-visible act of this checkpoint's own deliverable, never a silent or automatic reclassification, and never a section the sweep's own output does not flag -- plus a whole-document exemption for the three named genuinely-closed history documents (WORKFLOW_V2_3_PLAN.md, WORKFLOW_V2_3_FOLLOWUPS_PLAN.md, WORKFLOW_V2_AUDIT.md) -- narrowed at revision 15 (`MANUAL_EXTERNAL_PLAN_REVIEW` round 1, finding I2) to drop WORKFLOW_V2_PLAN.md from the whole-document list: unlike those three, §2.4 itself classifies WORKFLOW_V2_PLAN.md as the single active design-of-record, still growing with every authored release's own CP1-style design checkpoint (this milestone's own CP1 among them), so a whole-document grant would suppress the sweep inside the very current/normative sections REQ-15 requires it to cover, not only inside genuinely historical prose; WORKFLOW_V2_PLAN.md's own occurrences are therefore exempt only occurrence-by-occurrence, inside sections explicitly classified HISTORICAL, identically to every other non-exempt document, never by the file's name alone; a negated or version-independence assertion (e.g. "this is not a "2.1"-only mechanism") is not an occurrence of either detection form at all, not a third allowlist entry (resolves `LOCAL_MODEL_PLAN_REVIEW` round 8, finding I1); the sweep's own allowlist-pin negative fixture: a WORKFLOW_V2_PLAN.md-shaped document carrying a stale "2.1"-only claim inside a new current design section not classified HISTORICAL, which must fail even though the file's own historical sections stay exempt, doubling as the executable check on the three-document whole-document allowlist just narrowed above; MILESTONE_WORKFLOW.md:424 and apply-functional-review.md:34 are this shape and stay unreworded; WORKFLOW_V2_1_OPERATOR_REFERENCE.md's own "## Known discrepancies" section is explicitly in the lint's scope, not a section classified HISTORICAL, so CP6's catch-all fixes every stale bare-"2.1" occurrence the section contains -- not only :882/:892, but also :853-854 and :866; at least one further positive fixture (a document whose only occurrence is a negated/version-independence assertion) accompanies the existing per-form fixtures; CP6, running after CP1 and CP4 in the registry's own listed checkpoint order, additionally widens in place any further site its own lint flags beyond CP1's and CP4's own named fixes above, rather than leaving the lint red or duplicating either's work; inside a pre-existing disposition section of WORKFLOW_V2_PLAN.md, this catch-all's remedy is a HISTORICAL marker, never a reword (added at revision 23, usability finding), since a reword of closed historical prose is exactly the harm D-Review-Material-Lifecycle exists to prevent, and the enumerated carve-out above cannot be exact by construction (finding I3). | CP1 | 3 | 1 |
-| CP7 | Review-scalability, branch 2 (added revision 3): extract one generic, parametric declaration-coverage helper (overlay's own scripts/workflow_state_test.py shared test support or a new small overlay module) generalizing the bespoke per-work-item declaration-coverage test pattern this item's own CP2 and plan-amendment-mechanism each hand-authored separately (D-Canonical-Review-Data); document the already-mechanically-discovered surface_census/verifier_census mechanism in workflow_state_completion_obligations_test.py as the precedent model, not a second defect; this item's own CP2 test and plan-amendment-mechanism's own existing test are left as-is (out of scope to retrofit an already-approved item's test file) | CP2 | 3 | 1 |
+| CP7 | Review-scalability, branch 2 (added revision 3): extract one generic, parametric declaration-coverage helper (overlay's own scripts/workflow_state_test.py shared test support or a new small overlay module) generalizing the bespoke per-work-item declaration-coverage test pattern this item's own CP2 and plan-amendment-mechanism each hand-authored separately (D-Canonical-Review-Data); document the already-mechanically-discovered surface_census/verifier_census mechanism in workflow_state_completion_obligations_test.py as the precedent model, not a second defect; this item's own CP2 test and plan-amendment-mechanism's own existing test are left as-is (out of scope to retrofit an already-approved item's test file); the helper's coverage assertion includes plan-stage/implementation-stage declaration symmetry, checked in both directions (direction (a) added at revision 35, `LOCAL_MODEL_PLAN_REVIEW` round 35's own "Missing tests" item; direction (b) added at revision 36, round 36 finding I1, corrected at revision 37, `MANUAL_EXTERNAL_PLAN_REVIEW` round 1, finding I1): (a) every path or prefix a work item declares implementation_stage.protected_paths/protected_prefixes must be classifiable by that same item's own plan_stage sets (protected path, excluded path, or excluded prefix) -- the assertion that would have caught revision 34's own migration/ gap and revision 35's own tests/ and distribution/ gaps at authorship time rather than at the next /milestone-implement entry validation; and (b) every path or prefix a work item declares plan_stage.excluded_paths/excluded_prefixes must be either (i) fully classifiable outright by that same item's own implementation_stage sets -- the entry's own literal key fed into the implementation stage's own classify_path_*, requiring it not to raise, the same containment-aware method direction (a) already applies, run in the opposite stage direction (corrected at revision 38, round 38 finding I3, figures corrected at revision 39, round 39 finding I1, from a prior 'literal-key test' parenthetical that named a test direction (a) does not use and, read literally, failed 10 of this item's own 46 plan-stage excluded entries under direction (b) -- its own direction -- and, separately, 2 of this item's own 6 implementation-stage protected entries under direction (a)) -- or (ii) named as a key in a new declarations-schema field, plan_stage.narrowing_exceptions -- a mapping from a plan_stage.excluded_* entry to the list of implementation-stage declarations, exact paths and prefixes alike, that are its own declared, deliberate narrowing -- where the mapped list is non-empty, every listed entry is declared (protected or excluded, exact path or prefix alike) at the implementation stage and contained by the entry it excepts (equal to it when the entry is an exact path and the listed entry is that same exact path; under it when the entry is a prefix and the listed entry, exact path or prefix alike, itself starts with that prefix), and the list is exhaustive, equal to (not merely a subset of) the full set of implementation-stage protected_paths/protected_prefixes/excluded_paths/excluded_prefixes entries -- exact and prefix alike -- contained by the entry it excepts (corrected at revision 38, round 38 finding I2: declared alone let narrowing_exceptions['migration/'] = ['CLAUDE.md'] satisfy clause (ii) for migration/ while migration/ itself stayed genuinely unclassified; corrected further at revision 40, MANUAL_EXTERNAL_PLAN_REVIEW round 2, finding I1: containment and declaration, checked only per listed path, still let narrowing_exceptions['some-prefix/'] = [] satisfy clause (ii) vacuously for a genuinely unclassified prefix with no implementation-stage narrowing declared at all, and let a list that omitted an already-declared implementation-stage child of the excepted entry pass as long as every path it did list was itself valid -- the non-empty and exhaustive requirements close both gaps; a narrowing_exceptions key that does not itself equal a real plan_stage.excluded_paths/excluded_prefixes entry now fails too, closing the same staleness from the declaration side; corrected once more at revision 41, LOCAL_MODEL_PLAN_REVIEW round 41, finding I1: the narrowing set itself was defined only over implementation-stage exact entries contained by the excepted entry, so an implementation-stage prefix contained by the excepted entry was invisible to clause (ii) on either side -- stale exception data still passed when the newly-added contained child was a prefix rather than an exact path, since exhaustiveness was measured only against the exact-entry subset (revision 40's own 'live regression' fixture pinned only the exact-path variant of that addition); and a plan-stage entry whose only implementation-stage narrowing was itself a prefix had no satisfiable exception at all -- a shape revision 38's own wording did admit, but revision 40's non-emptiness requirement left with no valid list to represent it ([] now failed non-emptiness, and no other list could name a prefix); the narrowing set is now defined over every implementation-stage declaration contained by the excepted entry -- protected_paths/excluded_paths exact entries and protected_prefixes/excluded_prefixes prefix entries alike -- with non-emptiness, containment, and exhaustiveness all measured against that complete set; an implementation-stage prefix counts as contained under a plan-stage prefix when the implementation-stage prefix itself starts with the plan-stage prefix, and nothing counts as contained under a plan-stage exact path beyond that same exact path, since nothing can be nested beneath a file); partial overlap by itself, with no narrowing_exceptions entry, is never accepted as coverage (corrected at revision 37 from revision 36's own wording, which treated an implementation-stage exact path's own classifiability as sufficient to excuse its broader plan-stage prefix, leaving a future sibling path under that same prefix silently fail-closed and uncaught); the exception is data the helper reads directly via this parameter, never inferred from justification prose (revision 37, finding O2), so the helper stays generic with no hard-coded per-work-item or per-path special case; this item's own declarations gain exactly one such entry, added by CP7 itself: narrowing_exceptions['.workflow-manager/'] = ['.workflow-manager/installation.json'], restating as data what revision 36 stated only in prose -- the broader plan-stage exclusion is deliberately narrowed to this one exact path at the implementation stage (§2.7, CP9), and any other path under .workflow-manager/ stays intentionally fail-closed until it is itself declared; with a fixture pinning each case separately (reconciled with the block's own list, and one fixture added, at revision 39, round 39 finding I3 and 'Missing tests' 1; four more fixtures added at revision 40, MANUAL_EXTERNAL_PLAN_REVIEW round 2, finding I1 and its 'Missing tests') -- a declarations file whose implementation-stage protected set names a tree no plan-stage set claims must fail direction (a); a declarations file whose plan-stage excluded set names a tree no implementation-stage set claims and that has no narrowing_exceptions entry must fail direction (b); a narrowing_exceptions entry mapping a plan-stage entry to an empty list, with no implementation-stage narrowing declared for it at all, must also fail direction (b), distinct from the no-entry-at-all case above (added at revision 40, finding I1 'Missing tests' 1); a declarations file whose plan-stage excluded entry is only partially covered at implementation stage, with no narrowing_exceptions entry for it, must fail direction (b) (revision 37's own required negative fixture); this item's own pre-CP7 declarations file -- the live instance of that partial-overlap case, .workflow-manager/ narrowed by .workflow-manager/installation.json with no exception yet declared -- must fail direction (b) (added at revision 39, round 39 'Missing tests' 1); a narrowing_exceptions entry whose listed implementation-stage path is itself undeclared must fail (added at revision 38, round 38 'Missing tests' 1); a narrowing_exceptions entry whose listed path is declared but not contained by the entry it excepts must fail (added at revision 38, round 38 finding I2, 'Missing tests' 2); a narrowing_exceptions entry whose listed paths are each individually valid but that omits an implementation-stage exact path also declared and contained by the entry it excepts must fail, pinning the exhaustiveness requirement rather than clause (ii)'s per-path checks alone (added at revision 40, finding I1 'Missing tests' 2); the same declarations file, with one further implementation-stage exact path added beneath an already-excepted entry but that entry's own narrowing_exceptions list left unchanged, must fail the moment the addition lands (added at revision 40, finding I1 'Missing tests' 3); a narrowing_exceptions key that does not itself equal a real plan_stage.excluded_paths/excluded_prefixes entry must fail (added at revision 40, finding I1 'Missing tests' 4); the declared narrowing_exceptions['.workflow-manager/'] case must pass direction (b), its one-element list remaining exhaustive for that entry (restated at revision 40 against the new exhaustiveness requirement, finding I1's required acceptance criterion 5); a plan-stage entry fully covered at implementation stage must pass without needing an exception (added at revision 39, round 39 finding I3, reconciling this row with the block's own fixture); and this item's own post-CP7 declarations file (carrying narrowing_exceptions['.workflow-manager/']) must pass both directions complete (corrected at revision 39, round 39 finding I2, from a 'revision-37 declarations file' label that predates the narrowing_exceptions key CP7 itself adds, and against which the file fails direction (b)); four more fixtures added at revision 41, LOCAL_MODEL_PLAN_REVIEW round 41, finding I1: a narrowing_exceptions entry whose list is exhaustive over the excepted entry's implementation-stage exact children but omits an implementation-stage prefix entry also contained by the excepted entry must fail -- the prefix twin of the exhaustiveness fixture above, pinning that exhaustiveness is measured against the complete set, not the exact-only subset (finding I1's own 'Missing tests' item 1); the same declarations file, with one further implementation-stage prefix added beneath an already-excepted entry but that entry's own narrowing_exceptions list left unchanged, must fail the moment that addition lands -- the prefix twin of revision 40's own live-regression fixture (finding I1's own 'Missing tests' item 2); a plan-stage entry whose only implementation-stage narrowing is itself a prefix -- contained by, not equal to, the excepted entry -- must be representable and must pass when its narrowing_exceptions list names that prefix, a shape clause (ii) could not represent at all before this revision (finding I1's own 'Missing tests' item 3); and the empty-value fixture is restated against the complete set -- a narrowing_exceptions entry mapping an excepted plan-stage entry to [], with no implementation-stage narrowing of either shape declared for it at all, must still fail direction (b), unchanged in substance from the fixture revision 40 itself added (finding I1's own 'Missing tests' item 4); this row's required-fixture list now names seventeen cases, revised from thirteen at revision 41, finding I1 (thirteen at revision 40, finding I1); CP7's own one write outside migration/ -- applying narrowing_exceptions['.workflow-manager/'] to this item's own live declarations file, docs/ai-workflow/registry/implementation-review-two-stage-artifacts.json -- is P-exc via plan_stage.excluded_prefixes['docs/ai-workflow/registry/'] and I-prot as an implementation_stage.protected_paths exact entry (the declarations file's own self-protection); this does not breach section 2.7/REQ-12's forward-only rule since the new narrowing_exceptions key sits outside compute_review_content_id_plan_stage's projection (sorted(protected_paths)/sorted(excluded_paths)/sorted(excluded_prefixes) only -- confirmed unchanged by recomputing before and after) and the file is implementation-stage protected, so the edit is itself reviewed at this checkpoint (added at revision 38, round 38 finding I1) | CP2 | 3 | 1 |
 | CP8 | Review-scalability, branch 3 (added revision 3): author D-Review-Finding-Taxonomy-and-Circuit-Breaker into the overlay's REVIEW_PROTOCOL.md -- an advisory (not parser-enforced -- malformed or missing tags are never rejected, and default to [substantive] for circuit-breaker purposes, resolves I5) [substantive]/[apparatus] tag on every Blocking/Important REVIEW_FEEDBACK.md finding, with REVIEW_PROTOCOL.md's existing resolve-or-reject-with-evidence rule unchanged regardless of tag; plus an advisory (never phase-gating, no governing-version bump) circuit-breaker signal a reviewer's report states after 2 consecutive apparatus-only REVISE rounds for the same stage -- fixed at 2, the mechanism's own ceiling given REVIEW_FEEDBACK.md's single-round visibility, not an open decision (resolves I6); **scoped explicitly to two consecutive same-stage LOCAL_MODEL_PLAN_REVIEW (or LOCAL_MODEL_IMPLEMENTATION_REVIEW) REVISE rounds only -- corrected at revision 15 (`MANUAL_EXTERNAL_PLAN_REVIEW` round 1, finding I3)** -- the single-prior-`REVIEW_FEEDBACK.md`-visibility mechanism the signal relies on holds for two consecutive local-model rounds (the same reviewing command reads the immediately-prior file before overwriting it) but not for two consecutive manual-external rounds, since a fresh required local pass (§2.1) overwrites that same stage-agnostic path before the next manual reviewer ever sees the prior one, and no durable, finding-classification-bearing ledger entry survives a REVISE round to recover it; `REVIEW_PROTOCOL.md`'s own added text states explicitly that it makes no corresponding claim for consecutive manual-external rounds, which remain operator judgment as they already are today; a test proves the signal fires after two consecutive local apparatus-only rounds for each stage, and a second test proves `REVIEW_PROTOCOL.md`'s own text makes no manual-external recoverability claim | CP1 | 3 | 1 |
 | CP9 | Post-v2.3.1 backlog, tractable fixes (added revision 3, D-Post-v2.3.1-Backlog): in the overlay, fix v2.3.1-003 (pin_plan_approval_state_blob defaults to mode 100644 when no HEAD blob exists, instead of refusing unconditionally -- the first of the defect record's own two stated portable forms); fix v2.3.1-001 (test_the_historical_status_note_carries_a_dated_correction skips cleanly when no host status note is present, instead of raising StopIteration); migration/portability_exceptions.json gains a required, empty by_version["2.5.0"] entry (tests/support.py's expected_portability_exceptions subscripts by_version[workflow_version] unguarded, so an absent key is a KeyError, not a pass) -- 2.3.1's and 2.4.0's own by_version entries for this test are untouched, since both releases' payloads still carry the unfixed test and 2.3.1 is frozen (corrects revision 3's "entry is removed" framing, finding I4); widen v2.4.0-001 further (generate_artifacts_declarations' implementation-stage default excluded_prefixes gains .workflow-manager/, symmetric with the plan-stage default the 2.4.0 fix already widened) -- forward-only, no existing work item's own already-generated declarations file is edited; regression tests for all four; CP11's release-authoring migration notes state the v2.4.0-001 widening as guidance for any updating repository, not only this one's own mitigation (resolves round 2's optional finding 2) | CP2 | 4 | 2 |
 | CP10 | Post-v2.3.1 backlog, v2.4.0-002 reconsideration (added revision 3, D-Post-v2.3.1-Backlog): produce this milestone's explicit, written reconsideration of v2.4.0-002 (cross-worktree amendment/claim race) -- continue deferring both full structural fixes (a claims_dir-rooted lock; a repo-global phase witness), recorded with updated reasoning tied to this milestone's own review-tooling mission rather than by omission; record the cheap IMPL10-O1 partial mitigation (a second resolve_claim re-check immediately before request_plan_amendment's own supersede) as a live optional adoption, -- **resolved at revision 15** (`MANUAL_EXTERNAL_PLAN_REVIEW` round 1, required acceptance criterion 4): **declined**, deferred together with both full structural fixes, for the same reason the defect record itself already gave when it first declined this exact option (round 10, under review pressure, in the same round the residual was found); this checkpoint's deliverable is the written disposition alone, no code change | CP1 | 2 | 1 |
 | CP11 | Release-authoring: migration/overlays/2.5.0/classification.json plus payload (new files, full replacements of every base-release payload file this release changes, per CLAUDE.md's authored-release process); python3 tools/build_release.py --overlay migration/overlays/2.5.0 and --check reproducing distribution/workflow/2.5.0/ from the 2.4.0 base plus the overlay; tests/support.py's per-release CI_SUITES entry for 2.5.0; migration/portability_exceptions.json's required by_version["2.5.0"] entry (empty exceptions list; not conditional -- tests/support.py's unguarded by_version[workflow_version] subscript means an absent key fails closed as a KeyError, not a pass), leaving 2.3.1's and 2.4.0's own entries untouched (corrects revision 3's "if this release's own suite needs one" framing, finding I4); every payload document the sweep requires changing (resolves `LOCAL_MODEL_PLAN_REVIEW` round 8, finding I2 -- widened from "every payload document CP1's or CP4's own round-6/round-7 plan-review inheritance widening requires changing" so the recorded scope also covers CP6's own catch-all fixes) becomes one more full-replacement overlay payload file in migration/overlays/2.5.0/payload/, each with its own reproducible overlay_delta (resolves `LOCAL_MODEL_PLAN_REVIEW` round 7, finding B1's required acceptance criterion 6/point 3: stated generally rather than by name, since a named list is exactly the pattern round 7 found short a fourth time) | CP1, CP2, CP3, CP4, CP5, CP6, CP7, CP8, CP9, CP10 | 5 | 2 |
 | CP12 | Disposable-repository functional validation: bootstrap a disposable repo directly on 2.5.0, drive the "2.2" activation by following CP1's documented IMPLEMENTATION_REVIEW_WORKFLOW.md procedure verbatim, with no repository-internal shortcut (resolves `LOCAL_MODEL_PLAN_REVIEW` round 10, optional finding 1), run a synthetic work item through the full two-stage implementation-review flow end to end (local APPROVE -> manual APPROVE -> /approve-review implementation) and the negative paths (local REVISE looping back through APPLYING_REVIEW_FEEDBACK, local BLOCK, manual REVISE loop, manual BLOCK, wrong-phase / wrong-version refusals, stale review_content_id, duplicate manual ingestion, advisory-only bundle_id mismatch, /recover-implementation-provenance from each of the three phases a "2.2" item can occupy between T and approval (the two new phases plus the terminal phase), resolving B1(a)'s recovery-path clause, B2's committed-phase membership test, and round-4 finding B1's widening of both to the terminal phase); a "2.2" functional-review bounded-fix scenario (post-fix regeneration from AWAITING_FUNCTIONAL_REVIEW routing through both implementation-review stages again before /approve-review implementation is reachable, resolves I2); update-path validation that a pre-existing repository managed under 2.4.0 with a live "2.1" work item mid-AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW is unaffected by an update to 2.5.0 until it explicitly activates "2.2"; exercise CP7's generic declaration-coverage helper against the synthetic work item directly rather than hand-writing another bespoke copy; exercise CP9's four backlog fixes (mode-100644 fallback, the portable host-note skip, the required empty 2.5.0 portability-exceptions entry, and the widened implementation-stage .workflow-manager/ exclusion) against fresh disposable-repo scenarios; the synthetic "2.2" item's own plan stage first runs the full two-stage plan-review protocol end to end (AWAITING_LOCAL_PLAN_REVIEW -> AWAITING_MANUAL_EXTERNAL_PLAN_REVIEW -> AWAITING_PLAN_APPROVAL, resolves `LOCAL_MODEL_PLAN_REVIEW` round 5, finding B1) before any implementation-review stage is reached, proving B1's plan-side fix end to end and exercising /milestone-plan's own first planning step past what would otherwise crash for an unwidened "2.2" item; between this scenario's plan-stage traversal and its own two-stage implementation-review flow, the synthetic "2.2" item's disposable repo additionally drives /milestone-implement's checkpoint loop from SELF_REVIEWING_IMPLEMENTATION through step 2's enter_self_reviewing_implementation write to its own record_bundle_generation(stage="implementation") call, asserting the committed phase at T is AWAITING_LOCAL_IMPLEMENTATION_REVIEW (resolves `LOCAL_MODEL_PLAN_REVIEW` round 6, finding B1's own second "Missing tests" item) | CP11 | 5 | 3 |
-| CP13 | Full regression (python3 tests/run_all.py) and downgrade-posture documentation: extend this repository's own CLAUDE.md downgrade-posture paragraph to name 2.5.0's new vocabulary (AWAITING_LOCAL_IMPLEMENTATION_REVIEW, AWAITING_MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW, implementation_review_stages, governing_workflow_version "2.2") among the values an older release's workflow_state.py cannot read back; record this milestone's actual disposition of the four previously-deferred defects per section 8 (three fixed -- v2.3.1-001, v2.3.1-003, v2.4.0-001's implementation-stage symmetry widening -- one, v2.4.0-002, explicitly reconsidered and still deferred in full, including the optional IMPL10-O1 mitigation, per section 9's resolved decision 3) | CP12 | 2 | 1 |
+| CP13 | Full regression (python3 tests/run_all.py) and downgrade-posture documentation: extend this repository's own CLAUDE.md downgrade-posture paragraph to name 2.5.0's new vocabulary (AWAITING_LOCAL_IMPLEMENTATION_REVIEW, AWAITING_MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW, implementation_review_stages, governing_workflow_version "2.2") among the values an older release's workflow_state.py cannot read back; record this milestone's actual disposition of the four previously-deferred defects, matching section 8's own record (three fixed -- v2.3.1-001, v2.3.1-003, v2.4.0-001's implementation-stage symmetry widening -- one, v2.4.0-002, explicitly reconsidered and still deferred in full, including the optional IMPL10-O1 mitigation, per section 9's resolved decision 3), into each of the four defects' own existing docs/defects/*.md records -- never into this plan document itself, which no checkpoint writes (corrected at revision 36, LOCAL_MODEL_PLAN_REVIEW round 36, finding B1: revision 35's own registry row and §3.1 block instead named a write into this plan document's own section 8, a plan_stage.protected_paths entry -- forbidden, and unnecessary since section 8 already carries the disposition in full); these four docs/defects/*.md writes are deliberately non-review-bound mirrors of section 8's own already-reviewed disposition, their exact bytes intentionally outside implementation-stage review identity, consistent with docs/defects/'s existing repository-bookkeeping classification (excluded, not protected) at both stages -- stated explicitly as the intended policy rather than left implicit (revision 37, MANUAL_EXTERNAL_PLAN_REVIEW round 1, optional finding O1), since section 8 remains the normative, already-approved disposition and these four records are its copy, never a second place its content could diverge from what was reviewed | CP12 | 2 | 1 |
+
+### 3.1 Checkpoint deliverable surface (`D-Plan-Amendment-4` anchors)
+
+Added at revision 35 (`LOCAL_MODEL_PLAN_REVIEW` round 35, finding B1). Each
+block below is delimited by the `<!-- CPn -->`/`<!-- /CPn -->` anchor pair
+`workflow_state.validate_post_anchor_coverage` requires of every registry
+checkpoint id once an amendment is open, and its content is what
+`checkpoint_content_hash`/`reconcile_checkpoints_after_amendment` compare
+across a future amendment. The anchors deliberately sit **here and not in
+§3's table**: that table is `render_registry_markdown`'s own output,
+re-embedded verbatim on every revision that regenerates the registry, so an
+anchor placed inside it would be destroyed by the next regeneration.
+
+Each block states that checkpoint's **deliverable surface** — the repository
+paths it writes, and how each is classified at both stages — rather than
+restating its registry row. Two reasons: the row is the authoritative scope
+statement and reconciliation already compares rows directly, so duplicating
+it here would only create a second copy to drift; and stating the write set
+per checkpoint makes the plan-stage/implementation-stage classification
+obligation checkable by reading, which is what revision 34's own amendment
+existed to repair. A checkpoint whose write set changes must edit its block
+here, which is exactly when a future amendment should see its content hash
+move.
+
+Classification legend: **P-exc** = `plan_stage.excluded_prefixes`/
+`excluded_paths`; **I-prot** = `implementation_stage.protected_prefixes`/
+`protected_paths`; **I-exc** = `implementation_stage.excluded_*`. Every path
+below is classified at both stages — verified mechanically, and restated as
+CP7's own assertion obligation.
+
+**No checkpoint writes any `plan_stage.protected_paths` entry** — this plan
+document, its registry, or its mapping file. That invariant is the first
+thing a reader should be able to check from the blocks below (corrected at
+revision 36, `LOCAL_MODEL_PLAN_REVIEW` round 36, finding B1: revision 35's
+own `CP13` block named this plan document itself as a write target, which
+`plan_stage.protected_paths` forbids, since editing it after approval moves
+the plan-stage `review_content_id` and stales the very approval the
+checkpoint runs under — see `CP13`'s own block below).
+
+<!-- CP1 -->
+**CP1 — design decisions.** Writes `migration/overlays/2.5.0/payload/docs/ai-workflow/WORKFLOW_V2_PLAN.md`
+(D-Implementation-Review-Stages, D-Implementation-Review-Version-Activation,
+and the `2.5.0`-scoped HISTORICAL disposition subsection), the same overlay
+payload's `MILESTONE_WORKFLOW.md`, `REVIEW_PROTOCOL.md` and
+`PLAN_REVIEW_WORKFLOW.md`, and the new
+`.../payload/docs/ai-workflow/IMPLEMENTATION_REVIEW_WORKFLOW.md` operator
+guide. Also fixes the canonical `render_marker`/`parse_marker`
+representation CP6 imports. All under `migration/` — P-exc, I-prot.
+Implements §2.1 and §2.2. Depends on nothing.
+<!-- /CP1 -->
+
+<!-- CP2 -->
+**CP2 — `workflow_state.py` plumbing.** Writes
+`migration/overlays/2.5.0/payload/scripts/workflow_state.py` (KNOWN_PHASES,
+the version-aware activation/rollback event model, `TWO_STAGE_PLAN_REVIEW_VERSIONS`,
+the `implementation_review_stages` ledger helpers) and its companion
+`.../payload/scripts/workflow_state_test.py`, including this item's own
+declaration-coverage test. All under `migration/` — P-exc, I-prot.
+Implements §2.1, §2.2. Depends on CP1.
+<!-- /CP2 -->
+
+<!-- CP3 -->
+**CP3 — review-stage writers and gate widening.** Writes the same overlay
+payload `scripts/workflow_state.py` and `scripts/workflow_state_test.py`
+(the four record/validate writers, `technical_approval_gate_reachable`'s
+`"2.2"` ledger check, `bundle_generation_target_phase`, both widened
+field-set constants, and the recovered-role committed-phase membership
+test). All under `migration/` — P-exc, I-prot. Implements §2.1. Depends on
+CP2.
+<!-- /CP3 -->
+
+<!-- CP4 -->
+**CP4 — command contracts.** Writes
+`migration/overlays/2.5.0/payload/.claude/commands/*.md` (the `"2.2"`
+branches, the new `/record-manual-implementation-review.md`, and the
+plan-review inheritance widening across the dual-mode commands) and
+`.../payload/docs/ai-workflow/WORKFLOW_V2_1_OPERATOR_REFERENCE.md`. All
+under `migration/` — P-exc, I-prot. Implements §2.1, §2.2. Depends on CP3.
+<!-- /CP4 -->
+
+<!-- CP5 -->
+**CP5 — convergence and token-efficiency measures.** Writes the overlay
+payload's `/review-implementation.md` verification-bar text, the
+no-regeneration-between-stages rule in the same payload's
+`REVIEW_PROTOCOL.md`, and the disposable-repo fixture scenario under the
+overlay payload's own test tree. All under `migration/` — P-exc, I-prot.
+Implements §2.3. Depends on CP4.
+<!-- /CP5 -->
+
+<!-- CP6 -->
+**CP6 — review-material lifecycle.** Writes D-Review-Material-Lifecycle into
+the overlay payload's `WORKFLOW_V2_PLAN.md`, the marker-presence lint and
+governing-version enumeration sweep plus every fixture named in its registry
+row under the overlay payload's own script/test tree, and the HISTORICAL
+markers its own marking pass adds to sweep-flagged pre-existing sections of
+that same payload document. All under `migration/` — P-exc, I-prot.
+Implements §2.4. Depends on CP1.
+<!-- /CP6 -->
+
+<!-- CP7 -->
+**CP7 — canonical review data.** Writes the generic, parametric
+declaration-coverage helper into the overlay payload's
+`scripts/workflow_state_test.py` shared test support (or a new small overlay
+module), and the documentation of the `surface_census`/`verifier_census`
+precedent. Its coverage assertion includes **plan-stage/implementation-stage
+declaration symmetry, checked in both directions** (direction (a) added at
+revision 35, `LOCAL_MODEL_PLAN_REVIEW` round 35, "Missing tests"; extended to
+direction (b) at revision 36, round 36, finding I1): (a) every path or prefix
+a work item declares `implementation_stage.protected_*` must be classifiable
+by that same item's own plan-stage sets — the assertion that would have
+caught revision 34's `migration/` gap and revision 35's own
+`tests/`/`distribution/` gaps at authorship time; and (b) every path or
+prefix a work item declares `plan_stage.excluded_*` must be classifiable by
+that same item's own implementation-stage sets — the assertion that would
+have caught revision 35's own `distribution/` implementation-stage gap
+(round 36 finding I1) the same way. **Corrected at revision 37**
+(`MANUAL_EXTERNAL_PLAN_REVIEW` round 1, finding I1): direction (b) is not
+"classifiable by some implementation-stage entry", since a plan-stage
+prefix partially covered by one narrower implementation-stage exact path is
+not thereby itself classifiable at implementation stage — a future path
+under that same prefix that is not that one exact path stays
+`UnclassifiedPathError`, fail-closed, and direction (b) must catch that,
+not paper over it. Direction (b) therefore passes a `plan_stage.excluded_*`
+entry only when either (i) it is fully classifiable at implementation stage
+outright — the entry's own literal key fed into the implementation stage's
+own `classify_path_*` must not raise, the same containment-aware method
+direction (a) already applies, run in the opposite stage direction, never
+an exact-key match against `implementation_stage.protected_paths`/
+`excluded_paths` alone (**corrected at revision 38**, round 38 finding I3,
+**figures corrected at revision 39**, round 39 finding I1:
+read as an exact-key test, clause (i) fails 10 of this item's own 46
+plan-stage excluded entries under direction (b) — its own direction — and,
+separately, 2 of this item's own 6 implementation-stage protected entries
+under direction (a); the prior "literal-key test" wording named a
+test direction (a) does not use and, taken literally, contradicted this
+item's own required fixture) — or (ii) it is named as a key in a new
+declarations-schema field, `plan_stage.narrowing_exceptions` — a mapping
+from a `plan_stage.excluded_*` entry to the list of implementation-stage
+declarations — exact paths **and** prefixes alike — that are its own
+declared, deliberate narrowing — where the mapped list is non-empty, every
+listed entry is declared (protected or excluded, exact path or prefix
+alike) at the implementation stage **and** contained by the entry it
+excepts (equal to it when the entry is an exact path and the listed entry
+is that same exact path; under it when the entry is a prefix and the
+listed entry — exact path or prefix alike — itself starts with that
+prefix), **and** the list is exhaustive: equal to, not merely a subset of,
+the full set of implementation-stage `protected_paths`/`protected_prefixes`/
+`excluded_paths`/`excluded_prefixes` entries — exact and prefix alike —
+contained by the entry it excepts
+(**corrected at revision 38**, round 38 finding I2: declared alone let
+`narrowing_exceptions['migration/'] = ['CLAUDE.md']` satisfy clause (ii)
+for `migration/` while `migration/` itself stayed genuinely unclassified —
+precisely the `UnclassifiedPathError` class direction (b) exists to catch;
+**corrected further at revision 40**, `MANUAL_EXTERNAL_PLAN_REVIEW` round 2,
+finding I1: containment and declaration, checked only per listed path,
+still let `narrowing_exceptions['some-prefix/'] = []` satisfy clause (ii)
+vacuously for a genuinely unclassified prefix with no implementation-stage
+narrowing declared at all, and let a list that omitted an already-declared
+implementation-stage child of the excepted entry pass as long as every
+path it did list was itself valid — so adding or removing a covered
+implementation-stage child left the stale exception data undetected; the
+non-empty and exhaustive requirements close both gaps. Every
+`narrowing_exceptions` key must itself equal a real
+`plan_stage.excluded_paths`/`excluded_prefixes` entry — an orphaned key
+naming neither fails too (also added at revision 40, finding I1), closing
+the same staleness from the declaration side: an `excluded_*` entry
+retired from the plan-stage sets without retiring its own now-orphaned
+`narrowing_exceptions` key;
+**corrected once more at revision 41**, `LOCAL_MODEL_PLAN_REVIEW` round 41,
+finding I1: the narrowing set itself was defined only over
+implementation-stage **exact** entries contained by the excepted entry, so
+an implementation-stage **prefix** contained by the excepted entry was
+invisible to clause (ii) on either side — stale exception data still
+passed when the newly-added contained child was a prefix rather than an
+exact path, since exhaustiveness was measured only against the
+exact-entry subset (revision 40's own "live regression" fixture pinned
+only the exact-path variant of that addition); and a plan-stage entry
+whose only implementation-stage narrowing was itself a prefix had no
+satisfiable exception at all — a shape revision 38's own wording did
+admit, but revision 40's non-emptiness requirement left with no valid
+list to represent it (`[]` now failed non-emptiness, and no other list
+could name a prefix). The narrowing set is now defined over **every**
+implementation-stage declaration contained by the excepted entry —
+`protected_paths`/`excluded_paths` exact entries **and**
+`protected_prefixes`/`excluded_prefixes` prefix entries alike — with
+non-emptiness, containment, and exhaustiveness all measured against that
+complete set; an implementation-stage prefix counts as contained under a
+plan-stage prefix when the implementation-stage prefix itself starts with
+the plan-stage prefix, and nothing counts as contained under a plan-stage
+exact path beyond that same exact path, since nothing can be nested
+beneath a file). The exception is data
+the helper reads directly, never inferred from justification prose (round
+37 finding O2): CP7's own coverage helper takes `narrowing_exceptions` as a
+parameter alongside the four classification sets, so the generic contract
+stays intact — no hard-coded per-work-item or per-path special case in the
+helper itself. This item's own declarations gain exactly one such entry,
+added by this checkpoint:
+`narrowing_exceptions['.workflow-manager/'] = ['.workflow-manager/installation.json']`
+— stating explicitly, as data, what revision 36 previously stated only in
+prose: the broader plan-stage exclusion is deliberately narrowed to this
+one exact path at the implementation stage (§2.7, `CP9`), and any other
+path under `.workflow-manager/` stays intentionally fail-closed at
+implementation stage until it is itself declared. Fixtures, all required
+(**reconciled with the registry row's own list, and one fixture added, at
+revision 39**, round 39 finding I3 and "Missing tests" 1; **four more
+fixtures added at revision 40**, `MANUAL_EXTERNAL_PLAN_REVIEW` round 2,
+finding I1 and its "Missing tests"): a declarations
+file whose `implementation_stage.protected_*` set names a tree no
+`plan_stage` set classifies fails direction (a); a declarations file whose
+`plan_stage.excluded_*` set names a tree no `implementation_stage` set
+claims, with no `narrowing_exceptions` entry, fails direction (b); a
+`narrowing_exceptions` entry mapping a plan-stage entry to an empty list,
+with no implementation-stage narrowing declared for it at all, fails
+direction (b) too — the non-emptiness requirement, distinct from the
+no-entry-at-all case above (**added at revision 40**, finding I1's own
+"Missing tests" item 1); an
+undeclared partial-overlap case (one implementation-stage exact path
+narrowing a plan-stage prefix, with no `narrowing_exceptions` entry for it)
+fails direction (b); this item's own **pre-`CP7`** declarations file — the
+live instance of that partial-overlap case, `.workflow-manager/` narrowed
+by `.workflow-manager/installation.json` with no exception yet declared —
+must fail direction (b) (**added at revision 39**, round 39 "Missing
+tests" 1); a `narrowing_exceptions` entry
+whose listed implementation-stage path is itself undeclared fails (added
+at revision 38, round 38 "Missing tests" 1); a `narrowing_exceptions`
+entry whose listed path is declared but not contained by the entry it
+excepts fails (added at revision 38, round 38 finding I2, "Missing
+tests" 2); a `narrowing_exceptions` entry whose listed paths are each
+individually valid but that omits an implementation-stage exact path also
+declared and contained by the entry it excepts fails — the exhaustiveness
+requirement, not clause (ii)'s per-path checks above (**added at revision
+40**, finding I1's own "Missing tests" item 2); the same declarations
+file, with one further implementation-stage exact path added beneath an
+already-excepted entry but the entry's own `narrowing_exceptions` list
+left unchanged, fails the moment that addition lands, proving the helper
+re-checks exhaustiveness against the live declarations rather than a
+fixed snapshot (**added at revision 40**, finding I1's own "Missing
+tests" item 3); a `narrowing_exceptions` key that does not itself equal a
+real `plan_stage.excluded_paths`/`excluded_prefixes` entry fails (**added
+at revision 40**, finding I1's own "Missing tests" item 4); the declared
+`narrowing_exceptions['.workflow-manager/']` case
+passes direction (b), its one-element list remaining exhaustive for that
+entry (restated against the new exhaustiveness requirement at revision 40,
+finding I1's required acceptance criterion 5); a plan-stage entry fully covered at implementation
+stage passes without needing an exception; and this item's own
+**post-`CP7`** declarations file — carrying
+`narrowing_exceptions['.workflow-manager/']` — passes the complete helper,
+both directions (**corrected at revision 39**, round 39 finding I2, from a
+"revision-37 declarations file" label that predates the `narrowing_exceptions`
+key `CP7` itself adds, and against which the file fails direction (b)).
+**Four more fixtures added at revision 41**, `LOCAL_MODEL_PLAN_REVIEW`
+round 41, finding I1: a `narrowing_exceptions` entry whose list is
+exhaustive over the excepted entry's implementation-stage **exact**
+children but omits an implementation-stage **prefix** entry also
+contained by the excepted entry fails — the prefix twin of the
+exhaustiveness fixture above, pinning that exhaustiveness is measured
+against the complete set, not the exact-only subset (finding I1's own
+"Missing tests" item 1); the same declarations file, with one further
+implementation-stage **prefix** added beneath an already-excepted entry
+but that entry's own `narrowing_exceptions` list left unchanged, fails the
+moment that addition lands — the prefix twin of revision 40's own
+live-regression fixture (finding I1's own "Missing tests" item 2); a
+plan-stage entry whose only implementation-stage narrowing is itself a
+prefix — contained by, not equal to, the excepted entry — is representable
+and passes when its `narrowing_exceptions` list names that prefix, a shape
+clause (ii) could not represent at all before this revision (finding I1's
+own "Missing tests" item 3); and the empty-value fixture is restated
+against the complete set — a `narrowing_exceptions` entry mapping an
+excepted plan-stage entry to `[]`, with no implementation-stage narrowing
+of either shape declared for it at all, still fails direction (b),
+unchanged in substance from the fixture revision 40 itself added (finding
+I1's own "Missing tests" item 4). CP7's required-fixture list now names
+seventeen cases (**revised from thirteen at revision 41**, finding I1;
+thirteen at revision 40, finding I1). The coverage helper, its test
+support, and the `surface_census`/`verifier_census` documentation are all
+under `migration/` — P-exc, I-prot. **This checkpoint's one write outside
+`migration/`, named explicitly (added at revision 38, round 38 finding
+I1):** applying the `narrowing_exceptions['.workflow-manager/']` key above
+to this item's own live declarations file,
+`docs/ai-workflow/registry/implementation-review-two-stage-artifacts.json`
+— P-exc via `plan_stage.excluded_prefixes['docs/ai-workflow/registry/']`,
+I-prot as an `implementation_stage.protected_paths` exact entry (the
+declarations file's own self-protection). This does not breach §2.7/
+REQ-12's forward-only rule: the new `narrowing_exceptions` key sits outside
+`compute_review_content_id_plan_stage`'s projection (`sorted(protected_paths)`/
+`sorted(excluded_paths)`/`sorted(excluded_prefixes)` only — confirmed by
+recomputing before and after applying the key: the plan-stage digest is
+unchanged), so this edit moves no plan-stage digest and stales no standing
+plan approval; and the file is implementation-stage protected, so the edit
+is itself reviewed at this checkpoint (no `technical_approval` yet exists
+here) rather than slipped through unreviewed. Implements §2.5. Depends on
+CP2.
+<!-- /CP7 -->
+
+<!-- CP8 -->
+**CP8 — finding taxonomy and circuit breaker.** Writes
+D-Review-Finding-Taxonomy-and-Circuit-Breaker into the overlay payload's
+`REVIEW_PROTOCOL.md`, plus the two tests its registry row names, under the
+overlay payload's own test tree. All under `migration/` — P-exc, I-prot.
+Implements §2.6. Depends on CP1.
+<!-- /CP8 -->
+
+<!-- CP9 -->
+**CP9 — tractable post-v2.3.1 backlog fixes.** Writes the overlay payload's
+`scripts/workflow_state.py` (the `v2.3.1-003` mode-`100644` fallback and the
+`v2.4.0-001` implementation-stage `.workflow-manager/` widening), the
+overlay payload's own test files (the `v2.3.1-001` portable skip and four
+regression tests), and `migration/portability_exceptions.json`'s required
+empty `by_version["2.5.0"]` entry. All under `migration/` — P-exc, I-prot.
+Implements §2.7. Depends on CP2.
+<!-- /CP9 -->
+
+<!-- CP10 -->
+**CP10 — `v2.4.0-002` reconsideration.** Writes the written disposition
+only, into the overlay payload's own design/defect-disposition text; no code
+change, and explicitly no adoption of the `IMPL10-O1` mitigation. Under
+`migration/` — P-exc, I-prot. Implements §2.7. Depends on CP1.
+<!-- /CP10 -->
+
+<!-- CP11 -->
+**CP11 — release authoring.** The one checkpoint writing outside
+`migration/`. Writes `migration/overlays/2.5.0/classification.json` plus
+every full-replacement payload file (P-exc, I-prot);
+`migration/portability_exceptions.json`'s `by_version["2.5.0"]` entry
+(P-exc, I-prot); **`distribution/workflow/2.5.0/`**, reproduced by
+`python3 tools/build_release.py --overlay migration/overlays/2.5.0` and
+proved by `--check` (P-exc via `distribution/`, I-prot at the narrower
+`distribution/workflow/2.5.0/`); and **`tests/support.py`**'s per-release
+`CI_SUITES` entry for `2.5.0` (P-exc via `tests/`, I-prot). It *runs*
+`tools/build_release.py` and never writes it (P-exc as an exact path,
+I-prot). Depends on CP1–CP10.
+<!-- /CP11 -->
+
+<!-- CP12 -->
+**CP12 — disposable-repository functional validation.** Writes its scenario
+fixtures and harness support under `tests/` (P-exc via `tests/`, I-prot) and
+its execution evidence under `docs/ai-workflow/dry-run/` (P-exc, I-exc via
+`docs/ai-workflow/`). The disposable repositories it bootstraps live outside
+this repository's working tree and are classified by neither stage, by
+construction. Depends on CP11.
+<!-- /CP12 -->
+
+<!-- CP13 -->
+**CP13 — full regression and downgrade posture.** Runs
+`python3 tests/run_all.py` (read/execute only) and writes this repository's
+own `CLAUDE.md` downgrade-posture paragraph (P-exc as an exact path,
+I-prot as an exact path) plus this milestone's final disposition of the
+four previously-deferred defects, matching §8's own record, into each of
+the four defects' own existing `docs/defects/*.md` records — `v2.3.1-001`,
+`v2.3.1-003`, `v2.4.0-001`, `v2.4.0-002` (P-exc, I-exc via `docs/defects/`).
+Never into this plan document itself: §8 already carries the disposition in
+full and needs no further write, and no checkpoint writes any
+`plan_stage.protected_paths` entry (corrected at revision 36,
+`LOCAL_MODEL_PLAN_REVIEW` round 36, finding B1: revision 35's own registry
+row and this block instead named a write into this plan document's own §8,
+a `plan_stage.protected_paths` entry — the `OPUS-R14-001` defect shape one
+stage later, vacating the very plan approval the checkpoint runs under; the
+only available fix is scope, per this item's own precedent,
+`plan-amendment-mechanism`, whose only commit ever touching its own plan
+document is the plan-approval commit itself). **These four `docs/defects/*.md`
+writes are deliberately non-review-bound mirrors of §8's own
+already-reviewed disposition — their exact bytes are outside
+implementation-stage review identity, consistent with `docs/defects/`'s
+existing repository-bookkeeping classification (excluded, not protected) at
+both stages, and this is the intended, not merely default, policy** (round
+37, `MANUAL_EXTERNAL_PLAN_REVIEW` round 1, optional finding O1: stated
+explicitly rather than left implicit, since §8 remains the normative,
+already-approved disposition and these four records are its copy, never a
+second place §8's own content could diverge from what was reviewed).
+Depends on CP12.
+<!-- /CP13 -->
 
 ## 4. Requirements traceability
 
@@ -6429,6 +6800,472 @@ enumeration, without this note needing to be repeated per entry.
   other design decision — the two-stage review protocol (§2.2-§2.3), the
   finding-taxonomy circuit-breaker (§2.6), or the post-v2.3.1 backlog
   (§2.7, CP9-CP10) — is reopened.
+
+- **Revision 34 applies a plan amendment (`/request-plan-amendment`,
+  `workflow-2.4.0`'s `D-Plan-Amendment-1`), not a plan-review round.**
+  CP1's own committed `migration/overlays/2.5.0/` overlay content made
+  plan-stage `review_content_id` recomputation raise `UnclassifiedPathError`
+  at CP2's own `/milestone-implement` entry validation: this item's
+  `docs/ai-workflow/registry/implementation-review-two-stage-artifacts.json`
+  declared `implementation_stage.protected_prefixes['migration/']` (§7's
+  revision-2 entry above) but never the plan-stage half,
+  `plan_stage.excluded_prefixes['migration/']` -- so the identical tree that
+  is correctly protected one stage later was simply unclassified at the
+  plan stage, the moment any content existed under it. Corrected by adding
+  `plan_stage.excluded_prefixes['migration/']`, mirroring
+  `plan-amendment-mechanism-artifacts.json`'s own `migration/` precedent for
+  its own `plan_stage.excluded_prefixes` (that milestone's own release
+  tooling hit and fixed the identical gap for itself before this item's own
+  revision 1 ever ran). This is a `plan_stage`-only artifacts-declaration
+  edit -- `docs/ai-workflow/REVIEW_PROTOCOL.md`'s "Repairing an artifact
+  declaration after an approval", case 2 (after the plan approval): the
+  approval superseded by `/request-plan-amendment` is carried back through
+  its own real gate here, not hand-repaired. The plan/registry/mapping are
+  regenerated at `plan_revision: 34` (still 13 checkpoints, no
+  `checkpoint_ids` list change, still 16 requirements; only the
+  declarations file and this section's own new entry change) and a fresh
+  two-stage plan review is run against the new `review_content_id` before
+  `/approve-review plan` is reachable again.
+  **Scope discipline.** This revision touches only
+  `implementation-review-two-stage-artifacts.json`'s `plan_stage.excluded_prefixes`
+  and this section's own new entry -- no design decision (§2.1-§2.7),
+  checkpoint content (§3), requirement text (§4), or any earlier self-review
+  entry is reopened.
+
+- **Revision 35 completes revision 34's amendment rather than opening a new
+  one** (`LOCAL_MODEL_PLAN_REVIEW` round 35, findings B1 and B2 and its
+  "Missing tests" item). The same amendment stays open
+  (`amendment_history[-1].resolved_at_plan_revision` is still `null`); this
+  revision is the `/apply-plan-review` round that makes it approvable.
+  Three things changed, and nothing else.
+
+  **(1) Checkpoint anchors, all 13 (finding B1).** The plan document has
+  never carried `<!-- CPn -->`/`<!-- /CPn -->` anchors at any revision, and
+  revision 34 deliberately deferred adding them. That deferral was
+  unworkable, not merely costly: with an amendment open,
+  `apply_plan_approval` takes its `has_open_amendment` branch and runs
+  `validate_post_anchor_coverage` *before computing any outcome*, so
+  `/approve-review plan` would have refused outright
+  (`AmendmentAnchorCoverageError`, naming `CP1`) after both plan-review
+  stages had already been spent -- and because adding the anchors then
+  requires a plan edit, it publishes a new `plan_revision` and therefore a
+  new `review_content_id`, which `plan_approval_gate_reachable` compares
+  against the recorded ledger, invalidating both stage approvals and forcing
+  both stages to run again anyway. Deferring bought nothing and cost one
+  manual-external round. `/request-plan-amendment.md` step 4 states the rule
+  directly ("add the anchors while drafting or revising the amended plan,
+  not after a refusal"); revision 35 follows it. The anchors live in the new
+  §3.1, **not** in §3's table, because that table is
+  `render_registry_markdown`'s own re-embedded output and would destroy them
+  on the next regeneration; §3.1 explains the content choice.
+
+  **Accepted consequence, stated here so it is never later read as a
+  defect:** `CP1` will be rewritten from `COMPLETE` to `NEEDS_REVALIDATION`
+  at `apply_plan_approval` time, and every other id will be reported
+  `needs_revalidation` too. This is `reconcile_checkpoints_after_amendment`'s
+  documented zero-anchor legacy default: the *pre*-amendment plan snapshot
+  is pinned at `pre_amendment_approval_commit` (`b1804776...`) and is
+  permanently anchor-free, so `checkpoint_content_hash` returns `None` for
+  every id and cannot prove any of them unchanged. No later revision avoids
+  this -- the pre-side blob never becomes anchored -- so the demotion is the
+  one-time cost of retrofitting the anchor mechanism onto a plan that
+  predates it, paid here deliberately rather than deferred into a future
+  amendment where it would be indistinguishable from a real content change.
+  Only `CP1` is actually `COMPLETE` today, so exactly one checkpoint's
+  completion is affected.
+
+  **(2) The declaration-gap class, closed rather than one instance (finding
+  B2).** Revision 34 fixed `plan_stage.excluded_prefixes['migration/']`
+  while two more trees carried the identical plan-stage/implementation-stage
+  asymmetry -- declared `implementation_stage.protected_prefixes`, absent
+  from every plan-stage set -- and both are written by `CP11`:
+  `tests/support.py`'s per-release `CI_SUITES` entry, and
+  `distribution/workflow/2.5.0/`, the tree `build_release.py --check`
+  reproduces. Each would have raised `UnclassifiedPathError` at the next
+  `/milestone-implement` entry validation exactly as `CP1`'s overlay content
+  did, ten checkpoints later, recoverable only through another user-only
+  `/request-plan-amendment` and two further review stages. Revision 35 adds
+  `tests/` and `distribution/` to `plan_stage.excluded_prefixes`, and
+  `tools/build_release.py` as an exact `excluded_paths` entry -- the last
+  being the deliberate, recorded decision finding B2 asked for: this plan
+  never writes that file (§2.2 declines the change explicitly), so it is not
+  an output path at all, but it *is* `implementation_stage.protected_paths`,
+  and an implementation-stage-protected path that no plan-stage set claims
+  is the precise shape of the defect this amendment exists to fix. Declared
+  as an exact path, not a `tools/` prefix, so `tools/migrate.py` and any
+  future `tools/` file stay fail-closed. The `distribution/` asymmetry --
+  broad at plan stage, narrow (`distribution/workflow/2.5.0/`) at
+  implementation stage -- is intentional and justified in the declaration
+  entry itself.
+
+  The check behind this was bounded, per the user's own instruction when
+  authorizing the round: every repository path this plan's own §3 checkpoint
+  rows name was classified at both stages, and the result is recorded per
+  checkpoint in §3.1. Implementation-stage declarations needed no change --
+  every output path was already protected or excluded there. This revision
+  does **not** revisit the artifact-classification model itself.
+
+  **(3) `CP7` gains the symmetry assertion ("Missing tests").** `CP7`
+  already extracts a generic, parametric declaration-coverage helper; its
+  registry row now states that the helper asserts plan-stage/implementation-
+  stage declaration symmetry -- every `implementation_stage.protected_*`
+  path or prefix must be classifiable by that same work item's plan-stage
+  sets. That single assertion would have caught revision 34's `migration/`
+  gap and revision 35's own two gaps at authorship time instead of at
+  `/milestone-implement` entry validation, and catches the class for every
+  future work item. It is the only checkpoint row this revision changes.
+
+  **Recorded, not repaired: `AMENDMENT_DIFF.patch` is always empty**
+  (finding I1). `scripts/prepare-ai-review.sh` anchors that
+  reviewer-convenience file at `<amendment_base_commit>..HEAD`, but an
+  amended plan is uncommitted until `/approve-review plan` runs, so the
+  committed range never contains the amendment and the file is zero bytes at
+  exactly the moment both review stages read it. The identical anchor is
+  frozen at `distribution/workflow/2.4.0/payload/scripts/prepare-ai-review.sh:471`,
+  making this an upstream `2.4.0` defect rather than local drift, so per this
+  repository's own `CLAUDE.md` it is written up at
+  `docs/defects/v2.4.0-003-amendment-diff-anchored-at-head-is-always-empty.md`
+  and repaired nowhere in this milestone. Adopting the fix is a future
+  release's scope decision; §2.7's backlog is not widened to claim it here.
+  Revision 35's `REVIEW_REQUEST.md` states the emptiness and where the
+  amendment diff can actually be read.
+
+  **Scope discipline.** This revision touches only the plan document's
+  title/revision marker, its new §3.1, this entry, the declarations file's
+  `plan_stage` sets, `CP7`'s registry row, and the new `docs/defects/`
+  record. No design decision (§2.1-§2.7), no other checkpoint's content, no
+  requirement text (§4), and no earlier self-review entry is reopened.
+
+- **Revision 36 completes revision 34's amendment further** (still the same
+  amendment; `amendment_history[-1].resolved_at_plan_revision` is still
+  `null`), applying `LOCAL_MODEL_PLAN_REVIEW` round 36's two findings,
+  scoped narrowly to those two findings and their direct dependents per the
+  user's own instruction authorizing the round.
+
+  **(1) `CP13`'s plan-document write, removed (finding B1).** Revision 35's
+  own `§3.1` `CP13` block, and `CP13`'s registry row, both named a write
+  into this plan document's own §8 as part of `CP13`'s deliverable — a
+  `plan_stage.protected_paths` entry, which no checkpoint may write: editing
+  this document after the plan approval that reviewed it moves the
+  plan-stage `review_content_id`, so `approval_is_current(..., stage="plan")`
+  returns `False` immediately after `CP13` runs — the `OPUS-R14-001` defect
+  shape one stage later, and the same shape `plan-amendment-mechanism`'s own
+  `CP9` avoids: that item's only commit ever touching its own plan document
+  is the plan-approval commit. The clause is removed; `CP13` now records the
+  same disposition — unchanged, and matching §8's own record exactly — into
+  each of the four defects' own existing `docs/defects/*.md` records
+  instead, an already-`P-exc`/`I-exc` destination (`docs/defects/`) neither
+  stage's approval can be staled by. §8 itself is left as the historical
+  design record it already is, written at revision 3 and corrected at
+  revisions 4 and 15; nothing in it needed to change. §3.1's own preamble
+  now states explicitly that no checkpoint writes any
+  `plan_stage.protected_paths` entry, so a reader can check the invariant
+  once rather than per block.
+
+  **(2) The `distribution/` implementation-stage gap, closed (finding I1).**
+  The plan-stage `distribution/` exclusion (revision 35) is correct and
+  unchanged — nothing under it is ever this item's own plan-stage design
+  content, and the broad prefix keeps a concurrent work item's write to
+  another release's directory from staling this item's plan approval. But
+  nothing in `implementation_stage`'s four sets claimed any `distribution/`
+  path outside the narrow `distribution/workflow/2.5.0/` protected prefix,
+  so every sibling release tree — `distribution/workflow/2.3.1/`,
+  `distribution/workflow/2.4.0/`, `distribution/README.md` — was
+  `UnclassifiedPathError` at the implementation stage: a fail-closed gap
+  with no trigger today (`git diff 38114204 -- distribution/` is empty) but
+  reachable the moment a sibling release is authored mid-implementation,
+  wedging recomputation no earlier than after `CP11`. Closed by adding
+  `implementation_stage.excluded_prefixes['distribution/']`, justified in
+  the declaration entry itself for both directions of the asymmetry; the
+  narrower `distribution/workflow/2.5.0/` protected prefix still wins
+  (verified: `distribution/workflow/2.5.0/payload/…` stays `protected`,
+  every sibling tree becomes `excluded`), so `technical_approval` continues
+  to bind to the `2.5.0` tree alone. `CP7`'s symmetry assertion, one
+  checkpoint row this revision also changes, is extended from checking only
+  "every `implementation_stage.protected_*` entry is plan-stage
+  classifiable" to checking both that direction and its reverse — "every
+  `plan_stage.excluded_*` entry is implementation-stage classifiable" — the
+  direction that would have caught this gap at authorship time; its fixture
+  records this item's own `.workflow-manager/` exact-path narrowing at the
+  implementation stage (§2.7, `CP9`) as the known, deliberate exception
+  rather than a symmetry failure the assertion should flag.
+
+  **O1, left unaddressed by the user's own narrow-scope instruction for this
+  round**, same as round 33's own O1/O2: recorded, not re-litigated here.
+
+  **Scope discipline.** This revision touches only `CP13`'s registry row and
+  §3.1 block, `CP7`'s registry row and §3.1 block, §3.1's own preamble, this
+  entry, and the declarations file's `implementation_stage.excluded_prefixes`
+  set. No design decision (§2.1-§2.7), no other checkpoint's content, no
+  requirement text (§4), §8 itself, and no earlier self-review entry is
+  reopened.
+
+- **Revision 37 completes revision 34's amendment further still**
+  (`amendment_history[-1].resolved_at_plan_revision` still `null`), applying
+  `MANUAL_EXTERNAL_PLAN_REVIEW` round 1's Important finding I1 and Optional
+  finding O1. O2 is folded into I1's own fix rather than tracked separately,
+  since it is a property I1's fix must have, not a distinct deliverable.
+
+  **(1) `CP7`'s direction (b), corrected (finding I1).** Revision 36's own
+  §3.1 `CP7` block justified the `.workflow-manager/` case by pointing at
+  the wrong containment: that the narrower implementation-stage exact path
+  is classifiable under the broader plan-stage prefix is true but does not
+  make the plan-stage prefix itself classifiable at implementation stage —
+  a future `.workflow-manager/<other-file>` stays `UnclassifiedPathError`
+  there, exactly the gap direction (b) exists to catch. Corrected: direction
+  (b) now passes a `plan_stage.excluded_*` entry only on full implementation-
+  stage classification, or on membership in a new, explicit declarations
+  field, `plan_stage.narrowing_exceptions`, mapping the entry to the
+  implementation-stage exact paths that are its own declared narrowing —
+  data the helper reads directly, never inferred from justification prose
+  (closing finding O2 in the same stroke: the exception mechanism is
+  parameter-driven, not a hard-coded per-work-item special case, so the
+  helper stays generic). This item's own declarations will gain
+  `narrowing_exceptions['.workflow-manager/'] =
+  ['.workflow-manager/installation.json']` when `CP7` runs, restating as
+  data what was previously only prose. Four fixtures are now required
+  rather than three: full coverage passes without an exception; an
+  undeclared partial overlap fails; the declared `.workflow-manager/`
+  exception passes; this item's own declarations pass the complete helper.
+  This is a plan-stage design correction only — no code exists yet for
+  `CP7` to implement differently, and this item's own live declarations
+  file is unchanged at this revision, since `narrowing_exceptions` has no
+  consumer until `CP7` itself runs.
+
+  **(2) `CP13`'s `docs/defects/` writes, their binding stated explicitly
+  (finding O1).** §3.1's `CP13` block now states directly that the four
+  `docs/defects/*.md` writes are deliberately non-review-bound mirrors of
+  §8's own already-reviewed disposition, keeping the existing
+  `docs/defects/` exclusion (not protection) at both stages as the
+  intended policy rather than an unstated default — the alternative the
+  finding offered, protecting the four exact paths, was not taken, since
+  §8 remains the normative disposition and a second, independently
+  review-bound copy of it would only create a place for the two to drift.
+
+  **Scope discipline.** This revision touches only `CP7`'s registry row and
+  §3.1 block, `CP13`'s registry row and §3.1 block, and this entry. No
+  design decision (§2.1-§2.7), no other checkpoint's content, no
+  requirement text (§4), §8 itself, no declarations-file data (the schema
+  change is described, not yet applied — `CP7` applies it), and no earlier
+  self-review entry is reopened.
+
+- **Revision 38 applies `LOCAL_MODEL_PLAN_REVIEW` round 38's three
+  Important findings and its two "Missing tests" items** (all against
+  `CP7`'s block and registry row alone; Optional findings O1/O2 are
+  evidence-file corrections, not plan-content, and O3 is left as
+  hardening, not adopted).
+
+  **(1) `CP7`'s one write outside `migration/`, named and classified
+  (finding I1).** `CP7`'s block previously closed "All under `migration/`
+  — P-exc, I-prot," while the same block already stated `CP7` applies
+  `narrowing_exceptions['.workflow-manager/']` to this item's own live
+  declarations file, `docs/ai-workflow/registry/implementation-review-two-stage-artifacts.json`
+  — a path not under `migration/` and named nowhere in the classification
+  line. The block now names that path explicitly (P-exc via
+  `plan_stage.excluded_prefixes['docs/ai-workflow/registry/']`, I-prot as
+  an `implementation_stage.protected_paths` exact entry) and states why
+  writing it at `CP7` does not breach §2.7/REQ-12's forward-only rule: the
+  new `narrowing_exceptions` key sits outside
+  `compute_review_content_id_plan_stage`'s projection (verified by
+  recomputing the digest before and after — unchanged), so the edit stales
+  no standing plan approval, and the file is implementation-stage
+  protected, so the edit is reviewed at this checkpoint rather than
+  slipped through.
+
+  **(2) Direction (b) clause (ii) now requires containment, not just
+  declaration (finding I2).** A listed implementation-stage path merely
+  being declared let `narrowing_exceptions['migration/'] = ['CLAUDE.md']`
+  satisfy clause (ii) for `migration/` while `migration/` itself stayed
+  genuinely unclassified — the exact `UnclassifiedPathError` shape
+  direction (b) exists to catch, reopened through the exception door.
+  Clause (ii) now additionally requires each listed path to equal the
+  entry it excepts (exact-path entries) or lie under it (prefix entries).
+
+  **(3) The "literal-key test" mischaracterization is corrected, and
+  clause (i)'s method is now named (finding I3).** Read as an exact-key
+  test, the prior parenthetical contradicted this item's own required
+  fixture and, measured against the live declarations file, would fail 2
+  of 6 implementation-stage protected entries under direction (a) and 10
+  of 46 plan-stage excluded entries under direction (b) — clause (i)'s own
+  direction — the opposite of the mechanism's purpose (figures corrected
+  at revision 39, round 39 finding I1: the two counts were originally
+  attached to the wrong direction and the wrong set). Clause (i) now
+  states the actual method: the entry's own literal key, fed into the
+  other stage's own `classify_path_*`, must not raise — containment-aware
+  by construction, and the same method direction (a) already applies in
+  the opposite stage direction.
+
+  **(4) Two fixtures added, per "Missing tests."** A `narrowing_exceptions`
+  entry whose listed implementation-stage path is itself undeclared must
+  fail; a `narrowing_exceptions` entry whose listed path is declared but
+  not contained by the entry it excepts must fail (I2's own required
+  fixture). `CP7`'s required-fixture list now names six cases rather than
+  four.
+
+  **Scope discipline.** This revision touches only `CP7`'s registry row and
+  §3.1 block, and this entry. No design decision (§2.1-§2.7), no other
+  checkpoint's content, no requirement text (§4), §8 itself, and no
+  earlier self-review entry is reopened.
+
+- **Revision 39 applies `LOCAL_MODEL_PLAN_REVIEW` round 39's three
+  Important findings and its one "Missing tests" item** (all against
+  `CP7`'s block, registry row, and the revision-38 entry above). Optional
+  findings O1 (stale pre-renumbering checkpoint ids in
+  `…-artifacts.json`'s implementation-stage justification prose) and O2
+  (the counterfactual `narrowing_exceptions['migration/'] = ['CLAUDE.md']`
+  illustration is not marked hypothetical) are both declined, same
+  reasoning as revision 38's own declined optionals: both are evidence-file
+  or example-text polish the reviewer's own round explicitly marks "not
+  required for approval," and this revision keeps to the required
+  acceptance criteria rather than adding a fourth unforced edit to the
+  block this round's own architecture finding already calls out for
+  accreting.
+
+  **(1) Clause (i)'s exact-key failure figures, reattributed to their own
+  direction and set (finding I1).** Revision 38's own fix, and its §7
+  entry above, attached direction (a)'s figure (2 of 6
+  `implementation_stage.protected_*` entries) to direction (b)'s set (46
+  `plan_stage.excluded_*` entries) and called the result "this item's own 6
+  plan-stage excluded entries" — a phrase that names neither real set. The
+  block, the registry row, and the revision-38 §7 entry above now state
+  both figures separately: 2 of 6 implementation-stage protected entries
+  fail under direction (a); 10 of 46 plan-stage excluded entries — clause
+  (i)'s own direction — fail under direction (b).
+
+  **(2) The self-application fixture is retargeted to the file `CP7`
+  actually produces (finding I2).** "This item's own revision-37
+  declarations file passes the complete helper, both directions" named a
+  file that predates the `narrowing_exceptions` key `CP7` itself adds, and
+  which therefore fails direction (b) (`.workflow-manager/` is an
+  undeclared partial overlap without the exception). The block and the row
+  now name the fixture against the post-`CP7` file — the one carrying
+  `narrowing_exceptions['.workflow-manager/']` — and drop the stale
+  "revision-37" pin.
+
+  **(3) The block's and the row's required-fixture lists are reconciled
+  (finding I3).** The two enumerations diverged in membership: the row
+  named both whole-tree negative fixtures (direction (a) and direction (b))
+  that the block omitted, and the block named the fully-covered positive
+  fixture that the row omitted. Both lists now name the same nine cases,
+  and this entry's own count above is restated from that reconciled list
+  rather than from either side alone.
+
+  **(4) One fixture added, per "Missing tests."** This item's own
+  **pre-`CP7`** declarations file — the live, undeclared partial overlap at
+  `.workflow-manager/` before `CP7`'s `narrowing_exceptions` entry exists —
+  must fail direction (b), proving the exception is what makes the
+  post-`CP7` file pass rather than something else in it. `CP7`'s
+  required-fixture list now names nine cases.
+
+  **Scope discipline.** This revision touches only `CP7`'s registry row and
+  §3.1 block, and the revision-38 entry's item (3) above (corrected in
+  place for finding I1, not reopened as a design matter — the figures were
+  wrong, the method they describe was not). No design decision
+  (§2.1-§2.7), no other checkpoint's content, no requirement text (§4), §8
+  itself, and no earlier self-review entry's substance is reopened.
+
+- **Revision 40 completes revision 34's amendment further still**
+  (`amendment_history[-1].resolved_at_plan_revision` still `null`), applying
+  `MANUAL_EXTERNAL_PLAN_REVIEW` round 2's Important finding I1. Optional
+  finding O1 (deduplicating the block's and the registry row's own fixture
+  enumeration into one normative list) is declined: the required
+  correction is already fully addressed by this revision's own reconciled
+  dual-list update below, and collapsing two independently-maintained-but-
+  reconciled lists into one is an architecture change this revision does
+  not need to make to satisfy the required correction (required
+  acceptance criterion 5).
+
+  **(1) `CP7`'s direction (b) clause (ii), made mechanically complete
+  (finding I1).** Revision 38's own containment-and-declaration check, run
+  per listed path alone, still let `narrowing_exceptions['some-prefix/'] =
+  []` satisfy clause (ii) vacuously for a plan-stage entry with no
+  implementation-stage narrowing declared at all, and let a list that
+  omitted an already-declared implementation-stage child of the excepted
+  entry pass as long as every path it did list was itself valid — so
+  adding or removing a covered implementation-stage child left the stale
+  exception data undetected, the same staleness clause (ii) exists to
+  prevent, reopened through a different door than revision 38's own fix
+  closed. Corrected: the mapped list must now be non-empty and exhaustive
+  — equal to, not merely a subset of, the full set of implementation-stage
+  `protected_paths`/`excluded_paths` exact entries contained by the entry
+  it excepts — and every `narrowing_exceptions` key must itself equal a
+  real `plan_stage.excluded_paths`/`excluded_prefixes` entry, an orphaned
+  key failing too. Four fixtures are added, per the finding's own
+  "Missing tests": an empty-value case for a genuinely unclassified
+  prefix; a non-exhaustive list omitting an already-declared contained
+  child; the same case restated as a live regression — a new
+  implementation-stage child added beneath an already-excepted entry
+  without updating that entry's own `narrowing_exceptions` list; and an
+  orphaned `narrowing_exceptions` key naming no real plan-stage entry. The
+  declared `narrowing_exceptions['.workflow-manager/']` case continues to
+  pass, its one-element list remaining the entry's own complete
+  implementation-stage exact-declaration set. `CP7`'s required-fixture
+  list now names thirteen cases, revised from nine. This is a plan-stage
+  design correction only — no code exists yet for `CP7` to implement
+  differently, and this item's own live declarations file is unchanged at
+  this revision, since the corrected clause (ii) has no consumer until
+  `CP7` itself runs.
+
+  **Scope discipline.** This revision touches only `CP7`'s registry row and
+  §3.1 block, and this entry. No design decision (§2.1-§2.7), no other
+  checkpoint's content, no requirement text (§4), §8 itself, and no
+  earlier self-review entry is reopened.
+
+- **Revision 41 completes revision 34's amendment further still**
+  (`amendment_history[-1].resolved_at_plan_revision` still `null`), applying
+  `LOCAL_MODEL_PLAN_REVIEW` round 41's Important finding I1. Optional
+  findings O1 (exact-path `narrowing_exceptions` keys are a dead branch) and
+  O2 (the dual fixture list is currently reconciled) are both declined:
+  neither is required, and this round's own reconciled dual-list update
+  below keeps O2's own reconciliation intact without change to its
+  substance.
+
+  **(1) Clause (ii)'s narrowing set widened to cover implementation-stage
+  prefixes, not exact entries alone (finding I1).** Revision 40's own
+  non-emptiness and exhaustiveness requirements measured both against the
+  full set of implementation-stage `protected_paths`/`excluded_paths`
+  **exact** entries contained by the excepted entry only, leaving every
+  implementation-stage `protected_prefixes`/`excluded_prefixes` **prefix**
+  entry contained by the same excepted entry invisible to clause (ii) on
+  either side: stale exception data still passed when the newly-added
+  contained child was a prefix rather than an exact path (the "live
+  regression" fixture revision 40 itself added pinned only the exact-path
+  variant of that addition), and a plan-stage entry whose only
+  implementation-stage narrowing was itself a prefix had no satisfiable
+  exception at all — a shape revision 38's own wording did admit, but
+  revision 40's non-emptiness requirement left with no valid list to
+  represent it. Corrected: the narrowing set is now defined over every
+  implementation-stage declaration contained by the excepted entry —
+  `protected_paths`/`excluded_paths` exact entries and
+  `protected_prefixes`/`excluded_prefixes` prefix entries alike — with
+  non-emptiness, containment, and exhaustiveness all measured against that
+  complete set; an implementation-stage prefix counts as contained under a
+  plan-stage prefix when the implementation-stage prefix itself starts with
+  the plan-stage prefix. Every revision-40 guarantee stays intact under the
+  complete-set definition: `[]` for an entry with nothing declared beneath
+  it (of either shape) still fails, a subset list still fails, and an
+  orphaned key still fails. Four fixtures are added, per the finding's own
+  "Missing tests": an exhaustive-over-exact-children list that omits a
+  contained implementation-stage prefix; the same case restated as a live
+  regression — an implementation-stage prefix added beneath an
+  already-excepted entry without updating that entry's own
+  `narrowing_exceptions` list; a plan-stage entry whose only
+  implementation-stage narrowing is itself a prefix, now representable and
+  passing when its exception names that prefix; and the existing
+  empty-value fixture, restated against the complete set. The declared
+  `narrowing_exceptions['.workflow-manager/']` case continues to pass — it
+  has no prefix entry beneath `.workflow-manager/`, so its one-element list
+  remains exhaustive under the complete set too. `CP7`'s required-fixture
+  list now names seventeen cases, revised from thirteen. This is a
+  plan-stage design correction only — no code exists yet for `CP7` to
+  implement differently, and this item's own live declarations file is
+  unchanged at this revision, since the corrected clause (ii) has no
+  consumer until `CP7` itself runs.
+
+  **Scope discipline.** This revision touches only `CP7`'s registry row and
+  §3.1 block, and this entry. No design decision (§2.1-§2.7), no other
+  checkpoint's content, no requirement text (§4), §8 itself, and no
+  earlier self-review entry is reopened.
 
 ## 8. Disposition of the four previously-deferred defects (§2.7)
 

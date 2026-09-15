@@ -774,8 +774,8 @@
       "registry_path": "docs/ai-workflow/registry/implementation-review-two-stage-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/implementation-review-two-stage-mapping.json",
       "governing_workflow_version": "2.1",
-      "phase": "AMENDING_PLAN",
-      "plan_revision": 33,
+      "phase": "IMPLEMENTING",
+      "plan_revision": 41,
       "implementation_revision": null,
       "functional_review_round": null,
       "base_commit": "38114204a4eca46930b0a6fb7e7a1cc4d4810798",
@@ -784,28 +784,28 @@
       "last_completed_checkpoint_id": "CP1",
       "checkpoints": {
         "CP1": {
-          "status": "COMPLETE",
+          "status": "NEEDS_REVALIDATION",
           "start_commit": "b1804776860c09881a19beeebb716c5f884fe730"
         }
       },
       "current_bundle_id": null,
       "plan_approval": {
-        "status": "SUPERSEDED",
+        "status": "CURRENT",
         "basis": "EXTERNAL_APPROVE",
-        "reviewed_bundle_id": "14cc3ac9970a159ebb9d192a18dfd8bbc6fa15cdff56a728aec0df6bb7da45a0",
-        "approved_review_content_id": "1b6b216f8b5900ef9344e7349e93132e7c7510360be16f774cff05cd62d53c1f",
+        "reviewed_bundle_id": "dda39e03430540d95d7177d579638198d723e5ccd484d0dca91670b3f3b6c30e",
+        "approved_review_content_id": "9b7052bb4eef02e4bb57dfd30bbde0a885872e2334ae8ee6f8245457592accf2",
         "review_content_manifest": [
           {
             "path": "docs/ai-workflow/IMPLEMENTATION_REVIEW_TWO_STAGE_PLAN.md",
             "exists": true,
             "mode": "100644",
-            "blob": "d1f70790896ce2822ab7020e680317682033aab5"
+            "blob": "005f0728cc8f012f33808c989232a0ada7aaca45"
           },
           {
             "path": "docs/ai-workflow/registry/implementation-review-two-stage-registry.json",
             "exists": true,
             "mode": "100644",
-            "blob": "1ec74061601eaf716689eb52e7efb209c14f7164"
+            "blob": "30267ebaf39e45365baa5d09a44bea27b6c5dc77"
           },
           {
             "path": "docs/ai-workflow/requirements/implementation-review-two-stage-mapping.json",
@@ -816,31 +816,31 @@
         ],
         "reviewed_content_commit": null,
         "legacy_evidence": null,
-        "user_confirmation": "I confirm plan approval for implementation-review-two-stage.",
+        "user_confirmation": "I approve the plan stage for implementation-review-two-stage",
         "waived_guarantees": [],
-        "recorded_at": "2026-09-14T00:11:32Z"
+        "recorded_at": "2026-09-15T08:56:44Z"
       },
       "technical_approval": null,
       "technical_review_block_pins": [],
       "plan_review_stages": {
-        "review_content_id": "1b6b216f8b5900ef9344e7349e93132e7c7510360be16f774cff05cd62d53c1f",
+        "review_content_id": "9b7052bb4eef02e4bb57dfd30bbde0a885872e2334ae8ee6f8245457592accf2",
         "LOCAL_MODEL_PLAN_REVIEW": {
-          "bundle_id": "14cc3ac9970a159ebb9d192a18dfd8bbc6fa15cdff56a728aec0df6bb7da45a0",
+          "bundle_id": "dda39e03430540d95d7177d579638198d723e5ccd484d0dca91670b3f3b6c30e",
           "verdict": "APPROVE",
-          "round": 33,
-          "completed_at": "2026-09-13T22:48:25Z"
+          "round": 42,
+          "completed_at": "2026-09-15T06:51:33Z"
         },
         "MANUAL_EXTERNAL_PLAN_REVIEW": {
-          "bundle_id": "14cc3ac9970a159ebb9d192a18dfd8bbc6fa15cdff56a728aec0df6bb7da45a0",
+          "bundle_id": "dda39e03430540d95d7177d579638198d723e5ccd484d0dca91670b3f3b6c30e",
           "verdict": "APPROVE",
           "round": 1,
-          "completed_at": "2026-09-13T23:21:24Z"
+          "completed_at": "2026-09-15T08:20:41Z"
         }
       },
       "functional_acceptance_status": null,
       "blocking_decisions": [],
-      "state_revision": 106,
-      "last_transition": "2026-09-14T02:39:58Z",
+      "state_revision": 134,
+      "last_transition": "2026-09-15T08:56:44Z",
       "amendment_history": [
         {
           "amendment_id": "0",
@@ -886,7 +886,22 @@
             }
           },
           "pre_amendment_approval_commit": "b1804776860c09881a19beeebb716c5f884fe730",
-          "resolved_at_plan_revision": null
+          "resolved_at_plan_revision": 41,
+          "reconciliation_outcome": {
+            "CP1": "needs_revalidation",
+            "CP2": "needs_revalidation",
+            "CP3": "needs_revalidation",
+            "CP4": "needs_revalidation",
+            "CP5": "needs_revalidation",
+            "CP6": "needs_revalidation",
+            "CP7": "needs_revalidation",
+            "CP8": "needs_revalidation",
+            "CP9": "needs_revalidation",
+            "CP10": "needs_revalidation",
+            "CP11": "needs_revalidation",
+            "CP12": "needs_revalidation",
+            "CP13": "needs_revalidation"
+          }
         }
       ],
       "amendment_base_commit": "20a808d1ddd94e1fb2ad2efc3e4fdef6a1a64ad7"
