@@ -9,7 +9,7 @@
   "provenance": {
     "origin": "authored",
     "base_release": "2.4.0",
-    "overlay_commit": "9e995ef1e6aacc578a20a1c54f79d02f8364fdc8"
+    "overlay_commit": "f99d58846476261faa7ef3e6be2842102bc1265b"
   },
   "categories": {
     "distribution": "Canonical Workflow implementation. Copied byte-for-byte into the payload and installed into every managed target repository.",
@@ -729,12 +729,12 @@
       "category": "distribution",
       "rule": "^scripts/workflow_state\\.py$",
       "rationale": "KNOWN_PHASES additions, the generalized version-aware activation/rollback helpers, implementation_review_stages ledger writers (record_local_implementation_review, record_manual_implementation_review), the widened technical_approval_gate_reachable, and bundle_generation_target_phase/bundle_generation_recovered_role_legal_committed_phases (D-Implementation-Review-Stages, D-Implementation-Review-Version-Activation; CP1-CP3, CP9, CP10).",
-      "sha256": "23bfb5e789828266dd20abecd3ab78a15ab609ae3a1812cee92202c4e8dd6a87",
-      "size": 728427,
+      "sha256": "49f13a52d2fd9888347e065df1ef9ed34f103eff01b76170a52ec48c656e5fe8",
+      "size": 729293,
       "executable": false,
       "overlay_delta": {
         "base_sha256": "369ea8979a748674e082aa34ddd3f04fd4faf2c552e2aa9b6793fa8864833379",
-        "diff_sha256": "173524c94e3eb6114a8f2904cc2ef6944c476fcfbb12358e37ff778bba3e0d1b"
+        "diff_sha256": "0b7af442633d1aa10821b9dc4db7ddc2faf024efb46f127d028d2a865d73bdaf"
       }
     },
     {

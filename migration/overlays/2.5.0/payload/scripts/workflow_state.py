@@ -6816,20 +6816,26 @@ def _activation_event_description(repo_root: Path, event: tuple[str, str | None,
     message (workflow-2.5.0): resolves a non-`None`
     `find_latest_activation_event` result to `(activated, description)`.
     `description` names the resolved destination version (e.g.
-    `"Workflow 2.2"`) when one exists, or the unresolved `Workflow-Rollback`
-    trailer's own raw value verbatim in the fail-closed miss case -- never
-    a version name that, in the miss case, by construction does not
-    exist. This is the module's one computation of "is this event
-    activated", never duplicated at either call site."""
+    `"Workflow 2.2"`) when one exists, or the unresolvable trailer's own
+    raw value verbatim in either fail-closed miss case -- a blank
+    `Workflow-Activation` trailer (`destination_version == ""`) or an
+    unresolvable `Workflow-Rollback` trailer (`destination_version is
+    None`) -- never a version name that, in either miss case, by
+    construction does not exist. This is the module's one computation of
+    "is this event activated", never duplicated at either call site."""
     kind, destination_version, commit = event
-    if destination_version is not None:
+    if destination_version:
         return destination_version != "1", f"Workflow {destination_version}"
-    # `kind` must be "rollback" here with an unresolvable trailer value --
-    # an activation trailer's own value is used directly and is never
-    # `None`. Fail closed: an unresolvable rollback trailer reports
-    # activated, never a silent fall-through to not-activated.
-    raw_value = _commit_trailers(repo_root, commit).get("Workflow-Rollback")
-    return True, f"an unresolvable Workflow-Rollback trailer value {raw_value!r}"
+    # Either kind is "activation" with a blank trailer value
+    # (destination_version == ""), or kind is "rollback" with a trailer
+    # value outside ACTIVATION_ROLLBACK_PREDECESSOR's domain
+    # (destination_version is None) -- an activation trailer's own value is
+    # used directly and is never `None`. Fail closed either way: an
+    # unresolvable trailer reports activated, never a silent fall-through
+    # to not-activated.
+    trailer_name = "Workflow-Activation" if kind == "activation" else "Workflow-Rollback"
+    raw_value = _commit_trailers(repo_root, commit).get(trailer_name)
+    return True, f"an unresolvable {trailer_name} trailer value {raw_value!r}"
 
 
 def is_activated(repo_root: Path, head: str = "HEAD") -> bool:
@@ -11312,7 +11318,11 @@ ORDINARY_BUNDLE_GENERATION_RECORD_FIELDS = frozenset({
     # Review-Stages' "Provenance-interval interaction", second fix. Safe
     # for "1"/"2.1": that vocabulary is never written by their own
     # state_transaction mutators, so it is always absent from their field
-    # diffs regardless of what this set admits.
+    # diffs regardless of what this set admits -- and this is not merely a
+    # reachability argument: `_validate_implementation_review_stages` (run
+    # from `validate_state`) rejects any non-"2.2" item carrying a non-null
+    # `implementation_review_stages` at read time, so the vocabulary is
+    # rejected, not just unreached.
     "implementation_review_stages",
 })
 
@@ -11499,7 +11509,11 @@ TECHNICAL_APPROVAL_COMMIT_FIELDS = frozenset({
     # residue for the identical reason. Safe for "1"/"2.1": that vocabulary
     # is never written by their own state_transaction mutators, so it is
     # always absent from their own field diffs regardless of what this set
-    # admits.
+    # admits -- and this is not merely a reachability argument:
+    # `_validate_implementation_review_stages` (run from `validate_state`)
+    # rejects any non-"2.2" item carrying a non-null
+    # `implementation_review_stages` at read time, so the vocabulary is
+    # rejected, not just unreached.
     "implementation_review_stages",
 })
 
@@ -13451,14 +13465,11 @@ def parse_markdown_units(text: str) -> list[MarkdownUnit]:
     # not itself enclosed by an intervening same-or-shallower unit. Simple
     # stack-based construction, standard heading-nesting algorithm.
     stack: list[MarkdownUnit] = []
-    roots: list[MarkdownUnit] = []
     for unit in units:
         while stack and stack[-1].level >= unit.level:
             stack.pop()
         if stack:
             stack[-1].children.append(unit)
-        else:
-            roots.append(unit)
         stack.append(unit)
     return units
 
