@@ -412,6 +412,10 @@ class TestReadmeStatusTableMatchesCiSuites(unittest.TestCase):
         r"`2\.3\.1` \|.*?7/7 suites, (\d+) tests — matching the upstream "
         r"baseline \| (\d+) of (\d+)"
     )
+    _README_2_5_0_ROW_RE = re.compile(
+        r"`2\.5\.0` \|.*?7/7 suites, (\d+) tests — same suite set as "
+        r"`2\.4\.0`, plus (\d+) new cases \| (\d+) of (\d+)"
+    )
 
     def _readme_text(self) -> str:
         return (REPO_ROOT / "README.md").read_text()
@@ -449,6 +453,31 @@ class TestReadmeStatusTableMatchesCiSuites(unittest.TestCase):
             len(tests) for tests in expected_portability_exceptions("2.3.1").values()
         )
         self.assertEqual(recorded_total, actual_total)
+        self.assertEqual(recorded_of, actual_total)
+        self.assertEqual(recorded_pass, actual_total - exception_count)
+
+    def test_2_5_0_row_matches_ci_suites(self):
+        # round-3 I3's twin: the identical drift shape this class exists to
+        # stop, one release later. `2.5.0`'s own base is `2.4.0` (not
+        # `2.3.1`), so "new cases" is measured against `2.4.0`'s own totals.
+        match = self._README_2_5_0_ROW_RE.search(self._readme_text())
+        self.assertIsNotNone(match, "README.md 2.5.0 Status row not found")
+        recorded_total, recorded_new, recorded_pass, recorded_of = (
+            int(match.group(1)), int(match.group(2)),
+            int(match.group(3)), int(match.group(4)),
+        )
+        actual_total = sum(CI_SUITES["2.5.0"].values())
+        actual_new = (
+            CI_SUITES["2.5.0"]["workflow_state_test.py"]
+            + CI_SUITES["2.5.0"].get("workflow_integration_test.py", 0)
+            - CI_SUITES["2.4.0"]["workflow_state_test.py"]
+            - CI_SUITES["2.4.0"].get("workflow_integration_test.py", 0)
+        )
+        exception_count = sum(
+            len(tests) for tests in expected_portability_exceptions("2.5.0").values()
+        )
+        self.assertEqual(recorded_total, actual_total)
+        self.assertEqual(recorded_new, actual_new)
         self.assertEqual(recorded_of, actual_total)
         self.assertEqual(recorded_pass, actual_total - exception_count)
 

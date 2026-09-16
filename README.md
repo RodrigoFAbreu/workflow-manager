@@ -13,6 +13,7 @@ overwriting the work-item state those repositories accumulate.
 |---|---|---|---|
 | `2.3.1` | upstream — `repflow-android` tag `workflow-v2.3.1` (`1f954fbb6c68`) | 7/7 suites, 1440 tests — matching the upstream baseline | 1439 of 1440 ([one documented exception](docs/defects/v2.3.1-001-host-history-coupled-tests.md)) |
 | `2.4.0` | authored in this repository — `2.3.1` base plus the plan-amendment-mechanism overlay | 7/7 suites, 1498 tests — same suite set as `2.3.1`, plus 58 new cases | 1497 of 1498 (the same documented exception) |
+| `2.5.0` | authored in this repository — `2.4.0` base plus the implementation-review-two-stage overlay | 7/7 suites, 1650 tests — same suite set as `2.4.0`, plus 152 new cases | 1650 of 1650 |
 
 `workflow_manager releases` prints every release present, each release's own
 `provenance` distinguishing an upstream extraction from an authored one; both
@@ -75,12 +76,14 @@ python3 tools/migrate.py --check    # prove the committed tree is reproducible
 Both read the upstream repository through `git show` only. Nothing here ever
 writes to it.
 
-An authored release (`2.4.0`) is re-derived the same way, from its own base
-release and overlay instead of an upstream tag:
+An authored release (`2.4.0`, `2.5.0`) is re-derived the same way, from its
+own base release and overlay instead of an upstream tag:
 
 ```bash
 python3 tools/build_release.py --overlay migration/overlays/2.4.0            # rebuild
 python3 tools/build_release.py --overlay migration/overlays/2.4.0 --check    # prove it reproduces
+python3 tools/build_release.py --overlay migration/overlays/2.5.0            # same, for 2.5.0
+python3 tools/build_release.py --overlay migration/overlays/2.5.0 --check    # prove it reproduces
 ```
 
 See [`docs/ARCHITECTURE.md`'s "Authored releases"](docs/ARCHITECTURE.md#authored-releases)
