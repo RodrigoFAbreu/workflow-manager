@@ -3373,6 +3373,37 @@ class TestReviewPlanStep8OwnershipGuardIsPresent(unittest.TestCase):
         self.assertLess(guard_pos, first_write_pos)
 
 
+class TestApplyImplementationReviewStep0SkipIsPhaseConditional(unittest.TestCase):
+    """workflow-2.5.0 REVISE round 5, Missing-tests item 1: I3's own prose
+    binding -- that step 0's `enter_applying_review_feedback` skip is keyed
+    on the item's own `phase`, never on its `governing_workflow_version` --
+    was pinned only by `TestGoldenCommandFileHashes`' whole-file hash for
+    `apply-implementation-review.md`, which moves on *any* edit, recording
+    that the file changed, never that the rule itself is still stated
+    correctly. Round 5's own B1 found the shipped design document
+    (`WORKFLOW_V2_PLAN.md`) had gone stale on exactly this rule while the
+    command file itself stayed correct -- pinning the command file's own
+    prose directly, the same way `TestReviewPlanStep8OwnershipGuardIsPresent`
+    pins its own guard, is the mechanism that would have caught the
+    divergence at the design-document layer by forcing an editor back
+    through this test rather than leaving it to whole-file hash movement
+    alone."""
+
+    _PHASE_NOT_VERSION_RE = re.compile(
+        r"skip\s+is\s+conditional\s+on\s+the\s+item's\s+own\s+current\s+"
+        r"`phase`,\s+never\s+on\s+its\s+`governing_workflow_version`"
+    )
+    _SKIP_CONDITION_RE = re.compile(
+        r"skip\s+this\s+call\s+whenever\s+`phase`\s+already\s+equals\s+"
+        r"`APPLYING_REVIEW_FEEDBACK`"
+    )
+
+    def test_step_0_states_the_skip_is_phase_conditional_not_version_conditional(self):
+        text = _command_text("apply-implementation-review.md")
+        self.assertRegex(text, self._PHASE_NOT_VERSION_RE)
+        self.assertRegex(text, self._SKIP_CONDITION_RE)
+
+
 # ---------------------------------------------------------------------------
 # Missing-test item 107: a bundle-completeness lint for language
 # instructing a protected-path correction after approval.
