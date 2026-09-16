@@ -39,7 +39,7 @@
     {
       "pattern": "^\\.claude/commands/accept-milestone\\.md$",
       "category": "distribution",
-      "rationale": "Trailer/provenance references widened for the \"2.2\" implementation-review-stage vocabulary the milestone-acceptance record now names (D-Implementation-Review-Stages, CP1).",
+      "rationale": "Step 0's governing-version enumeration widened from \"1\"/\"2.1\" to include \"2.2\" (workflow-2.5.0); steps 1-8 still run identically for all three (D-Implementation-Review-Stages, CP4).",
       "expected_kind": "replaced"
     },
     {
@@ -51,13 +51,13 @@
     {
       "pattern": "^\\.claude/commands/apply-plan-review\\.md$",
       "category": "distribution",
-      "rationale": "governing_workflow_version activation references widened to include the new \"2.2\" target (D-Implementation-Review-Version-Activation, CP1/CP2).",
+      "rationale": "governing_workflow_version activation references widened to include the new \"2.2\" target; also corrects the prior claim that the \"2.1\" branch is inert for this repository's own work items (workflow-2.5.0 correction, LOCAL_MODEL_PLAN_REVIEW round 5) and adds an explicit any-other-version refusal branch (round-7 optional finding 2) (D-Implementation-Review-Version-Activation, CP1/CP2).",
       "expected_kind": "replaced"
     },
     {
       "pattern": "^\\.claude/commands/milestone-implement\\.md$",
       "category": "distribution",
-      "rationale": "Bundle-generation-record step's target-phase reference generalized to bundle_generation_target_phase(stage, governing_workflow_version) (D-Implementation-Review-Stages \"Provenance-interval interaction\", CP3).",
+      "rationale": "Bundle-generation-record step's target-phase reference generalized to bundle_generation_target_phase(stage, governing_workflow_version), plus an explicit any-other-governing_workflow_version refusal branch added to step 0's branch selection (round-7 optional finding 2) (D-Implementation-Review-Stages \"Provenance-interval interaction\", CP3).",
       "expected_kind": "replaced"
     },
     {
@@ -69,13 +69,13 @@
     {
       "pattern": "^\\.claude/commands/prepare-functional-review\\.md$",
       "category": "distribution",
-      "rationale": "References to the implementation-review stage ledger widened for the \"2.2\" bounded-fix regeneration path (D-Implementation-Review-Stages, CP5).",
+      "rationale": "Step 0's legacy-adoption target corrected to always the literal \"2.1\", never config[\"default_workflow_version\"] (workflow-2.5.0 correction, LOCAL_MODEL_PLAN_REVIEW round 6 optional finding 1), plus a new statement that steps 1-5 are themselves version-independent, reachable identically for \"1\", \"2.1\", or \"2.2\" alike (D-Implementation-Review-Stages, CP4).",
       "expected_kind": "replaced"
     },
     {
       "pattern": "^\\.claude/commands/record-manual-plan-review\\.md$",
       "category": "distribution",
-      "rationale": "Shared prose/structure kept consistent with its new sibling, /record-manual-implementation-review.md (D-Implementation-Review-Stages, CP4).",
+      "rationale": "Governing-version check widened from a bare \"2.1\" literal to TWO_STAGE_PLAN_REVIEW_VERSIONS membership (\"2.1\"/\"2.2\"), with the description: frontmatter updated to match (D-Implementation-Review-Stages, CP4).",
       "expected_kind": "replaced"
     },
     {
@@ -93,7 +93,7 @@
     {
       "pattern": "^\\.claude/commands/review-functional\\.md$",
       "category": "distribution",
-      "rationale": "References to the implementation-review stage ledger widened for the \"2.2\" bounded-fix regeneration path (D-Implementation-Review-Stages, CP5).",
+      "rationale": "Phase-guard version enumeration widened from \"1\"/\"2.1\" to include \"2.2\" (workflow-2.5.0), since MILESTONE_WORKFLOW.md defines this state identically for all three (D-Implementation-Review-Stages, CP4).",
       "expected_kind": "replaced"
     },
     {
