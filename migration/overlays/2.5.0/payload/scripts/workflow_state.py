@@ -6822,20 +6822,30 @@ def _activation_event_description(repo_root: Path, event: tuple[str, str | None,
     unresolvable `Workflow-Rollback` trailer (`destination_version is
     None`) -- never a version name that, in either miss case, by
     construction does not exist. This is the module's one computation of
-    "is this event activated", never duplicated at either call site."""
+    "is this event activated", never duplicated at either call site.
+
+    The activation direction is fail-closed by construction, exactly like
+    `2.4.0`'s binary `kind == "activation"` check: an `"activation"` event
+    reports activated for *every* trailer value, including `"1"` (I2 --
+    reading `destination_version != "1"` unconditionally regressed this one
+    value fail-*open* against `2.4.0`, the only direction nothing declared
+    a deliberate difference for). Only the rollback direction's *resolved*
+    destination may ever report not-activated; an unresolvable rollback
+    trailer still fails closed, same as before."""
     kind, destination_version, commit = event
+    if kind == "activation":
+        if destination_version:
+            return True, f"Workflow {destination_version}"
+        # A blank Workflow-Activation trailer (destination_version == "").
+        raw_value = _commit_trailers(repo_root, commit).get("Workflow-Activation")
+        return True, f"an unresolvable Workflow-Activation trailer value {raw_value!r}"
+    # kind == "rollback": destination_version is the predecessor resolved
+    # through ACTIVATION_ROLLBACK_PREDECESSOR's explicit domain, or None
+    # for a trailer value outside that domain.
     if destination_version:
         return destination_version != "1", f"Workflow {destination_version}"
-    # Either kind is "activation" with a blank trailer value
-    # (destination_version == ""), or kind is "rollback" with a trailer
-    # value outside ACTIVATION_ROLLBACK_PREDECESSOR's domain
-    # (destination_version is None) -- an activation trailer's own value is
-    # used directly and is never `None`. Fail closed either way: an
-    # unresolvable trailer reports activated, never a silent fall-through
-    # to not-activated.
-    trailer_name = "Workflow-Activation" if kind == "activation" else "Workflow-Rollback"
-    raw_value = _commit_trailers(repo_root, commit).get(trailer_name)
-    return True, f"an unresolvable {trailer_name} trailer value {raw_value!r}"
+    raw_value = _commit_trailers(repo_root, commit).get("Workflow-Rollback")
+    return True, f"an unresolvable Workflow-Rollback trailer value {raw_value!r}"
 
 
 def is_activated(repo_root: Path, head: str = "HEAD") -> bool:

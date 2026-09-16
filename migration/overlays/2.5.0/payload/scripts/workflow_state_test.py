@@ -12047,6 +12047,20 @@ class TestVersionAwareActivationEventModel(unittest.TestCase):
             self.assertIn("an unresolvable Workflow-Activation trailer value ''", message)
             self.assertNotIn("Workflow ''", message)
 
+    def test_workflow_activation_1_trailer_resolves_activated_true(self):
+        """Missing-tests item (I2): the activation-direction twin of
+        `test_a_typo_d_rollback_trailer_value_resolves_activated_fail_closed`
+        above and of the round-2 blank-activation-trailer pair just above --
+        `Workflow-Activation: 1` is the one trailer value a naive
+        `destination_version != "1"` reading answers differently from
+        `2.4.0`'s own binary `kind == "activation"` check, which reports
+        activated for every activation trailer value. The activation
+        direction must stay fail-closed like every other direction: only a
+        *resolved rollback* destination may ever report not-activated."""
+        with ScratchRepo() as repo:
+            repo.commit("activate one", trailers={"Workflow-Activation": "1"})
+            self.assertTrue(ws.is_activated(repo.root))
+
     def test_rollback_2_1_still_resolves_not_activated(self):
         """Reproduces today's binary behavior exactly at the boundary it
         already covers."""
