@@ -437,7 +437,23 @@ A6. **Write set, exact.** **`REJECTED`-bundle refusal, second of two, under
     this step's own mutation guard** (`WFR-67`): immediately before the
     first write below, re-call
     `workflow_fingerprint.assert_bundle_not_rejected(repo_root,
-    work_item_id)`.
+    work_item_id)`. **Ownership guard, immediately before the write**
+    (workflow-2.5.0, `I3`): resolve `<feedback_dir>` via the existing,
+    unmodified `resolve_feedback_dir(repo_root, work_item_id)`, read
+    whatever `REVIEW_FEEDBACK.md` already sits there (`None` if nothing
+    does), and call
+    `workflow_fingerprint.assert_feedback_not_owned_by_other_work_item(
+    existing_content, work_item_id=work_item_id)` against it — identical in
+    kind to the advisory branch's own step 7 ownership guard above, since
+    this branch's write is exactly as capable of destroying another work
+    item's unconsumed feedback at the same scoped-else-flat path. On a
+    `FeedbackOwnedByOtherWorkItemError` here, stop naming both work item
+    ids and commit no phase transition — see step 7's own "Recovery from an
+    ownership refusal" for the disposition (wait for the blocking work item
+    to reach a terminal phase, or judge a dormant/untracked blocker by
+    hand). Unlike step 7, this branch prints no advisory report to
+    preserve on refusal — there is nothing to preserve, since A5's decided
+    verdict is not itself a deliverable independent of the write it gates.
     - `APPROVE`: `REVIEW_FEEDBACK.md`, plus — via
       `workflow_state.state_transaction(repo_root, lambda state:
       workflow_state.record_local_implementation_review(state,

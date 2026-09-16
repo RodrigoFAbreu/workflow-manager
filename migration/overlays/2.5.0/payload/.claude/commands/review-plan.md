@@ -99,7 +99,20 @@ rule for every stage alike.
    the first write below, re-call
    `workflow_fingerprint.assert_bundle_not_rejected(repo_root,
    work_item_id)` — a withdrawal landing between step 5 and here must
-   still be caught.
+   still be caught. **Ownership guard, immediately before the write**
+   (workflow-2.5.0, mirroring `/review-implementation`'s own advisory-branch
+   step 7): resolve `<feedback_dir>` via the existing, unmodified
+   `resolve_feedback_dir(repo_root, work_item_id)`, read whatever
+   `REVIEW_FEEDBACK.md` already sits there (`None` if nothing does), and call
+   `workflow_fingerprint.assert_feedback_not_owned_by_other_work_item(
+   existing_content, work_item_id=work_item_id)` against it — a genuine
+   cross-work-item collision at that scoped-else-flat path (live whenever no
+   scoped `.ai-review/<work_item_id>/feedback/` directory exists yet for this
+   work item) is refused rather than silently overwritten. On a
+   `FeedbackOwnedByOtherWorkItemError` here, stop naming both work item ids;
+   see `/review-implementation`'s own step 7 "Recovery from an ownership
+   refusal" for the disposition (wait for the blocking work item to reach a
+   terminal phase, or judge a dormant/untracked blocker by hand).
    - `APPROVE`: `REVIEW_FEEDBACK.md`, plus — via
      `workflow_state.record_local_plan_review(..., verdict="APPROVE", ...)`
      — the resolved work item's `LOCAL_MODEL_PLAN_REVIEW` ledger fields and
