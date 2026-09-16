@@ -29,9 +29,86 @@ development.
 **CP1-CP13 complete** (`implementation-review-two-stage`, 13 checkpoints
 total -- every registry checkpoint is now `COMPLETE`). `complete_checkpoint`
 therefore moved `phase` from `IMPLEMENTING` to
-`SELF_REVIEWING_IMPLEMENTATION` in the same write that completed CP13. Next:
-one more `/milestone-implement` invocation, which runs the full-milestone
-self-review and generates the implementation-review bundle.
+`SELF_REVIEWING_IMPLEMENTATION` in the same write that completed CP13. The
+full-milestone self-review has now run (below); the implementation-review
+bundle is generated from its result.
+
+### `SELF_REVIEWING_IMPLEMENTATION` -- full-milestone self-review
+
+Reviewed the complete `38114204..HEAD` diff (128 files). Four findings, one
+important, three minor; all four fixed, nothing left open. The authored
+surface was read directly (`migration/overlays/2.5.0/payload/`,
+`migration/`, `tests/`, this repository's own docs), never only the
+generated `distribution/workflow/2.5.0/` copies.
+
+1. **Important -- the shipped ledger key diverged from the approved plan.**
+   `implementation_review_stages`' local-stage key was implemented (CP2/CP3)
+   as `LOCAL_IMPLEMENTATION_REVIEW`, but the approved plan's own "Durable
+   stage ledger" block (revision 41, §2.1) declares it
+   `LOCAL_MODEL_IMPLEMENTATION_REVIEW`, and so do the release's own
+   normative documents: `WORKFLOW_V2_PLAN.md`'s `D-Implementation-Review-Stages`
+   (both the ledger-shape declaration and the
+   `technical_approval_gate_reachable` widening), `MILESTONE_WORKFLOW.md`,
+   and `REVIEW_PROTOCOL.md`. The plan never uses the short form for
+   anything but the *phase* name `AWAITING_LOCAL_IMPLEMENTATION_REVIEW`.
+   The result was two names for one stage: every normative document
+   described a persisted key the code never wrote, and
+   `review-implementation.md` carried a parenthetical
+   ("recorded under the ledger's own canonical key, ...") whose only job was
+   to reconcile them. It is also an asymmetry the rest of the protocol does
+   not have -- on the plan side `LOCAL_MODEL_PLAN_REVIEW` is both the ledger
+   key and the `Reviewer role:` string, and on the implementation side
+   `MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW` is both, with
+   `validate_manual_implementation_review_preconditions` comparing the role
+   against the constant directly. **Fixed** by renaming the constant --
+   identifier and value alike -- to `LOCAL_MODEL_IMPLEMENTATION_REVIEW`
+   across the overlay payload (`workflow_state.py`, `workflow_state_test.py`,
+   `review-implementation.md`, `record-manual-implementation-review.md`,
+   `approve-review.md`, `WORKFLOW_V2_1_OPERATOR_REFERENCE.md`), plus this
+   repository's own `tests/test_implementation_review_two_stage_disposable_repo.py`
+   and this item's requirements ledger; the reconciling parenthetical is
+   replaced by a statement that the two are deliberately one name, and the
+   constant's own comment block records the rule. Every normative document's
+   existing text is now correct as written -- none needed editing. Safe as a
+   pure rename: `"2.2"` is not activated anywhere, no repository has ever
+   installed `2.5.0`, and no live `WORKFLOW_STATE.json` in any repository
+   holds an `implementation_review_stages` ledger, so nothing persisted
+   migrates. The frozen suite's own `_GOLDEN_COMMAND_FILE_SHA256` roster
+   (overlay `workflow_integration_test.py`) caught the two roster command
+   files the rename touched, `approve-review.md` and
+   `review-implementation.md`; both recorded hashes are updated in place with
+   a comment stating why, exactly as every prior intentional command-file
+   change in that table does. The two other command files the rename touched
+   (`record-manual-implementation-review.md`,
+   `WORKFLOW_V2_1_OPERATOR_REFERENCE.md` is not a command) are not roster
+   members -- that roster is the frozen upstream list, and neither `2.4.0`
+   nor `2.5.0` extends it.
+2. **Minor** -- `mark_missing_units_current` (overlay `workflow_state.py`,
+   CP6) computed a local `newline` that nothing used. The inserted marker
+   block is already correct for both cases the dead expression was testing
+   for, since its own leading `"\n"` terminates the heading line; replaced
+   with a comment saying so.
+3. **Minor** -- `find_governing_version_occurrences` (same file, CP6) opened
+   with a function-local `import os as _os` although the module already
+   imports `os` at the top. Removed.
+4. **Minor** -- `tests/test_conformance_suite.py`'s `_overlay_payload_roots`
+   docstring still read "today just `2.4.0`" after CP11 added the `2.5.0`
+   overlay directory the same function now discovers.
+
+`distribution/workflow/2.5.0/` is regenerated from the amended overlay
+(`python3 tools/build_release.py --overlay migration/overlays/2.5.0`), so
+`manifest.json`'s `provenance.overlay_commit` moves to this rebuild's own
+build-time HEAD. Counts are unchanged: 63 artifacts, 6 templates,
+`overlay_replaced` 25, `overlay_added` 2.
+
+**One process observation, recorded and not retroactively rewritten.**
+`/milestone-implement` step 1e names the requirements ledger
+(`docs/ai-workflow/requirements/implementation-review-two-stage-ledger.md`,
+`WF4b`) as the narrative record for a *process* work item, which this is.
+CP1-CP4 appended there; CP5-CP13 appended their per-checkpoint record to
+this file instead. No narrative was lost -- this document carries all nine
+in full -- so the ledger gains one section pointing at them rather than a
+duplicate copy that could drift from what was reviewed.
 
 CP13 delivered the full regression and the downgrade posture:
 
@@ -824,15 +901,17 @@ plan approval `CURRENT`, both `LOCAL_MODEL_PLAN_REVIEW` (round 42) and
 
 ## Next action
 
-All 13 checkpoints are `COMPLETE` and `complete_checkpoint` moved the phase
-to `SELF_REVIEWING_IMPLEMENTATION` in the same write that completed CP13.
-Run `/milestone-implement` once more: per the `workflow-2.1` resumable
-single-checkpoint session model this command never crosses the
-checkpoint-vs-wrap-up boundary in one invocation, so the next invocation
-resolves `NO_CHECKPOINT`, performs the (now no-op)
-`enter_self_reviewing_implementation` call, reviews the full milestone diff,
-runs the required verification, and generates the implementation-review
-bundle at `AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW`.
+The self-review and the full required verification are complete, and the
+implementation-review bundle is generated: the work item is at
+`AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW`, a hard gate. This item is
+`"2.1"`-governed, so its own implementation review stays the existing
+single-stage gate -- the two-stage protocol this milestone authors is
+`"2.2"`-only and applies to no work item that exists today.
+
+Next: external implementation review of
+`.ai-review/implementation-review-two-stage/current/`. Then
+`/apply-implementation-review` for any findings, or `/approve-review
+implementation` (user-only) once the round approves.
 
 ## Functional review checklist
 

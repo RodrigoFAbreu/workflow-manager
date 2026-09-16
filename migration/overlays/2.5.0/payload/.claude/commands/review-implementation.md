@@ -444,9 +444,12 @@ A6. **Write set, exact.** **`REJECTED`-bundle refusal, second of two, under
       work_item_id, verdict="APPROVE", bundle_id=<bundle_id>,
       review_content_id=<review_content_id>, round=<round>, now=<now>))`
       and persisting the returned state — the resolved work item's
-      `LOCAL_MODEL_IMPLEMENTATION_REVIEW` ledger fields (recorded under the
-      ledger's own canonical key, `LOCAL_IMPLEMENTATION_REVIEW`) and its
-      phase transition to `AWAITING_MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW`.
+      `LOCAL_MODEL_IMPLEMENTATION_REVIEW` ledger fields (the `Reviewer role:`
+      string above and the ledger's own canonical key are deliberately the
+      same one name, exactly as `LOCAL_MODEL_PLAN_REVIEW` and
+      `MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW` already are for their own
+      stages) and its phase transition to
+      `AWAITING_MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW`.
     - `REVISE`: `REVIEW_FEEDBACK.md`, plus the phase transition directly to
       `APPLYING_REVIEW_FEEDBACK`
       (`record_local_implementation_review(..., verdict="REVISE", ...)` --

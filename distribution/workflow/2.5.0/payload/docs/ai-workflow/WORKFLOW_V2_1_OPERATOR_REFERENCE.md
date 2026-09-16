@@ -300,7 +300,7 @@ test fails and is authoritative about which one moved.
   pinned `BLOCK`), no dirty protected path, and HEAD matching
   `reviewed_implementation_head` through the provenance interval --
   **`workflow-2.5.0`**: for a `"2.2"` item specifically, also both
-  implementation-review ledger stages (`LOCAL_IMPLEMENTATION_REVIEW`/
+  implementation-review ledger stages (`LOCAL_MODEL_IMPLEMENTATION_REVIEW`/
   `MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW`) current against the same
   `review_content_id`, mirroring the plan-stage ledger check exactly.
 - **Does**: recomputes `bundle_id`/`review_content_id` fresh, resolves the
@@ -469,7 +469,7 @@ test fails and is authoritative about which one moved.
   `Reviewer role:` other than exactly `MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW`
   (no legacy-cased alias exists for this ledger — it is new at `"2.2"`); a
   `review_content_id` that does not match the current recomputed value
-  (hard); a missing current local `LOCAL_IMPLEMENTATION_REVIEW` `APPROVE`; a
+  (hard); a missing current local `LOCAL_MODEL_IMPLEMENTATION_REVIEW` `APPROVE`; a
   duplicate ingestion for the same `review_content_id`. A mismatched
   `bundle_id` **warns only**. Not an approval gate.
 

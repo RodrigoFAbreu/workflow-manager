@@ -464,7 +464,7 @@ class TestPositiveTwoStagePath(MatrixCase22):
         entry = self.item.entry()
         self.assertEqual(entry["technical_approval"]["status"], "CURRENT")
         stages = ws.normalize_implementation_review_stages(entry["implementation_review_stages"])
-        self.assertEqual(stages[ws.LOCAL_IMPLEMENTATION_REVIEW]["verdict"], "APPROVE")
+        self.assertEqual(stages[ws.LOCAL_MODEL_IMPLEMENTATION_REVIEW]["verdict"], "APPROVE")
         self.assertEqual(stages[ws.MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW]["verdict"], "APPROVE")
 
 

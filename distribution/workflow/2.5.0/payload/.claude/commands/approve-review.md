@@ -90,7 +90,7 @@ actually load-bearing control for the Skill exposure path, not mechanism
      and `current_review_content_id=<step 2's freshly recomputed
      implementation-stage review_content_id>` — mirroring the plan stage's
      existing `plan_review_stages` check exactly, substituted for the
-     implementation-stage ledger (both `LOCAL_IMPLEMENTATION_REVIEW`/
+     implementation-stage ledger (both `LOCAL_MODEL_IMPLEMENTATION_REVIEW`/
      `MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW` required `APPROVE` against the
      current `review_content_id`, `D-Implementation-Review-Stages`).
    - **Any other `governing_workflow_version`** (including one this module

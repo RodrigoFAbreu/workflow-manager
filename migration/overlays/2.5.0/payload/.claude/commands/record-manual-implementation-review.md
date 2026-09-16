@@ -59,7 +59,7 @@ plan stage's `stage="plan"` form.
    no pre-`SCREAMING_SNAKE_CASE` history behind it, so a role string that
    does not match this exact spelling is refused outright, never silently
    normalized), `<bundle_dir>/MANIFEST.md`, `<bundle_dir>/REVIEW_REQUEST.md`,
-   and the ledger's existing `LOCAL_IMPLEMENTATION_REVIEW` entry.
+   and the ledger's existing `LOCAL_MODEL_IMPLEMENTATION_REVIEW` entry.
 5. **Recompute fresh**: the current `bundle_id` and implementation-stage
    `review_content_id`, identical in mechanism to `/review-implementation`'s
    own (staleness/wrong-worktree handling included) — the same single
@@ -80,7 +80,7 @@ plan stage's `stage="plan"` form.
    - the feedback's `review_content_id` matches the current recomputed
      value — **hard**, blocks ingestion (`StaleReviewContentIdError`,
      naming both values);
-   - a current `LOCAL_IMPLEMENTATION_REVIEW` `APPROVE` is recorded for the
+   - a current `LOCAL_MODEL_IMPLEMENTATION_REVIEW` `APPROVE` is recorded for the
      same `review_content_id`
      (`MissingLocalApprovalForManualImplementationStageError` — a restated
      invariant, since entry to this phase already required it; defends

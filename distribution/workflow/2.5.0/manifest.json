@@ -9,7 +9,7 @@
   "provenance": {
     "origin": "authored",
     "base_release": "2.4.0",
-    "overlay_commit": "f895bf0d736bd28845785dd7220b2be16df4dfdf"
+    "overlay_commit": "27ed46b3487797bc5ea6ada3677c0cac8eb4acd2"
   },
   "categories": {
     "distribution": "Canonical Workflow implementation. Copied byte-for-byte into the payload and installed into every managed target repository.",
@@ -94,12 +94,12 @@
       "category": "distribution",
       "rule": "^\\.claude/commands/approve-review\\.md$",
       "rationale": "technical_approval_gate_reachable's widened entry condition (a \"2.2\"-only ledger check mirroring plan_approval_gate_reachable) and the version-dependent bundle-generation provenance-interval check (D-Implementation-Review-Stages, CP1/CP3).",
-      "sha256": "faf4266a6a8308c3bbea8266f7310d876393074bbd0f609ea9c7ac0fef7351e9",
-      "size": 43105,
+      "sha256": "1c64a124b1fa33330d29d25dc60c29ecc2ceae387d13bd21197870bcb88724f9",
+      "size": 43111,
       "executable": false,
       "overlay_delta": {
         "base_sha256": "c9630a9469b3124f8cbe9acd01594b18ff75387d06b42543555fc08da944f734",
-        "diff_sha256": "777efa6053ce2bd7ffa841616721bb238fd198ad0a14210974a2bbf150f9ce51"
+        "diff_sha256": "52c7de4377d587936fa4dcbeac14cfa5b8d81ea2690a1fce5e6774261575dd05"
       }
     },
     {
@@ -172,8 +172,8 @@
       "category": "distribution",
       "rule": "^\\.claude/commands/record-manual-implementation-review\\.md$",
       "rationale": "New command mirroring /record-manual-plan-review.md: ingests the MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW stage of the two-stage implementation-review protocol (D-Implementation-Review-Stages, CP4).",
-      "sha256": "6c97c87939cf11912278f199eaa90bca9b6ffb8ba65f45f3fc81df4ded2ddfcf",
-      "size": 9337,
+      "sha256": "26feba9273dede6758b7aed8bbbd984910aa2e7bf10500fd8ff82c3d9ddc68ae",
+      "size": 9349,
       "executable": false
     },
     {
@@ -238,12 +238,12 @@
       "category": "distribution",
       "rule": "^\\.claude/commands/review-implementation\\.md$",
       "rationale": "Gains a \"2.2\" authoritative branch (phase guard AWAITING_LOCAL_IMPLEMENTATION_REVIEW, ledger write plus phase transition on APPROVE/REVISE); the existing \"1\"/\"2.1\" advisory branch stays byte-unchanged (D-Implementation-Review-Stages, CP4). Preserves the base release's own distribution category for this path.",
-      "sha256": "3d1820870401c53ddf2057cf09eda97d66239e4ae9375ffe6400fb22619ccaf6",
-      "size": 31038,
+      "sha256": "90aa64365734a4549ffa21da93ea760f29c268d19e8c110c4c909e90cbf97eaf",
+      "size": 31198,
       "executable": false,
       "overlay_delta": {
         "base_sha256": "a017359a961ac5dc3e9cee1c3c2f8265e38f924f1af2cdbe984b381f79f4de6a",
-        "diff_sha256": "00eee5540ce38048ab18447738890d8cb2e59c3b059a0d8475c98566e0bbac97"
+        "diff_sha256": "c21e59f1215bc40225e30c42638b00dfded7b9bad022628a622e555c0700b407"
       }
     },
     {
@@ -340,12 +340,12 @@
       "category": "distribution",
       "rule": "^docs/ai-workflow/WORKFLOW_V2_1_OPERATOR_REFERENCE\\.md$",
       "rationale": "Persisted-phases/writer tables, command count and the new /record-manual-implementation-review section, widened for the \"2.2\" implementation-review stages (D-Implementation-Review-Stages, CP1/CP4).",
-      "sha256": "8841f8c1ec773fcccbce0e36a8d6d6b13908578a7dcb4449d187752ee06eb559",
-      "size": 64803,
+      "sha256": "626659322c7a508610a1b22785f0737154e8f31a400ab73a6d406b8d1c11a2fa",
+      "size": 64815,
       "executable": false,
       "overlay_delta": {
         "base_sha256": "b7dbb086019fa3437fe0c30b13203376265d749436d8d40c7fd226d52f1121b6",
-        "diff_sha256": "756080c8442553af78d1988845da858a9a6bef914e2749371d673189863bc8c0"
+        "diff_sha256": "8e339615b845a8d1e6a11c99a1b43dd7e2c1fb123b0d1768aa5d49db78e186e6"
       }
     },
     {
@@ -715,12 +715,12 @@
       "category": "distribution",
       "rule": "^scripts/workflow_integration_test\\.py$",
       "rationale": "Persisted-phase table, phase-to-writer census, command-count and generator-mention checks updated for the two new commands and phases (D-Implementation-Review-Stages, CP2/CP3/CP4).",
-      "sha256": "40f2cb979d26d6e0fcb7e5aa9b48b6278bd8d77b28ecb0509e5406bacd0a318a",
-      "size": 382880,
+      "sha256": "a6790f73fe6499e0bd85ba0b2d39c981a030edc3f229a851da966df18a5c7365",
+      "size": 383758,
       "executable": false,
       "overlay_delta": {
         "base_sha256": "a7ca02768eb84cb884c50c5bf10529a54be6e7117ed6fbf9ab0034180e1162b6",
-        "diff_sha256": "4d6b2a1cc5e34c52c667f3db942a972df8c21ba3c7ec5da902afefb5114a76eb"
+        "diff_sha256": "6e4da967640df13723af112ba79ebe9be9d8e52e9c092d888cd2d801330bec00"
       }
     },
     {
@@ -729,12 +729,12 @@
       "category": "distribution",
       "rule": "^scripts/workflow_state\\.py$",
       "rationale": "KNOWN_PHASES additions, the generalized version-aware activation/rollback helpers, implementation_review_stages ledger writers (record_local_implementation_review, record_manual_implementation_review), the widened technical_approval_gate_reachable, and bundle_generation_target_phase/bundle_generation_recovered_role_legal_committed_phases (D-Implementation-Review-Stages, D-Implementation-Review-Version-Activation; CP1-CP3, CP9, CP10).",
-      "sha256": "715d6e39022149cf90dc564cb323e38d898e6aa1f7a31a8ec5c1d49f7901ec16",
-      "size": 727962,
+      "sha256": "23bfb5e789828266dd20abecd3ab78a15ab609ae3a1812cee92202c4e8dd6a87",
+      "size": 728427,
       "executable": false,
       "overlay_delta": {
         "base_sha256": "369ea8979a748674e082aa34ddd3f04fd4faf2c552e2aa9b6793fa8864833379",
-        "diff_sha256": "f61def58f5bbe81f1562b190ab85eba88600b65cf46b2cefee121f49512e1ffa"
+        "diff_sha256": "173524c94e3eb6114a8f2904cc2ef6944c476fcfbb12358e37ff778bba3e0d1b"
       }
     },
     {
@@ -768,12 +768,12 @@
       "category": "distribution",
       "rule": "^scripts/workflow_state_test\\.py$",
       "rationale": "The payload's own conformance suite, updated for the new review-stage writers/gates plus CP7's generic, parametric declaration-coverage helper generalizing the bespoke per-work-item pattern (D-Implementation-Review-Stages, D-Canonical-Review-Data; CP2, CP3, CP7).",
-      "sha256": "22fe383ff801388208424c09772292bbf77830077f020b7dbc96cdcbc25b9ad7",
-      "size": 772411,
+      "sha256": "b91139bc2863b141da351aa99c604ffb4640f8b43011a73925a4d95e4ac0547f",
+      "size": 772513,
       "executable": false,
       "overlay_delta": {
         "base_sha256": "90919276d86f08cfebf24f70a0e9a003f8c610481879617d2eaba60b711a88eb",
-        "diff_sha256": "df96f01c574e28ec36287571d53ac4b82c3e1457abdbbb475784c6a30327781b"
+        "diff_sha256": "ff4289e16b3b9a18f3efd33e68f9296e6f20bdad08549820bf1d39e80fe668f5"
       }
     },
     {

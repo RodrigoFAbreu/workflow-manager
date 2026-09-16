@@ -309,7 +309,11 @@ TWO_STAGE_PLAN_REVIEW_VERSIONS = frozenset({"2.1", "2.2"})
 # still mirrors `normalize_plan_review_stages`'s own collision-aware read
 # contract below, so a future legacy alias (if one is ever introduced) is
 # handled by the same discipline from day one rather than bolted on later.
-LOCAL_IMPLEMENTATION_REVIEW = "LOCAL_IMPLEMENTATION_REVIEW"
+# Each stage's ledger key and its own `REVIEW_FEEDBACK.md` `Reviewer role:`
+# string are deliberately the identical one name -- exactly as they already
+# are on the plan side -- so no document, command or validator ever has two
+# names for one stage to keep in step.
+LOCAL_MODEL_IMPLEMENTATION_REVIEW = "LOCAL_MODEL_IMPLEMENTATION_REVIEW"
 MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW = "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW"
 
 # Only MILESTONE_COMPLETE is terminal -- LEGACY_READY is explicitly
@@ -581,7 +585,7 @@ class ImplementationReviewStagesInvalidForVersionError(Exception):
 class ManualImplementationStageWithoutLocalStageError(Exception):
     """workflow-2.5.0: the `implementation_review_stages` counterpart of
     `ManualStageWithoutLocalStageError`. Raised when `MANUAL_EXTERNAL_
-    IMPLEMENTATION_REVIEW` is recorded while `LOCAL_IMPLEMENTATION_REVIEW`
+    IMPLEMENTATION_REVIEW` is recorded while `LOCAL_MODEL_IMPLEMENTATION_REVIEW`
     is absent."""
 
 
@@ -839,7 +843,7 @@ class WrongPhaseForImplementationReviewStageError(Exception):
 
 class MissingLocalApprovalForManualImplementationStageError(Exception):
     """Raised when `/record-manual-implementation-review` is asked to
-    ingest an `APPROVE` while no current `LOCAL_IMPLEMENTATION_REVIEW`
+    ingest an `APPROVE` while no current `LOCAL_MODEL_IMPLEMENTATION_REVIEW`
     `APPROVE` is recorded for the same `review_content_id` -- a restated
     invariant, since entry to `AWAITING_MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW`
     already requires it; defends against a corrupted or hand-edited state
@@ -10402,7 +10406,7 @@ def technical_approval_gate_reachable(
     workflow-2.5.0 CP3, widened exactly like `plan_approval_gate_reachable`
     already is for `TWO_STAGE_PLAN_REVIEW_VERSIONS`: for a `"2.2"` item
     only, this gate additionally requires the `implementation_review_stages`
-    ledger to record both `LOCAL_IMPLEMENTATION_REVIEW` and
+    ledger to record both `LOCAL_MODEL_IMPLEMENTATION_REVIEW` and
     `MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW` completed (`verdict: APPROVE`)
     against the *current* implementation-stage `review_content_id`
     (D-Implementation-Review-Stages). `governing_workflow_version` absent
@@ -10421,7 +10425,7 @@ def technical_approval_gate_reachable(
     stages = normalize_implementation_review_stages(implementation_review_stages)
     if stages.get("review_content_id") != current_review_content_id:
         return False
-    local = stages.get(LOCAL_IMPLEMENTATION_REVIEW)
+    local = stages.get(LOCAL_MODEL_IMPLEMENTATION_REVIEW)
     manual = stages.get(MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW)
     return (
         local is not None and local.get("verdict") == "APPROVE"
@@ -12553,7 +12557,7 @@ def record_local_implementation_review(
     mirroring `record_local_plan_review` exactly, substituted for the
     implementation stage:
 
-    - `APPROVE`: records the completed `LOCAL_IMPLEMENTATION_REVIEW`
+    - `APPROVE`: records the completed `LOCAL_MODEL_IMPLEMENTATION_REVIEW`
       stage against `review_content_id` (starting a fresh ledger scoped to
       this content id) and transitions to
       `AWAITING_MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW`.
@@ -12577,7 +12581,7 @@ def record_local_implementation_review(
     if verdict == "APPROVE":
         work_item["implementation_review_stages"] = {
             "review_content_id": review_content_id,
-            LOCAL_IMPLEMENTATION_REVIEW: {
+            LOCAL_MODEL_IMPLEMENTATION_REVIEW: {
                 "bundle_id": bundle_id, "verdict": "APPROVE",
                 "round": round, "completed_at": now,
             },
@@ -12616,7 +12620,7 @@ def validate_manual_implementation_review_preconditions(
       already stage-agnostic; distinct from the advisory-only `bundle_id`
       check, `check_manual_stage_bundle_id_advisory`, also reused verbatim
       and never performed here).
-    - a current `LOCAL_IMPLEMENTATION_REVIEW` `APPROVE` is recorded
+    - a current `LOCAL_MODEL_IMPLEMENTATION_REVIEW` `APPROVE` is recorded
       for the same `review_content_id` (restated invariant).
     - no `MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW` stage is already recorded
       against the current `review_content_id` (rejects duplicate
@@ -12640,13 +12644,13 @@ def validate_manual_implementation_review_preconditions(
             f"this is a hard block, unlike the manual stage's advisory bundle_id check"
         )
     stages = normalize_implementation_review_stages(work_item.get("implementation_review_stages") or {})
-    local = stages.get(LOCAL_IMPLEMENTATION_REVIEW)
+    local = stages.get(LOCAL_MODEL_IMPLEMENTATION_REVIEW)
     if (
         stages.get("review_content_id") != current_review_content_id
         or local is None or local.get("verdict") != "APPROVE"
     ):
         raise MissingLocalApprovalForManualImplementationStageError(
-            f"{work_item['work_item_id']}: no current LOCAL_IMPLEMENTATION_REVIEW "
+            f"{work_item['work_item_id']}: no current LOCAL_MODEL_IMPLEMENTATION_REVIEW "
             f"APPROVE recorded for review_content_id {current_review_content_id!r}"
         )
     if stages.get(MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW) is not None:
@@ -12971,15 +12975,15 @@ def _validate_implementation_review_stages(work_item: dict) -> None:
             f"{work_item.get('governing_workflow_version')!r}, not \"2.2\""
         )
     stages = normalize_implementation_review_stages(stages)
-    local = stages.get(LOCAL_IMPLEMENTATION_REVIEW)
+    local = stages.get(LOCAL_MODEL_IMPLEMENTATION_REVIEW)
     manual = stages.get(MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW)
     if manual is not None and local is None:
         raise ManualImplementationStageWithoutLocalStageError(
             f"{work_item['work_item_id']}: {MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW} is "
-            f"recorded while {LOCAL_IMPLEMENTATION_REVIEW} is absent"
+            f"recorded while {LOCAL_MODEL_IMPLEMENTATION_REVIEW} is absent"
         )
     for stage_name, stage in (
-        (LOCAL_IMPLEMENTATION_REVIEW, local), (MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW, manual),
+        (LOCAL_MODEL_IMPLEMENTATION_REVIEW, local), (MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW, manual),
     ):
         if stage is not None and stage.get("verdict") != "APPROVE":
             raise StageVerdictNotApproveError(
@@ -13636,7 +13640,9 @@ def mark_missing_units_current(text: str, section_names: tuple[str, ...]) -> str
         _, explicit = unit_state(unit)
         if explicit:
             continue
-        newline = "\n" if (not lines or lines[unit.start_line].endswith("\n")) else ""
+        # The leading "\n" terminates the heading line itself, so this is
+        # correct whether or not that line already ends in a newline (a
+        # heading that is the file's own last line, unterminated, included).
         insertions.append((unit.start_line, f"\n{render_marker('CURRENT')}\n"))
 
     for line_index, marker_block in sorted(insertions, key=lambda t: -t[0]):
@@ -13742,8 +13748,7 @@ def find_governing_version_occurrences(
     documents; occurrence-inside-a-HISTORICAL-unit otherwise). A negated or
     version-independence assertion near the match is never an occurrence of
     either form."""
-    import os as _os
-    basename = _os.path.basename(path)
+    basename = os.path.basename(path)
     if basename in allowlist_whole_document:
         return []
 

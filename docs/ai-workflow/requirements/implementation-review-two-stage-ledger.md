@@ -92,7 +92,7 @@ stays continuous from the work item's first checkpoint.
     `"2.1"` item does. `transition_to_awaiting_local_plan_review`'s
     docstring corrected from describing itself as `"2.1"`-only.
   - **`implementation_review_stages` ledger normalize/read plumbing**:
-    `LOCAL_IMPLEMENTATION_REVIEW`/`MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW`
+    `LOCAL_MODEL_IMPLEMENTATION_REVIEW`/`MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW`
     canonical key constants; `_normalize_implementation_review_stage_key`/
     `normalize_implementation_review_stages`, mirroring
     `normalize_plan_review_stages`'s own collision-aware read contract
@@ -359,3 +359,41 @@ repository's own authored-release process) plus one reference doc under
   green. `tools/build_release.py --overlay migration/overlays/2.5.0 --check`
   is not runnable until `CP11` (`migration/overlays/2.5.0/classification.json`
   does not exist yet), unchanged from `CP1`/`CP2`/`CP3`'s own note.
+
+## `CP5`-`CP13` — recorded in `docs/ACTIVE_MILESTONE.md`
+
+`/milestone-implement` step 1e names this ledger as the narrative record for
+a *process* work item, which this is. `CP1`-`CP4` appended here; `CP5`
+through `CP13` appended their per-checkpoint implementation evidence,
+verification commands and results, and review-finding disposition to
+`docs/ACTIVE_MILESTONE.md` instead, each alongside its own checkpoint
+commit. Nothing was lost — that document carries all nine records in full,
+and `WORKFLOW_STATE.json`'s `checkpoints[id]` remains the sole status source
+either way (`D-Registry`).
+
+This section deliberately points at those records rather than copying them.
+A duplicate would be a second place the same evidence could drift from what
+the checkpoint commits actually contain, which is exactly what this ledger's
+own header rules out ("a log, not a status source"). Read `CP5`-`CP13` in
+`docs/ACTIVE_MILESTONE.md`'s "Current checkpoint" section, and each
+checkpoint's own commit (`git log --grep` is not the lookup —
+`workflow_state.discover_checkpoint_commits` is, `WF4a-iii`).
+
+## `SELF_REVIEWING_IMPLEMENTATION` — full-milestone self-review
+
+- **Findings**: four against the complete `38114204..HEAD` diff — one
+  important (the `implementation_review_stages` local-stage key shipped as
+  `LOCAL_MODEL_IMPLEMENTATION_REVIEW`'s short form, diverging from the
+  approved plan's own "Durable stage ledger" declaration and from every
+  normative document in the release), three minor (a dead local in
+  `mark_missing_units_current`, a redundant function-local `import os`, and a
+  stale `_overlay_payload_roots` docstring). All four fixed; none left open.
+  Full disposition, including why the rename direction is the plan-conformant
+  one and why it migrates nothing, is in `docs/ACTIVE_MILESTONE.md`'s
+  `SELF_REVIEWING_IMPLEMENTATION` subsection.
+- **Verification**: the full required verification for this repository, run
+  on the post-fix tree — `python3 tests/run_all.py` (all 11 suites green),
+  `python3 tools/build_release.py --overlay migration/overlays/2.5.0 --check`,
+  `python3 tools/build_release.py --overlay migration/overlays/2.4.0 --check`,
+  and `python3 tools/migrate.py --check`. Exact commands and results are in
+  the bundle's own `TEST_RESULTS.md`.

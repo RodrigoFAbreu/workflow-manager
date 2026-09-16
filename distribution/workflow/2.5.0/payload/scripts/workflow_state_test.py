@@ -6761,7 +6761,7 @@ class TestTechnicalApprovalCommitAdmitsImplementationReviewStagesResidue(unittes
                 "technical_approval": None, "state_revision": 5, "last_transition": "t5",
                 "implementation_review_stages": {
                     "review_content_id": "c-1",
-                    "LOCAL_IMPLEMENTATION_REVIEW": {
+                    "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {
                         "bundle_id": "b-1", "verdict": "APPROVE", "round": 1, "completed_at": "t3",
                     },
                     "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": None,
@@ -12189,7 +12189,7 @@ class TestImplementationReviewStagesLedgerPlumbing(unittest.TestCase):
     def test_normalize_passes_through_canonical_keys_and_review_content_id(self):
         stages = {
             "review_content_id": "c1",
-            ws.LOCAL_IMPLEMENTATION_REVIEW: {"verdict": "APPROVE"},
+            ws.LOCAL_MODEL_IMPLEMENTATION_REVIEW: {"verdict": "APPROVE"},
             ws.MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW: None,
         }
         self.assertEqual(ws.normalize_implementation_review_stages(stages), stages)
@@ -12204,11 +12204,11 @@ class TestImplementationReviewStagesLedgerPlumbing(unittest.TestCase):
         while the mapping is the identity). This test pins that identity
         mapping directly, since a genuine-conflict fixture cannot be
         constructed without it changing."""
-        for key in (ws.LOCAL_IMPLEMENTATION_REVIEW, ws.MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW, "review_content_id"):
+        for key in (ws.LOCAL_MODEL_IMPLEMENTATION_REVIEW, ws.MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW, "review_content_id"):
             self.assertEqual(ws._normalize_implementation_review_stage_key(key), key)
 
     def test_normalize_never_raises_on_ordinary_canonical_input(self):
-        stages = {ws.LOCAL_IMPLEMENTATION_REVIEW: {"v": 1}, ws.MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW: {"v": 2}}
+        stages = {ws.LOCAL_MODEL_IMPLEMENTATION_REVIEW: {"v": 1}, ws.MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW: {"v": 2}}
         ws.normalize_implementation_review_stages(stages)  # must not raise
 
     def test_validate_implementation_review_stages_none_is_fine_for_any_version(self):
@@ -12223,7 +12223,7 @@ class TestImplementationReviewStagesLedgerPlumbing(unittest.TestCase):
                 wi = _base_work_item(governing_workflow_version=version)
                 wi["implementation_review_stages"] = {
                     "review_content_id": "c1",
-                    ws.LOCAL_IMPLEMENTATION_REVIEW: None,
+                    ws.LOCAL_MODEL_IMPLEMENTATION_REVIEW: None,
                     ws.MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW: None,
                 }
                 with self.assertRaises(ws.ImplementationReviewStagesInvalidForVersionError):
@@ -12233,7 +12233,7 @@ class TestImplementationReviewStagesLedgerPlumbing(unittest.TestCase):
         wi = _base_work_item(governing_workflow_version="2.2")
         wi["implementation_review_stages"] = {
             "review_content_id": "c1",
-            ws.LOCAL_IMPLEMENTATION_REVIEW: None,
+            ws.LOCAL_MODEL_IMPLEMENTATION_REVIEW: None,
             ws.MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW: {"bundle_id": "b", "verdict": "APPROVE", "round": 1, "completed_at": "t"},
         }
         with self.assertRaises(ws.ManualImplementationStageWithoutLocalStageError):
@@ -12243,7 +12243,7 @@ class TestImplementationReviewStagesLedgerPlumbing(unittest.TestCase):
         wi = _base_work_item(governing_workflow_version="2.2")
         wi["implementation_review_stages"] = {
             "review_content_id": "c1",
-            ws.LOCAL_IMPLEMENTATION_REVIEW: {"bundle_id": "b", "verdict": "REVISE", "round": 1, "completed_at": "t"},
+            ws.LOCAL_MODEL_IMPLEMENTATION_REVIEW: {"bundle_id": "b", "verdict": "REVISE", "round": 1, "completed_at": "t"},
             ws.MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW: None,
         }
         with self.assertRaises(ws.StageVerdictNotApproveError):
@@ -12253,7 +12253,7 @@ class TestImplementationReviewStagesLedgerPlumbing(unittest.TestCase):
         wi = _base_work_item(governing_workflow_version="2.2")
         wi["implementation_review_stages"] = {
             "review_content_id": "c1",
-            ws.LOCAL_IMPLEMENTATION_REVIEW: {"bundle_id": "b1", "verdict": "APPROVE", "round": 1, "completed_at": "t1"},
+            ws.LOCAL_MODEL_IMPLEMENTATION_REVIEW: {"bundle_id": "b1", "verdict": "APPROVE", "round": 1, "completed_at": "t1"},
             ws.MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW: {"bundle_id": "b2", "verdict": "APPROVE", "round": 1, "completed_at": "t2"},
         }
         ws.validate_state(_base_state(wi=wi))  # must not raise
@@ -12352,7 +12352,7 @@ class TestRecordLocalImplementationReview(unittest.TestCase):
         self.assertEqual(item["phase"], "AWAITING_MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW")
         self.assertEqual(item["implementation_review_stages"], {
             "review_content_id": "c1",
-            "LOCAL_IMPLEMENTATION_REVIEW": {"bundle_id": "b1", "verdict": "APPROVE", "round": 1, "completed_at": "t1"},
+            "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {"bundle_id": "b1", "verdict": "APPROVE", "round": 1, "completed_at": "t1"},
             "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": None,
         })
         self.assertEqual(item["state_revision"], 2)
@@ -12387,7 +12387,7 @@ class TestRecordManualImplementationReview(unittest.TestCase):
             "phase": "AWAITING_MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW",
             "implementation_review_stages": {
                 "review_content_id": "c1",
-                "LOCAL_IMPLEMENTATION_REVIEW": {"bundle_id": "b1", "verdict": "APPROVE", "round": 1, "completed_at": "t1"},
+                "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {"bundle_id": "b1", "verdict": "APPROVE", "round": 1, "completed_at": "t1"},
                 "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": None,
             },
         }
@@ -12417,7 +12417,7 @@ class TestRecordManualImplementationReview(unittest.TestCase):
         with self.assertRaises(ws.WrongReviewerRoleError):
             ws.record_manual_implementation_review(
                 _base_state(wi=wi), "wi", verdict="APPROVE", bundle_id="b2", round=1, now="t2",
-                current_review_content_id="c1", feedback_role="LOCAL_IMPLEMENTATION_REVIEW",
+                current_review_content_id="c1", feedback_role="LOCAL_MODEL_IMPLEMENTATION_REVIEW",
                 feedback_review_content_id="c1",
             )
 
@@ -12433,7 +12433,7 @@ class TestRecordManualImplementationReview(unittest.TestCase):
     def test_missing_local_approval_rejected(self):
         wi = self._local_approved_wi(implementation_review_stages={
             "review_content_id": "c1",
-            "LOCAL_IMPLEMENTATION_REVIEW": None,
+            "LOCAL_MODEL_IMPLEMENTATION_REVIEW": None,
             "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": None,
         })
         with self.assertRaises(ws.MissingLocalApprovalForManualImplementationStageError):
@@ -12446,7 +12446,7 @@ class TestRecordManualImplementationReview(unittest.TestCase):
     def test_duplicate_ingestion_rejected(self):
         wi = self._local_approved_wi(implementation_review_stages={
             "review_content_id": "c1",
-            "LOCAL_IMPLEMENTATION_REVIEW": {"bundle_id": "b1", "verdict": "APPROVE", "round": 1, "completed_at": "t1"},
+            "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {"bundle_id": "b1", "verdict": "APPROVE", "round": 1, "completed_at": "t1"},
             "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": {"bundle_id": "b2", "verdict": "APPROVE", "round": 1, "completed_at": "t2"},
         })
         with self.assertRaises(ws.DuplicateManualImplementationStageIngestionError):
@@ -12547,7 +12547,7 @@ class TestLocalStageCatchesPlantedDefectWithoutManualRound(unittest.TestCase):
             repo.commit("implement checkpoint with a planted defect", filename="src/planted_defect.py")
             wi = _v22_work_item(base_commit=repo.base, implementation_review_stages={
                 "review_content_id": "c-defect",
-                "LOCAL_IMPLEMENTATION_REVIEW": None,
+                "LOCAL_MODEL_IMPLEMENTATION_REVIEW": None,
                 "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": None,
             })
             state = _base_state(wi=wi)
@@ -12585,7 +12585,7 @@ class TestNoBundleRegenerationBetweenImplementationReviewStages(unittest.TestCas
             "phase": "AWAITING_MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW",
             "implementation_review_stages": {
                 "review_content_id": "c-original",
-                "LOCAL_IMPLEMENTATION_REVIEW": {
+                "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {
                     "bundle_id": "b-original", "verdict": "APPROVE", "round": 1, "completed_at": "t1",
                 },
                 "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": None,
@@ -12715,7 +12715,7 @@ class TestTechnicalApprovalGateReachableImplementationReviewWidening(unittest.Te
     def test_2_2_requires_both_stages_approved_against_current_content_id(self):
         stages = {
             "review_content_id": "c1",
-            ws.LOCAL_IMPLEMENTATION_REVIEW: {"bundle_id": "b", "verdict": "APPROVE", "round": 1, "completed_at": "t"},
+            ws.LOCAL_MODEL_IMPLEMENTATION_REVIEW: {"bundle_id": "b", "verdict": "APPROVE", "round": 1, "completed_at": "t"},
             ws.MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW: {"bundle_id": "b", "verdict": "APPROVE", "round": 1, "completed_at": "t"},
         }
         self.assertTrue(self._reachable(
@@ -12734,7 +12734,7 @@ class TestTechnicalApprovalGateReachableImplementationReviewWidening(unittest.Te
     def test_2_2_still_honors_dirty_path_head_mismatch_and_pinned_block(self):
         stages = {
             "review_content_id": "c1",
-            ws.LOCAL_IMPLEMENTATION_REVIEW: {"bundle_id": "b", "verdict": "APPROVE", "round": 1, "completed_at": "t"},
+            ws.LOCAL_MODEL_IMPLEMENTATION_REVIEW: {"bundle_id": "b", "verdict": "APPROVE", "round": 1, "completed_at": "t"},
             ws.MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW: {"bundle_id": "b", "verdict": "APPROVE", "round": 1, "completed_at": "t"},
         }
         self.assertFalse(self._reachable(

@@ -892,7 +892,13 @@ _GOLDEN_COMMAND_FILE_SHA256 = {
     # this invocation's own plan-stage approval resolved an amendment --
     # the reconciliation-outcome report `D-Plan-Amendment-4`'s own prose
     # requires. Intentional content change, not a regression.
-    "approve-review.md": "faf4266a6a8308c3bbea8266f7310d876393074bbd0f609ea9c7ac0fef7351e9",
+    # Updated by `workflow-2.5.0`'s own SELF_REVIEWING_IMPLEMENTATION pass:
+    # the implementation-stage ledger-check paragraph now names the stage by
+    # its one canonical name, `LOCAL_MODEL_IMPLEMENTATION_REVIEW` -- the same
+    # string the ledger key, the `Reviewer role:` line and every normative
+    # document already use -- instead of the short-form variant the code
+    # originally shipped. Intentional content change, not a regression.
+    "approve-review.md": "1c64a124b1fa33330d29d25dc60c29ecc2ceae387d13bd21197870bcb88724f9",
     # accept-milestone.md updated, baseline-freeze correctness fix
     # (OPUS-R129-001): step 6's completion-commit instruction now states
     # the same "trailers must be the commit message's own final paragraph"
@@ -1022,7 +1028,14 @@ _GOLDEN_COMMAND_FILE_SHA256 = {
     # unparseable `conditional` value, which `discover_state_writers` fails
     # closed on -- see that paragraph's own "Why the frontmatter declares
     # state_writer: true" note) -- intentional content change.
-    "review-implementation.md": "3d1820870401c53ddf2057cf09eda97d66239e4ae9375ffe6400fb22619ccaf6",
+    #
+    # review-implementation.md further updated by `workflow-2.5.0`'s own
+    # SELF_REVIEWING_IMPLEMENTATION pass: step A6's parenthetical no longer
+    # reconciles two names for the local stage -- the ledger key and the
+    # `Reviewer role:` string are now the identical
+    # `LOCAL_MODEL_IMPLEMENTATION_REVIEW`, as the approved plan and every
+    # normative document already declared -- intentional content change.
+    "review-implementation.md": "90aa64365734a4549ffa21da93ea760f29c268d19e8c110c4c909e90cbf97eaf",
     # review-functional.md: new, workflow-v2-3 CP2 -- the first recorded
     # hash, not a change.
     #
