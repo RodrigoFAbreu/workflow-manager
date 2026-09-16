@@ -76,10 +76,10 @@ python3 tests/run_all.py            # ~7min, adds the frozen conformance matrix
 `distribution/workflow/<version>/` (today, `2.3.1`) still reproduces from a
 fresh extraction; it does not by itself prove no unrelated file exists
 directly under `distribution/` outside every release directory. An authored
-release (today, `2.4.0`) is proved reproducible separately, by
+release (today, `2.4.0` and `2.5.0`) is proved reproducible separately, by
 `python3 tools/build_release.py --overlay migration/overlays/<version>
---check`, from the base release plus its overlay -- `migrate.py --check`
-does not cover it.
+--check`, from its own base release plus its own overlay -- `migrate.py
+--check` does not cover it.
 
 ## Where things are
 
