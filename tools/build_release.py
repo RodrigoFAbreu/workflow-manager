@@ -340,7 +340,15 @@ def build(
             continue
         data = (base_root / base_artifact["location"]).read_bytes()
         _write_file(release_root / base_artifact["location"], data, base_artifact["executable"])
-        artifacts.append(dict(base_artifact))
+        # Drop the base artifact's own `overlay_delta`, if any (B1): this
+        # release does not replace this file, so it has no delta of its
+        # own against *this* release's base -- carrying the base release's
+        # `overlay_delta` forward verbatim would claim this release
+        # replaced the file against a `base_sha256` belonging to a release
+        # this one is not built on. Relevant only when the base release is
+        # itself authored (has `overlay_delta` entries), which was not yet
+        # possible when this loop was first written.
+        artifacts.append({k: v for k, v in base_artifact.items() if k != "overlay_delta"})
 
     # Templates: 2.4.0's own suite-file set is identical to 2.3.1's (no
     # payload test file was added, removed, or renamed -- only three
@@ -411,6 +419,15 @@ def _tree_digest(root: Path) -> dict[str, str]:
     digest = {}
     for path in sorted(root.rglob("*")):
         if path.is_file():
+            if "__pycache__" in path.parts:
+                # Gitignored bytecode cache, never part of a committed
+                # release tree -- `_overlay_payload_paths` already skips it
+                # on the input side; without the same skip here, a
+                # `__pycache__/` left behind under a release directory by an
+                # earlier ad hoc `python3 <payload file>` invocation reports
+                # as a spurious `extra:` and fails `--check` even though the
+                # release genuinely reproduces (O1).
+                continue
             rel = path.relative_to(root).as_posix()
             mode = "x" if os.access(path, os.X_OK) else "-"
             digest[rel] = f"{mode}:{sha256(path.read_bytes())}"
