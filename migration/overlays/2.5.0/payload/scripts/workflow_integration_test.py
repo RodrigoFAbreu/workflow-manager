@@ -3326,6 +3326,33 @@ class TestReviewPlanRefusalGoldenHash(unittest.TestCase):
         )
 
 
+class TestReviewPlanStep8OwnershipGuardIsPresent(unittest.TestCase):
+    """workflow-2.5.0 REVISE round 3, Missing-tests item (O4): the prose
+    binding this round added for `review-implementation.md`'s `A6`
+    (`test_the_2_2_authoritative_branchs_reviewer_role_and_ledger_key_match_
+    the_code_constant` above) has no `/review-plan` twin. `review-plan.md`
+    step 8's own ownership guard is pinned only by
+    `TestGoldenCommandFileHashes`' whole-file hash, which moves on *any*
+    edit -- recording that the file changed, never that the guard itself is
+    still in it. This closes that gap with a direct `assertIn` over the
+    shipped file, mirroring this class' own narrower-than-whole-file style."""
+
+    def test_step_8_calls_the_ownership_guard_before_the_first_write(self):
+        text = _command_text("review-plan.md")
+        step8 = text.split("8. **Write set, exact.**", 1)[1]
+        self.assertIn(
+            "workflow_fingerprint.assert_feedback_not_owned_by_other_work_item(\n"
+            "   existing_content, work_item_id=work_item_id)",
+            step8,
+        )
+        # The guard must run before the verdict-branch write set below it,
+        # not after -- the same ordering property I3 (round 2) pinned for
+        # `review-implementation.md`'s `A6`.
+        guard_pos = step8.index("assert_feedback_not_owned_by_other_work_item")
+        first_write_pos = step8.index("`APPROVE`: `REVIEW_FEEDBACK.md`")
+        self.assertLess(guard_pos, first_write_pos)
+
+
 # ---------------------------------------------------------------------------
 # Missing-test item 107: a bundle-completeness lint for language
 # instructing a protected-path correction after approval.
