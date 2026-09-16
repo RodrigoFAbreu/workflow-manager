@@ -73,9 +73,15 @@ stays continuous from the work item's first checkpoint.
     `find_latest_activation_event` now returns `(kind,
     destination_version, commit)` — an activation trailer's value used
     directly, a rollback trailer's value resolved through
-    `ACTIVATION_ROLLBACK_PREDECESSOR`. `is_activated` reports `True`
-    whenever the resolved destination is not `"1"` (so `Workflow-
-    Rollback: 2.2`, resolving to `"2.1"`, still reports activated).
+    `ACTIVATION_ROLLBACK_PREDECESSOR`. For the activation direction,
+    `is_activated` reports `True` unconditionally, for every value
+    including `"1"`; for the rollback direction it reports `True` whenever
+    the resolved destination is not `"1"` (so `Workflow-Rollback: 2.2`,
+    resolving to `"2.1"`, still reports activated) -- this direction
+    qualifier superseded round 4's `I2` finding (recorded in
+    `IMPLEMENTATION_SUMMARY.md`'s Known limitations; noted here per round
+    6's `O2`, since this ledger is not shipped content and was not itself
+    named there).
     Rollback-trailer-value miss (a bare/empty value, a typo, or an
     unrecognized version such as `"2.9"`) resolves fail-closed as
     activated, via the shared `_activation_event_description` helper —
@@ -261,9 +267,13 @@ repository's own authored-release process) plus one reference doc under
     `/record-manual-plan-review.md` exactly, substituted for the
     implementation stage and the `"2.2"`-only version guard (no legacy
     role-string alias, unlike the plan side).
-  - **`apply-implementation-review.md`**: documents that a `"2.2"` item
-    makes no `enter_applying_review_feedback` call (its own only legal
-    source phase is wrong for a `"2.2"` `REVISE` round) and that step 7's
+  - **`apply-implementation-review.md`**: documents that step 0's
+    `enter_applying_review_feedback` call is skipped whenever `phase`
+    already equals `APPLYING_REVIEW_FEEDBACK` -- a version-independent
+    phase-conditional guard, not a `"2.2"`-only rule (superseded round 4's
+    `I3` finding; recorded in `IMPLEMENTATION_SUMMARY.md`'s Known
+    limitations; noted here per round 6's `O2`, since this ledger is not
+    shipped content and was not itself named there) -- and that step 7's
     `record_bundle_generation(stage="post-fix")` resolves to
     `AWAITING_LOCAL_IMPLEMENTATION_REVIEW` for it via the version-dependent
     resolver, never a second writer (resolves I1). Its own `"1"`/`"2.1"`
