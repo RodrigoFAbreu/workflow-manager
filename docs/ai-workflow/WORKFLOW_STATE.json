@@ -774,12 +774,12 @@
       "registry_path": "docs/ai-workflow/registry/implementation-review-two-stage-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/implementation-review-two-stage-mapping.json",
       "governing_workflow_version": "2.1",
-      "phase": "APPLYING_REVIEW_FEEDBACK",
+      "phase": "AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW",
       "plan_revision": 41,
-      "implementation_revision": 5,
+      "implementation_revision": 6,
       "functional_review_round": null,
       "base_commit": "38114204a4eca46930b0a6fb7e7a1cc4d4810798",
-      "reviewed_implementation_head": "12c5d50095f9c98cf697eeaa0ab9ccbb0902d498",
+      "reviewed_implementation_head": "87e6cdda35cdee3b869915ccdfa5445882779cdf",
       "current_checkpoint_id": null,
       "last_completed_checkpoint_id": "CP13",
       "checkpoints": {
@@ -887,8 +887,8 @@
       },
       "functional_acceptance_status": null,
       "blocking_decisions": [],
-      "state_revision": 170,
-      "last_transition": "2026-09-16T05:59:38Z",
+      "state_revision": 171,
+      "last_transition": "2026-09-16T06:35:10Z",
       "amendment_history": [
         {
           "amendment_id": "0",
