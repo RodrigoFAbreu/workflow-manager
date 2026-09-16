@@ -5156,6 +5156,27 @@ class TestEnterApplyingReviewFeedback(unittest.TestCase):
         new_state = ws.enter_applying_review_feedback(state, "wi", now="t1")
         self.assertEqual(new_state["work_items"]["wi"]["phase"], "APPLYING_REVIEW_FEEDBACK")
 
+    def test_refused_from_applying_review_feedback_phase_for_a_1_item(self):
+        """Missing-tests item (I2, round 5): the writer's own refusal from
+        `APPLYING_REVIEW_FEEDBACK` does not distinguish `governing_workflow_
+        version` at all -- `apply-implementation-review.md`'s step 0 is what
+        decides, by `phase` alone, never by version, whether to call this
+        writer. This pins the primitive's own half of that contract for a
+        `"1"` item explicitly: if the command were ever to call this writer
+        from `APPLYING_REVIEW_FEEDBACK` (the re-invocation case the prose's
+        phase-conditional skip instead avoids calling into for every
+        version), it still refuses -- exactly as the `"2.2"` escape test
+        above shows the same primitive firing successfully from the
+        terminal phase. Together the two tests show the primitive is
+        version-blind, so the skip a `"1"`/`"2.1"` re-invocation gets under
+        the new contract is a deliberate command-prose decision, not
+        something this function enforces."""
+        wi = _base_work_item(governing_workflow_version="1", phase="APPLYING_REVIEW_FEEDBACK")
+        state = _base_state(wi=wi)
+        with self.assertRaises(ws.IllegalApplyingReviewFeedbackEntryPhaseError) as ctx:
+            ws.enter_applying_review_feedback(state, "wi", now="t1")
+        self.assertIn("APPLYING_REVIEW_FEEDBACK", str(ctx.exception))
+
     def test_refused_from_illegal_source_phase(self):
         state = _base_state(wi=_base_work_item(phase="IMPLEMENTING"))
         with self.assertRaises(ws.IllegalApplyingReviewFeedbackEntryPhaseError) as ctx:

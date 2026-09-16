@@ -32645,18 +32645,36 @@ entry condition gains exactly the ledger check
 the current implementation-stage `review_content_id`. A `"1"`/`"2.1"`
 item's condition is exactly today's shared rule, unchanged.
 
-**`/apply-implementation-review`'s exit, revised for `"2.2"` only**: the
-`"1"`/`"2.1"` branch is byte-for-byte untouched — step 0 still calls
-`enter_applying_review_feedback` (refusing outside
-`AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW`), and step 7 still stays
-effectively at `AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW` after regenerating
-the post-fix bundle. For a `"2.2"` item: no `enter_applying_review_feedback`
-call is made at all — the command finds `phase` already at
+**`/apply-implementation-review`'s exit, revised for `"2.2"` only, and step
+0's own entry rule corrected to match (I3, round 5's B1)**: step 0's
+`enter_applying_review_feedback` call is **phase-conditional, not
+version-conditional** — the call is skipped whenever `phase` already
+equals `APPLYING_REVIEW_FEEDBACK`, for every governing version alike, and
+made otherwise. This means the `"1"`/`"2.1"` branch is **no longer
+byte-for-byte untouched at this one line**: a `"1"`/`"2.1"` item that
+reaches `APPLYING_REVIEW_FEEDBACK` other than through this command's own
+step 0 (an operator re-invoking `/apply-implementation-review` mid-round,
+say) now finds the call skipped and proceeds, where `2.4.0`'s
+version-blind step 0 would have raised
+`IllegalApplyingReviewFeedbackEntryPhaseError` naming the phase — strictly
+friendlier, and the command's own contract change, not an accident. Step 7
+still stays effectively at `AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW` after
+regenerating the post-fix bundle for `"1"`/`"2.1"`, unaffected. For a
+`"2.2"` item, this phase-conditional rule is always the skip case in the
+normal two-stage loop — the command finds `phase` already at
 `APPLYING_REVIEW_FEEDBACK`, written directly by `/review-implementation`'s
 or `/record-manual-implementation-review`'s own `REVISE` verdict (exactly
-the mechanism `/apply-plan-review` already uses for `REVISING_PLAN`). Step
-7's post-fix regeneration (`record_bundle_generation(stage="post-fix")`)
-reaches `AWAITING_LOCAL_IMPLEMENTATION_REVIEW` through the version-dependent
+the mechanism `/apply-plan-review` already uses for `REVISING_PLAN`) — but
+a `"2.2"` item that instead reaches the *terminal*
+`AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW` phase (both implementation-review
+stages already `APPROVE`d, then a late problem surfaces after
+`/approve-review implementation` closed the gate) sits at exactly the
+phase `enter_applying_review_feedback`'s own guard names as legal, so the
+call fires for that item too and restores `APPLYING_REVIEW_FEEDBACK`,
+closing a wedge a version-keyed skip would otherwise have left with no
+in-band way back in. Step 7's post-fix regeneration
+(`record_bundle_generation(stage="post-fix")`) reaches
+`AWAITING_LOCAL_IMPLEMENTATION_REVIEW` through the version-dependent
 resolver instead of staying at `AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW`.
 `"post-fix"`'s legal source phases are `{APPLYING_REVIEW_FEEDBACK,
 AWAITING_FUNCTIONAL_REVIEW}` (the second is `/apply-functional-review`'s own
@@ -32936,7 +32954,9 @@ accepted deliberately, not left silent.
 `find_latest_activation_event`/`is_activated` read each event's own
 *destination* version — an activation trailer's value directly, a
 rollback trailer's value resolved through the same predecessor mapping —
-and `is_activated` reports `True` whenever that destination is not `"1"`.
+and `is_activated` reports `True` for the rollback direction whenever that
+resolved destination is not `"1"`; the activation direction reports `True`
+unconditionally, for every trailer value including `"1"` (see below, I2).
 This reproduces today's binary behavior exactly at the boundary it already
 covers (`Workflow-Rollback: 2.1` resolves to `"1"`, still not activated)
 and additionally reports `True` after `Workflow-Rollback: 2.2` (resolves
@@ -32954,9 +32974,15 @@ mapping's declared domain is exactly `{"2.1": "1", "2.2": "2.1"}`; a value
 outside that domain (a bare/empty trailer, a typo, or an unrecognized
 future version) is caught by an explicit branch checked before the table
 lookup and resolves as **activated** — never a silent fall-through to
-not-activated, never an uncaught `KeyError`. The activation direction needs
-no equivalent rule: an activation trailer's value is used directly, and
-any value other than `"1"` already answers `True`.
+not-activated, never an uncaught `KeyError`. The activation direction is
+unconditionally activated: an `"activation"` event reports `True` for
+*every* trailer value, `"1"` included, never conditioned on the trailer's
+own value (I2 — reading `destination_version != "1"` unconditionally for
+both directions regressed this one value fail-*open* against `2.4.0`, the
+only direction nothing declared a deliberate difference for). Only a
+*resolved* rollback destination may ever report not-activated; an
+unresolvable rollback trailer still fails closed to activated, same as
+above.
 
 **Activation ceremony scope, decided lighter than the original `"1"`→`"2.1"`
 `WF-Activate` ceremony.** That original ceremony (dry-run synthetic work
