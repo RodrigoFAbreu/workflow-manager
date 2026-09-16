@@ -2891,13 +2891,13 @@ def assert_feedback_matches_bundle(
 def assert_feedback_not_owned_by_other_work_item(
     existing_content: str | None, *, work_item_id: str,
 ) -> None:
-    """Refuse `/review-implementation`'s write when whatever content
-    already sits at the resolved `<feedback_dir>/REVIEW_FEEDBACK.md` path
-    belongs to a *different* work item — checked immediately before the
-    write, alongside a second `assert_bundle_not_rejected` call, so a
-    genuine cross-work-item collision at `resolve_feedback_dir`'s
-    scoped-else-flat path is refused rather than silently overwritten
-    (`GPT-FUP-R6-I01`).
+    """Refuse `/review-implementation`'s (and, since round 2's I3,
+    `/review-plan` step 8's) write when whatever content already sits at
+    the resolved `<feedback_dir>/REVIEW_FEEDBACK.md` path belongs to a
+    *different* work item — checked immediately before the write, alongside
+    a second `assert_bundle_not_rejected` call, so a genuine cross-work-item
+    collision at `resolve_feedback_dir`'s scoped-else-flat path is refused
+    rather than silently overwritten (`GPT-FUP-R6-I01`).
 
     `existing_content` is `None` when no file sits at the resolved path
     yet, in which case this returns immediately. Otherwise the content is
