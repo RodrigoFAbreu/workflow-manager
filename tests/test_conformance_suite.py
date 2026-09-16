@@ -44,6 +44,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import unittest.mock
 from pathlib import Path
 
 from support import (
@@ -267,12 +268,34 @@ def _overlay_payload_roots() -> list[tuple[str, Path]]:
 
 
 def _authored_release_versions() -> list[str]:
-    """Version strings for every authored release present -- the version
-    half of `_overlay_payload_roots()`'s own pairs, reused wherever a test
-    needs the version list without the payload path (I1: these are the
-    releases whose `distribution/workflow/<version>/manifest.json` records
-    `overlay_delta`/authored provenance, one release per overlay directory)."""
-    return [version for version, _payload in _overlay_payload_roots()]
+    """Version strings for every authored release present *and already
+    built* -- the version half of `_overlay_payload_roots()`'s own pairs,
+    filtered down to those with a `distribution/workflow/<version>/
+    manifest.json` on disk, reused wherever a test needs the version list
+    without the payload path.
+
+    round-3 I1: every consumer of this list (`test_every_overlay_delta_
+    reproduces_from_base_and_overlay_bytes`, `test_no_missing_file_no_
+    digest_mismatch_no_stray_file` via `find_release`, `test_ci_template_
+    names_exactly_its_own_suite_set` via `CI_SUITES[version]`, and
+    `test_build_release_check_reproduces_every_authored_release`) reads
+    *built*-release artifacts, never the overlay alone. The previous
+    overlay-only key made this list disagree with what those four guards
+    can actually read for the entire span of an authored release's own
+    milestone between the checkpoint that authors its overlay and the
+    checkpoint that builds its release (ten checkpoints wide in the
+    `2.5.0` milestone itself) -- surfacing as a raw `FileNotFoundError`/
+    `KeyError` with nothing connecting it to "overlay authored, release
+    not yet built" rather than a clean, explanatory result. Keying on the
+    built side instead means an overlay-without-a-built-release is simply
+    absent from this list until `tools/build_release.py` runs -- exactly
+    the state `test_at_least_one_authored_release_is_built` below still
+    guards against going silently empty."""
+    return [
+        version
+        for version, _payload in _overlay_payload_roots()
+        if (REPO_ROOT / "distribution/workflow" / version / "manifest.json").is_file()
+    ]
 
 
 class TestAuthoredReleaseOverlayDelta(unittest.TestCase):
@@ -290,6 +313,34 @@ class TestAuthoredReleaseOverlayDelta(unittest.TestCase):
             sys.path.insert(0, str(tools_dir))
         import build_release
         cls.build_release = build_release
+
+    def test_an_overlay_without_a_built_release_is_silently_excluded(self):
+        # round-3 I1's own regression pin: an overlay directory present with
+        # no corresponding built release must be excluded from
+        # `_authored_release_versions()`, never raise. Demonstrated live
+        # against the real tree during this fix (a scratch
+        # `migration/overlays/9.9.9-scratch-demo/payload/` with no
+        # `distribution/workflow/9.9.9-scratch-demo/` was silently dropped
+        # from the list and the whole class stayed green); this pins the
+        # same behavior permanently via a temporary `REPO_ROOT`.
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_root = Path(tmp)
+            (tmp_root / "migration" / "overlays" / "9.9.9-unbuilt" / "payload").mkdir(parents=True)
+            (tmp_root / "migration" / "overlays" / "2.4.0" / "payload").mkdir(parents=True)
+            (tmp_root / "distribution" / "workflow" / "2.4.0").mkdir(parents=True)
+            (tmp_root / "distribution" / "workflow" / "2.4.0" / "manifest.json").write_text("{}")
+            with unittest.mock.patch(f"{__name__}.REPO_ROOT", tmp_root):
+                self.assertEqual(_authored_release_versions(), ["2.4.0"])
+
+    def test_at_least_one_authored_release_is_built(self):
+        # round-3 I1's own anti-vacuity twin: `_authored_release_versions()`
+        # is now keyed on the *built* side (a `distribution/workflow/
+        # <version>/manifest.json` on disk), separately from
+        # `test_at_least_one_authored_overlay_is_present`'s overlay-side
+        # precondition below -- an overlay authored but not yet built would
+        # otherwise silently empty this list and make every test in this
+        # class vacuously pass over zero versions.
+        self.assertGreater(len(_authored_release_versions()), 0)
 
     def test_every_overlay_delta_reproduces_from_base_and_overlay_bytes(self):
         # I1: parametrized over every authored release present
@@ -327,17 +378,30 @@ class TestAuthoredReleaseOverlayDelta(unittest.TestCase):
                     self.assertEqual(delta["diff_sha256"], recomputed, rel_path)
 
     def test_provenance_declares_authored_origin(self):
-        overlay_manifest = json.loads(
-            (REPO_ROOT / "distribution/workflow/2.4.0/manifest.json").read_text()
-        )
-        self.assertEqual(
-            overlay_manifest["provenance"],
-            {
-                "origin": "authored",
-                "base_release": "2.3.1",
-                "overlay_commit": overlay_manifest["provenance"]["overlay_commit"],
-            },
-        )
+        # round-3 O1: parametrized over every authored release present
+        # (`_authored_release_versions()`), not hardcoded to `2.4.0` alone
+        # -- `2.5.0`'s own `provenance` (the field distinguishing "authored,
+        # on an authored base" from a fresh upstream extraction) was
+        # previously asserted by nothing. Each version's expected
+        # `base_release` comes from its own `classification.json`'s
+        # `base_workflow_version` -- an independent source, never the
+        # manifest's own self-reported value.
+        for version in _authored_release_versions():
+            with self.subTest(version=version):
+                overlay_manifest = json.loads(
+                    (REPO_ROOT / "distribution/workflow" / version / "manifest.json").read_text()
+                )
+                classification = json.loads(
+                    (REPO_ROOT / "migration/overlays" / version / "classification.json").read_text()
+                )
+                self.assertEqual(
+                    overlay_manifest["provenance"],
+                    {
+                        "origin": "authored",
+                        "base_release": classification["base_workflow_version"],
+                        "overlay_commit": overlay_manifest["provenance"]["overlay_commit"],
+                    },
+                )
 
     def test_build_release_check_reproduces_every_authored_release(self):
         """Missing-tests item 1: `tools/migrate.py --check` is asserted
