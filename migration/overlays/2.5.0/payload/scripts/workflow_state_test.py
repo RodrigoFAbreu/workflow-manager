@@ -12699,6 +12699,30 @@ class TestNoBundleRegenerationBetweenImplementationReviewStages(unittest.TestCas
                 state["work_items"]["wi"]["implementation_review_stages"]["MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW"]
             )
 
+    def test_recomputed_fresh_regeneration_is_hard_blocked_via_the_ledger_check(self):
+        """Missing-tests item (O1, round 4): the other half of the
+        no-regeneration rule -- the operator's own recomputed-fresh
+        `review_content_id` can agree with the reviewer's feedback-carried
+        one (no `StaleReviewContentIdError`) while *both* disagree with the
+        ledger's own recorded `review_content_id`, because the bundle
+        regenerated after `LOCAL_MODEL_IMPLEMENTATION_REVIEW`'s own
+        approval and the reviewer was handed -- and reviewed against -- the
+        new content throughout. This falls through to the restated-invariant
+        check instead, raising `MissingLocalApprovalForManualImplementation
+        StageError`, not `StaleReviewContentIdError` -- the exception
+        `docs/ai-workflow/REVIEW_PROTOCOL.md`'s no-regeneration section now
+        names for this half."""
+        with ScratchRepo() as repo:
+            repo.commit("implement checkpoint", filename="src/feature.py")
+            state = _base_state(wi=self._locally_approved_wi(repo))
+            with self.assertRaises(ws.MissingLocalApprovalForManualImplementationStageError):
+                ws.record_manual_implementation_review(
+                    state, "wi", verdict="APPROVE", bundle_id="b-regenerated", round=1, now="t2",
+                    current_review_content_id="c-regenerated",
+                    feedback_role="MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW",
+                    feedback_review_content_id="c-regenerated",
+                )
+
 
 class TestBundleGenerationTargetPhaseResolver(unittest.TestCase):
     """`bundle_generation_target_phase`/`bundle_generation_recovered_role_
