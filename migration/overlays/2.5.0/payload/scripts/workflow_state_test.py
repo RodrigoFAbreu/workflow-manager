@@ -12441,9 +12441,12 @@ class TestRecordLocalImplementationReview(unittest.TestCase):
         self.assertEqual(item["state_revision"], 2)
 
     def test_revise_transitions_directly_to_applying_review_feedback_with_no_ledger_write(self):
-        """Unlike the plan side's REVISING_PLAN: /apply-implementation-review's
-        own "2.2" branch makes no separate enter_applying_review_feedback
-        call, so the writer itself sets APPLYING_REVIEW_FEEDBACK directly."""
+        """Unlike the plan side's REVISING_PLAN: this writer itself sets
+        APPLYING_REVIEW_FEEDBACK directly, so /apply-implementation-review's
+        step 0 finds the phase already set and skips its own
+        enter_applying_review_feedback call under the phase-conditional
+        guard -- not because of a "1"/"2.1" vs "2.2" version branch; there
+        is no version branch at step 0 any more."""
         wi = _v22_work_item(state_revision=1, implementation_review_stages=None)
         new_state = ws.record_local_implementation_review(
             _base_state(wi=wi), "wi", verdict="REVISE", bundle_id="b1",

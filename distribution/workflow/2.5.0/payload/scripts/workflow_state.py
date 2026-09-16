@@ -12589,9 +12589,13 @@ def record_local_implementation_review(
       `AWAITING_MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW`.
     - `REVISE`: no ledger write; transitions directly to
       `APPLYING_REVIEW_FEEDBACK` -- unlike the plan side's `REVISING_PLAN`,
-      since `/apply-implementation-review`'s own `"2.2"` branch makes no
-      separate `enter_applying_review_feedback` call (that command's own
-      "1"/"2.1" branch is the one that still calls it). Can never reach
+      since this writer already sets that phase directly.
+      `/apply-implementation-review`'s own step 0 then finds `phase`
+      already `APPLYING_REVIEW_FEEDBACK` and skips its own
+      `enter_applying_review_feedback` call under that command's
+      version-independent phase-conditional guard -- not because of a
+      `"1"`/`"2.1"` vs `"2.2"` branch; there is no version branch at step 0
+      any more. Can never reach
       `AWAITING_MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW`.
     - `BLOCK`: no ledger write, no phase transition -- a true no-op; the
       returned state is unchanged.
