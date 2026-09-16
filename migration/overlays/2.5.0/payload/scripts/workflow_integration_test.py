@@ -3345,17 +3345,26 @@ class TestReviewPlanStep8OwnershipGuardIsPresent(unittest.TestCase):
     step 8's own ownership guard is pinned only by
     `TestGoldenCommandFileHashes`' whole-file hash, which moves on *any*
     edit -- recording that the file changed, never that the guard itself is
-    still in it. This closes that gap with a direct `assertIn` over the
-    shipped file, mirroring this class' own narrower-than-whole-file style."""
+    still in it. This closes that gap with a direct check over the shipped
+    file, mirroring this class' own narrower-than-whole-file style.
+
+    round 4's O4: the first check is a regex tolerant of whitespace/wrapping
+    around the call's own arguments -- pinning the guard's presence and its
+    exact arguments, never the surrounding line-wrap/indentation a harmless
+    prose reflow could otherwise break for a reason unrelated to the guard.
+    The ordering assertion below (matched on the bare function name, already
+    robust) is unchanged and remains the part carrying this test's real
+    value."""
+
+    _GUARD_CALL_RE = re.compile(
+        r"assert_feedback_not_owned_by_other_work_item\(\s*"
+        r"existing_content,\s*work_item_id=work_item_id\s*\)"
+    )
 
     def test_step_8_calls_the_ownership_guard_before_the_first_write(self):
         text = _command_text("review-plan.md")
         step8 = text.split("8. **Write set, exact.**", 1)[1]
-        self.assertIn(
-            "workflow_fingerprint.assert_feedback_not_owned_by_other_work_item(\n"
-            "   existing_content, work_item_id=work_item_id)",
-            step8,
-        )
+        self.assertRegex(step8, self._GUARD_CALL_RE)
         # The guard must run before the verdict-branch write set below it,
         # not after -- the same ordering property I3 (round 2) pinned for
         # `review-implementation.md`'s `A6`.

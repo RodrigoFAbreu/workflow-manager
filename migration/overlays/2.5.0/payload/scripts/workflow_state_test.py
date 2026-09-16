@@ -13460,6 +13460,17 @@ class GoverningVersionEnumerationSweepTest(unittest.TestCase):
         self.assertEqual(ws.sweep_governing_version_enumeration({"doc.md": text}), [])
 
     def test_real_corpus_sweep_is_clean(self):
+        """Deliberately scoped (round 4's O2), not exhaustive: the command
+        files plus `docs/ai-workflow/`'s own top-level documents, both
+        non-recursive -- the corpus this milestone's own review-facing
+        prose lives in. `docs/ai-workflow/audit/`, `dry-run/`, and
+        `requirements/` are out of this sweep's scope (a wider,
+        `**/*.md`-recursive run does find one true positive there today --
+        a base-2.4.0-inherited row in `audit/WORKFLOW_DEFECT_LEDGER.md`
+        this milestone's own overlay does not own or replace -- which is a
+        real gap, not a false negative, and is left for whichever future
+        checkpoint widens this sweep's own corpus deliberately rather than
+        as an accidental side effect of an unrelated fix)."""
         overlay_root = Path(__file__).resolve().parent
         payload_root = overlay_root.parent
         paths = list((payload_root / ".claude" / "commands").glob("*.md")) + \
