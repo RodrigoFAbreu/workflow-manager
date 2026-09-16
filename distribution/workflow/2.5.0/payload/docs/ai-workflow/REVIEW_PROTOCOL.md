@@ -640,14 +640,19 @@ It is easy to accidentally regress this by adding a bundle-refresh step
 where none belongs -- so the property is enforced mechanically, not only
 by omission: `record_manual_implementation_review`'s own precondition
 (`validate_manual_implementation_review_preconditions`,
-`scripts/workflow_state.py`) hard-blocks with `StaleReviewContentIdError`
-the moment the manual round's own `review_content_id` (whether recomputed
-fresh by the operator running `/record-manual-implementation-review`, or
-carried in the reviewer's own feedback text) disagrees with the value
+`scripts/workflow_state.py`) hard-blocks the moment the manual round's own
+`review_content_id` disagrees with the value
 `implementation_review_stages["review_content_id"]` already recorded when
-`LOCAL_MODEL_IMPLEMENTATION_REVIEW` approved -- there is no fallback path
-that silently re-approves different content under the old local-approval
-ledger entry. The advisory-only `bundle_id` check
+`LOCAL_MODEL_IMPLEMENTATION_REVIEW` approved -- with `StaleReviewContentIdError`
+when the disagreement is between the reviewer's own feedback-carried
+`review_content_id` and the current recomputed value, and with
+`MissingLocalApprovalForManualImplementationStageError` when the operator's
+recomputed-fresh value agrees with the feedback but neither matches the
+ledger's own recorded `review_content_id` (the bundle regenerated after
+`LOCAL_MODEL_IMPLEMENTATION_REVIEW`'s own approval, so there is no current
+local approval for the content actually being ingested). Either way there
+is no fallback path that silently re-approves different content under the
+old local-approval ledger entry. The advisory-only `bundle_id` check
 (`check_manual_stage_bundle_id_advisory`) is deliberately weaker (a warning,
 not a block) since a reviewer-facing wrapper artifact's own `bundle_id` can
 legitimately differ in shape from the recomputed one without the

@@ -5133,6 +5133,29 @@ class TestEnterApplyingReviewFeedback(unittest.TestCase):
         new_state = ws.enter_applying_review_feedback(state, "wi", now="t1")
         self.assertEqual(new_state["work_items"]["wi"]["phase"], "APPLYING_REVIEW_FEEDBACK")
 
+    def test_version_independent_escape_from_terminal_phase_for_22_item(self):
+        """Missing-tests item (I3, round 4): the writer itself never
+        checked `governing_workflow_version` -- only
+        `apply-implementation-review.md`'s own prose told the operator to
+        skip calling it for a `"2.2"` item. Pinning that a `"2.2"` item
+        which reached the terminal `AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW`
+        phase (both implementation-review stages already `APPROVE`d, then a
+        late fix is committed after `/approve-review implementation` closed
+        the gate) can still call this writer and land back in
+        `APPLYING_REVIEW_FEEDBACK` -- the escape the command file's
+        phase-conditional fix now actually exercises."""
+        wi = _v22_work_item(
+            phase="AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW",
+            implementation_review_stages={
+                "review_content_id": "c1",
+                "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {"bundle_id": "b1", "verdict": "APPROVE", "round": 1, "completed_at": "t0"},
+                "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": {"bundle_id": "b1", "verdict": "APPROVE", "round": 1, "completed_at": "t0"},
+            },
+        )
+        state = _base_state(wi=wi)
+        new_state = ws.enter_applying_review_feedback(state, "wi", now="t1")
+        self.assertEqual(new_state["work_items"]["wi"]["phase"], "APPLYING_REVIEW_FEEDBACK")
+
     def test_refused_from_illegal_source_phase(self):
         state = _base_state(wi=_base_work_item(phase="IMPLEMENTING"))
         with self.assertRaises(ws.IllegalApplyingReviewFeedbackEntryPhaseError) as ctx:
@@ -12047,6 +12070,20 @@ class TestVersionAwareActivationEventModel(unittest.TestCase):
             self.assertIn("an unresolvable Workflow-Activation trailer value ''", message)
             self.assertNotIn("Workflow ''", message)
 
+    def test_workflow_activation_1_trailer_resolves_activated_true(self):
+        """Missing-tests item (I2): the activation-direction twin of
+        `test_a_typo_d_rollback_trailer_value_resolves_activated_fail_closed`
+        above and of the round-2 blank-activation-trailer pair just above --
+        `Workflow-Activation: 1` is the one trailer value a naive
+        `destination_version != "1"` reading answers differently from
+        `2.4.0`'s own binary `kind == "activation"` check, which reports
+        activated for every activation trailer value. The activation
+        direction must stay fail-closed like every other direction: only a
+        *resolved rollback* destination may ever report not-activated."""
+        with ScratchRepo() as repo:
+            repo.commit("activate one", trailers={"Workflow-Activation": "1"})
+            self.assertTrue(ws.is_activated(repo.root))
+
     def test_rollback_2_1_still_resolves_not_activated(self):
         """Reproduces today's binary behavior exactly at the boundary it
         already covers."""
@@ -12661,6 +12698,30 @@ class TestNoBundleRegenerationBetweenImplementationReviewStages(unittest.TestCas
             self.assertIsNone(
                 state["work_items"]["wi"]["implementation_review_stages"]["MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW"]
             )
+
+    def test_recomputed_fresh_regeneration_is_hard_blocked_via_the_ledger_check(self):
+        """Missing-tests item (O1, round 4): the other half of the
+        no-regeneration rule -- the operator's own recomputed-fresh
+        `review_content_id` can agree with the reviewer's feedback-carried
+        one (no `StaleReviewContentIdError`) while *both* disagree with the
+        ledger's own recorded `review_content_id`, because the bundle
+        regenerated after `LOCAL_MODEL_IMPLEMENTATION_REVIEW`'s own
+        approval and the reviewer was handed -- and reviewed against -- the
+        new content throughout. This falls through to the restated-invariant
+        check instead, raising `MissingLocalApprovalForManualImplementation
+        StageError`, not `StaleReviewContentIdError` -- the exception
+        `docs/ai-workflow/REVIEW_PROTOCOL.md`'s no-regeneration section now
+        names for this half."""
+        with ScratchRepo() as repo:
+            repo.commit("implement checkpoint", filename="src/feature.py")
+            state = _base_state(wi=self._locally_approved_wi(repo))
+            with self.assertRaises(ws.MissingLocalApprovalForManualImplementationStageError):
+                ws.record_manual_implementation_review(
+                    state, "wi", verdict="APPROVE", bundle_id="b-regenerated", round=1, now="t2",
+                    current_review_content_id="c-regenerated",
+                    feedback_role="MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW",
+                    feedback_review_content_id="c-regenerated",
+                )
 
 
 class TestBundleGenerationTargetPhaseResolver(unittest.TestCase):
@@ -13399,6 +13460,17 @@ class GoverningVersionEnumerationSweepTest(unittest.TestCase):
         self.assertEqual(ws.sweep_governing_version_enumeration({"doc.md": text}), [])
 
     def test_real_corpus_sweep_is_clean(self):
+        """Deliberately scoped (round 4's O2), not exhaustive: the command
+        files plus `docs/ai-workflow/`'s own top-level documents, both
+        non-recursive -- the corpus this milestone's own review-facing
+        prose lives in. `docs/ai-workflow/audit/`, `dry-run/`, and
+        `requirements/` are out of this sweep's scope (a wider,
+        `**/*.md`-recursive run does find one true positive there today --
+        a base-2.4.0-inherited row in `audit/WORKFLOW_DEFECT_LEDGER.md`
+        this milestone's own overlay does not own or replace -- which is a
+        real gap, not a false negative, and is left for whichever future
+        checkpoint widens this sweep's own corpus deliberately rather than
+        as an accidental side effect of an unrelated fix)."""
         overlay_root = Path(__file__).resolve().parent
         payload_root = overlay_root.parent
         paths = list((payload_root / ".claude" / "commands").glob("*.md")) + \

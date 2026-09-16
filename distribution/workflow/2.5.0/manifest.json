@@ -9,7 +9,7 @@
   "provenance": {
     "origin": "authored",
     "base_release": "2.4.0",
-    "overlay_commit": "d885a3e25d0dd0ee65d3e475bf75d53e1f19d613"
+    "overlay_commit": "b47fc964fa96cc3d81153e49f7e497ea00876e91"
   },
   "categories": {
     "distribution": "Canonical Workflow implementation. Copied byte-for-byte into the payload and installed into every managed target repository.",
@@ -66,12 +66,12 @@
       "category": "distribution",
       "rule": "^\\.claude/commands/apply-implementation-review\\.md$",
       "rationale": "Gains a \"2.2\" branch: no enter_applying_review_feedback call; post-fix regeneration reaches AWAITING_LOCAL_IMPLEMENTATION_REVIEW via record_bundle_generation's own version-dependent resolver (D-Implementation-Review-Stages, CP4). Preserves the base release's own distribution category for this path.",
-      "sha256": "681d214e503314b56529a3cfb655b4c7f7cd0d7a17fb270bac43834076597da6",
-      "size": 12785,
+      "sha256": "fd47b646eeb4d557e51f42c6fc39d8393490cd1496a5093f47c8f1d558c4c1b4",
+      "size": 14071,
       "executable": false,
       "overlay_delta": {
         "base_sha256": "0234cd1c6cf698650762711b3569ed5c73e9088ff9adf85501ba821dc0e13b13",
-        "diff_sha256": "aeb7fe5e3ef0960a3304ceef87e1af3e18b70ab15b09fb4de387dd16f0dd9309"
+        "diff_sha256": "34a47730f82da1d074359a1e1ccd52bb836d58b9e70576fd54541d1aaf8c59a8"
       }
     },
     {
@@ -326,12 +326,12 @@
       "category": "distribution",
       "rule": "^docs/ai-workflow/REVIEW_PROTOCOL\\.md$",
       "rationale": "D-Review-Finding-Taxonomy-and-Circuit-Breaker's advisory [substantive]/[apparatus] tagging convention and circuit-breaker signal (CP8); implementation-review-stage bundle/manifest references widened for \"2.2\" (CP1).",
-      "sha256": "64411fc5c907ff05dda36b22d1ab157f7dc9ee8c416a73e05e095606a236e76c",
-      "size": 38396,
+      "sha256": "706922bf4e0913ed0162a87c5591ec6a78d43798d22d33b7eb2eb8d036559562",
+      "size": 38753,
       "executable": false,
       "overlay_delta": {
         "base_sha256": "30efa7f017865a98c35099545f9d65819c112b8a5ea27d3db6e2613a9a234836",
-        "diff_sha256": "6bf3ea312cffb480d6ee263f1c245e2891ff5125e8703e27c1f455230a2b607d"
+        "diff_sha256": "83798558c140dcc882916852ea0c2bb4bbddb85d3d93fc046311f270705ead11"
       }
     },
     {
@@ -707,12 +707,12 @@
       "category": "distribution",
       "rule": "^scripts/workflow_integration_test\\.py$",
       "rationale": "Persisted-phase table, phase-to-writer census, command-count and generator-mention checks updated for the two new commands and phases (D-Implementation-Review-Stages, CP2/CP3/CP4).",
-      "sha256": "ca93f0aa94a7904a849b969cd53e1ae3d8ae396011b5ff2542678dafdb1205f3",
-      "size": 388092,
+      "sha256": "1fb6bdd77b53b60ef2bdb11e88786e57af08cb9c648b52a1f8fa1ab94b849af4",
+      "size": 389371,
       "executable": false,
       "overlay_delta": {
         "base_sha256": "a7ca02768eb84cb884c50c5bf10529a54be6e7117ed6fbf9ab0034180e1162b6",
-        "diff_sha256": "fd415f66d95fd03c07796cd383353cdead560b59a6eaae88a15320577ee47880"
+        "diff_sha256": "9a1d46f1f553df6b7daec0ef51223bba1ad257b9add97c49bfe87464cfacdb40"
       }
     },
     {
@@ -721,12 +721,12 @@
       "category": "distribution",
       "rule": "^scripts/workflow_state\\.py$",
       "rationale": "KNOWN_PHASES additions, the generalized version-aware activation/rollback helpers, implementation_review_stages ledger writers (record_local_implementation_review, record_manual_implementation_review), the widened technical_approval_gate_reachable, and bundle_generation_target_phase/bundle_generation_recovered_role_legal_committed_phases (D-Implementation-Review-Stages, D-Implementation-Review-Version-Activation; CP1-CP3, CP9, CP10).",
-      "sha256": "49f13a52d2fd9888347e065df1ef9ed34f103eff01b76170a52ec48c656e5fe8",
-      "size": 729293,
+      "sha256": "e3e6d131e89e9367e65a29b9f8ff2d546f7819ca8a0865381ed84fffd6a7019b",
+      "size": 729905,
       "executable": false,
       "overlay_delta": {
         "base_sha256": "369ea8979a748674e082aa34ddd3f04fd4faf2c552e2aa9b6793fa8864833379",
-        "diff_sha256": "0b7af442633d1aa10821b9dc4db7ddc2faf024efb46f127d028d2a865d73bdaf"
+        "diff_sha256": "1bcc50a8cc68074fe9e6c09e2ce00a07a10e34a2498723401082edae37979fae"
       }
     },
     {
@@ -760,12 +760,12 @@
       "category": "distribution",
       "rule": "^scripts/workflow_state_test\\.py$",
       "rationale": "The payload's own conformance suite, updated for the new review-stage writers/gates plus CP7's generic, parametric declaration-coverage helper generalizing the bespoke per-work-item pattern (D-Implementation-Review-Stages, D-Canonical-Review-Data; CP2, CP3, CP7).",
-      "sha256": "9d5d0a749e7b2a5603ea12a5d0e2366a4214cf50f3ba49312a39966486def859",
-      "size": 774050,
+      "sha256": "470ce502b7e9f34918cf674ff872e1c85bf6c20497b55851391b7e55d6f1766c",
+      "size": 778727,
       "executable": false,
       "overlay_delta": {
         "base_sha256": "90919276d86f08cfebf24f70a0e9a003f8c610481879617d2eaba60b711a88eb",
-        "diff_sha256": "989371dd7b5450e84234e17f71f086a941ef043142b1d5163652770fdc94d89c"
+        "diff_sha256": "2f8c00c5c8f17ae8d6b655b3e24a7cb3934bbbf85cd42076d47037b96dc593d4"
       }
     },
     {

@@ -980,7 +980,18 @@ _GOLDEN_COMMAND_FILE_SHA256 = {
     # requirement milestone-implement.md/bootstrap-workflow-v2.md/
     # approve-review.md/accept-milestone.md already state -- intentional
     # content change.
-    "apply-implementation-review.md": "681d214e503314b56529a3cfb655b4c7f7cd0d7a17fb270bac43834076597da6",
+    # apply-implementation-review.md further updated, round-4 implementation
+    # review fix (I3): the preamble's "workflow-2.5.0, "2.2"-governed items
+    # only: skip this call too" wording is replaced with a phase-conditional
+    # rule ("skip this call whenever phase already equals
+    # APPLYING_REVIEW_FEEDBACK", version-independent) so a "2.2" item that
+    # reaches the terminal AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW phase
+    # (both implementation-review stages already APPROVEd, then a late fix
+    # is committed) can still call enter_applying_review_feedback and
+    # re-enter APPLYING_REVIEW_FEEDBACK -- the version-keyed wording left
+    # that item with no in-band escape. Step 0's own dual-mode enumeration
+    # updated to match. Intentional content change, not a regression.
+    "apply-implementation-review.md": "fd47b646eeb4d557e51f42c6fc39d8393490cd1496a5093f47c8f1d558c4c1b4",
     # review-plan.md/record-manual-plan-review.md further updated,
     # workflow-v2-3-followups CP3 (REQ-8/-9): the `Reviewer role:` template
     # literal, the round-computation prose, the exact-match-expectation
@@ -3334,17 +3345,26 @@ class TestReviewPlanStep8OwnershipGuardIsPresent(unittest.TestCase):
     step 8's own ownership guard is pinned only by
     `TestGoldenCommandFileHashes`' whole-file hash, which moves on *any*
     edit -- recording that the file changed, never that the guard itself is
-    still in it. This closes that gap with a direct `assertIn` over the
-    shipped file, mirroring this class' own narrower-than-whole-file style."""
+    still in it. This closes that gap with a direct check over the shipped
+    file, mirroring this class' own narrower-than-whole-file style.
+
+    round 4's O4: the first check is a regex tolerant of whitespace/wrapping
+    around the call's own arguments -- pinning the guard's presence and its
+    exact arguments, never the surrounding line-wrap/indentation a harmless
+    prose reflow could otherwise break for a reason unrelated to the guard.
+    The ordering assertion below (matched on the bare function name, already
+    robust) is unchanged and remains the part carrying this test's real
+    value."""
+
+    _GUARD_CALL_RE = re.compile(
+        r"assert_feedback_not_owned_by_other_work_item\(\s*"
+        r"existing_content,\s*work_item_id=work_item_id\s*\)"
+    )
 
     def test_step_8_calls_the_ownership_guard_before_the_first_write(self):
         text = _command_text("review-plan.md")
         step8 = text.split("8. **Write set, exact.**", 1)[1]
-        self.assertIn(
-            "workflow_fingerprint.assert_feedback_not_owned_by_other_work_item(\n"
-            "   existing_content, work_item_id=work_item_id)",
-            step8,
-        )
+        self.assertRegex(step8, self._GUARD_CALL_RE)
         # The guard must run before the verdict-branch write set below it,
         # not after -- the same ordering property I3 (round 2) pinned for
         # `review-implementation.md`'s `A6`.
