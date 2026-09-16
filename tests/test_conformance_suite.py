@@ -19,18 +19,23 @@ against disposable repositories built only from `distribution/`:
     own `by_version[WORKFLOW_VERSION]` exceptions -- not a subset, not a
     superset.
 
-`231`/`240` name the two releases (`2.3.1`, `2.4.0`); `2.3.1`'s own run stays
-exactly as it always was -- CP6 adds the `2.4.0` run beside it, never in
-place of it.
+`231`/`240`/`250` name the three releases (`2.3.1`, `2.4.0`, `2.5.0`);
+`2.3.1`'s own run stays exactly as it always was -- CP6 adds the `2.4.0` run
+beside it, never in place of it, and `implementation-review-two-stage`
+(`workflow-2.5.0`) adds `2.5.0` the same way beside both.
 
-Below the version-parameterized matrix, three more checks CP6 adds once,
-never per-version, since they are about the authored release specifically:
-`TestAuthoredReleaseOverlayDelta` (I2 -- every recorded overlay diff really
-reproduces from base + diff alone), `TestAuthoredReleaseCiTemplateSuiteNames`
-(the shipped CI template names exactly the suite set this matrix itself
-verifies), and `TestOverlayStateWriterClosure` (the `WFO-STATE-SERIALIZATION`
+Below the version-parameterized matrix, three more checks cover the
+authored releases specifically -- `TestAuthoredReleaseOverlayDelta` (I2 --
+every recorded overlay diff really reproduces from base + diff alone),
+`TestAuthoredReleaseCiTemplateSuiteNames` (each shipped CI template names
+exactly the suite set this matrix itself verifies), and
+`TestOverlayStateWriterClosure` (the `WFO-STATE-SERIALIZATION`
 closure-verifier gap: widening its scan to every present overlay's own
-`.claude/commands/`/`scripts/` writer surface).
+`.claude/commands/`/`scripts/` writer surface) -- CP6 introduced these
+once, but every authored release added since (`2.5.0`) parametrizes all
+three over its own overlay rather than adding a second hand-written copy,
+so "once" now means "once per check, iterated over every authored release
+present," not "never per-version."
 
 Slow (~2 minutes per release): the acceptance matrix drives real `git` and
 the real `prepare-ai-review.sh` across 146 rows, twice per release.
