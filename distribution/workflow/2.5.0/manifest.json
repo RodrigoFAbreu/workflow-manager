@@ -9,7 +9,7 @@
   "provenance": {
     "origin": "authored",
     "base_release": "2.4.0",
-    "overlay_commit": "e02ca139d805775e736f61c3331a363af4038bff"
+    "overlay_commit": "d885a3e25d0dd0ee65d3e475bf75d53e1f19d613"
   },
   "categories": {
     "distribution": "Canonical Workflow implementation. Copied byte-for-byte into the payload and installed into every managed target repository.",
@@ -707,12 +707,12 @@
       "category": "distribution",
       "rule": "^scripts/workflow_integration_test\\.py$",
       "rationale": "Persisted-phase table, phase-to-writer census, command-count and generator-mention checks updated for the two new commands and phases (D-Implementation-Review-Stages, CP2/CP3/CP4).",
-      "sha256": "9f6ba82fba9ddc8fe31b1182f294668a7906e92da01673b2d26ea7ba3e7b56ee",
-      "size": 386596,
+      "sha256": "ca93f0aa94a7904a849b969cd53e1ae3d8ae396011b5ff2542678dafdb1205f3",
+      "size": 388092,
       "executable": false,
       "overlay_delta": {
         "base_sha256": "a7ca02768eb84cb884c50c5bf10529a54be6e7117ed6fbf9ab0034180e1162b6",
-        "diff_sha256": "c7a2407071f54b4d58115488cd5fae93628066c612bc32d07496b41043ac39e1"
+        "diff_sha256": "fd415f66d95fd03c07796cd383353cdead560b59a6eaae88a15320577ee47880"
       }
     },
     {
