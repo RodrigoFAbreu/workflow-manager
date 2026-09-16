@@ -9,7 +9,7 @@
   "provenance": {
     "origin": "authored",
     "base_release": "2.4.0",
-    "overlay_commit": "f99d58846476261faa7ef3e6be2842102bc1265b"
+    "overlay_commit": "e02ca139d805775e736f61c3331a363af4038bff"
   },
   "categories": {
     "distribution": "Canonical Workflow implementation. Copied byte-for-byte into the payload and installed into every managed target repository.",
@@ -28,7 +28,7 @@
       "distribution": 37,
       "host-evidence": 2
     },
-    "overlay_replaced": 25,
+    "overlay_replaced": 23,
     "overlay_added": 2
   },
   "artifacts": [
@@ -51,7 +51,7 @@
       "location": "payload/.claude/commands/apply-functional-review.md",
       "category": "distribution",
       "rule": "^\\.claude/commands/apply-functional-review\\.md$",
-      "rationale": "Post-fix bounded-fix regeneration routes back through both implementation-review stages for a \"2.2\" work item before /approve-review implementation is reachable again (D-Implementation-Review-Stages, CP5).",
+      "rationale": "Two hunks: post-fix bounded-fix regeneration routes back through both implementation-review stages for a \"2.2\" work item before /approve-review implementation is reachable again; and the child work-item lifecycle chain inserts /record-manual-implementation-review <child-id> for a \"2.2\"-governed child and states that such a child enters review at AWAITING_LOCAL_PLAN_REVIEW identically to a \"2.1\" child (D-Implementation-Review-Stages, CP5).",
       "sha256": "a29cb42921d9ecadb9cfbc995896ece1a1348d4835eb2619aa385879c3cb21aa",
       "size": 18693,
       "executable": false,
@@ -237,13 +237,13 @@
       "location": "payload/.claude/commands/review-implementation.md",
       "category": "distribution",
       "rule": "^\\.claude/commands/review-implementation\\.md$",
-      "rationale": "Gains a \"2.2\" authoritative branch (phase guard AWAITING_LOCAL_IMPLEMENTATION_REVIEW, ledger write plus phase transition on APPROVE/REVISE); the existing \"1\"/\"2.1\" advisory branch stays byte-unchanged (D-Implementation-Review-Stages, CP4). Preserves the base release's own distribution category for this path.",
-      "sha256": "90aa64365734a4549ffa21da93ea760f29c268d19e8c110c4c909e90cbf97eaf",
-      "size": 31198,
+      "rationale": "Gains a \"2.2\" authoritative branch (phase guard AWAITING_LOCAL_IMPLEMENTATION_REVIEW, ledger write plus phase transition on APPROVE/REVISE); the existing \"1\"/\"2.1\" advisory branch stays byte-unchanged (D-Implementation-Review-Stages, CP4). The authoritative branch's A6 write set additionally gains the same assert_feedback_not_owned_by_other_work_item ownership guard the advisory branch's own step 7 already runs immediately before its write, closing a gap the advisory branch never had (I3, round-2 finding). Preserves the base release's own distribution category for this path.",
+      "sha256": "df6de5ba869bfee1e6fc31cf7a07932fecb66dbb36b55a906d8d0d4b831caf62",
+      "size": 32365,
       "executable": false,
       "overlay_delta": {
         "base_sha256": "a017359a961ac5dc3e9cee1c3c2f8265e38f924f1af2cdbe984b381f79f4de6a",
-        "diff_sha256": "c21e59f1215bc40225e30c42638b00dfded7b9bad022628a622e555c0700b407"
+        "diff_sha256": "e83f61c8e8d67faf0cf708118dacd443685726a23542279c34bb85f25d57c731"
       }
     },
     {
@@ -251,13 +251,13 @@
       "location": "payload/.claude/commands/review-plan.md",
       "category": "distribution",
       "rule": "^\\.claude/commands/review-plan\\.md$",
-      "rationale": "governing_workflow_version references widened for the \"2.2\" activation target (D-Implementation-Review-Version-Activation, CP1/CP2).",
-      "sha256": "1b09e6eb941daac3b671130bac443b93a8df6d9db29a5ba81485ab0fbcb9459a",
-      "size": 8321,
+      "rationale": "Governing-version check widened from a bare \"2.1\" literal to TWO_STAGE_PLAN_REVIEW_VERSIONS membership (\"2.1\"/\"2.2\"), with the description: frontmatter updated to match -- the same semantic change as sibling record-manual-plan-review.md (D-Implementation-Review-Version-Activation, CP4). Step 8's write set additionally gains the same assert_feedback_not_owned_by_other_work_item ownership guard /review-implementation's advisory branch already runs immediately before its own write -- this command had never had it (I3, round-2 finding; a faithful mirror of the pre-existing gap, closed here rather than left as its second instance).",
+      "sha256": "37d2896320c30e3039e69bd9499c88dd6d60e97bfb1189af7d35737719a831a2",
+      "size": 9314,
       "executable": false,
       "overlay_delta": {
         "base_sha256": "20603d29b085c93cc31a5597e5951146a453a6a9a1edfa16b0046ffdedd86402",
-        "diff_sha256": "895e2c390137bfd3011993eee5761523dfdf9a227dd5263ad052d8c1d3729a75"
+        "diff_sha256": "84e7e8350e3847525407df7e65a932408f6f87d762a071d707963cd683d57f1b"
       }
     },
     {
@@ -311,7 +311,7 @@
       "location": "payload/docs/ai-workflow/PLAN_REVIEW_WORKFLOW.md",
       "category": "distribution",
       "rule": "^docs/ai-workflow/PLAN_REVIEW_WORKFLOW\\.md$",
-      "rationale": "Cross-references to the new mirrored implementation-review protocol document (D-Implementation-Review-Stages, CP1).",
+      "rationale": "Applicability widened, not merely cross-referenced: the title and the \"Scoped entirely to '2.1' work items\" paragraph now read TWO_STAGE_PLAN_REVIEW_VERSIONS = {\"2.1\", \"2.2\"}, and /apply-plan-review's described exit widens to name both versions alike (D-Implementation-Review-Stages, CP1).",
       "sha256": "02785fd6ffa36157a59e3b292b8c8e878179ddb84dfebbb802ec93e204948748",
       "size": 4289,
       "executable": false,
@@ -397,7 +397,7 @@
       "location": "payload/docs/ai-workflow/WORKFLOW_V2_PLAN.md",
       "category": "distribution",
       "rule": "^docs/ai-workflow/WORKFLOW_V2_PLAN\\.md$",
-      "rationale": "D-Implementation-Review-Stages, D-Implementation-Review-Version-Activation, D-Review-Material-Lifecycle, D-Canonical-Review-Data, D-Review-Finding-Taxonomy-and-Circuit-Breaker and D-Post-v2.3.1-Backlog design-decision sections (CP1, CP6, CP7, CP8, CP9, CP10).",
+      "rationale": "D-Implementation-Review-Stages, D-Implementation-Review-Version-Activation (CP1) and D-Review-Material-Lifecycle (CP6) design-decision sections -- the only checkpoints that actually authored this file (git log 38114204..HEAD -- this path is exactly 20a808d/CP1 and 2af606a/CP6). D-Canonical-Review-Data lives in scripts/workflow_state_test.py (CP7), D-Review-Finding-Taxonomy-and-Circuit-Breaker in REVIEW_PROTOCOL.md (CP8), and D-Post-v2.3.1-Backlog is a plan-internal label for CP9/CP10's own code-fix and docs/defects/ deliverables, not a section in this document.",
       "sha256": "c7b93e6c330fcb8b692e9243aa7149e49d3194838747a68791f74369dc1f1069",
       "size": 3199219,
       "executable": false,
@@ -480,11 +480,7 @@
       "rationale": "The item 372(h) graph arm's CODE_DERIVABLE set, and its plan-table parser's edge-count assertion, gain the new (2)->(8) edge XMODEL-R8-B1's fix introduces (claim_checkpoint now publishes inside a with state_lock(...) block). Preserves the base release's own conformance category for this path (I-R16-2).",
       "sha256": "0a47dc57e8975a07af0af60a0a8a1afa65d3bf0d287d6066a1398c0bb42d6a0c",
       "size": 48914,
-      "executable": false,
-      "overlay_delta": {
-        "base_sha256": "b3870cfc5e7a5d7765b93fa8c45cad80c07acfa7d9cf665929e4321de64779ab",
-        "diff_sha256": "18aba73024dd74f1e90d961caea98617a370c1bb2dcda18a6220e4892754902d"
-      }
+      "executable": false
     },
     {
       "upstream_path": "docs/ai-workflow/registry/workflow-v2-1-core-artifacts.json",
@@ -648,11 +644,7 @@
       "rationale": "AMENDMENT_DIFF.patch generation outside bundle_dir, its inclusion in review-bundle.tar.gz (D-Plan-Amendment-5). Preserves the base release's own distribution category for this path (I-R16-2).",
       "sha256": "902c3be9b5ff54228c5635d044828af618246d6ccca81df856eac271bf495c5e",
       "size": 33770,
-      "executable": true,
-      "overlay_delta": {
-        "base_sha256": "2d483e1d0f211725899d0cd5668a4293821d604c95e54f0e40abd26dfdaa75be",
-        "diff_sha256": "f808d6162dafb7036528e4f75fd6f77c0259f75ce902ee2080b9abf00f173a1f"
-      }
+      "executable": true
     },
     {
       "upstream_path": "scripts/workflow_acceptance_matrix_test.py",
@@ -715,12 +707,12 @@
       "category": "distribution",
       "rule": "^scripts/workflow_integration_test\\.py$",
       "rationale": "Persisted-phase table, phase-to-writer census, command-count and generator-mention checks updated for the two new commands and phases (D-Implementation-Review-Stages, CP2/CP3/CP4).",
-      "sha256": "a6790f73fe6499e0bd85ba0b2d39c981a030edc3f229a851da966df18a5c7365",
-      "size": 383758,
+      "sha256": "9f6ba82fba9ddc8fe31b1182f294668a7906e92da01673b2d26ea7ba3e7b56ee",
+      "size": 386596,
       "executable": false,
       "overlay_delta": {
         "base_sha256": "a7ca02768eb84cb884c50c5bf10529a54be6e7117ed6fbf9ab0034180e1162b6",
-        "diff_sha256": "6e4da967640df13723af112ba79ebe9be9d8e52e9c092d888cd2d801330bec00"
+        "diff_sha256": "c7a2407071f54b4d58115488cd5fae93628066c612bc32d07496b41043ac39e1"
       }
     },
     {
@@ -768,12 +760,12 @@
       "category": "distribution",
       "rule": "^scripts/workflow_state_test\\.py$",
       "rationale": "The payload's own conformance suite, updated for the new review-stage writers/gates plus CP7's generic, parametric declaration-coverage helper generalizing the bespoke per-work-item pattern (D-Implementation-Review-Stages, D-Canonical-Review-Data; CP2, CP3, CP7).",
-      "sha256": "b91139bc2863b141da351aa99c604ffb4640f8b43011a73925a4d95e4ac0547f",
-      "size": 772513,
+      "sha256": "9d5d0a749e7b2a5603ea12a5d0e2366a4214cf50f3ba49312a39966486def859",
+      "size": 774050,
       "executable": false,
       "overlay_delta": {
         "base_sha256": "90919276d86f08cfebf24f70a0e9a003f8c610481879617d2eaba60b711a88eb",
-        "diff_sha256": "ff4289e16b3b9a18f3efd33e68f9296e6f20bdad08549820bf1d39e80fe668f5"
+        "diff_sha256": "989371dd7b5450e84234e17f71f086a941ef043142b1d5163652770fdc94d89c"
       }
     },
     {

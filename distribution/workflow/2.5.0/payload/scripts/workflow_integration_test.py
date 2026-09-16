@@ -588,6 +588,37 @@ class TestReviewImplementationCommandStaticConformance(unittest.TestCase):
         this check."""
         self.assertIn("MissingRequiredBundleFileError", self.text)
 
+    def test_the_2_2_authoritative_branchs_reviewer_role_and_ledger_key_match_the_code_constant(self):
+        """workflow-2.5.0 REVISE round 2, Missing-tests item 3: nothing
+        previously bound this command file's prose to the constant its own
+        `A6` write set actually uses -- the exact divergence class the
+        self-review found once already (`LOCAL_IMPLEMENTATION_REVIEW` in
+        code vs `LOCAL_MODEL_IMPLEMENTATION_REVIEW` in every document) would
+        still be invisible to `workflow_integration_test.py` today without
+        this. `workflow_acceptance_matrix_test.py`'s real end-to-end suite
+        calls `workflow_state` functions directly, never executing this
+        Markdown contract, so a hand-edited `Reviewer role:` line here (or
+        in `A6`'s own ledger-key reference) would pass everything else in
+        this file silently."""
+        self.assertIn(
+            f"`Reviewer role: {ws.LOCAL_MODEL_IMPLEMENTATION_REVIEW}`", self.text,
+        )
+        self.assertIn(
+            'workflow_state.record_local_implementation_review(state,\n'
+            '      work_item_id, verdict="APPROVE"',
+            self.text,
+        )
+        # The A6 ledger-key/Reviewer-role identity claim itself, restated in
+        # the file's own prose -- proven equal to the real constant, not
+        # merely equal to itself.
+        self.assertEqual(ws.LOCAL_MODEL_IMPLEMENTATION_REVIEW, "LOCAL_MODEL_IMPLEMENTATION_REVIEW")
+        self.assertIn(
+            f"`{ws.LOCAL_MODEL_IMPLEMENTATION_REVIEW}` ledger fields (the `Reviewer role:`\n"
+            "      string above and the ledger's own canonical key are deliberately the\n"
+            "      same one name",
+            self.text,
+        )
+
 
 class TestReviewFunctionalCommandStaticConformance(unittest.TestCase):
     """`workflow-v2-3` CP2's own conformance coverage for the new
@@ -963,7 +994,16 @@ _GOLDEN_COMMAND_FILE_SHA256 = {
     # `review_content_id` they recompute; both now reference
     # `REVIEW_PROTOCOL.md`'s "Computing `review_content_id`". Intentional
     # content change, not a regression.
-    "review-plan.md": "1b09e6eb941daac3b671130bac443b93a8df6d9db29a5ba81485ab0fbcb9459a",
+    #
+    # review-plan.md further updated, workflow-2.5.0 REVISE round 2 (I3):
+    # step 8's write set gains the same assert_feedback_not_owned_by_other_
+    # work_item ownership guard /review-implementation's advisory branch
+    # step 7 already runs immediately before its own write -- this command
+    # had never had it, and its write is exactly as capable of destroying
+    # another work item's unconsumed feedback at the same scoped-else-flat
+    # `resolve_feedback_dir` path -- intentional content change, not a
+    # regression.
+    "review-plan.md": "37d2896320c30e3039e69bd9499c88dd6d60e97bfb1189af7d35737719a831a2",
     "record-manual-plan-review.md": "63d567f98bf70a39e5b1626fdf0aef37a73725a5bba065f39cf623e9c541995c",
     # bootstrap-workflow-v2.md (WF8c scope clauses (l)/(p)/(q), GPT-R108-002/
     # OPUS-R109-004): the driver-range text made checkpoint-agnostic
@@ -1035,7 +1075,16 @@ _GOLDEN_COMMAND_FILE_SHA256 = {
     # `Reviewer role:` string are now the identical
     # `LOCAL_MODEL_IMPLEMENTATION_REVIEW`, as the approved plan and every
     # normative document already declared -- intentional content change.
-    "review-implementation.md": "90aa64365734a4549ffa21da93ea760f29c268d19e8c110c4c909e90cbf97eaf",
+    #
+    # review-implementation.md further updated, workflow-2.5.0 REVISE round 2
+    # (I3): the "2.2" authoritative branch's A6 write set gains the same
+    # assert_feedback_not_owned_by_other_work_item ownership guard the
+    # "1"/"2.1" advisory branch's own step 7 already runs immediately before
+    # its write -- A6's write is exactly as capable of destroying another
+    # work item's unconsumed feedback at the same scoped-else-flat path, and
+    # the advisory branch above stays byte-unchanged -- intentional content
+    # change, not a regression.
+    "review-implementation.md": "df6de5ba869bfee1e6fc31cf7a07932fecb66dbb36b55a906d8d0d4b831caf62",
     # review-functional.md: new, workflow-v2-3 CP2 -- the first recorded
     # hash, not a change.
     #
