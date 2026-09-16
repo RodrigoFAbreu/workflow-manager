@@ -5133,6 +5133,29 @@ class TestEnterApplyingReviewFeedback(unittest.TestCase):
         new_state = ws.enter_applying_review_feedback(state, "wi", now="t1")
         self.assertEqual(new_state["work_items"]["wi"]["phase"], "APPLYING_REVIEW_FEEDBACK")
 
+    def test_version_independent_escape_from_terminal_phase_for_22_item(self):
+        """Missing-tests item (I3, round 4): the writer itself never
+        checked `governing_workflow_version` -- only
+        `apply-implementation-review.md`'s own prose told the operator to
+        skip calling it for a `"2.2"` item. Pinning that a `"2.2"` item
+        which reached the terminal `AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW`
+        phase (both implementation-review stages already `APPROVE`d, then a
+        late fix is committed after `/approve-review implementation` closed
+        the gate) can still call this writer and land back in
+        `APPLYING_REVIEW_FEEDBACK` -- the escape the command file's
+        phase-conditional fix now actually exercises."""
+        wi = _v22_work_item(
+            phase="AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW",
+            implementation_review_stages={
+                "review_content_id": "c1",
+                "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {"bundle_id": "b1", "verdict": "APPROVE", "round": 1, "completed_at": "t0"},
+                "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": {"bundle_id": "b1", "verdict": "APPROVE", "round": 1, "completed_at": "t0"},
+            },
+        )
+        state = _base_state(wi=wi)
+        new_state = ws.enter_applying_review_feedback(state, "wi", now="t1")
+        self.assertEqual(new_state["work_items"]["wi"]["phase"], "APPLYING_REVIEW_FEEDBACK")
+
     def test_refused_from_illegal_source_phase(self):
         state = _base_state(wi=_base_work_item(phase="IMPLEMENTING"))
         with self.assertRaises(ws.IllegalApplyingReviewFeedbackEntryPhaseError) as ctx:

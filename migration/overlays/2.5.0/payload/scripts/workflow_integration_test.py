@@ -980,7 +980,18 @@ _GOLDEN_COMMAND_FILE_SHA256 = {
     # requirement milestone-implement.md/bootstrap-workflow-v2.md/
     # approve-review.md/accept-milestone.md already state -- intentional
     # content change.
-    "apply-implementation-review.md": "681d214e503314b56529a3cfb655b4c7f7cd0d7a17fb270bac43834076597da6",
+    # apply-implementation-review.md further updated, round-4 implementation
+    # review fix (I3): the preamble's "workflow-2.5.0, "2.2"-governed items
+    # only: skip this call too" wording is replaced with a phase-conditional
+    # rule ("skip this call whenever phase already equals
+    # APPLYING_REVIEW_FEEDBACK", version-independent) so a "2.2" item that
+    # reaches the terminal AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW phase
+    # (both implementation-review stages already APPROVEd, then a late fix
+    # is committed) can still call enter_applying_review_feedback and
+    # re-enter APPLYING_REVIEW_FEEDBACK -- the version-keyed wording left
+    # that item with no in-band escape. Step 0's own dual-mode enumeration
+    # updated to match. Intentional content change, not a regression.
+    "apply-implementation-review.md": "fd47b646eeb4d557e51f42c6fc39d8393490cd1496a5093f47c8f1d558c4c1b4",
     # review-plan.md/record-manual-plan-review.md further updated,
     # workflow-v2-3-followups CP3 (REQ-8/-9): the `Reviewer role:` template
     # literal, the round-computation prose, the exact-match-expectation
