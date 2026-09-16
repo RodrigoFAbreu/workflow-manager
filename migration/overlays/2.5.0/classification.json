@@ -21,7 +21,7 @@
     {
       "pattern": "^\\.claude/commands/review-implementation\\.md$",
       "category": "distribution",
-      "rationale": "Gains a \"2.2\" authoritative branch (phase guard AWAITING_LOCAL_IMPLEMENTATION_REVIEW, ledger write plus phase transition on APPROVE/REVISE); the existing \"1\"/\"2.1\" advisory branch stays byte-unchanged (D-Implementation-Review-Stages, CP4). Preserves the base release's own distribution category for this path.",
+      "rationale": "Gains a \"2.2\" authoritative branch (phase guard AWAITING_LOCAL_IMPLEMENTATION_REVIEW, ledger write plus phase transition on APPROVE/REVISE); the existing \"1\"/\"2.1\" advisory branch stays byte-unchanged (D-Implementation-Review-Stages, CP4). The authoritative branch's A6 write set additionally gains the same assert_feedback_not_owned_by_other_work_item ownership guard the advisory branch's own step 7 already runs immediately before its write, closing a gap the advisory branch never had (I3, round-2 finding). Preserves the base release's own distribution category for this path.",
       "expected_kind": "replaced"
     },
     {
@@ -45,7 +45,7 @@
     {
       "pattern": "^\\.claude/commands/apply-functional-review\\.md$",
       "category": "distribution",
-      "rationale": "Post-fix bounded-fix regeneration routes back through both implementation-review stages for a \"2.2\" work item before /approve-review implementation is reachable again (D-Implementation-Review-Stages, CP5).",
+      "rationale": "Two hunks: post-fix bounded-fix regeneration routes back through both implementation-review stages for a \"2.2\" work item before /approve-review implementation is reachable again; and the child work-item lifecycle chain inserts /record-manual-implementation-review <child-id> for a \"2.2\"-governed child and states that such a child enters review at AWAITING_LOCAL_PLAN_REVIEW identically to a \"2.1\" child (D-Implementation-Review-Stages, CP5).",
       "expected_kind": "replaced"
     },
     {
@@ -99,7 +99,7 @@
     {
       "pattern": "^\\.claude/commands/review-plan\\.md$",
       "category": "distribution",
-      "rationale": "governing_workflow_version references widened for the \"2.2\" activation target (D-Implementation-Review-Version-Activation, CP1/CP2).",
+      "rationale": "Governing-version check widened from a bare \"2.1\" literal to TWO_STAGE_PLAN_REVIEW_VERSIONS membership (\"2.1\"/\"2.2\"), with the description: frontmatter updated to match -- the same semantic change as sibling record-manual-plan-review.md (D-Implementation-Review-Version-Activation, CP4). Step 8's write set additionally gains the same assert_feedback_not_owned_by_other_work_item ownership guard /review-implementation's advisory branch already runs immediately before its own write -- this command had never had it (I3, round-2 finding; a faithful mirror of the pre-existing gap, closed here rather than left as its second instance).",
       "expected_kind": "replaced"
     },
     {
@@ -111,7 +111,7 @@
     {
       "pattern": "^docs/ai-workflow/PLAN_REVIEW_WORKFLOW\\.md$",
       "category": "distribution",
-      "rationale": "Cross-references to the new mirrored implementation-review protocol document (D-Implementation-Review-Stages, CP1).",
+      "rationale": "Applicability widened, not merely cross-referenced: the title and the \"Scoped entirely to '2.1' work items\" paragraph now read TWO_STAGE_PLAN_REVIEW_VERSIONS = {\"2.1\", \"2.2\"}, and /apply-plan-review's described exit widens to name both versions alike (D-Implementation-Review-Stages, CP1).",
       "expected_kind": "replaced"
     },
     {
@@ -129,7 +129,7 @@
     {
       "pattern": "^docs/ai-workflow/WORKFLOW_V2_PLAN\\.md$",
       "category": "distribution",
-      "rationale": "D-Implementation-Review-Stages, D-Implementation-Review-Version-Activation, D-Review-Material-Lifecycle, D-Canonical-Review-Data, D-Review-Finding-Taxonomy-and-Circuit-Breaker and D-Post-v2.3.1-Backlog design-decision sections (CP1, CP6, CP7, CP8, CP9, CP10).",
+      "rationale": "D-Implementation-Review-Stages, D-Implementation-Review-Version-Activation (CP1) and D-Review-Material-Lifecycle (CP6) design-decision sections -- the only checkpoints that actually authored this file (git log 38114204..HEAD -- this path is exactly 20a808d/CP1 and 2af606a/CP6). D-Canonical-Review-Data lives in scripts/workflow_state_test.py (CP7), D-Review-Finding-Taxonomy-and-Circuit-Breaker in REVIEW_PROTOCOL.md (CP8), and D-Post-v2.3.1-Backlog is a plan-internal label for CP9/CP10's own code-fix and docs/defects/ deliverables, not a section in this document.",
       "expected_kind": "replaced"
     },
     {
