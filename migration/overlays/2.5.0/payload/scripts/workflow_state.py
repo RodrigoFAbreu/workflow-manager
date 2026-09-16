@@ -6794,13 +6794,15 @@ def find_latest_activation_event(
 
     `destination_version` (workflow-2.5.0, D-Implementation-Review-
     Version-Activation, version-aware event model) is the event's own
-    resolved destination: an activation trailer's value, used directly
-    (any value other than `"1"` already answers `is_activated` `True`); a
-    rollback trailer's value, resolved through `ACTIVATION_ROLLBACK_
-    PREDECESSOR`'s explicit domain. `destination_version` is `None` only
-    for a `"rollback"` kind whose trailer value falls outside that
-    domain -- the fail-closed miss case `is_activated` treats as
-    activated, never as not-activated."""
+    resolved destination: an activation trailer's value, used directly --
+    though `is_activated` reports `True` for the activation direction
+    unconditionally, for every value including `"1"`, never conditioned on
+    this field for that direction; a rollback trailer's value, resolved
+    through `ACTIVATION_ROLLBACK_PREDECESSOR`'s explicit domain, where
+    `is_activated` reports `True` whenever this resolved destination is not
+    `"1"`. `destination_version` is `None` only for a `"rollback"` kind
+    whose trailer value falls outside that domain -- the fail-closed miss
+    case `is_activated` treats as activated, never as not-activated."""
     for commit in _first_parent_commits_ordered(repo_root, head):
         trailers = _commit_trailers(repo_root, commit)
         if "Workflow-Activation" in trailers:

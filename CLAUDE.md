@@ -164,11 +164,14 @@ which has ever held one of:
   committed-field sets.
 
 The activation trailer itself reads back differently too, and this one is
-silent. `2.5.0`'s activation-event model is version-aware: it resolves each
-trailer's own destination version (`Workflow-Rollback: 2.2` → `"2.1"`) and
-reports *activated* whenever that destination is not `"1"` — so a repository
-that activated `"2.2"` and then rolled it back is still, correctly, an
-activated `"2.1"` repository. Every pre-`2.5.0` `is_activated` is
+silent. `2.5.0`'s activation-event model is version-aware: it resolves an
+activation trailer's value directly and a rollback trailer's own
+destination version (`Workflow-Rollback: 2.2` → `"2.1"`); an activation
+event reports *activated* unconditionally, for every trailer value
+including `"1"`, while a rollback event reports *activated* whenever its
+resolved destination is not `"1"` — so a repository that activated `"2.2"`
+and then rolled it back is still, correctly, an activated `"2.1"`
+repository. Every pre-`2.5.0` `is_activated` is
 version-blind: it reads any rollback event as a return to `"1"` and answers
 *not activated* on that same, unchangeable history. A downgrade therefore
 re-answers the activation question wrongly, with no error to notice.
