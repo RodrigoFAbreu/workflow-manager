@@ -419,10 +419,18 @@ class TestMigrateDoesNotDeleteASiblingAuthoredRelease(unittest.TestCase):
         )
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
 
-    def test_a_fresh_regeneration_leaves_2_4_0_untouched(self):
-        successor_dir = REPO_ROOT / "distribution" / "workflow" / "2.4.0"
-        before = successor_dir / "manifest.json"
-        before_bytes = before.read_bytes()
+    def test_a_fresh_regeneration_leaves_authored_siblings_untouched(self):
+        # O6: `2.5.0` is now a second authored sibling in the same
+        # `distribution/`, alongside `2.4.0` -- both must survive an
+        # ordinary `tools/migrate.py` regeneration of `2.3.1` untouched.
+        successor_dirs = [
+            REPO_ROOT / "distribution" / "workflow" / "2.4.0",
+            REPO_ROOT / "distribution" / "workflow" / "2.5.0",
+        ]
+        before_bytes_by_dir = {
+            successor_dir: (successor_dir / "manifest.json").read_bytes()
+            for successor_dir in successor_dirs
+        }
         # `tools/migrate.py` (no `--check`) `shutil.rmtree`s the real,
         # tracked `distribution/workflow/2.3.1/` before rebuilding it in
         # place, against this developer's real working tree -- there is no
@@ -446,8 +454,9 @@ class TestMigrateDoesNotDeleteASiblingAuthoredRelease(unittest.TestCase):
                 cwd=str(REPO_ROOT), capture_output=True, text=True,
             )
             self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
-            self.assertTrue(successor_dir.exists(), "the sibling authored release must survive")
-            self.assertEqual(before.read_bytes(), before_bytes)
+            for successor_dir, before_bytes in before_bytes_by_dir.items():
+                self.assertTrue(successor_dir.exists(), "the sibling authored release must survive")
+                self.assertEqual((successor_dir / "manifest.json").read_bytes(), before_bytes)
         finally:
             # Never leave the real repository's tracked distribution/
             # tree modified by this test -- restore it via git regardless
