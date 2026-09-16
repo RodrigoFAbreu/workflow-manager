@@ -12022,6 +12022,31 @@ class TestVersionAwareActivationEventModel(unittest.TestCase):
                 ws.load_config(repo.root, config_path=Path("nonexistent.json"))
             self.assertIn("Workflow 2.2", str(ctx.exception))
 
+    def test_blank_activation_trailer_value_reports_activated_true(self):
+        """Missing-tests item (round 2 of round 1's own O3): activation-side
+        twin of `test_unresolvable_rollback_trailer_value_reports_activated_
+        bare` below -- `_activation_event_description`'s branch selection
+        moved from `is not None` to truthiness, plus a trailer-name split,
+        so a blank `Workflow-Activation` trailer (`destination_version ==
+        ""`, falsy but not `None`) must still resolve fail-closed as
+        activated, never fall through to not-activated."""
+        with ScratchRepo() as repo:
+            repo.commit("activate bare", trailers={"Workflow-Activation": ""})
+            self.assertTrue(ws.is_activated(repo.root))
+
+    def test_load_config_names_blank_activation_trailer_value_verbatim(self):
+        """The blank trailer's own raw value (`''`) is named verbatim in the
+        recovery message, never `"Workflow ''"` -- `_activation_event_
+        description`'s unresolvable-miss branch, not its resolved-
+        destination branch."""
+        with ScratchRepo() as repo:
+            repo.commit("activate bare", trailers={"Workflow-Activation": ""})
+            with self.assertRaises(ws.ConfigMissingAfterActivationError) as ctx:
+                ws.load_config(repo.root, config_path=Path("nonexistent.json"))
+            message = str(ctx.exception)
+            self.assertIn("an unresolvable Workflow-Activation trailer value ''", message)
+            self.assertNotIn("Workflow ''", message)
+
     def test_rollback_2_1_still_resolves_not_activated(self):
         """Reproduces today's binary behavior exactly at the boundary it
         already covers."""
