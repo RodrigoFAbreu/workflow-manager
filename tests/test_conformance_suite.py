@@ -266,6 +266,15 @@ def _overlay_payload_roots() -> list[tuple[str, Path]]:
     return roots
 
 
+def _authored_release_versions() -> list[str]:
+    """Version strings for every authored release present -- the version
+    half of `_overlay_payload_roots()`'s own pairs, reused wherever a test
+    needs the version list without the payload path (I1: these are the
+    releases whose `distribution/workflow/<version>/manifest.json` records
+    `overlay_delta`/authored provenance, one release per overlay directory)."""
+    return [version for version, _payload in _overlay_payload_roots()]
+
+
 class TestAuthoredReleaseOverlayDelta(unittest.TestCase):
     """D-Authored-Release-2's I2, and `tools/build_release.py`'s own
     `unified_diff_sha256` docstring ("CP6's own conformance extension
@@ -283,31 +292,39 @@ class TestAuthoredReleaseOverlayDelta(unittest.TestCase):
         cls.build_release = build_release
 
     def test_every_overlay_delta_reproduces_from_base_and_overlay_bytes(self):
-        overlay_manifest_path = REPO_ROOT / "distribution/workflow/2.4.0/manifest.json"
-        overlay_manifest = json.loads(overlay_manifest_path.read_text())
-        base_version = overlay_manifest["provenance"]["base_release"]
-        base_manifest = json.loads(
-            (REPO_ROOT / "distribution/workflow" / base_version / "manifest.json").read_text()
-        )
-        base_by_path = {a["target_path"]: a for a in base_manifest["artifacts"]}
+        # I1: parametrized over every authored release present
+        # (`_authored_release_versions()`), not hardcoded to `2.4.0` --
+        # `2.5.0` is a second authored release, built on `2.4.0` (itself
+        # authored), and this is the guard that would have caught B1 (a
+        # stale `overlay_delta` copied forward from the base release's own
+        # manifest for a file `2.5.0` does not replace).
+        for version in _authored_release_versions():
+            with self.subTest(version=version):
+                overlay_manifest_path = REPO_ROOT / "distribution/workflow" / version / "manifest.json"
+                overlay_manifest = json.loads(overlay_manifest_path.read_text())
+                base_version = overlay_manifest["provenance"]["base_release"]
+                base_manifest = json.loads(
+                    (REPO_ROOT / "distribution/workflow" / base_version / "manifest.json").read_text()
+                )
+                base_by_path = {a["target_path"]: a for a in base_manifest["artifacts"]}
 
-        replaced = [a for a in overlay_manifest["artifacts"] if "overlay_delta" in a]
-        self.assertGreater(len(replaced), 0, "expected at least one overlay-replaced artifact")
+                replaced = [a for a in overlay_manifest["artifacts"] if "overlay_delta" in a]
+                self.assertGreater(len(replaced), 0, "expected at least one overlay-replaced artifact")
 
-        for artifact in replaced:
-            rel_path = artifact["target_path"]
-            base_artifact = base_by_path[rel_path]
-            base_bytes = (
-                REPO_ROOT / "distribution/workflow" / base_version / base_artifact["location"]
-            ).read_bytes()
-            overlay_bytes = (
-                REPO_ROOT / "distribution/workflow/2.4.0" / artifact["location"]
-            ).read_bytes()
+                for artifact in replaced:
+                    rel_path = artifact["target_path"]
+                    base_artifact = base_by_path[rel_path]
+                    base_bytes = (
+                        REPO_ROOT / "distribution/workflow" / base_version / base_artifact["location"]
+                    ).read_bytes()
+                    overlay_bytes = (
+                        REPO_ROOT / "distribution/workflow" / version / artifact["location"]
+                    ).read_bytes()
 
-            delta = artifact["overlay_delta"]
-            self.assertEqual(delta["base_sha256"], base_artifact["sha256"], rel_path)
-            recomputed = self.build_release.unified_diff_sha256(base_bytes, overlay_bytes, rel_path)
-            self.assertEqual(delta["diff_sha256"], recomputed, rel_path)
+                    delta = artifact["overlay_delta"]
+                    self.assertEqual(delta["base_sha256"], base_artifact["sha256"], rel_path)
+                    recomputed = self.build_release.unified_diff_sha256(base_bytes, overlay_bytes, rel_path)
+                    self.assertEqual(delta["diff_sha256"], recomputed, rel_path)
 
     def test_provenance_declares_authored_origin(self):
         overlay_manifest = json.loads(
@@ -322,7 +339,7 @@ class TestAuthoredReleaseOverlayDelta(unittest.TestCase):
             },
         )
 
-    def test_build_release_check_reproduces_2_4_0(self):
+    def test_build_release_check_reproduces_every_authored_release(self):
         """Missing-tests item 1: `tools/migrate.py --check` is asserted
         twice elsewhere (`test_payload_bytes.py`, `test_amendment_update_
         path.py`), guarding `2.3.1`'s reproducibility from the suite --
@@ -331,13 +348,20 @@ class TestAuthoredReleaseOverlayDelta(unittest.TestCase):
         Workflow release" step 2 and `docs/MIGRATION.md`'s evidence table
         both make it normative. `--check` builds into a throwaway temporary
         root and only diffs against what is committed -- it writes nothing
-        under the real `distribution/`."""
-        proc = subprocess.run(
-            [sys.executable, str(REPO_ROOT / "tools" / "build_release.py"),
-             "--overlay", str(REPO_ROOT / "migration" / "overlays" / "2.4.0"), "--check"],
-            cwd=str(REPO_ROOT), capture_output=True, text=True,
-        )
-        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        under the real `distribution/`. I1: parametrized over every
+        authored release present (`_authored_release_versions()`) rather
+        than a second hardcoded version string, so `2.5.0` (built on the
+        authored `2.4.0`, not a fresh upstream tag) gets the same
+        reproducibility proof from `tests/run_all.py` itself, not only from
+        a hand-run command recorded in `TEST_RESULTS.md`."""
+        for version in _authored_release_versions():
+            with self.subTest(version=version):
+                proc = subprocess.run(
+                    [sys.executable, str(REPO_ROOT / "tools" / "build_release.py"),
+                     "--overlay", str(REPO_ROOT / "migration" / "overlays" / version), "--check"],
+                    cwd=str(REPO_ROOT), capture_output=True, text=True,
+                )
+                self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
 
 
 class TestBuildReleaseCollisionGuards(unittest.TestCase):
@@ -454,24 +478,33 @@ class TestAuthoredReleaseIsSelfConsistent(unittest.TestCase):
     guard `2.3.1` already has."""
 
     def test_no_missing_file_no_digest_mismatch_no_stray_file(self):
-        release = find_release(REPO_ROOT, "2.4.0")
-        self.assertEqual(release.verify(), [])
+        # I1: parametrized over every authored release present, mirroring
+        # TestAuthoredReleaseOverlayDelta above -- mechanical given
+        # `_authored_release_versions()` already exists for that purpose.
+        for version in _authored_release_versions():
+            with self.subTest(version=version):
+                release = find_release(REPO_ROOT, version)
+                self.assertEqual(release.verify(), [])
 
 
 class TestAuthoredReleaseCiTemplateSuiteNames(unittest.TestCase):
-    """CP6's own explicit obligation: the regenerated `2.4.0` CI template
-    must name exactly `CI_SUITES["2.4.0"]`'s own suite set, so the template
-    a real consumer's CI would run never silently drifts from what this
-    repository's own conformance matrix actually verifies."""
+    """CP6's own explicit obligation: each regenerated authored-release CI
+    template must name exactly that release's own `CI_SUITES[version]` suite
+    set, so the template a real consumer's CI would run never silently
+    drifts from what this repository's own conformance matrix actually
+    verifies. I1: parametrized over every authored release present, not
+    hardcoded to `2.4.0`."""
 
-    def test_ci_template_names_exactly_the_240_suite_set(self):
-        template_path = (
-            REPO_ROOT / "distribution/workflow/2.4.0/templates/.github/workflows"
-            "/workflow-conformance.yml"
-        )
-        text = template_path.read_text()
-        named = set(re.findall(r"run:\s*python3\s+(\S+_test\.py)", text))
-        self.assertEqual(named, set(CI_SUITES["2.4.0"]))
+    def test_ci_template_names_exactly_its_own_suite_set(self):
+        for version in _authored_release_versions():
+            with self.subTest(version=version):
+                template_path = (
+                    REPO_ROOT / "distribution/workflow" / version / "templates/.github/workflows"
+                    "/workflow-conformance.yml"
+                )
+                text = template_path.read_text()
+                named = set(re.findall(r"run:\s*python3\s+(\S+_test\.py)", text))
+                self.assertEqual(named, set(CI_SUITES[version]))
 
 
 class TestOverlayStateWriterClosure(unittest.TestCase):
