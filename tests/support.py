@@ -125,7 +125,7 @@ CI_SUITES = {
     #: actually produces, re-derived whenever the overlay changes.
     "2.5.0": {
         "workflow_fingerprint_test.py": 218,
-        "workflow_state_test.py": 839,
+        "workflow_state_test.py": 841,
         "workflow_test_harness_test.py": 19,
         "workflow_integration_test.py": 260,
         "workflow_acceptance_matrix_test.py": 146,
