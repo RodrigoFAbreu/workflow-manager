@@ -480,12 +480,20 @@ test fails and is authoritative about which one moved.
 - **Expects**: `phase == AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW` for a
   `"1"`/`"2.1"` item — refuses outright otherwise, naming the actual phase.
   Enters `APPLYING_REVIEW_FEEDBACK` (`enter_applying_review_feedback`, this
-  state's only writer for those two versions). **`workflow-2.5.0`**: a
-  `"2.2"` item instead arrives at `APPLYING_REVIEW_FEEDBACK` already —
-  written directly by `/review-implementation`'s or
-  `/record-manual-implementation-review`'s own `REVISE` branch — so this
-  command makes **no** `enter_applying_review_feedback` call for it at all;
-  steps 1-8 below run identically regardless.
+  state's only writer for those two versions). **`workflow-2.5.0`**: for a
+  `"2.2"` item, whether this command calls `enter_applying_review_feedback`
+  is phase-conditional, never version-conditional (this file's own
+  dual-mode note above states the general rule). The ordinary two-stage
+  `REVISE` loop arrives at `APPLYING_REVIEW_FEEDBACK` already — written
+  directly by `/review-implementation`'s or
+  `/record-manual-implementation-review`'s own `REVISE` branch — so step
+  0's version-independent guard finds that phase already set and skips the
+  call. The `"2.2"` terminal-phase escape (a late fix committed after both
+  implementation-review stages already `APPROVE`d and the item reached
+  `AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW`) is still at that phase when
+  this command runs, so the call *does* fire for it, exactly as the
+  `APPLYING_REVIEW_FEEDBACK` row below (`:782`) states. Steps 1-8 below run
+  identically regardless of which path got here.
 - **Does**: reproduces and validates every Blocking/Important finding, fixes
   what is real, records evidence-based rejections, reruns narrow tests then
   the full suite, commits, and regenerates the `post-fix` bundle.
@@ -827,7 +835,7 @@ derived from whether the file actually calls a writer of it:
 
 | Meaning | Commands |
 |---|---|
-| It really writes that phase | `/accept-milestone` (`complete_work_item`), `/apply-implementation-review` (`enter_applying_review_feedback`, `"1"`/`"2.1"` only — a `"2.2"` item never needs this call, per its own dual-mode note at the top of that file), `/prepare-functional-review` — but only on the `LEGACY_READY` adoption branch (`promote_legacy_work_item`), `/request-plan-amendment` (`request_plan_amendment`, `workflow-2.4.0`), `/review-implementation` (`workflow-2.5.0`, `"2.2"` authoritative branch only — `record_local_implementation_review`), `/record-manual-implementation-review` (`workflow-2.5.0`, `record_manual_implementation_review`) |
+| It really writes that phase | `/accept-milestone` (`complete_work_item`), `/apply-implementation-review` (`enter_applying_review_feedback`, for every version — but for `"2.2"` the ordinary two-stage `REVISE` loop never reaches this writer, since `record_local_implementation_review`/`record_manual_implementation_review`'s own `REVISE` branch already writes `APPLYING_REVIEW_FEEDBACK` directly; the `"2.2"` terminal-phase escape does call it, exactly as the `APPLYING_REVIEW_FEEDBACK` row above states), `/prepare-functional-review` — but only on the `LEGACY_READY` adoption branch (`promote_legacy_work_item`), `/request-plan-amendment` (`request_plan_amendment`, `workflow-2.4.0`), `/review-implementation` (`workflow-2.5.0`, `"2.2"` authoritative branch only — `record_local_implementation_review`), `/record-manual-implementation-review` (`workflow-2.5.0`, `record_manual_implementation_review`) |
 | It names the phase the command runs **in**, and writes a different one | `/milestone-plan` (writes `PLANNING` only when creating a fresh item, then moves it on), `/review-plan`, `/milestone-implement`, `/apply-plan-review`, and `/record-manual-plan-review`, whose "Enter the **exit of** `AWAITING_MANUAL_EXTERNAL_PLAN_REVIEW`" is the one phrasing that says so precisely |
 | It names a **gate**, not a phase | `/approve-review` ("Enter `AWAITING_PLAN_APPROVAL` or `AWAITING_TECHNICAL_APPROVAL`" — the first is a real phase for a `"2.1"` item only, the second never; what it writes is `IMPLEMENTING` or `AWAITING_FUNCTIONAL_REVIEW`) and `/apply-functional-review` (`FIXING_FUNCTIONAL_FINDINGS`, which nothing writes at all) |
 
