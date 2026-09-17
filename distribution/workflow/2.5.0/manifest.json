@@ -9,7 +9,7 @@
   "provenance": {
     "origin": "authored",
     "base_release": "2.4.0",
-    "overlay_commit": "10720038dccfa6a56c2ca31c87a36d0c0c68a981"
+    "overlay_commit": "922268178cacd40ab5b9ae829120157052dbc528"
   },
   "categories": {
     "distribution": "Canonical Workflow implementation. Copied byte-for-byte into the payload and installed into every managed target repository.",
@@ -340,12 +340,12 @@
       "category": "distribution",
       "rule": "^docs/ai-workflow/WORKFLOW_V2_1_OPERATOR_REFERENCE\\.md$",
       "rationale": "Persisted-phases/writer tables, command count and the new /record-manual-implementation-review section, widened for the \"2.2\" implementation-review stages (D-Implementation-Review-Stages, CP1/CP4).",
-      "sha256": "50a9ba4e377fc9954860471d9593be95b3d5c2443b0723b965291007670bae27",
-      "size": 66092,
+      "sha256": "a37a61187844d2ae9bc0e78ea1241c267bd1d0d9fabebf29fc0044bc42e8fc72",
+      "size": 66220,
       "executable": false,
       "overlay_delta": {
         "base_sha256": "b7dbb086019fa3437fe0c30b13203376265d749436d8d40c7fd226d52f1121b6",
-        "diff_sha256": "21f9a8a98d13cf4493efbf463749be899a656b64f64d4f44561405f373c9fbc7"
+        "diff_sha256": "2dce3c7066e4bd425f0640c978109ebb45afe24f7614a848b24e216183a5172f"
       }
     },
     {
@@ -763,12 +763,12 @@
       "category": "distribution",
       "rule": "^scripts/workflow_state_test\\.py$",
       "rationale": "The payload's own conformance suite, updated for the new review-stage writers/gates plus CP7's generic, parametric declaration-coverage helper generalizing the bespoke per-work-item pattern (D-Implementation-Review-Stages, D-Canonical-Review-Data; CP2, CP3, CP7).",
-      "sha256": "657b5af12e5e66204fa9077a8cf7918cfb5ecfa23b25cb236b3e63ff0925cf75",
-      "size": 793640,
+      "sha256": "2183a12999961956589179fc79ebfbefbd6fbbb5cb1018a02ae9555ac9804c96",
+      "size": 798461,
       "executable": false,
       "overlay_delta": {
         "base_sha256": "90919276d86f08cfebf24f70a0e9a003f8c610481879617d2eaba60b711a88eb",
-        "diff_sha256": "a2048f6ff2a46aa45563f020974953f5e5cd1126ea415569c86a76f000841576"
+        "diff_sha256": "34a5f8a292746c1bbaaa3ff58e5accf4c8a013cde4451e870e41f976e1dc94e6"
       }
     },
     {

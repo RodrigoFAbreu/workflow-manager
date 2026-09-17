@@ -13594,7 +13594,22 @@ class ApplyingReviewFeedbackVersionClaimSweepTest(unittest.TestCase):
     claim, which has now produced a Blocking finding in rounds 3, 5, 6, and
     twice more in round 7 -- always as a fresh paraphrase or a
     Markdown-mangled substring the previous round's own point-fix and grep
-    did not anticipate."""
+    did not anticipate.
+
+    **Round 8's own `B1`, disposition (b): kept as a regression guard, not
+    widened.** This is a *closed* five-cue list against the five wordings
+    known as of round 7 (`_APPLYING_REVIEW_FEEDBACK_ABSOLUTE_CUES`); it is
+    not, and does not claim to be, a general detector for every future
+    paraphrase of the underlying claim. Round 8 found the sweep does not
+    in fact catch round 6's own three real instances --
+    `test_round_6_782_row_is_not_currently_flagged_by_neighbor_suppression`
+    and `test_round_6_no_separate_call_wording_is_not_currently_flagged`
+    below pin the real, in-situ text and document that gap directly,
+    rather than asserting coverage the mechanism does not have. Widening
+    the cue set and/or the suppression-qualifier matching to actually close
+    those two gaps is left to a future checkpoint that also resolves the
+    now-in-corpus disposition question strengthening would raise (see
+    `test_real_corpus_sweep_is_clean` below)."""
 
     def test_round_7_b1_instance_1_is_flagged(self):
         # WORKFLOW_V2_1_OPERATOR_REFERENCE.md:483-488 before this round's
@@ -13710,19 +13725,84 @@ class ApplyingReviewFeedbackVersionClaimSweepTest(unittest.TestCase):
         findings = ws.find_applying_review_feedback_version_claims("doc.md", text)
         self.assertEqual(len(findings), 1, [repr(f) for f in findings])
 
+    def test_round_6_782_row_is_not_currently_flagged_by_neighbor_suppression(self):
+        # WORKFLOW_V2_1_OPERATOR_REFERENCE.md's real pre-round-7 `:782` table
+        # row (git show 17b8641b, verbatim) IS matched by the "no ... call"
+        # cue in isolation, but its real preceding table row in the same
+        # document ends in "...the terminal \"ready for approval\" phase
+        # (reused rather than a new name)" -- an unrelated use of the word
+        # "terminal" that still falls inside the ±300-character window and
+        # suppresses the finding. Round 8's `B1` (1): the bare-substring
+        # `terminal` qualifier is not scoped to the same list item/table row
+        # as the cue it is meant to qualify. Pinned here, in situ, rather
+        # than as a paraphrase, exactly because round 6's own fixture below
+        # (`test_round_6_b1_instance_is_flagged`) is a paraphrase that
+        # cannot catch this — the previous round's Missing-tests item this
+        # gap corresponds to.
+        preceding_row = (
+            '| `AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW` | `record_bundle_'
+            'generation` — every `"1"`/`"2.1"` stage/outcome; for `"2.2"`, '
+            '`record_manual_implementation_review` on `APPROVE` (the '
+            'terminal "ready for approval" phase, reused rather than a new '
+            'name) |'
+        )
+        real_row = (
+            '| `APPLYING_REVIEW_FEEDBACK` | `enter_applying_review_feedback` '
+            '(`"1"`/`"2.1"`); for `"2.2"` (`workflow-2.5.0`), '
+            '`record_local_implementation_review`/'
+            '`record_manual_implementation_review` on `REVISE` write it '
+            'directly instead, with no `enter_applying_review_feedback` '
+            'call |'
+        )
+        # In isolation the cue fires...
+        self.assertEqual(
+            len(ws.find_applying_review_feedback_version_claims("doc.md", real_row)), 1,
+        )
+        # ...but preceded by its real neighbouring row, it is suppressed.
+        # This is the documented gap, not the desired behavior: a future
+        # strengthening (round 8's `B1` fix (a), not taken this round)
+        # should turn this assertion into a non-zero one.
+        combined = preceding_row + "\n" + real_row
+        self.assertEqual(
+            ws.find_applying_review_feedback_version_claims("doc.md", combined), [],
+        )
+
+    def test_round_6_no_separate_call_wording_is_not_currently_flagged(self):
+        # Round 6's other two real instances both read "makes no
+        # **separate** `enter_applying_review_feedback` call" -- an
+        # adjective between "no" and the reference cue that the
+        # `no\s+enter_applying_review_feedback\s+call` pattern does not
+        # tolerate. Round 8's `B1` (2): pinned in situ (markup stripped,
+        # matching what the detector actually sees) rather than as a
+        # paraphrase.
+        text = "this command makes no separate `enter_applying_review_feedback` call for a \"2.2\" item"
+        self.assertEqual(
+            ws.find_applying_review_feedback_version_claims("doc.md", text), [],
+        )
+
     def test_real_corpus_sweep_is_clean(self):
         """Same deliberately-scoped corpus as
         `GoverningVersionEnumerationSweepTest.test_real_corpus_sweep_is_clean`
         (round 4's O2) -- non-recursive over `.claude/commands/` and
-        `docs/ai-workflow/`'s own top level. `docs/ai-workflow/audit/`,
-        `dry-run/`, and `requirements/` are out of this sweep's scope for
-        the identical reason: a wider recursive run finds a true positive
-        today in `docs/ai-workflow/WORKFLOW_V2_3_FOLLOWUPS_PLAN.md:1685`/
-        `docs/ai-workflow/requirements/workflow-v2-3-followups-mapping.json:133`,
-        both inherited unmodified from the `2.4.0` base rather than owned by
-        this overlay (round 7's `O2`; see `IMPLEMENTATION_SUMMARY.md`'s
-        Known-limitations entry) -- left for whichever future checkpoint
-        widens this sweep's own corpus deliberately."""
+        `docs/ai-workflow/`'s own top level, for consistency with that
+        sibling sweep's precedent. **Not**, as round 7's docstring wrongly
+        claimed and round 8's `B1` (3) corrects, because a wider recursive
+        run demonstrates a true positive outside this scope: run over the
+        entire `2.5.0` payload (all `.md`/`.json`/`.py`/`.sh`/`.yml`/`.svg`
+        files, recursively), this sweep's cue set returns exactly 6
+        findings, every one of them self-referential (this module's own
+        cue table and this file's own test fixtures above) --
+        `docs/ai-workflow/WORKFLOW_V2_3_FOLLOWUPS_PLAN.md:1685` and
+        `docs/ai-workflow/requirements/workflow-v2-3-followups-mapping.json:133`
+        (both inherited unmodified from the `2.4.0` base, round 7's `O2`)
+        are flagged by neither the narrow nor the wide run: their wording,
+        "`APPLYING_REVIEW_FEEDBACK` (entered only by ... `enter_applying_
+        review_feedback` ...)", matches none of the five closed absolute
+        cues. Whether that wording is itself a true instance of the
+        underlying claim is a separate question this sweep's cue set is not
+        equipped to answer either way; it is not evidence for or against
+        widening this test's own corpus, and is not relied on as such
+        (round 8's `B1`, correcting round 7's `O2`/this docstring)."""
         overlay_root = Path(__file__).resolve().parent
         payload_root = overlay_root.parent
         paths = list((payload_root / ".claude" / "commands").glob("*.md")) + \
