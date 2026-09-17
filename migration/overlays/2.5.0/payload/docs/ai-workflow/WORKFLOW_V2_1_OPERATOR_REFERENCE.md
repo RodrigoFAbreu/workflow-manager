@@ -492,7 +492,9 @@ test fails and is authoritative about which one moved.
   implementation-review stages already `APPROVE`d and the item reached
   `AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW`) is still at that phase when
   this command runs, so the call *does* fire for it, exactly as the
-  `APPLYING_REVIEW_FEEDBACK` row below (`:782`) states. Steps 1-8 below run
+  `APPLYING_REVIEW_FEEDBACK` row below states (in its `Phase -> writer`
+  table, not by line number, since that table's own line numbers have
+  moved in four of the last five rounds). Steps 1-8 below run
   identically regardless of which path got here.
 - **Does**: reproduces and validates every Blocking/Important finding, fixes
   what is real, records evidence-based rejections, reruns narrow tests then
