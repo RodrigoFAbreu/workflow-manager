@@ -9,7 +9,7 @@
   "provenance": {
     "origin": "authored",
     "base_release": "2.4.0",
-    "overlay_commit": "92bfe6092195f42bff1a834d8469331ca12999d0"
+    "overlay_commit": "10720038dccfa6a56c2ca31c87a36d0c0c68a981"
   },
   "categories": {
     "distribution": "Canonical Workflow implementation. Copied byte-for-byte into the payload and installed into every managed target repository.",
@@ -28,7 +28,7 @@
       "distribution": 37,
       "host-evidence": 2
     },
-    "overlay_replaced": 23,
+    "overlay_replaced": 24,
     "overlay_added": 2
   },
   "artifacts": [
@@ -647,15 +647,18 @@
       "executable": true
     },
     {
-      "upstream_path": "scripts/workflow_acceptance_matrix_test.py",
-      "category": "distribution",
-      "rule": "^scripts/workflow_(state|fingerprint|test_harness|integration|acceptance_matrix)[a-z_]*_test\\.py$",
-      "rationale": "The v2.3.1 conformance suite. CI-gated upstream; it is the Workflow's own executable specification and ships with it.",
-      "location": "payload/scripts/workflow_acceptance_matrix_test.py",
       "target_path": "scripts/workflow_acceptance_matrix_test.py",
-      "sha256": "4bb32626d39cfc4a20000cad80f5e75ea27d15d72dcecc68c7a0e1e1afebf5c7",
-      "size": 236415,
-      "executable": false
+      "location": "payload/scripts/workflow_acceptance_matrix_test.py",
+      "category": "distribution",
+      "rule": "^scripts/workflow_acceptance_matrix_test\\.py$",
+      "rationale": "Round 7's own I1 (implementation-review-two-stage's REVISE round 7): MatrixCase.approve_implementation's shared technical_approval_gate_reachable call, and three narrow unit-test calls, updated to pass the now-required governing_workflow_version/implementation_review_stages/current_review_content_id keyword arguments explicitly (None for every existing '1'/'2.1' row this suite drives, behavior-preserving via the function's own != \"2.2\" branch) -- otherwise every conformance/bootstrap-e2e/disposable-repo suite exercising a '1'/'2.1' item's technical-approval path raises TypeError against this milestone's own I1 fix. Preserves the base release's own distribution category for this path.",
+      "sha256": "5049f23916b5513bef467f8151ecbd92a8f6cb386ecee5f05664ffcbc4cb84a5",
+      "size": 237520,
+      "executable": false,
+      "overlay_delta": {
+        "base_sha256": "4bb32626d39cfc4a20000cad80f5e75ea27d15d72dcecc68c7a0e1e1afebf5c7",
+        "diff_sha256": "7e5f103f4e5b871a5ccf5e5721f41b5e9b214a8472e1a903b4e6d5e79230b8cc"
+      }
     },
     {
       "upstream_path": "scripts/workflow_fingerprint.py",
@@ -720,7 +723,7 @@
       "location": "payload/scripts/workflow_state.py",
       "category": "distribution",
       "rule": "^scripts/workflow_state\\.py$",
-      "rationale": "KNOWN_PHASES additions, the generalized version-aware activation/rollback helpers, implementation_review_stages ledger writers (record_local_implementation_review, record_manual_implementation_review), the widened technical_approval_gate_reachable, and bundle_generation_target_phase/bundle_generation_recovered_role_legal_committed_phases (D-Implementation-Review-Stages, D-Implementation-Review-Version-Activation; CP1-CP3, CP9, CP10).",
+      "rationale": "KNOWN_PHASES additions, the generalized version-aware activation/rollback helpers, implementation_review_stages ledger writers (record_local_implementation_review, record_manual_implementation_review), the widened technical_approval_gate_reachable, and bundle_generation_target_phase/bundle_generation_recovered_role_legal_committed_phases (D-Implementation-Review-Stages, D-Implementation-Review-Version-Activation; CP1-CP3, CP9, CP10). Round 7's own I1 (implementation-review-two-stage's REVISE round 7): technical_approval_gate_reachable's three \"2.2\" widening parameters are now required keyword-only parameters, no longer defaulted to None, closing a fail-open gap where a caller that omitted governing_workflow_version got the gate's answer unconditionally True with the \"2.2\" ledger never consulted. Also adds find_applying_review_feedback_version_claims/sweep_applying_review_feedback_version_claims, a standing negative-corpus sweep for the recurring superseded \"enter_applying_review_feedback is skipped for '2.2' because of a version branch\" documentation claim (round 7's own B1).",
       "sha256": "797e8778e3567063f4a20a30cc4836e566469e0c4cc2f23d26ab38153bec3bb3",
       "size": 738632,
       "executable": false,
