@@ -10402,9 +10402,9 @@ def technical_approval_gate_reachable(
     *, latest_round_status: str, protected_path_dirty: bool,
     head_matches_reviewed_implementation_head: bool,
     pinned_block: bool = False,
-    governing_workflow_version: str | None = None,
-    implementation_review_stages: dict | None = None,
-    current_review_content_id: str | None = None,
+    governing_workflow_version: str | None,
+    implementation_review_stages: dict | None,
+    current_review_content_id: str | None,
 ) -> bool:
     """`AWAITING_TECHNICAL_APPROVAL`'s entry condition: the shared
     reachability rule above, plus "no protected path is dirty" (D3;
@@ -10427,11 +10427,33 @@ def technical_approval_gate_reachable(
     ledger to record both `LOCAL_MODEL_IMPLEMENTATION_REVIEW` and
     `MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW` completed (`verdict: APPROVE`)
     against the *current* implementation-stage `review_content_id`
-    (D-Implementation-Review-Stages). `governing_workflow_version` absent
-    (`None`, the default) or anything other than `"2.2"` runs exactly
-    today's shared rule, unchanged -- byte-identical to this function's
-    pre-CP3 behavior, including for every existing caller that omits these
-    three new keyword-only parameters entirely."""
+    (D-Implementation-Review-Stages). `governing_workflow_version` equal to
+    `None` (a legitimately absent/legacy value) or anything other than
+    `"2.2"` runs exactly today's shared rule, unchanged.
+
+    workflow-2.5.0 REVISE round 7's own `I1`: these three parameters are
+    **required**, exactly like `plan_approval_gate_reachable`'s equivalent
+    three (`governing_workflow_version`, `plan_review_stages`,
+    `current_review_content_id`) always have been -- deliberately no
+    longer defaulted to `None`, the one asymmetry between this function and
+    the one its own docstring claims to mirror "exactly". A caller that
+    omits `governing_workflow_version` used to fall through the `!= "2.2"`
+    branch and return `True` with the `"2.2"` ledger never consulted at
+    all -- fail *open*, precisely backwards for an approval gate, and
+    reachable in practice (round 7's own reproduction: a call passing
+    `implementation_review_stages=None` and a real
+    `current_review_content_id` while omitting only
+    `governing_workflow_version` returned `True`). Requiring all three
+    turns that omission into an immediate `TypeError` instead of a silent
+    approval-gate opening, for every caller, present and future -- not
+    merely `approve-review.md`'s own now-corrected call (see that file's
+    step 0/1), which is the one call site this repository ships but not
+    the only one this signature has to defend against. Passing `None` for
+    any of the three (a `"1"`/`"2.1"` item's `governing_workflow_version`
+    and `implementation_review_stages`, most commonly) remains exactly as
+    valid as before -- only *omitting* the keyword argument entirely is now
+    refused, by Python's own call mechanics, before this function's body
+    ever runs."""
     if pinned_block or not approval_gate_reachable(latest_round_status):
         return False
     if protected_path_dirty or not head_matches_reviewed_implementation_head:

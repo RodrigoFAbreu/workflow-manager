@@ -83,16 +83,23 @@ actually load-bearing control for the Skill exposure path, not mechanism
      stage — the two-stage plan-review protocol is unaffected by this
      version bump, since `TWO_STAGE_PLAN_REVIEW_VERSIONS` already covers
      both `"2.1"`/`"2.2"`. For the **implementation** stage only, step 1's
-     gate-reachability check additionally requires
+     gate-reachability check additionally applies
      `workflow_state.technical_approval_gate_reachable(...)`'s own
-     `"2.2"`-only ledger check: pass `governing_workflow_version="2.2"`,
-     `implementation_review_stages=work_item.get("implementation_review_stages")`,
-     and `current_review_content_id=<step 2's freshly recomputed
-     implementation-stage review_content_id>` — mirroring the plan stage's
+     `"2.2"`-only ledger check, active exactly when this item's own
+     `governing_workflow_version` is `"2.2"` — mirroring the plan stage's
      existing `plan_review_stages` check exactly, substituted for the
      implementation-stage ledger (both `LOCAL_MODEL_IMPLEMENTATION_REVIEW`/
      `MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW` required `APPROVE` against the
-     current `review_content_id`, `D-Implementation-Review-Stages`).
+     current `review_content_id`, `D-Implementation-Review-Stages`). Step
+     1 passes this item's real `governing_workflow_version`,
+     `implementation_review_stages`, and the current implementation-stage
+     `review_content_id` to that call **unconditionally, for every
+     governing version, not only when it is `"2.2"`** — these three are
+     required parameters on that function now (round 7's `I1`), so this
+     command must always state the work item's actual values rather than
+     branch on version to decide whether to pass them at all; the
+     function's own internal `!= "2.2"` check is what keeps a `"1"`/`"2.1"`
+     item's outcome unchanged.
    - **Any other `governing_workflow_version`** (including one this module
      does not recognize): refuse cleanly, naming the actual value — never
      guess which branch above applies (round-7 optional finding 2, the same
@@ -128,14 +135,23 @@ actually load-bearing control for the Skill exposure path, not mechanism
    `workflow_state.approval_gate_reachable(status)` for the plan stage on a
    `"1"` item (`plan_approval_gate_reachable(...)` on a `"2.1"`/`"2.2"`
    item — both governed by `TWO_STAGE_PLAN_REVIEW_VERSIONS`), or
-   `workflow_state.technical_approval_gate_reachable(...,
-   pinned_block=pinned)` for the
-   implementation stage on a `"1"`/`"2.1"` item, widened (workflow-2.5.0)
-   for a `"2.2"` item to also pass `governing_workflow_version="2.2"`,
-   `implementation_review_stages=work_item.get("implementation_review_stages")`,
-   and `current_review_content_id=<the current implementation-stage
-   review_content_id, already recomputed above>` — step 0's own restated
-   invariant. The latter's `protected_path_dirty` argument is
+   `workflow_state.technical_approval_gate_reachable(..., pinned_block=pinned,
+   governing_workflow_version=work_item.get("governing_workflow_version"),
+   implementation_review_stages=work_item.get("implementation_review_stages"),
+   current_review_content_id=<the current implementation-stage
+   review_content_id, already recomputed above>)` for the implementation
+   stage, **at every governing version alike, unconditionally** — never only
+   on a `"2.2"` branch (workflow-2.5.0 REVISE round 7's own `I1`: these
+   three are required keyword-only parameters on this function now, exactly
+   like `plan_approval_gate_reachable`'s own equivalents always have been;
+   omitting any of them raises `TypeError` instead of silently defaulting,
+   so a caller can no longer forget `governing_workflow_version` for a
+   `"2.2"` item and have the ledger check silently skipped. The function's
+   own `!= "2.2"` branch is what keeps this behavior-preserving for a
+   `"1"`/`"2.1"` item — passing its real `governing_workflow_version` and
+   `implementation_review_stages` here changes nothing for it, since both
+   values are already computed at this point in the step regardless of
+   version). The latter's `protected_path_dirty` argument is
    `workflow_state.any_protected_path_dirty(...)` (`WF4a-iii`), called with
    the implementation-stage classification
    (`workflow_fingerprint.load_implementation_stage_classification(...)`) —

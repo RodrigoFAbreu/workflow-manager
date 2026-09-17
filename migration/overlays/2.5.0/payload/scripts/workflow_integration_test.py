@@ -929,7 +929,16 @@ _GOLDEN_COMMAND_FILE_SHA256 = {
     # string the ledger key, the `Reviewer role:` line and every normative
     # document already use -- instead of the short-form variant the code
     # originally shipped. Intentional content change, not a regression.
-    "approve-review.md": "1c64a124b1fa33330d29d25dc60c29ecc2ceae387d13bd21197870bcb88724f9",
+    # Updated again, round 7's `I1` fix: `technical_approval_gate_reachable`'s
+    # three "2.2" widening parameters are now required (no longer defaulted
+    # to `None`), closing the fail-open gap a caller that omitted
+    # `governing_workflow_version` could hit; step 0's and step 1's prose
+    # now state that this command passes the work item's real
+    # `governing_workflow_version`/`implementation_review_stages`/current
+    # `review_content_id` to that call unconditionally, for every governing
+    # version, rather than only on a `"2.2"` branch. Intentional content
+    # change, not a regression.
+    "approve-review.md": "0ff381aa856ac7a8a0d30c66cbb8204b376922599ae74aa1c02002cafb70a034",
     # accept-milestone.md updated, baseline-freeze correctness fix
     # (OPUS-R129-001): step 6's completion-commit instruction now states
     # the same "trailers must be the commit message's own final paragraph"

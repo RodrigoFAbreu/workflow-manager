@@ -2293,18 +2293,24 @@ class TestApprovalGateReachability(unittest.TestCase):
         self.assertFalse(ws.technical_approval_gate_reachable(
             latest_round_status="APPROVE", protected_path_dirty=True,
             head_matches_reviewed_implementation_head=True,
+            governing_workflow_version=None, implementation_review_stages=None,
+            current_review_content_id=None,
         ))
 
     def test_technical_gate_blocked_by_head_mismatch(self):
         self.assertFalse(ws.technical_approval_gate_reachable(
             latest_round_status="APPROVE", protected_path_dirty=False,
             head_matches_reviewed_implementation_head=False,
+            governing_workflow_version=None, implementation_review_stages=None,
+            current_review_content_id=None,
         ))
 
     def test_technical_gate_reachable_when_clean_and_matching(self):
         self.assertTrue(ws.technical_approval_gate_reachable(
             latest_round_status="REVISE", protected_path_dirty=False,
             head_matches_reviewed_implementation_head=True,
+            governing_workflow_version=None, implementation_review_stages=None,
+            current_review_content_id=None,
         ))
 
     def test_technical_gate_pinned_block_refuses_even_when_otherwise_reachable(self):
@@ -2315,6 +2321,8 @@ class TestApprovalGateReachability(unittest.TestCase):
         self.assertFalse(ws.technical_approval_gate_reachable(
             latest_round_status="APPROVE", protected_path_dirty=False,
             head_matches_reviewed_implementation_head=True, pinned_block=True,
+            governing_workflow_version=None, implementation_review_stages=None,
+            current_review_content_id=None,
         ))
 
     def test_technical_gate_pinned_block_defaults_false(self):
@@ -2323,6 +2331,8 @@ class TestApprovalGateReachability(unittest.TestCase):
         self.assertTrue(ws.technical_approval_gate_reachable(
             latest_round_status="REVISE", protected_path_dirty=False,
             head_matches_reviewed_implementation_head=True,
+            governing_workflow_version=None, implementation_review_stages=None,
+            current_review_content_id=None,
         ))
 
     def test_technical_gate_missing_or_block_feedback_never_reaches_regardless_of_other_conditions(self):
@@ -2339,10 +2349,14 @@ class TestApprovalGateReachability(unittest.TestCase):
         self.assertFalse(ws.technical_approval_gate_reachable(
             latest_round_status=None, protected_path_dirty=False,
             head_matches_reviewed_implementation_head=True,
+            governing_workflow_version=None, implementation_review_stages=None,
+            current_review_content_id=None,
         ))
         self.assertFalse(ws.technical_approval_gate_reachable(
             latest_round_status="BLOCK", protected_path_dirty=False,
             head_matches_reviewed_implementation_head=True,
+            governing_workflow_version=None, implementation_review_stages=None,
+            current_review_content_id=None,
         ))
 
     def test_technical_gate_reachable_for_first_pass_approve_round(self):
@@ -2359,6 +2373,8 @@ class TestApprovalGateReachability(unittest.TestCase):
         self.assertTrue(ws.technical_approval_gate_reachable(
             latest_round_status="APPROVE", protected_path_dirty=False,
             head_matches_reviewed_implementation_head=True,
+            governing_workflow_version=None, implementation_review_stages=None,
+            current_review_content_id=None,
         ))
 
     def test_v1_plan_gate_ignores_plan_review_stages(self):
@@ -5442,6 +5458,8 @@ class TestImplementationProvenanceInterval(unittest.TestCase):
             self.assertTrue(ws.technical_approval_gate_reachable(
                 latest_round_status="APPROVE", protected_path_dirty=False,
                 head_matches_reviewed_implementation_head=head_matches,
+                governing_workflow_version=None, implementation_review_stages=None,
+                current_review_content_id=None,
             ))
 
     def test_one_excluded_commit_between_p_and_t_is_reachable(self):
@@ -12811,6 +12829,14 @@ class TestTechnicalApprovalGateReachableImplementationReviewWidening(unittest.Te
         kwargs = dict(
             latest_round_status="APPROVE", protected_path_dirty=False,
             head_matches_reviewed_implementation_head=True,
+            # round 7's I1: these three are required keyword-only
+            # parameters now (no longer defaulted to None inside the
+            # function itself) -- this helper still supplies its own
+            # `None` defaults so most test cases below only need to
+            # override the ones they care about, but every actual call
+            # this helper makes states all three explicitly.
+            governing_workflow_version=None, implementation_review_stages=None,
+            current_review_content_id=None,
         )
         kwargs.update(overrides)
         return ws.technical_approval_gate_reachable(**kwargs)
@@ -12860,13 +12886,70 @@ class TestTechnicalApprovalGateReachableImplementationReviewWidening(unittest.Te
             implementation_review_stages=stages, current_review_content_id="c1",
         ))
 
-    def test_omitting_the_three_new_parameters_is_byte_identical_to_pre_cp3(self):
-        """Every existing caller (and every pre-CP3 test) omits
-        governing_workflow_version/implementation_review_stages/
-        current_review_content_id entirely -- confirms the defaults
-        preserve that call shape exactly."""
+    def test_explicit_none_for_the_three_new_parameters_matches_pre_cp3(self):
+        """Passing `None` explicitly for all three new parameters (a `"1"`/
+        `"2.1"` item's actual call shape) behaves exactly like pre-CP3
+        `technical_approval_gate_reachable`, which never had these
+        parameters at all."""
         self.assertTrue(self._reachable())
         self.assertFalse(self._reachable(protected_path_dirty=True))
+
+    def test_omitting_governing_workflow_version_now_raises_instead_of_silently_opening_the_gate(self):
+        """workflow-2.5.0 REVISE round 7's own `I1`: before this round, a
+        caller that omitted `governing_workflow_version` (its old default
+        was `None`) fell through the `!= "2.2"` branch and returned `True`
+        with the `"2.2"` ledger never consulted -- fail *open*, reachable
+        in practice by a caller that correctly passed
+        `implementation_review_stages`/`current_review_content_id` for a
+        real `"2.2"` item but simply forgot the version kwarg. Removing the
+        default turns that omission into an immediate `TypeError`, for
+        every caller, not merely the one this repository ships
+        (`approve-review.md`, corrected separately this round)."""
+        with self.assertRaises(TypeError):
+            ws.technical_approval_gate_reachable(
+                latest_round_status="APPROVE", protected_path_dirty=False,
+                head_matches_reviewed_implementation_head=True,
+                implementation_review_stages=None, current_review_content_id="c1",
+            )
+
+    def test_omitting_implementation_review_stages_or_review_content_id_also_raises(self):
+        """The same structural guarantee for the other two: `plan_approval_
+        gate_reachable`'s own three widening parameters are all required,
+        and this function now mirrors that exactly, not just for the one
+        parameter round 7's reproduction happened to omit."""
+        with self.assertRaises(TypeError):
+            ws.technical_approval_gate_reachable(
+                latest_round_status="APPROVE", protected_path_dirty=False,
+                head_matches_reviewed_implementation_head=True,
+                governing_workflow_version="2.2", current_review_content_id="c1",
+            )
+        with self.assertRaises(TypeError):
+            ws.technical_approval_gate_reachable(
+                latest_round_status="APPROVE", protected_path_dirty=False,
+                head_matches_reviewed_implementation_head=True,
+                governing_workflow_version="2.2", implementation_review_stages=None,
+            )
+
+    def test_a_22_call_that_forgets_only_the_version_kwarg_no_longer_silently_approves(self):
+        """Round 7's own reproduction, reasserted directly: a call for a
+        real `"2.2"` item's ledger state that passes `implementation_review_
+        stages`/`current_review_content_id` correctly but omits
+        `governing_workflow_version` must never again return `True` --
+        before this fix it did, with the ledger below plainly incomplete
+        (no `MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW` entry at all)."""
+        incomplete_stages = {
+            "review_content_id": "c1",
+            ws.LOCAL_MODEL_IMPLEMENTATION_REVIEW: {
+                "bundle_id": "b", "verdict": "APPROVE", "round": 1, "completed_at": "t",
+            },
+        }
+        with self.assertRaises(TypeError):
+            ws.technical_approval_gate_reachable(
+                latest_round_status="APPROVE", protected_path_dirty=False,
+                head_matches_reviewed_implementation_head=True,
+                implementation_review_stages=incomplete_stages,
+                current_review_content_id="c1",
+            )
 
 
 class TestRecordBundleGenerationImplementationReviewTargetPhase(unittest.TestCase):
