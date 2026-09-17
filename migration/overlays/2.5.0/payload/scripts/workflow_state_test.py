@@ -13504,6 +13504,151 @@ class GoverningVersionEnumerationSweepTest(unittest.TestCase):
         self.assertEqual(findings, [], [repr(f) for f in findings])
 
 
+class ApplyingReviewFeedbackVersionClaimSweepTest(unittest.TestCase):
+    """workflow-2.5.0 REVISE round 7, Missing-tests item 1 / `B1`: a
+    standing negative-corpus sweep for the superseded "`enter_applying_
+    review_feedback` is skipped for `\"2.2\"` because of a version branch"
+    claim, which has now produced a Blocking finding in rounds 3, 5, 6, and
+    twice more in round 7 -- always as a fresh paraphrase or a
+    Markdown-mangled substring the previous round's own point-fix and grep
+    did not anticipate."""
+
+    def test_round_7_b1_instance_1_is_flagged(self):
+        # WORKFLOW_V2_1_OPERATOR_REFERENCE.md:483-488 before this round's
+        # fix, verbatim.
+        text = (
+            "so this command makes **no** `enter_applying_review_feedback` "
+            "call for it at all; steps 1-8 below run identically "
+            "regardless."
+        )
+        findings = ws.find_applying_review_feedback_version_claims("doc.md", text)
+        # Two of the five absolute-cue patterns both match this single
+        # passage ("no ... call" and "for it at all") -- that is fine; the
+        # point is that at least one fires, not exactly which.
+        self.assertGreaterEqual(len(findings), 1, [repr(f) for f in findings])
+
+    def test_round_7_b1_instance_2_is_flagged(self):
+        # WORKFLOW_V2_1_OPERATOR_REFERENCE.md:830 before this round's fix,
+        # verbatim.
+        text = (
+            "`/apply-implementation-review` (`enter_applying_review_feedback`, "
+            "`\"1\"`/`\"2.1\"` only — a `\"2.2\"` item never needs this call, "
+            "per its own dual-mode note at the top of that file)"
+        )
+        findings = ws.find_applying_review_feedback_version_claims("doc.md", text)
+        self.assertEqual(len(findings), 2, [repr(f) for f in findings])
+
+    def test_round_6_b1_instance_is_flagged(self):
+        # WORKFLOW_V2_1_OPERATOR_REFERENCE.md:782 before round 6's fix
+        # (paraphrased as round 6's own disposition record describes it):
+        # a bare, unqualified "a '2.2' item never reaches APPLYING_REVIEW_
+        # FEEDBACK via enter_applying_review_feedback" claim, with no
+        # terminal-phase-escape qualifier anywhere nearby.
+        text = (
+            "a `\"2.2\"` item never reaches `APPLYING_REVIEW_FEEDBACK` via "
+            "`enter_applying_review_feedback`; that phase is entered "
+            "directly by the review-stage writer instead, and this call is "
+            "not called at all for that governing version."
+        )
+        findings = ws.find_applying_review_feedback_version_claims("doc.md", text)
+        self.assertGreaterEqual(len(findings), 1, [repr(f) for f in findings])
+
+    def test_the_fixed_round_7_passages_are_not_flagged(self):
+        # This round's own replacement text for both instances -- proves
+        # the sweep does not simply re-flag its own fix.
+        overlay_root = Path(__file__).resolve().parent
+        payload_root = overlay_root.parent
+        text = (payload_root / "docs" / "ai-workflow" / "WORKFLOW_V2_1_OPERATOR_REFERENCE.md").read_text()
+        findings = ws.find_applying_review_feedback_version_claims(
+            "WORKFLOW_V2_1_OPERATOR_REFERENCE.md", text,
+        )
+        self.assertEqual(findings, [], [repr(f) for f in findings])
+
+    def test_milestone_workflow_finds_phase_qualifier_is_not_flagged(self):
+        # MILESTONE_WORKFLOW.md:349's already-correct passage -- named in
+        # round 6's Missing-tests item as the reason a naive substring ban
+        # cannot work: it states the *fixed* rule using nearly the banned
+        # words ("no ... call ... for a '2.2' item"), distinguished only by
+        # "since it finds `phase` already there".
+        text = (
+            "transitions directly to `APPLYING_REVIEW_FEEDBACK` (the "
+            "command itself performs the phase write, exactly as "
+            "`/review-plan`'s `REVISE` branch does for `REVISING_PLAN` — "
+            "`/apply-implementation-review` makes no "
+            "`enter_applying_review_feedback` call for a `\"2.2\"` item, "
+            "since it finds `phase` already there)."
+        )
+        self.assertEqual(ws.find_applying_review_feedback_version_claims("doc.md", text), [])
+
+    def test_workflow_v2_plan_terminal_escape_qualifier_is_not_flagged(self):
+        # WORKFLOW_V2_PLAN.md's own correct, detailed passage: contains
+        # "never reaches this writer" (not one of the banned absolute-cue
+        # phrasings) and explicitly names the terminal-phase escape.
+        text = (
+            "for a `\"2.2\"` item, this phase-conditional rule is always "
+            "the skip case in the normal two-stage loop -- the command "
+            "finds `phase` already at `APPLYING_REVIEW_FEEDBACK` -- but a "
+            "`\"2.2\"` item that instead reaches the *terminal* "
+            "`AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW` phase ... sits at "
+            "exactly the phase `enter_applying_review_feedback`'s own "
+            "guard names as legal, so the call fires for that item too."
+        )
+        self.assertEqual(ws.find_applying_review_feedback_version_claims("doc.md", text), [])
+
+    def test_a_qualifier_stated_in_the_next_sentence_of_the_same_bullet_still_suppresses(self):
+        # WORKFLOW_V2_1_OPERATOR_REFERENCE.md:438-441's own already-correct
+        # shape: the absolute-sounding "no ... call" sentence ends before
+        # the qualifying "terminal" appears, in the very next sentence of
+        # the same bullet. A sentence-level (rather than window-level)
+        # check would miss this.
+        text = (
+            "REVISE (→ `APPLYING_REVIEW_FEEDBACK` directly, no "
+            "`enter_applying_review_feedback` call). A `\"2.2\"` item at "
+            "any *other* phase — most commonly its own terminal "
+            "`AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW` once both "
+            "implementation-review stages have already approved — still "
+            "takes the advisory branch described above, unchanged."
+        )
+        self.assertEqual(ws.find_applying_review_feedback_version_claims("doc.md", text), [])
+
+    def test_unrelated_reference_far_outside_the_window_does_not_suppress(self):
+        # A document that states the absolute-cue phrase near one mention
+        # of enter_applying_review_feedback, and a qualifier only far away
+        # near an unrelated second mention, must still be flagged: the
+        # qualifier has to be *near* the claim it qualifies, not merely
+        # present anywhere in the document.
+        far_qualifier = "terminal escape " * 5
+        padding = "x" * 400
+        text = (
+            f"`enter_applying_review_feedback` call for it at all.{padding}"
+            f"Elsewhere, the {far_qualifier} phase-conditional guard is "
+            f"unrelated context about `enter_applying_review_feedback`."
+        )
+        findings = ws.find_applying_review_feedback_version_claims("doc.md", text)
+        self.assertEqual(len(findings), 1, [repr(f) for f in findings])
+
+    def test_real_corpus_sweep_is_clean(self):
+        """Same deliberately-scoped corpus as
+        `GoverningVersionEnumerationSweepTest.test_real_corpus_sweep_is_clean`
+        (round 4's O2) -- non-recursive over `.claude/commands/` and
+        `docs/ai-workflow/`'s own top level. `docs/ai-workflow/audit/`,
+        `dry-run/`, and `requirements/` are out of this sweep's scope for
+        the identical reason: a wider recursive run finds a true positive
+        today in `docs/ai-workflow/WORKFLOW_V2_3_FOLLOWUPS_PLAN.md:1685`/
+        `docs/ai-workflow/requirements/workflow-v2-3-followups-mapping.json:133`,
+        both inherited unmodified from the `2.4.0` base rather than owned by
+        this overlay (round 7's `O2`; see `IMPLEMENTATION_SUMMARY.md`'s
+        Known-limitations entry) -- left for whichever future checkpoint
+        widens this sweep's own corpus deliberately."""
+        overlay_root = Path(__file__).resolve().parent
+        payload_root = overlay_root.parent
+        paths = list((payload_root / ".claude" / "commands").glob("*.md")) + \
+            list((payload_root / "docs" / "ai-workflow").glob("*.md"))
+        texts = {str(p): p.read_text() for p in paths}
+        findings = ws.sweep_applying_review_feedback_version_claims(texts)
+        self.assertEqual(findings, [], [repr(f) for f in findings])
+
+
 # ---------------------------------------------------------------------------
 # workflow-2.5.0 CP7: D-Canonical-Review-Data's generic, parametric
 # declaration-coverage helper. This replaces the bespoke, hand-authored

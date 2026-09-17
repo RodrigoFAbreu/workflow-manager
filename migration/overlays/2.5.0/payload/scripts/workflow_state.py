@@ -13811,3 +13811,140 @@ def sweep_governing_version_enumeration(paths_and_texts: dict[str, str]) -> list
     for path, text in paths_and_texts.items():
         findings.extend(find_governing_version_occurrences(path, text))
     return findings
+
+
+# ---------------------------------------------------------------------------
+# workflow-2.5.0 REVISE round 7, Missing-tests item 1 / B1's own negative-
+# corpus sweep: no document may claim `enter_applying_review_feedback` is
+# skipped for a `"2.2"` item as an absolute, version-keyed rule ("`"1"`/
+# `"2.1"` only", "never needs this call", "for it at all", "not called at
+# all", a bare "no `enter_applying_review_feedback` call") without also
+# stating the qualifier that makes the claim true: the skip is
+# phase-conditional, and the `"2.2"` terminal-phase escape *does* call it.
+# Five rounds of point-fixes to this exact prose (rounds 3, 5, 6, and two
+# more instances in round 7 itself) are the evidence this needs a standing
+# sweep rather than another one-off reword.
+# ---------------------------------------------------------------------------
+
+_MARKDOWN_EMPHASIS_STRIP_RE = re.compile(r"[*`]")
+
+
+def _strip_markdown_emphasis(text: str) -> str:
+    """Removes only `*` (bold/italic) and backtick (code-span) markup
+    characters -- deliberately never `_`, which is both Markdown's other
+    emphasis character *and* a literal character inside every snake_case
+    identifier this sweep must keep intact (`enter_applying_review_feedback`
+    itself, `implementation_review_stages`, ...). Round 6's own post-fix
+    grep for the literal substring `"no enter_applying_review_feedback
+    call"` missed round 7's own `makes **no**
+    \\`enter_applying_review_feedback\\` call` for exactly this reason: the
+    bold asterisks and code-span backticks around the words split the
+    substring the naive grep needed intact. Stripping only `*`/backtick
+    (not `_`) fixes that gap without corrupting any identifier."""
+    return _MARKDOWN_EMPHASIS_STRIP_RE.sub("", text)
+
+
+_APPLYING_REVIEW_FEEDBACK_REFERENCE_CUE = "enter_applying_review_feedback"
+
+# Round 7's own two `B1` instances, verbatim once markup is stripped, plus
+# the wordings round 5/6's own instances used -- named directly from round
+# 7's Missing-tests item (a): "the reference cue", (b): "absolute-quantifier
+# cues".
+_APPLYING_REVIEW_FEEDBACK_ABSOLUTE_CUES = (
+    re.compile(r'"1"\s*/\s*"2\.1"\s*only'),
+    re.compile(r"never needs this call"),
+    re.compile(r"for it at all"),
+    re.compile(r"not called at all"),
+    re.compile(r"no\s+enter_applying_review_feedback\s+call"),
+)
+
+# Round 7's Missing-tests item (c): qualifier cues that mean the surrounding
+# claim is the *correct*, scoped statement of the rule, not the superseded
+# absolute one. Deliberately narrower than the Missing-tests item's own
+# suggested list, which also named the bare word "already": round 7's own
+# `B1` instance (1) reads "a `\"2.2\"` item instead arrives at
+# `APPLYING_REVIEW_FEEDBACK` **already** ... so this command makes no ...
+# call for it at all" -- "already" appears in that *false*, absolute claim
+# too, so treating it as a blanket qualifier would silently un-catch the
+# exact instance this sweep exists for. `"finds phase"` (the two-word
+# phrase `MILESTONE_WORKFLOW.md:349`'s correct passage actually uses --
+# "since it finds `phase` already there") is precise enough to keep that
+# true negative without reopening the false-negative "already" causes.
+_APPLYING_REVIEW_FEEDBACK_QUALIFIER_CUES = (
+    "terminal", "escape", "phase-conditional", "finds phase",
+    # `review-implementation.md`'s and `WORKFLOW_V2_1_OPERATOR_REFERENCE.md
+    # :464`'s own correct, narrower claim -- "this one writer's REVISE
+    # branch never itself calls it, because its own only legal source
+    # phase is wrong for this specific branch" -- is true without needing
+    # the terminal-escape caveat: it is not a claim about every "2.2" item
+    # anywhere, only about one writer's one action. Both passages share
+    # this exact phrase.
+    "legal source phase",
+)
+
+_APPLYING_REVIEW_FEEDBACK_CONTEXT_WINDOW = 300
+
+
+class ApplyingReviewFeedbackVersionClaimFinding:
+    __slots__ = ("path", "offset", "line", "snippet")
+
+    def __init__(self, path, offset, line, snippet):
+        self.path = path
+        self.offset = offset
+        self.line = line
+        self.snippet = snippet
+
+    def __repr__(self):
+        return (
+            f"ApplyingReviewFeedbackVersionClaimFinding({self.path!r}, "
+            f"line={self.line!r}, snippet={self.snippet!r})"
+        )
+
+
+def find_applying_review_feedback_version_claims(
+    path: str, text: str,
+) -> list[ApplyingReviewFeedbackVersionClaimFinding]:
+    """Flags every occurrence of an absolute-quantifier cue that (a) sits
+    within `_APPLYING_REVIEW_FEEDBACK_CONTEXT_WINDOW` characters of a
+    reference to `enter_applying_review_feedback` -- so an unrelated "not
+    called at all" elsewhere in the document is never in scope -- and (b)
+    has no qualifier cue anywhere in that same window. Both the cue match
+    and the window are computed over markup-stripped text
+    (`_strip_markdown_emphasis`), so Markdown emphasis/code-span characters
+    between the cue's own words can never defeat the match the way they
+    defeated round 6's literal-substring grep. The window, not a
+    sentence split, is what lets a qualifier stated in the *next* sentence
+    of the same bullet (`WORKFLOW_V2_1_OPERATOR_REFERENCE.md`'s own
+    already-correct `:439`/`:464` passages, where "terminal" sits just
+    outside the sentence carrying the absolute-sounding "no ... call")
+    still suppress the finding."""
+    stripped = _strip_markdown_emphasis(text)
+    findings: list[ApplyingReviewFeedbackVersionClaimFinding] = []
+    for cue_re in _APPLYING_REVIEW_FEEDBACK_ABSOLUTE_CUES:
+        for m in cue_re.finditer(stripped):
+            window_start = max(0, m.start() - _APPLYING_REVIEW_FEEDBACK_CONTEXT_WINDOW)
+            window_end = min(len(stripped), m.end() + _APPLYING_REVIEW_FEEDBACK_CONTEXT_WINDOW)
+            window = stripped[window_start:window_end]
+            if _APPLYING_REVIEW_FEEDBACK_REFERENCE_CUE not in window:
+                continue
+            if any(cue in window.lower() for cue in _APPLYING_REVIEW_FEEDBACK_QUALIFIER_CUES):
+                continue
+            findings.append(
+                ApplyingReviewFeedbackVersionClaimFinding(
+                    path=path, offset=m.start(), line=_line_number_at(stripped, m.start()),
+                    snippet=window.strip(),
+                )
+            )
+    return findings
+
+
+def sweep_applying_review_feedback_version_claims(
+    paths_and_texts: dict[str, str],
+) -> list[ApplyingReviewFeedbackVersionClaimFinding]:
+    """Run `find_applying_review_feedback_version_claims` over every
+    `(path, text)` pair. Returns the combined, still-flagged finding list --
+    empty means the sweep is clean."""
+    findings: list[ApplyingReviewFeedbackVersionClaimFinding] = []
+    for path, text in paths_and_texts.items():
+        findings.extend(find_applying_review_feedback_version_claims(path, text))
+    return findings
