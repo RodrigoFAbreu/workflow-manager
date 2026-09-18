@@ -901,22 +901,293 @@ plan approval `CURRENT`, both `LOCAL_MODEL_PLAN_REVIEW` (round 42) and
 
 ## Next action
 
-The self-review and the full required verification are complete, and the
-implementation-review bundle is generated: the work item is at
-`AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW`, a hard gate. This item is
-`"2.1"`-governed, so its own implementation review stays the existing
-single-stage gate -- the two-stage protocol this milestone authors is
-`"2.2"`-only and applies to no work item that exists today.
+External implementation review (round 10) approved with no further
+findings; `/approve-review implementation` recorded `technical_approval` as
+`CURRENT`. The work item is now at `AWAITING_FUNCTIONAL_REVIEW`, a hard
+gate. This item is `"2.1"`-governed, so its own review lifecycle used the
+existing single-stage implementation-review gate throughout -- the
+two-stage protocol this milestone authors is `"2.2"`-only and applies to no
+work item that exists today; that protocol is exercised instead by the
+manual checklist below, against disposable repositories.
 
-Next: external implementation review of
-`.ai-review/implementation-review-two-stage/current/`. Then
-`/apply-implementation-review` for any findings, or `/approve-review
-implementation` (user-only) once the round approves.
+Next: manual functional testing per the checklist below. Findings go to
+`.ai-review/feedback/FUNCTIONAL_REVIEW.md`; `/apply-functional-review`
+classifies and routes them. Once testing is clean and every checkpoint in
+`docs/ai-workflow/registry/implementation-review-two-stage-registry.json`
+is `COMPLETE` (all 13 are), `/accept-milestone` is the only acceptance
+command.
 
 ## Functional review checklist
 
-Not yet applicable — the milestone is still in `IMPLEMENTING`. CP12's own
-disposable-repository functional-validation suite (`tests/
-test_implementation_review_two_stage_disposable_repo.py`) is automated
-regression coverage, not the manual functional-review checklist itself --
-that is prepared once the milestone reaches `AWAITING_FUNCTIONAL_REVIEW`.
+All testing below happens against **disposable, throwaway repositories**
+only — never `~/Workspace/repflow-android` (frozen, read-only; read it via
+`git show <tag>:<path>` if needed) and never this repository's own live
+`docs/ai-workflow/WORKFLOW_STATE.json` work items. The feature under test —
+a new `governing_workflow_version: "2.2"` mirroring the two-stage
+plan-review protocol onto the implementation-review gate — is inert for
+every work item that exists anywhere today, so it can only be exercised
+inside a disposable repo that explicitly activates it.
+
+### Setup
+
+1. Confirm both releases still reproduce:
+   ```
+   python3 tools/build_release.py --overlay migration/overlays/2.5.0 --check
+   python3 tools/migrate.py --check --upstream ~/Workspace/repflow-android
+   ```
+2. Create a scratch directory outside this repo, e.g. `/tmp/wf-impl-review-check/`.
+3. Create and bootstrap the first disposable target repo directly on the new
+   release (`--release-version` precedes the subcommand). The target must
+   already be a Git repository with a baseline commit before any command
+   that resolves `base_commit` (e.g. `git rev-parse HEAD`) can succeed:
+   ```
+   mkdir -p /tmp/wf-impl-review-check/repo-a
+   git -C /tmp/wf-impl-review-check/repo-a init -q -b main
+   git -C /tmp/wf-impl-review-check/repo-a config user.email "check@example.invalid"
+   git -C /tmp/wf-impl-review-check/repo-a config user.name "Functional Check"
+   git -C /tmp/wf-impl-review-check/repo-a config commit.gpgsign false
+   PYTHONPATH=src python3 -m workflow_manager --release-version 2.5.0 bootstrap /tmp/wf-impl-review-check/repo-a
+   git -C /tmp/wf-impl-review-check/repo-a add -A
+   git -C /tmp/wf-impl-review-check/repo-a commit -q -m "baseline: bootstrap workflow 2.5.0"
+   ```
+4. Create and bootstrap a second disposable target repo on the *old*
+   release, to exercise the update path in Flow 5:
+   ```
+   mkdir -p /tmp/wf-impl-review-check/repo-b
+   git -C /tmp/wf-impl-review-check/repo-b init -q -b main
+   git -C /tmp/wf-impl-review-check/repo-b config user.email "check@example.invalid"
+   git -C /tmp/wf-impl-review-check/repo-b config user.name "Functional Check"
+   git -C /tmp/wf-impl-review-check/repo-b config commit.gpgsign false
+   PYTHONPATH=src python3 -m workflow_manager --release-version 2.4.0 bootstrap /tmp/wf-impl-review-check/repo-b
+   git -C /tmp/wf-impl-review-check/repo-b add -A
+   git -C /tmp/wf-impl-review-check/repo-b commit -q -m "baseline: bootstrap workflow 2.4.0"
+   ```
+
+### Test data
+
+No product/feature content is needed — the mechanism under test is the
+Workflow lifecycle itself. Each flow drives a synthetic `process`-type work
+item (e.g. `impl-review-check-1`) through checkpoints, using
+`src/workflow_manager/fixture.py`'s
+`drive_synthetic_work_item_through_checkpoints` (fastest, scripted) or the
+repo's own installed slash commands directly (closer to a real operator's
+experience — prefer this for at least one flow). A `"2.2"` item can only be
+created after repo-a activates `"2.2"` (Flow 1) — there is no legal path
+for an existing `"1"`/`"2.1"` item to become `"2.2"` retroactively.
+
+### Flow 1 — activate "2.2" in repo-a, following the documented procedure verbatim
+
+1. Confirm a fresh `2.5.0` bootstrap is *not* `"2.2"`-enabled:
+   `docs/ai-workflow/WORKFLOW_CONFIG.json`'s `default_workflow_version` is
+   still `"2.1"`.
+2. Follow `docs/ai-workflow/IMPLEMENTATION_REVIEW_WORKFLOW.md`'s
+   "Activating `2.2`" section by hand (never `build_activated_config`): edit
+   `default_workflow_version` to `"2.2"` **and** append `"2.2"` to
+   `supported_versions` in the same commit, carrying a
+   `Workflow-Activation: 2.2` trailer.
+3. **Expected:** `workflow_state.is_activated()` reports true afterward; a
+   work item created from this point on defaults to `"2.2"`; no
+   already-existing work item's `governing_workflow_version` is touched
+   (there are none yet in repo-a).
+
+### Flow 1a — activation guardrails (negative path)
+
+1. **Partial edit:** repeat Flow 1's edit but change only
+   `default_workflow_version` (leave `supported_versions` unchanged), commit
+   with the same trailer. **Expected:** `validate_config` refuses the
+   partial edit by name.
+2. **Missing config after activation:** with `"2.2"` genuinely activated
+   (Flow 1), delete or corrupt `WORKFLOW_CONFIG.json` and attempt any
+   command that calls `load_config`. **Expected:** raises
+   `ConfigMissingAfterActivationError` naming the resolved destination
+   version (`"2.2"`) — never a silent fallback to `default_config()`.
+3. **Rollback:** commit `Workflow-Rollback: 2.2`, reverting
+   `default_workflow_version` to `"2.1"`. **Expected:** `is_activated()`
+   still reports true (destination `"2.1"`, not `"1"`) — matches `"2.1"`'s
+   own binary behavior at that same boundary, closing the previously-silent
+   second boundary a `"2.2"` rollback opens.
+4. **Malformed rollback trailer:** repeat with a blank or unrecognized
+   `Workflow-Rollback` trailer value (e.g. `Workflow-Rollback: 2.9`).
+   **Expected:** resolves fail-closed as activated — never a silent
+   fall-through to not-activated, never an uncaught `KeyError`.
+5. Re-activate `"2.2"` in repo-a (undo this sub-flow's rollback) before
+   continuing to Flow 2 — the remaining flows need a live
+   `"2.2"`-activated repo-a.
+
+### Flow 2 — a "2.2" item's plan stage is unaffected
+
+1. In repo-a, create a synthetic `"2.2"` work item (`impl-review-check-1`)
+   and drive its plan through `/milestone-plan` → `/review-plan` (local) →
+   `/record-manual-plan-review` (manual) → `/approve-review plan`.
+2. **Expected:** `AWAITING_LOCAL_PLAN_REVIEW` →
+   `AWAITING_MANUAL_EXTERNAL_PLAN_REVIEW` → `AWAITING_PLAN_APPROVAL`,
+   identical in shape to a `"2.1"` item's plan stage — this milestone widens
+   `TWO_STAGE_PLAN_REVIEW_VERSIONS` to include `"2.2"` but changes no
+   plan-stage behavior itself.
+
+### Flow 3 — the new two-stage implementation-review flow, positive path
+
+1. Drive `impl-review-check-1` through its checkpoints with
+   `/milestone-implement` to `SELF_REVIEWING_IMPLEMENTATION`, then let
+   bundle generation run.
+2. **Expected:** the item lands at `AWAITING_LOCAL_IMPLEMENTATION_REVIEW` —
+   not the legacy single-stage `AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW` a
+   `"1"`/`"2.1"` item would reach here.
+3. Run `/review-implementation` (a fresh session is recommended, mirroring
+   the plan side's local stage) and APPROVE. **Expected:** a local
+   `implementation_review_stages` ledger entry is recorded; phase
+   transitions to `AWAITING_MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW`.
+4. Upload the bundle to a manual reviewer (or simulate one), paste the
+   verdict into `REVIEW_FEEDBACK.md`, run
+   `/record-manual-implementation-review`, and APPROVE. **Expected:** phase
+   transitions to the terminal `AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW` —
+   the same hard gate a `"1"`/`"2.1"` item reaches, now reached through two
+   recorded stages instead of one.
+5. Run `/approve-review implementation` (user-only). **Expected:**
+   `technical_approval` becomes `CURRENT`; phase advances past the gate
+   (e.g. to `AWAITING_FUNCTIONAL_REVIEW`).
+6. Confirm no bundle regeneration happened between steps 3 and 4 — the same
+   `bundle_id` is carried through the local-approve → manual-external
+   hand-off, mirroring the plan side's own rule.
+
+### Flow 3a — implementation-review negative paths
+
+Exercise each of these as its own throwaway attempt against a `"2.2"` item
+mid-flow (reuse `impl-review-check-1` at the relevant phase, or a second
+synthetic item where a path would otherwise consume Flow 3's own progress):
+
+1. **Local REVISE:** REVISE at the local stage. **Expected:** phase goes
+   directly to `APPLYING_REVIEW_FEEDBACK` (no `enter_applying_review_feedback`
+   call for `"2.2"`); `/apply-implementation-review` then returns the item
+   to `AWAITING_LOCAL_IMPLEMENTATION_REVIEW` via the same post-fix
+   bundle-generation resolver, never a second writer.
+2. **Local BLOCK:** BLOCK at the local stage. **Expected:** no-op — phase
+   and ledger unchanged, requiring human intervention rather than an
+   automatic transition.
+3. **Manual REVISE:** REVISE at the manual stage. **Expected:** loops back
+   to the *local* stage (`AWAITING_LOCAL_IMPLEMENTATION_REVIEW`), never
+   straight back to manual — confirm this explicitly, since it is easy to
+   assume a manual REVISE re-runs only the manual pass.
+4. **Manual BLOCK:** BLOCK at the manual stage. **Expected:** no-op, same as
+   local BLOCK.
+5. **Wrong-phase, manual before local:** attempt
+   `/record-manual-implementation-review` while the item is still at
+   `AWAITING_LOCAL_IMPLEMENTATION_REVIEW` (local stage not yet approved).
+   **Expected:** refused by name, naming the actual phase.
+6. **Wrong-phase, local from the wrong phase:** attempt
+   `/review-implementation`'s `"2.2"` branch against an item not at
+   `AWAITING_LOCAL_IMPLEMENTATION_REVIEW`. **Expected:** refused by name.
+7. **Ledger check for a `"2.1"` item:** confirm the widened
+   `technical_approval_gate_reachable` ledger check is inert for a
+   `"1"`/`"2.1"` item — its existing single-stage advisory behavior must be
+   byte-unchanged.
+8. **Stale `review_content_id`:** after local APPROVE, change the reviewed
+   content (e.g. touch a protected file) before running
+   `/record-manual-implementation-review`. **Expected:** manual ingestion
+   hard-refuses with a staleness error, never silently ingesting feedback
+   against superseded content.
+9. **Duplicate manual ingestion:** run `/record-manual-implementation-review`
+   twice against the same feedback file/verdict. **Expected:** the second
+   run is refused as a duplicate.
+10. **Bundle-id mismatch, manual stage:** manually edit the feedback file's
+    recorded `bundle_id` before a `/record-manual-implementation-review` run
+    so it no longer matches the current bundle. **Expected:** this is
+    advisory-only — a warning, never a hard block.
+
+### Flow 3b — `/recover-implementation-provenance` from each of the three "2.2" phases
+
+1. After a legitimate excluded-only commit lands past the current
+   `Workflow-Bundle-Generation-Record` commit, run
+   `/recover-implementation-provenance` once with the item at each of:
+   `AWAITING_LOCAL_IMPLEMENTATION_REVIEW`,
+   `AWAITING_MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW`, and the terminal
+   `AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW`.
+2. **Expected:** recovery succeeds from all three phases (the command's own
+   phase guard and the recovered-role committed-phase membership test are
+   the identical three-phase set); `HEAD == T` holds afterward in each
+   case; a fourth attempt where the content genuinely changed (not just
+   excluded-only) is correctly refused as not-applicable/stale rather than
+   "recovered."
+
+### Flow 4 — a "2.2" functional bounded fix re-enters both implementation-review stages
+
+1. Take `impl-review-check-1` (or a fresh `"2.2"` item) all the way to
+   `AWAITING_FUNCTIONAL_REVIEW`, then simulate a functional-review bounded
+   fix (`/apply-functional-review`'s bounded branch,
+   `technical_approval.status == "STALE"`).
+2. **Expected:** resolves to `AWAITING_LOCAL_IMPLEMENTATION_REVIEW` — a
+   `"2.2"` item must re-clear *both* implementation-review stages before
+   `/approve-review implementation` is reachable again; it never routes
+   straight to the terminal phase.
+
+### Flow 5 — update path leaves a live "2.1" item unaffected
+
+1. In repo-b (bootstrapped on `2.4.0` above), drive a synthetic `"2.1"` work
+   item to mid-`AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW`.
+2. Run
+   `PYTHONPATH=src python3 -m workflow_manager --release-version 2.5.0 update /tmp/wf-impl-review-check/repo-b`.
+3. **Expected:** the existing item's phase, ledgers, and
+   `governing_workflow_version` (`"2.1"`) are untouched; `"2.2"` is not
+   available in repo-b until it separately activates it (Flow 1's
+   procedure) — updating alone never grants it.
+
+### Flow 6 — post-v2.3.1 backlog fixes (CP9)
+
+1. **v2.3.1-003:** in a fresh disposable repo with no pre-committed
+   `WORKFLOW_STATE.json` blob at `HEAD`, run a first-ever
+   `/approve-review plan`. **Expected:** succeeds, defaulting the staged
+   blob's mode to `100644` instead of refusing outright.
+2. **`.workflow-manager/` implementation-stage symmetry (v2.4.0-001
+   widening):** confirm `generate_artifacts_declarations`'
+   implementation-stage default `excluded_prefixes` now includes
+   `.workflow-manager/`, symmetric with the plan-stage default. This is
+   forward-only — no existing work item's own already-generated
+   declarations file changes.
+3. **Portability exceptions:** confirm
+   `migration/portability_exceptions.json`'s `by_version["2.5.0"]` entry
+   exists and is empty, and that `2.3.1`'s/`2.4.0`'s own entries are
+   untouched.
+
+### Flow 7 — review-material-lifecycle marker (CP1/CP6), spot check
+
+1. In
+   `migration/overlays/2.5.0/payload/docs/ai-workflow/WORKFLOW_V2_PLAN.md`,
+   confirm CP1's carried `2.5.0`-scoped disposition-record subsection is
+   preceded by the exact marker
+   `<!-- review-material-lifecycle: HISTORICAL -->`, and that a current
+   design section (e.g. `D-Implementation-Review-Stages`) carries
+   `<!-- review-material-lifecycle: CURRENT -->` or no marker at all
+   (fail-closed default, also `CURRENT`).
+2. This lint's own classification/marker-presence/governing-version-sweep
+   behavior is exercised by the automated suite (`tests/run_all.py`,
+   already confirmed green — see step 1 of `/prepare-functional-review`);
+   this spot check is a human sanity read of the actual document, not a
+   re-run of that suite.
+
+### Flow 8 — authored-release production
+
+1. `python3 tools/build_release.py --overlay migration/overlays/2.5.0 --check`
+   must reproduce `distribution/workflow/2.5.0/` exactly from base `2.4.0`
+   plus the overlay.
+2. `python3 tools/migrate.py --check --upstream ~/Workspace/repflow-android`
+   must still show `2.3.1` byte-identical to the frozen tag — confirm this
+   milestone did not alter it.
+
+### Known limitations / out of scope
+
+- `docs/defects/v2.4.0-002-amendment-claim-race-crosses-worktree-boundary.md`
+  (cross-worktree amendment/claim race) is explicitly reconsidered by this
+  milestone (`CP10`) and still deferred in full, including the optional
+  `IMPL10-O1` mitigation — do not re-raise it as a new finding here.
+- `"2.2"` has no legal retroactive-adoption path: an existing `"1"`/`"2.1"`
+  work item, in this repository or any other (e.g.
+  `~/Workspace/workflow-controller`'s `workflow-controller-generation-1`),
+  cannot become `"2.2"`. Do not attempt or expect this.
+- Two `docs/defects/*.md` files are currently untracked in this
+  repository's own working tree (unrelated in-progress bookkeeping,
+  predating and outside this command's own scope) — do not test against or
+  modify them here.
+- Downgrading a repository that has ever activated `"2.2"` or held any of
+  its vocabulary (the two new phases, an `implementation_review_stages`
+  ledger) back to an older release is unsupported, per this repository's
+  own `CLAUDE.md` — do not attempt it as part of this review.
