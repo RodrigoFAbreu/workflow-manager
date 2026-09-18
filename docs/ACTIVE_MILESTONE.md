@@ -2,11 +2,11 @@
 
 ## Milestone
 
-**In progress.** `implementation-review-two-stage` (`governing_workflow_version:
+**Complete.** `implementation-review-two-stage` (`governing_workflow_version:
 "2.1"`, plan approved at revision 41, superseding the revision-33 approval
 CP1 originally executed against via amendment 0): Workflow `2.5.0` —
 implementation review, review scalability, and post-v2.3.1 remediation.
-Full plan: `docs/ai-workflow/IMPLEMENTATION_REVIEW_TWO_STAGE_PLAN.md`.
+Full plan (archived): `docs/milestones/completed/IMPLEMENTATION_REVIEW_TWO_STAGE_PLAN.md`.
 
 ## Goal
 
@@ -25,6 +25,14 @@ Workflow tooling/process — no RepFlow product work, no Controller
 development.
 
 ## Current checkpoint
+
+**Milestone complete.** `implementation-review-two-stage` reached
+`MILESTONE_COMPLETE` via `/accept-milestone` after user-confirmed functional
+testing against the checklist below found no findings; `active_work_item_id`
+is cleared. The full checkpoint narrative below (CP1-CP13) is this
+milestone's own permanent record -- carried in this file rather than the
+requirements ledger, per the process note further down -- and is left in
+place rather than deleted.
 
 **CP1-CP13 complete** (`implementation-review-two-stage`, 13 checkpoints
 total -- every registry checkpoint is now `COMPLETE`). `complete_checkpoint`
@@ -895,27 +903,24 @@ None.
 
 ## Active plan
 
-`docs/ai-workflow/IMPLEMENTATION_REVIEW_TWO_STAGE_PLAN.md` (revision 41,
-plan approval `CURRENT`, both `LOCAL_MODEL_PLAN_REVIEW` (round 42) and
-`MANUAL_EXTERNAL_PLAN_REVIEW` (round 1) recorded `APPROVE`).
+None (milestone complete). Plan document archived to
+`docs/milestones/completed/IMPLEMENTATION_REVIEW_TWO_STAGE_PLAN.md`
+(revision 41, plan approval `CURRENT`, both `LOCAL_MODEL_PLAN_REVIEW`
+(round 42) and `MANUAL_EXTERNAL_PLAN_REVIEW` (round 1) recorded `APPROVE`).
+`/milestone-plan` records the plan document path on the work item's
+`WORKFLOW_STATE.json` entry when a new work item is created.
 
 ## Next action
 
-External implementation review (round 10) approved with no further
-findings; `/approve-review implementation` recorded `technical_approval` as
-`CURRENT`. The work item is now at `AWAITING_FUNCTIONAL_REVIEW`, a hard
-gate. This item is `"2.1"`-governed, so its own review lifecycle used the
-existing single-stage implementation-review gate throughout -- the
-two-stage protocol this milestone authors is `"2.2"`-only and applies to no
-work item that exists today; that protocol is exercised instead by the
-manual checklist below, against disposable repositories.
-
-Next: manual functional testing per the checklist below. Findings go to
-`.ai-review/feedback/FUNCTIONAL_REVIEW.md`; `/apply-functional-review`
-classifies and routes them. Once testing is clean and every checkpoint in
+`implementation-review-two-stage` reached `MILESTONE_COMPLETE`: functional
+review was clean (no findings) and every checkpoint in
 `docs/ai-workflow/registry/implementation-review-two-stage-registry.json`
-is `COMPLETE` (all 13 are), `/accept-milestone` is the only acceptance
-command.
+was `COMPLETE` (all 13); `/accept-milestone` recorded acceptance and cleared
+`active_work_item_id`.
+
+No successor milestone is queued yet. Run `/milestone-plan` to define and
+plan the next one; `docs/ROADMAP.md` does not exist in this repository, so
+there is no separate roadmap entry to advance.
 
 ## Functional review checklist
 
