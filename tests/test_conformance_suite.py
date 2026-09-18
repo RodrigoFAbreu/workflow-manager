@@ -43,6 +43,7 @@ the real `prepare-ai-review.sh` across 146 rows, twice per release.
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import re
 import subprocess
@@ -576,6 +577,37 @@ class TestAuthoredReleaseCiTemplateSuiteNames(unittest.TestCase):
                 self.assertEqual(named, set(CI_SUITES[version]))
 
 
+class TestAuthoredReleaseOverlayCommitIsReachable(unittest.TestCase):
+    """Missing-tests item carried from rounds 8 and 9
+    (`implementation-review-two-stage`): each authored release's own
+    `manifest.json` records `provenance.overlay_commit` -- the last
+    overlay-tree commit `build_release.py` composed from -- but nothing
+    checks it actually is one. `build_release.py --check` cannot catch a
+    dangling value here by construction (round 8/9's `B2`/round 10's `O1`
+    both found and fixed a real instance of exactly this): it feeds the
+    *recorded* `overlay_commit` back in as `now_commit`, so the
+    reproducibility check is never `HEAD`-sensitive and passes green
+    against a broken manifest. One line closes the gap: `git merge-base
+    --is-ancestor <recorded> HEAD` must exit zero."""
+
+    def test_overlay_commit_is_an_ancestor_of_head(self):
+        for version in _authored_release_versions():
+            with self.subTest(version=version):
+                manifest = json.loads(
+                    (REPO_ROOT / "distribution/workflow" / version / "manifest.json").read_text()
+                )
+                overlay_commit = manifest["provenance"]["overlay_commit"]
+                result = subprocess.run(
+                    ["git", "merge-base", "--is-ancestor", overlay_commit, "HEAD"],
+                    cwd=REPO_ROOT,
+                )
+                self.assertEqual(
+                    result.returncode, 0,
+                    f"{version}: recorded overlay_commit {overlay_commit!r} is not an "
+                    f"ancestor of HEAD",
+                )
+
+
 class TestOverlayStateWriterClosure(unittest.TestCase):
     """The `WFO-STATE-SERIALIZATION` closure-verifier gap (CP6's registry
     row): `scripts/workflow_state.py`'s own `discover_state_writers` only
@@ -646,6 +678,106 @@ class TestOverlayStateWriterClosure(unittest.TestCase):
         files = {p.relative_to(payload_root).as_posix() for p in self._surface_files(payload_root)}
         self.assertIn(".claude/commands/request-plan-amendment.md", files)
         self.assertIn("scripts/workflow_state.py", files)
+
+
+def _load_release_module(version: str, name: str):
+    """Load `name` (e.g. `"workflow_state"`) out of the *built*
+    `distribution/workflow/<version>/payload/scripts/` tree under a
+    version-qualified module name, never the bare name -- so a caller in
+    this same process can hold this release's copy of a module alongside
+    this repository's own `scripts/` copy (already cached under the bare
+    name by `TestOverlayStateWriterClosure.setUpClass` above) without one
+    shadowing the other. Always re-execs from source; never trusts
+    whatever a previous bare `import` may have already cached."""
+    scripts = REPO_ROOT / "distribution" / "workflow" / version / "payload" / "scripts"
+    if str(scripts) not in sys.path:
+        sys.path.insert(0, str(scripts))
+    qualified = f"_release_{version.replace('.', '_')}_{name}"
+    spec = importlib.util.spec_from_file_location(qualified, scripts / f"{name}.py")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[qualified] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+class TestReleaseMetadataVersionClaimCorpus250(unittest.TestCase):
+    """Round 10's `B1`: the corpus widening round 9 asked for
+    (`test_real_corpus_sweep_is_clean` in both
+    `GoverningVersionEnumerationSweepTest` and
+    `ApplyingReviewFeedbackVersionClaimSweepTest`,
+    `migration/overlays/2.5.0/payload/scripts/workflow_state_test.py`,
+    introduced by `29aaf24`) resolved `version_root` to `payload_root.parent`
+    -- correct only while the payload sits inside
+    `distribution/workflow/2.5.0/` or `migration/overlays/2.5.0/`, and
+    pointing *outside the repository* once the payload is installed, which
+    is the only context any automated run (`tests/support.py`'s
+    `run_suite`) actually uses. The widened corpus was therefore empty in
+    every real run and the guard never fired. That widening is reverted in
+    both copies of `workflow_state_test.py` (a payload test must never read
+    above `payload_root`); this class re-homes the guard here instead,
+    where `distribution/workflow/2.5.0/manifest.json` and
+    `migration/overlays/2.5.0/classification.json` are real, resolvable,
+    repository-side paths, and proves the corpus is genuinely non-empty
+    before trusting either sweep's `[]` result (this repository's own
+    `test_at_least_one_authored_overlay_is_present` pattern, applied here).
+
+    The sweep functions themselves (`sweep_governing_version_enumeration`,
+    `sweep_applying_review_feedback_version_claims`) exist only in
+    `2.5.0`'s own payload copy of `workflow_state.py`, not in this
+    repository's own `scripts/` (still `2.4.0`), so this class loads that
+    built copy directly by path rather than importing the repository's own
+    module -- and is itself named for the one release it applies to, like
+    `TestPortabilityExceptions250RequiredEmptyEntry` above."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.ws = _load_release_module("2.5.0", "workflow_state")
+        cls.manifest_path = REPO_ROOT / "distribution" / "workflow" / "2.5.0" / "manifest.json"
+        cls.classification_path = REPO_ROOT / "migration" / "overlays" / "2.5.0" / "classification.json"
+
+    def _corpus(self) -> dict[str, str]:
+        return {
+            str(cls_path): cls_path.read_text()
+            for cls_path in (self.manifest_path, self.classification_path)
+            if cls_path.is_file()
+        }
+
+    def test_corpus_is_not_empty(self):
+        # Precondition: both real files must actually contribute, or the
+        # sweeps below would pass vacuously over an empty corpus -- exactly
+        # `B1`'s own failure mode, guarded against rather than repeated.
+        texts = self._corpus()
+        self.assertIn(str(self.manifest_path), texts)
+        self.assertIn(str(self.classification_path), texts)
+
+    def test_manifest_and_classification_have_no_governing_version_enumeration(self):
+        findings = self.ws.sweep_governing_version_enumeration(self._corpus())
+        self.assertEqual(findings, [], [repr(f) for f in findings])
+
+    def test_manifest_and_classification_have_no_applying_review_feedback_version_claims(self):
+        findings = self.ws.sweep_applying_review_feedback_version_claims(self._corpus())
+        self.assertEqual(findings, [], [repr(f) for f in findings])
+
+
+class TestNoPayloadTestReadsAbovePayloadRoot(unittest.TestCase):
+    """Missing-tests item from round 10's `B1`: a payload test must never
+    resolve a path above its own `payload_root` -- once installed,
+    `payload_root` **is** the target repository root, and a second
+    `.parent` hop off it lands outside the repository entirely (exactly
+    `B1`'s own failure mode, reverted above). One static, repository-wide
+    lint over every overlay's own `payload/scripts/*_test.py`: none may
+    reference `payload_root.parent`, the shape that climb takes."""
+
+    def test_no_payload_test_climbs_above_payload_root(self):
+        offenders = []
+        for version, payload_root in _overlay_payload_roots():
+            scripts_dir = payload_root / "scripts"
+            if not scripts_dir.is_dir():
+                continue
+            for path in sorted(scripts_dir.glob("*_test.py")):
+                if "payload_root.parent" in path.read_text():
+                    offenders.append(f"{version}:{path.name}")
+        self.assertEqual(offenders, [], offenders)
 
 
 class TestPortabilityExceptions250RequiredEmptyEntry(unittest.TestCase):
