@@ -21,13 +21,13 @@
     {
       "pattern": "^\\.claude/commands/review-implementation\\.md$",
       "category": "distribution",
-      "rationale": "Gains a \"2.2\" authoritative branch (phase guard AWAITING_LOCAL_IMPLEMENTATION_REVIEW, ledger write plus phase transition on APPROVE/REVISE); the existing \"1\"/\"2.1\" advisory branch stays byte-unchanged (D-Implementation-Review-Stages, CP4). The authoritative branch's A6 write set additionally gains the same assert_feedback_not_owned_by_other_work_item ownership guard the advisory branch's own step 7 already runs immediately before its write, closing a gap the advisory branch never had (I3, round-2 finding). Preserves the base release's own distribution category for this path.",
+      "rationale": "Gains a \"2.2\" authoritative branch (phase guard AWAITING_LOCAL_IMPLEMENTATION_REVIEW, ledger write plus phase transition on APPROVE/REVISE); its existing \"1\"/\"2.1\" steps 1-8 stay byte-unchanged (D-Implementation-Review-Stages, CP4). The authoritative branch's A6 write set additionally gains the same assert_feedback_not_owned_by_other_work_item ownership guard the advisory branch's own step 7 already runs immediately before its write, closing a gap the advisory branch never had (I3, round-2 finding). Preserves the base release's own distribution category for this path.",
       "expected_kind": "replaced"
     },
     {
       "pattern": "^\\.claude/commands/apply-implementation-review\\.md$",
       "category": "distribution",
-      "rationale": "Gains a \"2.2\" branch: no enter_applying_review_feedback call; post-fix regeneration reaches AWAITING_LOCAL_IMPLEMENTATION_REVIEW via record_bundle_generation's own version-dependent resolver (D-Implementation-Review-Stages, CP4). Preserves the base release's own distribution category for this path.",
+      "rationale": "Gains a \"2.2\" branch: step 0's enter_applying_review_feedback entry becomes phase-conditional rather than version-conditional, skipped whenever phase is already APPLYING_REVIEW_FEEDBACK -- which the ordinary \"2.2\" REVISE loop always is -- and still called for a \"2.2\" item at the terminal AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW phase; post-fix regeneration reaches AWAITING_LOCAL_IMPLEMENTATION_REVIEW via record_bundle_generation's own version-dependent resolver (D-Implementation-Review-Stages, CP4). Preserves the base release's own distribution category for this path.",
       "expected_kind": "replaced"
     },
     {
