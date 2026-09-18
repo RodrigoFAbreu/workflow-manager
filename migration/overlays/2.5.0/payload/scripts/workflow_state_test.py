@@ -13577,27 +13577,11 @@ class GoverningVersionEnumerationSweepTest(unittest.TestCase):
         this milestone's own overlay does not own or replace -- which is a
         real gap, not a false negative, and is left for whichever future
         checkpoint widens this sweep's own corpus deliberately rather than
-        as an accidental side effect of an unrelated fix).
-
-        Round 9's `B1` (corpus-boundary fix, applied here for consistency
-        with its sibling sweep below): also includes this version's own two
-        generated/current-authority metadata files that carry free-form
-        rationale prose copied verbatim from authored sources -- the
-        release's own `manifest.json` and the overlay's own
-        `classification.json`. Each test file copy (overlay-authored and
-        distribution-built) resolves `version_root` to its own directory,
-        which holds exactly one of the two files at a time, so the same
-        glob finds the right one in both trees without a location branch.
-        This sweep finds 0 occurrences in either file today; it is added
-        here as a standing regression guard, not because either file
-        currently carries a stale governing-version claim."""
+        as an accidental side effect of an unrelated fix)."""
         overlay_root = Path(__file__).resolve().parent
         payload_root = overlay_root.parent
-        version_root = payload_root.parent
         paths = list((payload_root / ".claude" / "commands").glob("*.md")) + \
-            list((payload_root / "docs" / "ai-workflow").glob("*.md")) + \
-            list(version_root.glob("classification.json")) + \
-            list(version_root.glob("manifest.json"))
+            list((payload_root / "docs" / "ai-workflow").glob("*.md"))
         texts = {str(p): p.read_text() for p in paths}
         findings = ws.sweep_governing_version_enumeration(texts)
         self.assertEqual(findings, [], [repr(f) for f in findings])
@@ -13818,37 +13802,11 @@ class ApplyingReviewFeedbackVersionClaimSweepTest(unittest.TestCase):
         underlying claim is a separate question this sweep's cue set is not
         equipped to answer either way; it is not evidence for or against
         widening this test's own corpus, and is not relied on as such
-        (round 8's `B1`, correcting round 7's `O2`/this docstring).
-
-        **Round 9's `B1`, corpus-boundary fix.** Six consecutive rounds of
-        this sweep were payload-scoped only, so none of them ever looked at
-        this version's own generated/current-authority metadata -- the
-        release's own `manifest.json` and the overlay's own
-        `classification.json` -- even though both carry this exact cue
-        table's rationale prose copied verbatim from authored sources
-        (`build_release.py` copies `classification.json`'s `rationale`
-        field straight into `manifest.json`). Round 9's own instance was a
-        stale `apply-implementation-review.md` rationale in exactly those
-        two files, an exact cue hit the existing five-cue table already
-        matched -- a corpus gap, not a cue gap. The corpus now also
-        includes `version_root`'s own `classification.json`/`manifest.json`
-        (whichever one actually exists next to this test's own copy: the
-        overlay tree has the former, the built distribution tree the
-        latter), so a future recurrence of this same class in either file
-        is caught by this standing test rather than requiring a reviewer to
-        separately think to point the sweep at it. This corpus widening is
-        deliberate, not accidental -- unlike round 7's now-corrected claim
-        about the wider recursive run above, it does not extend to
-        `docs/ai-workflow/audit/`, `dry-run/`, or `requirements/`, which
-        stay out of scope for the reasons the sibling sweep's docstring
-        already gives."""
+        (round 8's `B1`, correcting round 7's `O2`/this docstring)."""
         overlay_root = Path(__file__).resolve().parent
         payload_root = overlay_root.parent
-        version_root = payload_root.parent
         paths = list((payload_root / ".claude" / "commands").glob("*.md")) + \
-            list((payload_root / "docs" / "ai-workflow").glob("*.md")) + \
-            list(version_root.glob("classification.json")) + \
-            list(version_root.glob("manifest.json"))
+            list((payload_root / "docs" / "ai-workflow").glob("*.md"))
         texts = {str(p): p.read_text() for p in paths}
         findings = ws.sweep_applying_review_feedback_version_claims(texts)
         self.assertEqual(findings, [], [repr(f) for f in findings])
