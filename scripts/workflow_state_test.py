@@ -2293,18 +2293,24 @@ class TestApprovalGateReachability(unittest.TestCase):
         self.assertFalse(ws.technical_approval_gate_reachable(
             latest_round_status="APPROVE", protected_path_dirty=True,
             head_matches_reviewed_implementation_head=True,
+            governing_workflow_version=None, implementation_review_stages=None,
+            current_review_content_id=None,
         ))
 
     def test_technical_gate_blocked_by_head_mismatch(self):
         self.assertFalse(ws.technical_approval_gate_reachable(
             latest_round_status="APPROVE", protected_path_dirty=False,
             head_matches_reviewed_implementation_head=False,
+            governing_workflow_version=None, implementation_review_stages=None,
+            current_review_content_id=None,
         ))
 
     def test_technical_gate_reachable_when_clean_and_matching(self):
         self.assertTrue(ws.technical_approval_gate_reachable(
             latest_round_status="REVISE", protected_path_dirty=False,
             head_matches_reviewed_implementation_head=True,
+            governing_workflow_version=None, implementation_review_stages=None,
+            current_review_content_id=None,
         ))
 
     def test_technical_gate_pinned_block_refuses_even_when_otherwise_reachable(self):
@@ -2315,6 +2321,8 @@ class TestApprovalGateReachability(unittest.TestCase):
         self.assertFalse(ws.technical_approval_gate_reachable(
             latest_round_status="APPROVE", protected_path_dirty=False,
             head_matches_reviewed_implementation_head=True, pinned_block=True,
+            governing_workflow_version=None, implementation_review_stages=None,
+            current_review_content_id=None,
         ))
 
     def test_technical_gate_pinned_block_defaults_false(self):
@@ -2323,6 +2331,8 @@ class TestApprovalGateReachability(unittest.TestCase):
         self.assertTrue(ws.technical_approval_gate_reachable(
             latest_round_status="REVISE", protected_path_dirty=False,
             head_matches_reviewed_implementation_head=True,
+            governing_workflow_version=None, implementation_review_stages=None,
+            current_review_content_id=None,
         ))
 
     def test_technical_gate_missing_or_block_feedback_never_reaches_regardless_of_other_conditions(self):
@@ -2339,10 +2349,14 @@ class TestApprovalGateReachability(unittest.TestCase):
         self.assertFalse(ws.technical_approval_gate_reachable(
             latest_round_status=None, protected_path_dirty=False,
             head_matches_reviewed_implementation_head=True,
+            governing_workflow_version=None, implementation_review_stages=None,
+            current_review_content_id=None,
         ))
         self.assertFalse(ws.technical_approval_gate_reachable(
             latest_round_status="BLOCK", protected_path_dirty=False,
             head_matches_reviewed_implementation_head=True,
+            governing_workflow_version=None, implementation_review_stages=None,
+            current_review_content_id=None,
         ))
 
     def test_technical_gate_reachable_for_first_pass_approve_round(self):
@@ -2359,6 +2373,8 @@ class TestApprovalGateReachability(unittest.TestCase):
         self.assertTrue(ws.technical_approval_gate_reachable(
             latest_round_status="APPROVE", protected_path_dirty=False,
             head_matches_reviewed_implementation_head=True,
+            governing_workflow_version=None, implementation_review_stages=None,
+            current_review_content_id=None,
         ))
 
     def test_v1_plan_gate_ignores_plan_review_stages(self):
@@ -5133,6 +5149,50 @@ class TestEnterApplyingReviewFeedback(unittest.TestCase):
         new_state = ws.enter_applying_review_feedback(state, "wi", now="t1")
         self.assertEqual(new_state["work_items"]["wi"]["phase"], "APPLYING_REVIEW_FEEDBACK")
 
+    def test_version_independent_escape_from_terminal_phase_for_22_item(self):
+        """Missing-tests item (I3, round 4): the writer itself never
+        checked `governing_workflow_version` -- only
+        `apply-implementation-review.md`'s own prose told the operator to
+        skip calling it for a `"2.2"` item. Pinning that a `"2.2"` item
+        which reached the terminal `AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW`
+        phase (both implementation-review stages already `APPROVE`d, then a
+        late fix is committed after `/approve-review implementation` closed
+        the gate) can still call this writer and land back in
+        `APPLYING_REVIEW_FEEDBACK` -- the escape the command file's
+        phase-conditional fix now actually exercises."""
+        wi = _v22_work_item(
+            phase="AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW",
+            implementation_review_stages={
+                "review_content_id": "c1",
+                "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {"bundle_id": "b1", "verdict": "APPROVE", "round": 1, "completed_at": "t0"},
+                "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": {"bundle_id": "b1", "verdict": "APPROVE", "round": 1, "completed_at": "t0"},
+            },
+        )
+        state = _base_state(wi=wi)
+        new_state = ws.enter_applying_review_feedback(state, "wi", now="t1")
+        self.assertEqual(new_state["work_items"]["wi"]["phase"], "APPLYING_REVIEW_FEEDBACK")
+
+    def test_refused_from_applying_review_feedback_phase_for_a_1_item(self):
+        """Missing-tests item (I2, round 5): the writer's own refusal from
+        `APPLYING_REVIEW_FEEDBACK` does not distinguish `governing_workflow_
+        version` at all -- `apply-implementation-review.md`'s step 0 is what
+        decides, by `phase` alone, never by version, whether to call this
+        writer. This pins the primitive's own half of that contract for a
+        `"1"` item explicitly: if the command were ever to call this writer
+        from `APPLYING_REVIEW_FEEDBACK` (the re-invocation case the prose's
+        phase-conditional skip instead avoids calling into for every
+        version), it still refuses -- exactly as the `"2.2"` escape test
+        above shows the same primitive firing successfully from the
+        terminal phase. Together the two tests show the primitive is
+        version-blind, so the skip a `"1"`/`"2.1"` re-invocation gets under
+        the new contract is a deliberate command-prose decision, not
+        something this function enforces."""
+        wi = _base_work_item(governing_workflow_version="1", phase="APPLYING_REVIEW_FEEDBACK")
+        state = _base_state(wi=wi)
+        with self.assertRaises(ws.IllegalApplyingReviewFeedbackEntryPhaseError) as ctx:
+            ws.enter_applying_review_feedback(state, "wi", now="t1")
+        self.assertIn("APPLYING_REVIEW_FEEDBACK", str(ctx.exception))
+
     def test_refused_from_illegal_source_phase(self):
         state = _base_state(wi=_base_work_item(phase="IMPLEMENTING"))
         with self.assertRaises(ws.IllegalApplyingReviewFeedbackEntryPhaseError) as ctx:
@@ -5398,6 +5458,8 @@ class TestImplementationProvenanceInterval(unittest.TestCase):
             self.assertTrue(ws.technical_approval_gate_reachable(
                 latest_round_status="APPROVE", protected_path_dirty=False,
                 head_matches_reviewed_implementation_head=head_matches,
+                governing_workflow_version=None, implementation_review_stages=None,
+                current_review_content_id=None,
             ))
 
     def test_one_excluded_commit_between_p_and_t_is_reachable(self):
@@ -6612,7 +6674,10 @@ class TestValidateTechnicalApprovalCommit(unittest.TestCase):
     own exhaustive field-mutation check, mirroring items 267/254's
     generation-record coverage for the technical-approval commit
     (`apply_technical_approval`'s own `{"technical_approval", "phase",
-    "state_revision", "last_transition"}` exact field set)."""
+    "state_revision", "last_transition"}` exact field set, widened
+    workflow-2.5.0 CP12 with `implementation_review_stages` -- see
+    `TestTechnicalApprovalCommitAdmitsImplementationReviewStagesResidue`
+    below for why)."""
 
     WI = "wi"
 
@@ -6729,6 +6794,82 @@ class TestValidateTechnicalApprovalCommit(unittest.TestCase):
             commit = _commit_state_only(repo, self.WI, phase_only, "phase only")
             with self.assertRaises(ws.MalformedTechnicalApprovalCommitError):
                 ws.validate_technical_approval_commit(repo.root, commit, self.WI)
+
+
+class TestTechnicalApprovalCommitAdmitsImplementationReviewStagesResidue(unittest.TestCase):
+    """workflow-2.5.0 CP12 (disposable-repository functional validation):
+    `TECHNICAL_APPROVAL_COMMIT_FIELDS`' own widening, found live -- not
+    hand-derived -- by CP12's own end-to-end `"2.2"` scenario, whose
+    `/review-implementation` (local) then `/record-manual-implementation-
+    review` (manual) rounds leave `implementation_review_stages` uncommitted
+    (neither writer creates its own durability commit -- see `review-
+    implementation.md`'s "2.2" authoritative branch step A6 and
+    `record-manual-implementation-review.md`'s identical shape) until the
+    very next commit, which for a `"2.2"` item's ordinary positive path is
+    always `/approve-review implementation`'s own technical-approval commit.
+    Before this widening, that commit's own field diff always included
+    `implementation_review_stages` and `validate_technical_approval_commit`
+    always refused it outright -- the mainline, first-round positive path
+    for *every* `"2.2"` item, not an edge case."""
+
+    WI = "wi"
+
+    def test_technical_approval_commit_with_ledger_residue_passes(self):
+        with ScratchRepo() as repo:
+            _seed_base_provenance_state(repo, self.WI)
+            parent_state = {
+                "work_item_id": self.WI, "work_item_type": "process",
+                "phase": "AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW",
+                "technical_approval": None, "state_revision": 5, "last_transition": "t5",
+                "implementation_review_stages": {
+                    "review_content_id": "c-1",
+                    "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {
+                        "bundle_id": "b-1", "verdict": "APPROVE", "round": 1, "completed_at": "t3",
+                    },
+                    "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": None,
+                },
+            }
+            _commit_state_only(repo, self.WI, parent_state, "parent")
+            # The manual-approve round's own ledger write, uncommitted --
+            # exactly the residue a real /record-manual-implementation-review
+            # invocation leaves behind, riding into the very next commit.
+            child_state = parent_state | {
+                "technical_approval": {"status": "CURRENT"},
+                "phase": "AWAITING_FUNCTIONAL_REVIEW", "state_revision": 6, "last_transition": "t6",
+                "implementation_review_stages": {
+                    **parent_state["implementation_review_stages"],
+                    "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": {
+                        "bundle_id": "b-1", "verdict": "APPROVE", "round": 1, "completed_at": "t6",
+                    },
+                },
+            }
+            commit = _commit_state_only(repo, self.WI, child_state, "technical approval")
+            ws.validate_technical_approval_commit(repo.root, commit, self.WI)  # must not raise
+
+    def test_a_1_or_21_item_never_carries_this_residue_so_the_widening_is_moot_for_it(self):
+        """Safety argument, made concrete: `"1"`/`"2.1"`'s own state
+        mutators never write `implementation_review_stages` at all, so
+        widening this set can never let a genuinely unrelated field slip
+        through for them -- the field is simply always absent from their
+        own diffs."""
+        with ScratchRepo() as repo:
+            _seed_base_provenance_state(repo, self.WI)
+            parent_state = {
+                "work_item_id": self.WI, "work_item_type": "process",
+                "phase": "AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW",
+                "technical_approval": None, "state_revision": 5, "last_transition": "t5",
+            }
+            _commit_state_only(repo, self.WI, parent_state, "parent")
+            child_state = parent_state | {
+                "technical_approval": {"status": "CURRENT"},
+                "phase": "AWAITING_FUNCTIONAL_REVIEW", "state_revision": 6, "last_transition": "t6",
+            }
+            commit = _commit_state_only(repo, self.WI, child_state, "technical approval")
+            ws.validate_technical_approval_commit(repo.root, commit, self.WI)  # must not raise
+            self.assertNotIn(
+                "implementation_review_stages",
+                ws._work_item_field_diff(repo.root, commit, self.WI),
+            )
 
 
 class TestApplyImplementationProvenanceRecovery(unittest.TestCase):
@@ -10140,12 +10281,21 @@ def _persisted_phase_writers() -> dict[str, set[str]]:
     `workflow_state.py`'s own AST, never from a hand-maintained list, so a
     new writer (or a removed one) moves this census by construction.
 
-    Recognizes the two shapes the module uses: a direct
-    `<subject>["phase"] = "<CONST>"` assignment, and a `"phase": "<CONST>"`
-    entry in a dict literal (`default_work_item`'s fresh-item shape). A
-    constant bound to a local name first (`publish_plan_revision`'s
-    `target_phase`) is resolved through that binding, so its two
-    version-keyed targets are counted rather than lost as "dynamic"."""
+    Recognizes the three shapes the module uses: a direct
+    `<subject>["phase"] = "<CONST>"` assignment, a `"phase": "<CONST>"`
+    entry in a dict literal (`default_work_item`'s fresh-item shape), and
+    a call to a module-level *resolver function* whose own body returns
+    only string constants (`record_bundle_generation`'s
+    `bundle_generation_target_phase(stage, governing_workflow_version)`,
+    workflow-2.5.0 CP3) -- every such literal `return "<CONST>"` in the
+    resolver's own body is counted as one of its possible outputs,
+    resolved through the call exactly like a constant bound to a local
+    name first (`publish_plan_revision`'s `target_phase`) is resolved
+    through that binding -- so a version-keyed resolver's targets are
+    counted rather than lost as "dynamic", whether it branches via
+    if/elif-bound locals (`publish_plan_revision`) or via a separate,
+    reusable resolver function called from the assignment site
+    (`record_bundle_generation`)."""
     tree = ast.parse(Path(ws.__file__).read_text())
     writers: dict[str, set[str]] = {}
 
@@ -10156,6 +10306,23 @@ def _persisted_phase_writers() -> dict[str, set[str]]:
         if isinstance(node, ast.Constant) and isinstance(node.value, str):
             return node.value
         return None
+
+    # Module-level resolver functions: name -> every string constant any
+    # `return` statement in its own body yields, directly or (recursively)
+    # through an `if`/`elif`/`else` chain -- never following a call to
+    # *another* function, only literal returns of its own.
+    resolver_returns: dict[str, set[str]] = {}
+    for node in tree.body:
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        literals: set[str] = set()
+        for inner in ast.walk(node):
+            if isinstance(inner, ast.Return) and inner.value is not None:
+                literal = const_str(inner.value)
+                if literal is not None:
+                    literals.add(literal)
+        if literals:
+            resolver_returns[node.name] = literals
 
     for fn in ast.walk(tree):
         if not isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -10180,6 +10347,13 @@ def _persisted_phase_writers() -> dict[str, set[str]]:
                         record(value, fn.name)
                     elif isinstance(node.value, ast.Name):
                         for candidate in local_consts.get(node.value.id, ()):
+                            record(candidate, fn.name)
+                    elif (
+                        isinstance(node.value, ast.Call)
+                        and isinstance(node.value.func, ast.Name)
+                        and node.value.func.id in resolver_returns
+                    ):
+                        for candidate in resolver_returns[node.value.func.id]:
                             record(candidate, fn.name)
                     else:  # pragma: no cover -- guarded by the test below
                         record(f"<unresolved:{ast.unparse(node.value)}>", fn.name)
@@ -10207,15 +10381,24 @@ class TestPersistedPhaseWriterCensus(unittest.TestCase):
     are now checked against. It fails if a phase gains or loses a writer,
     which is exactly when those documents need re-checking."""
 
-    #: The four phases `KNOWN_PHASES` declares that nothing persists.
-    #: Narrative/compatibility vocabulary only -- three of them are named
-    #: by `MILESTONE_WORKFLOW.md`'s v1 state list, and
+    #: The phases `KNOWN_PHASES` declares that nothing persists.
+    #: Narrative/compatibility vocabulary only -- three of the original
+    #: four are named by `MILESTONE_WORKFLOW.md`'s v1 state list, and
     #: `AWAITING_TECHNICAL_APPROVAL`/`AWAITING_PLAN_APPROVAL` have
     #: *computed reachability* predicates
     #: (`technical_approval_gate_reachable`/`plan_approval_gate_reachable`)
     #: instead; `AWAITING_PLAN_APPROVAL` happens to also be persisted (by
     #: `record_manual_plan_review`) and `AWAITING_TECHNICAL_APPROVAL` is
     #: not, which is precisely the asymmetry the documents flattened.
+    #:
+    #: workflow-2.5.0 CP2 added `AWAITING_LOCAL_IMPLEMENTATION_REVIEW`/
+    #: `AWAITING_MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW` to `KNOWN_PHASES`
+    #: (D-Implementation-Review-Stages) ahead of their own writers. CP3
+    #: is where `bundle_generation_target_phase`'s version-dependent
+    #: resolver (called from `record_bundle_generation`) and
+    #: `record_local_implementation_review`/`record_manual_implementation_review`
+    #: actually persist them, so this census shrinks by two here -- both
+    #: moved to `EXPECTED_WRITERS` below.
     DECLARED_BUT_UNWRITTEN = frozenset({
         "SELF_REVIEWING_PLAN",
         "AWAITING_TECHNICAL_APPROVAL",
@@ -10236,8 +10419,20 @@ class TestPersistedPhaseWriterCensus(unittest.TestCase):
         "SELF_REVIEWING_IMPLEMENTATION": {
             "complete_checkpoint", "enter_self_reviewing_implementation",
         },
-        "AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW": {"record_bundle_generation"},
-        "APPLYING_REVIEW_FEEDBACK": {"enter_applying_review_feedback"},
+        # workflow-2.5.0 CP3: record_bundle_generation's own phase write is
+        # now the version-dependent bundle_generation_target_phase(stage,
+        # governing_workflow_version) resolver -- its two possible outputs
+        # are both counted against record_bundle_generation, exactly like
+        # publish_plan_revision's own two version-keyed literals above.
+        "AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW": {
+            "record_bundle_generation", "record_manual_implementation_review",
+        },
+        "AWAITING_LOCAL_IMPLEMENTATION_REVIEW": {"record_bundle_generation"},
+        "AWAITING_MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": {"record_local_implementation_review"},
+        "APPLYING_REVIEW_FEEDBACK": {
+            "enter_applying_review_feedback", "record_local_implementation_review",
+            "record_manual_implementation_review",
+        },
         "AWAITING_FUNCTIONAL_REVIEW": {"apply_technical_approval", "promote_legacy_work_item"},
         "MILESTONE_COMPLETE": {"complete_work_item"},
         "LEGACY_READY": {"import_legacy_work_item"},
@@ -10263,7 +10458,7 @@ class TestPersistedPhaseWriterCensus(unittest.TestCase):
     def test_every_written_phase_is_a_known_phase(self):
         self.assertTrue(set(_persisted_phase_writers()).issubset(ws.KNOWN_PHASES))
 
-    def test_exactly_four_known_phases_are_declared_but_never_written(self):
+    def test_exactly_six_known_phases_are_declared_but_never_written(self):
         unwritten = ws.KNOWN_PHASES - set(_persisted_phase_writers())
         self.assertEqual(unwritten, self.DECLARED_BUT_UNWRITTEN)
 
@@ -11723,6 +11918,2588 @@ class TestApplyPlanApprovalAmendmentBranch(unittest.TestCase):
                 pre_registry=pre_registry, pre_plan_text=pre_text,
                 post_registry=post_registry, post_plan_text=post_text,
             )
+
+
+class ReviewMaterialLifecycleMarkerTest(unittest.TestCase):
+    """`workflow-2.5.0` CP1's canonical review-material-lifecycle marker:
+    the sole representation `D-Review-Material-Lifecycle` (a later
+    `workflow-2.5.0` design section) imports and reuses, never
+    re-derived. See `docs/ai-workflow/WORKFLOW_V2_PLAN.md`'s
+    `D-Implementation-Review-Stages` `2.5.0 disposition record`
+    subsection."""
+
+    def test_render_marker_exact_bytes(self):
+        self.assertEqual(
+            ws.render_marker("HISTORICAL"),
+            "<!-- review-material-lifecycle: HISTORICAL -->",
+        )
+        self.assertEqual(
+            ws.render_marker("CURRENT"),
+            "<!-- review-material-lifecycle: CURRENT -->",
+        )
+
+    def test_render_marker_rejects_third_state(self):
+        with self.assertRaises(ValueError):
+            ws.render_marker("WEIRD")
+
+    def test_parse_marker_roundtrips_render_marker_output(self):
+        for state in ws.REVIEW_MATERIAL_LIFECYCLE_STATES:
+            self.assertEqual(ws.parse_marker(ws.render_marker(state)), state)
+
+    def test_parse_marker_explicit_current_distinct_from_absent(self):
+        # An explicit CURRENT marker parses to "CURRENT", the same value
+        # the fail-closed default also produces for absent/malformed
+        # input -- these are two different code paths a caller must not
+        # conflate (this test only pins parse_marker's own return value
+        # for each; the already-marked-nested-unit and marker-presence
+        # fixtures D-Review-Material-Lifecycle names cover the caller-side
+        # distinction).
+        self.assertEqual(ws.parse_marker(ws.render_marker("CURRENT")), "CURRENT")
+        self.assertIsNone(ws.parse_marker("no marker in this text at all"))
+
+    def test_parse_marker_rejects_malformed_forms(self):
+        historical = ws.render_marker("HISTORICAL")
+        self.assertIsNone(ws.parse_marker(""))
+        self.assertIsNone(ws.parse_marker("<!-- review-material-lifecycle: HISTORICAL -"))
+        self.assertIsNone(ws.parse_marker("<!-- review-material-lifecycle: HISTORICALLY -->"))
+        self.assertIsNone(ws.parse_marker("<!-- review-material-lifecycle: THIRD_STATE -->"))
+        # Duplicated marker text in the same field is ambiguous, not two
+        # independent HISTORICAL findings -- rejected, never averaged or
+        # first-wins.
+        self.assertIsNone(ws.parse_marker(historical + "\n" + historical))
+
+    def test_parse_marker_accepts_marker_embedded_in_surrounding_prose(self):
+        text = f"Some heading\n\n{ws.render_marker('HISTORICAL')}\n\nSome body text."
+        self.assertEqual(ws.parse_marker(text), "HISTORICAL")
+
+
+# ---------------------------------------------------------------------------
+# workflow-2.5.0 CP2: KNOWN_PHASES additions, generalized WF-Activate
+# helpers for a "2.2" target, the version-aware activation/rollback event
+# model, TWO_STAGE_PLAN_REVIEW_VERSIONS' plan-review-gate inheritance
+# widening, and implementation_review_stages' normalize/read plumbing.
+# ---------------------------------------------------------------------------
+
+
+class TestKnownPhases22Additions(unittest.TestCase):
+    def test_the_two_new_implementation_review_phases_are_known(self):
+        self.assertIn("AWAITING_LOCAL_IMPLEMENTATION_REVIEW", ws.KNOWN_PHASES)
+        self.assertIn("AWAITING_MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW", ws.KNOWN_PHASES)
+
+    def test_a_work_item_may_be_persisted_at_either_new_phase(self):
+        for phase in ("AWAITING_LOCAL_IMPLEMENTATION_REVIEW", "AWAITING_MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW"):
+            wi = _base_work_item(governing_workflow_version="2.1", phase=phase)
+            ws.validate_state(_base_state(wi=wi))  # must not raise
+
+
+class TestActivationHelpersGeneralizedTargetVersion(unittest.TestCase):
+    """`build_activated_config`/`build_rolled_back_config` generalized to a
+    `target_version` parameter (default `"2.1"`, preserving the original
+    `"1"` <-> `"2.1"` call shape byte-for-byte) rather than the prior
+    hard-coded `"2.1"` literal."""
+
+    def test_default_target_version_still_flips_only_default_workflow_version(self):
+        """Regression: the pre-2.5.0 call shape (no target_version) must
+        keep behaving exactly as before -- `supported_versions` already
+        contains "2.1", so activating leaves it byte-unchanged."""
+        config = ws.default_config()
+        activated = ws.build_activated_config(config)
+        self.assertEqual(activated["default_workflow_version"], "2.1")
+        self.assertEqual(activated["supported_versions"], config["supported_versions"])
+        self.assertEqual(config["default_workflow_version"], "1")  # input untouched
+
+    def test_default_target_version_rollback_still_flips_to_v1(self):
+        config = {**ws.default_config(), "default_workflow_version": "2.1"}
+        rolled_back = ws.build_rolled_back_config(config)
+        self.assertEqual(rolled_back["default_workflow_version"], "1")
+
+    def test_activate_2_2_appends_to_supported_versions(self):
+        config = {**ws.default_config(), "default_workflow_version": "2.1"}
+        activated = ws.build_activated_config(config, target_version="2.2")
+        self.assertEqual(activated["default_workflow_version"], "2.2")
+        self.assertEqual(activated["supported_versions"], ["1", "2.1", "2.2"])
+        self.assertEqual(config["default_workflow_version"], "2.1")  # input untouched
+
+    def test_activate_2_2_is_idempotent_on_supported_versions_if_already_present(self):
+        config = {
+            "schema_version": ws.SCHEMA_VERSION,
+            "default_workflow_version": "2.1",
+            "supported_versions": ["1", "2.1", "2.2"],
+        }
+        activated = ws.build_activated_config(config, target_version="2.2")
+        self.assertEqual(activated["supported_versions"], ["1", "2.1", "2.2"])
+
+    def test_activate_2_2_rejects_already_activated(self):
+        config = {**ws.default_config(), "default_workflow_version": "2.2"}
+        with self.assertRaises(ws.AlreadyActivatedError):
+            ws.build_activated_config(config, target_version="2.2")
+
+    def test_activate_rejects_unsupported_target_version(self):
+        with self.assertRaises(ValueError):
+            ws.build_activated_config(ws.default_config(), target_version="3")
+
+    def test_rollback_2_2_flips_back_to_2_1_never_a_fixed_1_literal(self):
+        """The rollback destination is the version activation superseded,
+        not a fixed "1" literal: "2.2" rolls back to "2.1", never to "1"."""
+        config = {**ws.default_config(), "default_workflow_version": "2.2",
+                  "supported_versions": ["1", "2.1", "2.2"]}
+        rolled_back = ws.build_rolled_back_config(config, target_version="2.2")
+        self.assertEqual(rolled_back["default_workflow_version"], "2.1")
+
+    def test_rollback_2_2_does_not_remove_2_2_from_supported_versions(self):
+        config = {**ws.default_config(), "default_workflow_version": "2.2",
+                  "supported_versions": ["1", "2.1", "2.2"]}
+        rolled_back = ws.build_rolled_back_config(config, target_version="2.2")
+        self.assertEqual(rolled_back["supported_versions"], ["1", "2.1", "2.2"])
+
+    def test_rollback_2_2_rejects_not_activated(self):
+        config = {**ws.default_config(), "default_workflow_version": "2.1"}
+        with self.assertRaises(ws.NotActivatedError):
+            ws.build_rolled_back_config(config, target_version="2.2")
+
+    def test_activate_then_rollback_2_2_then_2_1_reaches_v1(self):
+        config = ws.default_config()
+        activated_2_1 = ws.build_activated_config(config)
+        activated_2_2 = ws.build_activated_config(activated_2_1, target_version="2.2")
+        rolled_back_to_2_1 = ws.build_rolled_back_config(activated_2_2, target_version="2.2")
+        self.assertEqual(rolled_back_to_2_1["default_workflow_version"], "2.1")
+        rolled_back_to_1 = ws.build_rolled_back_config(rolled_back_to_2_1)
+        self.assertEqual(rolled_back_to_1["default_workflow_version"], "1")
+
+
+class TestVersionAwareActivationEventModel(unittest.TestCase):
+    """`find_latest_activation_event`/`is_activated` read each event's own
+    resolved destination version rather than a binary activated/not-
+    activated trailer-kind check."""
+
+    def test_is_activated_true_after_workflow_activation_2_2(self):
+        with ScratchRepo() as repo:
+            repo.commit("activate 2.2", trailers={"Workflow-Activation": "2.2"})
+            self.assertTrue(ws.is_activated(repo.root))
+
+    def test_load_config_raises_and_names_2_2_after_activation_2_2_missing_config(self):
+        with ScratchRepo() as repo:
+            repo.commit("activate 2.2", trailers={"Workflow-Activation": "2.2"})
+            with self.assertRaises(ws.ConfigMissingAfterActivationError) as ctx:
+                ws.load_config(repo.root, config_path=Path("nonexistent.json"))
+            self.assertIn("Workflow 2.2", str(ctx.exception))
+
+    def test_blank_activation_trailer_value_reports_activated_true(self):
+        """Missing-tests item (round 2 of round 1's own O3): activation-side
+        twin of `test_unresolvable_rollback_trailer_value_reports_activated_
+        bare` below -- `_activation_event_description`'s branch selection
+        moved from `is not None` to truthiness, plus a trailer-name split,
+        so a blank `Workflow-Activation` trailer (`destination_version ==
+        ""`, falsy but not `None`) must still resolve fail-closed as
+        activated, never fall through to not-activated."""
+        with ScratchRepo() as repo:
+            repo.commit("activate bare", trailers={"Workflow-Activation": ""})
+            self.assertTrue(ws.is_activated(repo.root))
+
+    def test_load_config_names_blank_activation_trailer_value_verbatim(self):
+        """The blank trailer's own raw value (`''`) is named verbatim in the
+        recovery message, never `"Workflow ''"` -- `_activation_event_
+        description`'s unresolvable-miss branch, not its resolved-
+        destination branch."""
+        with ScratchRepo() as repo:
+            repo.commit("activate bare", trailers={"Workflow-Activation": ""})
+            with self.assertRaises(ws.ConfigMissingAfterActivationError) as ctx:
+                ws.load_config(repo.root, config_path=Path("nonexistent.json"))
+            message = str(ctx.exception)
+            self.assertIn("an unresolvable Workflow-Activation trailer value ''", message)
+            self.assertNotIn("Workflow ''", message)
+
+    def test_workflow_activation_1_trailer_resolves_activated_true(self):
+        """Missing-tests item (I2): the activation-direction twin of
+        `test_a_typo_d_rollback_trailer_value_resolves_activated_fail_closed`
+        above and of the round-2 blank-activation-trailer pair just above --
+        `Workflow-Activation: 1` is the one trailer value a naive
+        `destination_version != "1"` reading answers differently from
+        `2.4.0`'s own binary `kind == "activation"` check, which reports
+        activated for every activation trailer value. The activation
+        direction must stay fail-closed like every other direction: only a
+        *resolved rollback* destination may ever report not-activated."""
+        with ScratchRepo() as repo:
+            repo.commit("activate one", trailers={"Workflow-Activation": "1"})
+            self.assertTrue(ws.is_activated(repo.root))
+
+    def test_rollback_2_1_still_resolves_not_activated(self):
+        """Reproduces today's binary behavior exactly at the boundary it
+        already covers."""
+        with ScratchRepo() as repo:
+            repo.commit("activate", trailers={"Workflow-Activation": "2.1"})
+            repo.commit("rollback", trailers={"Workflow-Rollback": "2.1"})
+            self.assertFalse(ws.is_activated(repo.root))
+            config = ws.load_config(repo.root, config_path=Path("nonexistent.json"))
+            self.assertEqual(config["default_workflow_version"], "1")
+
+    def test_rollback_2_2_still_resolves_activated(self):
+        """A Workflow-Rollback: 2.2 commit resolves to destination "2.1",
+        which is still activated -- the repository is still "2.1"-
+        configured and ConfigMissingAfterActivationError's hard stop must
+        stay armed. Left binary, this would silently disarm."""
+        with ScratchRepo() as repo:
+            repo.commit("activate 2.2", trailers={"Workflow-Activation": "2.2"})
+            repo.commit("rollback 2.2", trailers={"Workflow-Rollback": "2.2"})
+            self.assertTrue(ws.is_activated(repo.root))
+
+    def test_load_config_missing_config_behavior_unchanged_after_rollback_2_2(self):
+        with ScratchRepo() as repo:
+            repo.commit("activate 2.2", trailers={"Workflow-Activation": "2.2"})
+            repo.commit("rollback 2.2", trailers={"Workflow-Rollback": "2.2"})
+            with self.assertRaises(ws.ConfigMissingAfterActivationError) as ctx:
+                ws.load_config(repo.root, config_path=Path("nonexistent.json"))
+            self.assertIn("Workflow 2.1", str(ctx.exception))
+
+    def test_unresolvable_rollback_trailer_value_reports_activated_bare(self):
+        """Rollback-trailer-value miss resolves fail-closed: a bare/empty
+        value never silently falls through to not-activated."""
+        with ScratchRepo() as repo:
+            repo.commit("rollback bare", trailers={"Workflow-Rollback": ""})
+            self.assertTrue(ws.is_activated(repo.root))
+
+    def test_unresolvable_rollback_trailer_value_reports_activated_unknown_version(self):
+        with ScratchRepo() as repo:
+            repo.commit("rollback unknown", trailers={"Workflow-Rollback": "2.9"})
+            self.assertTrue(ws.is_activated(repo.root))
+
+    def test_unresolvable_rollback_trailer_never_raises_keyerror(self):
+        with ScratchRepo() as repo:
+            repo.commit("rollback unknown", trailers={"Workflow-Rollback": "2.9"})
+            # Must resolve cleanly, never raise -- fail-closed as
+            # activated, not a bare uncaught KeyError.
+            ws.is_activated(repo.root)
+
+    def test_load_config_names_unresolvable_rollback_trailer_value_verbatim(self):
+        with ScratchRepo() as repo:
+            repo.commit("rollback unknown", trailers={"Workflow-Rollback": "2.9"})
+            with self.assertRaises(ws.ConfigMissingAfterActivationError) as ctx:
+                ws.load_config(repo.root, config_path=Path("nonexistent.json"))
+            self.assertIn("2.9", str(ctx.exception))
+
+    def test_find_latest_activation_event_resolves_activation_destination_directly(self):
+        with ScratchRepo() as repo:
+            commit = repo.commit("activate 2.2", trailers={"Workflow-Activation": "2.2"})
+            event = ws.find_latest_activation_event(repo.root)
+            self.assertEqual(event, ("activation", "2.2", commit))
+
+    def test_find_latest_activation_event_resolves_rollback_destination_via_mapping(self):
+        with ScratchRepo() as repo:
+            commit = repo.commit("rollback 2.2", trailers={"Workflow-Rollback": "2.2"})
+            event = ws.find_latest_activation_event(repo.root)
+            self.assertEqual(event, ("rollback", "2.1", commit))
+
+    def test_find_latest_activation_event_destination_none_for_unresolvable_rollback(self):
+        with ScratchRepo() as repo:
+            commit = repo.commit("rollback unknown", trailers={"Workflow-Rollback": "2.9"})
+            event = ws.find_latest_activation_event(repo.root)
+            self.assertEqual(event, ("rollback", None, commit))
+
+
+class TestTwoStagePlanReviewVersionsInheritance(unittest.TestCase):
+    """`TWO_STAGE_PLAN_REVIEW_VERSIONS = {"2.1", "2.2"}` replaces the exact
+    `governing_workflow_version == "2.1"` literal at every plan-review gate
+    site -- parametrized over ("1", "2.1", "2.2"), pinning that "1" and
+    "2.1" stay byte-unchanged."""
+
+    def test_publish_plan_revision_target_phase_per_version(self):
+        expected = {
+            "1": "AWAITING_EXTERNAL_PLAN_REVIEW",
+            "2.1": "AWAITING_LOCAL_PLAN_REVIEW",
+            "2.2": "AWAITING_LOCAL_PLAN_REVIEW",
+        }
+        for version, target_phase in expected.items():
+            with self.subTest(version=version):
+                wi = _base_work_item(governing_workflow_version=version, phase="PLANNING", plan_revision=1)
+                new_state = ws.publish_plan_revision(_base_state(wi=wi), "wi", 2, "t1")
+                self.assertEqual(new_state["work_items"]["wi"]["phase"], target_phase)
+
+    def test_publish_plan_revision_rejects_unsupported_version(self):
+        wi = _base_work_item(governing_workflow_version="3", phase="PLANNING", plan_revision=1)
+        with self.assertRaises(ws.UnsupportedGoverningVersionError):
+            ws.publish_plan_revision(_base_state(wi=wi), "wi", 2, "t1")
+
+    def test_plan_approval_gate_reachable_per_version(self):
+        # "1": the shared rule alone, no ledger involved.
+        self.assertTrue(ws.plan_approval_gate_reachable(
+            latest_round_status="APPROVE", governing_workflow_version="1",
+            plan_review_stages=None, current_review_content_id="c1",
+        ))
+        # "2.1"/"2.2": both stages must be recorded APPROVE against the
+        # current review_content_id.
+        stages = {
+            "review_content_id": "c1",
+            ws.LOCAL_MODEL_PLAN_REVIEW: {"bundle_id": "b", "verdict": "APPROVE", "round": 1, "completed_at": "t"},
+            ws.MANUAL_EXTERNAL_PLAN_REVIEW: {"bundle_id": "b", "verdict": "APPROVE", "round": 1, "completed_at": "t"},
+        }
+        for version in ("2.1", "2.2"):
+            with self.subTest(version=version):
+                self.assertTrue(ws.plan_approval_gate_reachable(
+                    latest_round_status="APPROVE", governing_workflow_version=version,
+                    plan_review_stages=stages, current_review_content_id="c1",
+                ))
+                self.assertFalse(ws.plan_approval_gate_reachable(
+                    latest_round_status="APPROVE", governing_workflow_version=version,
+                    plan_review_stages=None, current_review_content_id="c1",
+                ))
+
+    def test_validate_local_plan_review_preconditions_accepts_2_2(self):
+        wi = _base_work_item(governing_workflow_version="2.2", phase="AWAITING_LOCAL_PLAN_REVIEW")
+        ws.validate_local_plan_review_preconditions(wi)  # must not raise
+
+    def test_record_local_plan_review_rejects_wrong_version_1(self):
+        wi = _base_work_item(governing_workflow_version="1", phase="AWAITING_LOCAL_PLAN_REVIEW")
+        with self.assertRaises(ws.WrongGoverningVersionForPlanReviewStageError):
+            ws.record_local_plan_review(
+                _base_state(wi=wi), "wi", verdict="APPROVE", bundle_id="b1",
+                review_content_id="c1", round=1, now="t1",
+            )
+
+    def test_record_local_plan_review_accepts_2_2(self):
+        wi = _base_work_item(governing_workflow_version="2.2", phase="AWAITING_LOCAL_PLAN_REVIEW")
+        new_state = ws.record_local_plan_review(
+            _base_state(wi=wi), "wi", verdict="APPROVE", bundle_id="b1",
+            review_content_id="c1", round=1, now="t1",
+        )
+        self.assertEqual(new_state["work_items"]["wi"]["phase"], "AWAITING_MANUAL_EXTERNAL_PLAN_REVIEW")
+
+    def test_validate_plan_review_stages_per_version(self):
+        stages = {
+            "review_content_id": "c1",
+            ws.LOCAL_MODEL_PLAN_REVIEW: {"bundle_id": "b", "verdict": "APPROVE", "round": 1, "completed_at": "t"},
+            ws.MANUAL_EXTERNAL_PLAN_REVIEW: None,
+        }
+        for version in ("2.1", "2.2"):
+            with self.subTest(version=version):
+                wi = _base_work_item(governing_workflow_version=version, plan_review_stages=stages)
+                ws.validate_state(_base_state(wi=wi))  # must not raise
+        wi = _base_work_item(governing_workflow_version="1", plan_review_stages=stages)
+        with self.assertRaises(ws.PlanReviewStagesInvalidForVersionError):
+            ws.validate_state(_base_state(wi=wi))
+
+    def test_transition_to_awaiting_local_plan_review_works_for_2_2(self):
+        wi = _base_work_item(governing_workflow_version="2.2", phase="REVISING_PLAN")
+        new_state = ws.transition_to_awaiting_local_plan_review(_base_state(wi=wi), "wi", "t1")
+        self.assertEqual(new_state["work_items"]["wi"]["phase"], "AWAITING_LOCAL_PLAN_REVIEW")
+
+
+class TestImplementationReviewStagesLedgerPlumbing(unittest.TestCase):
+    """`implementation_review_stages` normalize/read helpers, mirroring
+    `normalize_plan_review_stages`/`_validate_plan_review_stages`."""
+
+    def test_normalize_passes_through_canonical_keys_and_review_content_id(self):
+        stages = {
+            "review_content_id": "c1",
+            ws.LOCAL_MODEL_IMPLEMENTATION_REVIEW: {"verdict": "APPROVE"},
+            ws.MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW: None,
+        }
+        self.assertEqual(ws.normalize_implementation_review_stages(stages), stages)
+
+    def test_normalize_key_helper_is_the_identity_mapping_today(self):
+        """No legacy lowercase variant has ever existed for this ledger
+        (unlike `plan_review_stages`), so `_normalize_implementation_
+        review_stage_key` is the identity function today -- and therefore
+        `AmbiguousImplementationReviewStageKeyError` is unreachable through
+        any two distinct raw keys a real caller could ever pass (two
+        distinct dict keys can never both equal the same canonical name
+        while the mapping is the identity). This test pins that identity
+        mapping directly, since a genuine-conflict fixture cannot be
+        constructed without it changing."""
+        for key in (ws.LOCAL_MODEL_IMPLEMENTATION_REVIEW, ws.MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW, "review_content_id"):
+            self.assertEqual(ws._normalize_implementation_review_stage_key(key), key)
+
+    def test_normalize_never_raises_on_ordinary_canonical_input(self):
+        stages = {ws.LOCAL_MODEL_IMPLEMENTATION_REVIEW: {"v": 1}, ws.MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW: {"v": 2}}
+        ws.normalize_implementation_review_stages(stages)  # must not raise
+
+    def test_validate_implementation_review_stages_none_is_fine_for_any_version(self):
+        for version in ("1", "2.1", "2.2"):
+            wi = _base_work_item(governing_workflow_version=version)
+            wi["implementation_review_stages"] = None
+            ws.validate_state(_base_state(wi=wi))  # must not raise
+
+    def test_validate_implementation_review_stages_wrong_version_rejected(self):
+        for version in ("1", "2.1"):
+            with self.subTest(version=version):
+                wi = _base_work_item(governing_workflow_version=version)
+                wi["implementation_review_stages"] = {
+                    "review_content_id": "c1",
+                    ws.LOCAL_MODEL_IMPLEMENTATION_REVIEW: None,
+                    ws.MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW: None,
+                }
+                with self.assertRaises(ws.ImplementationReviewStagesInvalidForVersionError):
+                    ws.validate_state(_base_state(wi=wi))
+
+    def test_validate_implementation_review_stages_manual_without_local_rejected(self):
+        wi = _base_work_item(governing_workflow_version="2.2")
+        wi["implementation_review_stages"] = {
+            "review_content_id": "c1",
+            ws.LOCAL_MODEL_IMPLEMENTATION_REVIEW: None,
+            ws.MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW: {"bundle_id": "b", "verdict": "APPROVE", "round": 1, "completed_at": "t"},
+        }
+        with self.assertRaises(ws.ManualImplementationStageWithoutLocalStageError):
+            ws.validate_state(_base_state(wi=wi))
+
+    def test_validate_implementation_review_stages_non_approve_verdict_rejected(self):
+        wi = _base_work_item(governing_workflow_version="2.2")
+        wi["implementation_review_stages"] = {
+            "review_content_id": "c1",
+            ws.LOCAL_MODEL_IMPLEMENTATION_REVIEW: {"bundle_id": "b", "verdict": "REVISE", "round": 1, "completed_at": "t"},
+            ws.MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW: None,
+        }
+        with self.assertRaises(ws.StageVerdictNotApproveError):
+            ws.validate_state(_base_state(wi=wi))
+
+    def test_validate_implementation_review_stages_both_approve_accepted(self):
+        wi = _base_work_item(governing_workflow_version="2.2")
+        wi["implementation_review_stages"] = {
+            "review_content_id": "c1",
+            ws.LOCAL_MODEL_IMPLEMENTATION_REVIEW: {"bundle_id": "b1", "verdict": "APPROVE", "round": 1, "completed_at": "t1"},
+            ws.MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW: {"bundle_id": "b2", "verdict": "APPROVE", "round": 1, "completed_at": "t2"},
+        }
+        ws.validate_state(_base_state(wi=wi))  # must not raise
+
+
+class TestActivatingDoesNotMutateExistingWorkItems(unittest.TestCase):
+    """Regression (MANUAL_EXTERNAL_PLAN_REVIEW round 1, finding I1's own
+    required test): activating "2.2" changes only `default_work_item`'s
+    own output for a *subsequently* created work item or remediation
+    child, and mutates no already-existing `work_items[...]` entry's
+    `governing_workflow_version`."""
+
+    def test_route_work_item_leaves_existing_entries_governing_version_untouched(self):
+        existing = _base_work_item(governing_workflow_version="2.1", phase="IMPLEMENTING")
+        state = _base_state(existing=existing)
+        config_2_2_default = {
+            "schema_version": ws.SCHEMA_VERSION,
+            "default_workflow_version": "2.2",
+            "supported_versions": ["1", "2.1", "2.2"],
+        }
+        new_state = ws.route_work_item(
+            state, config_2_2_default, work_item_id="fresh", work_item_type="process",
+            work_item_kind="process", plan_path="p", registry_path="r",
+            plan_revision=1, now="t1",
+        )
+        # The pre-existing item's own governing version is untouched.
+        self.assertEqual(new_state["work_items"]["existing"]["governing_workflow_version"], "2.1")
+        # A genuinely new item picks up the repository's current default.
+        self.assertEqual(new_state["work_items"]["fresh"]["governing_workflow_version"], "2.2")
+
+    def test_route_work_item_resume_branch_also_leaves_governing_version_untouched(self):
+        existing = _base_work_item(governing_workflow_version="2.1", phase="IMPLEMENTING", plan_revision=1)
+        state = _base_state(existing=existing)
+        config_2_2_default = {
+            "schema_version": ws.SCHEMA_VERSION,
+            "default_workflow_version": "2.2",
+            "supported_versions": ["1", "2.1", "2.2"],
+        }
+        new_state = ws.route_work_item(
+            state, config_2_2_default, work_item_id="existing", work_item_type="process",
+            work_item_kind="process", plan_path="p", registry_path="r",
+            plan_revision=2, now="t1",
+        )
+        self.assertEqual(new_state["work_items"]["existing"]["governing_workflow_version"], "2.1")
+
+
+# ---------------------------------------------------------------------------
+# workflow-2.5.0 CP3: D-Implementation-Review-Stages' own review-stage
+# writers and gate widening, mirroring the plan-review-stage suite's
+# coverage shape (`TestRecordLocalPlanReview`/`TestRecordManualPlanReview`/
+# `TestTwoStagePlanReviewVersionsInheritance`) exactly, substituted for the
+# implementation stage.
+# ---------------------------------------------------------------------------
+
+
+def _v22_work_item(**overrides) -> dict:
+    defaults = {"governing_workflow_version": "2.2", "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW"}
+    defaults.update(overrides)
+    return _base_work_item(**defaults)
+
+
+class TestRecordLocalImplementationReview(unittest.TestCase):
+    def test_wrong_governing_version_rejected(self):
+        for version in ("1", "2.1"):
+            with self.subTest(version=version):
+                wi = _base_work_item(governing_workflow_version=version, phase="AWAITING_LOCAL_IMPLEMENTATION_REVIEW")
+                with self.assertRaises(ws.WrongGoverningVersionForImplementationReviewStageError):
+                    ws.record_local_implementation_review(
+                        _base_state(wi=wi), "wi", verdict="APPROVE", bundle_id="b1",
+                        review_content_id="c1", round=1, now="t1",
+                    )
+
+    def test_wrong_phase_rejected(self):
+        wi = _v22_work_item(phase="AWAITING_MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW")
+        with self.assertRaises(ws.WrongPhaseForImplementationReviewStageError):
+            ws.record_local_implementation_review(
+                _base_state(wi=wi), "wi", verdict="APPROVE", bundle_id="b1",
+                review_content_id="c1", round=1, now="t1",
+            )
+
+    def test_unknown_verdict_rejected(self):
+        wi = _v22_work_item()
+        with self.assertRaises(ws.UnknownImplementationReviewVerdictError):
+            ws.record_local_implementation_review(
+                _base_state(wi=wi), "wi", verdict="MAYBE", bundle_id="b1",
+                review_content_id="c1", round=1, now="t1",
+            )
+
+    def test_approve_records_ledger_and_transitions_to_manual_stage(self):
+        wi = _v22_work_item(state_revision=1)
+        new_state = ws.record_local_implementation_review(
+            _base_state(wi=wi), "wi", verdict="APPROVE", bundle_id="b1",
+            review_content_id="c1", round=1, now="t1",
+        )
+        item = new_state["work_items"]["wi"]
+        self.assertEqual(item["phase"], "AWAITING_MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW")
+        self.assertEqual(item["implementation_review_stages"], {
+            "review_content_id": "c1",
+            "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {"bundle_id": "b1", "verdict": "APPROVE", "round": 1, "completed_at": "t1"},
+            "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": None,
+        })
+        self.assertEqual(item["state_revision"], 2)
+
+    def test_revise_transitions_directly_to_applying_review_feedback_with_no_ledger_write(self):
+        """Unlike the plan side's REVISING_PLAN: this writer itself sets
+        APPLYING_REVIEW_FEEDBACK directly, so /apply-implementation-review's
+        step 0 finds the phase already set and skips its own
+        enter_applying_review_feedback call under the phase-conditional
+        guard -- not because of a "1"/"2.1" vs "2.2" version branch; there
+        is no version branch at step 0 any more."""
+        wi = _v22_work_item(state_revision=1, implementation_review_stages=None)
+        new_state = ws.record_local_implementation_review(
+            _base_state(wi=wi), "wi", verdict="REVISE", bundle_id="b1",
+            review_content_id="c1", round=1, now="t1",
+        )
+        item = new_state["work_items"]["wi"]
+        self.assertEqual(item["phase"], "APPLYING_REVIEW_FEEDBACK")
+        self.assertIsNone(item["implementation_review_stages"])
+
+    def test_block_is_a_true_no_op(self):
+        wi = _v22_work_item(state_revision=1, implementation_review_stages=None)
+        state = _base_state(wi=wi)
+        new_state = ws.record_local_implementation_review(
+            state, "wi", verdict="BLOCK", bundle_id="b1",
+            review_content_id="c1", round=1, now="t1",
+        )
+        self.assertEqual(new_state, state)
+        self.assertEqual(new_state["work_items"]["wi"]["phase"], "AWAITING_LOCAL_IMPLEMENTATION_REVIEW")
+
+
+class TestRecordManualImplementationReview(unittest.TestCase):
+    def _local_approved_wi(self, **overrides):
+        defaults = {
+            "phase": "AWAITING_MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW",
+            "implementation_review_stages": {
+                "review_content_id": "c1",
+                "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {"bundle_id": "b1", "verdict": "APPROVE", "round": 1, "completed_at": "t1"},
+                "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": None,
+            },
+        }
+        defaults.update(overrides)
+        return _v22_work_item(**defaults)
+
+    def test_wrong_governing_version_rejected(self):
+        wi = self._local_approved_wi(governing_workflow_version="2.1")
+        with self.assertRaises(ws.WrongGoverningVersionForImplementationReviewStageError):
+            ws.record_manual_implementation_review(
+                _base_state(wi=wi), "wi", verdict="APPROVE", bundle_id="b2", round=1, now="t2",
+                current_review_content_id="c1", feedback_role="MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW",
+                feedback_review_content_id="c1",
+            )
+
+    def test_wrong_phase_rejected(self):
+        wi = self._local_approved_wi(phase="APPLYING_REVIEW_FEEDBACK")
+        with self.assertRaises(ws.WrongPhaseForImplementationReviewStageError):
+            ws.record_manual_implementation_review(
+                _base_state(wi=wi), "wi", verdict="APPROVE", bundle_id="b2", round=1, now="t2",
+                current_review_content_id="c1", feedback_role="MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW",
+                feedback_review_content_id="c1",
+            )
+
+    def test_wrong_role_rejected(self):
+        wi = self._local_approved_wi()
+        with self.assertRaises(ws.WrongReviewerRoleError):
+            ws.record_manual_implementation_review(
+                _base_state(wi=wi), "wi", verdict="APPROVE", bundle_id="b2", round=1, now="t2",
+                current_review_content_id="c1", feedback_role="LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+                feedback_review_content_id="c1",
+            )
+
+    def test_stale_review_content_id_is_hard_blocked(self):
+        wi = self._local_approved_wi()
+        with self.assertRaises(ws.StaleReviewContentIdError):
+            ws.record_manual_implementation_review(
+                _base_state(wi=wi), "wi", verdict="APPROVE", bundle_id="b2", round=1, now="t2",
+                current_review_content_id="c1", feedback_role="MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW",
+                feedback_review_content_id="stale",
+            )
+
+    def test_missing_local_approval_rejected(self):
+        wi = self._local_approved_wi(implementation_review_stages={
+            "review_content_id": "c1",
+            "LOCAL_MODEL_IMPLEMENTATION_REVIEW": None,
+            "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": None,
+        })
+        with self.assertRaises(ws.MissingLocalApprovalForManualImplementationStageError):
+            ws.record_manual_implementation_review(
+                _base_state(wi=wi), "wi", verdict="APPROVE", bundle_id="b2", round=1, now="t2",
+                current_review_content_id="c1", feedback_role="MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW",
+                feedback_review_content_id="c1",
+            )
+
+    def test_duplicate_ingestion_rejected(self):
+        wi = self._local_approved_wi(implementation_review_stages={
+            "review_content_id": "c1",
+            "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {"bundle_id": "b1", "verdict": "APPROVE", "round": 1, "completed_at": "t1"},
+            "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": {"bundle_id": "b2", "verdict": "APPROVE", "round": 1, "completed_at": "t2"},
+        })
+        with self.assertRaises(ws.DuplicateManualImplementationStageIngestionError):
+            ws.record_manual_implementation_review(
+                _base_state(wi=wi), "wi", verdict="APPROVE", bundle_id="b3", round=2, now="t3",
+                current_review_content_id="c1", feedback_role="MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW",
+                feedback_review_content_id="c1",
+            )
+
+    def test_approve_completes_ledger_and_transitions_to_terminal_phase(self):
+        """Unlike the plan side's manual-APPROVE exit (a distinct
+        AWAITING_PLAN_APPROVAL gate phase): the implementation side reuses
+        the pre-existing AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW name as
+        its own terminal "ready for approval" phase."""
+        wi = self._local_approved_wi(state_revision=1)
+        new_state = ws.record_manual_implementation_review(
+            _base_state(wi=wi), "wi", verdict="APPROVE", bundle_id="b2", round=1, now="t2",
+            current_review_content_id="c1", feedback_role="MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW",
+            feedback_review_content_id="c1",
+        )
+        item = new_state["work_items"]["wi"]
+        self.assertEqual(item["phase"], "AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW")
+        self.assertEqual(item["implementation_review_stages"]["MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW"], {
+            "bundle_id": "b2", "verdict": "APPROVE", "round": 1, "completed_at": "t2",
+        })
+        self.assertEqual(item["state_revision"], 2)
+        self.assertTrue(ws.technical_approval_gate_reachable(
+            latest_round_status="APPROVE", protected_path_dirty=False,
+            head_matches_reviewed_implementation_head=True,
+            governing_workflow_version="2.2",
+            implementation_review_stages=item["implementation_review_stages"],
+            current_review_content_id="c1",
+        ))
+
+    def test_approve_records_actual_bundle_id_even_when_mismatched(self):
+        wi = self._local_approved_wi()
+        warning = ws.check_manual_stage_bundle_id_advisory(
+            feedback_bundle_id="stale-wrapper-bundle", current_bundle_id="fresh-wrapper-bundle",
+        )
+        self.assertIsNotNone(warning)
+        new_state = ws.record_manual_implementation_review(
+            _base_state(wi=wi), "wi", verdict="APPROVE", bundle_id="stale-wrapper-bundle", round=1, now="t2",
+            current_review_content_id="c1", feedback_role="MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW",
+            feedback_review_content_id="c1",
+        )
+        self.assertEqual(
+            new_state["work_items"]["wi"]["implementation_review_stages"]["MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW"]["bundle_id"],
+            "stale-wrapper-bundle",
+        )
+
+    def test_revise_transitions_directly_to_applying_review_feedback_with_no_ledger_write(self):
+        wi = self._local_approved_wi(state_revision=1)
+        new_state = ws.record_manual_implementation_review(
+            _base_state(wi=wi), "wi", verdict="REVISE", bundle_id="b2", round=1, now="t2",
+            current_review_content_id="c1", feedback_role="MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW",
+            feedback_review_content_id="c1",
+        )
+        item = new_state["work_items"]["wi"]
+        self.assertEqual(item["phase"], "APPLYING_REVIEW_FEEDBACK")
+        self.assertIsNone(item["implementation_review_stages"]["MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW"])
+
+    def test_block_is_a_true_no_op(self):
+        wi = self._local_approved_wi(state_revision=1)
+        state = _base_state(wi=wi)
+        new_state = ws.record_manual_implementation_review(
+            state, "wi", verdict="BLOCK", bundle_id="b2", round=1, now="t2",
+            current_review_content_id="c1", feedback_role="MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW",
+            feedback_review_content_id="c1",
+        )
+        self.assertEqual(new_state, state)
+        self.assertEqual(new_state["work_items"]["wi"]["phase"], "AWAITING_MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW")
+
+
+# ---------------------------------------------------------------------------
+# workflow-2.5.0 CP5: the §2.3 convergence/token-efficiency disposable-repo
+# fixture -- REQ-4 (no bundle regeneration between the local-approve and
+# manual-external stages) and REQ-5 (a single reviewer pass can no longer,
+# by itself, exhaust a manual-external round on an issue the local pass
+# would have caught for free), demonstrated end to end against a real Git
+# history rather than asserted only structurally.
+# ---------------------------------------------------------------------------
+
+
+class TestLocalStageCatchesPlantedDefectWithoutManualRound(unittest.TestCase):
+    """§2.3 point 4's disposable-repo fixture: a realistic planted defect,
+    caught by the `LOCAL_MODEL_IMPLEMENTATION_REVIEW` stage, never reaches
+    -- and never opens or consumes a round of -- the manual-external
+    stage."""
+
+    def test_planted_defect_is_caught_locally_without_opening_a_manual_round(self):
+        with ScratchRepo() as repo:
+            # The disposable repo's own planted defect: a commit standing in
+            # for an implementation checkpoint that a careful reviewer
+            # should catch (e.g. a missing test, or a layering violation) --
+            # the fixture only needs the review-stage state machine's own
+            # reaction to a REVISE verdict, not a real static-analysis
+            # finding.
+            repo.commit("implement checkpoint with a planted defect", filename="src/planted_defect.py")
+            wi = _v22_work_item(base_commit=repo.base, implementation_review_stages={
+                "review_content_id": "c-defect",
+                "LOCAL_MODEL_IMPLEMENTATION_REVIEW": None,
+                "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": None,
+            })
+            state = _base_state(wi=wi)
+
+            # LOCAL_MODEL_IMPLEMENTATION_REVIEW catches the planted defect on
+            # its very first round.
+            new_state = ws.record_local_implementation_review(
+                state, "wi", verdict="REVISE", bundle_id="b-defect",
+                review_content_id="c-defect", round=1, now="t1",
+            )
+            item = new_state["work_items"]["wi"]
+
+            # The defect is routed straight back for a fix -- it never
+            # reached, and never consumed a round of, the manual-external
+            # stage. This is REQ-5's convergence claim demonstrated, not
+            # merely the structural argument that the split makes it
+            # possible.
+            self.assertEqual(item["phase"], "APPLYING_REVIEW_FEEDBACK")
+            self.assertNotEqual(item["phase"], "AWAITING_MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW")
+            self.assertIsNone(item["implementation_review_stages"]["MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW"])
+
+
+class TestNoBundleRegenerationBetweenImplementationReviewStages(unittest.TestCase):
+    """REQ-4: the same bundle, `bundle_id`, and `review_content_id` the
+    local stage approved is what the manual-external stage is fed -- mirrors
+    the plan side, which already has this property structurally
+    (`D-Plan-Review-Stages`). Demonstrated two ways against the same
+    disposable-repo fixture: the ordinary carry-through succeeds unchanged,
+    and a simulated regeneration between the two stages is hard-blocked
+    rather than silently accepted under the stale local approval."""
+
+    def _locally_approved_wi(self, repo, **overrides):
+        defaults = {
+            "base_commit": repo.base,
+            "phase": "AWAITING_MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW",
+            "implementation_review_stages": {
+                "review_content_id": "c-original",
+                "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {
+                    "bundle_id": "b-original", "verdict": "APPROVE", "round": 1, "completed_at": "t1",
+                },
+                "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": None,
+            },
+        }
+        defaults.update(overrides)
+        return _v22_work_item(**defaults)
+
+    def test_ordinary_carry_through_ingests_the_same_bundle_unchanged(self):
+        with ScratchRepo() as repo:
+            repo.commit("implement checkpoint", filename="src/feature.py")
+            state = _base_state(wi=self._locally_approved_wi(repo))
+            new_state = ws.record_manual_implementation_review(
+                state, "wi", verdict="APPROVE", bundle_id="b-original", round=1, now="t2",
+                current_review_content_id="c-original",
+                feedback_role="MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW",
+                feedback_review_content_id="c-original",
+            )
+            self.assertEqual(new_state["work_items"]["wi"]["phase"], "AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW")
+
+    def test_regeneration_between_stages_is_hard_blocked_not_silently_ingested(self):
+        with ScratchRepo() as repo:
+            repo.commit("implement checkpoint", filename="src/feature.py")
+            state = _base_state(wi=self._locally_approved_wi(repo))
+
+            # A bundle-refresh step run between the two stages (exactly the
+            # accident §2.3 point 1 warns is "easy to accidentally regress
+            # by adding... where none belongs") changes the protected
+            # content the manual stage would see, so its own live
+            # review_content_id no longer matches what
+            # LOCAL_MODEL_IMPLEMENTATION_REVIEW actually approved. The
+            # reviewer's own feedback still carries the value they were
+            # shown -- the now-stale one -- which is exactly what makes this
+            # a hard block rather than a silent re-approval of different
+            # content under the old ledger entry.
+            repo.commit("accidental bundle regeneration", filename="src/feature.py")
+            with self.assertRaises(ws.StaleReviewContentIdError):
+                ws.record_manual_implementation_review(
+                    state, "wi", verdict="APPROVE", bundle_id="b-regenerated", round=1, now="t2",
+                    current_review_content_id="c-regenerated",
+                    feedback_role="MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW",
+                    feedback_review_content_id="c-original",
+                )
+            # No regeneration-tolerant fallback exists: the work item is left
+            # exactly where it was, still awaiting a genuine, matching manual
+            # round.
+            self.assertEqual(state["work_items"]["wi"]["phase"], "AWAITING_MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW")
+            self.assertIsNone(
+                state["work_items"]["wi"]["implementation_review_stages"]["MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW"]
+            )
+
+    def test_recomputed_fresh_regeneration_is_hard_blocked_via_the_ledger_check(self):
+        """Missing-tests item (O1, round 4): the other half of the
+        no-regeneration rule -- the operator's own recomputed-fresh
+        `review_content_id` can agree with the reviewer's feedback-carried
+        one (no `StaleReviewContentIdError`) while *both* disagree with the
+        ledger's own recorded `review_content_id`, because the bundle
+        regenerated after `LOCAL_MODEL_IMPLEMENTATION_REVIEW`'s own
+        approval and the reviewer was handed -- and reviewed against -- the
+        new content throughout. This falls through to the restated-invariant
+        check instead, raising `MissingLocalApprovalForManualImplementation
+        StageError`, not `StaleReviewContentIdError` -- the exception
+        `docs/ai-workflow/REVIEW_PROTOCOL.md`'s no-regeneration section now
+        names for this half."""
+        with ScratchRepo() as repo:
+            repo.commit("implement checkpoint", filename="src/feature.py")
+            state = _base_state(wi=self._locally_approved_wi(repo))
+            with self.assertRaises(ws.MissingLocalApprovalForManualImplementationStageError):
+                ws.record_manual_implementation_review(
+                    state, "wi", verdict="APPROVE", bundle_id="b-regenerated", round=1, now="t2",
+                    current_review_content_id="c-regenerated",
+                    feedback_role="MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW",
+                    feedback_review_content_id="c-regenerated",
+                )
+
+
+class TestBundleGenerationTargetPhaseResolver(unittest.TestCase):
+    """`bundle_generation_target_phase`/`bundle_generation_recovered_role_
+    legal_committed_phases` -- both version-dependent resolvers CP3
+    introduces, tested directly (independent of `record_bundle_generation`/
+    `validate_bundle_generation_record_commit`, which merely call them)."""
+
+    def test_target_phase_per_version_and_stage(self):
+        for version in ("1", "2.1", None):
+            for stage in ("implementation", "post-fix"):
+                with self.subTest(version=version, stage=stage):
+                    self.assertEqual(
+                        ws.bundle_generation_target_phase(stage, version),
+                        "AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW",
+                    )
+        for stage in ("implementation", "post-fix"):
+            with self.subTest(stage=stage):
+                self.assertEqual(
+                    ws.bundle_generation_target_phase(stage, "2.2"),
+                    "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+                )
+
+    def test_target_phase_rejects_unknown_stage(self):
+        with self.assertRaises(ws.InvalidBundleGenerationStageError):
+            ws.bundle_generation_target_phase("plan", "2.2")
+
+    def test_recovered_role_legal_committed_phases_per_version(self):
+        for version in ("1", "2.1", None):
+            with self.subTest(version=version):
+                self.assertEqual(
+                    ws.bundle_generation_recovered_role_legal_committed_phases(version),
+                    frozenset({"AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW"}),
+                )
+        self.assertEqual(
+            ws.bundle_generation_recovered_role_legal_committed_phases("2.2"),
+            frozenset({
+                "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+                "AWAITING_MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW",
+                "AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW",
+            }),
+        )
+
+    def test_recovered_role_legal_committed_phases_is_a_subset_of_legal_source_phases(self):
+        """The stated invariant: for every version, the recovered-role
+        committed-phase set is a subset of the additively-widened
+        RECOVERED_BUNDLE_GENERATION_RECORD_LEGAL_SOURCE_PHASES."""
+        for version in ("1", "2.1", "2.2", None):
+            with self.subTest(version=version):
+                self.assertTrue(
+                    ws.bundle_generation_recovered_role_legal_committed_phases(version)
+                    <= ws.RECOVERED_BUNDLE_GENERATION_RECORD_LEGAL_SOURCE_PHASES,
+                )
+
+
+class TestTechnicalApprovalGateReachableImplementationReviewWidening(unittest.TestCase):
+    """workflow-2.5.0 CP3: `technical_approval_gate_reachable` widened
+    exactly like `plan_approval_gate_reachable` already is, mirroring
+    `TestTwoStagePlanReviewVersionsInheritance.test_plan_approval_gate_
+    reachable_per_version`."""
+
+    def _reachable(self, **overrides):
+        kwargs = dict(
+            latest_round_status="APPROVE", protected_path_dirty=False,
+            head_matches_reviewed_implementation_head=True,
+            # round 7's I1: these three are required keyword-only
+            # parameters now (no longer defaulted to None inside the
+            # function itself) -- this helper still supplies its own
+            # `None` defaults so most test cases below only need to
+            # override the ones they care about, but every actual call
+            # this helper makes states all three explicitly.
+            governing_workflow_version=None, implementation_review_stages=None,
+            current_review_content_id=None,
+        )
+        kwargs.update(overrides)
+        return ws.technical_approval_gate_reachable(**kwargs)
+
+    def test_absent_and_1_and_2_1_ignore_the_ledger(self):
+        for version in (None, "1", "2.1"):
+            with self.subTest(version=version):
+                self.assertTrue(self._reachable(
+                    governing_workflow_version=version, implementation_review_stages=None,
+                ))
+
+    def test_2_2_requires_both_stages_approved_against_current_content_id(self):
+        stages = {
+            "review_content_id": "c1",
+            ws.LOCAL_MODEL_IMPLEMENTATION_REVIEW: {"bundle_id": "b", "verdict": "APPROVE", "round": 1, "completed_at": "t"},
+            ws.MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW: {"bundle_id": "b", "verdict": "APPROVE", "round": 1, "completed_at": "t"},
+        }
+        self.assertTrue(self._reachable(
+            governing_workflow_version="2.2", implementation_review_stages=stages,
+            current_review_content_id="c1",
+        ))
+        self.assertFalse(self._reachable(
+            governing_workflow_version="2.2", implementation_review_stages=None,
+            current_review_content_id="c1",
+        ))
+        self.assertFalse(self._reachable(
+            governing_workflow_version="2.2", implementation_review_stages=stages,
+            current_review_content_id="stale",
+        ))
+
+    def test_2_2_still_honors_dirty_path_head_mismatch_and_pinned_block(self):
+        stages = {
+            "review_content_id": "c1",
+            ws.LOCAL_MODEL_IMPLEMENTATION_REVIEW: {"bundle_id": "b", "verdict": "APPROVE", "round": 1, "completed_at": "t"},
+            ws.MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW: {"bundle_id": "b", "verdict": "APPROVE", "round": 1, "completed_at": "t"},
+        }
+        self.assertFalse(self._reachable(
+            protected_path_dirty=True, governing_workflow_version="2.2",
+            implementation_review_stages=stages, current_review_content_id="c1",
+        ))
+        self.assertFalse(self._reachable(
+            head_matches_reviewed_implementation_head=False, governing_workflow_version="2.2",
+            implementation_review_stages=stages, current_review_content_id="c1",
+        ))
+        self.assertFalse(self._reachable(
+            pinned_block=True, governing_workflow_version="2.2",
+            implementation_review_stages=stages, current_review_content_id="c1",
+        ))
+
+    def test_explicit_none_for_the_three_new_parameters_matches_pre_cp3(self):
+        """Passing `None` explicitly for all three new parameters (a `"1"`/
+        `"2.1"` item's actual call shape) behaves exactly like pre-CP3
+        `technical_approval_gate_reachable`, which never had these
+        parameters at all."""
+        self.assertTrue(self._reachable())
+        self.assertFalse(self._reachable(protected_path_dirty=True))
+
+    def test_omitting_governing_workflow_version_now_raises_instead_of_silently_opening_the_gate(self):
+        """workflow-2.5.0 REVISE round 7's own `I1`: before this round, a
+        caller that omitted `governing_workflow_version` (its old default
+        was `None`) fell through the `!= "2.2"` branch and returned `True`
+        with the `"2.2"` ledger never consulted -- fail *open*, reachable
+        in practice by a caller that correctly passed
+        `implementation_review_stages`/`current_review_content_id` for a
+        real `"2.2"` item but simply forgot the version kwarg. Removing the
+        default turns that omission into an immediate `TypeError`, for
+        every caller, not merely the one this repository ships
+        (`approve-review.md`, corrected separately this round)."""
+        with self.assertRaises(TypeError):
+            ws.technical_approval_gate_reachable(
+                latest_round_status="APPROVE", protected_path_dirty=False,
+                head_matches_reviewed_implementation_head=True,
+                implementation_review_stages=None, current_review_content_id="c1",
+            )
+
+    def test_omitting_implementation_review_stages_or_review_content_id_also_raises(self):
+        """The same structural guarantee for the other two: `plan_approval_
+        gate_reachable`'s own three widening parameters are all required,
+        and this function now mirrors that exactly, not just for the one
+        parameter round 7's reproduction happened to omit."""
+        with self.assertRaises(TypeError):
+            ws.technical_approval_gate_reachable(
+                latest_round_status="APPROVE", protected_path_dirty=False,
+                head_matches_reviewed_implementation_head=True,
+                governing_workflow_version="2.2", current_review_content_id="c1",
+            )
+        with self.assertRaises(TypeError):
+            ws.technical_approval_gate_reachable(
+                latest_round_status="APPROVE", protected_path_dirty=False,
+                head_matches_reviewed_implementation_head=True,
+                governing_workflow_version="2.2", implementation_review_stages=None,
+            )
+
+    def test_a_22_call_that_forgets_only_the_version_kwarg_no_longer_silently_approves(self):
+        """Round 7's own reproduction, reasserted directly: a call for a
+        real `"2.2"` item's ledger state that passes `implementation_review_
+        stages`/`current_review_content_id` correctly but omits
+        `governing_workflow_version` must never again return `True` --
+        before this fix it did, with the ledger below plainly incomplete
+        (no `MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW` entry at all)."""
+        incomplete_stages = {
+            "review_content_id": "c1",
+            ws.LOCAL_MODEL_IMPLEMENTATION_REVIEW: {
+                "bundle_id": "b", "verdict": "APPROVE", "round": 1, "completed_at": "t",
+            },
+        }
+        with self.assertRaises(TypeError):
+            ws.technical_approval_gate_reachable(
+                latest_round_status="APPROVE", protected_path_dirty=False,
+                head_matches_reviewed_implementation_head=True,
+                implementation_review_stages=incomplete_stages,
+                current_review_content_id="c1",
+            )
+
+
+class TestRecordBundleGenerationImplementationReviewTargetPhase(unittest.TestCase):
+    """`record_bundle_generation` reaches `AWAITING_LOCAL_IMPLEMENTATION_
+    REVIEW` for a "2.2" item, at both bundle-generation stages -- the
+    resolver's own sole call site."""
+
+    def test_first_implementation_stage_call_for_2_2_reaches_local_review(self):
+        state = _base_state(wi=_base_work_item(
+            governing_workflow_version="2.2", phase="SELF_REVIEWING_IMPLEMENTATION",
+            reviewed_implementation_head=None, implementation_revision=None,
+        ))
+        new_state = ws.record_bundle_generation(state, "wi", stage="implementation", head="abc123", now="t1")
+        wi = new_state["work_items"]["wi"]
+        self.assertEqual(wi["phase"], "AWAITING_LOCAL_IMPLEMENTATION_REVIEW")
+        self.assertEqual(wi["reviewed_implementation_head"], "abc123")
+        self.assertEqual(wi["implementation_revision"], 1)
+
+    def test_post_fix_call_for_2_2_reaches_local_review(self):
+        state = _base_state(wi=_base_work_item(
+            governing_workflow_version="2.2", phase="APPLYING_REVIEW_FEEDBACK",
+            reviewed_implementation_head="abc123", implementation_revision=1,
+        ))
+        new_state = ws.record_bundle_generation(state, "wi", stage="post-fix", head="def456", now="t2")
+        self.assertEqual(new_state["work_items"]["wi"]["phase"], "AWAITING_LOCAL_IMPLEMENTATION_REVIEW")
+
+    def test_post_fix_from_functional_review_bounded_fix_for_2_2_reaches_local_review(self):
+        """A "2.2" item's functional-review bounded fix re-enters both
+        implementation-review stages -- the resolver's target for
+        stage="post-fix" from AWAITING_FUNCTIONAL_REVIEW is identical to
+        every other post-fix source, never a special case."""
+        state = _base_state(wi=_base_work_item(
+            governing_workflow_version="2.2", phase="AWAITING_FUNCTIONAL_REVIEW",
+            reviewed_implementation_head="abc123", implementation_revision=1,
+            technical_approval={"status": "STALE"},
+        ))
+        new_state = ws.record_bundle_generation(state, "wi", stage="post-fix", head="def456", now="t2")
+        self.assertEqual(new_state["work_items"]["wi"]["phase"], "AWAITING_LOCAL_IMPLEMENTATION_REVIEW")
+
+    def test_1_and_2_1_are_unaffected(self):
+        for version in ("1", "2.1"):
+            with self.subTest(version=version):
+                state = _base_state(wi=_base_work_item(
+                    governing_workflow_version=version, phase="SELF_REVIEWING_IMPLEMENTATION",
+                ))
+                new_state = ws.record_bundle_generation(state, "wi", stage="implementation", head="abc123", now="t1")
+                self.assertEqual(
+                    new_state["work_items"]["wi"]["phase"], "AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW",
+                )
+
+
+class TestValidateBundleGenerationRecordCommitVersionDependence(unittest.TestCase):
+    """`validate_bundle_generation_record_commit`'s own version-dependent
+    target-phase check and recovered-role membership test, exercised
+    end-to-end against a real Git history -- mirroring
+    `TestRecordBundleGeneration.test_end_to_end_implementation_round_
+    reaches_external_review_durably`, substituted per version."""
+
+    def test_ordinary_role_2_2_end_to_end(self):
+        with ScratchRepo() as repo:
+            _write_test_artifacts_declaration(repo, "wi")
+            _commit_state_only(repo, "wi", {
+                "work_item_id": "wi", "governing_workflow_version": "2.2",
+                "reviewed_implementation_head": None, "implementation_revision": 0,
+                "phase": "IMPLEMENTING", "state_revision": 0, "last_transition": "t0",
+            }, "seed base state")
+            p = repo.commit("protected fix", filename="src/Foo.kt")
+            pre_state = _base_state(wi={
+                "work_item_id": "wi", "governing_workflow_version": "2.2",
+                "reviewed_implementation_head": None, "implementation_revision": None,
+                "phase": "SELF_REVIEWING_IMPLEMENTATION", "state_revision": 0, "last_transition": "t0",
+            })
+            post_state = ws.record_bundle_generation(
+                pre_state, "wi", stage="implementation", head=p, now="t1",
+            )
+            wi_after = post_state["work_items"]["wi"]
+            self.assertEqual(wi_after["phase"], "AWAITING_LOCAL_IMPLEMENTATION_REVIEW")
+            s = _commit_state_only(
+                repo, "wi", wi_after, "record gen",
+                trailers=_record_trailers("wi", wi_after["implementation_revision"]),
+            )
+            ws.validate_bundle_generation_record_commit(repo.root, s, "wi")  # must not raise
+
+    def test_ordinary_role_2_2_wrong_target_phase_rejected(self):
+        """A commit that hand-writes AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW
+        (the "1"/"2.1" target) for a "2.2" item is malformed -- the ordinary
+        role's required target is version-dependent, not a bare literal."""
+        with ScratchRepo() as repo:
+            _write_test_artifacts_declaration(repo, "wi")
+            _commit_state_only(repo, "wi", {
+                "work_item_id": "wi", "governing_workflow_version": "2.2",
+                "reviewed_implementation_head": None, "implementation_revision": 0,
+                "phase": "IMPLEMENTING", "state_revision": 0, "last_transition": "t0",
+            }, "seed base state")
+            wi_after = {
+                "work_item_id": "wi", "governing_workflow_version": "2.2",
+                "reviewed_implementation_head": "p" * 40, "implementation_revision": 1,
+                "phase": "AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW", "state_revision": 1, "last_transition": "t1",
+            }
+            s = _commit_state_only(
+                repo, "wi", wi_after, "record gen", trailers=_record_trailers("wi", 1),
+            )
+            with self.assertRaises(ws.MalformedBundleGenerationRecordCommitError):
+                ws.validate_bundle_generation_record_commit(repo.root, s, "wi")
+
+    def test_recovered_role_2_2_accepted_from_each_of_the_three_legal_committed_phases(self):
+        """B1(b)/B2/round-4 finding B1: a recovered-role commit landing at
+        any of the three phases a "2.2" item can occupy between T and
+        approval passes -- the membership test, not a single-valued
+        equality."""
+        for target_phase in (
+            "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+            "AWAITING_MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW",
+            "AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW",
+        ):
+            with self.subTest(target_phase=target_phase):
+                with ScratchRepo() as repo:
+                    _write_test_artifacts_declaration(repo, "wi")
+                    base_wi = {
+                        "work_item_id": "wi", "governing_workflow_version": "2.2",
+                        "reviewed_implementation_head": "p" * 40, "implementation_revision": 1,
+                        "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+                        "state_revision": 1, "last_transition": "t1",
+                    }
+                    ordinary = _commit_state_only(
+                        repo, "wi", base_wi, "record gen", trailers=_record_trailers("wi", 1),
+                    )
+                    recovered_wi = dict(base_wi, phase=target_phase, state_revision=2, last_transition="t2")
+                    recovered = _commit_state_only(
+                        repo, "wi", recovered_wi, "recover gen",
+                        trailers=_record_trailers("wi", 1) | {"Workflow-Supersedes": ordinary},
+                    )
+                    ws.validate_bundle_generation_record_commit(repo.root, recovered, "wi")  # must not raise
+
+    def test_recovered_role_2_2_rejects_a_phase_outside_the_three_legal_ones(self):
+        with ScratchRepo() as repo:
+            _write_test_artifacts_declaration(repo, "wi")
+            base_wi = {
+                "work_item_id": "wi", "governing_workflow_version": "2.2",
+                "reviewed_implementation_head": "p" * 40, "implementation_revision": 1,
+                "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+                "state_revision": 1, "last_transition": "t1",
+            }
+            ordinary = _commit_state_only(
+                repo, "wi", base_wi, "record gen", trailers=_record_trailers("wi", 1),
+            )
+            recovered_wi = dict(base_wi, phase="APPLYING_REVIEW_FEEDBACK", state_revision=2, last_transition="t2")
+            recovered = _commit_state_only(
+                repo, "wi", recovered_wi, "recover gen",
+                trailers=_record_trailers("wi", 1) | {"Workflow-Supersedes": ordinary},
+            )
+            with self.assertRaises(ws.MalformedBundleGenerationRecordCommitError):
+                ws.validate_bundle_generation_record_commit(repo.root, recovered, "wi")
+
+    def test_1_and_2_1_negative_case_unaffected_by_the_widened_sets(self):
+        """The widened "2.2" sets change no "1"/"2.1" recovery refusal:
+        a recovered-role commit at AWAITING_LOCAL_IMPLEMENTATION_REVIEW
+        (a "2.2"-only phase) is still rejected for a "1"/"2.1" item."""
+        for version in ("1", "2.1"):
+            with self.subTest(version=version):
+                with ScratchRepo() as repo:
+                    _write_test_artifacts_declaration(repo, "wi")
+                    base_wi = {
+                        "work_item_id": "wi", "governing_workflow_version": version,
+                        "reviewed_implementation_head": "p" * 40, "implementation_revision": 1,
+                        "phase": "AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW",
+                        "state_revision": 1, "last_transition": "t1",
+                    }
+                    ordinary = _commit_state_only(
+                        repo, "wi", base_wi, "record gen", trailers=_record_trailers("wi", 1),
+                    )
+                    recovered_wi = dict(
+                        base_wi, phase="AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+                        state_revision=2, last_transition="t2",
+                    )
+                    recovered = _commit_state_only(
+                        repo, "wi", recovered_wi, "recover gen",
+                        trailers=_record_trailers("wi", 1) | {"Workflow-Supersedes": ordinary},
+                    )
+                    with self.assertRaises(ws.MalformedBundleGenerationRecordCommitError):
+                        ws.validate_bundle_generation_record_commit(repo.root, recovered, "wi")
+
+
+class TestImplementationProvenanceRecoveryWidenedForV2_2(unittest.TestCase):
+    """`verify_implementation_provenance_recovery`/`apply_implementation_
+    provenance_recovery`'s own phase guard, widened to the three phases a
+    "2.2" item can occupy between T and approval."""
+
+    def test_apply_recovery_accepted_from_each_of_the_three_legal_phases(self):
+        for phase in (
+            "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+            "AWAITING_MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW",
+            "AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW",
+        ):
+            with self.subTest(phase=phase):
+                state = _base_state(wi={
+                    "work_item_id": "wi", "governing_workflow_version": "2.2", "phase": phase,
+                    "reviewed_implementation_head": "p" * 40, "implementation_revision": 1,
+                    "state_revision": 3, "last_transition": "t3",
+                })
+                new_state = ws.apply_implementation_provenance_recovery(state, "wi", now="t4")
+                work_item = new_state["work_items"]["wi"]
+                self.assertEqual(work_item["phase"], phase)
+                self.assertEqual(work_item["state_revision"], 4)
+
+    def test_apply_recovery_still_refuses_a_phase_outside_the_three(self):
+        state = _base_state(wi={
+            "work_item_id": "wi", "governing_workflow_version": "2.2",
+            "phase": "APPLYING_REVIEW_FEEDBACK",
+            "reviewed_implementation_head": "p" * 40, "implementation_revision": 1,
+            "state_revision": 3, "last_transition": "t3",
+        })
+        with self.assertRaises(ws.IllegalImplementationProvenanceRecoverySourcePhaseError):
+            ws.apply_implementation_provenance_recovery(state, "wi", now="t4")
+
+    def test_1_and_2_1_still_admit_only_the_single_terminal_phase(self):
+        for version in ("1", "2.1", None):
+            with self.subTest(version=version):
+                state = _base_state(wi={
+                    "work_item_id": "wi", "governing_workflow_version": version,
+                    "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+                    "reviewed_implementation_head": "p" * 40, "implementation_revision": 1,
+                    "state_revision": 3, "last_transition": "t3",
+                })
+                with self.assertRaises(ws.IllegalImplementationProvenanceRecoverySourcePhaseError):
+                    ws.apply_implementation_provenance_recovery(state, "wi", now="t4")
+
+
+class TestProvenanceIntervalUnaffectedByReviewStageLedgerWrites(unittest.TestCase):
+    """A unit-level pin of D-Implementation-Review-Stages' own "Provenance-
+    interval interaction" claim: `implementation_provenance_interval_
+    reachable`'s HEAD == T requirement is unaffected by a local-APPROVE +
+    manual-APPROVE `implementation_review_stages` ledger-write sequence for
+    a "2.2" item -- neither writer ever creates a commit, so live HEAD
+    never moves past T while the ledger fills in."""
+
+    def test_head_still_equals_t_after_both_ledger_writes(self):
+        with ScratchRepo() as repo:
+            _write_test_artifacts_declaration(repo, "wi")
+            _commit_state_only(repo, "wi", {
+                "work_item_id": "wi", "governing_workflow_version": "2.2",
+                "reviewed_implementation_head": None, "implementation_revision": 0,
+                "phase": "IMPLEMENTING", "state_revision": 0, "last_transition": "t0",
+            }, "seed base state")
+            p = repo.commit("protected fix", filename="src/Foo.kt")
+            pre_state = _base_state(wi={
+                "work_item_id": "wi", "governing_workflow_version": "2.2",
+                "reviewed_implementation_head": None, "implementation_revision": None,
+                "phase": "SELF_REVIEWING_IMPLEMENTATION", "state_revision": 0, "last_transition": "t0",
+            })
+            post_state = ws.record_bundle_generation(
+                pre_state, "wi", stage="implementation", head=p, now="t1",
+            )
+            wi_after_generation = post_state["work_items"]["wi"]
+            t = _commit_state_only(
+                repo, "wi", wi_after_generation, "record gen",
+                trailers=_record_trailers("wi", wi_after_generation["implementation_revision"]),
+            )
+            work_item = wi_after_generation | {"work_item_id": "wi"}
+            self.assertTrue(
+                ws.implementation_provenance_interval_reachable(repo.root, work_item, base_commit=repo.base),
+            )
+            self.assertEqual(ws._run(["git", "rev-parse", "HEAD"], cwd=repo.root).strip(), t)
+
+            local_approved = ws.record_local_implementation_review(
+                post_state, "wi", verdict="APPROVE", bundle_id="b1",
+                review_content_id="c1", round=1, now="t2",
+            )
+            # Uncommitted -- HEAD must still be exactly t.
+            self.assertEqual(ws._run(["git", "rev-parse", "HEAD"], cwd=repo.root).strip(), t)
+            manual_approved = ws.record_manual_implementation_review(
+                local_approved, "wi", verdict="APPROVE", bundle_id="b2", round=1, now="t3",
+                current_review_content_id="c1", feedback_role="MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW",
+                feedback_review_content_id="c1",
+            )
+            self.assertEqual(ws._run(["git", "rev-parse", "HEAD"], cwd=repo.root).strip(), t)
+            self.assertEqual(
+                manual_approved["work_items"]["wi"]["phase"], "AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW",
+            )
+            # implementation_provenance_interval_reachable still holds --
+            # it reads reviewed_implementation_head/implementation_revision
+            # (both untouched by either ledger writer) and live HEAD (also
+            # untouched), never the ledger itself.
+            self.assertTrue(
+                ws.implementation_provenance_interval_reachable(repo.root, work_item, base_commit=repo.base),
+            )
+
+
+class TestPromoteLegacyWorkItemDestinationLiteral(unittest.TestCase):
+    """workflow-2.5.0 (resolves `LOCAL_MODEL_PLAN_REVIEW` round 6, optional
+    finding 1; regression added at revision 16, round 15, missing test 2):
+    `promote_legacy_work_item` always promotes to the literal `"2.1"`,
+    never `config["default_workflow_version"]`, even once a repository has
+    separately activated `"2.2"` as its own current default -- the
+    adopted item is already past both implementation-review stages, so
+    there is no future round left for it to satisfy that obligation in."""
+
+    def test_promotes_to_2_1_literal_even_when_2_2_is_the_current_default(self):
+        with ScratchRepo() as repo:
+            _run(["git", "commit", "-q", "--allow-empty", "-m", "legacy work"], cwd=repo.root)
+            legacy_commit = repo.head()
+            _write_and_commit(repo, "docs/ACTIVE_MILESTONE.md", "integrated legacy work\n", "narrative")
+            technical_approval = ws.build_approval_record(
+                basis="LEGACY_V1", stage="implementation", user_confirmation="legacy import",
+                now="t0", reviewed_content_commit=legacy_commit,
+                legacy_evidence={"note": "pre-Workflow"}, waived_guarantees=["no_bundle_id", "no_telemetry"],
+            )
+            wi = _base_work_item(
+                work_item_id="legacy-wi", governing_workflow_version="1", phase="LEGACY_READY",
+                technical_approval=technical_approval,
+            )
+            state = _base_state(**{"legacy-wi": wi})
+            _write_test_artifacts_declaration(repo, "legacy-wi", protected_prefixes=["app/"], excluded_prefixes=["docs/"])
+            artifacts_path = fingerprint.artifacts_path_for_work_item("legacy-wi")
+            # This repository has separately activated "2.2" as its own
+            # current default -- irrelevant to promote_legacy_work_item,
+            # which never reads WORKFLOW_CONFIG.json at all.
+            new_state = ws.promote_legacy_work_item(
+                state, repo.root, work_item_id="legacy-wi",
+                required_active_milestone_substring="integrated legacy work",
+                artifacts_path=artifacts_path, now="t1",
+            )
+            promoted = new_state["work_items"]["legacy-wi"]
+            self.assertEqual(promoted["governing_workflow_version"], "2.1")
+            self.assertEqual(promoted["phase"], "AWAITING_FUNCTIONAL_REVIEW")
+
+
+# ---------------------------------------------------------------------------
+# workflow-2.5.0 CP6: D-Review-Material-Lifecycle -- unit classification,
+# the marker-presence obligation, the narrative-content guarantee, the
+# marking pass, and the governing-version enumeration sweep. Reuses CP1's
+# canonical render_marker/parse_marker throughout -- never a second,
+# independently-derived grammar.
+# ---------------------------------------------------------------------------
+
+
+class ReviewMaterialLifecycleClassificationTest(unittest.TestCase):
+    """Guarantees (i)-(vi): explicit marker precedence, fail-closed
+    default, non-cascading nesting, and the narrative-content guarantee's
+    own scope."""
+
+    def test_positive_explicit_current_stays_review_visible(self):
+        text = "# Doc\n\n" + ws.render_marker("CURRENT") + "\n\nBody text.\n"
+        unit = ws.document_level_unit(text)
+        self.assertEqual(ws.unit_state(unit), ("CURRENT", True))
+
+    def test_negative_explicit_historical_excluded(self):
+        text = "## Section\n\n" + ws.render_marker("HISTORICAL") + "\n\nOld stuff.\n"
+        unit = ws.parse_markdown_units(text)[0]
+        self.assertEqual(ws.unit_state(unit), ("HISTORICAL", True))
+
+    def test_ambiguous_unmarked_fails_closed_to_current(self):
+        text = "## Section\n\nNo marker here at all.\n"
+        unit = ws.parse_markdown_units(text)[0]
+        self.assertEqual(ws.unit_state(unit), ("CURRENT", False))
+
+    def test_ambiguous_malformed_marker_fails_closed_to_current(self):
+        text = "## Section\n\n<!-- review-material-lifecycle: WEIRD -->\n\nBody.\n"
+        unit = ws.parse_markdown_units(text)[0]
+        self.assertEqual(ws.unit_state(unit), ("CURRENT", False))
+
+    def test_two_version_transition_non_marker_edit_leaves_classification_unchanged(self):
+        v1 = "## Original Heading\n\nSome prose.\n"
+        v2 = "## Reworded Heading\n\nSome reworded prose, same material.\n"
+        self.assertEqual(
+            ws.unit_state(ws.parse_markdown_units(v1)[0])[0],
+            ws.unit_state(ws.parse_markdown_units(v2)[0])[0],
+        )
+
+    def test_two_version_transition_marker_only_edit_performs_transition(self):
+        v1 = "## Heading\n\nProse.\n"
+        v2 = "## Heading\n\n" + ws.render_marker("HISTORICAL") + "\n\nProse.\n"
+        self.assertEqual(ws.unit_state(ws.parse_markdown_units(v1)[0])[0], "CURRENT")
+        self.assertEqual(ws.unit_state(ws.parse_markdown_units(v2)[0])[0], "HISTORICAL")
+
+    def test_boundary_redrawing_merge_without_marker_edit_does_not_promote_to_historical(self):
+        # A CURRENT unit and an adjacent HISTORICAL-marked unit, merged by
+        # demoting/deleting the heading between them with no marker edit
+        # anywhere in the diff, must not report the merged material
+        # HISTORICAL.
+        before = (
+            "## Current section\n\nCurrent prose.\n\n"
+            "## Historical section\n\n" + ws.render_marker("HISTORICAL") + "\n\nOld prose.\n"
+        )
+        before_units = ws.parse_markdown_units(before)
+        self.assertEqual(ws.unit_state(before_units[0])[0], "CURRENT")
+        self.assertEqual(ws.unit_state(before_units[1])[0], "HISTORICAL")
+
+        # The merge: demote the boundary heading to plain prose, touching
+        # no marker anywhere in the diff.
+        after = (
+            "## Current section\n\nCurrent prose.\n\n"
+            "Historical section (no longer its own heading)\n\n"
+            + ws.render_marker("HISTORICAL") + "\n\nOld prose.\n"
+        )
+        after_units = ws.parse_markdown_units(after)
+        self.assertEqual(len(after_units), 1)
+        # The merged unit's own marker is no longer its own_text's first
+        # non-blank line (the former CURRENT prose and the demoted heading
+        # text now precede it) -- so the merge falls to the fail-closed
+        # CURRENT default rather than silently inheriting a marker deeper
+        # in its own text. This is the mechanical basis for the guarantee:
+        # a merge can never *promote* material to HISTORICAL without an
+        # explicit marker edit of its own.
+        self.assertEqual(ws.unit_state(after_units[0]), ("CURRENT", False))
+
+    def test_narrative_location_forbidden_inside_current_fails(self):
+        text = (
+            "### D-Something\n\n" + ws.render_marker("CURRENT") + "\n\n"
+            "Corrected at revision 5, finding B1: the design now does X.\n"
+        )
+        unit = ws.parse_markdown_units(text)[0]
+        self.assertTrue(ws.check_narrative_content(unit))
+
+    def test_narrative_location_identical_narrative_inside_historical_passes(self):
+        text = (
+            "### D-Something\n\n" + ws.render_marker("HISTORICAL") + "\n\n"
+            "Corrected at revision 5, finding B1: the design now does X.\n"
+        )
+        unit = ws.parse_markdown_units(text)[0]
+        self.assertEqual(ws.check_narrative_content(unit), [])
+
+    def test_scope_unmarked_pre_existing_section_with_forbidden_narrative_passes(self):
+        # CURRENT only by the fail-closed default (no marker at all) is
+        # outside guarantee (vi)'s reach.
+        text = "### D-PreExisting\n\nCorrected at revision 5, finding B1: the design now does X.\n"
+        unit = ws.parse_markdown_units(text)[0]
+        self.assertEqual(ws.check_narrative_content(unit), [])
+
+    def test_already_marked_nested_unit_survives_and_is_not_folded_into_parent(self):
+        text = (
+            "### D-Container\n\n" + ws.render_marker("CURRENT") + "\n\n"
+            "Current prose with no forbidden narrative.\n\n"
+            "#### Disposition record\n\n" + ws.render_marker("HISTORICAL") + "\n\n"
+            "Corrected at revision 5, finding B1: history here.\n"
+        )
+        units = ws.parse_markdown_units(text)
+        container, nested = units[0], units[1]
+        self.assertEqual(ws.unit_state(container), ("CURRENT", True))
+        self.assertEqual(ws.unit_state(nested), ("HISTORICAL", True))
+        # A separately, explicitly marked descendant is never folded into
+        # its container's own guarantee-(vi) walk.
+        self.assertEqual(ws.check_narrative_content(container), [])
+
+
+class ReviewMaterialLifecycleMarkerPresenceTest(unittest.TestCase):
+    def test_marker_presence_fixture_in_scope_unit_missing_fails(self):
+        text = "### D-InScope\n\nNo marker.\n"
+        self.assertEqual(
+            ws.check_marker_presence_plan_sections(text, ("### D-InScope",)), ["### D-InScope"],
+        )
+
+    def test_marker_presence_unit_elsewhere_in_same_document_unaffected(self):
+        text = (
+            "### D-InScope\n\n" + ws.render_marker("CURRENT") + "\n\nBody.\n\n"
+            "### D-OutOfScope\n\nNo marker here, not a named subject.\n"
+        )
+        self.assertEqual(ws.check_marker_presence_plan_sections(text, ("### D-InScope",)), [])
+
+    def test_whole_document_marker_presence_fails_when_absent(self):
+        text = "# Title\n\nNo marker anywhere in the intro.\n\n## Section\n\nBody.\n"
+        self.assertFalse(ws.check_marker_presence_whole_document(text))
+
+    def test_whole_document_marker_presence_passes_when_present(self):
+        text = "# Title\n\n" + ws.render_marker("CURRENT") + "\n\nIntro.\n\n## Section\n\nBody.\n"
+        self.assertTrue(ws.check_marker_presence_whole_document(text))
+
+    def test_already_marked_nested_unit_discharges_its_own_presence_obligation(self):
+        text = (
+            "### D-Container\n\n" + ws.render_marker("CURRENT") + "\n\nProse.\n\n"
+            "#### Disposition\n\n" + ws.render_marker("HISTORICAL") + "\n\nHistory.\n"
+        )
+        self.assertEqual(ws.check_marker_presence_plan_sections(text, ("### D-Container",)), [])
+
+
+class ReviewMaterialLifecycleMarkingPassTest(unittest.TestCase):
+    def test_marks_missing_units_current_and_never_touches_already_marked(self):
+        text = (
+            "### D-Unmarked\n\nProse one.\n\n"
+            "### D-AlreadyMarked\n\n" + ws.render_marker("HISTORICAL") + "\n\nProse two.\n"
+        )
+        names = ("### D-Unmarked", "### D-AlreadyMarked")
+        result = ws.mark_missing_units_current(text, names)
+        units = ws.parse_markdown_units(result)
+        self.assertEqual(ws.unit_state(units[0]), ("CURRENT", True))
+        self.assertEqual(ws.unit_state(units[1]), ("HISTORICAL", True))
+        # Idempotent: a second pass changes nothing further.
+        self.assertEqual(ws.mark_missing_units_current(result, names), result)
+
+
+class ReviewMaterialLifecyclePreMarkingPartitionFixtureTest(unittest.TestCase):
+    """A corpus-shaped fixture proving guarantee (v)'s classification
+    partition: only the deliberately, visibly marked unit is HISTORICAL;
+    every unmarked unit stays CURRENT. Fixture-based (not a one-shot
+    real-corpus read) so it keeps catching a future edit that re-widens
+    guarantee (v) even once this repository's own real corpus has moved
+    past its own pre-marking moment."""
+
+    FIXTURE = (
+        "# Fixture corpus\n\n"
+        "## Marked Historical Section\n\n" + ws.render_marker("HISTORICAL") + "\n\nOld.\n\n"
+        "## Unmarked Section One\n\nCurrent by default.\n\n"
+        "## Unmarked Section Two\n\nAlso current by default.\n"
+    )
+
+    def test_classification_partition_matches_expected(self):
+        units = ws.parse_markdown_units(self.FIXTURE)
+        states = {u.heading: ws.unit_state(u)[0] for u in units}
+        self.assertEqual(states["Marked Historical Section"], "HISTORICAL")
+        self.assertEqual(states["Unmarked Section One"], "CURRENT")
+        self.assertEqual(states["Unmarked Section Two"], "CURRENT")
+
+    def test_mutated_copy_claiming_every_unit_current_including_marked_fails(self):
+        units = ws.parse_markdown_units(self.FIXTURE)
+        states = {u.heading: ws.unit_state(u)[0] for u in units}
+        with self.assertRaises(AssertionError):
+            for state in states.values():
+                self.assertEqual(state, "CURRENT")
+
+
+class ReviewMaterialLifecycleRealCorpusTest(unittest.TestCase):
+    """Guarantee (vii)'s real-corpus run of the finished marker-presence
+    check over every one of that obligation's actual subjects, plus the
+    narrative-content guarantee over the same named sections."""
+
+    def _read(self, relative_path):
+        overlay_root = Path(__file__).resolve().parent
+        return (overlay_root.parent / "docs" / "ai-workflow" / relative_path).read_text()
+
+    PLAN_SECTION_NAMES = (
+        "### D-Implementation-Review-Stages",
+        "### D-Implementation-Review-Version-Activation",
+        "### D-Review-Material-Lifecycle",
+    )
+
+    def test_implementation_review_workflow_carries_its_own_marker(self):
+        text = self._read("IMPLEMENTATION_REVIEW_WORKFLOW.md")
+        self.assertTrue(ws.check_marker_presence_whole_document(text))
+
+    def test_workflow_v2_plan_named_sections_all_carry_markers(self):
+        text = self._read("WORKFLOW_V2_PLAN.md")
+        self.assertEqual(ws.check_marker_presence_plan_sections(text, self.PLAN_SECTION_NAMES), [])
+
+    def test_named_sections_carry_no_forbidden_narrative(self):
+        text = self._read("WORKFLOW_V2_PLAN.md")
+        units = ws.parse_markdown_units(text)
+        resolved = ws.find_named_top_level_units(units, self.PLAN_SECTION_NAMES)
+        for name, unit in resolved.items():
+            self.assertEqual(ws.check_narrative_content(unit), [], name)
+
+    def test_disposition_record_subsection_survived_untouched_as_historical(self):
+        text = self._read("WORKFLOW_V2_PLAN.md")
+        units = ws.parse_markdown_units(text)
+        disposition = [u for u in units if u.heading.startswith("2.5.0 disposition record")]
+        self.assertEqual(len(disposition), 1)
+        self.assertEqual(ws.unit_state(disposition[0]), ("HISTORICAL", True))
+
+
+class GoverningVersionEnumerationSweepTest(unittest.TestCase):
+    def test_exhaustive_enumeration_form_flagged(self):
+        text = (
+            'For plan review, only work items with governing_workflow_version '
+            '"1" or "2.1" use the single-stage flow.'
+        )
+        findings = ws.find_governing_version_occurrences("doc.md", text)
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0].form, "exhaustive_enumeration")
+
+    def test_bare_21_scoped_form_flagged(self):
+        text = 'The two-stage plan review protocol is scoped entirely to "2.1" work items.'
+        findings = ws.find_governing_version_occurrences("doc.md", text)
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0].form, "bare_21_scoped")
+
+    def test_negated_version_independence_assertion_not_flagged(self):
+        text = 'Plan review is not a "2.1"-only mechanism; "2.2" items use it identically.'
+        self.assertEqual(ws.find_governing_version_occurrences("doc.md", text), [])
+
+    def test_widened_form_mentioning_both_versions_not_flagged(self):
+        text = 'Plan review applies to work items whose governing version is "2.1"/"2.2" only.'
+        self.assertEqual(ws.find_governing_version_occurrences("doc.md", text), [])
+
+    def test_occurrence_inside_historical_unit_is_allowlisted(self):
+        text = (
+            "## Old plan review disposition\n\n" + ws.render_marker("HISTORICAL") + "\n\n"
+            'At the time, plan review was scoped entirely to "2.1" work items.\n'
+        )
+        self.assertEqual(ws.find_governing_version_occurrences("doc.md", text), [])
+
+    def test_allowlist_pin_negative_fixture_new_current_section_still_flagged(self):
+        # Even though the document's own historical sections stay exempt,
+        # a stale claim inside a *new*, non-HISTORICAL current design
+        # section must still fail -- proving the allowlist is
+        # occurrence-scoped, never a whole-document grant.
+        text = (
+            "## Old plan review disposition\n\n" + ws.render_marker("HISTORICAL") + "\n\n"
+            'At the time, plan review was scoped entirely to "2.1" work items.\n\n'
+            "## New plan review design\n\n" + ws.render_marker("CURRENT") + "\n\n"
+            'This plan review mechanism is scoped entirely to "2.1" work items.\n'
+        )
+        findings = ws.find_governing_version_occurrences("doc.md", text)
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0].form, "bare_21_scoped")
+        self.assertIn("New plan review design", text[:findings[0].offset].rsplit("##", 1)[-1] or "")
+
+    def test_whole_document_allowlist_for_named_history_documents(self):
+        text = 'Plan review is scoped entirely to "2.1" work items.'
+        findings = ws.find_governing_version_occurrences(
+            "docs/ai-workflow/WORKFLOW_V2_3_PLAN.md", text,
+        )
+        self.assertEqual(findings, [])
+
+    def test_positive_fixture_negated_assertion_only_occurrence_passes_clean(self):
+        text = 'For plan review, this is not a single-governing-version-only mechanism; "2.1" and "2.2" both use it.'
+        self.assertEqual(ws.sweep_governing_version_enumeration({"doc.md": text}), [])
+
+    def test_real_corpus_sweep_is_clean(self):
+        """Deliberately scoped (round 4's O2), not exhaustive: the command
+        files plus `docs/ai-workflow/`'s own top-level documents, both
+        non-recursive -- the corpus this milestone's own review-facing
+        prose lives in. `docs/ai-workflow/audit/`, `dry-run/`, and
+        `requirements/` are out of this sweep's scope (a wider,
+        `**/*.md`-recursive run does find one true positive there today --
+        a base-2.4.0-inherited row in `audit/WORKFLOW_DEFECT_LEDGER.md`
+        this milestone's own overlay does not own or replace -- which is a
+        real gap, not a false negative, and is left for whichever future
+        checkpoint widens this sweep's own corpus deliberately rather than
+        as an accidental side effect of an unrelated fix)."""
+        overlay_root = Path(__file__).resolve().parent
+        payload_root = overlay_root.parent
+        paths = list((payload_root / ".claude" / "commands").glob("*.md")) + \
+            list((payload_root / "docs" / "ai-workflow").glob("*.md"))
+        texts = {str(p): p.read_text() for p in paths}
+        findings = ws.sweep_governing_version_enumeration(texts)
+        self.assertEqual(findings, [], [repr(f) for f in findings])
+
+
+class ApplyingReviewFeedbackVersionClaimSweepTest(unittest.TestCase):
+    """workflow-2.5.0 REVISE round 7, Missing-tests item 1 / `B1`: a
+    standing negative-corpus sweep for the superseded "`enter_applying_
+    review_feedback` is skipped for `\"2.2\"` because of a version branch"
+    claim, which has now produced a Blocking finding in rounds 3, 5, 6, and
+    twice more in round 7 -- always as a fresh paraphrase or a
+    Markdown-mangled substring the previous round's own point-fix and grep
+    did not anticipate.
+
+    **Round 8's own `B1`, disposition (b): kept as a regression guard, not
+    widened.** This is a *closed* five-cue list against the five wordings
+    known as of round 7 (`_APPLYING_REVIEW_FEEDBACK_ABSOLUTE_CUES`); it is
+    not, and does not claim to be, a general detector for every future
+    paraphrase of the underlying claim. Round 8 found the sweep does not
+    in fact catch round 6's own three real instances --
+    `test_round_6_782_row_is_not_currently_flagged_by_neighbor_suppression`
+    and `test_round_6_no_separate_call_wording_is_not_currently_flagged`
+    below pin the real, in-situ text and document that gap directly,
+    rather than asserting coverage the mechanism does not have. Widening
+    the cue set and/or the suppression-qualifier matching to actually close
+    those two gaps is left to a future checkpoint that also resolves the
+    now-in-corpus disposition question strengthening would raise (see
+    `test_real_corpus_sweep_is_clean` below)."""
+
+    def test_round_7_b1_instance_1_is_flagged(self):
+        # WORKFLOW_V2_1_OPERATOR_REFERENCE.md:483-488 before this round's
+        # fix, verbatim.
+        text = (
+            "so this command makes **no** `enter_applying_review_feedback` "
+            "call for it at all; steps 1-8 below run identically "
+            "regardless."
+        )
+        findings = ws.find_applying_review_feedback_version_claims("doc.md", text)
+        # Two of the five absolute-cue patterns both match this single
+        # passage ("no ... call" and "for it at all") -- that is fine; the
+        # point is that at least one fires, not exactly which.
+        self.assertGreaterEqual(len(findings), 1, [repr(f) for f in findings])
+
+    def test_round_7_b1_instance_2_is_flagged(self):
+        # WORKFLOW_V2_1_OPERATOR_REFERENCE.md:830 before this round's fix,
+        # verbatim.
+        text = (
+            "`/apply-implementation-review` (`enter_applying_review_feedback`, "
+            "`\"1\"`/`\"2.1\"` only — a `\"2.2\"` item never needs this call, "
+            "per its own dual-mode note at the top of that file)"
+        )
+        findings = ws.find_applying_review_feedback_version_claims("doc.md", text)
+        self.assertEqual(len(findings), 2, [repr(f) for f in findings])
+
+    def test_round_6_b1_instance_is_flagged(self):
+        # WORKFLOW_V2_1_OPERATOR_REFERENCE.md:782 before round 6's fix
+        # (paraphrased as round 6's own disposition record describes it):
+        # a bare, unqualified "a '2.2' item never reaches APPLYING_REVIEW_
+        # FEEDBACK via enter_applying_review_feedback" claim, with no
+        # terminal-phase-escape qualifier anywhere nearby.
+        text = (
+            "a `\"2.2\"` item never reaches `APPLYING_REVIEW_FEEDBACK` via "
+            "`enter_applying_review_feedback`; that phase is entered "
+            "directly by the review-stage writer instead, and this call is "
+            "not called at all for that governing version."
+        )
+        findings = ws.find_applying_review_feedback_version_claims("doc.md", text)
+        self.assertGreaterEqual(len(findings), 1, [repr(f) for f in findings])
+
+    def test_the_fixed_round_7_passages_are_not_flagged(self):
+        # This round's own replacement text for both instances -- proves
+        # the sweep does not simply re-flag its own fix.
+        overlay_root = Path(__file__).resolve().parent
+        payload_root = overlay_root.parent
+        text = (payload_root / "docs" / "ai-workflow" / "WORKFLOW_V2_1_OPERATOR_REFERENCE.md").read_text()
+        findings = ws.find_applying_review_feedback_version_claims(
+            "WORKFLOW_V2_1_OPERATOR_REFERENCE.md", text,
+        )
+        self.assertEqual(findings, [], [repr(f) for f in findings])
+
+    def test_milestone_workflow_finds_phase_qualifier_is_not_flagged(self):
+        # MILESTONE_WORKFLOW.md:349's already-correct passage -- named in
+        # round 6's Missing-tests item as the reason a naive substring ban
+        # cannot work: it states the *fixed* rule using nearly the banned
+        # words ("no ... call ... for a '2.2' item"), distinguished only by
+        # "since it finds `phase` already there".
+        text = (
+            "transitions directly to `APPLYING_REVIEW_FEEDBACK` (the "
+            "command itself performs the phase write, exactly as "
+            "`/review-plan`'s `REVISE` branch does for `REVISING_PLAN` — "
+            "`/apply-implementation-review` makes no "
+            "`enter_applying_review_feedback` call for a `\"2.2\"` item, "
+            "since it finds `phase` already there)."
+        )
+        self.assertEqual(ws.find_applying_review_feedback_version_claims("doc.md", text), [])
+
+    def test_workflow_v2_plan_terminal_escape_qualifier_is_not_flagged(self):
+        # WORKFLOW_V2_PLAN.md's own correct, detailed passage: contains
+        # "never reaches this writer" (not one of the banned absolute-cue
+        # phrasings) and explicitly names the terminal-phase escape.
+        text = (
+            "for a `\"2.2\"` item, this phase-conditional rule is always "
+            "the skip case in the normal two-stage loop -- the command "
+            "finds `phase` already at `APPLYING_REVIEW_FEEDBACK` -- but a "
+            "`\"2.2\"` item that instead reaches the *terminal* "
+            "`AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW` phase ... sits at "
+            "exactly the phase `enter_applying_review_feedback`'s own "
+            "guard names as legal, so the call fires for that item too."
+        )
+        self.assertEqual(ws.find_applying_review_feedback_version_claims("doc.md", text), [])
+
+    def test_a_qualifier_stated_in_the_next_sentence_of_the_same_bullet_still_suppresses(self):
+        # WORKFLOW_V2_1_OPERATOR_REFERENCE.md:438-441's own already-correct
+        # shape: the absolute-sounding "no ... call" sentence ends before
+        # the qualifying "terminal" appears, in the very next sentence of
+        # the same bullet. A sentence-level (rather than window-level)
+        # check would miss this.
+        text = (
+            "REVISE (→ `APPLYING_REVIEW_FEEDBACK` directly, no "
+            "`enter_applying_review_feedback` call). A `\"2.2\"` item at "
+            "any *other* phase — most commonly its own terminal "
+            "`AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW` once both "
+            "implementation-review stages have already approved — still "
+            "takes the advisory branch described above, unchanged."
+        )
+        self.assertEqual(ws.find_applying_review_feedback_version_claims("doc.md", text), [])
+
+    def test_unrelated_reference_far_outside_the_window_does_not_suppress(self):
+        # A document that states the absolute-cue phrase near one mention
+        # of enter_applying_review_feedback, and a qualifier only far away
+        # near an unrelated second mention, must still be flagged: the
+        # qualifier has to be *near* the claim it qualifies, not merely
+        # present anywhere in the document.
+        far_qualifier = "terminal escape " * 5
+        padding = "x" * 400
+        text = (
+            f"`enter_applying_review_feedback` call for it at all.{padding}"
+            f"Elsewhere, the {far_qualifier} phase-conditional guard is "
+            f"unrelated context about `enter_applying_review_feedback`."
+        )
+        findings = ws.find_applying_review_feedback_version_claims("doc.md", text)
+        self.assertEqual(len(findings), 1, [repr(f) for f in findings])
+
+    def test_round_6_782_row_is_not_currently_flagged_by_neighbor_suppression(self):
+        # WORKFLOW_V2_1_OPERATOR_REFERENCE.md's real pre-round-7 `:782` table
+        # row (git show 17b8641b, verbatim) IS matched by the "no ... call"
+        # cue in isolation, but its real preceding table row in the same
+        # document ends in "...the terminal \"ready for approval\" phase
+        # (reused rather than a new name)" -- an unrelated use of the word
+        # "terminal" that still falls inside the ±300-character window and
+        # suppresses the finding. Round 8's `B1` (1): the bare-substring
+        # `terminal` qualifier is not scoped to the same list item/table row
+        # as the cue it is meant to qualify. Pinned here, in situ, rather
+        # than as a paraphrase, exactly because round 6's own fixture below
+        # (`test_round_6_b1_instance_is_flagged`) is a paraphrase that
+        # cannot catch this — the previous round's Missing-tests item this
+        # gap corresponds to.
+        preceding_row = (
+            '| `AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW` | `record_bundle_'
+            'generation` — every `"1"`/`"2.1"` stage/outcome; for `"2.2"`, '
+            '`record_manual_implementation_review` on `APPROVE` (the '
+            'terminal "ready for approval" phase, reused rather than a new '
+            'name) |'
+        )
+        real_row = (
+            '| `APPLYING_REVIEW_FEEDBACK` | `enter_applying_review_feedback` '
+            '(`"1"`/`"2.1"`); for `"2.2"` (`workflow-2.5.0`), '
+            '`record_local_implementation_review`/'
+            '`record_manual_implementation_review` on `REVISE` write it '
+            'directly instead, with no `enter_applying_review_feedback` '
+            'call |'
+        )
+        # In isolation the cue fires...
+        self.assertEqual(
+            len(ws.find_applying_review_feedback_version_claims("doc.md", real_row)), 1,
+        )
+        # ...but preceded by its real neighbouring row, it is suppressed.
+        # This is the documented gap, not the desired behavior: a future
+        # strengthening (round 8's `B1` fix (a), not taken this round)
+        # should turn this assertion into a non-zero one.
+        combined = preceding_row + "\n" + real_row
+        self.assertEqual(
+            ws.find_applying_review_feedback_version_claims("doc.md", combined), [],
+        )
+
+    def test_round_6_no_separate_call_wording_is_not_currently_flagged(self):
+        # Round 6's other two real instances both read "makes no
+        # **separate** `enter_applying_review_feedback` call" -- an
+        # adjective between "no" and the reference cue that the
+        # `no\s+enter_applying_review_feedback\s+call` pattern does not
+        # tolerate. Round 8's `B1` (2): pinned in situ (markup stripped,
+        # matching what the detector actually sees) rather than as a
+        # paraphrase.
+        text = "this command makes no separate `enter_applying_review_feedback` call for a \"2.2\" item"
+        self.assertEqual(
+            ws.find_applying_review_feedback_version_claims("doc.md", text), [],
+        )
+
+    def test_real_corpus_sweep_is_clean(self):
+        """Same deliberately-scoped corpus as
+        `GoverningVersionEnumerationSweepTest.test_real_corpus_sweep_is_clean`
+        (round 4's O2) -- non-recursive over `.claude/commands/` and
+        `docs/ai-workflow/`'s own top level, for consistency with that
+        sibling sweep's precedent. **Not**, as round 7's docstring wrongly
+        claimed and round 8's `B1` (3) corrects, because a wider recursive
+        run demonstrates a true positive outside this scope: run over the
+        entire `2.5.0` payload (all `.md`/`.json`/`.py`/`.sh`/`.yml`/`.svg`
+        files, recursively), this sweep's cue set returns exactly 6
+        findings, every one of them self-referential (this module's own
+        cue table and this file's own test fixtures above) --
+        `docs/ai-workflow/WORKFLOW_V2_3_FOLLOWUPS_PLAN.md:1685` and
+        `docs/ai-workflow/requirements/workflow-v2-3-followups-mapping.json:133`
+        (both inherited unmodified from the `2.4.0` base, round 7's `O2`)
+        are flagged by neither the narrow nor the wide run: their wording,
+        "`APPLYING_REVIEW_FEEDBACK` (entered only by ... `enter_applying_
+        review_feedback` ...)", matches none of the five closed absolute
+        cues. Whether that wording is itself a true instance of the
+        underlying claim is a separate question this sweep's cue set is not
+        equipped to answer either way; it is not evidence for or against
+        widening this test's own corpus, and is not relied on as such
+        (round 8's `B1`, correcting round 7's `O2`/this docstring)."""
+        overlay_root = Path(__file__).resolve().parent
+        payload_root = overlay_root.parent
+        paths = list((payload_root / ".claude" / "commands").glob("*.md")) + \
+            list((payload_root / "docs" / "ai-workflow").glob("*.md"))
+        texts = {str(p): p.read_text() for p in paths}
+        findings = ws.sweep_applying_review_feedback_version_claims(texts)
+        self.assertEqual(findings, [], [repr(f) for f in findings])
+
+
+# ---------------------------------------------------------------------------
+# workflow-2.5.0 CP7: D-Canonical-Review-Data's generic, parametric
+# declaration-coverage helper. This replaces the bespoke, hand-authored
+# per-work-item declaration-coverage pattern this item's own CP2
+# (`TestImplementationReviewTwoStageDeclarationCoverage`, above) and
+# `plan-amendment-mechanism` each separately hand-derived from their own
+# registry/declarations data -- the identical mechanical check
+# (checkpoint-declared deliverable paths classify `protected`, never
+# `UnclassifiedPathError`/`excluded`) re-authored twice by hand from data
+# that already exists. Both of those existing tests are left exactly as
+# they are (rewriting another, already-approved work item's own test file
+# is out of this milestone's scope, and CP2's own test predates CP7 in
+# the checkpoint order); every *future* work item's plan calls
+# `assert_declaration_coverage` below instead of re-authoring the check.
+#
+# Precedent, not a second defect (D-Canonical-Review-Data): this is the
+# same "mechanically discovered, never hand-maintained" model
+# `workflow_state_completion_obligations_test.py`'s own
+# `surface_census`/`verifier_census` mechanism already follows -- that
+# census is *computed* from the real module surface each run rather than
+# typed out by a plan author. This helper generalizes the identical idea
+# to per-work-item declaration coverage; it is not a rediscovery of a gap
+# that mechanism has, it is the same pattern applied one level up.
+# ---------------------------------------------------------------------------
+
+
+def _implementation_stage_declaration_pairs(implementation_stage: dict) -> list[tuple[str, bool]]:
+    """Every implementation-stage declaration as `(entry, is_prefix)`
+    pairs -- exact paths (`protected_paths`/`excluded_paths`) and
+    prefixes (`protected_prefixes`/`excluded_prefixes`) alike."""
+    pairs: list[tuple[str, bool]] = []
+    for entry in implementation_stage.get("protected_paths", {}):
+        pairs.append((entry, False))
+    for entry in implementation_stage.get("excluded_paths", {}):
+        pairs.append((entry, False))
+    for entry in implementation_stage.get("protected_prefixes", {}):
+        pairs.append((entry, True))
+    for entry in implementation_stage.get("excluded_prefixes", {}):
+        pairs.append((entry, True))
+    return pairs
+
+
+def _contained_by(excepted_entry: str, excepted_is_prefix: bool,
+                   candidate_entry: str, candidate_is_prefix: bool) -> bool:
+    """Whether `candidate_entry` (an implementation-stage declaration,
+    exact path or prefix alike) is contained by `excepted_entry` (a
+    `plan_stage.excluded_paths`/`excluded_prefixes` entry): equal to it,
+    and itself an exact path, when `excepted_entry` is an exact path --
+    nothing counts as contained under a plan-stage exact path beyond that
+    same exact path, since nothing can be nested beneath a file -- or
+    itself starting with `excepted_entry` when `excepted_entry` is a
+    prefix, exact paths and prefixes alike."""
+    if not excepted_is_prefix:
+        return (not candidate_is_prefix) and candidate_entry == excepted_entry
+    return candidate_entry.startswith(excepted_entry)
+
+
+def implementation_declarations_contained_by(
+    excepted_entry: str, excepted_is_prefix: bool, implementation_stage: dict,
+) -> list[str]:
+    """The complete set of implementation-stage declarations -- exact
+    paths and prefixes, `protected_*`/`excluded_*` alike -- contained by
+    `excepted_entry`, sorted. This is the set `narrowing_exceptions`'
+    exhaustiveness requirement measures a listed entry set against."""
+    return sorted(
+        entry for entry, is_prefix in _implementation_stage_declaration_pairs(implementation_stage)
+        if _contained_by(excepted_entry, excepted_is_prefix, entry, is_prefix)
+    )
+
+
+def find_declaration_symmetry_gaps(plan_stage: dict, implementation_stage: dict) -> tuple[list[str], list[str]]:
+    """`D-Canonical-Review-Data`'s plan-stage/implementation-stage
+    declaration-symmetry check, both directions -- never raises itself,
+    so a caller can assert on the complete failure set at once rather
+    than stopping at the first one found:
+
+    (a) every `implementation_stage.protected_paths`/`protected_prefixes`
+        entry's own literal key must classify under the plan-stage sets
+        (`fingerprint.classify_path`) without raising
+        `UnclassifiedPathError`.
+    (b) every `plan_stage.excluded_paths`/`excluded_prefixes` entry's own
+        literal key must be either (i) classifiable outright under the
+        implementation-stage sets (`fingerprint.classify_path_implementation_stage`),
+        or (ii) named as a key in `plan_stage.narrowing_exceptions`, whose
+        mapped list is non-empty, every listed entry declared at
+        implementation stage and contained by the entry it excepts, and
+        the list exhaustive -- equal to (not merely a subset of) the
+        complete set of implementation-stage declarations contained by
+        that entry (`implementation_declarations_contained_by`).
+        Partial overlap alone, with no `narrowing_exceptions` entry, is
+        never accepted as coverage. A `narrowing_exceptions` key that
+        does not itself equal a real `plan_stage.excluded_paths`/
+        `excluded_prefixes` entry is flagged too, closing the same
+        staleness from the declaration side.
+
+    Returns `(direction_a_gaps, direction_b_gaps)`, each a list of
+    human-readable failure descriptions (empty when that direction is
+    clean)."""
+    protected = frozenset(plan_stage.get("protected_paths", []))
+    excluded_paths = plan_stage.get("excluded_paths", {})
+    excluded_prefixes = plan_stage.get("excluded_prefixes", {})
+    narrowing_exceptions = plan_stage.get("narrowing_exceptions", {})
+
+    impl_protected_paths = implementation_stage.get("protected_paths", {})
+    impl_protected_prefixes = implementation_stage.get("protected_prefixes", {})
+    impl_excluded_paths = implementation_stage.get("excluded_paths", {})
+    impl_excluded_prefixes = implementation_stage.get("excluded_prefixes", {})
+
+    direction_a_gaps: list[str] = []
+    for entry in list(impl_protected_paths) + list(impl_protected_prefixes):
+        try:
+            fingerprint.classify_path(entry, protected, excluded_paths, excluded_prefixes)
+        except fingerprint.UnclassifiedPathError:
+            direction_a_gaps.append(
+                f"implementation_stage entry {entry!r} is not classifiable by any plan_stage set"
+            )
+
+    declared_implementation_entries = {
+        entry for entry, _is_prefix in _implementation_stage_declaration_pairs(implementation_stage)
+    }
+    implementation_prefix_entries = set(impl_protected_prefixes) | set(impl_excluded_prefixes)
+
+    direction_b_gaps: list[str] = []
+    excepted_entries = ([(p, False) for p in excluded_paths]
+                        + [(p, True) for p in excluded_prefixes])
+    for excepted_entry, is_prefix in excepted_entries:
+        try:
+            fingerprint.classify_path_implementation_stage(
+                excepted_entry, impl_protected_paths, impl_protected_prefixes,
+                impl_excluded_paths, impl_excluded_prefixes,
+            )
+            continue  # clause (i): classifiable outright
+        except fingerprint.UnclassifiedPathError:
+            pass
+        # clause (ii): must be named in narrowing_exceptions
+        if excepted_entry not in narrowing_exceptions:
+            direction_b_gaps.append(
+                f"plan_stage entry {excepted_entry!r} is not classifiable by any implementation_stage "
+                f"set and has no narrowing_exceptions entry"
+            )
+            continue
+        listed = narrowing_exceptions[excepted_entry]
+        if not listed:
+            direction_b_gaps.append(
+                f"narrowing_exceptions[{excepted_entry!r}] is empty -- no implementation_stage "
+                f"narrowing declared for it at all"
+            )
+            continue
+        complete = implementation_declarations_contained_by(excepted_entry, is_prefix, implementation_stage)
+        problems: list[str] = []
+        for listed_entry in listed:
+            if listed_entry not in declared_implementation_entries:
+                problems.append(f"{listed_entry!r} is not declared at implementation stage")
+                continue
+            listed_is_prefix = listed_entry in implementation_prefix_entries
+            if not _contained_by(excepted_entry, is_prefix, listed_entry, listed_is_prefix):
+                problems.append(f"{listed_entry!r} is not contained by {excepted_entry!r}")
+        if sorted(listed) != complete:
+            missing = sorted(set(complete) - set(listed))
+            if missing:
+                problems.append(
+                    f"omits {missing!r}, also contained by {excepted_entry!r} (not exhaustive)"
+                )
+        for problem in problems:
+            direction_b_gaps.append(f"narrowing_exceptions[{excepted_entry!r}]: {problem}")
+
+    # A narrowing_exceptions key that does not itself equal a real
+    # plan_stage.excluded_paths/excluded_prefixes entry must fail too.
+    for key in narrowing_exceptions:
+        if key not in excluded_paths and key not in excluded_prefixes:
+            direction_b_gaps.append(
+                f"narrowing_exceptions key {key!r} is not itself a plan_stage.excluded_paths/"
+                f"excluded_prefixes entry"
+            )
+
+    return direction_a_gaps, direction_b_gaps
+
+
+def assert_declaration_coverage(work_item_id: str, repo_root: Path) -> None:
+    """The generic, parametric declaration-coverage assertion
+    `D-Canonical-Review-Data` extracts from this item's own CP2
+    (`TestImplementationReviewTwoStageDeclarationCoverage`) and
+    `plan-amendment-mechanism`'s own separately hand-authored test: reads
+    `<work_item_id>-registry.json` and `<work_item_id>-artifacts.json`
+    straight off disk, then asserts (1) every
+    `implementation_stage.protected_paths`/`protected_prefixes` entry
+    classifies `protected` under the implementation-stage classifier, and
+    (2) both plan-stage/implementation-stage declaration-symmetry
+    directions (`find_declaration_symmetry_gaps`) are clean. A future
+    work item's plan calls this instead of re-authoring the check by
+    hand; CP12 (`workflow-2.5.0`'s own disposable-repository validation)
+    exercises this helper directly for its own synthetic work item rather
+    than hand-writing another copy."""
+    registry_path = repo_root / f"docs/ai-workflow/registry/{work_item_id}-registry.json"
+    registry = json.loads(registry_path.read_text(encoding="utf-8"))
+    if registry.get("work_item_id") != work_item_id:
+        raise AssertionError(
+            f"{registry_path}: registry work_item_id {registry.get('work_item_id')!r} != {work_item_id!r}"
+        )
+
+    artifacts_path = repo_root / fingerprint.artifacts_path_for_work_item(work_item_id)
+    declarations = json.loads(artifacts_path.read_text(encoding="utf-8"))
+    plan_stage = declarations["plan_stage"]
+    implementation_stage = declarations["implementation_stage"]
+
+    impl_protected_paths = implementation_stage.get("protected_paths", {})
+    impl_protected_prefixes = implementation_stage.get("protected_prefixes", {})
+    impl_excluded_paths = implementation_stage.get("excluded_paths", {})
+    impl_excluded_prefixes = implementation_stage.get("excluded_prefixes", {})
+
+    for path in impl_protected_paths:
+        classification = fingerprint.classify_path_implementation_stage(
+            path, impl_protected_paths, impl_protected_prefixes, impl_excluded_paths, impl_excluded_prefixes,
+        )
+        if classification != "protected":
+            raise AssertionError(f"{path}: classifies {classification!r}, expected 'protected'")
+    for prefix in impl_protected_prefixes:
+        sample = prefix + "some_deliverable_file.txt"
+        classification = fingerprint.classify_path_implementation_stage(
+            sample, impl_protected_paths, impl_protected_prefixes, impl_excluded_paths, impl_excluded_prefixes,
+        )
+        if classification != "protected":
+            raise AssertionError(f"{sample}: classifies {classification!r}, expected 'protected'")
+
+    direction_a_gaps, direction_b_gaps = find_declaration_symmetry_gaps(plan_stage, implementation_stage)
+    if direction_a_gaps:
+        raise AssertionError(f"declaration symmetry direction (a) failed: {direction_a_gaps}")
+    if direction_b_gaps:
+        raise AssertionError(f"declaration symmetry direction (b) failed: {direction_b_gaps}")
+
+
+class DeclarationSymmetryHelperTest(unittest.TestCase):
+    """The required synthetic fixtures (`IMPLEMENTATION_REVIEW_TWO_STAGE_PLAN.md`
+    §CP7, revision 41) pinning `find_declaration_symmetry_gaps`'s every
+    documented case. (workflow-2.5.0 CP11, release-authoring sweep: the
+    real-corpus before/after check this class used to also carry -- pinned
+    against this repository's own live `implementation-review-two-stage`
+    declarations file and a hardcoded CP7 commit SHA -- was removed here,
+    along with the sibling `TestImplementationReviewTwoStageDeclarationCoverage`
+    class: both were self-referential to this exact repository at this
+    exact commit and could never pass once installed into any other target
+    repository via the general release payload. CP12's own disposable-
+    repository functional validation exercises this same generic helper
+    against a synthetic work item instead, per its own registry entry.)"""
+
+    # -- direction (a) -----------------------------------------------------
+
+    def test_direction_a_fails_when_implementation_protected_path_unclaimed_by_plan_stage(self):
+        plan_stage = {"protected_paths": [], "excluded_paths": {}, "excluded_prefixes": {}}
+        implementation_stage = {"protected_paths": {"src/x.py": "j"}, "protected_prefixes": {},
+                                 "excluded_paths": {}, "excluded_prefixes": {}}
+        gaps_a, gaps_b = find_declaration_symmetry_gaps(plan_stage, implementation_stage)
+        self.assertEqual(gaps_b, [])
+        self.assertEqual(len(gaps_a), 1)
+        self.assertIn("src/x.py", gaps_a[0])
+
+    # -- direction (b): no coverage at all ----------------------------------
+
+    def test_direction_b_fails_when_plan_excluded_path_has_no_implementation_declaration_at_all(self):
+        plan_stage = {"protected_paths": [], "excluded_paths": {"foo.txt": "j"}, "excluded_prefixes": {}}
+        implementation_stage = {"protected_paths": {}, "protected_prefixes": {},
+                                 "excluded_paths": {}, "excluded_prefixes": {}}
+        gaps_a, gaps_b = find_declaration_symmetry_gaps(plan_stage, implementation_stage)
+        self.assertEqual(gaps_a, [])
+        self.assertEqual(len(gaps_b), 1)
+        self.assertIn("foo.txt", gaps_b[0])
+        self.assertIn("no narrowing_exceptions entry", gaps_b[0])
+
+    def test_direction_b_fails_when_plan_excluded_prefix_is_only_partially_covered_with_no_exception(self):
+        # foo/bar.txt is declared at implementation stage, but the
+        # excepted entry's own literal key ("foo/") still does not
+        # classify -- partial overlap alone is never accepted.
+        plan_stage = {"protected_paths": [], "excluded_paths": {}, "excluded_prefixes": {"foo/": "j"}}
+        implementation_stage = {"protected_paths": {}, "protected_prefixes": {},
+                                 "excluded_paths": {"foo/bar.txt": "j"}, "excluded_prefixes": {}}
+        gaps_a, gaps_b = find_declaration_symmetry_gaps(plan_stage, implementation_stage)
+        self.assertEqual(gaps_a, [])
+        self.assertEqual(len(gaps_b), 1)
+        self.assertIn("foo/", gaps_b[0])
+        self.assertIn("no narrowing_exceptions entry", gaps_b[0])
+
+    # -- direction (b): narrowing_exceptions present but malformed ----------
+
+    def test_direction_b_fails_when_narrowing_exceptions_value_is_empty(self):
+        plan_stage = {"protected_paths": [], "excluded_paths": {},
+                       "excluded_prefixes": {"foo/": "j"},
+                       "narrowing_exceptions": {"foo/": []}}
+        implementation_stage = {"protected_paths": {}, "protected_prefixes": {},
+                                 "excluded_paths": {}, "excluded_prefixes": {}}
+        gaps_a, gaps_b = find_declaration_symmetry_gaps(plan_stage, implementation_stage)
+        self.assertEqual(gaps_a, [])
+        self.assertEqual(len(gaps_b), 1)
+        self.assertIn("is empty", gaps_b[0])
+
+    def test_direction_b_fails_when_narrowing_exceptions_listed_path_is_undeclared(self):
+        plan_stage = {"protected_paths": [], "excluded_paths": {},
+                       "excluded_prefixes": {"foo/": "j"},
+                       "narrowing_exceptions": {"foo/": ["foo/bar.txt"]}}
+        implementation_stage = {"protected_paths": {}, "protected_prefixes": {},
+                                 "excluded_paths": {}, "excluded_prefixes": {}}
+        gaps_a, gaps_b = find_declaration_symmetry_gaps(plan_stage, implementation_stage)
+        self.assertEqual(gaps_a, [])
+        self.assertEqual(len(gaps_b), 1)
+        self.assertIn("not declared at implementation stage", gaps_b[0])
+
+    def test_direction_b_fails_when_narrowing_exceptions_listed_path_is_not_contained(self):
+        plan_stage = {"protected_paths": [], "excluded_paths": {},
+                       "excluded_prefixes": {"foo/": "j"},
+                       "narrowing_exceptions": {"foo/": ["bar/baz.txt"]}}
+        implementation_stage = {"protected_paths": {}, "protected_prefixes": {},
+                                 "excluded_paths": {"bar/baz.txt": "j"}, "excluded_prefixes": {}}
+        gaps_a, gaps_b = find_declaration_symmetry_gaps(plan_stage, implementation_stage)
+        self.assertEqual(gaps_a, [])
+        self.assertEqual(len(gaps_b), 1)
+        self.assertIn("not contained by", gaps_b[0])
+
+    def test_direction_b_fails_when_narrowing_exceptions_list_omits_a_contained_exact_child(self):
+        plan_stage = {"protected_paths": [], "excluded_paths": {},
+                       "excluded_prefixes": {"foo/": "j"},
+                       "narrowing_exceptions": {"foo/": ["foo/a.txt"]}}
+        implementation_stage = {"protected_paths": {}, "protected_prefixes": {},
+                                 "excluded_paths": {"foo/a.txt": "j", "foo/b.txt": "j"}, "excluded_prefixes": {}}
+        gaps_a, gaps_b = find_declaration_symmetry_gaps(plan_stage, implementation_stage)
+        self.assertEqual(gaps_a, [])
+        self.assertEqual(len(gaps_b), 1)
+        self.assertIn("not exhaustive", gaps_b[0])
+        self.assertIn("foo/b.txt", gaps_b[0])
+
+    def test_direction_b_fails_when_narrowing_exceptions_list_omits_a_contained_prefix_child(self):
+        # The prefix twin of the exact-child exhaustiveness fixture above:
+        # exhaustiveness is measured against the complete set (exact
+        # paths and prefixes alike), never the exact-only subset.
+        plan_stage = {"protected_paths": [], "excluded_paths": {},
+                       "excluded_prefixes": {"foo/": "j"},
+                       "narrowing_exceptions": {"foo/": ["foo/a.txt"]}}
+        implementation_stage = {"protected_paths": {}, "protected_prefixes": {},
+                                 "excluded_paths": {"foo/a.txt": "j"},
+                                 "excluded_prefixes": {"foo/sub/": "j"}}
+        gaps_a, gaps_b = find_declaration_symmetry_gaps(plan_stage, implementation_stage)
+        self.assertEqual(gaps_a, [])
+        self.assertEqual(len(gaps_b), 1)
+        self.assertIn("not exhaustive", gaps_b[0])
+        self.assertIn("foo/sub/", gaps_b[0])
+
+    def test_direction_b_live_regression_exact_path_addition_without_updating_the_exception(self):
+        # The exact-path live-regression fixture: a state that passes
+        # today must fail the moment a further implementation-stage exact
+        # path lands under an already-excepted entry without that
+        # entry's own narrowing_exceptions list being updated to match.
+        plan_stage = {"protected_paths": [], "excluded_paths": {},
+                       "excluded_prefixes": {"foo/": "j"},
+                       "narrowing_exceptions": {"foo/": ["foo/a.txt", "foo/b.txt"]}}
+        good_implementation_stage = {"protected_paths": {}, "protected_prefixes": {},
+                                      "excluded_paths": {"foo/a.txt": "j", "foo/b.txt": "j"},
+                                      "excluded_prefixes": {}}
+        gaps_a, gaps_b = find_declaration_symmetry_gaps(plan_stage, good_implementation_stage)
+        self.assertEqual((gaps_a, gaps_b), ([], []))
+
+        regressed_implementation_stage = copy.deepcopy(good_implementation_stage)
+        regressed_implementation_stage["excluded_paths"]["foo/c.txt"] = "j"
+        gaps_a, gaps_b = find_declaration_symmetry_gaps(plan_stage, regressed_implementation_stage)
+        self.assertEqual(gaps_a, [])
+        self.assertEqual(len(gaps_b), 1)
+        self.assertIn("foo/c.txt", gaps_b[0])
+
+    def test_direction_b_live_regression_prefix_addition_without_updating_the_exception(self):
+        # The prefix twin of the live-regression fixture above.
+        plan_stage = {"protected_paths": [], "excluded_paths": {},
+                       "excluded_prefixes": {"foo/": "j"},
+                       "narrowing_exceptions": {"foo/": ["foo/a.txt", "foo/sub/"]}}
+        good_implementation_stage = {"protected_paths": {}, "protected_prefixes": {},
+                                      "excluded_paths": {"foo/a.txt": "j"},
+                                      "excluded_prefixes": {"foo/sub/": "j"}}
+        gaps_a, gaps_b = find_declaration_symmetry_gaps(plan_stage, good_implementation_stage)
+        self.assertEqual((gaps_a, gaps_b), ([], []))
+
+        regressed_implementation_stage = copy.deepcopy(good_implementation_stage)
+        regressed_implementation_stage["excluded_prefixes"]["foo/sub2/"] = "j"
+        gaps_a, gaps_b = find_declaration_symmetry_gaps(plan_stage, regressed_implementation_stage)
+        self.assertEqual(gaps_a, [])
+        self.assertEqual(len(gaps_b), 1)
+        self.assertIn("foo/sub2/", gaps_b[0])
+
+    def test_direction_b_fails_when_narrowing_exceptions_key_is_not_a_real_plan_stage_entry(self):
+        plan_stage = {"protected_paths": [], "excluded_paths": {"real.txt": "j"}, "excluded_prefixes": {},
+                       "narrowing_exceptions": {"fake/": ["fake/child.txt"]}}
+        implementation_stage = {"protected_paths": {}, "protected_prefixes": {},
+                                 "excluded_paths": {"fake/child.txt": "j", "real.txt": "j"}, "excluded_prefixes": {}}
+        gaps_a, gaps_b = find_declaration_symmetry_gaps(plan_stage, implementation_stage)
+        self.assertEqual(gaps_a, [])
+        self.assertEqual(len(gaps_b), 1)
+        self.assertIn("not itself a plan_stage.excluded_paths/excluded_prefixes entry", gaps_b[0])
+
+    # -- direction (b): passing cases ---------------------------------------
+
+    def test_direction_b_passes_for_the_declared_workflow_manager_narrowing_exception(self):
+        plan_stage = {"protected_paths": [], "excluded_paths": {},
+                       "excluded_prefixes": {".workflow-manager/": "j"},
+                       "narrowing_exceptions": {".workflow-manager/": [".workflow-manager/installation.json"]}}
+        implementation_stage = {"protected_paths": {}, "protected_prefixes": {},
+                                 "excluded_paths": {".workflow-manager/installation.json": "j"},
+                                 "excluded_prefixes": {}}
+        self.assertEqual(find_declaration_symmetry_gaps(plan_stage, implementation_stage), ([], []))
+
+    def test_direction_b_passes_when_plan_entry_is_fully_covered_without_needing_an_exception(self):
+        plan_stage = {"protected_paths": [], "excluded_paths": {"tools/build_release.py": "j"},
+                       "excluded_prefixes": {}}
+        implementation_stage = {"protected_paths": {"tools/build_release.py": "j"}, "protected_prefixes": {},
+                                 "excluded_paths": {}, "excluded_prefixes": {}}
+        self.assertEqual(find_declaration_symmetry_gaps(plan_stage, implementation_stage), ([], []))
+
+    def test_direction_b_passes_when_narrowing_exception_names_a_contained_prefix_not_an_exact_path(self):
+        # A plan-stage entry whose only implementation-stage narrowing is
+        # itself a prefix -- contained by, not equal to, the excepted
+        # entry -- must be representable and pass.
+        plan_stage = {"protected_paths": [], "excluded_paths": {},
+                       "excluded_prefixes": {"foo/": "j"},
+                       "narrowing_exceptions": {"foo/": ["foo/sub/"]}}
+        implementation_stage = {"protected_paths": {}, "protected_prefixes": {},
+                                 "excluded_paths": {}, "excluded_prefixes": {"foo/sub/": "j"}}
+        self.assertEqual(find_declaration_symmetry_gaps(plan_stage, implementation_stage), ([], []))
+
+
+# ---------------------------------------------------------------------------
+# CP8 -- D-Review-Finding-Taxonomy-and-Circuit-Breaker. Purely advisory
+# prose (REVIEW_PROTOCOL.md's "Feedback protocol" section): no
+# WORKFLOW_STATE.json field, no phase gate, no governing-version bump, and
+# no runtime parser rejects a missing/malformed tag. The helpers below are
+# test-only reference logic modeling exactly the algorithm the prose
+# describes -- they are never imported by workflow_state.py or by any
+# review command, matching the "advisory, never machine-enforced" framing.
+# ---------------------------------------------------------------------------
+
+
+import re as _re
+
+_FINDING_TAG_RE = _re.compile(r"\[(substantive|apparatus)\]", _re.IGNORECASE)
+_REVIEWER_ROLE_RE = _re.compile(r"^Reviewer role:\s*(\S+)\s*$", _re.MULTILINE)
+_STATUS_RE = _re.compile(r"^Status:\s*(APPROVE|REVISE|BLOCK)\s*$", _re.MULTILINE)
+_LOCAL_MODEL_STAGES = {"LOCAL_MODEL_PLAN_REVIEW", "LOCAL_MODEL_IMPLEMENTATION_REVIEW"}
+
+
+def _finding_blocks(feedback_text):
+    """Every Blocking/Important finding entry, as the raw text following
+    each leading '- ' bullet under those two headings -- fixture-only
+    parsing, deliberately naive (no REVIEW_FEEDBACK.md structural
+    validation), since only the tag's own presence/value matters here."""
+    blocks = []
+    for heading in ("Blocking findings", "Important findings"):
+        match = _re.search(
+            rf"^## {heading}\n(.*?)(?=\n## |\Z)", feedback_text, _re.MULTILINE | _re.DOTALL,
+        )
+        if not match:
+            continue
+        body = match.group(1)
+        blocks.extend(line for line in body.splitlines() if line.strip().startswith("-"))
+    return blocks
+
+
+def _finding_tag(finding_line):
+    """The advisory tag for one finding line -- 'apparatus' only when
+    exactly and unambiguously tagged so; a missing, malformed, or (were one
+    ever present) multiply-tagged line defaults, conservatively, to
+    'substantive' (D-Review-Finding-Taxonomy-and-Circuit-Breaker point 1),
+    so a missing tag can never masquerade as an apparatus-only finding."""
+    tags = _FINDING_TAG_RE.findall(finding_line)
+    if len(tags) == 1 and tags[0].lower() == "apparatus":
+        return "apparatus"
+    return "substantive"
+
+
+def _reviewer_role(feedback_text):
+    match = _REVIEWER_ROLE_RE.search(feedback_text)
+    return match.group(1) if match else None
+
+
+def _status(feedback_text):
+    match = _STATUS_RE.search(feedback_text)
+    return match.group(1) if match else None
+
+
+def _is_apparatus_only_revise_round(feedback_text):
+    """A REVISE round is apparatus-only when at least one Blocking/
+    Important finding is present and every one of them tags 'apparatus'
+    (an untagged/malformed one, defaulting to 'substantive', breaks this).
+    A round with no Blocking/Important findings at all is not a REVISE
+    round to begin with under REVIEW_PROTOCOL.md's own rule, so it is
+    never treated as apparatus-only here."""
+    if _status(feedback_text) != "REVISE":
+        return False
+    findings = _finding_blocks(feedback_text)
+    if not findings:
+        return False
+    return all(_finding_tag(line) == "apparatus" for line in findings)
+
+
+def circuit_breaker_fires(previous_feedback_text, current_feedback_text):
+    """Reference model of the advisory signal: fires exactly when both
+    rounds declare the *same* local-model `Reviewer role:` stage, both are
+    REVISE, and both are apparatus-only -- the exact scope
+    D-Review-Finding-Taxonomy-and-Circuit-Breaker states, narrowed to the
+    two local-model stages only (never a manual-external one)."""
+    prev_role = _reviewer_role(previous_feedback_text)
+    curr_role = _reviewer_role(current_feedback_text)
+    if prev_role is None or prev_role != curr_role or prev_role not in _LOCAL_MODEL_STAGES:
+        return False
+    return (
+        _is_apparatus_only_revise_round(previous_feedback_text)
+        and _is_apparatus_only_revise_round(current_feedback_text)
+    )
+
+
+def _feedback(role, status, findings):
+    """Builds a minimal, schema-shaped REVIEW_FEEDBACK.md fixture: findings
+    is a list of (heading, tag_or_None) pairs, tag_or_None omitted meaning
+    'untagged'."""
+    lines = [
+        "# Review Decision", "", f"Status: {status}", "",
+        "Reviewed bundle ID: deadbeef", "Reviewed base commit: cafef00d",
+        "Work item: implementation-review-two-stage", "",
+        f"Reviewer role: {role}", "",
+        "## Blocking findings", "",
+    ]
+    for heading, tag in findings:
+        tagged = f"[{tag}] " if tag else ""
+        lines.append(f"- {tagged}{heading}")
+    lines += ["", "## Important findings", "", "## Optional findings", ""]
+    return "\n".join(lines)
+
+
+class FindingTaxonomyCircuitBreakerTest(unittest.TestCase):
+    """CP8's first required test: the signal fires after two consecutive
+    apparatus-only REVISE rounds for the same local-model stage -- for
+    each of the two local-model stages independently -- and never
+    otherwise, including the missing-tag-can't-masquerade case."""
+
+    def test_fires_after_two_consecutive_apparatus_only_rounds_for_each_local_model_stage(self):
+        for role in sorted(_LOCAL_MODEL_STAGES):
+            with self.subTest(role=role):
+                previous = _feedback(role, "REVISE", [("stale prose", "apparatus")])
+                current = _feedback(role, "REVISE", [("another stale reference", "apparatus")])
+                self.assertTrue(circuit_breaker_fires(previous, current))
+
+    def test_does_not_fire_across_different_stages(self):
+        previous = _feedback("LOCAL_MODEL_PLAN_REVIEW", "REVISE", [("x", "apparatus")])
+        current = _feedback("LOCAL_MODEL_IMPLEMENTATION_REVIEW", "REVISE", [("y", "apparatus")])
+        self.assertFalse(circuit_breaker_fires(previous, current))
+
+    def test_does_not_fire_for_manual_external_rounds(self):
+        previous = _feedback("MANUAL_EXTERNAL_PLAN_REVIEW", "REVISE", [("x", "apparatus")])
+        current = _feedback("MANUAL_EXTERNAL_PLAN_REVIEW", "REVISE", [("y", "apparatus")])
+        self.assertFalse(circuit_breaker_fires(previous, current))
+
+    def test_a_missing_tag_defaults_to_substantive_and_cannot_masquerade_as_apparatus(self):
+        # An untagged finding never manufactures an apparatus-only streak
+        # by silence (point 1 of the design decision).
+        previous = _feedback("LOCAL_MODEL_PLAN_REVIEW", "REVISE", [("untagged finding", None)])
+        current = _feedback("LOCAL_MODEL_PLAN_REVIEW", "REVISE", [("also apparatus", "apparatus")])
+        self.assertFalse(circuit_breaker_fires(previous, current))
+        self.assertEqual(_finding_tag("- untagged finding"), "substantive")
+
+    def test_a_single_substantive_round_never_fires_regardless_of_the_other_round(self):
+        previous = _feedback("LOCAL_MODEL_IMPLEMENTATION_REVIEW", "REVISE",
+                              [("a real defect", "substantive")])
+        current = _feedback("LOCAL_MODEL_IMPLEMENTATION_REVIEW", "REVISE",
+                             [("cleanup only", "apparatus")])
+        self.assertFalse(circuit_breaker_fires(previous, current))
+
+    def test_resolve_or_reject_rule_is_unaffected_by_tag_or_its_absence(self):
+        # D-Review-Finding-Taxonomy-and-Circuit-Breaker point 2: the tag
+        # (or its absence) changes nothing about which findings must be
+        # resolved or explicitly rejected -- REVIEW_PROTOCOL.md's own text
+        # states this for both tags and for an untagged finding alike.
+        protocol_path = Path(__file__).resolve().parent.parent / "docs/ai-workflow/REVIEW_PROTOCOL.md"
+        text = protocol_path.read_text(encoding="utf-8")
+        self.assertIn(
+            "Every blocking and\nimportant finding must end up either resolved, or explicitly rejected",
+            text,
+        )
+        self.assertIn('never means "may be\nignored"', text)
+
+
+class ReviewProtocolManualExternalCircuitBreakerScopeTest(unittest.TestCase):
+    """CP8's second required test: REVIEW_PROTOCOL.md's own added text
+    makes no manual-external recoverability claim a reader could act on
+    (revision 15, MANUAL_EXTERNAL_PLAN_REVIEW round 1, finding I3) --
+    proved against the prose itself, not assumed."""
+
+    def _circuit_breaker_section(self):
+        protocol_path = Path(__file__).resolve().parent.parent / "docs/ai-workflow/REVIEW_PROTOCOL.md"
+        text = protocol_path.read_text(encoding="utf-8")
+        match = _re.search(
+            r"### Finding taxonomy and circuit breaker.*?(?=\n## )", text, _re.DOTALL,
+        )
+        self.assertIsNotNone(match, "D-Review-Finding-Taxonomy-and-Circuit-Breaker section not found")
+        return match.group(0)
+
+    def test_section_states_no_manual_external_recoverability_claim(self):
+        section = self._circuit_breaker_section()
+        self.assertIn("no", section)
+        self.assertIn("recoverability claim", section)
+        self.assertIn("manual-external", section.lower())
+        self.assertIn("operator\njudgment", section)
+
+    def test_section_never_affirmatively_claims_the_bound_fires_for_manual_external_rounds(self):
+        section = self._circuit_breaker_section()
+        flat = _re.sub(r"\s+", " ", section)
+        sentences = _re.split(r"(?<=[.:])\s+", flat)
+        manual_external_sentences = [s for s in sentences if "manual-external" in s.lower()]
+        self.assertTrue(manual_external_sentences, "no sentence mentions manual-external at all")
+        affirmative_claim_markers = (
+            "fires", "applies to", "also applies", "the same bound", "recovers the signal",
+            "is available for", "holds across two consecutive manual",
+        )
+        for sentence in manual_external_sentences:
+            lowered = sentence.lower()
+            for marker in affirmative_claim_markers:
+                self.assertNotIn(
+                    marker, lowered,
+                    f"sentence {sentence!r} makes an affirmative manual-external "
+                    f"circuit-breaker claim via {marker!r}",
+                )
+
+
+# ---------------------------------------------------------------------------
+# CP9 -- post-v2.3.1 backlog, tractable fixes (`docs/ai-workflow/
+# IMPLEMENTATION_REVIEW_TWO_STAGE_PLAN.md` section 2.7). Forward-only:
+# `generate_artifacts_declarations`'s implementation-stage default template
+# gains the `.workflow-manager/` exclusion the plan-stage default already
+# carried (`v2.4.0-001`'s own plan-stage fix), so a freshly generated
+# declarations file is not exposed to the identical gap this item's own
+# CP2 (revision 2, finding B1) had to hand-fix for itself. No existing work
+# item's already-generated declarations file is edited by this change. The
+# other three backlog fixes (`v2.3.1-003`'s mode-`100644` fallback,
+# `v2.3.1-001`'s portable host-note skip, and `migration/
+# portability_exceptions.json`'s required empty `by_version["2.5.0"]`
+# entry) are regression-tested in this overlay's own
+# `workflow_integration_test.py` and this repository's own
+# `tests/test_conformance_suite.py`, respectively -- not here.
+# ---------------------------------------------------------------------------
+
+
+class GeneratedDeclarationsWorkflowManagerImplementationStageWideningTest(unittest.TestCase):
+    """CP9's own required regression test: `generate_artifacts_declarations`'s
+    implementation-stage default classifies
+    `.workflow-manager/installation.json` `excluded` for a freshly-generated
+    declarations file, for both work-item types -- the implementation-stage
+    twin of the plan-stage `.workflow-manager/` exclusion `v2.4.0-001`'s own
+    fix already added (`plan_stage_excluded_prefixes.setdefault('.workflow-
+    manager/', ...)`)."""
+
+    def _declarations(self, work_item_type: str) -> dict:
+        return ws.generate_artifacts_declarations(
+            "new-item", "docs/ai-workflow/new-item-plan.md",
+            "docs/ai-workflow/registry/new-item-registry.json",
+            "docs/ai-workflow/requirements/new-item-mapping.json",
+            work_item_type=work_item_type,
+        )
+
+    def _classify_impl(self, declarations: dict, path: str) -> str:
+        stage = declarations["implementation_stage"]
+        return fingerprint.classify_path_implementation_stage(
+            path, stage["protected_paths"], stage["protected_prefixes"],
+            stage["excluded_paths"], stage["excluded_prefixes"],
+        )
+
+    def test_process_item_implementation_stage_excludes_workflow_manager_installation_record(self):
+        declarations = self._declarations("process")
+        self.assertEqual(
+            self._classify_impl(declarations, ".workflow-manager/installation.json"),
+            "excluded",
+        )
+
+    def test_product_item_implementation_stage_excludes_workflow_manager_installation_record(self):
+        declarations = self._declarations("product")
+        self.assertEqual(
+            self._classify_impl(declarations, ".workflow-manager/installation.json"),
+            "excluded",
+        )
+
+    def test_the_widened_prefix_is_present_verbatim_symmetric_with_the_plan_stage_default(self):
+        declarations = self._declarations("process")
+        self.assertIn(
+            ".workflow-manager/", declarations["implementation_stage"]["excluded_prefixes"],
+        )
+        self.assertIn(
+            ".workflow-manager/", declarations["plan_stage"]["excluded_prefixes"],
+        )
 
 
 if __name__ == "__main__":

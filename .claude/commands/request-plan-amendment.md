@@ -18,11 +18,13 @@ Enter the `AMENDING_PLAN` state of `docs/ai-workflow/MILESTONE_WORKFLOW.md`
    with no `docs/ai-workflow/WORKFLOW_STATE.json` entry at all (an ordinary
    `"1"` item that never routed through `workflow_state.route_work_item`):
    refuse, naming the work item, rather than inventing a phase for it.
-   Applies uniformly to `governing_workflow_version: "1"` and `"2.1"` work
-   items alike -- unlike the two-stage plan-review protocol, nothing about
-   this mechanism is `"2.1"`-only (`D-Plan-Amendment-4`); only the
-   downstream `/milestone-plan` re-entry that follows this command already
-   branches on governing version, unchanged.
+   Applies uniformly to `governing_workflow_version: "1"`, `"2.1"`, and
+   (`workflow-2.5.0`) `"2.2"` work items alike -- unlike the two-stage
+   plan-review protocol, nothing about this mechanism is
+   `"2.1"`/`"2.2"`-only (`D-Plan-Amendment-4`); only the downstream
+   `/milestone-plan` re-entry that follows this command already branches on
+   governing version, unchanged (and, per that command's own step 0, a
+   `"2.2"` item takes the identical `"2.1"` branch there too).
 
 **This command is user-only by construction**, the same authority shape
 `/approve-review` and `/accept-milestone` already use, and deliberately

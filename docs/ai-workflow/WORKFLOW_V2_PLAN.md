@@ -3845,6 +3845,8 @@ historical text this document does not actually have.
 
 ## Round 11 finding disposition (revision 10)
 
+<!-- review-material-lifecycle: HISTORICAL -->
+
 | ID | Disposition | Resolved in | Evidence |
 |---|---|---|---|
 | GPT-R11-001 | **Accepted** | D-Plan-Review-Stages (new), D-States | Confirmed: `AWAITING_PLAN_APPROVAL`'s entry condition reads only "the most recently reviewed round['s]... status," satisfied by a single `APPROVE` regardless of reviewer role. Fixed by inserting `AWAITING_LOCAL_PLAN_REVIEW`/`AWAITING_MANUAL_EXTERNAL_PLAN_REVIEW` between `REVISING_PLAN` and `AWAITING_PLAN_APPROVAL`, scoped to `governing_workflow_version: "2.1"` work items only. |
@@ -22347,7 +22349,10 @@ separate invalidation write required. This is what makes "any protected
 plan edit clears both stages" true by construction rather than by a step
 `/apply-plan-review` could forget to perform.
 
-**`/apply-plan-review`'s exit step, revised for `"2.1"` only** (resolves
+**`/apply-plan-review`'s exit step, revised for `"2.1"`/`"2.2"` only**
+(widened `workflow-2.5.0`, `D-Implementation-Review-Version-Activation`'s
+inheritance rule, from a bare `"2.1"` check, since a `"2.2"` item runs this
+identical revised exit step; resolves
 `GPT-R11-003`/`-007`): the v1 branch (today's unmodified behavior,
 including this milestone's own remaining plan-review rounds) is untouched
 — step 7's "otherwise, report the plan as ready for implementation"
@@ -22538,9 +22543,11 @@ which lives in this document and the command files themselves.
 
 **Dual-mode enumeration** (extends D-Self-Governance's existing list,
 below): `/review-plan` and `/record-manual-plan-review` are both new,
-`"2.1"`-only commands (no v1 behavior to preserve — each refuses cleanly
-outside a `"2.1"`-governed work item at its own required phase,
-missing-test items 86/97); `/apply-plan-review`'s v1 branch is unchanged,
+`"2.1"`/`"2.2"`-only commands (widened `workflow-2.5.0` from a bare
+`"2.1"` check -- `TWO_STAGE_PLAN_REVIEW_VERSIONS` membership; no v1
+behavior to preserve — each refuses cleanly outside a
+`TWO_STAGE_PLAN_REVIEW_VERSIONS`-governed work item at its own required
+phase, missing-test items 86/97); `/apply-plan-review`'s v1 branch is unchanged,
 its `"2.1"` branch is the revised exit step above.
 
 ### D-Approval-Commits (historical note, revision 84, `OPUS-R104-005`: the revision changelog narrated in this header, below, includes the retired `staging/<token>`/`bundles/<token>`/`current`-symlink design in past tense; that design is superseded, the design of record is `REVIEW_PROTOCOL.md`'s "Bundle structure" section, and the live disposition is stated at "Atomic bundle-file publication" below) (revised again, revision 58: ownership *transfer* becomes mutually exclusive with the mutations it authorizes — a single fixed-path, no-replace `os.link` **transaction mutation/handoff guard** that ordinary mutation and takeover both acquire, with `assert_owner` moved *inside* it so the whole `assert → mutate → record progress` window excludes `takeover reverify → rotate`, a takeover that refuses rather than waits or breaks while a current-epoch guard is held, superseded-epoch guards reclaimable with no wall clock and no authorization, and a `"destructive"` step class (rollback index reset, journal close) that no authorization can ever break — closing `GPT-R75-001`'s reproduced `owner_assert(T) → takeover_reverify(T) → takeover_rotate(T2) → owner_mutate` interleaving; and the temporary bridge stops claiming a safety it does not have — step 8b's never-merge rule keeps its real, narrower guarantee, its final re-read is named a detection check rather than a compare-and-swap, and the interval in which the installed writers still ignore `D1`'s primitive is covered by an explicit, user-authorized, journal-recorded **state-writer quiescence window** with a defined start, end, exhaustive prohibited-writer list, reconciliation rule and violation behavior, which step 4a refuses to open a transaction without (`GPT-R75-002`); revision 57: the "Bootstrap plan-approval procedure"'s journal becomes a genuine **transaction-ownership** record rather than merely an exclusively-created file, its final materialization stops merging the shared state file, and its post-amend verification becomes exhaustive — journal publication moves from revision 56's `os.open(O_CREAT|O_EXCL|O_WRONLY)`-then-write pair, whose two-operation shape left the final pathname observable zero-length (a resolver was independently reproduced deleting a live transaction's journal in that window while its owner went on to write and `fsync` an unlinked inode, believing publication had succeeded), to a single atomic, fully-written, no-replace `os.link` of an already-`fsync`ed temporary inode, so a journal at the final pathname is complete by construction and step 0's branch that *deleted* an incomplete one is removed rather than narrowed; a durable 32-hex `owner_token` (with `takeover_count`/`previous_owner_tokens`, `schema_version` bumped to `2`) makes ownership survive the separate short-lived processes this checklist actually runs as, is re-asserted by `assert_owner` immediately before every step that mutates Git, the index, `WORKFLOW_STATE.json`, or the journal, and makes journal deletion ownership-conditional, so a non-owner can no longer roll back, complete, replace, or delete a live owner's journal — closing the interleaving revision 56 left open, in which a second session validated a fully-published `NOT_COMMITTED` journal, ran a rollback that was a verified no-op precisely because the owner had not staged anything yet, and removed that owner's only recovery record; a fresh session now **refuses by default** and may only proceed through an explicit user-authorized takeover that quotes the observed `owner_token` and owner-progress `step_seq`, claims exclusively via a token-scoped `os.link` (exactly one winner, independently reproduced), re-verifies both values unchanged, and then rotates the token — after which the displaced owner's next `assert_owner` fails and it stops; `flock` is used nowhere, since link-publication and the takeover's atomic `os.replace` are already atomic against readers and process-lifetime lock semantics must never be read as ownership; step 8b stops being a whole-file read-modify-write dressed as a "target-scoped" update — independently reproduced losing a concurrent `milestone-8` update that landed between its read and its `os.replace` — and instead **never merges**, publishing only the exact `expected_post_state_b64` the verified commit already carries when the whole file is still byte-identical to the pre-state (compare-and-swap on a fresh re-read immediately before the write) and otherwise failing closed with a terminating reconciliation that its own idempotent no-op branch absorbs, so foreign content is never republished from a stale read; `D1` is narrowed in step with it to a serialized-write contract with a named primitive (`.ai-review/runtime/WORKFLOW_STATE.lock`) and a new missing-test item 354 making that an obligation on every writer, rather than assuming the eight installed commands that write the file already cooperate — verified: none of them takes any lock; and step 7's amend recovery replaces its stale "re-run **both** of this step's checks" with an exhaustive three-item enumeration — committed path set, committed `WORKFLOW_STATE.json` bytes, declaration bytes — none of which any amended commit may skip before step 8, 8b or 8a, since `git commit --amend` re-runs hooks and a hook rewriting an **already-included** path was independently reproduced producing an amended approval commit that passed both re-run checks while carrying state bytes the journal never authorized; item 348 gains sub-scenarios (kk)-(nn) and has (cc)/(dd)/(hh)/(jj) rewritten in place, items 347/349/350/352 are extended, and item 354 is added; resolving `GPT-R74-001`, `GPT-R74-002`, and `GPT-R74-003` — see "WF8b finding disposition (revision 56 → 57)" below; revision 56: the "Bootstrap plan-approval procedure"'s failure-atomic transaction becomes *enforceable*, *exactly bound*, and *crash-resumable* — journal acquisition moves from an `exists()`-then-`os.replace()` sequence (which two concurrent runs can both pass, independently reproduced) to an atomic `os.open(O_CREAT|O_EXCL|O_WRONLY)` creation whose descriptor is also the publication target, making "exactly one winner, and the loser mutates nothing" true by construction across process boundaries — deliberately not a transaction-lifetime lock, which stress pass 2 proved unachievable for a checklist executed as separate short-lived processes; the post-approval `WORKFLOW_STATE.json` is no longer written to the working tree before the commit at all but pinned **into the Git index** as a blob (`git hash-object -w` plus `git update-index --add --cacheinfo`, independently reproduced) and materialized into the working tree only at a new step 8b, after a durable approval commit has passed every verification — which structurally removes the interval revision 55 could only guard with a normative rule the installed `/bootstrap-workflow-v2` does not implement, since throughout that interval the working-tree `approved_review_content_id` is still the previous approval's and that command's own existing step-2 durability guard therefore stops, unchanged and unaware of the journal, for the no-commit shape and for a step-7-rejected commit alike; the same restructure deletes the rollback's whole-file state restore, which revision 55 gated on a two-field predicate that a sanctioned concurrent update to a *different* work item also satisfies (independently reproduced against the bundled `apply_plan_approval`), so a failed transaction can no longer erase another work item's legitimate write and `D1`'s multi-work-item concurrency is reconciled by construction rather than by an unenforceable global write lock; the journal now binds the **exact expected post-approval state** — a pinned `approval_now`, `expected_post_state_b64`/`expected_post_state_sha256`, and the canonical `json.dumps(..., indent=2, ensure_ascii=False) + "\n"` serialization they require, none of which this repository stated anywhere before — checked as a compare-and-swap before pinning, as a staged blob, as committed content, and as materialized bytes, closing the case where a `pre-commit` hook rewrites and re-stages that same path and leaves the committed path set at exactly four/five members (independently reproduced); and step 7's amend recovery replaces its single clean-index precondition with a three-way index classification that resumes an interrupted amend instead of refusing on its own leftover staged path, with step 8a's "the only write is this deletion" claim replaced by an exact enumeration of the post-commit interval's three idempotent writes; new missing-test item 353 covers the canonical serialization, item 348 gains sub-scenarios (aa)-(jj), items 347/349/350/352 are extended or retimed, and item 352 is explicitly removed from the bridge's critical path; resolving `GPT-R73-001`, `GPT-R73-002`, and `GPT-R73-003` — see "WF8b finding disposition (revision 55 → 56)" below; revision 55: the "Bootstrap plan-approval procedure" becomes one failure-atomic transaction — three new named contracts (a durable, gitignored, worktree-scoped **approval journal** at `.ai-review/runtime/PLAN_APPROVAL_JOURNAL.json`; an **outcome classifier** that decides from durable Git state alone, never from a command exit status or from `WORKFLOW_STATE.json`, whether an approval commit was actually created; and one **approval-transaction rollback**) close the interval revision 54 left undefined, in which `apply_plan_approval`'s `plan_approval`/`phase`/`state_revision`/`last_transition` write is already persisted while the approval commit does not yet exist and every later guard can still refuse; a new step 0 resolves an interrupted transaction on a fresh session before anything else runs, a new step 4a opens the journal before the first mutation of any kind (capturing the exact pre-procedure `WORKFLOW_STATE.json` bytes, the work item's `base_commit`, the applicable file set, and the reviewed fifth-member digest read once), and a new step 8a closes it only after post-commit verification passes; step 5's mismatch branch, step 6's two pre-commit assertions, and a `NOT_COMMITTED` commit attempt all resolve through the one rollback, which restores `WORKFLOW_STATE.json` byte-identically and the whole index to `HEAD` (`git reset --mixed HEAD`, named explicitly), refuses to overwrite a `WORKFLOW_STATE.json` it cannot recognize as one of this transaction's own two states, and verifies its own completion before any refusal is reported; step 7 gains an exact committed-path-set assertion, since revision 54's staged-set assertion constrains the index and not the commit — a `pre-commit` hook that stages an additional path was independently reproduced widening a pathspec-free commit past the asserted index, undetectable by the single-path declaration check or by step 8's plan-stage-only manifest recomputation — and its amend recovery now refuses unless the approval commit is still `HEAD`; every declaration comparison is repinned to the journal's recorded digest rather than three separate reads of the mutable bundle copy; missing-test item 348 gains sub-scenarios (q)-(z) covering the reviewer's own ten required tests, new items 349-352 cover the journal, classifier/rollback, committed-path-set assertion, and the cross-command obligation (including `/bootstrap-workflow-v2`'s step-2 durability guard, which today compares against `plan_approval.approved_review_content_id` and therefore *passes* on a partially-written transaction), and item 347 is extended so the permanent `.claude/commands/approve-review.md` fix must carry this whole transaction contract before this bridge is retired; resolving `GPT-R72-001` — see "WF8b finding disposition (revision 54 → 55)" below; revision 54: the "Bootstrap plan-approval procedure" gains an explicit Git index-isolation transaction — a new precondition step (step 3) requires the entire index to be byte-identical to `HEAD` before any staging begins, refusing outright and naming every already-staged path otherwise, since revision 53's own step-4 mismatch rollback (`git restore --staged`) only restores a path to `HEAD`, not to whatever was staged immediately before that step ran, and a non-isolated index could otherwise let an unrelated already-staged path ride into the approval commit or let a pathspec-limited commit form reread newer, unreviewed working-tree bytes for a path already pinned in the index; the former step 4 (pre-commit declaration pin/verification) becomes step 5, now genuinely restoring to its pre-step state (`HEAD`) on mismatch because step 3 already proved the index started clean; the former step 5 (state write plus commit creation) becomes step 6, gaining an explicit pre-commit assertion that the complete staged path set equals exactly the applicable four/five-member approval set, a re-verification of the pinned declaration blob when the fifth member applies, and an explicit requirement that the commit be created with a plain, pathspec-free `git commit` — never a pathspec form naming the approval paths, which Git resolves by rereading current working-tree content for those paths rather than using the already-verified index, independently reproduced against this repository's own Git implementation; the former step 6 (post-commit declaration verification) becomes step 7, whose `git commit --amend` recovery gains the same otherwise-clean-index/single-corrected-path assertions before amending; steps 6a/report-and-stop/no-second-commit/scope renumber to 8-11 with cross-references corrected; missing-test item 348 strengthened again to require proving index isolation before staging, the exact pre-commit staged-set assertion, the pathspec-free commit invocation, and the hardened amend recovery; resolving `GPT-R71-001` — see "WF8b finding disposition (revision 53 → 54)" below; revision 53: the "Bootstrap plan-approval procedure" gains a new pre-commit declaration pin/verification step — the reviewed fifth-member (`<work_item_id>-artifacts.json`) bytes are staged and byte-verified against the bundle's own captured copy *before* `apply_plan_approval`/`WORKFLOW_STATE.json` persistence and commit creation, not only after — since the declaration is plan-stage excluded, `implementing_entry_reachable(...)`'s fresh-session plan-stage `review_content_id` recomputation can never detect an omitted or wrong fifth member, so revision 52's post-commit-only check left an interruption window between commit creation and that check during which a bad fifth-member commit was already fresh-session-reachable as a valid approval; the former step 4 (state write + commit) becomes step 5, gated on the new step 4 clearing; the former step 5 (post-commit check) becomes step 6, restated as a redundant defense-in-depth audit with an explicit, deterministic `git commit --amend` recovery on disagreement — never an ambiguous bare `git reset` — since under the corrected transaction it can only fire on a transaction-invariant violation, not an expected outcome; steps 6a/report-and-stop/no-second-commit/scope renumber to 7-10 with cross-references corrected; missing-test item 348 strengthened again to require proving the fifth member's binding completes, and is provably load-bearing, before the approval commit becomes reachable, plus deterministic index-rollback on a step-4 refusal and the defined step-6 amend recovery; resolving `GPT-R70-001` — see "WF8b finding disposition (revision 52 → 53)" below; revision 52: the "Bootstrap plan-approval procedure"'s own step ordering is corrected so the artifact-declaration pending-change/freshness evaluation runs before `apply_plan_approval`/`WORKFLOW_STATE.json` persistence, not after — revision 51's own step 2 bundled the read-only gate-reachability/recompute-plus-staleness/basis-resolution/record-building sub-steps together with the state write itself, so a freshness refusal evaluated in the following step necessarily occurred after `phase`/`plan_approval`/`state_revision`/`last_transition` had already changed, contradicting that same following step's own documented "no commit, no partial state" refusal guarantee; step 2 is split into a read-only sub-step (gate reachability, recompute-plus-staleness, basis resolution, record building — no write, `WORKFLOW_STATE.json` untouched) and the freshness evaluation (step 3) is moved immediately after it, with the state write and commit creation deferred to a new step 4, reached only once step 3 clears; missing-test item 348 strengthened to require proving `WORKFLOW_STATE.json` byte-identical non-mutation — not merely "no commit"/"no reported success" — on the freshness-refusal branch; resolving `GPT-R69-001` — see "WF8b finding disposition (revision 51 → 52)" below; revision 51: the "Revision-50 bootstrap approval procedure" is replaced by a self-contained "Bootstrap plan-approval procedure" that never invokes `/approve-review plan workflow-v2-1-core` at all — sidestepping, rather than attempting to locally override, the installed command's own step 0 "steps 1-7 execute exactly as written" `"1"`-branch text — inlining that command's own steps 1-5 and 6a directly (unchanged gate-reachability/recompute-plus-staleness/basis-resolution/record-building/state-write, and the unchanged `verify_post_approval_manifest_match` call), with only the commit-creation step restated to build the corrected conditional five-file set explicitly, plus a new post-commit declaration-content check (`git show <commit>:<path>` byte-compared against the bundle's own captured copy) closing the gap left by the pre-existing plan-stage manifest check, which never covers a plan-stage-excluded path; the procedure's lifetime is stated once, unambiguously, as covering every plan-stage approval of this work item for as long as the installed command file remains unupdated, not "Revision 50 only"; the procedure explicitly requires the same literal user-confirmation-text gate `/approve-review`'s own mechanism (2) requires before any write, preserving that command's user-only safety property even though the command itself is never invoked; new missing-test item 348 and an update to item 347's wording track the renamed procedure; resolving `GPT-R68-001` — see "WF8b finding disposition (revision 50 → 51)" below; revision 50: the plan-approval commit's exact file set (item (4) of `/approve-review plan`, below) is extended with a new conditional fifth member — the current work item's own concrete `<work_item_id>-artifacts.json` declaration, included in the same single commit, never a second commit, whenever its content differs from HEAD and its exact bytes are part of the just-validated current bundle — since revision 49's own `GPT-R65-001` fix to that declaration is plan-stage excluded (so it never alters the plan-stage `review_content_id` the four-file commit contract was scoped against) but is nevertheless a concrete, bundle-reviewed Revision-49 deliverable the unextended four-file contract left uncommitted after approval, contradicting the same subsection's immediate-clean-tree postcondition and exposing the classification to loss before implementation review ever binds it; a paired bundle-freshness refusal rule and an explicit no-gratuitous-inclusion rule (unchanged declaration never added) complete the fix; because this repository's own `workflow-v2-1-core` work item is permanently Workflow-v1-governed and its own installed `.claude/commands/approve-review.md` predates this correction, a new "Revision-50 bootstrap approval procedure" paragraph below states the explicit, plan-recorded (never silently assumed) one-time manual procedure this work item's own next plan approval must follow until that command file's prose is itself updated — deferred, per this document's own unbroken revision-28-through-49 scope discipline of never editing `.claude/commands/`/`scripts/` content during a plan-only revision, to the next checkpoint that touches implementation content; new missing-test items 345-347 and new requirement `WFR-63` (owned by `WF4a-iii`, the same checkpoint `WFR-06` already assigns this exact plan-approval-commit-content property to) add the coverage the finding's own "Required tests" list calls for — resolving `GPT-R67-001` — see "WF8b finding disposition (revision 49 → 50)" below; revision 48: this section's own "Current-round binding check" implementation note ("the same function ... the two call sites still cannot drift apart") and its immediately following `/approve-review`-only compatibility sentence, plus `D-Bundle-Manifest`'s "Strict local-generation metadata mode" paragraph ("remains `/approve-review`'s own default"; "A second caller"; "the two call sites"), are corrected to name all three callers this section's own revision-47 fix had already established in the main portability paragraph/`WFR-17`/mapping — two already-live permissive callers (`/approve-review`, `/review-plan`) and one design-only strict caller (this section's own binding check) — resolving `GPT-R64-001`; missing-test item 339 is extended in place to state its pre-metadata compatibility confirmation for both already-live permissive callers, not `/approve-review` alone; new missing-test item 343 adds the `WF5` implementation-acceptance obligation `GPT-R63-001`'s own required correction called for but item 342 alone never made enforceable — active caller-facing documentation (`docs/ai-workflow/REVIEW_PROTOCOL.md`'s generation-diagnostic-metadata section, `WorktreeOrHeadMismatchError`'s docstring, `assert_local_generation_matches`'s own docstring) must agree with the corrected three-caller model once `WF5` lands — resolving `GPT-R64-002` — see "WF8b finding disposition (revision 47 → 48)"; revision 47: the "Portability vs. local staleness" paragraph and `WFR-17` (`D-Bundle-Manifest`) are corrected to name all three of `assert_local_generation_matches`'s local callers — the two already-live `/approve-review` and `/review-plan`, plus this section's own design-only "Current-round binding check" below, not yet built — rather than naming `/approve-review` alone, since both `/review-plan` (live since `WF4a-iv`) and this section's own binding check (specified revision 46) were missing from that older single-caller phrasing, resolving `GPT-R63-001`; `D-Bundle-Manifest`'s "Strict local-generation metadata mode" paragraph gains an explicit well-formed grammar for `worktree_root:` (a single absolute-path line, symmetric with `generation_head:`'s existing 40-hex grammar) and states the two independent per-field sub-checks — occurrence, then grammar — the strict mode requires, closing a blind spot where counting well-formed regex matches alone could hide a duplicate malformed line, resolving `GPT-R63-002` — see "WF8b finding disposition (revision 46 → 47)"; revision 46: the current-round binding check's `worktree_root`/`generation_head` conjunct no longer reuses `assert_local_generation_matches` in its existing permissive form — which silently treats absent metadata as nothing to compare, proven by the function's own bundled test — but instead calls the same function with a new `require_metadata=True` mode (`D-Bundle-Manifest`) that requires exactly one well-formed instance of each field, present and matching, never optional, resolving `GPT-R62-001`; the "Worktree/HEAD staleness check" paragraph and this section's own prior recovery-check prose, both of which named `.ai-review/runtime/WORKTREE_IDENTITY.json` as the source of `worktree_root`/`generation_head`, are corrected in place to name the live Git worktree these values are actually read from (`current_worktree_root_and_head`) — the same source manifest generation and `assert_local_generation_matches` already use — resolving `GPT-R62-002`; the "Canonical `current` symlink target payload" contract's token grammar narrows from "any single path component" to the exact fixed grammar this design's own token generator produces (`^[0-9a-f]{32}$`, i.e. `uuid.uuid4().hex`), and step 10's archive command gains a `--` before its positional token operand as defense in depth, closing a concretely reproduced failure where an out-of-grammar token (e.g. `--version`) made the prior, broader grammar's exact archive command print `tar`'s own version and silently create no archive, resolving `GPT-R62-003` — see "WF8b finding disposition (revision 45 → 46)"; revision 45: the "Current-round binding check" (revision 44) widens again from a seven-field comparison to an eight-field one, adding `worktree_root` as a required conjunct alongside `generation_head` — the other half of the same repository-local staleness pair `D-Bundle-Manifest`'s "Worktree/HEAD staleness check" already defines, reused directly via `assert_local_generation_matches` rather than reimplemented — since `generation_head` equality alone cannot distinguish a genuinely current bundle from one generated in a different or since-relocated worktree at the identical repository HEAD, resolving `GPT-R61-001`; the "Canonical `current` symlink target payload" contract's validator gains a token grammar and a direct-child reality check (`lstat` on `bundles/<token>` identifies a real directory, never an alias), and its resolution check tightens from "somewhere inside `bundles/`" to "exactly the direct-child directory identified by the raw payload" — one canonical predicate now shared, unchanged, by both creation-time validation and "Atomic bundle-file publication" step 1c's existing-symlink entry validation, resolving `GPT-R61-002`; missing-test items 324/330 and `WFR-61`'s surviving revision-39 sentence describing the symlink-rename primitive in the wrong direction are corrected in place to match the authoritative revision-43/44 binding-check algorithm and item 335's own match/mismatch matrix, resolving `GPT-R61-003` — see "WF8b finding disposition (revision 44 → 45)"; revision 44: the "Current-round binding check" (revision 43) widened from a four-field comparison to a seven-field one, adding `work_item_type`, `base_commit`, and — deliberately omitted by revision 43 on the correct-but-misapplied reasoning that `generation_head` equality alone cannot distinguish two rounds — `generation_head` itself as a required conjunct, not a standalone distinguisher, since same-content republication is exactly the case where every round/content field matches while `generation_head` legitimately advances, resolving `GPT-R60-001`; "Atomic bundle-file publication" step 1c now validates an already-existing `current` symlink (raw payload and resolved target) before treating it as trusted steady state, matching the same two checks already required before promoting a *new* symlink onto that name, resolving `GPT-R60-003`; `WFR-61`'s surviving revision-42 sentence describing an unconditional "restore symlink and return" outcome is corrected in place to state the revision-43/44 binding-check's own two outcomes, resolving `GPT-R60-002` — see "WF8b finding disposition (revision 43 → 44)"; revision 43: the "Fresh-session `current`-absent recovery classifier"'s one-bundle branch, and "Atomic bundle-file publication" step 1b, now separate pointer recovery from publication completion via a new current-round binding check that compares the restored bundle's own `MANIFEST.md` identity against the round currently being published — never `generation_head` alone, since two genuinely different rounds can legitimately share one — completing full publication (through archive generation, steps 9-10) only on a match, and falling through to construct a fresh candidate for the requested round on a mismatch, never again inferring "publication complete" merely from one verified version directory existing, resolving `GPT-R59-001`; the "Canonical `current` symlink target payload" contract's validator now requires the raw `os.readlink` payload to equal the exact canonical spelling `bundles/<token>`, in addition to the existing resolved-target check, since resolved-target equality alone cannot reject a corrupted absolute payload that happens to resolve to the correct directory, resolving `GPT-R59-002`; `WFR-61`'s surviving "discarding the stale attempt" wording and missing-test item 316's wrong-direction symlink-rename description are both corrected in place, resolving `GPT-R59-003`; "Atomic bundle-file publication" step 1 gains an explicit step 1d fail-closed refusal for any unexpected filesystem object at `current`, resolving `GPT-R59-004` — see "WF8b finding disposition (revision 42 → 43)"; revision 42: a "Canonical `current` symlink target payload" contract states the exact relative link payload (`bundles/<token>`, never a repository/worktree-prefixed spelling) both migration and steady-state promotion must use, plus a resolve-and-verify check before either ever renames a symlink onto the name `current`, resolving `GPT-R58-001`; "Atomic bundle-file publication" step 1 is restructured into explicit 1a/1b/1c branches that wire the (now explicitly named) "Fresh-session `current`-absent recovery classifier" into the numbered algorithm's own entry point, so a fresh session with `current` absent completes the classifier's one-bundle recovery and returns immediately rather than falling through into building a redundant candidate, resolving `GPT-R58-002`; `WFR-61`'s stale revision-40 `tar -h`/`--dereference` clause is marked explicitly historical/superseded in place, missing-test items 314/315 are restated to follow the `staging/`-then-`bundles/` ordering precisely, and items 317/330 plus step 7 replace "discard(ed/ing)" with "leave(s) unreferenced," matching step 9's own no-cleanup-as-a-publication-side-effect rule, resolving `GPT-R58-003` — see "WF8b finding disposition (revision 41 → 42)"; revision 41: a shared "Version-store parent directories" precondition creates `bundles/`/`staging/` idempotently before either the migration or the ordinary publication contract ever renames anything into them, since revision 40's migration step 1 renamed directly onto a `bundles/<token>/` path no earlier step created, failing closed with `ENOENT` on this repository's own actual pre-migration shape, resolving `GPT-R57-001`; "Atomic bundle-file publication" adopts a new `staging/<token>/` candidate namespace, promoting a candidate onto `bundles/<token>/` only once fully populated, written, and identity-verified, so a `bundles/<token>/` directory is now always complete by construction regardless of whether it arrived via migration or via ordinary publication, collapsing the ambiguity where an interrupted first-ever publication produced the identical fresh-session recovery shape revision 40's migration-only recovery classifier assumed was unique to an interrupted migration, resolving `GPT-R57-002`; the migration subsection gains a legacy-content validation precondition, refusing to canonize an unverified legacy `current/` directory, resolving `GPT-R57-003`; the migration subsection gains a symlink-capability preflight run before its irreversible first rename, resolving `GPT-R57-004`; step 10's archive rule is restated to pin `current`'s resolved target once, then archive that concrete directory directly with a `tar` member-name transform, superseding the `-h`/`--dereference` mechanism to satisfy the same revision-40 reader-snapshot pin-once contract the archive step itself had not yet followed, resolving `GPT-R57-005` — see "WF8b finding disposition (revision 40 → 41)"; revision 40: "Atomic bundle-file publication" gains a new "One-time `current/`-to-symlink migration" precondition contract, since revision 39's own symlink redesign defined only the steady-state promotion and never how this repository's actual pre-existing, real `current/` directory reaches that state, resolving `GPT-R56-001`; step 10's archive rule restated as one exact `tar -h`/`--dereference` invocation, since revision 39's "resolved through the symlink" prose named no concrete mechanism and the bundled script's existing `tar` command does not dereference symlinks by default, resolving `GPT-R56-002`; a new "Reader snapshot semantics" clause requires every multi-file reader to pin `current`'s resolved target once per operation, and step 9's cleanup rule is narrowed to remove automatic deletion from ordinary publication entirely, resolving `GPT-R56-003` — see "WF8b finding disposition (revision 39 → 40)"; revision 38: the "Bundle-publication resume" contract's bundle-file-writing step — previously "write the bundle's files directly"/"write the bundle's files from the resulting HEAD", with no stated atomicity — is redefined as a new "Atomic bundle-file publication" candidate-build-then-verified-promotion operation, closing the gap where an interruption mid-write could leave canonical `current/` a mix of old and new round files, resolving `GPT-R54-003` — see "WF8b finding disposition (revision 37 → 38)" (the companion finding, `GPT-R54-002`, is resolved entirely in `D-Commit-Provenance`'s "Same-content post-fix republication" subsection below — this section's own two-outcome algorithm already stated the general, phase-agnostic form and required no change); revision 37: `record_bundle_generation`'s own algorithm narrowed to its two genuinely reachable outcomes — genuinely new round, same-content republication — removing the "exact retry" branch, which is provably unreachable as an invocation of that phase-gated function from either legal source phase; the crash-recovery case it stood in for is redefined as a separate, non-phase-gated **bundle-publication resume** contract, resolving `GPT-R53-002` — see "WF8b finding disposition (revision 36 → 37)"; revision 36: the "Idempotent retry when `S` already exists" bullet rewritten to restate the single canonical decision algorithm, requiring live HEAD exactly equal to the current generation-record tip for exact retry, resolving `GPT-R52-002` — see "WF8b finding disposition (revision 35 → 36)"; revision 35: the technical-approval commit's exact field set stated exhaustively, including `phase`, resolving `GPT-R51-001`; the sole-writer idempotency rule splits into three cases (new round / exact retry / same-content republication), resolving `GPT-R51-003` — see "WF8b finding disposition (revision 34 → 35)"; revision 34: the ordinary durability commit's exact field set gains `phase`, resolving `GPT-R50-001` — see "WF8b finding disposition (revision 33 → 34)"; revision 29 removed the bare-equality approval branch and named the explicit revision-advancement comparison source, resolving `GPT-R45-002`/`-003`; revision 28 introduced the reviewed_implementation_head/generation_head split, provenance-commit-before-generation ordering, and review_content_id-bound revision advancement resolving the self-invalidating durability-commit cycle `WF8B-003`; see "WF8b finding disposition (revision 27 → 28)" and "WF8b finding disposition (revision 28 → 29)" for the full analysis)
@@ -27206,7 +27213,8 @@ themselves never inspect which writer produced a given link.
   required); a duplicate entry for an already-pinned `bundle_id` is
   rejected by the validator, since `D2a`'s writer is defined to check
   before appending. **`plan_review_stages`** (new field,
-  `"2.1"`-only, resolves `GPT-R11-002`, full mechanism in
+  `TWO_STAGE_PLAN_REVIEW_VERSIONS`-only -- widened `workflow-2.5.0` from a
+  bare `"2.1"` check -- resolves `GPT-R11-002`, full mechanism in
   `D-Plan-Review-Stages`): `{review_content_id, local_model_plan_review:
   {bundle_id, verdict, round, completed_at} | null,
   manual_external_plan_review: {bundle_id, verdict, round, completed_at} |
@@ -27402,18 +27410,23 @@ generated on demand, never authoritative.
   v1-inert, since a v1-governed run only reads/writes the pre-existing
   singleton-shaped behavior it already has today, verified by a
   golden-output test), `/apply-plan-review` (WF4a-ii for the exit-target
-  naming; **WF4a-iv, new this round, additionally gives it a `"2.1"`-only
-  revised exit step per `D-Plan-Review-Stages` — its v1 behavior is
+  naming; **WF4a-iv, new this round, additionally gives it a
+  `"2.1"`/`"2.2"`-only (widened `workflow-2.5.0`,
+  `TWO_STAGE_PLAN_REVIEW_VERSIONS`) revised exit step per
+  `D-Plan-Review-Stages` — its v1 behavior is
   untouched by either checkpoint**), and
   `/apply-implementation-review` (amended only in its exit-target naming,
   in WF4a-ii — its v1 behavior is otherwise untouched). **New this round,
   `WF4a-iv`, resolves `GPT-R11-005`/`-011`**: `/review-plan` — a
-  `"2.1"`-only command with no v1 counterpart at all; invoked against a
-  `"1"` item, or with no `"2.1"` item resolvable, it refuses cleanly rather
+  `TWO_STAGE_PLAN_REVIEW_VERSIONS`-only command (widened `workflow-2.5.0`
+  from bare `"2.1"`) with no v1 counterpart at all; invoked against a
+  `"1"` item, or with no `TWO_STAGE_PLAN_REVIEW_VERSIONS` item resolvable,
+  it refuses cleanly rather
   than branching, since there is no v1 behavior to preserve. **Likewise
   `/record-manual-plan-review` (new, resolves `GPT-R12-002`/`-003`)**: a
-  `"2.1"`-only command with no v1 counterpart, refusing cleanly outside a
-  `"2.1"`-governed work item at phase `AWAITING_MANUAL_EXTERNAL_PLAN_REVIEW`.
+  `TWO_STAGE_PLAN_REVIEW_VERSIONS`-only command (widened `workflow-2.5.0`
+  from bare `"2.1"`) with no v1 counterpart, refusing cleanly outside a
+  `TWO_STAGE_PLAN_REVIEW_VERSIONS`-governed work item at phase `AWAITING_MANUAL_EXTERNAL_PLAN_REVIEW`.
 - **`WF-Activate`** (checkpoint, after `WF8a-ii`, before `WF8b`): validates
   WF8a-ii's conformance suite passes, then writes
   `WORKFLOW_CONFIG.json.default_workflow_version = "2.1"` **and** commits
@@ -32549,6 +32562,641 @@ release" -- distinct from `v2.3.1-001`'s "documented, not repaired" -- with
 the reasoning above, so the deviation from the existing precedent's
 posture is visible at the defect record itself, not only in this plan.
 
+### D-Implementation-Review-Stages — two-stage local-then-manual-external implementation review (`workflow-2.5.0`)
+
+<!-- review-material-lifecycle: CURRENT -->
+
+Mirrors `D-Plan-Review-Stages` function-for-function where the analogy
+holds exactly, substituting the implementation-stage identity
+(`workflow_state.approval_review_content_id(..., stage="implementation",
+...)`) for the plan-stage one throughout — see this section's own
+"Where the two-stage mirror genuinely diverges" disposition record below
+for the four points where it does not. **Scoped entirely to
+`governing_workflow_version: "2.2"`** (`D-Implementation-Review-Version-Activation`,
+below). A `"1"`/`"2.1"` item's implementation-review flow is
+byte-for-byte unchanged.
+
+**Two new phases**, added to `KNOWN_PHASES`, inserted between
+`APPLYING_REVIEW_FEEDBACK`/`SELF_REVIEWING_IMPLEMENTATION` and the existing
+terminal `AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW`:
+
+- **`AWAITING_LOCAL_IMPLEMENTATION_REVIEW`** — entered, for a `"2.2"` item
+  only, by `record_bundle_generation`'s own version-dependent
+  `bundle_generation_target_phase(stage, governing_workflow_version)`
+  resolver (below), whether the generation is `SELF_REVIEWING_IMPLEMENTATION`'s
+  first-round exit or `APPLYING_REVIEW_FEEDBACK`'s (or a `"2.2"` item's
+  functional-review bounded-fix branch's own) post-fix exit — the resolver
+  is the sole writer for both entries; there is no separate
+  `transition_to_awaiting_local_implementation_review` writer, since a
+  second writer for the identical transition would either race the
+  resolver or duplicate it for no covered path. Allowed action: run
+  `/review-implementation` (full contract below). Artifacts:
+  `REVIEW_FEEDBACK.md` (role `LOCAL_MODEL_IMPLEMENTATION_REVIEW`); for an
+  `APPROVE` verdict only, a new `implementation_review_stages` ledger
+  entry. Exit is verdict-specific (transition table below); Claude stops
+  here on every exit — the same "stop, do not auto-continue" pattern the
+  plan-side stage uses.
+- **`AWAITING_MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW`** — entered once the
+  ledger records a `LOCAL_MODEL_IMPLEMENTATION_REVIEW` stage completed
+  `APPROVE` against the *current* implementation-stage `review_content_id`.
+  The user uploads the bundle to a manual external reviewer and pastes its
+  feedback into `REVIEW_FEEDBACK.md` (role
+  `MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW`); `/record-manual-implementation-review`
+  (new command, below) ingests it. An `APPROVE` verdict here transitions to
+  `AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW` — **the existing phase name,
+  reused as the terminal "ready for approval" phase**, exactly as
+  `AWAITING_PLAN_APPROVAL` kept its own pre-existing name across
+  `D-Plan-Review-Stages` (see `D-Implementation-Review-Version-Activation`'s
+  "terminal-phase naming" decision for why reuse, not a fresh name, is the
+  right call). Hard gate, identical in kind to today's single
+  `AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW`.
+
+**Verdict/state transition table** (mirrors `D-Plan-Review-Stages`'s table
+exactly, substituted for the implementation stage):
+
+| Current state | Verdict | Writer | Next state/action | Validation preconditions |
+|---|---|---|---|---|
+| `AWAITING_LOCAL_IMPLEMENTATION_REVIEW` | `APPROVE` | `/review-implementation` | record local stage → `AWAITING_MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW` | item is `"2.2"`; `phase == AWAITING_LOCAL_IMPLEMENTATION_REVIEW`; recomputed `bundle_id`/`review_content_id` match `MANIFEST.md`/`REVIEW_REQUEST.md` |
+| `AWAITING_LOCAL_IMPLEMENTATION_REVIEW` | `REVISE` | `/review-implementation` | write `REVIEW_FEEDBACK.md`, no ledger write → `APPLYING_REVIEW_FEEDBACK` | same as above |
+| `AWAITING_LOCAL_IMPLEMENTATION_REVIEW` | `BLOCK` | `/review-implementation` | no ledger write, no transition | same as above; explicit user resolution required |
+| `AWAITING_MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW` | `APPROVE` | `/record-manual-implementation-review` | record manual stage → `AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW` | item is `"2.2"`; `phase == AWAITING_MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW`; a current local `APPROVE` recorded for the same `review_content_id`; feedback role is `MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW`; `review_content_id` match is **hard**; `bundle_id` match is **advisory only**; no duplicate ingestion |
+| `AWAITING_MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW` | `REVISE` | `/record-manual-implementation-review` | no ledger write → `APPLYING_REVIEW_FEEDBACK` | same as above |
+| `AWAITING_MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW` | `BLOCK` | `/record-manual-implementation-review` | no ledger write, no transition | same as above; explicit user resolution required |
+
+**Durable stage ledger**, new per-work-item field:
+`implementation_review_stages: {review_content_id,
+LOCAL_MODEL_IMPLEMENTATION_REVIEW: {bundle_id, verdict, round,
+completed_at} | null, MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW: {bundle_id,
+verdict, round, completed_at} | null}`. Same current-content-gate semantics
+as `plan_review_stages`: valid only while `review_content_id` equals the
+freshly recomputed current implementation-stage value; any protected
+implementation-stage content change clears both stages by construction
+(recomputation, never an explicit clear step). Listed in
+`<work_item_id>-artifacts.json`'s implementation-stage `excluded_paths`
+(`docs/ai-workflow/WORKFLOW_STATE.json`), so its bytes never enter
+`review_content_id`, mirroring `plan_review_stages`'s own treatment.
+
+**`technical_approval_gate_reachable`, widened**: for a `"2.2"` item, its
+entry condition gains exactly the ledger check
+`plan_approval_gate_reachable` already applies for a
+`TWO_STAGE_PLAN_REVIEW_VERSIONS` plan item — both
+`LOCAL_MODEL_IMPLEMENTATION_REVIEW` and
+`MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW` must be recorded `APPROVE` against
+the current implementation-stage `review_content_id`. A `"1"`/`"2.1"`
+item's condition is exactly today's shared rule, unchanged.
+
+**`/apply-implementation-review`'s exit, revised for `"2.2"` only, and step
+0's own entry rule corrected to match (I3, round 5's B1)**: step 0's
+`enter_applying_review_feedback` call is **phase-conditional, not
+version-conditional** — the call is skipped whenever `phase` already
+equals `APPLYING_REVIEW_FEEDBACK`, for every governing version alike, and
+made otherwise. This means the `"1"`/`"2.1"` branch is **no longer
+byte-for-byte untouched at this one line**: a `"1"`/`"2.1"` item that
+reaches `APPLYING_REVIEW_FEEDBACK` other than through this command's own
+step 0 (an operator re-invoking `/apply-implementation-review` mid-round,
+say) now finds the call skipped and proceeds, where `2.4.0`'s
+version-blind step 0 would have raised
+`IllegalApplyingReviewFeedbackEntryPhaseError` naming the phase — strictly
+friendlier, and the command's own contract change, not an accident. Step 7
+still stays effectively at `AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW` after
+regenerating the post-fix bundle for `"1"`/`"2.1"`, unaffected. For a
+`"2.2"` item, this phase-conditional rule is always the skip case in the
+normal two-stage loop — the command finds `phase` already at
+`APPLYING_REVIEW_FEEDBACK`, written directly by `/review-implementation`'s
+or `/record-manual-implementation-review`'s own `REVISE` verdict (exactly
+the mechanism `/apply-plan-review` already uses for `REVISING_PLAN`) — but
+a `"2.2"` item that instead reaches the *terminal*
+`AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW` phase (both implementation-review
+stages already `APPROVE`d, then a late problem surfaces after
+`/approve-review implementation` closed the gate) sits at exactly the
+phase `enter_applying_review_feedback`'s own guard names as legal, so the
+call fires for that item too and restores `APPLYING_REVIEW_FEEDBACK`,
+closing a wedge a version-keyed skip would otherwise have left with no
+in-band way back in. Step 7's post-fix regeneration
+(`record_bundle_generation(stage="post-fix")`) reaches
+`AWAITING_LOCAL_IMPLEMENTATION_REVIEW` through the version-dependent
+resolver instead of staying at `AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW`.
+`"post-fix"`'s legal source phases are `{APPLYING_REVIEW_FEEDBACK,
+AWAITING_FUNCTIONAL_REVIEW}` (the second is `/apply-functional-review`'s own
+bounded-fix branch); for a `"2.2"` item, both resolve to
+`AWAITING_LOCAL_IMPLEMENTATION_REVIEW` with no special case — a `"2.2"`
+item's functional-review bounded fix re-enters both implementation-review
+stages before `/approve-review implementation` is reachable again, the
+identical "no path re-enters manual-external review without a fresh local
+pass first" guarantee applied to the one entry point that is not itself
+part of the implementation-review `REVISE` loop. No path re-enters
+manual-external review without a fresh local pass first, in either branch.
+
+**`/review-implementation`, dual-mode**: its existing `"1"`/`"2.1"`
+behavior (phase guard `AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW`, advisory
+only, writes `REVIEW_FEEDBACK.md`, never `WORKFLOW_STATE.json`, never
+advances phase) stays byte-for-byte unchanged. For a `"2.2"` item, it
+becomes the authoritative `LOCAL_MODEL_IMPLEMENTATION_REVIEW` stage writer
+(phase guard `AWAITING_LOCAL_IMPLEMENTATION_REVIEW`; write set exactly
+`/review-plan`'s own, substituted for the implementation stage).
+
+**`/record-manual-implementation-review`** (new command): mirrors
+`/record-manual-plan-review` exactly, substituted for the implementation
+stage — mechanical, model-independent, not a user-authority gate, never
+edits source/plan/registry/mapping/bundle content.
+
+**`/approve-review implementation`**: gains the restated
+`implementation_review_stages` invariant check, mirroring its existing
+`plan_review_stages` check for the plan branch — a restated invariant, not
+a second ingestion path, since entry to
+`AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW` for a `"2.2"` item already
+required it.
+
+**Exception/helper reuse vs. new names**: reuse the already stage-agnostic
+primitives verbatim — `WrongReviewerRoleError`, `StaleReviewContentIdError`,
+`check_manual_stage_bundle_id_advisory` — and introduce
+implementation-stage-named siblings only for the primitives whose
+plan-side name is literally plan-specific (`WrongPhaseForPlanReviewStageError`,
+`PlanReviewStagesInvalidForVersionError`,
+`WrongGoverningVersionForPlanReviewStageError`,
+`MissingLocalApprovalForManualStageError`,
+`DuplicateManualStageIngestionError`, `UnknownPlanReviewVerdictError`,
+`AmbiguousPlanReviewStageKeyError`).
+
+**Provenance-interval interaction.** `/approve-review implementation` step
+1 requires `workflow_state.implementation_provenance_interval_reachable(...)`,
+which holds only when live `HEAD` is **exactly** the discovered current
+`Workflow-Bundle-Generation-Record: <work_item_id>/<implementation_revision>`
+commit `T` — never merely a descendant of it. Neither new review-stage
+writer creates a git commit — each is a plain `state_transaction` write to
+the working tree's `WORKFLOW_STATE.json`, exactly the pattern
+`record_local_plan_review`/`record_manual_plan_review` already use, which
+`plan_approval_gate_reachable` can read uncommitted because it never
+inspects `HEAD` at all. `T` itself, however, must remain a legally
+generated and legally validated commit for a `"2.2"` item — fixed by three
+changes, all in `scripts/workflow_state.py`:
+
+- **The generation-record commit's own required target phase is
+  version-dependent.** `record_bundle_generation` and
+  `validate_bundle_generation_record_commit` both generalize their
+  previously hard-coded `"AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW"` target
+  phase into a single function of `(stage, governing_workflow_version)`,
+  `bundle_generation_target_phase(stage, governing_workflow_version)`,
+  returning `AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW` for `"1"`/`"2.1"`
+  (both `stage` values, byte-identical to today) and
+  `AWAITING_LOCAL_IMPLEMENTATION_REVIEW` for `"2.2"` (both `stage`
+  values). `validate_bundle_generation_record_commit` reads
+  `governing_workflow_version` from the commit's own committed
+  `work_items[work_item_id]` dict, anchored to that commit regardless of
+  any later change to the live entry.
+- **Both generation-record field-set constants gain
+  `implementation_review_stages`.** `ORDINARY_BUNDLE_GENERATION_RECORD_FIELDS`
+  and `RECOVERED_BUNDLE_GENERATION_RECORD_FIELDS` both widen unconditionally
+  (not `"2.2"`-scoped) to admit the ledger field in a commit's diff, since a
+  `"2.2"` REVISE loop's post-fix regeneration
+  (`record_bundle_generation(stage="post-fix", outcome="same_content")`,
+  the recovered/superseded role, `WF8c` (c)) can carry a stale, uncommitted
+  `implementation_review_stages` residue left in place by design (the same
+  "left as-is, never explicitly cleared" convention
+  `transition_to_awaiting_local_plan_review` already establishes for
+  `plan_review_stages`). Safe unconditionally: the field is `"2.2"`-only
+  vocabulary no `"1"`/`"2.1"` item's `state_transaction` mutator ever
+  writes, so for those items it is always absent from every commit's field
+  diff regardless of what the allowed set contains.
+- **The recovered role's committed-phase clause becomes a membership test,
+  not a single-valued equality.** `RECOVERED_BUNDLE_GENERATION_RECORD_LEGAL_SOURCE_PHASES`
+  additively gains `AWAITING_LOCAL_IMPLEMENTATION_REVIEW` and
+  `AWAITING_MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW` as legal parent phases,
+  so `/recover-implementation-provenance` stays reachable from either. The
+  recovery command's own invocation guard (`verify_implementation_provenance_recovery`/
+  `apply_implementation_provenance_recovery`) and a new
+  `bundle_generation_recovered_role_legal_committed_phases(governing_workflow_version)`
+  both admit the identical three-phase set for `"2.2"` —
+  `{AWAITING_LOCAL_IMPLEMENTATION_REVIEW,
+  AWAITING_MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW,
+  AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW}` — replacing the single-valued
+  equality `validate_bundle_generation_record_commit`'s recovered-role
+  clause used before this fix. **The resulting invariant**: for the
+  recovered role, the command guard and the committed-phase set must be
+  the identical set — the phase recovery was invoked from is, by
+  construction, the phase the resulting commit records — and both must be
+  a subset of the additively-widened parent set above; more exactly, the
+  committed-phase set is the command guard's set **union**
+  `bundle_generation_target_phase`'s own resolved value (the two coincide
+  for `"2.2"` only because the resolver's value is itself a member of the
+  three-phase set). For `"1"`/`"2.1"` every one of these sets collapses to
+  today's single-member form, byte-identical to current behavior.
+
+With all three changes in place, `HEAD == T` is unaffected by a
+local-`APPROVE` + manual-`APPROVE` ledger-write sequence, `T` is a legally
+generated and legally validated commit for a `"2.2"` item at every round in
+both commit roles and from every legal recovery source phase, and
+`verify_implementation_provenance_interval`'s own `HEAD == T` invariant is
+never widened or relaxed — only the commit's *own* required shape becomes a
+correct function of `governing_workflow_version`.
+
+#### Where the two-stage mirror genuinely diverges
+
+`D-Implementation-Review-Stages` above mirrors `D-Plan-Review-Stages`
+function-for-function where the analogy holds exactly — it does not hold
+everywhere, and every place it does not is a direct consequence of one
+fact: **the implementation stage's identity and provenance are both
+commit-anchored, while the plan stage's are worktree-measured and
+gate-checked purely in memory.** Four known divergences, all traced to
+that one fact, are recorded in this section's own `2.5.0 disposition
+record` subsection immediately below, together with the marker convention
+that subsection is written under.
+
+#### 2.5.0 disposition record
+
+<!-- review-material-lifecycle: HISTORICAL -->
+
+This subsection is classified `HISTORICAL` under `D-Review-Material-Lifecycle`
+(a later `workflow-2.5.0` design section, review-scalability branch 1):
+provenance/disposition narrative that explains how the design above came
+to be, not itself part of the current, review-visible design surface. The
+marker immediately above is this repository's first written instance of
+the canonical `review-material-lifecycle` marker
+(`render_marker`/`parse_marker`, `scripts/workflow_state.py`,
+`workflow-2.5.0` CP1) — an HTML comment of the exact form `<!--
+review-material-lifecycle: STATE -->` for `STATE` in exactly `{CURRENT,
+HISTORICAL}` — fixed as part of this same CP1 deliverable, before
+`D-Review-Material-Lifecycle` itself exists as a design section, precisely
+because this instance had to be written before that later section could
+be the one to choose a representation for it. `D-Review-Material-Lifecycle`
+imports and reuses this identical pair for every marker it writes and for
+its own lint's parsing, rather than re-deriving a second grammar.
+
+The four divergences between the implementation-stage review mechanism
+above and the plan-stage mechanism it mirrors, each traced to the same
+commit-anchored-versus-worktree-measured root cause:
+
+1. **The provenance/`HEAD == T` anchor.** The plan stage has no analogue
+   of `implementation_provenance_interval_reachable`/
+   `verify_implementation_provenance_interval` at all, because
+   `plan_approval_gate_reachable` never reads `HEAD` — the plan-review
+   ledger is validated purely against recomputed worktree content.
+2. **No implementation-side pre-promoted terminal phase.** The plan
+   side's terminal phase, `AWAITING_PLAN_APPROVAL`, already existed in
+   `KNOWN_PHASES`'s vocabulary as a gate *name* before `D-Plan-Review-Stages`
+   promoted it to a persisted value. The implementation side's candidate
+   analogue, `AWAITING_TECHNICAL_APPROVAL`, was equally available for that
+   same promotion (see `D-Implementation-Review-Version-Activation`'s
+   "terminal-phase naming" decision); this design instead reuses
+   `AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW`'s existing name, which has no
+   plan-side equivalent decision point at all, since the plan side never
+   had a pre-existing "reviews are done" phase name to reuse or not.
+3. **Identity computation is anchored differently.**
+   `compute_review_content_id_implementation_stage_at_commit` measures a
+   specific commit's tree; the plan stage's own projection
+   (`compute_review_content_id_plan_stage`/`_at_commit`) is
+   worktree-measured when driven from a live session and only optionally
+   pinned to a commit. `docs/ai-workflow/REVIEW_PROTOCOL.md`'s own
+   "Computing `review_content_id`" section carries the operational
+   cautions this anchor difference requires.
+4. **The generation-record commit's own required shape is
+   version-dependent in a way the plan side has no analogue for.** The
+   plan side has no generation-record commit at all — its ledger is
+   committed by `/approve-review plan`'s own journal-backed transaction,
+   long after both review stages complete, so no ledger residue can ever
+   sit uncommitted across a plan-side structural commit the way
+   `implementation_review_stages` can across the implementation side's
+   generation-record commit. This divergence is why the implementation
+   side alone needed the three-part fix above (the version-dependent
+   target-phase resolver, the widened field-set constants, and the
+   recovered-role committed-phase membership test) — every fix to one
+   commit role's shape had to be checked against the other's separately,
+   since the implementation side alone has both an ordinary and a
+   recovered commit role at all.
+
+Stating this once, here, is more durable than patching each divergence
+locally wherever it was found, with no single place recording that they
+share one root cause. A future maintainer extending either review stage
+should read this before assuming the mirror is exact.
+
+### D-Implementation-Review-Version-Activation — introducing `governing_workflow_version: "2.2"` (`workflow-2.5.0`)
+
+<!-- review-material-lifecycle: CURRENT -->
+
+**Why a new version is needed at all** (unlike `AMENDING_PLAN`, which
+needed none): `AMENDING_PLAN` is a wholly new, additive, opt-in entry point
+that changes no existing phase's transition semantics for any existing
+governing version. `D-Implementation-Review-Stages` above *does* change
+existing transition semantics — `SELF_REVIEWING_IMPLEMENTATION`'s and
+`APPLYING_REVIEW_FEEDBACK`'s exit targets, and `/review-implementation`'s
+contract from advisory to authoritative — exactly the class of change that
+made `D-Plan-Review-Stages` itself require a new governing version
+(`"2.1"`) rather than silently altering `"1"`'s behavior. A governing
+version, once fixed at a work item's creation, must never change meaning
+retroactively (`D-Self-Governance`); introducing this capability under the
+existing `"2.1"` would silently change the contract for any `"2.1"` item
+already resolved to enter `AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW` under
+the old, single-stage meaning, including one created by a different
+repository that has already updated to a release shipping this capability.
+`"2.2"` avoids that.
+
+**Terminal-phase naming, decided.** Three options were live:
+(a) a genuinely new persisted terminal-phase name; (b) keep
+`AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW`'s existing name, letting `"2.2"`'s
+widened entry condition to it carry the "reviews are actually done"
+meaning, exactly mirroring how `AWAITING_PLAN_APPROVAL`'s *entry
+condition* — not its name — grew the extra ledger check for
+`TWO_STAGE_PLAN_REVIEW_VERSIONS`; (c) promote the existing
+`AWAITING_TECHNICAL_APPROVAL` vocabulary name (already in `KNOWN_PHASES`
+as the technical-approval gate's name-only vocabulary state) to a
+persisted `"2.2"` terminal phase. **This design adopts (b)**: it changes
+no read site's shape and requires no new phase-name plumbing anywhere
+`AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW` is already referenced. (a) and
+(c) remain recorded here as considered, declined alternatives, not
+silently dropped.
+
+**Activation mechanism.** `WORKFLOW_CONFIG.json`'s
+`default_workflow_version` gains `"2.2"` as a legal value, and
+`supported_versions` gains `"2.2"` as a new member, via `WF-Activate`'s
+`build_activated_config`/`build_rolled_back_config` helpers, generalized
+to accept a target-version parameter rather than the hard-coded `"2.1"`
+literal (reused, not duplicated, for the `"2.1"` → `"2.2"` bump). Both
+helpers' one-time-boundary guards (`AlreadyActivatedError`/
+`NotActivatedError`) compare against the target-version parameter rather
+than the literal `"2.1"`. Activation additionally appends the target
+version to `supported_versions`, a genuinely new piece of behavior — today
+neither helper writes that field at all.
+
+**Activation entry point.** The documented, supported procedure for
+`"2.2"` is a **direct hand edit** to `WORKFLOW_CONFIG.json` — both
+`default_workflow_version` and `supported_versions` together, in one
+commit carrying `Workflow-Activation: 2.2`/`Workflow-Rollback: 2.2` trailer
+discipline — **never** a call through `build_activated_config`/
+`build_rolled_back_config`. Those helpers are generalized above because
+they are the executable specification CP2's own unit tests pin the
+target-version transform against and because a future automated
+`workflow_manager` verb, if one is ever added, has a ready-made entry
+point to call; `workflow-2.5.0` itself wires no such caller. Nothing
+enforces the one-time-boundary guard against the hand-edit path — for
+`"2.2"`, `D-Self-Governance`'s "activation is a deliberate, trailered
+boundary" is operator discipline plus the trailer/ancestry-search
+machinery below, not code enforcement, exactly as the "Template question"
+below explains.
+
+**Rollback destination is the version activation superseded, never a fixed
+literal.** `build_rolled_back_config`'s generalized return value sets
+`default_workflow_version` to the target version's own predecessor —
+`"2.2"` rolls back to `"2.1"`, `"2.1"` rolls back to `"1"` — via an
+explicit, declared predecessor mapping (`{"2.1": "1", "2.2": "2.1"}`),
+never a derived value and never a version-string ordering comparison
+(lexicographic comparison is unsound for these values — `"2.10" <
+"2.2"`). This corrects `scripts/workflow_state.py`'s prior hard-coded `"1"`
+rollback-destination literal, which would otherwise have undone both the
+`"1"`→`"2.1"` and `"2.1"`→`"2.2"` activations when an operator asked to
+undo only the second. Rollback does **not** remove the target version from
+`supported_versions` — `validate_governing_version` is only ever called
+with `config["default_workflow_version"]` itself, never an independently
+requested version, so a stale `supported_versions` member grants nothing
+today; this asymmetry (activation appends, rollback does not remove) is
+accepted deliberately, not left silent.
+
+**Activation event model, version-aware rather than binary.**
+`find_latest_activation_event`/`is_activated` read each event's own
+*destination* version — an activation trailer's value directly, a
+rollback trailer's value resolved through the same predecessor mapping —
+and `is_activated` reports `True` for the rollback direction whenever that
+resolved destination is not `"1"`; the activation direction reports `True`
+unconditionally, for every trailer value including `"1"` (see below, I2).
+This reproduces today's binary behavior exactly at the boundary it already
+covers (`Workflow-Rollback: 2.1` resolves to `"1"`, still not activated)
+and additionally reports `True` after `Workflow-Rollback: 2.2` (resolves
+to `"2.1"`), which is the correct answer: the repository is still
+`"2.1"`-configured and `ConfigMissingAfterActivationError`'s hard stop
+must stay armed — left binary, a `Workflow-Rollback: 2.2` commit would
+otherwise silently disarm that hard stop and, through
+`route_work_item`/`create_remediation_child_work_item`, could leave a
+subsequent missing/corrupt config quietly degrading to `default_config()`
+and every new work item born `"1"`. `load_config`'s raise message and
+`ConfigMissingAfterActivationError`'s docstring both generalize off their
+prior hard-coded `"2.1"` text to name the resolved destination version.
+**Rollback-trailer-value miss resolves fail-closed**: the predecessor
+mapping's declared domain is exactly `{"2.1": "1", "2.2": "2.1"}`; a value
+outside that domain (a bare/empty trailer, a typo, or an unrecognized
+future version) is caught by an explicit branch checked before the table
+lookup and resolves as **activated** — never a silent fall-through to
+not-activated, never an uncaught `KeyError`. The activation direction is
+unconditionally activated: an `"activation"` event reports `True` for
+*every* trailer value, `"1"` included, never conditioned on the trailer's
+own value (I2 — reading `destination_version != "1"` unconditionally for
+both directions regressed this one value fail-*open* against `2.4.0`, the
+only direction nothing declared a deliberate difference for). Only a
+*resolved* rollback destination may ever report not-activated; an
+unresolvable rollback trailer still fails closed to activated, same as
+above.
+
+**Activation ceremony scope, decided lighter than the original `"1"`→`"2.1"`
+`WF-Activate` ceremony.** That original ceremony (dry-run synthetic work
+item, activation/rollback commit trailers, missing-config ancestry search)
+was built to establish the whole pattern from scratch, self-hosted, with no
+fallback if it was wrong; that infrastructure now exists and is proven.
+`"2.1"`→`"2.2"` activation is a direct, reviewed config-default commit
+carrying the same trailer discipline and the same missing-config
+ancestry-search behavior, but without re-running a full multi-session
+synthetic dry-run scenario — CP12's disposable-repository validation
+(real repositories, real end-to-end flows) re-proves the new capability
+directly, a stronger check than a synthetic in-repository dry-run would
+add on top.
+
+**Reachability.** Nothing in this design routes a work item to `"2.2"` by
+itself — `route_work_item`'s fresh-id branch and the remediation-child
+creator both pass `config["default_workflow_version"]` straight through to
+`default_work_item`, with no parameter, flag, or command argument anywhere
+that lets an operator request a version instead. `"2.2"` becomes reachable
+only by hand-editing a repository's own `WORKFLOW_CONFIG.json` — both
+`default_workflow_version` and `supported_versions` together;
+`validate_config` refuses a commit that edits only one of the two fields.
+`docs/ai-workflow/IMPLEMENTATION_REVIEW_WORKFLOW.md`'s own "Activating
+`\"2.2\"`" section documents this procedure directly, states explicitly
+that it is never a call through `build_activated_config`/
+`build_rolled_back_config`, and records that after the activation commit a
+missing or corrupt config is a hard stop rather than a silent
+fallback — together with the caution that the trailer's own value must be
+written as exactly the activated version string, since it is now
+semantically load-bearing for the rollback-trailer-value-miss rule above.
+The same guide states, in its own dedicated paragraph, that **`"2.2"` is
+available only to a work item created after a repository activates it** —
+there is no legal path for an already-existing `"1"`/`"2.1"` work item, in
+this repository or any other, to become `"2.2"` retroactively, and this
+milestone adds none.
+
+**Reconciled explicitly against the Controller rollout.** The concrete
+instance this rule binds is `~/Workspace/workflow-controller`'s own work
+item `workflow-controller-generation-1`, already `"2.1"`-governed. Updating
+that repository to `2.5.0` and resuming that work item does **not**, by
+itself or after that repository separately activates `"2.2"`, change
+`workflow-controller-generation-1`'s own governing version: it stays
+`"2.1"` for the rest of its lifetime and keeps the single-stage
+implementation-review flow this design's `"1"`/`"2.1"` branch leaves
+byte-for-byte unchanged. Only a *new* work item created in that repository
+after it activates `"2.2"` would ever get the two-stage implementation-review
+flow. This is the operator's own informed, deliberate acceptance of that
+consequence, not an oversight; a live-item promotion mechanism remains
+available for a future release to design, scoped and reviewed on its own.
+
+**Template question, decided.** `2.5.0`'s own shipped
+`templates/docs/ai-workflow/WORKFLOW_CONFIG.json` stays at `"2.1"`,
+unchanged from `2.4.0`'s: a fresh `2.5.0` install is **not**
+`"2.2"`-enabled without the explicit activation act described above.
+Shipping the template pre-enabled is declined for this milestone: it is
+not expressible today without a further, unauthorized change to
+`tools/build_release.py` (which refuses any overlay payload path whose
+`target_path` collides with a base template's `target_path`, and copies
+every base template forward unchanged), purely to bypass a boundary
+`D-Self-Governance` deliberately draws.
+
+**Inheritance rule, general.** Beyond `D-Implementation-Review-Stages`'s
+one addition, **a `"2.2"` item is a `"2.1"` item**: every `"2.1"`-gated
+behavior applies to `"2.2"` unchanged, at every gate and in every command
+and workflow document, except the implementation-review stages this design
+adds. In particular, plan review for a `"2.2"` item runs the identical
+two-stage `D-Plan-Review-Stages` mechanism a `"2.1"` item already gets —
+`TWO_STAGE_PLAN_REVIEW_VERSIONS = {"2.1", "2.2"}` is the membership test
+that replaces the bare `"2.1"` literal everywhere the plan-review gate,
+transition table, and `docs/ai-workflow/PLAN_REVIEW_WORKFLOW.md`/
+`docs/ai-workflow/MILESTONE_WORKFLOW.md` state that scope.
+
+### D-Review-Material-Lifecycle — separating current normative review material from closed/immutable history (`workflow-2.5.0`)
+
+<!-- review-material-lifecycle: CURRENT -->
+
+**Problem this addresses.** A design/plan document accumulates, section by
+section and revision by revision, both the design as it stands today and
+the provenance narrative explaining how it got there. Left interleaved,
+every future reviewer of the *current* design must first separate "what is
+true now" from "what used to be claimed and was corrected" by reading the
+same prose, and closed provenance stays permanently mixed into the
+review-visible surface. This section defines the convention and the
+mechanical check that keep the two separated going forward, for the
+documents this milestone authors or explicitly opts in.
+
+**Scope.** Binds `IMPLEMENTATION_REVIEW_WORKFLOW.md` in full, and
+`docs/ai-workflow/WORKFLOW_V2_PLAN.md`'s own top-level design sections that
+a checkpoint's registry entry adds — today `D-Implementation-Review-Stages`,
+`D-Implementation-Review-Version-Activation`, and this section,
+`D-Review-Material-Lifecycle`, itself. It does not bind
+`WORKFLOW_V2_PLAN.md`'s pre-existing content wholesale: a pre-existing
+section this milestone has not explicitly marked stays outside this
+convention's narrative-content guarantee, classified `CURRENT` only by the
+fail-closed default below, never reclassified `HISTORICAL` by the
+convention's introduction alone. This milestone performs no physical move
+of existing repository content (`WORKFLOW_V2_PLAN.md` and
+`docs/ai-workflow/audit/*.md` stay at their current paths); the convention
+is a classification layer over existing documents, not a folder scheme.
+
+**Classification: two explicit states, one canonical marker.** Every unit
+of review material this convention applies to is classified either
+`CURRENT` (current, normative, review-visible design material) or
+`HISTORICAL` (a closed, provenance-only record of a past decision or
+review round). Classification is a semantic property the author states
+explicitly — never inferred from a heading's wording, level, or position,
+and never derived from who authored a unit, whether it is new, or which
+section it sits under. The marker is one canonical, machine-readable
+representation — `render_marker(state)` / `parse_marker(text)`
+(`scripts/workflow_state.py`, fixed by CP1, restricted to exactly
+`REVIEW_MATERIAL_LIFECYCLE_STATES = ("CURRENT", "HISTORICAL")`) — an HTML
+comment of the exact form `<!-- review-material-lifecycle: STATE -->`.
+Every marker any checkpoint writes, this section's own two markers above
+included, is required to equal `render_marker`'s output bytes for its
+state; the mechanical check reaches its classification verdicts by calling
+`parse_marker` itself, never a second, independently tolerant grammar.
+
+**Unit and nesting.** A unit is the content directly under one Markdown
+heading, up to (but not including) the next heading at any level — a
+nested heading starts a unit of its own. A unit's own classification is
+decided by searching only its own content (never a descendant unit's
+content) for a marker via `parse_marker`. A nested unit that carries its
+own explicit marker is classified independently of its enclosing unit and
+is never folded into the enclosing unit's own search — this is what lets
+`D-Implementation-Review-Stages`' carried `2.5.0 disposition record`
+subsection stay `HISTORICAL` while the section enclosing it stays
+`CURRENT`, and it is why "reached in full" (below) means exactly "every
+unit inside, at whatever nesting depth, classified independently" rather
+than "one verdict for the whole subtree."
+
+**Fail-closed default.** A unit with no explicit marker, or with text
+`parse_marker` cannot unambiguously parse as exactly one well-formed
+marker, is `CURRENT`. Classification can therefore only *narrow* what a
+reviewer sees (through a deliberate, explicit `HISTORICAL` marking); it
+can never silently *widen* what a reviewer does not see.
+
+**Marker edits are the only route to `HISTORICAL`.** No edit that does not
+itself write or change an explicit marker may move material from `CURRENT`
+to `HISTORICAL` — neither by changing the marker on the unit that material
+already belongs to, nor by redrawing which unit it belongs to (for
+example, deleting or demoting the heading between a `CURRENT` region and
+an adjacent `HISTORICAL`-marked unit, with no marker edit anywhere in the
+diff, must not report the merged material `HISTORICAL`). A `HISTORICAL`
+unit may still be corrected in place as historical record-keeping without
+that correction alone re-promoting it to `CURRENT`.
+
+**Narrative-content guarantee.** A unit carrying an *explicit* `CURRENT`
+marker never contains inline "revision N corrected/added/narrowed/widened
+finding X"-shaped provenance narrative — that narrative belongs in a unit
+explicitly marked `HISTORICAL` instead. This guarantee is asserted only
+over units carrying an explicit `CURRENT` marker; a unit that is `CURRENT`
+only by the fail-closed default (no marker at all) is outside its reach,
+since asserting it there would require inferring scope from something
+other than the marker.
+
+**Marker-presence obligation, exactly two subjects.** Distinct from the
+classification default above (which never fails, only classifies), a
+missing marker on either of these two subjects is a lint failure in its
+own right:
+
+- **`IMPLEMENTATION_REVIEW_WORKFLOW.md`** — the document's own top-level
+  unit (the whole document, read as one unit whose own content is
+  everything not already claimed by a separately-marked nested unit) must
+  carry an explicit marker of either value.
+- **`WORKFLOW_V2_PLAN.md`'s in-scope top-level sections** named under
+  "Scope" above — each, read the same way (its own content, excluding any
+  separately-marked nested unit), must carry an explicit marker of either
+  value. A nested unit that already carries its own explicit marker (the
+  `2.5.0 disposition record` subsection, concretely) discharges the
+  obligation for that nested unit by its own presence and is never
+  overwritten by the marking pass below.
+
+**CP6's marking pass.** Using `render_marker` exclusively, this checkpoint
+writes an explicit `CURRENT` marker onto every in-scope unit named above
+that does not already carry one of its own — concretely,
+`D-Implementation-Review-Stages` and `D-Implementation-Review-Version-Activation`
+above, both marked as part of this same checkpoint. It never overwrites or
+reclassifies a unit that already carries an explicit marker of its own.
+
+**Governing-version enumeration sweep.** A second, independent mechanical
+check over the built release payload's `.claude/commands/*.md` and
+`docs/ai-workflow/*.md`: no document may present a bare `"2.1"` governing
+version as exhaustive of the two-stage plan-review protocol's own
+applicability, now that `TWO_STAGE_PLAN_REVIEW_VERSIONS = {"2.1", "2.2"}`
+(`D-Implementation-Review-Version-Activation`'s inheritance rule). Two
+textual forms are flagged: an explicit enumeration presenting the legacy
+version and `"2.1"` together as the complete governing-version set, and a
+bare `"2.1"`-scoped assertion that never mentions the legacy version at
+all (the dominant, previously-undetected form). A negated or
+version-independence assertion (for example, stating plainly that a
+mechanism is not limited to one single governing version) is not an
+occurrence of either form. The sweep
+runs at occurrence granularity, not whole-document granularity: an
+occurrence inside a unit classified `HISTORICAL` under this section's own
+convention is allowlisted, and three genuinely closed history documents
+(`WORKFLOW_V2_3_PLAN.md`, `WORKFLOW_V2_3_FOLLOWUPS_PLAN.md`,
+`WORKFLOW_V2_AUDIT.md`) are allowlisted wholesale — `WORKFLOW_V2_PLAN.md`
+itself is not, since it remains the single active design-of-record and a
+whole-document exemption would suppress the sweep inside its own current,
+normative sections. `WORKFLOW_V2_PLAN.md`'s pre-existing disposition
+sections the sweep itself flags are marked `HISTORICAL` as part of this
+checkpoint's own deliverable, each a deliberate, diff-visible act — never
+a section the sweep's own output does not flag, and never a reword of
+otherwise-untouched historical prose.
+
+**Fixtures.** `scripts/workflow_state_test.py`'s
+`ReviewMaterialLifecycleTest`/`GoverningVersionEnumerationSweepTest`
+classes pin this mechanism's behavior directly, including a real-corpus
+run of the marker-presence obligation over its own two named subjects and
+a before/after partition regression proving this checkpoint's own
+introduction reclassifies no pre-existing unmarked unit `HISTORICAL` except
+where deliberately and visibly marked as part of this checkpoint's own
+work.
+
 ## Preserved ownership (unchanged, extended)
 
 `CLAUDE.md`'s gate-count section points at `MILESTONE_WORKFLOW.md`;
@@ -32826,6 +33474,9 @@ unmapped requirements, zero unowned checkpoints, zero dangling
 | WFR-69 | **(new, revision 86, `GPT-R108-001`; headline corrected revision 88, `OPUS-R110-002`, to match the body's status-conditional, ownership-filter-free rule)** A checkpoint carrying `completion_obligations` in the registry must not itself reach checkpoint-`COMPLETE` while any item in the item universe those obligations declare remains, per the approved reconciliation table's own recorded disposition, undischarged on the working tree — the structural gap one call site earlier than `WFR-68`'s own `complete_work_item` gate: `WFR-68`'s `WFO-LEDGER-COVERAGE` verdict is bound to the checkpoint's own eventual technical approval (`D-Completion-Obligations`' verifier-authority chain), which does not exist yet at the moment `complete_checkpoint(...)` is called — implementation happens *before* `SELF_REVIEWING_IMPLEMENTATION`/technical approval, never after — so a literal pre-completion call through that same approval-bound chain would derive `UNKNOWN_OBLIGATION`/an unapproved-verifier classification for every such checkpoint's *first-ever* completion attempt, genuinely-discharged or not, and could not itself distinguish the two. `complete_checkpoint(state, work_item_id, checkpoint_id, registry, now, *, repo_root)` therefore gains a second, distinct, **non-approval-gated** pre-flight — deliberately not a call to `resolve_completion_obligations`/the verifier-authority chain `WFR-68` already owns — that re-derives, directly against the live working tree at the moment of completion rather than against a pinned-and-approved commit, whether every one of the 211 items this revision's own reconciliation table names — the identical `{166} ∪ {167..376}` universe property (i) now names, checked in full rather than filtered to only the checkpoint being completed's own assigned subset (three reconciliation-table rows carry compound owner cells with no table-derivable per-item split, and property (ii) already requires evidence for every `IMPLEMENTED` entry regardless of who owns it, so the wider set is already evidenced by construction and no ownership resolution is needed at all, corrected revision 87, `OPUS-R109-002`) — satisfies the disposition the table's own per-item resolution rule already assigns it (**status-conditional, corrected revision 88, `OPUS-R110-001`, from a uniform to a status-conditional rule, since the widened universe sweeps in 20 `SUPERSEDED`/owner-`none` items no evidence source can ever discharge, making the uniform rule unsatisfiable**): an item resolving to `IMPLEMENTED` or to a `WF8c`-owned status (`ABSENT`/`PARTIAL`) already has a resolvable, executable evidence entry that **re-executes and derives green, never merely present or merely resolvable** (the identical evidence-resolution `WFR-68` property (ii) already defines for an `IMPLEMENTED` ledger entry, invoked here pre-approval instead of post-approval; corrected revision 87, `OPUS-R109-001`, from a presence/resolvability check to a re-execution requirement, since a present-but-failing evidence entry — item 166's own currently-red `test_every_wfr_row_description_matches_json_exactly` is the live example — previously satisfied it while the item stayed genuinely undelivered); an item resolving to `SUPERSEDED` with owner `none` is satisfied by the approved reconciliation table's own recorded supersession and requires no evidence entry at all — the identical disposition item 355 clause (b2) already admits and `WFR-68` property (iv) already protects against downward relabeling, so no item in this third group can ever acquire, or is ever required to produce, an evidence entry. A `False` result refuses the `COMPLETE` write with the same `UnsatisfiedCompletionObligationError` `WFR-68` already raises at `complete_work_item`, naming the checkpoint id and every unresolved item, before `checkpoint_id`'s status is written and before `current_checkpoint_id` is reset to `null` — so the checkpoint stays selectable (`select_next_checkpoint` keeps returning it) and the registry never goes terminal, and `scoped_remediation_gate_reachable` never goes unreachable, on genuinely undischarged work. This pre-flight is deliberately **weaker than, and never a substitute for**, `WFR-68`'s own approval-bound `WFO-LEDGER-COVERAGE` verdict: passing it is necessary but never sufficient for `MILESTONE_COMPLETE`, which still independently requires the full obligation to derive `PASS` exactly as `WFR-68` already specifies, unchanged — the two gates guard two different transitions (`checkpoint.status → COMPLETE` versus `phase → MILESTONE_COMPLETE`) and neither one's pass is evidence for the other's. A checkpoint declaring no `completion_obligations` (every registry row besides `WF8b`/`WF8c`) is unaffected — the pre-flight is vacuously satisfied for it, exactly as `resolve_completion_obligations` already is (item 356). | WF8c | `complete_checkpoint(..., repo_root=...)` called for a `WF8c` registry entry with at least one `IMPLEMENTED`/`WF8c`-owned reconciliation-table item (never a `SUPERSEDED`/owner-`none` item, which requires no evidence entry — added revision 88, `OPUS-R110-001`) still lacking a resolvable, green evidence entry — including an item whose evidence entry is present, resolvable and executable but fails on re-execution, item 166’s own currently-red test exercised directly with no synthetic fixture needed — must refuse: `checkpoints["WF8c"].status` stays whatever it was (not `COMPLETE`), `current_checkpoint_id` stays `"WF8c"`, and `select_next_checkpoint`/`registry_completion_status` both keep resolving to `WF8c`, not `None` — the checkpoint remains reachable and recoverable, never stranded past a gate that quietly let it through. After every one of the 191 evidence-bearing items (`IMPLEMENTED` or `WF8c`-owned) has a resolvable evidence entry that re-executes green **and** the remaining 20 `SUPERSEDED`/owner-`none` items carry no evidence entry at all — proving the corrected rule is actually satisfiable, not merely narrowed (added revision 88, `OPUS-R110-001`) — the identical call proceeds and marks `WF8c` `COMPLETE`, and — because it is the registry's last row — flips `phase` to `SELF_REVIEWING_IMPLEMENTATION` exactly as `complete_checkpoint`'s existing all-registry-checkpoints-`COMPLETE` rule already does, unchanged. `complete_work_item` must still independently refuse via `UnsatisfiedCompletionObligationError` at that point, until `WFO-LEDGER-COVERAGE`'s own approval-bound verdict (requiring `WF8c`'s own technical approval, which by construction cannot exist before its checkpoint commit) derives `PASS` — proving the pre-flight's own pass is never treated as sufficient for the terminal phase. Every other, non-`completion_obligations`-carrying registry row completes exactly as before this revision, unaffected. |
 
 ## Checkpoint registry (revision 26: 17 checkpoints, unchanged count — `WF4a-iv` (added revision 10) had its session target widened in revision 11; revisions 12 through 26 (`OPUS-R14-*`/`OPUS-R16-*`/`OPUS-R18-*`/`OPUS-R20-*`/`WF8B-S1-001`/`OPUS-R25-*`/`OPUS-R26-*`/`OPUS-R27-*`/`OPUS-R28-*`/`GPT-R29-*`/`WF8B-002`/`GPT-R36-*`/`GPT-R37-*`/`GPT-R38-*`/`GPT-R39-*`) touched no checkpoint's size or dependency, only `PLAN_STAGE_PROTECTED`/`PLAN_STAGE_EXCLUDED_*` classification (and, since revision 16, how that classification is *derived* per work item — `D-Fingerprint-Generalization`), the registry JSON's own `plan_revision` field, and requirements owned by existing checkpoints; complexity scale defined; this table is a generated view of `docs/ai-workflow/registry/workflow-v2-1-core-registry.json`, D-Registry). **Revision 22** (`D-Scoped-Remediation-Acceptance`) adds `WFR-53`-`WFR-57`, owned by `WF4c`/`WF4a-ii`/`WF2` — same pattern as `WF8B-S1-001`'s own `WFR-47`-`WFR-52` (owned by `WF4a-i`). **Revision 23** (`GPT-R36-001`/`-002`/`-003`) amends `WFR-53`/`WFR-56` and adds `WFR-58`/`WFR-59`, all owned by `WF4c`. **Revision 24** (`GPT-R37-001`/`-002`/`-003`/`-004`) amends `WFR-53`/`WFR-55`/`WFR-56`/`WFR-58`/`WFR-59` in place (no new requirement added or renumbered), all owned by `WF4c`. **Revision 25** (`GPT-R38-001`/`-002`/`-003`) amends `WFR-58`/`WFR-59` in place and adds `WFR-60`, owned by `WF4c` (`WFR-58`/`-59`) and `WF4c`/`WF-M8b` jointly (`WFR-60`) — no checkpoint's own name/scope text changes, including `WF8b`'s own row below, unchanged. **Revision 26** (`GPT-R39-001`/`-002`) amends `WFR-58`/`WFR-59`/`WFR-60` in place (no new requirement added or renumbered; `WFR-56`'s schema itself is untouched), owned by `WF4c` (`WFR-58`/`-59`) and `WF4c`/`WF-M8b` jointly (`WFR-60`) — no checkpoint's own name/scope text changes. **Revision 28** (self-discovered, `WF8B-003`) adds `WFR-61`, owned by `WF4c` — same continued-scope pattern as every `WF8b` revision since 21; no checkpoint's own name, scope, size, or dependency changes (revision 27 added no new requirement, so this note continues directly from revision 26). **Revision 29** (`GPT-R45-001`/`-002`/`-003`/`-004`) amends `WFR-53`/`WFR-61` in place and adds `WFR-62`, owned by `WF4c` — same continued-scope pattern; no checkpoint's own name, scope, size, or dependency changes. **Revision 30** (`GPT-R46-001`/`-002`/`-003`) amends `WFR-61`/`WFR-62` in place (no new requirement added or renumbered), owned by `WF4c` — same continued-scope pattern; no checkpoint's own name, scope, size, or dependency changes. **Revision 31** (`GPT-R47-001`/`-002`/`-003`) amends `WFR-61`/`WFR-62` in place again (no new requirement added or renumbered), owned by `WF4c` — same continued-scope pattern; no checkpoint's own name, scope, size, or dependency changes. **Revision 32** (`GPT-R48-001`/`-002`/`-003`) touches no `WFR` row's description text at all — the three fixes are in `D-States`/`D-Commit-Provenance` prose and `WFR-62`'s verification column only — owned by `WF4c`; no checkpoint's own name, scope, size, or dependency changes. **Revision 33** (`GPT-R49-001`/`-002`/`-003`/`-004`) amends `WFR-61`/`WFR-62` in place (no new requirement added, removed, or renumbered — still 62 rows), owned by `WF4c` — same continued-scope pattern; no checkpoint's own name, scope, size, or dependency changes; `workflow-v2-1-core-mapping.json`'s `WFR-61`/`WFR-62` descriptions amended to match. **Revision 34** (`GPT-R50-001`/`-002`/`-003`) amends `WFR-61`/`WFR-62` in place again (no new requirement added, removed, or renumbered — still 62 rows), owned by `WF4c` — same continued-scope pattern; no checkpoint's own name, scope, size, or dependency changes; `workflow-v2-1-core-mapping.json`'s `WFR-61`/`WFR-62` descriptions amended to match (re-verified byte/normalization-equivalent by item 166's own conformance function, mechanically). **Revision 35** (`GPT-R51-001`/`-002`/`-003`/`-004`) amends `WFR-19`/`WFR-61`/`WFR-62` in place (no new requirement added, removed, or renumbered — still 62 rows), owned by `WF4a-ii` (`WFR-19`) and `WF4c` (`WFR-61`/`WFR-62`) — same continued-scope pattern; no checkpoint's own name, scope, size, or dependency changes; `workflow-v2-1-core-mapping.json`'s `WFR-19`/`WFR-61`/`WFR-62` descriptions amended to match. **Revision 36** (`GPT-R52-001`/`-002`/`-003`/`-004`/`-005`) touches no `WFR` row's description text except `WFR-62`'s acceptance/test column (`GPT-R52-004`) — the other three fixes (`GPT-R52-001`/`-002`/`-003`) are in `D-Commit-Provenance`/`D-Approval-Commits`/`D-States` prose only, and `GPT-R52-005` is a missing-test amendment — owned by `WF4c`; no checkpoint's own name, scope, size, or dependency changes; `workflow-v2-1-core-mapping.json`'s `WFR-62` description amended to match. **Revision 37** (`GPT-R53-001`/`-002`/`-003`) amends `WFR-19`/`WFR-61` in place (no new requirement added, removed, or renumbered — still 62 rows), owned by `WF4a-ii` (`WFR-19`) and `WF4c` (`WFR-61`) — no checkpoint's own name, scope, size, or dependency changes; `workflow-v2-1-core-mapping.json`'s `WFR-19`/`WFR-61` descriptions amended to match. **Revision 38** (`GPT-R54-001`/`-002`/`-003`) amends `WFR-19`/`WFR-61`/`WFR-62` in place (no new requirement added, removed, or renumbered — still 62 rows), owned by `WF4a-ii` (`WFR-19`) and `WF4c` (`WFR-61`/`WFR-62`) — `WFR-61` additionally gains `WF5` as a second owning checkpoint (the atomic bundle-file-publication contract is bundle-mechanics work squarely within `WF5`'s existing scope, not a new checkpoint or a size/dependency change to either `WF4c` or `WF5`); `workflow-v2-1-core-mapping.json`'s `WFR-19`/`WFR-61`/`WFR-62` descriptions amended to match and `WFR-61`'s `checkpoint_ids` widened from `["WF4c"]` to `["WF4c", "WF5"]`. **Revision 39** (`GPT-R55-001`/`-002`/`-003`/`-004`) amends `WFR-19`/`WFR-61` in place (no new requirement added, removed, or renumbered — still 62 rows), owned by `WF4a-ii` (`WFR-19`) and `WF4c`/`WF5` (`WFR-61`, `checkpoint_ids` unchanged from revision 38) — no checkpoint's own name, scope, size, or dependency changes; `GPT-R55-003`/`-004` touch acceptance criterion 31 and missing-test items 14/27, not any `WFR` row's description text; `workflow-v2-1-core-mapping.json`'s `WFR-19`/`WFR-61` descriptions amended to match. **Revision 40** (`GPT-R56-001`/`-002`/`-003`/`-004`) amends `WFR-61`'s acceptance/test column only (no new requirement added, removed, or renumbered — still 62 rows; the requirement's own description column is unaffected — the migration, archive-dereferencing, reader-snapshot, and pin-monotonicity fixes are all `D-Approval-Commits`/`D3`/`D2a` mechanism detail the description column references by contract name rather than restates, exactly as it already did for revision 39's own symlink-primitive change), owned by `WF4c`/`WF5` (`checkpoint_ids` unchanged from revision 38) — no checkpoint's own name, scope, size, or dependency changes; `WFR-19` is untouched this revision (`GPT-R56-004`'s pin-monotonicity fix lives entirely in `D3`'s validator rule and `D2a`'s cross-reference, not in either gate's entry condition); `GPT-R56-005` touches only bundle evidence artifacts and this plan's own prior `GPT-R55-005` disposition-text precision, not any `WFR` row's description text; `workflow-v2-1-core-mapping.json`'s `WFR-61` description requires no change — independently re-verified, zero mismatches across all 62 rows (see `TEST_RESULTS.md`). **Revision 41** (`GPT-R57-001`/`-002`/`-003`/`-004`/`-005`) amends `WFR-61`'s acceptance/test column only (no new requirement added, removed, or renumbered — still 62 rows; the requirement's own description column is unaffected — the version-store parent-directory, staging-namespace, legacy-validation, symlink-preflight, and pinned-archive fixes are all `D-Approval-Commits` mechanism detail the description column references by contract name rather than restates, exactly as revisions 39/40 already did for their own symlink-primitive/migration changes), owned by `WF4c`/`WF5` (`checkpoint_ids` unchanged from revision 38) — no checkpoint's own name, scope, size, or dependency changes; `WFR-19` is untouched this revision, same as revision 40; `workflow-v2-1-core-mapping.json`'s `WFR-61` description requires no change — independently re-verified, zero mismatches across all 62 rows (see `TEST_RESULTS.md`). **Revision 81** (self-discovered, `OPUS-R101-002`) adds one new row, `WF8c`, `depends_on: ["WF8b"]`, successor to the now-`COMPLETE` `WF8b` (not a reopening of it — see "Revision 81 — convergence" below); adds `WFR-68` (`WFO-LEDGER-COVERAGE`) owned solely by `WF8c`; reassigns `WFR-67`'s Checkpoint column from `WF8b` to `WF8c` (never delivered, confirmed absent — `WF8b` is retired, not widened); widens `WFR-61`/`WFR-62`/`WFR-63`'s `checkpoint_ids` to add `WF8c` alongside their existing thematic-origin owners (the genuinely remaining same-content-republication/cross-work-item-mutation/three-caller-conformance work, the recovery mechanism, and the re-scoped bootstrap-transaction work respectively); amends `WFR-61`'s description in place to additionally record that items 314-338's atomic/staged bundle-publication redesign specifically is deemed superseded/not-currently-normative rather than owed to any checkpoint (the live, documented design — `docs/ai-workflow/REVIEW_PROTOCOL.md`'s own "Bundle structure" section — is and remains the flat `current/` directory this whole redesign proposed replacing, and it operated through 80 plan revisions and the entirety of `WF8b`'s dry run with no observed partial-write incident); no existing checkpoint's own name, scope, size, or dependency changes; `workflow-v2-1-core-mapping.json`'s `WFR-61`/`WFR-62`/`WFR-63`/`WFR-67` descriptions amended to match and `WFR-68` added — registry now 18 checkpoints, requirements table now 68 rows. **Revision 82** (`OPUS-R102-001` through `-011`, external plan review of revision 81 — all eleven findings accepted, none rejected) amends `WFR-19`/`WFR-53`/`WFR-61`/`WFR-62`/`WFR-63`/`WFR-67`/`WFR-68` in place and adds, removes, and renumbers **no** row — still 68, and the registry stays at 18 checkpoints with no checkpoint's size or dependency changed. `WFR-19`'s `checkpoint_ids` widens from `["WF4a-ii"]` to `["WF4a-ii", "WF8c"]` and `WFR-53`'s from `["WF4c"]` to `["WF4c", "WF8c"]`: both rows own protections whose *thematic origin* is a now-`COMPLETE` checkpoint but whose delivery was confirmed absent — `WFR-19` carries both halves of the `BLOCK`-laundering protection (the positive-membership gate `GPT-R54-001` narrowed, items 306/309, and `D2a`'s durable pin, items 320-322/328), and `WFR-53` carries the protected-document freshness items 231/232 — so leaving either pointing only at a `COMPLETE` checkpoint is precisely the stranding `OPUS-R101-002` exists to prevent, one level down from the checkpoint registry. `WFR-61`'s description is amended in place again to narrow the superseded publication range from `314-338` to `314-317`, `319`, `323-327`, `329-338` and to record that `D-Approval-Commits`' "Atomic bundle-file publication" contract is itself marked superseded in this revision (naming `REVIEW_PROTOCOL.md`'s "Bundle structure" as the design of record), so no live normative text requires a mechanism nobody owes; `WFR-63`'s withdraws revision 81's false retirement premise and states the retirement condition as a condition; `WFR-67`'s records item 272; `WFR-68`'s gains the totality, evidence-for-`IMPLEMENTED` and monotonicity properties. `workflow-v2-1-core-mapping.json`'s `WFR-19`/`WFR-53`/`WFR-61`/`WFR-62`/`WFR-63`/`WFR-67`/`WFR-68` descriptions amended to match, this time verified mechanically by item 166's own normalization over all 68 rows with the stale count assertion bypassed — zero mismatches, the check revision 81 skipped and drifted five rows against.
+
+<!-- review-material-lifecycle: HISTORICAL -->
+
 
 **Complexity scale** (resolves the undefined-units half of `OPUS-R6-023`):
 1-2 = Small (single, narrow file change, no cross-checkpoint coordination);
