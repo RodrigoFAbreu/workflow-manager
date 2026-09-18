@@ -9,7 +9,7 @@
   "provenance": {
     "origin": "authored",
     "base_release": "2.4.0",
-    "overlay_commit": "922268178cacd40ab5b9ae829120157052dbc528"
+    "overlay_commit": "29aaf24a054fb45d4c483e5418152e1f2a898c5f"
   },
   "categories": {
     "distribution": "Canonical Workflow implementation. Copied byte-for-byte into the payload and installed into every managed target repository.",
@@ -65,7 +65,7 @@
       "location": "payload/.claude/commands/apply-implementation-review.md",
       "category": "distribution",
       "rule": "^\\.claude/commands/apply-implementation-review\\.md$",
-      "rationale": "Gains a \"2.2\" branch: no enter_applying_review_feedback call; post-fix regeneration reaches AWAITING_LOCAL_IMPLEMENTATION_REVIEW via record_bundle_generation's own version-dependent resolver (D-Implementation-Review-Stages, CP4). Preserves the base release's own distribution category for this path.",
+      "rationale": "Gains a \"2.2\" branch: step 0's enter_applying_review_feedback entry becomes phase-conditional rather than version-conditional, skipped whenever phase is already APPLYING_REVIEW_FEEDBACK -- which the ordinary \"2.2\" REVISE loop always is -- and still called for a \"2.2\" item at the terminal AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW phase; post-fix regeneration reaches AWAITING_LOCAL_IMPLEMENTATION_REVIEW via record_bundle_generation's own version-dependent resolver (D-Implementation-Review-Stages, CP4). Preserves the base release's own distribution category for this path.",
       "sha256": "fd47b646eeb4d557e51f42c6fc39d8393490cd1496a5093f47c8f1d558c4c1b4",
       "size": 14071,
       "executable": false,
@@ -237,7 +237,7 @@
       "location": "payload/.claude/commands/review-implementation.md",
       "category": "distribution",
       "rule": "^\\.claude/commands/review-implementation\\.md$",
-      "rationale": "Gains a \"2.2\" authoritative branch (phase guard AWAITING_LOCAL_IMPLEMENTATION_REVIEW, ledger write plus phase transition on APPROVE/REVISE); the existing \"1\"/\"2.1\" advisory branch stays byte-unchanged (D-Implementation-Review-Stages, CP4). The authoritative branch's A6 write set additionally gains the same assert_feedback_not_owned_by_other_work_item ownership guard the advisory branch's own step 7 already runs immediately before its write, closing a gap the advisory branch never had (I3, round-2 finding). Preserves the base release's own distribution category for this path.",
+      "rationale": "Gains a \"2.2\" authoritative branch (phase guard AWAITING_LOCAL_IMPLEMENTATION_REVIEW, ledger write plus phase transition on APPROVE/REVISE); its existing \"1\"/\"2.1\" steps 1-8 stay byte-unchanged (D-Implementation-Review-Stages, CP4). The authoritative branch's A6 write set additionally gains the same assert_feedback_not_owned_by_other_work_item ownership guard the advisory branch's own step 7 already runs immediately before its write, closing a gap the advisory branch never had (I3, round-2 finding). Preserves the base release's own distribution category for this path.",
       "sha256": "df6de5ba869bfee1e6fc31cf7a07932fecb66dbb36b55a906d8d0d4b831caf62",
       "size": 32365,
       "executable": false,
@@ -763,12 +763,12 @@
       "category": "distribution",
       "rule": "^scripts/workflow_state_test\\.py$",
       "rationale": "The payload's own conformance suite, updated for the new review-stage writers/gates plus CP7's generic, parametric declaration-coverage helper generalizing the bespoke per-work-item pattern (D-Implementation-Review-Stages, D-Canonical-Review-Data; CP2, CP3, CP7).",
-      "sha256": "2183a12999961956589179fc79ebfbefbd6fbbb5cb1018a02ae9555ac9804c96",
-      "size": 798461,
+      "sha256": "666a761525b772daba648305cf066f2e3699d173297e77127f7182293775928e",
+      "size": 801170,
       "executable": false,
       "overlay_delta": {
         "base_sha256": "90919276d86f08cfebf24f70a0e9a003f8c610481879617d2eaba60b711a88eb",
-        "diff_sha256": "34a5f8a292746c1bbaaa3ff58e5accf4c8a013cde4451e870e41f976e1dc94e6"
+        "diff_sha256": "b5880f9e522258d68baf9c85746eca11f6d87e2798b3108e982c7bf01b1aace1"
       }
     },
     {
