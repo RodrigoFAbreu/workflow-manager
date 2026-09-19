@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "work_item_id": "workflow-2-5-1-checkpoint-id-compatibility",
+  "requirements": {
+    "REQ-1": {
+      "description": "The plan-amendment anchor-compatibility grammar accepts legacy letter-suffixed checkpoint ids (the CP<digits>[A-Z]? shape, e.g. CP4B/CP6B) instead of rejecting them.",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "REQ-2": {
+      "description": "request_plan_amendment's early shape precondition and validate_post_anchor_coverage's post-side check consult the identical grammar (checkpoint_id_supports_anchor / _ANCHOR_COMPATIBLE_CHECKPOINT_ID_RE), never a second, independently-maintained copy.",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "REQ-3": {
+      "description": "Purely numeric CP<digits> checkpoint ids are provably unaffected by the widening (existing behavior preserved bit-for-bit).",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "REQ-4": {
+      "description": "Malformed ids (lowercase letter suffix, multi-letter suffix, letter-before-digit, non-CP-prefixed ids such as WF4a-i, trailing newline, etc.) still fail closed after the widening.",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "REQ-5": {
+      "description": "distribution/workflow/2.5.0/ stays byte-for-byte immutable; the fix ships only as a new authored distribution/workflow/2.5.1/ release, composed from the 2.5.0 base plus a narrowly-scoped overlay, and tools/build_release.py --overlay migration/overlays/2.5.1 --check reproduces it exactly.",
+      "checkpoint_ids": [
+        "CP2"
+      ]
+    },
+    "REQ-6": {
+      "description": "Every normative document that describes the anchor-compatibility grammar's shape (WORKFLOW_V2_PLAN.md's D-Plan-Amendment-4, MILESTONE_WORKFLOW.md, WORKFLOW_V2_1_OPERATOR_REFERENCE.md, request-plan-amendment.md) is updated in the 2.5.1 overlay payload to state the widened grammar, so no normative document and the code it describes diverge, and every such update continues to illustrate the grammar with a non-matching placeholder id (CPn/CP<n>) rather than a concrete, anchor-shaped tag.",
+      "checkpoint_ids": [
+        "CP2"
+      ]
+    },
+    "REQ-7": {
+      "description": "The full repository regression suite (tests/run_all.py) is green for 2.5.1 with no new or widened portability exceptions beyond the required empty by_version['2.5.1'] entry, and no unrelated defect or 2.6 work is bundled into this milestone.",
+      "checkpoint_ids": [
+        "CP3"
+      ]
+    }
+  }
+}

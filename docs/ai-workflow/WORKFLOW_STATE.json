@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_work_item_id": null,
+  "active_work_item_id": "workflow-2-5-1-checkpoint-id-compatibility",
   "work_items": {
     "plan-amendment-mechanism": {
       "work_item_type": "process",
@@ -1613,6 +1613,78 @@
         }
       ],
       "amendment_base_commit": "20a808d1ddd94e1fb2ad2efc3e4fdef6a1a64ad7"
+    },
+    "workflow-2-5-1-checkpoint-id-compatibility": {
+      "work_item_type": "process",
+      "work_item_kind": "process",
+      "work_item_id": "workflow-2-5-1-checkpoint-id-compatibility",
+      "parent_work_item_id": null,
+      "plan_path": "docs/ai-workflow/WORKFLOW_2_5_1_CHECKPOINT_ID_COMPATIBILITY_PLAN.md",
+      "registry_path": "docs/ai-workflow/registry/workflow-2-5-1-checkpoint-id-compatibility-registry.json",
+      "mapping_path": "docs/ai-workflow/requirements/workflow-2-5-1-checkpoint-id-compatibility-mapping.json",
+      "governing_workflow_version": "2.1",
+      "phase": "IMPLEMENTING",
+      "plan_revision": 5,
+      "implementation_revision": null,
+      "functional_review_round": null,
+      "base_commit": "ce0f221b39467a8dd8417c9ea8818a14ada1bed8",
+      "reviewed_implementation_head": null,
+      "current_checkpoint_id": null,
+      "last_completed_checkpoint_id": null,
+      "checkpoints": {},
+      "current_bundle_id": null,
+      "plan_approval": {
+        "status": "CURRENT",
+        "basis": "EXTERNAL_APPROVE",
+        "reviewed_bundle_id": "512f6d265b3ca46ae0b8884d7dde35ea4bace457024214739442e9d6e51e18bc",
+        "approved_review_content_id": "d37811901cb91caaeb1bba5813f082d95abe4a04856363152be7971460f55a73",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/WORKFLOW_2_5_1_CHECKPOINT_ID_COMPATIBILITY_PLAN.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "5f4a3abbea2f031f87d19f8de193e8ec5717dc5f"
+          },
+          {
+            "path": "docs/ai-workflow/registry/workflow-2-5-1-checkpoint-id-compatibility-registry.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "64f0b5a54a3f4e663e7766c066559e07673b8d6b"
+          },
+          {
+            "path": "docs/ai-workflow/requirements/workflow-2-5-1-checkpoint-id-compatibility-mapping.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "2d91e21b78605a11a6ff545c3dccf75f38652910"
+          }
+        ],
+        "reviewed_content_commit": null,
+        "legacy_evidence": null,
+        "user_confirmation": "Approve plan for workflow-2-5-1-checkpoint-id-compatibility",
+        "waived_guarantees": [],
+        "recorded_at": "2026-09-18T23:59:56Z"
+      },
+      "technical_approval": null,
+      "technical_review_block_pins": [],
+      "plan_review_stages": {
+        "review_content_id": "d37811901cb91caaeb1bba5813f082d95abe4a04856363152be7971460f55a73",
+        "LOCAL_MODEL_PLAN_REVIEW": {
+          "bundle_id": "512f6d265b3ca46ae0b8884d7dde35ea4bace457024214739442e9d6e51e18bc",
+          "verdict": "APPROVE",
+          "round": 5,
+          "completed_at": "2026-09-19T00:58:00Z"
+        },
+        "MANUAL_EXTERNAL_PLAN_REVIEW": {
+          "bundle_id": "512f6d265b3ca46ae0b8884d7dde35ea4bace457024214739442e9d6e51e18bc",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-09-18T23:52:44Z"
+        }
+      },
+      "functional_acceptance_status": null,
+      "blocking_decisions": [],
+      "state_revision": 18,
+      "last_transition": "2026-09-18T23:59:56Z"
     }
   }
 }

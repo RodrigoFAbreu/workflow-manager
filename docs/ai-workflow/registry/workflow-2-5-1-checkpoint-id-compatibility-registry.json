@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "work_item_id": "workflow-2-5-1-checkpoint-id-compatibility",
+  "plan_revision": 5,
+  "checkpoints": [
+    {
+      "id": "CP1",
+      "name": "Widen the anchor-compatible checkpoint-id grammar and its tests",
+      "depends_on": [],
+      "complexity": 2,
+      "session_target": 1
+    },
+    {
+      "id": "CP2",
+      "name": "Author and compose the 2.5.1 release; sync normative docs to the widened grammar; derive and write README.md's final 2.5.1 Status row",
+      "depends_on": [
+        "CP1"
+      ],
+      "complexity": 2,
+      "session_target": 1
+    },
+    {
+      "id": "CP3",
+      "name": "Full regression, release-composition parity checks, and read-back verification of README.md's 2.5.1 Status row",
+      "depends_on": [
+        "CP2"
+      ],
+      "complexity": 1,
+      "session_target": 1
+    }
+  ]
+}
