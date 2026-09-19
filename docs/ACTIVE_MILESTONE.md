@@ -163,10 +163,10 @@ CP2 delivered:
   narrative left to add.
 - Derived `README.md`'s final `2.5.1` Status-row values from this
   checkpoint's own full, non-`--fast` `python3 tests/run_all.py` run (all
-  11 suites green, ~1300s total): total tests `1680`
-  (`sum(CI_SUITES["2.5.1"].values())`), new cases `11`
-  (`workflow_state_test.py`'s `852 - 841`, `workflow_integration_test.py`
-  unchanged), `1680 of 1680` passing (zero portability exceptions). Wrote
+  11 suites green, ~1300s total): total tests `1681`
+  (`sum(CI_SUITES["2.5.1"].values())`), new cases `12`
+  (`workflow_state_test.py`'s `853 - 841`, `workflow_integration_test.py`
+  unchanged), `1681 of 1681` passing (zero portability exceptions). Wrote
   the `## Status` table's `2.5.1` row and the matching
   `tools/build_release.py --overlay migration/overlays/2.5.1`/`--check`
   command pair in the rebuild-commands section.
@@ -194,14 +194,14 @@ was written or re-pinned):
   re-run against the final tree -- `distribution/workflow/2.5.1/` reproduces
   exactly from the `2.5.0` base plus the `2.5.1` overlay alone.
 - Read-back verification of `README.md`'s `2.5.1` Status row (CP2's own
-  deliverable; not re-written or re-pinned here): `7/7 suites, 1680 tests`
-  matches `CI_SUITES["2.5.1"]` exactly (7 suites, `sum(...) == 1680`); the
-  `1680 of 1680` bootstrapped-repository figure matches
+  deliverable; not re-written or re-pinned here): `7/7 suites, 1681 tests`
+  matches `CI_SUITES["2.5.1"]` exactly (7 suites, `sum(...) == 1681`); the
+  `1681 of 1681` bootstrapped-repository figure matches
   `TestBootstrappedRepositorySatisfiesTheFrozenSuite251`'s own pass total,
   confirmed by this checkpoint's own independent full regression run above
   (its `test_failures_are_exactly_the_documented_exceptions` and
   `test_every_suite_runs_the_frozen_number_of_tests` both passed, so every
-  one of the 1680 `2.5.1`-suite tests run inside the bootstrapped repository
+  one of the 1681 `2.5.1`-suite tests run inside the bootstrapped repository
   passed). No disagreement found; nothing to hand back to CP2.
 
 Narrowest relevant check for CP3: the checkpoint's own deliverable *is* the
@@ -250,15 +250,19 @@ flow below drives a disposable target repository bootstrapped onto the new
 
 ### Setup
 
-1. Confirm the new release still reproduces and the `2.5.0` base is
+1. Run the fast regression suite from this repository's own root (a few
+   seconds, all green): `python3 tests/run_all.py --fast`. This exercises
+   this release's own new test classes at the fast-suite level before any
+   manual driving begins.
+2. Confirm the new release still reproduces and the `2.5.0` base is
    untouched:
    ```
    python3 tools/build_release.py --overlay migration/overlays/2.5.1 --check
    git diff ce0f221b39467a8dd8417c9ea8818a14ada1bed8 -- distribution/workflow/2.5.0/
    ```
    The second command must print nothing.
-2. Create a scratch directory outside this repo, e.g. `/tmp/wf-251-check/`.
-3. Bootstrap a disposable target repo directly on `2.5.1`:
+3. Create a scratch directory outside this repo, e.g. `/tmp/wf-251-check/`.
+4. Bootstrap a disposable target repo directly on `2.5.1`:
    ```
    mkdir -p /tmp/wf-251-check/repo-a
    git -C /tmp/wf-251-check/repo-a init -q -b main
@@ -269,7 +273,7 @@ flow below drives a disposable target repository bootstrapped onto the new
    git -C /tmp/wf-251-check/repo-a add -A
    git -C /tmp/wf-251-check/repo-a commit -q -m "baseline: bootstrap workflow 2.5.1"
    ```
-4. Bootstrap a second disposable target repo on `2.5.0`, to exercise the
+5. Bootstrap a second disposable target repo on `2.5.0`, to exercise the
    update path in Flow 6:
    ```
    mkdir -p /tmp/wf-251-check/repo-b
@@ -303,10 +307,23 @@ document, closer to a real operator's experience.
    `checkpoint_ids=("CP1","CP2","CP3","CP4","CP4B","CP5","CP6","CP6B","CP7","CP8","CP9")`
    and `complete_checkpoint_ids` a prefix leaving at least one checkpoint
    open (e.g. every id through `CP8`).
-2. Confirm the plan document `repo-a` bootstrapped the work item against
-   carries a well-formed `<!-- CP4B --> ... <!-- /CP4B -->` (and `CP6B`)
-   anchor pair for each lettered checkpoint's own design prose — add one by
-   hand if the fixture driver does not already write it.
+2. By hand, add a well-formed `<!-- CP4B --> ... <!-- /CP4B -->` (and
+   `CP6B`) anchor pair for each lettered checkpoint's own design prose to
+   the plan document `repo-a` bootstrapped the work item against. This is
+   always required, not conditional on the fixture driver's own behavior:
+   `src/workflow_manager/fixture.py`'s
+   `drive_synthetic_work_item_through_checkpoints` builds its plan text via
+   `render_registry_markdown`, which never writes anchor comments.
+   **Note:** because step 1 already drove the item to `IMPLEMENTING` —
+   approving and committing the plan before this hand-edit exists —
+   this anchor pair never enters the *pre*-amendment snapshot
+   `load_pre_amendment_snapshot` reads later (it resolves pre-side
+   plan/registry content from blobs pinned in
+   `amendment_history[-1]["superseded_plan_approval"]["review_content_manifest"]`,
+   cross-checked against `pre_amendment_approval_commit`, never from the
+   working tree — `scripts/workflow_state.py`'s `load_pre_amendment_snapshot`
+   function, ~line 1803). See step 6's expected result, which accounts for
+   this.
 3. Run `/request-plan-amendment cp251-check-1` (user-only; supply the exact
    confirmation text and a non-empty reason it asks for).
 4. **Expected:** the command succeeds — no `AmendmentCheckpointIdShapeError`
@@ -318,11 +335,20 @@ document, closer to a real operator's experience.
    lettered id's own anchor pair unchanged in the amended plan text.
 6. **Expected:** `apply_plan_approval`'s post-side check
    (`validate_post_anchor_coverage`) passes for every lettered id — no
-   `AmendmentCheckpointIdShapeError` and no `AmendmentAnchorCoverageError` —
-   and `reconcile_checkpoints_after_amendment` reports each untouched
-   lettered checkpoint as `retained`, exactly like a numeric one.
+   `AmendmentCheckpointIdShapeError` and no `AmendmentAnchorCoverageError`.
+   Because the pre-amendment plan text committed in step 1 predates step
+   2's hand-added anchors, `reconcile_checkpoints_after_amendment` reports
+   every shared checkpoint id — lettered ones included — as
+   `needs_revalidation`, not `retained`: the same conservative outcome an
+   entirely un-anchored *numeric* plan gets under this same setup (this
+   repository's own `tests/test_amendment_update_path.py`, ~lines 306-307,
+   asserts exactly that for the legacy un-anchored shape). The point this
+   step confirms is that lettered ids reconcile through the exact same
+   mechanism as numeric ones, with the exact same outcome — never a
+   special-cased rejection tied to the letter suffix itself.
 7. Run `/milestone-implement` to resume; confirm the remaining checkpoints
-   (lettered ones included) implement and complete normally.
+   (lettered ones included, and any flipped to `needs_revalidation` by step
+   6) implement and complete normally.
 
 ### Flow 2 — malformed shapes still fail closed
 
@@ -336,6 +362,17 @@ before this milestone, naming the offending id:
 4. A registry/plan carrying `CP4B1` (letter then more digits) — refused.
 5. A registry/plan carrying a non-`CP`-prefixed id, e.g. `WF4a-i` (this
    repository's own `workflow-v2-1-core` convention) — refused, unchanged.
+6. A malformed id introduced only by the amendment itself, not present in
+   the original registry/plan: drive a synthetic work item to
+   `IMPLEMENTING` with an ordinary well-formed checkpoint set, run
+   `/request-plan-amendment`, then write an amended registry/plan that adds
+   a malformed id such as `CP4b` (absent from the pre-amendment set) and
+   run `/approve-review plan`. This exercises `validate_post_anchor_
+   coverage`'s post-side refusal for an id introduced by the amendment
+   itself — the surface added by this milestone's own most recent fix
+   (commit `b04de5e`, finding I2). — refused with
+   `AmendmentCheckpointIdShapeError`; confirm it is specifically that error,
+   not the unrelated `AmendmentAnchorCoverageError`.
 
 **Expected:** every case above raises `AmendmentCheckpointIdShapeError`
 (from `request_plan_amendment`'s early precondition, or from
@@ -394,7 +431,7 @@ with a concrete, letter-suffixed, anchor-shaped literal tag (e.g. an actual
    (already run in Setup) must still pass.
 2. `README.md`'s `## Status` table `2.5.1` row: confirm the suite count and
    total-tests figures it states match `tests/support.py`'s
-   `CI_SUITES["2.5.1"]` (`sum(...) == 1680`) and the rebuild command pair
+   `CI_SUITES["2.5.1"]` (`sum(...) == 1681`) and the rebuild command pair
    listed alongside it actually reproduces the release.
 
 ### Known limitations / out of scope
@@ -410,6 +447,16 @@ with a concrete, letter-suffixed, anchor-shaped literal tag (e.g. an actual
   lowercase, letter-before-digit, letter-then-digit) is deliberately out of
   scope — Flow 2 exists to confirm those shapes still fail closed, not to
   request they be admitted.
+- The downgrade hazard `CLAUDE.md`'s downgrade-posture paragraph documents
+  (commit `1ebd758`) — a repository with a letter-suffixed-id work item in
+  `AMENDING_PLAN`, downgraded to Workflow `≤2.5.0`, wedges with no in-band
+  exit, since `2.5.0`'s `validate_post_anchor_coverage` raises
+  `AmendmentCheckpointIdShapeError` for ids like `CP4B` — is out of scope
+  for this manual pass. A full downgrade-and-wedge rehearsal is heavier
+  than the flows above, and this is process-tooling functional review, not
+  exhaustive regression; the hazard itself, and its lack of an in-band
+  escape, is already documented at the `CLAUDE.md` downgrade-posture level,
+  not a gap in this milestone's own forward-direction widening.
 - `docs/defects/v2.3.1-003-plan-approval-requires-precommitted-state-file.md`
   and `docs/defects/v2.4.0-003-amendment-diff-anchored-at-head-is-always-empty.md`
   are prior, unrelated, already-untracked residue — do not re-raise them as
