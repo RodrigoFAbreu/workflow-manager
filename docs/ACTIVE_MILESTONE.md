@@ -2,11 +2,11 @@
 
 ## Milestone
 
-**In progress.** `workflow-2-5-1-checkpoint-id-compatibility`
+**Complete.** `workflow-2-5-1-checkpoint-id-compatibility`
 (`governing_workflow_version: "2.1"`, plan approved at revision 5): Workflow
 `2.5.1` — widen the plan-amendment anchor-compatibility checkpoint-id
 grammar to admit legacy, pre-`2.4.0` letter-suffixed ids (`CP4B`/`CP6B`).
-Full plan: `docs/ai-workflow/WORKFLOW_2_5_1_CHECKPOINT_ID_COMPATIBILITY_PLAN.md`.
+Full plan (archived): `docs/milestones/completed/WORKFLOW_2_5_1_CHECKPOINT_ID_COMPATIBILITY_PLAN.md`.
 
 ## Goal
 
@@ -33,6 +33,14 @@ Workflow release" process. Not a `workflow-controller` change and no other
 known defect is bundled — see the plan's §2 non-goals.
 
 ## Current checkpoint
+
+**Milestone complete.** `workflow-2-5-1-checkpoint-id-compatibility` reached
+`MILESTONE_COMPLETE` via `/accept-milestone` after user-confirmed functional
+testing against the checklist below (Setup and Flows 1-7, including the
+retained-outcome coverage added in Flow 1 step 8) found no findings;
+`active_work_item_id` is cleared. The checkpoint narrative below (CP1-CP3)
+is this milestone's own permanent record and is left in place rather than
+deleted.
 
 **CP3 complete** (3 of 3 checkpoints -- all checkpoints complete; the
 milestone is now ready for `SELF_REVIEWING_IMPLEMENTATION`).
@@ -215,25 +223,26 @@ None.
 
 ## Active plan
 
-`docs/ai-workflow/WORKFLOW_2_5_1_CHECKPOINT_ID_COMPATIBILITY_PLAN.md`
+None (milestone complete). Plan document archived to
+`docs/milestones/completed/WORKFLOW_2_5_1_CHECKPOINT_ID_COMPATIBILITY_PLAN.md`
 (revision 5, plan approval `CURRENT`, both `LOCAL_MODEL_PLAN_REVIEW` (round
 5) and `MANUAL_EXTERNAL_PLAN_REVIEW` (round 1) recorded `APPROVE`).
+`/milestone-plan` records the plan document path on the work item's
+`WORKFLOW_STATE.json` entry when a new work item is created.
 
 ## Next action
 
-External implementation review approved with no further findings;
-`/approve-review implementation` recorded `technical_approval` as `CURRENT`
-(`implementation_revision: 2`). The work item is now at
-`AWAITING_FUNCTIONAL_REVIEW`, a hard gate.
-
-Next: manual functional testing per the checklist below. Findings go to
-`.ai-review/feedback/FUNCTIONAL_REVIEW.md`; `/apply-functional-review`
-classifies and routes each one (its bounded branch for a same-scope fix,
-its broad branch for new or wider scope). Once testing is clean,
-`/accept-milestone` is the only acceptance command, and it requires every
-checkpoint in
+`workflow-2-5-1-checkpoint-id-compatibility` reached `MILESTONE_COMPLETE`:
+functional review was clean (no findings, four `/review-functional`
+advisory rounds and their remediations converged the checklist beforehand)
+and every checkpoint in
 `docs/ai-workflow/registry/workflow-2-5-1-checkpoint-id-compatibility-registry.json`
-to be `COMPLETE` (all 3 — CP1/CP2/CP3 — already are).
+was `COMPLETE` (all 3 — CP1/CP2/CP3); `/accept-milestone` recorded
+acceptance and cleared `active_work_item_id`.
+
+No successor milestone is queued yet. Run `/milestone-plan` to define and
+plan the next one; `docs/ROADMAP.md` does not exist in this repository, so
+there is no separate roadmap entry to advance.
 
 ## Functional review checklist
 
