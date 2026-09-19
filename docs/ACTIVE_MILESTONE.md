@@ -221,14 +221,196 @@ None.
 
 ## Next action
 
-All three checkpoints are complete. The next invocation of
-`/milestone-implement` enters `SELF_REVIEWING_IMPLEMENTATION` (step 2) and
-proceeds toward the implementation-review gate; this invocation stopped
-after CP3 per this command's own dual-mode note (never entering step 2 in
-the same invocation that completed the last checkpoint).
+External implementation review approved with no further findings;
+`/approve-review implementation` recorded `technical_approval` as `CURRENT`
+(`implementation_revision: 2`). The work item is now at
+`AWAITING_FUNCTIONAL_REVIEW`, a hard gate.
+
+Next: manual functional testing per the checklist below. Findings go to
+`.ai-review/feedback/FUNCTIONAL_REVIEW.md`; `/apply-functional-review`
+classifies and routes each one (its bounded branch for a same-scope fix,
+its broad branch for new or wider scope). Once testing is clean,
+`/accept-milestone` is the only acceptance command, and it requires every
+checkpoint in
+`docs/ai-workflow/registry/workflow-2-5-1-checkpoint-id-compatibility-registry.json`
+to be `COMPLETE` (all 3 — CP1/CP2/CP3 — already are).
 
 ## Functional review checklist
 
-Not yet applicable — the milestone is still in `IMPLEMENTING`. A functional
-checklist is prepared once the implementation stage reaches
-`AWAITING_FUNCTIONAL_REVIEW`.
+All testing below happens against **disposable, throwaway repositories**
+only — never `~/Workspace/repflow-android` (frozen, read-only; read it via
+`git show <tag>:<path>` if needed) and never `~/Workspace/workflow-controller`
+(the out-of-scope, real-world repository that motivated this milestone; it
+must not be touched or read during this review, even though it is the
+concrete reason the fix exists). This repository's own root
+`scripts/workflow_state.py` deliberately stays on the unwidened `2.5.0`
+grammar — this milestone does not self-upgrade this repository — so every
+flow below drives a disposable target repository bootstrapped onto the new
+`2.5.1` release, never this repository's own live work items.
+
+### Setup
+
+1. Confirm the new release still reproduces and the `2.5.0` base is
+   untouched:
+   ```
+   python3 tools/build_release.py --overlay migration/overlays/2.5.1 --check
+   git diff ce0f221b39467a8dd8417c9ea8818a14ada1bed8 -- distribution/workflow/2.5.0/
+   ```
+   The second command must print nothing.
+2. Create a scratch directory outside this repo, e.g. `/tmp/wf-251-check/`.
+3. Bootstrap a disposable target repo directly on `2.5.1`:
+   ```
+   mkdir -p /tmp/wf-251-check/repo-a
+   git -C /tmp/wf-251-check/repo-a init -q -b main
+   git -C /tmp/wf-251-check/repo-a config user.email "check@example.invalid"
+   git -C /tmp/wf-251-check/repo-a config user.name "Functional Check"
+   git -C /tmp/wf-251-check/repo-a config commit.gpgsign false
+   PYTHONPATH=src python3 -m workflow_manager --release-version 2.5.1 bootstrap /tmp/wf-251-check/repo-a
+   git -C /tmp/wf-251-check/repo-a add -A
+   git -C /tmp/wf-251-check/repo-a commit -q -m "baseline: bootstrap workflow 2.5.1"
+   ```
+4. Bootstrap a second disposable target repo on `2.5.0`, to exercise the
+   update path in Flow 6:
+   ```
+   mkdir -p /tmp/wf-251-check/repo-b
+   git -C /tmp/wf-251-check/repo-b init -q -b main
+   git -C /tmp/wf-251-check/repo-b config user.email "check@example.invalid"
+   git -C /tmp/wf-251-check/repo-b config user.name "Functional Check"
+   git -C /tmp/wf-251-check/repo-b config commit.gpgsign false
+   PYTHONPATH=src python3 -m workflow_manager --release-version 2.5.0 bootstrap /tmp/wf-251-check/repo-b
+   git -C /tmp/wf-251-check/repo-b add -A
+   git -C /tmp/wf-251-check/repo-b commit -q -m "baseline: bootstrap workflow 2.5.0"
+   ```
+
+### Test data
+
+No product/feature content is needed — the mechanism under test is the
+plan-amendment anchor-compatibility grammar itself. Each flow drives a
+synthetic `"2.1"`-governed `process`-type work item (e.g.
+`cp251-check-1`) through checkpoints inside a disposable repo, using
+`src/workflow_manager/fixture.py`'s
+`drive_synthetic_work_item_through_checkpoints` with a custom
+`checkpoint_ids` tuple that reproduces the user-supplied legacy example set
+(`CP1 CP2 CP3 CP4 CP4B CP5 CP6 CP6B CP7 CP8 CP9`) — the exact
+inserted-checkpoint lettering convention `workflow-controller-generation-1`
+actually carries — or, for at least one flow, the repo's own installed
+`/request-plan-amendment` slash command directly against a hand-edited plan
+document, closer to a real operator's experience.
+
+### Flow 1 — legacy letter-suffixed ids are accepted, end to end
+
+1. In `repo-a`, drive `cp251-check-1` to `IMPLEMENTING` with
+   `checkpoint_ids=("CP1","CP2","CP3","CP4","CP4B","CP5","CP6","CP6B","CP7","CP8","CP9")`
+   and `complete_checkpoint_ids` a prefix leaving at least one checkpoint
+   open (e.g. every id through `CP8`).
+2. Confirm the plan document `repo-a` bootstrapped the work item against
+   carries a well-formed `<!-- CP4B --> ... <!-- /CP4B -->` (and `CP6B`)
+   anchor pair for each lettered checkpoint's own design prose — add one by
+   hand if the fixture driver does not already write it.
+3. Run `/request-plan-amendment cp251-check-1` (user-only; supply the exact
+   confirmation text and a non-empty reason it asks for).
+4. **Expected:** the command succeeds — no `AmendmentCheckpointIdShapeError`
+   for `CP4B`/`CP6B` — and phase transitions to `AMENDING_PLAN`. **Prior
+   Workflow `2.5.0` behavior would have refused this at this exact step**,
+   naming `CP4B`/`CP6B`, before ever superseding `plan_approval`.
+5. Take the amendment through `/milestone-plan` → `/review-plan` →
+   `/record-manual-plan-review` → `/approve-review plan`, preserving every
+   lettered id's own anchor pair unchanged in the amended plan text.
+6. **Expected:** `apply_plan_approval`'s post-side check
+   (`validate_post_anchor_coverage`) passes for every lettered id — no
+   `AmendmentCheckpointIdShapeError` and no `AmendmentAnchorCoverageError` —
+   and `reconcile_checkpoints_after_amendment` reports each untouched
+   lettered checkpoint as `retained`, exactly like a numeric one.
+7. Run `/milestone-implement` to resume; confirm the remaining checkpoints
+   (lettered ones included) implement and complete normally.
+
+### Flow 2 — malformed shapes still fail closed
+
+Using a second synthetic work item (or a fresh disposable repo bootstrapped
+the same way), confirm each of these is **still refused** exactly as it was
+before this milestone, naming the offending id:
+
+1. A registry/plan carrying `CP4b` (lowercase letter) — refused.
+2. A registry/plan carrying `CP4BC` (two-letter suffix) — refused.
+3. A registry/plan carrying `CPB4` (letter before digits) — refused.
+4. A registry/plan carrying `CP4B1` (letter then more digits) — refused.
+5. A registry/plan carrying a non-`CP`-prefixed id, e.g. `WF4a-i` (this
+   repository's own `workflow-v2-1-core` convention) — refused, unchanged.
+
+**Expected:** every case above raises `AmendmentCheckpointIdShapeError`
+(from `request_plan_amendment`'s early precondition, or from
+`validate_post_anchor_coverage` if the malformed id is introduced only by
+the amendment itself) — the widening must not have loosened any of these.
+
+### Flow 3 — purely numeric ids are unaffected
+
+1. Drive a third synthetic work item through the ordinary
+   `CP1`/`CP2`/`CP3` shape used elsewhere in this repository's own history,
+   through an amendment (`/request-plan-amendment` → re-plan → review →
+   approve).
+2. **Expected:** behaves identically to `2.5.0` — no observable difference
+   in accept/refuse behavior, reconciliation outcomes, or anchor parsing
+   for numeric-only ids.
+
+### Flow 4 — anchor tag and id-shape grammar stay coupled
+
+1. In a plan document, add a stray `<!-- CPabc -->` (a shape the grammar
+   was never widened to admit) somewhere in prose unrelated to any
+   checkpoint id.
+2. **Expected:** it is not recognized as an anchor tag at all (safe,
+   `_CHECKPOINT_ANCHOR_RE` simply does not match it) — confirms the
+   widening did not also start accepting tag shapes it has no matching
+   id-shape counterpart for.
+
+### Flow 5 — documentation sync
+
+Grep the bootstrapped `repo-a`'s installed copies of
+`docs/ai-workflow/WORKFLOW_V2_PLAN.md` (`D-Plan-Amendment-4`),
+`docs/ai-workflow/MILESTONE_WORKFLOW.md`,
+`docs/ai-workflow/WORKFLOW_V2_1_OPERATOR_REFERENCE.md`, and
+`.claude/commands/request-plan-amendment.md`. **Expected:** every site that
+describes the anchor-compatible checkpoint-id shape states
+`CP<digits>[A-Z]?` (not the old `CP<digits>`), and no site illustrates it
+with a concrete, letter-suffixed, anchor-shaped literal tag (e.g. an actual
+`<!-- CP4B -->` used as a grammar example) — only the non-matching
+`CPn`/`CP<n>` placeholder convention.
+
+### Flow 6 — update path (disposable repos only)
+
+1. In `repo-b` (bootstrapped on `2.5.0` above), drive one synthetic work
+   item to `IMPLEMENTING` with a registry that already contains a lettered
+   id such as `CP4B` (legal under `2.5.0` too — `D-Registry` never
+   constrained checkpoint-id shape; only the amendment mechanism did).
+2. Run
+   `PYTHONPATH=src python3 -m workflow_manager --release-version 2.5.1 update /tmp/wf-251-check/repo-b`.
+3. **Expected:** the existing work item's state, approvals, and checkpoint
+   history survive the update untouched, and `/request-plan-amendment`
+   against it now succeeds where it would have refused under the
+   still-installed `2.5.0` grammar.
+
+### Flow 7 — release-inventory sanity
+
+1. `python3 tools/build_release.py --overlay migration/overlays/2.5.1 --check`
+   (already run in Setup) must still pass.
+2. `README.md`'s `## Status` table `2.5.1` row: confirm the suite count and
+   total-tests figures it states match `tests/support.py`'s
+   `CI_SUITES["2.5.1"]` (`sum(...) == 1680`) and the rebuild command pair
+   listed alongside it actually reproduces the release.
+
+### Known limitations / out of scope
+
+- This repository's own root `scripts/workflow_state.py` intentionally
+  stays on the unwidened `2.5.0` grammar — this milestone never
+  self-upgrades this repository, only produces the `2.5.1` release for
+  downstream targets to adopt.
+- `~/Workspace/workflow-controller` (the real repository that motivated
+  this fix) must never be touched or read during this testing — every flow
+  above uses a disposable, synthetic work item instead.
+- Widening beyond exactly one trailing uppercase letter (multi-letter,
+  lowercase, letter-before-digit, letter-then-digit) is deliberately out of
+  scope — Flow 2 exists to confirm those shapes still fail closed, not to
+  request they be admitted.
+- `docs/defects/v2.3.1-003-plan-approval-requires-precommitted-state-file.md`
+  and `docs/defects/v2.4.0-003-amendment-diff-anchored-at-head-is-always-empty.md`
+  are prior, unrelated, already-untracked residue — do not re-raise them as
+  findings against this milestone.
