@@ -132,6 +132,23 @@ CI_SUITES = {
         "workflow_state_completion_obligations_test.py": 106,
         "workflow_fingerprint_generalization_test.py": 79,
     },
+    #: `2.5.1` is this repository's third authored release
+    #: (`D-Checkpoint-Id-Anchor-Grammar-Widening`): a narrow overlay on top
+    #: of the unmodified `2.5.0` base, replacing only `scripts/
+    #: workflow_state.py`/`workflow_state_test.py` and four normative
+    #: documents. Every suite's count is identical to `2.5.0`'s own except
+    #: `workflow_state_test.py`, which gains the checkpoint-id-anchor-
+    #: grammar-widening tests CP1 added; counts pinned to what that
+    #: release's own overlay payload actually produces.
+    "2.5.1": {
+        "workflow_fingerprint_test.py": 218,
+        "workflow_state_test.py": 852,
+        "workflow_test_harness_test.py": 19,
+        "workflow_integration_test.py": 260,
+        "workflow_acceptance_matrix_test.py": 146,
+        "workflow_state_completion_obligations_test.py": 106,
+        "workflow_fingerprint_generalization_test.py": 79,
+    },
 }
 
 

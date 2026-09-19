@@ -146,6 +146,17 @@ class TestBootstrappedRepositorySatisfiesTheFrozenSuite250(
     WORKFLOW_VERSION = "2.5.0"
 
 
+class TestBootstrappedRepositorySatisfiesTheFrozenSuite251(
+    _BootstrappedRepositorySatisfiesTheFrozenSuiteAssertions, unittest.TestCase,
+):
+    """workflow-2.5.1's own CP2 obligation
+    (`D-Checkpoint-Id-Anchor-Grammar-Widening`), mirroring `TestBootstrappedRepository
+    SatisfiesTheFrozenSuite250` exactly: the same bootstrapped-repository
+    gate, a fourth time, against `2.5.1`'s own authored release."""
+
+    WORKFLOW_VERSION = "2.5.1"
+
+
 class TestUpdatePreservesLiveWorkItemState(unittest.TestCase):
     """An update must not cost a repository its work."""
 

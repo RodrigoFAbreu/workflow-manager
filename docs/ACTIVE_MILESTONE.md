@@ -34,9 +34,9 @@ known defect is bundled — see the plan's §2 non-goals.
 
 ## Current checkpoint
 
-**CP1 complete** (3 checkpoints total). Next: **CP2** (author and compose
-the `2.5.1` release; sync normative docs to the widened grammar; derive and
-write `README.md`'s final `2.5.1` Status row).
+**CP2 complete** (3 checkpoints total). Next: **CP3** (full regression,
+release-composition parity checks, and read-back verification of
+`README.md`'s `2.5.1` Status row).
 
 CP1 delivered, in `migration/overlays/2.5.1/payload/scripts/` (this
 milestone's own first-ever copy of both files, layered onto `2.5.0`'s own
@@ -102,6 +102,83 @@ run; the other 8 fail only because CP2, not CP1, is the checkpoint that
 populates `migration/overlays/2.5.1/payload/docs/`. None of the 11 touches
 the anchor-grammar code this checkpoint changed.
 
+CP2 delivered:
+
+- `migration/overlays/2.5.1/classification.json`
+  (`base_workflow_version: "2.5.0"`), one `replaced` rule apiece for
+  `scripts/workflow_state.py`, `scripts/workflow_state_test.py` (both
+  already delivered by CP1), and the four normative documents below.
+- Documentation sync, inside the overlay payload only (the live
+  `docs/ai-workflow/`/`scripts/` trees at this repository's own root stay
+  on the installed `2.5.0` content; only `migration/overlays/2.5.1/
+  payload/` changed): `docs/ai-workflow/WORKFLOW_V2_PLAN.md`'s
+  `D-Plan-Amendment-4` section now states explicitly that its own `<n>`
+  anchor placeholder denotes the widened `CP<digits>[A-Z]?` shape;
+  `MILESTONE_WORKFLOW.md`'s two sites (the `/request-plan-amendment`
+  entry-condition description and the post-anchor-coverage description
+  under `AMENDING_PLAN`/plan-approval) and `WORKFLOW_V2_1_OPERATOR_
+  REFERENCE.md`'s three sites (`/request-plan-amendment`'s own Expects/
+  Next/Refuses entries) both widened from `CP<digits>` to
+  `CP<digits>[A-Z]?`; `.claude/commands/request-plan-amendment.md`'s own
+  documented shape precondition and anchor-tag format widened the same
+  way. Every edited site keeps the non-matching-placeholder convention
+  (`CPn`/`CP<n>`) — confirmed by grepping every edited file for a
+  concrete, letter-suffixed, anchor-shaped tag (`<!-- CP[0-9]+[A-Z] -->`):
+  zero matches.
+- `python3 tools/build_release.py --overlay migration/overlays/2.5.1` then
+  `--check`: composed `distribution/workflow/2.5.1/` (63 artifacts, 6
+  templates, 6 `overlay_replaced`, 0 `overlay_added`) and confirmed
+  byte-for-byte reproduction from the `2.5.0` base plus this overlay
+  alone. `git diff <base_commit> -- distribution/workflow/2.5.0/` stays
+  empty — the `2.5.0` base is untouched.
+- `tests/support.py` gained `CI_SUITES["2.5.1"]` (only
+  `workflow_state_test.py`'s count moves, `841` → `852`, `+11`; every
+  other suite's count is byte-identical to `2.5.0`'s own row, since no
+  other file changed). `migration/portability_exceptions.json` gained the
+  required, empty `by_version["2.5.1"]` entry.
+- `tests/test_bootstrap_e2e.py` gained
+  `TestBootstrappedRepositorySatisfiesTheFrozenSuite251` (required
+  deliverable): 6/6 tests pass against a real `install.bootstrap`-produced
+  `2.5.1` repository — this is the milestone's own bootstrapped-repository
+  pass count.
+- `tests/test_internal_references.py`'s `TestReadmeStatusTableMatchesCiSuites`
+  gained the `2.5.1` pin (`_README_2_5_1_ROW_RE` +
+  `test_2_5_1_row_matches_ci_suites`, required deliverable): 4/4 tests in
+  that class pass, including the new one.
+- **Discretionary `tests/test_conformance_suite.py` siblings (recorded
+  explicitly, per the plan's own instruction, rather than silently matching
+  or silently diverging from `2.5.0`'s own count)**: added
+  `TestConformanceFixture251` and `TestBootstrappedTarget251`, mirroring
+  `...250` exactly — both ran green (9/9 tests combined, ~219s, including
+  the acceptance matrix twice). Declined `TestPortabilityExceptions251
+  RequiredEmptyEntry`: `...250`'s own version of this class exists to
+  narrate a specific, one-time fact (CP9's fix of `v2.3.1-001`, and that
+  `2.3.1`'s/`2.4.0`'s own entries are byte-unchanged by that fix) that has
+  no `2.5.1` analogue — `2.5.1` introduces no comparable fix and changes no
+  earlier release's own exception entry, so a `2.5.1` sibling would only
+  re-assert `expected_portability_exceptions("2.5.1") == {}`, already
+  proven live by `TestBootstrappedTarget251`/`TestConformanceFixture251`'s
+  own portability-exception assertions and by
+  `TestBootstrappedRepositorySatisfiesTheFrozenSuite251`'s
+  `test_failures_are_exactly_the_documented_exceptions` above, with no
+  narrative left to add.
+- Derived `README.md`'s final `2.5.1` Status-row values from this
+  checkpoint's own full, non-`--fast` `python3 tests/run_all.py` run (all
+  11 suites green, ~1300s total): total tests `1680`
+  (`sum(CI_SUITES["2.5.1"].values())`), new cases `11`
+  (`workflow_state_test.py`'s `852 - 841`, `workflow_integration_test.py`
+  unchanged), `1680 of 1680` passing (zero portability exceptions). Wrote
+  the `## Status` table's `2.5.1` row and the matching
+  `tools/build_release.py --overlay migration/overlays/2.5.1`/`--check`
+  command pair in the rebuild-commands section.
+
+Narrowest relevant check: build + `--check` (byte-for-byte reproduction
+confirmed); `TestBootstrappedRepositorySatisfiesTheFrozenSuite251` (6/6) and
+`TestReadmeStatusTableMatchesCiSuites` (4/4) run directly; the two
+discretionary `...251` conformance-fixture classes (9/9) run directly; the
+full, non-`--fast` `tests/run_all.py` run all 11 suites depend on: green,
+exit code 0.
+
 ## Current blockers
 
 None.
@@ -114,23 +191,19 @@ None.
 
 ## Next action
 
-**CP2** — author `migration/overlays/2.5.1/classification.json`
-(`base_workflow_version: "2.5.0"`, one `replaced` rule apiece for
-`scripts/workflow_state.py`, `scripts/workflow_state_test.py`, and each
-normative document the plan's §4 names); apply §4's documentation-site
-edits inside the overlay payload
-(`docs/ai-workflow/WORKFLOW_V2_PLAN.md`'s `D-Plan-Amendment-4` section,
-`MILESTONE_WORKFLOW.md`, `WORKFLOW_V2_1_OPERATOR_REFERENCE.md`,
-`.claude/commands/request-plan-amendment.md`), preserving the
-non-matching-placeholder (`CPn`/`CP<n>`) convention throughout; run `python3
-tools/build_release.py --overlay migration/overlays/2.5.1` then `--check`
-to compose and verify `distribution/workflow/2.5.1/`; add the `2.5.1`
-`CI_SUITES` entry to `tests/support.py` and the required, empty
-`by_version["2.5.1"]` entry to `migration/portability_exceptions.json`; add
-`TestBootstrappedRepositorySatisfiesTheFrozenSuite251` and the
-`TestReadmeStatusTableMatchesCiSuites` `2.5.1` pin; then derive and write
-`README.md`'s final `2.5.1` Status-row values from that checkpoint's own
-full, non-`--fast` `tests/run_all.py` run.
+**CP3** — full regression (`python3 tests/run_all.py`, both `--fast` and
+the full, non-`--fast` run) must be green, and the clean-target failure set
+(`migration/portability_exceptions.json`) must equal the documented
+exceptions for `2.5.1` (empty) — no more, no fewer; confirm
+`distribution/workflow/2.5.0/`'s own byte content is provably unchanged by
+this milestone (`git diff <base_commit> -- distribution/workflow/2.5.0/`
+empty); re-run `tools/build_release.py --overlay migration/overlays/2.5.1
+--check` once more against the final tree; and read back (never rewrite)
+`README.md`'s `2.5.1` Status row, confirming its suite/test counts equal
+`CI_SUITES["2.5.1"]` and its bootstrapped-repository count equals
+`TestBootstrappedRepositorySatisfiesTheFrozenSuite251`'s own pass total,
+both checked against this checkpoint's own independent full regression
+run.
 
 ## Functional review checklist
 
