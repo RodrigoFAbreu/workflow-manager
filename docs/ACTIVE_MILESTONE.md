@@ -89,7 +89,7 @@ workflow_state_test.TestRequestPlanAmendment
 workflow_state_test.TestApplyPlanApprovalAmendmentBranch
 workflow_state_test.TestCheckpointContentHash
 workflow_state_test.TestCheckpointIdAnchorTagShapeCouplingInvariant -v`:
-54/54 pass. A full `workflow_state_test.py` run under the same `PYTHONPATH`:
+55/55 pass. A full `workflow_state_test.py` run under the same `PYTHONPATH`:
 839/850 pass; the 11 failures are all structural path-resolution errors
 from real-corpus/live-state tests that expect this file to live inside a
 fully composed release tree (`docs/ai-workflow/...` under the same payload
@@ -131,7 +131,7 @@ CP2 delivered:
   alone. `git diff <base_commit> -- distribution/workflow/2.5.0/` stays
   empty — the `2.5.0` base is untouched.
 - `tests/support.py` gained `CI_SUITES["2.5.1"]` (only
-  `workflow_state_test.py`'s count moves, `841` → `852`, `+11`; every
+  `workflow_state_test.py`'s count moves, `841` → `853`, `+12`; every
   other suite's count is byte-identical to `2.5.0`'s own row, since no
   other file changed). `migration/portability_exceptions.json` gained the
   required, empty `by_version["2.5.1"]` entry.
@@ -251,9 +251,26 @@ flow below drives a disposable target repository bootstrapped onto the new
 ### Setup
 
 1. Run the fast regression suite from this repository's own root (a few
-   seconds, all green): `python3 tests/run_all.py --fast`. This exercises
-   this release's own new test classes at the fast-suite level before any
-   manual driving begins.
+   seconds, all green): `python3 tests/run_all.py --fast`. Note this does
+   *not* itself exercise this release's own new test classes -- none of the
+   8 fast suites import `workflow_state_test.py` (that only runs inside
+   `test_conformance_suite.py`/`test_bootstrap_e2e.py`, both slow). For a
+   fast, direct check of this release's own new test classes, reproduce
+   CP1's own narrowest-relevant-check invocation instead: `PYTHONPATH`
+   pointing at the `2.5.1` overlay's `scripts/` dir plus the unmodified
+   `2.5.0` base `scripts/` dir --
+   ```
+   PYTHONPATH=migration/overlays/2.5.1/payload/scripts:distribution/workflow/2.5.0/payload/scripts \
+     python3 -m unittest \
+     workflow_state_test.TestCheckpointIdSupportsAnchor \
+     workflow_state_test.TestCheckpointAnchorSpans \
+     workflow_state_test.TestValidatePostAnchorCoverage \
+     workflow_state_test.TestRequestPlanAmendment \
+     workflow_state_test.TestApplyPlanApprovalAmendmentBranch \
+     workflow_state_test.TestCheckpointContentHash \
+     workflow_state_test.TestCheckpointIdAnchorTagShapeCouplingInvariant -v
+   ```
+   **Expected:** 55/55 pass, ~0.2s.
 2. Confirm the new release still reproduces and the `2.5.0` base is
    untouched:
    ```
@@ -307,39 +324,45 @@ document, closer to a real operator's experience.
    `checkpoint_ids=("CP1","CP2","CP3","CP4","CP4B","CP5","CP6","CP6B","CP7","CP8","CP9")`
    and `complete_checkpoint_ids` a prefix leaving at least one checkpoint
    open (e.g. every id through `CP8`).
-2. By hand, add a well-formed `<!-- CP4B --> ... <!-- /CP4B -->` (and
-   `CP6B`) anchor pair for each lettered checkpoint's own design prose to
-   the plan document `repo-a` bootstrapped the work item against. This is
-   always required, not conditional on the fixture driver's own behavior:
-   `src/workflow_manager/fixture.py`'s
-   `drive_synthetic_work_item_through_checkpoints` builds its plan text via
-   `render_registry_markdown`, which never writes anchor comments.
-   **Note:** because step 1 already drove the item to `IMPLEMENTING` —
-   approving and committing the plan before this hand-edit exists —
-   this anchor pair never enters the *pre*-amendment snapshot
-   `load_pre_amendment_snapshot` reads later (it resolves pre-side
-   plan/registry content from blobs pinned in
-   `amendment_history[-1]["superseded_plan_approval"]["review_content_manifest"]`,
-   cross-checked against `pre_amendment_approval_commit`, never from the
-   working tree — `scripts/workflow_state.py`'s `load_pre_amendment_snapshot`
-   function, ~line 1803). See step 6's expected result, which accounts for
-   this.
-3. Run `/request-plan-amendment cp251-check-1` (user-only; supply the exact
+2. Run `/request-plan-amendment cp251-check-1` (user-only; supply the exact
    confirmation text and a non-empty reason it asks for).
-4. **Expected:** the command succeeds — no `AmendmentCheckpointIdShapeError`
+3. **Expected:** the command succeeds — no `AmendmentCheckpointIdShapeError`
    for `CP4B`/`CP6B` — and phase transitions to `AMENDING_PLAN`. **Prior
    Workflow `2.5.0` behavior would have refused this at this exact step**,
    naming `CP4B`/`CP6B`, before ever superseding `plan_approval`.
-5. Take the amendment through `/milestone-plan` → `/review-plan` →
-   `/record-manual-plan-review` → `/approve-review plan`, preserving every
-   lettered id's own anchor pair unchanged in the amended plan text.
+4. Take the amendment through `/milestone-plan`. By hand, add a well-formed
+   `<!-- CPn --> ... <!-- /CPn -->` anchor pair for **every one of the 11
+   registry ids** (`CP1`-`CP9`, `CP4B`, `CP6B`) to the amended plan document
+   `/milestone-plan` produces — `validate_post_anchor_coverage` requires a
+   well-formed anchor pair for every id in the post-amendment registry, not
+   only the lettered ones (reproduced: anchoring only `CP4B`/`CP6B` raises
+   `AmendmentAnchorCoverageError: CP1 has no well-formed anchor pair`;
+   anchoring all 11 ids passes). **Note:** because step 1 already drove the
+   item to `IMPLEMENTING` — approving and committing the plan before any
+   anchors exist — the *pre*-amendment plan/registry that
+   `load_pre_amendment_snapshot` reads later was never anchored at all (it
+   resolves pre-side content from blobs pinned in
+   `amendment_history[-1]["superseded_plan_approval"]["review_content_manifest"]`,
+   cross-checked against `pre_amendment_approval_commit`, never from the
+   working tree — `scripts/workflow_state.py`'s `load_pre_amendment_snapshot`
+   function). Anchors only ever matter for the *amended* plan document, so
+   that is the only document this step edits. Also add one brand-new,
+   well-formed lettered checkpoint, `CP9B`, to the amended registry and plan
+   text, anchored the same way.
+5. Continue the amendment through `/review-plan` →
+   `/record-manual-plan-review` → `/approve-review plan`.
 6. **Expected:** `apply_plan_approval`'s post-side check
-   (`validate_post_anchor_coverage`) passes for every lettered id — no
-   `AmendmentCheckpointIdShapeError` and no `AmendmentAnchorCoverageError`.
-   Because the pre-amendment plan text committed in step 1 predates step
-   2's hand-added anchors, `reconcile_checkpoints_after_amendment` reports
-   every shared checkpoint id — lettered ones included — as
-   `needs_revalidation`, not `retained`: the same conservative outcome an
+   (`validate_post_anchor_coverage`) passes for all 11 pre-existing ids
+   **and** the newly-introduced `CP9B` — no `AmendmentCheckpointIdShapeError`
+   and no `AmendmentAnchorCoverageError`. Confirm `CP9B` specifically: under
+   `2.5.0`'s unwidened grammar, `checkpoint_id_supports_anchor("CP9B")` is
+   `False`, so an amendment introducing it would be refused by this same
+   shape check; under `2.5.1` it is accepted. This — not merely tolerating
+   pre-existing legacy ids — is the actual post-side behavior change this
+   milestone makes. Because the pre-amendment plan text committed in step 1
+   was never anchored (per step 4's note), `reconcile_checkpoints_after_
+   amendment` reports every shared checkpoint id — lettered ones included —
+   as `needs_revalidation`, not `retained`: the same conservative outcome an
    entirely un-anchored *numeric* plan gets under this same setup (this
    repository's own `tests/test_amendment_update_path.py`, ~lines 306-307,
    asserts exactly that for the legacy un-anchored shape). The point this
@@ -347,8 +370,8 @@ document, closer to a real operator's experience.
    mechanism as numeric ones, with the exact same outcome — never a
    special-cased rejection tied to the letter suffix itself.
 7. Run `/milestone-implement` to resume; confirm the remaining checkpoints
-   (lettered ones included, and any flipped to `needs_revalidation` by step
-   6) implement and complete normally.
+   (lettered ones included, `CP9B` included, and any flipped to
+   `needs_revalidation` by step 6) implement and complete normally.
 
 ### Flow 2 — malformed shapes still fail closed
 
@@ -364,15 +387,29 @@ before this milestone, naming the offending id:
    repository's own `workflow-v2-1-core` convention) — refused, unchanged.
 6. A malformed id introduced only by the amendment itself, not present in
    the original registry/plan: drive a synthetic work item to
-   `IMPLEMENTING` with an ordinary well-formed checkpoint set, run
-   `/request-plan-amendment`, then write an amended registry/plan that adds
-   a malformed id such as `CP4b` (absent from the pre-amendment set) and
-   run `/approve-review plan`. This exercises `validate_post_anchor_
-   coverage`'s post-side refusal for an id introduced by the amendment
-   itself — the surface added by this milestone's own most recent fix
-   (commit `b04de5e`, finding I2). — refused with
-   `AmendmentCheckpointIdShapeError`; confirm it is specifically that error,
-   not the unrelated `AmendmentAnchorCoverageError`.
+   `IMPLEMENTING` with an ordinary well-formed checkpoint set (e.g.
+   `CP1`/`CP2`/`CP3`), run `/request-plan-amendment`, then take the
+   amendment through `/milestone-plan`, hand-adding a well-formed anchor
+   pair for each of the pre-existing ids (`CP1`-`CP3`) to the amended plan
+   document — required so the run reaches the shape check this step is
+   testing instead of failing earlier on `AmendmentAnchorCoverageError` for
+   an unanchored pre-existing id (reproduced: building the amended plan
+   without anchoring `CP1`-`CP3` fails on `AmendmentAnchorCoverageError:
+   CP1 has no well-formed anchor pair` before ever reaching the shape
+   check). Write the amended registry/plan so it also adds a malformed id
+   such as `CP4b` (absent from the pre-amendment set), then run
+   `/approve-review plan`. This exercises `validate_post_anchor_
+   coverage`'s post-side refusal for a malformed id introduced by the
+   amendment itself, confirming the shape-refusal mechanism still works
+   correctly at this post-amendment-introduced-id call site. **Not evidence
+   of `2.5.1`-specific behavior**: `2.5.0`'s own `validate_post_anchor_
+   coverage` already performs this exact shape check (it raises
+   `AmendmentCheckpointIdShapeError` for `CP4b` under `2.5.0` too, just with
+   the narrower `'CP<digits>'` message); commit `b04de5e` added a *unit
+   test* for this pre-existing mechanism, not new behavior — `CP4b` is a
+   malformed shape under both releases and behaves identically under both.
+   — refused with `AmendmentCheckpointIdShapeError`; confirm it is
+   specifically that error, not the unrelated `AmendmentAnchorCoverageError`.
 
 **Expected:** every case above raises `AmendmentCheckpointIdShapeError`
 (from `request_plan_amendment`'s early precondition, or from
@@ -389,15 +426,54 @@ the amendment itself) — the widening must not have loosened any of these.
    in accept/refuse behavior, reconciliation outcomes, or anchor parsing
    for numeric-only ids.
 
-### Flow 4 — anchor tag and id-shape grammar stay coupled
+### Flow 4 — anchor tag and id-shape grammar stay coupled, and stray anchor-shaped prose
 
-1. In a plan document, add a stray `<!-- CPabc -->` (a shape the grammar
-   was never widened to admit) somewhere in prose unrelated to any
-   checkpoint id.
-2. **Expected:** it is not recognized as an anchor tag at all (safe,
-   `_CHECKPOINT_ANCHOR_RE` simply does not match it) — confirms the
-   widening did not also start accepting tag shapes it has no matching
-   id-shape counterpart for.
+Two parts: an inert case (the grammar correctly staying narrow) and a
+newly-fatal case (this milestone's widening turning previously-inert prose
+into a hard refusal — a genuine regression hazard worth knowing about before
+upgrading). Both give a concrete, observable command, reproduced directly
+against `2.5.1`'s (and, for comparison, `2.5.0`'s) `workflow_state.py`.
+
+1. Non-matching shape (still safe): a stray `<!-- CPabc -->` (a shape the
+   grammar was never widened to admit) somewhere in plan prose, unrelated to
+   any checkpoint id.
+   ```
+   PYTHONPATH=migration/overlays/2.5.1/payload/scripts:distribution/workflow/2.5.0/payload/scripts \
+     python3 -c "from workflow_state import parse_checkpoint_anchor_spans; \
+     print(parse_checkpoint_anchor_spans('intro text <!-- CPabc --> more text', strict=True))"
+   ```
+   **Expected:** `{}` — `_CHECKPOINT_ANCHOR_RE` simply does not match
+   `CPabc`; confirms the widening did not also start accepting tag shapes it
+   has no matching id-shape counterpart for.
+2. Matching-but-unpaired shape (newly fatal in `2.5.1` — regression
+   hazard): a stray, unpaired `<!-- CP4B -->` in plan prose — no
+   corresponding `<!-- /CP4B -->` anywhere in the document, and unrelated to
+   any real `CP4B` checkpoint.
+   ```
+   PYTHONPATH=migration/overlays/2.5.1/payload/scripts:distribution/workflow/2.5.0/payload/scripts \
+     python3 -c "from workflow_state import parse_checkpoint_anchor_spans; \
+     print(parse_checkpoint_anchor_spans('intro text <!-- CP4B --> more text', strict=True))"
+   ```
+   **Expected (`2.5.1`):** `AmendmentAnchorMalformedError: CP4B: <!--
+   CP4B --> with no matching <!-- /CP4B --> before end of document`. For
+   contrast, run the identical input against the unmodified `2.5.0` base
+   script (`PYTHONPATH=distribution/workflow/2.5.0/payload/scripts`):
+   returns `{}` (inert, no match) — confirming this is genuinely new in
+   `2.5.1`, not a pre-existing behavior. Widening `_CHECKPOINT_ANCHOR_RE`
+   makes text that was inert comment prose under `2.5.0` a hard
+   `/approve-review plan` refusal under `2.5.1`. This affects exactly the
+   target population this release exists for: pre-`2.4.0` repositories
+   carrying literal `CP4B`/`CP6B`-shaped text in their plan documents,
+   likely to appear as plain prose, not just intentional anchors. A
+   downstream operator upgrading to `2.5.1` should know that any stray,
+   unpaired `CP<digits>[A-Z]?`-shaped HTML comment already sitting in a plan
+   document becomes a hard failure the first time `/approve-review plan`
+   runs after upgrade, where it was previously silent. To confirm this
+   through the actual command surface (not just the library call): in a
+   disposable repo, hand-edit an amended plan document to include the same
+   stray unpaired `<!-- CP4B -->` (unrelated to any real checkpoint), then
+   run `/approve-review plan`. **Expected:** refused with
+   `AmendmentAnchorMalformedError` naming `CP4B`.
 
 ### Flow 5 — documentation sync
 
