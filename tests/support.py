@@ -142,7 +142,7 @@ CI_SUITES = {
     #: release's own overlay payload actually produces.
     "2.5.1": {
         "workflow_fingerprint_test.py": 218,
-        "workflow_state_test.py": 852,
+        "workflow_state_test.py": 853,
         "workflow_test_harness_test.py": 19,
         "workflow_integration_test.py": 260,
         "workflow_acceptance_matrix_test.py": 146,

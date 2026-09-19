@@ -9,7 +9,7 @@
   "provenance": {
     "origin": "authored",
     "base_release": "2.5.0",
-    "overlay_commit": "0557208ae1b444da7bf56c5df334531f9b32fe37"
+    "overlay_commit": "0fa3222793173922fa1b095aaa416dcd58dba2e7"
   },
   "categories": {
     "distribution": "Canonical Workflow implementation. Copied byte-for-byte into the payload and installed into every managed target repository.",
@@ -656,12 +656,12 @@
       "category": "distribution",
       "rule": "^scripts/workflow_state\\.py$",
       "rationale": "D-Checkpoint-Id-Anchor-Grammar-Widening (CP1): widens _CHECKPOINT_ANCHOR_RE and _ANCHOR_COMPATIBLE_CHECKPOINT_ID_RE from CP<digits> to CP<digits> optionally followed by exactly one uppercase letter, so checkpoint_id_supports_anchor accepts the pre-2.4.0 inserted-checkpoint lettering convention (e.g. CP4B/CP6B) without widening any other checkpoint-id shape. Every docstring/comment/exception message that spelled out the old 'CP<digits>' shape as prose is updated together.",
-      "sha256": "14152cd8ebcc38a96d288d0cfab9dee846a98c67a194b6ea71fd273495b67e63",
-      "size": 739826,
+      "sha256": "1d13718567e194c9aea0be0d8f4e54656aa6146c539ee8556e558158f73be2a1",
+      "size": 739975,
       "executable": false,
       "overlay_delta": {
         "base_sha256": "797e8778e3567063f4a20a30cc4836e566469e0c4cc2f23d26ab38153bec3bb3",
-        "diff_sha256": "fa9f5282f48f981f04d5beedf641631518a060982816c37ec67dfb8efacae0f8"
+        "diff_sha256": "a2dc050daf793df3162304de8a369da4c6ae8ec1646bc44afe975bcc86c7bf75"
       }
     },
     {
@@ -690,13 +690,13 @@
       "location": "payload/scripts/workflow_state_test.py",
       "category": "distribution",
       "rule": "^scripts/workflow_state_test\\.py$",
-      "rationale": "D-Checkpoint-Id-Anchor-Grammar-Widening (CP1): adds a legacy-shaped fixture (the full CP1..CP9 plus CP4B/CP6B set), malformed-id fail-closed cases, a regression assertion that every 2.5.0 numeric-only-id test still passes unmodified, and a tag/shape coupling-invariant test pinning that the anchor tag grammar and the anchor id-shape grammar widen together.",
-      "sha256": "42abb2431eb3488ad02c0896e1de639368b02a4c2beca6f7efa96130979b014b",
-      "size": 806537,
+      "rationale": "D-Checkpoint-Id-Anchor-Grammar-Widening (CP1): adds a legacy-shaped fixture (the full CP1..CP9 plus CP4B/CP6B set), malformed-id fail-closed cases exercised against both checkpoint_id_supports_anchor and validate_post_anchor_coverage, and a tag/shape coupling-invariant test pinning that the anchor tag grammar and the anchor id-shape grammar widen together -- all of it additive: every pre-existing 2.5.0 numeric-only-id test method is left unmodified and continues to run unchanged.",
+      "sha256": "7daf67a7c46a3df4b279152e89a691dbaf4edd7c170c1237697c5ccff87eafba",
+      "size": 807413,
       "executable": false,
       "overlay_delta": {
         "base_sha256": "2183a12999961956589179fc79ebfbefbd6fbbb5cb1018a02ae9555ac9804c96",
-        "diff_sha256": "df559b8e2add8d77eaad7399332e3c5cfbe24e4fa35b2328cd188b4a39863ada"
+        "diff_sha256": "5a7a31a8834647cfab82f35e074c8b3506b8bfbe76a0fc0965f75696ebca1e49"
       }
     },
     {

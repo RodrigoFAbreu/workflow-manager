@@ -10674,6 +10674,20 @@ class TestValidatePostAnchorCoverage(unittest.TestCase):
         text = "".join(f"<!-- {cid} -->design for {cid}<!-- /{cid} -->" for cid in ids)
         ws.validate_post_anchor_coverage(text, self._registry(ids))  # must not raise
 
+    def test_malformed_letter_suffixed_checkpoint_ids_are_refused_by_shape(self):
+        """The post side's own shape guard (IMPL3-O1) refuses the same
+        near-miss shapes `request_plan_amendment`'s pre-side precondition
+        refuses -- lowercase suffix, multi-letter suffix, letter-before-digit,
+        and a digit trailing the letter -- raising
+        `AmendmentCheckpointIdShapeError`, never the unactionable
+        `AmendmentAnchorCoverageError`, even when no anchor for the id is
+        present in the plan text at all."""
+        for bad_id in ("CP4b", "CP4BC", "CPB4", "CP4B1"):
+            with self.subTest(bad_id=bad_id):
+                with self.assertRaises(ws.AmendmentCheckpointIdShapeError) as ctx:
+                    ws.validate_post_anchor_coverage("", self._registry([bad_id]))
+                self.assertIn(bad_id, str(ctx.exception))
+
 
 class TestReconcileCheckpointsAfterAmendment(unittest.TestCase):
     """`reconcile_checkpoints_after_amendment`'s three-outcome algorithm
@@ -11832,10 +11846,10 @@ class TestApplyPlanApprovalAmendmentBranch(unittest.TestCase):
     def test_post_registry_only_non_cp_digit_id_is_a_named_shape_refusal(self):
         """IMPL3-O1: an id introduced *by the amendment itself* (absent from
         the pre-amendment registry, so `request_plan_amendment`'s own early
-        shape check never saw it) that is not of the shape `CP<digits>`
-        must raise `AmendmentCheckpointIdShapeError` here, not the
-        unactionable `AmendmentAnchorCoverageError` -- no anchor text could
-        ever satisfy the latter for this id."""
+        shape check never saw it) that is not of the shape
+        `CP<digits>[A-Z]?` must raise `AmendmentCheckpointIdShapeError`
+        here, not the unactionable `AmendmentAnchorCoverageError` -- no
+        anchor text could ever satisfy the latter for this id."""
         state = self._open_amendment_state()
         pre_registry = {"checkpoints": [
             {"id": "CP1", "name": "n", "depends_on": [], "complexity": 1, "session_target": 1},

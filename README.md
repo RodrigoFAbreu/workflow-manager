@@ -14,7 +14,7 @@ overwriting the work-item state those repositories accumulate.
 | `2.3.1` | upstream — `repflow-android` tag `workflow-v2.3.1` (`1f954fbb6c68`) | 7/7 suites, 1440 tests — matching the upstream baseline | 1439 of 1440 ([one documented exception](docs/defects/v2.3.1-001-host-history-coupled-tests.md)) |
 | `2.4.0` | authored in this repository — `2.3.1` base plus the plan-amendment-mechanism overlay | 7/7 suites, 1498 tests — same suite set as `2.3.1`, plus 58 new cases | 1497 of 1498 (the same documented exception) |
 | `2.5.0` | authored in this repository — `2.4.0` base plus the implementation-review-two-stage overlay | 7/7 suites, 1669 tests — same suite set as `2.4.0`, plus 171 new cases | 1669 of 1669 |
-| `2.5.1` | authored in this repository — `2.5.0` base plus the workflow-2-5-1-checkpoint-id-compatibility overlay | 7/7 suites, 1680 tests — same suite set as `2.5.0`, plus 11 new cases | 1680 of 1680 |
+| `2.5.1` | authored in this repository — `2.5.0` base plus the workflow-2-5-1-checkpoint-id-compatibility overlay | 7/7 suites, 1681 tests — same suite set as `2.5.0`, plus 12 new cases | 1681 of 1681 |
 
 `workflow_manager releases` prints every release present, each release's own
 `provenance` distinguishing an upstream extraction from an authored one; both

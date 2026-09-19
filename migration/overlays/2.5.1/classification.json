@@ -15,7 +15,7 @@
     {
       "pattern": "^scripts/workflow_state_test\\.py$",
       "category": "distribution",
-      "rationale": "D-Checkpoint-Id-Anchor-Grammar-Widening (CP1): adds a legacy-shaped fixture (the full CP1..CP9 plus CP4B/CP6B set), malformed-id fail-closed cases, a regression assertion that every 2.5.0 numeric-only-id test still passes unmodified, and a tag/shape coupling-invariant test pinning that the anchor tag grammar and the anchor id-shape grammar widen together.",
+      "rationale": "D-Checkpoint-Id-Anchor-Grammar-Widening (CP1): adds a legacy-shaped fixture (the full CP1..CP9 plus CP4B/CP6B set), malformed-id fail-closed cases exercised against both checkpoint_id_supports_anchor and validate_post_anchor_coverage, and a tag/shape coupling-invariant test pinning that the anchor tag grammar and the anchor id-shape grammar widen together -- all of it additive: every pre-existing 2.5.0 numeric-only-id test method is left unmodified and continues to run unchanged.",
       "expected_kind": "replaced"
     },
     {

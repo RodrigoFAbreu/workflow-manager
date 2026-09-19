@@ -3576,11 +3576,13 @@ def parse_checkpoint_anchor_spans(text: str, *, strict: bool = True) -> dict[str
     malformed: set[str] = set()
     for match in _CHECKPOINT_ANCHOR_RE.finditer(text):
         is_close = match.group(1) == "/"
-        # The registry's own checkpoint ids are "CP<n>" strings (e.g.
-        # "CP1"); the anchor tag's own digits are joined back onto that
-        # prefix so this map's keys line up with `depends_on`/registry
-        # `id` values directly, never a bare digit that would silently
-        # never match anything.
+        # The registry's own checkpoint ids are "CP<n>" or "CP<n><letter>"
+        # strings (e.g. "CP1", "CP4B"); the anchor tag's own captured
+        # suffix -- digits, optionally followed by exactly one uppercase
+        # letter -- is joined back onto that prefix so this map's keys
+        # line up with `depends_on`/registry `id` values directly, never a
+        # bare digit (or bare digit-plus-letter) that would silently never
+        # match anything.
         checkpoint_id = "CP" + match.group(2)
         if not is_close:
             if checkpoint_id in open_at:

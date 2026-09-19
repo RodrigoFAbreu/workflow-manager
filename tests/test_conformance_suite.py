@@ -285,10 +285,11 @@ class TestBootstrappedTarget251(_BootstrappedTargetAssertions, unittest.TestCase
 
 def _overlay_payload_roots() -> list[tuple[str, Path]]:
     """`(version, payload_root)` for every authored overlay present under
-    `migration/overlays/` -- today `2.4.0` and `2.5.0`, but never hardcoded
-    to either: a further authored release adds its own overlay directory and is picked
-    up here without touching this file (mirrors D-Authored-Release-4's own
-    "for every authored release present" phrasing, CP6's registry row)."""
+    `migration/overlays/` -- today `2.4.0`, `2.5.0`, and `2.5.1`, but never
+    hardcoded to any of them: a further authored release adds its own
+    overlay directory and is picked up here without touching this file
+    (mirrors D-Authored-Release-4's own "for every authored release
+    present" phrasing, CP6's registry row)."""
     overlays_dir = REPO_ROOT / "migration" / "overlays"
     roots = []
     if overlays_dir.is_dir():
