@@ -34,9 +34,8 @@ known defect is bundled — see the plan's §2 non-goals.
 
 ## Current checkpoint
 
-**CP2 complete** (3 checkpoints total). Next: **CP3** (full regression,
-release-composition parity checks, and read-back verification of
-`README.md`'s `2.5.1` Status row).
+**CP3 complete** (3 of 3 checkpoints -- all checkpoints complete; the
+milestone is now ready for `SELF_REVIEWING_IMPLEMENTATION`).
 
 CP1 delivered, in `migration/overlays/2.5.1/payload/scripts/` (this
 milestone's own first-ever copy of both files, layered onto `2.5.0`'s own
@@ -179,6 +178,37 @@ discretionary `...251` conformance-fixture classes (9/9) run directly; the
 full, non-`--fast` `tests/run_all.py` run all 11 suites depend on: green,
 exit code 0.
 
+CP3 delivered (verification-only checkpoint -- no implementation artifact
+was written or re-pinned):
+
+- `python3 tests/run_all.py --fast`: all 8 fast suites green.
+- `python3 tests/run_all.py` (full, non-`--fast`): all 11 suites green, exit
+  code 0 -- `test_conformance_suite.py` (874.6s) and `test_bootstrap_e2e.py`
+  (433.4s, which runs `TestBootstrappedRepositorySatisfiesTheFrozenSuite251`)
+  both passed outright, confirming the clean-target failure set equals the
+  documented `2.5.1` exceptions (empty) -- no more, no fewer.
+- `git diff ce0f221b39467a8dd8417c9ea8818a14ada1bed8 -- distribution/workflow/2.5.0/`:
+  empty, both before and after the full regression run -- `2.5.0`'s own
+  byte content is provably unchanged by this milestone.
+- `python3 tools/build_release.py --overlay migration/overlays/2.5.1 --check`:
+  re-run against the final tree -- `distribution/workflow/2.5.1/` reproduces
+  exactly from the `2.5.0` base plus the `2.5.1` overlay alone.
+- Read-back verification of `README.md`'s `2.5.1` Status row (CP2's own
+  deliverable; not re-written or re-pinned here): `7/7 suites, 1680 tests`
+  matches `CI_SUITES["2.5.1"]` exactly (7 suites, `sum(...) == 1680`); the
+  `1680 of 1680` bootstrapped-repository figure matches
+  `TestBootstrappedRepositorySatisfiesTheFrozenSuite251`'s own pass total,
+  confirmed by this checkpoint's own independent full regression run above
+  (its `test_failures_are_exactly_the_documented_exceptions` and
+  `test_every_suite_runs_the_frozen_number_of_tests` both passed, so every
+  one of the 1680 `2.5.1`-suite tests run inside the bootstrapped repository
+  passed). No disagreement found; nothing to hand back to CP2.
+
+Narrowest relevant check for CP3: the checkpoint's own deliverable *is* the
+full regression above, run directly; `git diff` and `build_release --check`
+run directly; README read-back checked by inspection against the same run's
+own results.
+
 ## Current blockers
 
 None.
@@ -191,19 +221,11 @@ None.
 
 ## Next action
 
-**CP3** — full regression (`python3 tests/run_all.py`, both `--fast` and
-the full, non-`--fast` run) must be green, and the clean-target failure set
-(`migration/portability_exceptions.json`) must equal the documented
-exceptions for `2.5.1` (empty) — no more, no fewer; confirm
-`distribution/workflow/2.5.0/`'s own byte content is provably unchanged by
-this milestone (`git diff <base_commit> -- distribution/workflow/2.5.0/`
-empty); re-run `tools/build_release.py --overlay migration/overlays/2.5.1
---check` once more against the final tree; and read back (never rewrite)
-`README.md`'s `2.5.1` Status row, confirming its suite/test counts equal
-`CI_SUITES["2.5.1"]` and its bootstrapped-repository count equals
-`TestBootstrappedRepositorySatisfiesTheFrozenSuite251`'s own pass total,
-both checked against this checkpoint's own independent full regression
-run.
+All three checkpoints are complete. The next invocation of
+`/milestone-implement` enters `SELF_REVIEWING_IMPLEMENTATION` (step 2) and
+proceeds toward the implementation-review gate; this invocation stopped
+after CP3 per this command's own dual-mode note (never entering step 2 in
+the same invocation that completed the last checkpoint).
 
 ## Functional review checklist
 
