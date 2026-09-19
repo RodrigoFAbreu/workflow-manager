@@ -372,6 +372,47 @@ document, closer to a real operator's experience.
 7. Run `/milestone-implement` to resume; confirm the remaining checkpoints
    (lettered ones included, `CP9B` included, and any flipped to
    `needs_revalidation` by step 6) implement and complete normally.
+8. The `retained` outcome for a lettered checkpoint, demonstrated: step 6's
+   reconciliation was the degenerate all-`needs_revalidation` branch only
+   because the *pre*-amendment plan text (committed in step 1) was never
+   anchored at all -- by now (post step 7) the plan document actually in
+   the repo carries real anchor pairs for every id, courtesy of step 4's
+   hand-added anchors. Build on that anchored plan as the pre side of a
+   **second** amendment, so this step demonstrates the widening's actual
+   practical payoff: a lettered checkpoint whose anchored span genuinely
+   didn't change reconciles as `retained`, exactly like a numeric one.
+   Run `/request-plan-amendment cp251-check-1` again (the phase from step 7
+   is `IMPLEMENTING` or `SELF_REVIEWING_IMPLEMENTATION`, either of which
+   `/request-plan-amendment` accepts). Take it through `/milestone-plan`,
+   editing the amended plan document so that **only `CP7`'s** anchored span
+   content changes (any textual edit between its `<!-- CP7 -->`/
+   `<!-- /CP7 -->` tags) -- every other id's anchored span, `CP4B`'s
+   included, stays byte-identical to the anchored text step 4 established.
+   (`CP7` is deliberately a numeric id *downstream* of `CP4B` in the
+   `depends_on` chain -- i.e. `CP4B` is its ancestor, not its dependent --
+   so `CP7`'s change cannot itself demote `CP4B` via the dependency-closure
+   pass; only `CP7`'s own downstream ids, e.g. `CP8`/`CP9`, are expected to
+   flip alongside it, as `needs_revalidation_dependency`.) Confirm
+   `validate_post_anchor_coverage` still passes (every id, `CP4B` included,
+   still has a well-formed anchor pair -- only its *content* is at issue
+   here, not its coverage). Continue through `/review-plan` →
+   `/record-manual-plan-review` → `/approve-review plan`. **Expected:**
+   `CP4B` reconciles as `retained` (`checkpoint_content_hash` for its span
+   is unchanged, and its registry row is unchanged) while `CP7` reconciles
+   as `needs_revalidation` (its span content changed) -- confirming lettered
+   ids reconcile through the exact same content-hash mechanism as numeric
+   ones, with the exact same outcome, not merely the same conservative
+   fallback step 6 already covers. **`2.5.0` contrast:** under `2.5.0`'s
+   unwidened grammar, `checkpoint_id_supports_anchor("CP4B")` is `False` and
+   `_CHECKPOINT_ANCHOR_RE` cannot match a `CP4B`-shaped anchor tag at all,
+   so `checkpoint_content_hash(plan, "CP4B")` is unconditionally `None`
+   there regardless of whether `CP4B`'s content actually changed --
+   `content_changed = pre_hash is None or ...` is always true, so `2.5.0`
+   would reconcile `CP4B` as `needs_revalidation` on *every* amendment, not
+   only ones that actually touch it, silently costing the operator needless
+   rework on a checkpoint that never changed. This is the concrete,
+   practical payoff of the widening for its target population, not merely
+   tolerating the legacy shape.
 
 ### Flow 2 — malformed shapes still fail closed
 
