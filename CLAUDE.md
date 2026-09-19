@@ -76,10 +76,10 @@ python3 tests/run_all.py            # ~7min, adds the frozen conformance matrix
 `distribution/workflow/<version>/` (today, `2.3.1`) still reproduces from a
 fresh extraction; it does not by itself prove no unrelated file exists
 directly under `distribution/` outside every release directory. An authored
-release (today, `2.4.0` and `2.5.0`) is proved reproducible separately, by
-`python3 tools/build_release.py --overlay migration/overlays/<version>
---check`, from its own base release plus its own overlay -- `migrate.py
---check` does not cover it.
+release (today, `2.4.0`, `2.5.0`, and `2.5.1`) is proved reproducible
+separately, by `python3 tools/build_release.py --overlay
+migration/overlays/<version> --check`, from its own base release plus its
+own overlay -- `migrate.py --check` does not cover it.
 
 ## Where things are
 
@@ -179,3 +179,25 @@ re-answers the activation question wrongly, with no error to notice.
 `Workflow-Rollback` trailer whose value falls outside its declared
 predecessor mapping reports *activated*, never a silent fall-through to
 not-activated.)
+
+`2.5.1` adds its own downgrade constraint on top of (not instead of) the
+two paragraphs above, and it is narrower than either — no new persisted
+phase, status or ledger key, only a persisted *registry-content shape*
+that only `2.5.1` accepts. `2.5.1` widens the plan-amendment
+anchor-compatible checkpoint-id grammar from `CP<digits>` to
+`CP<digits>[A-Z]?`, so `request_plan_amendment`'s shape precondition now
+admits a letter-suffixed id (`CP4B`, `CP6B`, ...) that `≤2.5.0` refuses
+outright — only `2.5.1` can move a work item carrying such an id into
+`AMENDING_PLAN`. If that repository is then downgraded to
+`≤2.5.0`, the item's only exit from `AMENDING_PLAN` (`/approve-review
+plan` → `apply_plan_approval` → `validate_post_anchor_coverage`) calls
+into the older release's own narrower grammar, which still raises
+`AmendmentCheckpointIdShapeError` for that same id (reproduced directly
+against `distribution/workflow/2.5.0/payload/scripts/workflow_state.py`'s
+own `validate_post_anchor_coverage`) — wedging the item with no in-band
+exit; the error's own suggested repair, "rename it via another
+`/milestone-plan` round", is exactly the renaming `2.5.1` exists to avoid.
+Never run `workflow_manager update --release-version <older than 2.5.1>`
+against a repository that has ever requested a plan amendment (entered
+`AMENDING_PLAN`) for a work item whose registry carries a letter-suffixed
+checkpoint id.
