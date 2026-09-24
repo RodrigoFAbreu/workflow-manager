@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "workflow_version": "2.6.0",
+  "base_workflow_version": "2.5.1",
+  "categories": {
+    "distribution": "Canonical Workflow implementation. Copied byte-for-byte into the payload and installed into every managed target repository."
+  },
+  "rules": [
+    {
+      "pattern": "^scripts/workflow_fingerprint\\.py$",
+      "category": "distribution",
+      "rationale": "D-Tooling-Ambient-Classification (CP1): adds TOOLING_AMBIENT_EXCLUDED_PATHS = {.workflow-manager/installation.json}, an exact-path, release-derived terminal fallback that classify_path and classify_path_implementation_stage consult only after every declared classification has failed, immediately before the UnclassifiedPathError raise. The frozen declared-classification semantics are untouched: a declaration still decides first, the constant never enters a hashed classification set, and the path never existed in any Workflow payload or in the upstream repository the frozen classifier was written for -- so every digest 2.5.1 could compute is byte-identical and only a digest that raised because a committed workflow_manager update rewrote the installation record now returns (the legacy-item half of v2.4.0-001).",
+      "expected_kind": "replaced"
+    },
+    {
+      "pattern": "^scripts/workflow_fingerprint_test\\.py$",
+      "category": "distribution",
+      "rationale": "D-Tooling-Ambient-Classification (CP1): adds TestToolingAmbientExcludedPaths -- fallback classification at both stages with a 2.5.1 control arm, explicit-protected precedence, sibling fail-closed paths, hashed-projection invariance, and digest invariance with the previously raising digests equal to their pre-update recorded values. Additive only: every pre-existing test is unmodified.",
+      "expected_kind": "replaced"
+    },
+    {
+      "pattern": "^scripts/workflow_state_test\\.py$",
+      "category": "distribution",
+      "rationale": "D-Tooling-Ambient-Classification (CP1): adds TestImplementingEntryReachableAfterInstallationRecordUpdate -- a 2.3.1-shaped item stays implementing_entry_reachable after a committed installation-record change, with a 2.5.1 control arm that raises UnclassifiedPathError. Additive only: every pre-existing test is unmodified.",
+      "expected_kind": "replaced"
+    },
+    {
+      "pattern": "^docs/ai-workflow/REVIEW_PROTOCOL\\.md$",
+      "category": "distribution",
+      "rationale": "D-Tooling-Ambient-Classification (CP1): the Computing review_content_id section gains the classification paragraph naming the one release-derived fallback, where it sits in the classification order, and what stays fail-closed.",
+      "expected_kind": "replaced"
+    },
+    {
+      "pattern": "^docs/ai-workflow/WORKFLOW_V2_PLAN\\.md$",
+      "category": "distribution",
+      "rationale": "D-Tooling-Ambient-Classification (CP1): new design section carrying the problem, the decision, its release-derived authority, the identity-stability argument, the fail-closed boundary, the justification relative to the frozen plan-stage classifier, and the rejected alternatives.",
+      "expected_kind": "replaced"
+    }
+  ]
+}
