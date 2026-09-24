@@ -175,7 +175,25 @@ Preferred minimal shape:
 .ai-review/<work-item-id>/feedback/REVIEW_FEEDBACK.md
 ```
 
-The first release should preserve the current feedback document format and lifecycle semantics rather than redesigning every review file at once.
+This file is the current, ephemeral feedback surface for its work item. It preserves the existing feedback document format and lifecycle semantics.
+
+Durable review history stays where it already lives: Workflow state, review ledgers, bundles, and Git.
+
+### Non-goal: per-stage / per-round feedback files
+
+Do not introduce persistent per-stage or per-round feedback storage such as:
+
+```text
+.ai-review/<work-item-id>/feedback/plan-local/round-1.md
+.ai-review/<work-item-id>/feedback/implementation-local/round-2.md
+```
+
+It would improve filesystem-level history, but at the cost of:
+
+- more review-artifact noise and agent context overhead;
+- more cleanup and migration rules;
+- a higher risk of stale artifacts being mistaken for current state;
+- duplicating history the canonical mechanisms already preserve.
 
 ### Required semantics
 
@@ -201,21 +219,6 @@ At minimum:
 - feedback ownership helpers;
 - review admissibility/reconciliation;
 - tests and migration compatibility.
-
-### Future direction
-
-A later release may split work-item feedback into stage-specific records, for example:
-
-```text
-.ai-review/<work-item-id>/feedback/
-  plan-local.md
-  plan-manual.md
-  implementation-local.md
-  implementation-manual.md
-  functional.md
-```
-
-That is not required for this milestone unless review shows it is necessary.
 
 ---
 
@@ -300,7 +303,7 @@ If full atomicity is impractical, introduce an explicit intermediate/recovery st
 
 ### Requirements
 
-- no review-ready phase with a stale/missing current bundle;
+- never advertise a review-ready revision before its matching required bundle exists and validates;
 - deterministic recovery after process failure;
 - safe retry;
 - no duplicate revision advancement;
@@ -545,6 +548,8 @@ Principle:
 
 > One authoritative fact, multiple generated views.
 
+Review storage stays intentionally minimal: one current feedback file per work item (milestone 1.1), with history held in the existing canonical mechanisms. Add persistent review files only when a concrete requirement cannot be met by state, ledgers, bundles, Git, or a generated view.
+
 ---
 
 # 5. Workflow Manager Update and Migration Ergonomics
@@ -632,39 +637,7 @@ Then mechanically test those scopes.
 
 ---
 
-# 8. Review Storage Evolution
-
-**Priority:** Later
-
-After scoped feedback proves stable, consider broader per-work-item review storage.
-
-Possible target:
-
-```text
-.ai-review/<work-item-id>/
-  current/
-  history/
-  feedback/
-    plan-local/
-    plan-manual/
-    implementation-local/
-    implementation-manual/
-    functional/
-```
-
-Goals:
-
-- no unrelated work-item contention;
-- easier review history inspection;
-- cleaner cleanup semantics;
-- better multi-worktree support;
-- simpler Controller integration.
-
-Do not redesign this prematurely if the single scoped feedback file solves the immediate problem cleanly.
-
----
-
-# 9. Operator UX / Documentation
+# 8. Operator UX / Documentation
 
 **Priority:** Ongoing
 
@@ -680,7 +653,7 @@ Improve:
 
 ---
 
-# 10. Longer-Term Workflow Evolution
+# 9. Longer-Term Workflow Evolution
 
 Potential future work:
 
@@ -713,25 +686,23 @@ Potential future work:
    |
 7. Broader multi-worktree concurrency maturity
    |
-8. Review storage evolution
+8. Operator UX/documentation
    |
-9. Operator UX/documentation
-   |
-10. Longer-term Workflow evolution
+9. Longer-term Workflow evolution
 ```
 
 ---
 
 # Defect Disposition Summary
 
-| Defect | Status | Roadmap disposition |
-|---|---|---|
-| `v2.3.1-001-host-history-coupled-tests` | Fixed in 2.5.0 | Regression protection only |
-| `v2.3.1-002-no-plan-amendment-edge` | Fixed in 2.4.0 | Regression protection only |
-| `v2.3.1-003-plan-approval-requires-precommitted-state-file` | Fixed in 2.5.0 | Regression protection only |
-| `v2.4.0-001-workflow-manager-installation-record-unclassified-at-plan-stage` | Forward-fixed; legacy active-item gap remains | Included in milestone 1 |
-| `v2.4.0-002-amendment-claim-race-crosses-worktree-boundary` | Open | Included in milestone 1 |
-| `v2.4.0-003-amendment-diff-anchored-at-head-is-always-empty` | Open | Included in milestone 1 |
+| Defect                                                                       | Status                                        | Roadmap disposition        |
+| ---------------------------------------------------------------------------- | --------------------------------------------- | -------------------------- |
+| `v2.3.1-001-host-history-coupled-tests`                                      | Fixed in 2.5.0                                | Regression protection only |
+| `v2.3.1-002-no-plan-amendment-edge`                                          | Fixed in 2.4.0                                | Regression protection only |
+| `v2.3.1-003-plan-approval-requires-precommitted-state-file`                  | Fixed in 2.5.0                                | Regression protection only |
+| `v2.4.0-001-workflow-manager-installation-record-unclassified-at-plan-stage` | Forward-fixed; legacy active-item gap remains | Included in milestone 1    |
+| `v2.4.0-002-amendment-claim-race-crosses-worktree-boundary`                  | Open                                          | Included in milestone 1    |
+| `v2.4.0-003-amendment-diff-anchored-at-head-is-always-empty`                 | Open                                          | Included in milestone 1    |
 
 Additional open hardening items included in milestone 1:
 
@@ -764,5 +735,11 @@ Additional open hardening items included in milestone 1:
 7. **Legacy compatibility must be explicit.**  
    Forward-generated fixes are not automatically retroactive fixes for already-approved work items.
 
-8. **Dogfood migrations before touching real long-lived repositories.**  
-   RepFlow disposable migration remains a required proving ground.
+8. **Avoid duplicating review/history state.**  
+   Each review fact has one canonical home; do not add persistent files that restate what state, ledgers, bundles, or Git already record.
+
+9. **Prefer minimal canonical state and generated views.**  
+   Derive projections on demand rather than maintaining more persistent bookkeeping.
+
+10. **Dogfood migrations before touching real long-lived repositories.**  
+    RepFlow disposable migration remains a required proving ground.
