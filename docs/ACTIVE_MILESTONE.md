@@ -20,8 +20,8 @@ process. See the plan's section 2 for non-goals.
 
 ## Current checkpoint
 
-**CP2 complete** (2 of 9 checkpoints). Next: CP3 (depends on CP1) — the
-per-work-item feedback layout.
+**CP3 complete** (3 of 9 checkpoints). Next: CP4 (depends on CP2, CP3) —
+bundle-bound plan-review publication.
 
 ### CP1 — Release-derived exact-path classification of the legacy installation record
 
@@ -147,6 +147,103 @@ payload plus this overlay (committed there as one scratch commit):
 - `python3 tests/run_all.py --fast`: all green.
 - INV-9: `git diff b2060bf -- distribution/workflow/` is empty.
 
+### CP3 — Per-work-item feedback layout
+
+Implements the plan's section 5.1, `D-Feedback-Layout` (requirements
+`REQ-1`, `REQ-2`). Delivered in `migration/overlays/2.6.0/`.
+
+**Pre-edit evidence (section 6.2's downgrade paragraph depends on it).**
+Run against `distribution/workflow/2.5.1/payload/scripts/` before any edit:
+`2.5.1`'s `validate_state` has **no** work-item key allowlist —
+`_validate_work_item` checks `work_item_id`, type, kind, phase, checkpoint
+statuses, the review-stage ledgers, the block pins and the approval
+records only. A state whose every entry carries `feedback_layout:
+"scoped"`, and one carrying `feedback_layout: "bogus"`, both validate
+cleanly: the key is **ignored, not rejected**. The committed-field sets
+(`ORDINARY_`/`RECOVERED_BUNDLE_GENERATION_RECORD_FIELDS`,
+`TECHNICAL_APPROVAL_COMMIT_FIELDS`) are *field-diff* allowlists; a key
+written once at creation and never changed never appears in a later
+commit's field diff, so none of them sees it either. Consequence for
+CP7's downgrade paragraph: a downgraded repository does not fail — it
+silently resolves scoped items' feedback by the legacy rule.
+
+- `payload/scripts/workflow_fingerprint.py`:
+  - `resolve_feedback_layout` (`scoped` / `legacy-scoped` / `legacy-flat`)
+    reads the item's entry from the worktree's `WORKFLOW_STATE.json`;
+    `resolve_feedback_dir` (signature unchanged) is built on it. A
+    `"scoped"` item resolves `.ai-review/<id>/feedback` with no existence
+    gate. An entry without the field, no entry, or no state file keeps the
+    unchanged rule. A symlinked, non-JSON or non-object state file refuses
+    (`FeedbackLayoutUndecidableError`), as does any other field value,
+    `null` and non-strings included (`UnknownFeedbackLayoutError`).
+  - `ensure_feedback_dir` creates the resolved directory;
+    `mark_functional_review_consumed` now calls it.
+  - `resolve_feedback_path_contract` and the
+    `--resolve-feedback-path <id>` CLI (one JSON object, same function).
+  - `assert_feedback_not_owned_by_other_work_item(..., state=None)`: with
+    `state`, a foreign owner at a terminal phase is non-blocking for a
+    legacy writer only; a non-terminal or state-absent owner, or any
+    foreign file under a scoped writer, still refuses.
+    `FEEDBACK_OWNER_TERMINAL_PHASES` is pinned equal to
+    `workflow_state.TERMINAL_PHASES` (the module cannot import
+    `workflow_state`).
+  - `assert_manual_feedback_names_work_item` /
+    `ManualFeedbackForeignWorkItemError`.
+- `payload/scripts/workflow_state.py` (first overlay replacement): the
+  stamp in `route_work_item`'s fresh-id branch and
+  `create_remediation_child_work_item`; `_validate_work_item` refuses an
+  unknown value. Nothing else changed.
+- Tests: new `TestFeedbackLayout` (16) in `workflow_fingerprint_test.py`
+  and `TestFeedbackLayoutStamp` (6) in `workflow_state_test.py`, covering
+  every CP3 test bullet. An unhashable layout value (`["scoped"]`) first
+  surfaced a raw `TypeError` from the membership test; both checks now
+  type-check first (INV-3). Re-pointed pins, none deleted:
+  `TestBundleLayoutResolver`, `TestFunctionalReviewConsumedMarker` and
+  `TestReviewImplementationWritebackCrossWorkItemIsolation` now state their
+  legacy scope (their fixtures have no state file); the acceptance-matrix
+  `feedback_dir()` helper asserts the scoped layout and creates the
+  directory through `ensure_feedback_dir`.
+- Normative docs: `REVIEW_PROTOCOL.md` gains the "Feedback directory"
+  subsection (the one normative definition, including the CLI contract for
+  Controller); `MILESTONE_WORKFLOW.md`'s eight hard-coded flat paths become
+  `<feedback_dir>` plus one definition; notes in
+  `WORKFLOW_V2_1_OPERATOR_REFERENCE.md`, `PLAN_REVIEW_WORKFLOW.md` and
+  `IMPLEMENTATION_REVIEW_WORKFLOW.md`; a new `WORKFLOW_V2_PLAN.md` section
+  `D-Feedback-Layout`.
+- Commands: `apply-functional-review`, `apply-implementation-review`,
+  `apply-plan-review`, `approve-review`, `milestone-plan`,
+  `prepare-functional-review`, `record-manual-plan-review`,
+  `record-manual-implementation-review`, `review-functional`,
+  `review-implementation` and `review-plan` now define `<feedback_dir>` by
+  `feedback_layout` and print the exact resolved path wherever the operator
+  must paste or find feedback. The three review writers pass `state=` to
+  the ownership guard and call `ensure_feedback_dir` before writing;
+  `/prepare-functional-review` calls it before reporting; both
+  `/record-manual-*-review` commands run
+  `assert_manual_feedback_names_work_item` before any state write.
+- `classification.json`: new `replaced` rules for every newly overlaid
+  file; the existing rules' rationales now cover CP3's delta too.
+
+**Verified state.** Run in a temporary tree composed from the `2.5.1`
+payload plus this overlay (committed there as one scratch commit):
+
+- `python3 -m unittest workflow_fingerprint_test workflow_fingerprint_generalization_test workflow_acceptance_matrix_test`:
+  480 tests, OK (18 skipped).
+- `python3 -m unittest workflow_state_test`: 860 tests, 2 errors — the same
+  two `TestCanonicalStateSerialization` live-state errors as CP2 (no live
+  `WORKFLOW_STATE.json` in the payload tree).
+- `python3 -m unittest workflow_integration_test`: 260 tests, 3 errors — the
+  same three `TestRetiredScopedRemediationLeavesNoLiveSurface` errors as CP2.
+- `workflow_state_demo_test`, `workflow_fingerprint_demo_test`,
+  `workflow_test_harness_test`, `workflow_state_completion_obligations_test`:
+  187 tests, 13 failures + 27 errors, a failure set identical, test for
+  test, to the pure `2.5.1` payload's (these read real repository history).
+- `workflow_fingerprint.py --resolve-feedback-path` smoke run: one JSON
+  object, `legacy-flat` with no state file.
+- Every overlay payload file is matched by a `classification.json` rule.
+- `python3 tests/run_all.py --fast`: all green.
+- INV-9: `git diff b2060bf -- distribution/workflow/` is empty.
+
 ## Current blockers
 
 None.
@@ -160,4 +257,4 @@ None.
 ## Next action
 
 Invoke `/milestone-implement workflow-review-artifact-and-concurrency-hardening`
-to implement CP3.
+to implement CP4.

@@ -406,6 +406,32 @@ class FeedbackOwnedByOtherWorkItemError(Exception):
     (`GPT-FUP-R6-I01`, `LPR-R7-B01`)."""
 
 
+class UnknownFeedbackLayoutError(Exception):
+    """Raised when a work item's `feedback_layout` field is present but is
+    not one of `FEEDBACK_LAYOUT_VALUES` (`D-Feedback-Layout`, INV-3). An
+    absent field means legacy; a present, unrecognized value -- including
+    `null` -- is never guessed at."""
+
+
+class FeedbackLayoutUndecidableError(Exception):
+    """Raised when `docs/ai-workflow/WORKFLOW_STATE.json` exists but cannot
+    decide a work item's feedback layout: a symlink, bytes that are not
+    JSON, a top level that is not an object, a `work_items` that is not an
+    object, or the item's own entry that is not an object
+    (`D-Feedback-Layout`, INV-3). The resolver refuses rather than falling
+    back to the legacy rule, since a scoped item misresolved to the flat
+    path would read or overwrite another item's feedback."""
+
+
+class ManualFeedbackForeignWorkItemError(Exception):
+    """Raised by `/record-manual-plan-review` and
+    `/record-manual-implementation-review` when the pasted
+    `REVIEW_FEEDBACK.md` carries a `Work item:` binding field naming a
+    different work item (`D-Feedback-Layout`, "Manual-record binding"). A
+    pasted file without that field is not refused here: the hard
+    `review_content_id` check still binds it."""
+
+
 # ---------------------------------------------------------------------------
 # D-Fingerprint-Generalization (Revision 21, `WF8B-S1-001`): per-work-item
 # plan-stage metadata resolution. `resolve_plan_stage_metadata` is the one
@@ -1966,16 +1992,133 @@ def resolve_bundle_dir(repo_root: Path, work_item_id: str, *, stage: str | None 
     return Path(".ai-review/current")
 
 
+# D-Feedback-Layout (workflow-2.6.0, CP3): the durable per-work-item stamp
+# `route_work_item`'s fresh-id branch and `create_remediation_child_work_item`
+# write at creation, and the three layouts `resolve_feedback_layout` reports.
+FEEDBACK_LAYOUT_SCOPED = "scoped"
+FEEDBACK_LAYOUT_VALUES = frozenset({FEEDBACK_LAYOUT_SCOPED})
+FEEDBACK_LAYOUT_LEGACY_SCOPED = "legacy-scoped"
+FEEDBACK_LAYOUT_LEGACY_FLAT = "legacy-flat"
+FLAT_FEEDBACK_DIR = Path(".ai-review/feedback")
+
+# The phases at which a work item provably has no remaining consumer of its
+# feedback file -- the bounded relaxation in
+# `assert_feedback_not_owned_by_other_work_item`. Kept equal to
+# `workflow_state.TERMINAL_PHASES` (pinned by a test); duplicated here only
+# because this module never imports `workflow_state` (the import runs the
+# other way).
+FEEDBACK_OWNER_TERMINAL_PHASES = frozenset({"MILESTONE_COMPLETE"})
+
+
+def _load_feedback_layout_work_items(repo_root: Path) -> dict | None:
+    """The live worktree's `WORKFLOW_STATE.json` `work_items` map, or `None`
+    when no state file exists (a pre-activation repository). Everything
+    else that cannot decide a layout refuses with
+    `FeedbackLayoutUndecidableError`, never a fallback (INV-3)."""
+    state_path = Path(repo_root) / "docs" / "ai-workflow" / "WORKFLOW_STATE.json"
+    if state_path.is_symlink():
+        raise FeedbackLayoutUndecidableError(f"{state_path} is a symlink -- refusing to follow it")
+    try:
+        raw = state_path.read_bytes()
+    except FileNotFoundError:
+        return None
+    except OSError as exc:
+        raise FeedbackLayoutUndecidableError(f"{state_path} is unreadable: {exc}") from exc
+    try:
+        data = json.loads(raw)
+    except (ValueError, UnicodeDecodeError) as exc:
+        raise FeedbackLayoutUndecidableError(f"{state_path} is not valid JSON: {exc}") from exc
+    if not isinstance(data, dict):
+        raise FeedbackLayoutUndecidableError(f"{state_path}'s top level is not a JSON object")
+    work_items = data.get("work_items", {})
+    if not isinstance(work_items, dict):
+        raise FeedbackLayoutUndecidableError(f"{state_path}'s work_items is not a JSON object")
+    return work_items
+
+
+def resolve_feedback_layout(repo_root: Path, work_item_id: str) -> str:
+    """`D-Feedback-Layout`'s one decision: which of the three layouts
+    governs `work_item_id`'s feedback directory.
+
+    - `"scoped"`: the item's state entry carries `feedback_layout:
+      "scoped"`, stamped at creation by `2.6.0` or later. Resolution is
+      `.ai-review/<id>/feedback` by construction -- no existence gate.
+    - `"legacy-scoped"` / `"legacy-flat"`: the item's entry lacks the
+      field, there is no entry at all, or there is no state file (a
+      pre-activation repository or a `"1"`-governed item). The unchanged
+      `2.5.1` rule applies: scoped if `.ai-review/<id>/feedback/` already
+      exists, else flat -- so an active legacy item keeps finding its
+      unconsumed flat file.
+
+    A present but unknown field value raises `UnknownFeedbackLayoutError`;
+    a state file that cannot decide raises
+    `FeedbackLayoutUndecidableError` (INV-3)."""
+    validate_work_item_id(work_item_id)
+    work_items = _load_feedback_layout_work_items(repo_root)
+    entry = work_items.get(work_item_id) if work_items is not None else None
+    if entry is not None:
+        if not isinstance(entry, dict):
+            raise FeedbackLayoutUndecidableError(
+                f"work_items[{work_item_id!r}] is not a JSON object"
+            )
+        if "feedback_layout" in entry:
+            layout = entry["feedback_layout"]
+            if not isinstance(layout, str) or layout not in FEEDBACK_LAYOUT_VALUES:
+                raise UnknownFeedbackLayoutError(
+                    f"work_items[{work_item_id!r}].feedback_layout == {layout!r} -- "
+                    f"expected one of {sorted(FEEDBACK_LAYOUT_VALUES)} or absent"
+                )
+            return layout
+    if (Path(repo_root) / ".ai-review" / work_item_id / "feedback").is_dir():
+        return FEEDBACK_LAYOUT_LEGACY_SCOPED
+    return FEEDBACK_LAYOUT_LEGACY_FLAT
+
+
 def resolve_feedback_dir(repo_root: Path, work_item_id: str) -> Path:
-    """The feedback directory counterpart of `resolve_bundle_dir` -- kept
+    """The one authoritative feedback-directory resolver
+    (`D-Feedback-Layout`), repo-root-relative. `"scoped"` and
+    `"legacy-scoped"` items resolve `.ai-review/<id>/feedback`;
+    `"legacy-flat"` items resolve the shared `.ai-review/feedback`. See
+    `resolve_feedback_layout` for which items take which layout.
+
+    The feedback directory counterpart of `resolve_bundle_dir` -- kept
     as an independent function (not derived from the bundle dir's parent)
     because a caller may need to resolve the feedback path before any
     bundle has ever been generated in the scoped layout."""
-    validate_work_item_id(work_item_id)
-    scoped = Path(".ai-review") / work_item_id / "feedback"
-    if (repo_root / scoped).is_dir():
-        return scoped
-    return Path(".ai-review/feedback")
+    layout = resolve_feedback_layout(repo_root, work_item_id)
+    if layout == FEEDBACK_LAYOUT_LEGACY_FLAT:
+        return FLAT_FEEDBACK_DIR
+    return Path(".ai-review") / work_item_id / "feedback"
+
+
+def ensure_feedback_dir(repo_root: Path, work_item_id: str) -> Path:
+    """Create `resolve_feedback_dir`'s resolved directory (and its
+    parents) and return it, repo-root-relative. Every feedback writer
+    calls this before writing: `/review-plan`, both `/review-implementation`
+    writers, `mark_functional_review_consumed` and
+    `/prepare-functional-review`. It creates only the *resolved* directory,
+    so a legacy-flat item is never flipped to the scoped layout by it."""
+    feedback_dir = resolve_feedback_dir(repo_root, work_item_id)
+    (Path(repo_root) / feedback_dir).mkdir(parents=True, exist_ok=True)
+    return feedback_dir
+
+
+def resolve_feedback_path_contract(repo_root: Path, work_item_id: str) -> dict:
+    """The machine-readable feedback-location contract for external
+    consumers (Controller or any other tool), printed as one JSON object
+    by `workflow_fingerprint.py --resolve-feedback-path <work-item-id>`.
+    Built from `resolve_feedback_layout`/`resolve_feedback_dir` alone --
+    there is no second implementation. Every path is POSIX,
+    repo-root-relative. Read-only: creates nothing."""
+    layout = resolve_feedback_layout(repo_root, work_item_id)
+    feedback_dir = resolve_feedback_dir(repo_root, work_item_id)
+    return {
+        "work_item_id": work_item_id,
+        "layout": layout,
+        "feedback_dir": feedback_dir.as_posix(),
+        "review_feedback_path": (feedback_dir / "REVIEW_FEEDBACK.md").as_posix(),
+        "functional_review_path": (feedback_dir / "FUNCTIONAL_REVIEW.md").as_posix(),
+    }
 
 
 def resolve_functional_review_consumed_marker_path(repo_root: Path, work_item_id: str) -> Path:
@@ -2035,11 +2178,10 @@ def mark_functional_review_consumed(repo_root: Path, work_item_id: str) -> None:
     `mark_identity_reference_gap_consumed`'s own "run once the work the
     marker describes has actually completed" discipline. Idempotent:
     writing the same content's hash twice is a no-op in effect."""
-    feedback_dir = resolve_feedback_dir(repo_root, work_item_id)
+    feedback_dir = ensure_feedback_dir(repo_root, work_item_id)
     review_rel = (feedback_dir / "FUNCTIONAL_REVIEW.md").as_posix()
     content_hash = _hash_object(repo_root, review_rel)
     marker_path = Path(repo_root) / resolve_functional_review_consumed_marker_path(repo_root, work_item_id)
-    marker_path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp_name = tempfile.mkstemp(dir=str(marker_path.parent), prefix=".functional-review-consumed-", suffix=".tmp")
     with os.fdopen(fd, "w") as handle:
         handle.write(content_hash + "\n")
@@ -2886,6 +3028,22 @@ def parse_review_feedback_binding_fields(content: str) -> dict[str, str | None]:
     }
 
 
+def assert_manual_feedback_names_work_item(content: str, *, work_item_id: str) -> None:
+    """`D-Feedback-Layout`'s manual-record binding: `/record-manual-plan-review`
+    and `/record-manual-implementation-review` refuse a pasted
+    `REVIEW_FEEDBACK.md` whose `Work item:` field is present and names a
+    different work item (`ManualFeedbackForeignWorkItemError`, naming
+    both). An absent field is not refused here -- a hand-pasted manual
+    verdict may omit it, and the hard `review_content_id` check those
+    commands already run still binds it."""
+    named = parse_review_feedback_binding_fields(content).get("work_item")
+    if named is not None and named != work_item_id:
+        raise ManualFeedbackForeignWorkItemError(
+            f"the pasted feedback names work item {named!r}, not {work_item_id!r} -- "
+            f"refusing to record another item's verdict"
+        )
+
+
 def assert_feedback_matches_bundle(
     feedback_fields: Mapping[str, str | None],
     *,
@@ -2918,7 +3076,7 @@ def assert_feedback_matches_bundle(
 
 
 def assert_feedback_not_owned_by_other_work_item(
-    existing_content: str | None, *, work_item_id: str,
+    existing_content: str | None, *, work_item_id: str, state: Mapping | None = None,
 ) -> None:
     """Refuse `/review-implementation`'s write when whatever content
     already sits at the resolved `<feedback_dir>/REVIEW_FEEDBACK.md` path
@@ -2938,11 +3096,30 @@ def assert_feedback_not_owned_by_other_work_item(
     matching how a same-work-item overwrite already behaves today via
     `/review-plan` step 8's guard-then-overwrite pattern. `resolve_feedback_dir`
     itself is never touched by this function or by any caller of it
-    (`LPR-R7-B01`)."""
+    (`LPR-R7-B01`).
+
+    `state` (`D-Feedback-Layout`, workflow-2.6.0): the parsed
+    `WORKFLOW_STATE.json`, optional. When supplied, a foreign owner whose
+    own entry sits at a phase in `FEEDBACK_OWNER_TERMINAL_PHASES` does not
+    block the write -- terminal state proves no consumer of that file
+    remains -- **but only for a legacy writer** (an entry without
+    `feedback_layout`, or no entry). A scoped writer's directory is
+    private by construction, so a foreign file inside it is never
+    relaxed. A non-terminal owner, or an owner absent from `state`, still
+    refuses. The relaxed write replaces the file whole with the writer's
+    own binding fields; it is never reinterpreted as the writer's."""
     if existing_content is None:
         return
     existing_work_item = parse_review_feedback_binding_fields(existing_content).get("work_item")
     if existing_work_item is not None and existing_work_item != work_item_id:
+        if state is not None:
+            work_items = state.get("work_items", {})
+            writer = work_items.get(work_item_id)
+            owner = work_items.get(existing_work_item)
+            writer_is_legacy = not (isinstance(writer, Mapping) and "feedback_layout" in writer)
+            if (writer_is_legacy and isinstance(owner, Mapping)
+                    and owner.get("phase") in FEEDBACK_OWNER_TERMINAL_PHASES):
+                return
         raise FeedbackOwnedByOtherWorkItemError(
             f"existing feedback at this path belongs to work item {existing_work_item!r}, "
             f"not {work_item_id!r} -- refusing to overwrite"
@@ -3789,6 +3966,16 @@ if __name__ == "__main__":
         default="plan",
         help="the bundle stage being finalized with --finalize-bundle (mirrors prepare-ai-review.sh's own $STAGE)",
     )
+    parser.add_argument(
+        "--resolve-feedback-path", metavar="WORK_ITEM_ID", default=None,
+        help=(
+            "D-Feedback-Layout's machine-readable contract: print one JSON "
+            "object {work_item_id, layout, feedback_dir, review_feedback_path, "
+            "functional_review_path} for WORK_ITEM_ID (repo-root-relative "
+            "POSIX paths; layout is scoped, legacy-scoped or legacy-flat) "
+            "and exit. Read-only: creates nothing."
+        ),
+    )
     args = parser.parse_args()
 
     repo_root = Path(
@@ -3797,6 +3984,10 @@ if __name__ == "__main__":
             check=True, capture_output=True, text=True,
         ).stdout.strip()
     )
+
+    if args.resolve_feedback_path is not None:
+        print(json.dumps(resolve_feedback_path_contract(repo_root, args.resolve_feedback_path), sort_keys=True))
+        raise SystemExit(0)
 
     if args.derive_plan_stage_document:
         if not args.work_item_id:

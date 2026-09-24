@@ -14745,5 +14745,64 @@ class GeneratedDeclarationsWorkflowManagerImplementationStageWideningTest(unitte
         )
 
 
+
+class TestFeedbackLayoutStamp(unittest.TestCase):
+    """`D-Feedback-Layout` (workflow-2.6.0, CP3; REQ-1): the durable
+    `feedback_layout: "scoped"` stamp is written only at creation --
+    `route_work_item`'s fresh-id branch and
+    `create_remediation_child_work_item` -- never on resume, never
+    back-filled; `validate_state` accepts the one known value and refuses
+    any other (INV-3). The resolver side is
+    `workflow_fingerprint_test.TestFeedbackLayout`."""
+
+    def _route(self, state, work_item_id, *, plan_revision=1, now="t1"):
+        return ws.route_work_item(
+            state, ws.default_config(), work_item_id=work_item_id, work_item_type="process",
+            work_item_kind="process", plan_path="p", registry_path="r",
+            plan_revision=plan_revision, now=now,
+        )
+
+    def test_fresh_item_is_stamped_scoped(self):
+        new_state = self._route(_base_state(), "milestone-9")
+        self.assertEqual(new_state["work_items"]["milestone-9"]["feedback_layout"], "scoped")
+        ws.validate_state(new_state)
+
+    def test_remediation_child_is_stamped_scoped(self):
+        state = _base_state(parent=_base_work_item(
+            work_item_id="parent", work_item_type="product", work_item_kind="product",
+        ))
+        new_state, child_id = ws.create_remediation_child_work_item(
+            state, ws.default_config(), parent_work_item_id="parent", plan_path="p",
+            registry_path="r", base_commit="feedcafe", now="t1",
+        )
+        self.assertEqual(new_state["work_items"][child_id]["feedback_layout"], "scoped")
+        self.assertNotIn("feedback_layout", new_state["work_items"]["parent"], "the parent is never back-filled")
+
+    def test_resume_never_stamps_a_legacy_item(self):
+        state = _base_state(wi=_base_work_item(governing_workflow_version="2.2"))
+        self.assertNotIn("feedback_layout", state["work_items"]["wi"])
+        resumed = self._route(state, "wi", plan_revision=2, now="t2")
+        self.assertNotIn("feedback_layout", resumed["work_items"]["wi"])
+
+    def test_resume_leaves_a_scoped_stamp_unchanged(self):
+        created = self._route(_base_state(), "milestone-9")
+        resumed = self._route(created, "milestone-9", plan_revision=2, now="t2")
+        self.assertEqual(resumed["work_items"]["milestone-9"]["feedback_layout"], "scoped")
+
+    def test_validate_state_accepts_absent_and_scoped(self):
+        state = _base_state(wi=_base_work_item())
+        ws.validate_state(state)  # absent: legacy
+        state["work_items"]["wi"]["feedback_layout"] = "scoped"
+        ws.validate_state(state)
+
+    def test_validate_state_refuses_an_unknown_layout(self):
+        for value in ("flat", "legacy-flat", "", None, 1, ["scoped"]):
+            with self.subTest(value=value):
+                state = _base_state(wi=_base_work_item())
+                state["work_items"]["wi"]["feedback_layout"] = value
+                with self.assertRaises(fingerprint.UnknownFeedbackLayoutError):
+                    ws.validate_state(state)
+
+
 if __name__ == "__main__":
     unittest.main()

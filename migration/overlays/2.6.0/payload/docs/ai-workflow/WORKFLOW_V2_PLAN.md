@@ -33312,6 +33312,84 @@ protected `scripts/`/`.claude/commands/` paths, moving its implementation
 digest independently of classification. That hazard is recorded in the
 `v2.4.0-001` defect record, not fixed here.
 
+### D-Feedback-Layout — one authoritative feedback resolver, scoped by construction for new work items (`workflow-2.6.0`)
+
+**Problem.** `resolve_feedback_dir` returned `.ai-review/<id>/feedback`
+only when that directory already existed, else the shared flat
+`.ai-review/feedback`. Nothing ever created the scoped directory (and
+hand-creating it mid-round was not an endorsed remedy, since it silently
+moves resolution), so in practice every work item shared the flat path.
+`assert_feedback_not_owned_by_other_work_item` never consulted state, so a
+`MILESTONE_COMPLETE` item's leftover `REVIEW_FEEDBACK.md` blocked every new
+item exactly like a live one's (`FeedbackOwnedByOtherWorkItemError`);
+the functional-review consumed marker was shared across items too; and
+`/record-manual-*-review` never checked `Work item:` at all. Controller
+had reimplemented the scoped-else-flat rule for itself.
+
+**Decision.**
+
+- **Durable stamp.** A new work-item field, `feedback_layout: "scoped"`,
+  written only at creation — `route_work_item`'s fresh-id branch and
+  `create_remediation_child_work_item`. Never written on resume, never
+  changed, never back-filled. Absent means legacy; any other present
+  value, `null` included, refuses (`UnknownFeedbackLayoutError`, from both
+  the resolver and `validate_state`).
+- **One resolver.** `resolve_feedback_dir(repo_root, work_item_id)` keeps
+  its signature, so every call site and every command's `<feedback_dir>`
+  prose stays valid. It reads the item's entry from the worktree's
+  `WORKFLOW_STATE.json`: a `"scoped"` item resolves
+  `.ai-review/<id>/feedback` unconditionally; an entry without the field,
+  no entry, or no state file keeps the unchanged legacy rule
+  (`resolve_feedback_layout` names the three layouts: `scoped`,
+  `legacy-scoped`, `legacy-flat`); a state file present but undecidable
+  (symlink, not JSON, non-object top level/`work_items`/entry) refuses
+  (`FeedbackLayoutUndecidableError`) and never falls back.
+- **Directory creation.** `ensure_feedback_dir` creates the resolved
+  directory; every writer calls it (`/review-plan`, both
+  `/review-implementation` writers, `/prepare-functional-review`,
+  `mark_functional_review_consumed`). It never flips a legacy flat item.
+- **External contract.** `workflow_fingerprint.py --resolve-feedback-path
+  <id>` prints `{work_item_id, layout, feedback_dir, review_feedback_path,
+  functional_review_path}` as one JSON object, from the same function, with
+  no second implementation — the supported way for Controller or any tool
+  to locate feedback (`REVIEW_PROTOCOL.md` "Feedback directory").
+- **Bounded guard relaxation.** `assert_feedback_not_owned_by_other_work_item`
+  gains an optional `state`. For a legacy writer, a foreign owner at a
+  terminal phase is non-blocking and its file is replaced whole — never
+  reinterpreted as the writer's. A non-terminal owner, an owner absent from
+  state, or any foreign file in a scoped writer's private directory still
+  refuses.
+- **Manual-record binding.** `/record-manual-plan-review` and
+  `/record-manual-implementation-review` refuse a pasted file whose
+  `Work item:` is present and names another item
+  (`assert_manual_feedback_names_work_item`); an absent field keeps
+  today's behavior, bound by the hard `review_content_id` check.
+
+**Why legacy items are not moved (INV-7).** Durable review facts
+(`plan_review_stages`, `implementation_review_stages`,
+`technical_review_block_pins`) store no feedback path or content hash, so
+changing an item's resolution can never corrupt a recorded verdict — but
+it can orphan an *unconsumed* file mid-round. The rule is therefore keyed
+on a fact recorded at the item's creation, never on file shape, file
+existence alone, or `governing_workflow_version` (`"2.2"` items already
+exist under `2.5.x`).
+
+**Downgrade evidence.** `2.5.1`'s `validate_state` has no work-item key
+allowlist: it accepts a `feedback_layout` key — any value — and ignores
+it; and because the stamp is written once at creation and never changes,
+it never appears in a committed field diff, so no committed-field set
+(`ORDINARY_`/`RECOVERED_BUNDLE_GENERATION_RECORD_FIELDS`,
+`TECHNICAL_APPROVAL_COMMIT_FIELDS`) sees it. A downgraded repository
+therefore does not fail: it silently resolves every scoped item's feedback
+by the legacy rule — the scoped path once `.ai-review/<id>/feedback/`
+happens to exist, the shared flat path before then. The downgrade posture
+is recorded with the `2.6.0` release.
+
+**Rejected alternatives.** Keying on the file's `Work item:` line (a
+hand-pasted manual verdict may omit it, and it decides ownership, not
+location); keying on `governing_workflow_version`; moving legacy items
+(orphans an unconsumed file mid-round).
+
 ## Preserved ownership (unchanged, extended)
 
 `CLAUDE.md`'s gate-count section points at `MILESTONE_WORKFLOW.md`;

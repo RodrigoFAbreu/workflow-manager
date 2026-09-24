@@ -28,9 +28,9 @@ resolved from the live `active_work_item_id` for that stage, since
 (`D-Fingerprint-Generalization`). It remains optional for every other
 stage (`implementation`/`post-fix`/`functional-review`): passing it writes
 the bundle under the per-work-item layout (`.ai-review/<work-item-id>/`,
-see below); omitting it writes the flat compatibility layout
-(`.ai-review/current/`, `.ai-review/feedback/`) directly under
-`.ai-review/`. For the `plan` stage, the script's own final step also
+see below); omitting it writes the flat compatibility bundle layout
+(`.ai-review/current/`) directly under `.ai-review/`. (Where feedback is
+placed never depends on this argument — see "Feedback directory" below.) For the `plan` stage, the script's own final step also
 writes `MANIFEST.md` (`scripts/workflow_fingerprint.py --write-manifest`,
 the same CLI entry point every other invocation uses, never a
 reimplementation) — no separate manual step is needed.
@@ -52,15 +52,87 @@ The canonical layout is per-work-item:
 ```
 
 For any work item that has never had this layout created yet, commands
-read the flat compatibility path instead: `.ai-review/current/` and
-`.ai-review/feedback/` directly under `.ai-review/` (no work-item
-subdirectory). The resolution rule (implemented in
-`scripts/workflow_fingerprint.py`'s `resolve_bundle_dir`/
-`resolve_feedback_dir`, not left to prose alone) is: prefer the scoped
+read the flat compatibility bundle path instead: `.ai-review/current/`
+directly under `.ai-review/` (no work-item subdirectory). The resolution
+rule (implemented in `scripts/workflow_fingerprint.py`'s
+`resolve_bundle_dir`, not left to prose alone) is: prefer the scoped
 layout once this work item is on it, else fall back to the flat path.
-`feedback/` is stage-agnostic and always follows this same
-scoped-else-flat rule, for every stage alike, keyed on
-`.ai-review/<work_item_id>/feedback/`'s own existence.
+
+#### Feedback directory (`D-Feedback-Layout`, workflow-2.6.0)
+
+`<feedback_dir>` — wherever any command, document or tool says it — is
+exactly what `workflow_fingerprint.resolve_feedback_dir(repo_root,
+work_item_id)` returns. That one function is the only resolver; nothing
+restates or reimplements it. It is stage-agnostic (no stage argument at
+any stage) and is keyed on a durable fact, the work item's own
+`feedback_layout` field in the worktree's
+`docs/ai-workflow/WORKFLOW_STATE.json`:
+
+- **`feedback_layout: "scoped"`** — written once, at creation, by
+  `route_work_item`'s fresh-id branch and
+  `create_remediation_child_work_item`, for every work item created under
+  `2.6.0` or later; never written on resume, never changed, never
+  back-filled. `<feedback_dir>` is `.ai-review/<work_item_id>/feedback/`
+  **by construction**: no existence gate, so two scoped items never share
+  a path and no other item's feedback file — completed or live — is ever
+  consulted.
+- **Legacy** — the entry has no `feedback_layout` field, there is no entry
+  (a `"1"`-governed item, which carries none by construction), or there is
+  no state file (a pre-activation repository). The unchanged pre-`2.6.0`
+  rule applies: `.ai-review/<work_item_id>/feedback/` if that directory
+  already exists, else the flat, shared `.ai-review/feedback/`. An active
+  legacy item therefore keeps finding its unconsumed flat file across the
+  update; it is never moved.
+- **Refused** — a state file that exists but is a symlink, is not JSON, or
+  whose top level, `work_items` or entry is not an object
+  (`FeedbackLayoutUndecidableError`); a `feedback_layout` value other than
+  `"scoped"`, `null` included (`UnknownFeedbackLayoutError`). Never a
+  fallback to the legacy rule.
+
+Every feedback **writer** creates the resolved directory first through
+`workflow_fingerprint.ensure_feedback_dir(repo_root, work_item_id)` —
+`/review-plan`, both `/review-implementation` writers,
+`/prepare-functional-review` and the functional-review consumed marker
+(`mark_functional_review_consumed`). It creates only the resolved
+directory, so it never flips a legacy flat item onto the scoped path. The
+functional-review consumed marker (`FUNCTIONAL_REVIEW.consumed`) lives in
+the same directory, so it is per item for scoped items. Commands that ask
+an operator to paste feedback (`/record-manual-plan-review`,
+`/record-manual-implementation-review`, and the gate reports) print the
+exact resolved path.
+
+**Supported contract for external tools.** Controller, or any other tool
+that needs to locate a work item's feedback, runs:
+
+```bash
+python3 scripts/workflow_fingerprint.py --resolve-feedback-path <work-item-id>
+```
+
+which prints one JSON object and writes nothing:
+
+```json
+{"feedback_dir": "...", "functional_review_path": "...", "layout": "scoped", "review_feedback_path": "...", "work_item_id": "..."}
+```
+
+`layout` is `"scoped"`, `"legacy-scoped"` or `"legacy-flat"`; every path is
+POSIX and repo-root-relative. It is built from `resolve_feedback_dir`
+itself — never a second implementation — and a tool must consume it rather
+than copy the scoped-else-flat rule, which is wrong for every scoped item.
+
+**Ownership guards.** A scoped item's directory is private, so its writers
+never meet another item's file. For a legacy item resolving flat,
+`assert_feedback_not_owned_by_other_work_item(existing, work_item_id=...,
+state=<parsed WORKFLOW_STATE.json>)` still refuses a file whose
+`Work item:` names another item — except that an owner whose own entry is
+at a terminal phase (`MILESTONE_COMPLETE`) is non-blocking, since terminal
+state proves no consumer remains. The new writer replaces that file whole,
+with its own binding fields; it is never reinterpreted as the writer's. A
+non-terminal owner, or an owner absent from state, still refuses, and a
+scoped writer is never relaxed. `/record-manual-plan-review` and
+`/record-manual-implementation-review` additionally refuse a pasted file
+whose `Work item:` is present and names another item
+(`assert_manual_feedback_names_work_item`); a file without that field is
+still bound by the hard `review_content_id` check.
 
 "Is on the scoped layout" is decided, for the **bundle** directory, from
 the work item's own root directory `.ai-review/<work_item_id>/` — never
@@ -86,7 +158,9 @@ flat fallback: the work-item-id argument is required (above), so
 flat `.ai-review/current/`/`.ai-review/review-bundle.tar.gz` were
 relocated to `.ai-review/workflow-v2-1-core/` as a one-time migration when
 this rule landed; `.ai-review/feedback/` was deliberately left flat (it is
-stage-agnostic and every non-plan stage's bundle is still flat too).
+stage-agnostic and every non-plan stage's bundle is still flat too). That
+still holds for legacy items; a scoped item's feedback is scoped by
+construction ("Feedback directory" above).
 
 That plan-stage rule is **an argument to the resolver, not prose a caller
 is trusted to remember**: a plan-stage caller passes
@@ -111,7 +185,8 @@ attempt then resolved). An unrecognized `stage` value raises
 `InvalidBundleStageError` rather than falling through to the
 compatibility branch, so a typo cannot silently reintroduce it.
 `<feedback_dir>` takes no stage argument at any stage;
-`resolve_feedback_dir` is deliberately untouched by this rule.
+`resolve_feedback_dir` is deliberately untouched by this rule (its own
+rule is "Feedback directory" above).
 
 The implementation/post-fix stages keep a **narrower** version of the same
 split, and it is accepted rather than closed (workflow system audit,
@@ -467,8 +542,11 @@ External plan/implementation feedback is placed at:
 <feedback_dir>/REVIEW_FEEDBACK.md
 ```
 
-(`.ai-review/<work_item_id>/feedback/`, or the flat compatibility
-`.ai-review/feedback/` — see "Bundle location" above.)
+(`.ai-review/<work_item_id>/feedback/` for every work item created under
+`2.6.0` or later; a legacy item may still resolve the flat compatibility
+`.ai-review/feedback/` — see "Feedback directory" above. Print the exact
+path with `python3 scripts/workflow_fingerprint.py --resolve-feedback-path
+<work-item-id>`.)
 
 Required structure:
 

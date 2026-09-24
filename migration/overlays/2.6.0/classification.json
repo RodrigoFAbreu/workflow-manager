@@ -9,31 +9,31 @@
     {
       "pattern": "^scripts/workflow_fingerprint\\.py$",
       "category": "distribution",
-      "rationale": "D-Tooling-Ambient-Classification (CP1): adds TOOLING_AMBIENT_EXCLUDED_PATHS = {.workflow-manager/installation.json}, an exact-path, release-derived terminal fallback that classify_path and classify_path_implementation_stage consult only after every declared classification has failed, immediately before the UnclassifiedPathError raise. The frozen declared-classification semantics are untouched: a declaration still decides first, the constant never enters a hashed classification set, and the path never existed in any Workflow payload or in the upstream repository the frozen classifier was written for -- so every digest 2.5.1 could compute is byte-identical and only a digest that raised because a committed workflow_manager update rewrote the installation record now returns (the legacy-item half of v2.4.0-001).",
+      "rationale": "D-Tooling-Ambient-Classification (CP1): adds TOOLING_AMBIENT_EXCLUDED_PATHS = {.workflow-manager/installation.json}, an exact-path, release-derived terminal fallback that classify_path and classify_path_implementation_stage consult only after every declared classification has failed, immediately before the UnclassifiedPathError raise. The frozen declared-classification semantics are untouched: a declaration still decides first, the constant never enters a hashed classification set, and the path never existed in any Workflow payload or in the upstream repository the frozen classifier was written for -- so every digest 2.5.1 could compute is byte-identical and only a digest that raised because a committed workflow_manager update rewrote the installation record now returns (the legacy-item half of v2.4.0-001). D-Feedback-Layout (CP3): resolve_feedback_dir becomes the one authoritative resolver keyed on the durable feedback_layout stamp -- \"scoped\" items resolve .ai-review/<id>/feedback by construction, items without the stamp (or without a state entry or state file) keep the unchanged scoped-else-flat rule, an undecidable state file or unknown value refuses (FeedbackLayoutUndecidableError/UnknownFeedbackLayoutError); adds resolve_feedback_layout, ensure_feedback_dir (called by mark_functional_review_consumed), resolve_feedback_path_contract and the --resolve-feedback-path CLI; assert_feedback_not_owned_by_other_work_item gains an optional state for the bounded terminal-owner relaxation (legacy writers only); adds assert_manual_feedback_names_work_item.",
       "expected_kind": "replaced"
     },
     {
       "pattern": "^scripts/workflow_fingerprint_test\\.py$",
       "category": "distribution",
-      "rationale": "D-Tooling-Ambient-Classification (CP1): adds TestToolingAmbientExcludedPaths -- fallback classification at both stages with a 2.5.1 control arm, explicit-protected precedence, sibling fail-closed paths, hashed-projection invariance, and digest invariance with the previously raising digests equal to their pre-update recorded values. Additive only: every pre-existing test is unmodified.",
+      "rationale": "D-Tooling-Ambient-Classification (CP1): adds TestToolingAmbientExcludedPaths -- fallback classification at both stages with a 2.5.1 control arm, explicit-protected precedence, sibling fail-closed paths, hashed-projection invariance, and digest invariance with the previously raising digests equal to their pre-update recorded values. Additive only: every pre-existing test is unmodified. D-Feedback-Layout (CP3): adds TestFeedbackLayout (scoped-by-construction resolution, ensure_feedback_dir, the unchanged legacy rule for a legacy entry/no entry/no state file, undecidable-state and unknown-value refusals, no cross-item collision, the terminal-owner relaxation and its bounds, the per-item consumed marker, CLI/function equality for all three layouts, and the manual-record Work item: refusal). TestBundleLayoutResolver, TestFunctionalReviewConsumedMarker and TestReviewImplementationWritebackCrossWorkItemIsolation are re-pointed by docstring to their legacy scope; no assertion is removed.",
       "expected_kind": "replaced"
     },
     {
       "pattern": "^scripts/workflow_state_test\\.py$",
       "category": "distribution",
-      "rationale": "D-Tooling-Ambient-Classification (CP1): adds TestImplementingEntryReachableAfterInstallationRecordUpdate -- a 2.3.1-shaped item stays implementing_entry_reachable after a committed installation-record change, with a 2.5.1 control arm that raises UnclassifiedPathError. Additive only: every pre-existing test is unmodified.",
+      "rationale": "D-Tooling-Ambient-Classification (CP1): adds TestImplementingEntryReachableAfterInstallationRecordUpdate -- a 2.3.1-shaped item stays implementing_entry_reachable after a committed installation-record change, with a 2.5.1 control arm that raises UnclassifiedPathError. Additive only: every pre-existing test is unmodified. D-Feedback-Layout (CP3): adds TestFeedbackLayoutStamp -- fresh items and remediation children are stamped \"scoped\", resume never stamps or changes the field, validate_state accepts absent/\"scoped\" and refuses any other value.",
       "expected_kind": "replaced"
     },
     {
       "pattern": "^docs/ai-workflow/REVIEW_PROTOCOL\\.md$",
       "category": "distribution",
-      "rationale": "D-Tooling-Ambient-Classification (CP1): the Computing review_content_id section gains the classification paragraph naming the one release-derived fallback, where it sits in the classification order, and what stays fail-closed. D-Plan-Amendment-5 revision (CP2): \"Bundle structure\" restates AMENDMENT_DIFF.patch to the working-tree anchor -- the base-plus-current-plus-declaration pathspec union, --no-renames, the provenance preamble, and its placement after MANIFEST.md -- and states it stays convenience only.",
+      "rationale": "D-Tooling-Ambient-Classification (CP1): the Computing review_content_id section gains the classification paragraph naming the one release-derived fallback, where it sits in the classification order, and what stays fail-closed. D-Plan-Amendment-5 revision (CP2): \"Bundle structure\" restates AMENDMENT_DIFF.patch to the working-tree anchor -- the base-plus-current-plus-declaration pathspec union, --no-renames, the provenance preamble, and its placement after MANIFEST.md -- and states it stays convenience only. D-Feedback-Layout (CP3): \"Bundle location\" gains the normative \"Feedback directory\" subsection -- the durable stamp, the scoped/legacy/refused resolution, ensure_feedback_dir, the --resolve-feedback-path contract for external tools, the bounded ownership-guard relaxation and the manual-record binding; the flat-fallback sentences are narrowed to the bundle directory and the Feedback protocol's location note is restated.",
       "expected_kind": "replaced"
     },
     {
       "pattern": "^docs/ai-workflow/WORKFLOW_V2_PLAN\\.md$",
       "category": "distribution",
-      "rationale": "D-Tooling-Ambient-Classification (CP1): new design section carrying the problem, the decision, its release-derived authority, the identity-stability argument, the fail-closed boundary, the justification relative to the frozen plan-stage classifier, and the rejected alternatives. D-Plan-Amendment-5 revision (CP2): the section's AMENDMENT_DIFF.patch paragraph gains a \"Working-tree anchor\" subsection -- why the ..HEAD form was always empty, the pathspec union and its reachable deletion/rename shapes, the provenance preamble, and consistency with the reviewed bytes.",
+      "rationale": "D-Tooling-Ambient-Classification (CP1): new design section carrying the problem, the decision, its release-derived authority, the identity-stability argument, the fail-closed boundary, the justification relative to the frozen plan-stage classifier, and the rejected alternatives. D-Plan-Amendment-5 revision (CP2): the section's AMENDMENT_DIFF.patch paragraph gains a \"Working-tree anchor\" subsection -- why the ..HEAD form was always empty, the pathspec union and its reachable deletion/rename shapes, the provenance preamble, and consistency with the reviewed bytes. D-Feedback-Layout (CP3): new design section -- problem, the stamp, the one resolver, directory creation, the external CLI contract, the bounded guard relaxation, manual-record binding, why legacy items are not moved, the mechanical downgrade evidence (2.5.1's validate_state ignores the key), and rejected alternatives.",
       "expected_kind": "replaced"
     },
     {
@@ -52,6 +52,114 @@
       "pattern": "^\\.claude/commands/request-plan-amendment\\.md$",
       "category": "distribution",
       "rationale": "D-Plan-Amendment-5 revision (CP2): step 4's note on AMENDMENT_DIFF.patch states the working-tree anchor, so the patch shows the still-uncommitted amended plan. The generator-mention wording workflow_integration_test.py's census pins (mention-only, no run/rerun invocation) is kept.",
+      "expected_kind": "replaced"
+    },
+    {
+      "pattern": "^scripts/workflow_state\\.py$",
+      "category": "distribution",
+      "rationale": "D-Feedback-Layout (CP3; first overlay replacement of workflow_state.py): route_work_item's fresh-id branch and create_remediation_child_work_item stamp feedback_layout: \"scoped\" at creation (never on resume, never back-filled), and _validate_work_item (validate_state) refuses any present feedback_layout value other than \"scoped\" with UnknownFeedbackLayoutError. Nothing else changes.",
+      "expected_kind": "replaced"
+    },
+    {
+      "pattern": "^scripts/workflow_acceptance_matrix_test\\.py$",
+      "category": "distribution",
+      "rationale": "D-Feedback-Layout (CP3): the feedback_dir() helper is re-pointed -- the matrix item is created through route_work_item, so it asserts the scoped layout and creates the directory through ensure_feedback_dir, the same call every production writer makes. No scenario changes.",
+      "expected_kind": "replaced"
+    },
+    {
+      "pattern": "^docs/ai-workflow/MILESTONE_WORKFLOW\\.md$",
+      "category": "distribution",
+      "rationale": "D-Feedback-Layout (CP3): every hard-coded .ai-review/feedback/ path (REVIEWING_PLAN exit, REVISING_PLAN entry, implementation-review allowed actions and exit, functional-review exit and entry, the optional-reviewer paragraph, Feedback file locations) becomes <feedback_dir>, with one normative definition under Feedback file locations pointing at REVIEW_PROTOCOL.md \"Feedback directory\".",
+      "expected_kind": "replaced"
+    },
+    {
+      "pattern": "^docs/ai-workflow/WORKFLOW_V2_1_OPERATOR_REFERENCE\\.md$",
+      "category": "distribution",
+      "rationale": "D-Feedback-Layout (CP3): the invariants list gains a Feedback location bullet (scoped-by-construction for new items, legacy resolution kept, the --resolve-feedback-path CLI).",
+      "expected_kind": "replaced"
+    },
+    {
+      "pattern": "^docs/ai-workflow/PLAN_REVIEW_WORKFLOW\\.md$",
+      "category": "distribution",
+      "rationale": "D-Feedback-Layout (CP3): a note after the normal-flow diagram states where REVIEW_FEEDBACK.md is pasted (<feedback_dir>) and how to print the exact path.",
+      "expected_kind": "replaced"
+    },
+    {
+      "pattern": "^docs/ai-workflow/IMPLEMENTATION_REVIEW_WORKFLOW\\.md$",
+      "category": "distribution",
+      "rationale": "D-Feedback-Layout (CP3): a note after the normal-flow diagram states where REVIEW_FEEDBACK.md is pasted (<feedback_dir>) and how to print the exact path.",
+      "expected_kind": "replaced"
+    },
+    {
+      "pattern": "^\\.claude/commands/review-plan\\.md$",
+      "category": "distribution",
+      "rationale": "D-Feedback-Layout (CP3): the <feedback_dir> preamble states the durable feedback_layout resolution (scoped by construction for a stamped item, the unchanged legacy rule otherwise, REVIEW_PROTOCOL.md normative); step 8's ownership guard passes state= (the bounded terminal-owner relaxation, legacy writers only) and calls ensure_feedback_dir before the write; step 9 prints the exact resolved paste path.",
+      "expected_kind": "replaced"
+    },
+    {
+      "pattern": "^\\.claude/commands/review-implementation\\.md$",
+      "category": "distribution",
+      "rationale": "D-Feedback-Layout (CP3): the <feedback_dir> preamble states the durable feedback_layout resolution (scoped by construction for a stamped item, the unchanged legacy rule otherwise, REVIEW_PROTOCOL.md normative); both writers' ownership guards pass state= and call ensure_feedback_dir before the write; the hand-created-scoped-directory recovery note is scoped to legacy items; A7 prints the exact resolved paste path.",
+      "expected_kind": "replaced"
+    },
+    {
+      "pattern": "^\\.claude/commands/record-manual-plan-review\\.md$",
+      "category": "distribution",
+      "rationale": "D-Feedback-Layout (CP3): the <feedback_dir> preamble states the durable feedback_layout resolution (scoped by construction for a stamped item, the unchanged legacy rule otherwise, REVIEW_PROTOCOL.md normative); step 4 prints the exact resolved paste path and refuses a foreign Work item: field (assert_manual_feedback_names_work_item) before any state write.",
+      "expected_kind": "replaced"
+    },
+    {
+      "pattern": "^\\.claude/commands/record-manual-implementation-review\\.md$",
+      "category": "distribution",
+      "rationale": "D-Feedback-Layout (CP3): the <feedback_dir> preamble states the durable feedback_layout resolution (scoped by construction for a stamped item, the unchanged legacy rule otherwise, REVIEW_PROTOCOL.md normative); step 4 prints the exact resolved paste path and refuses a foreign Work item: field (assert_manual_feedback_names_work_item) before any state write.",
+      "expected_kind": "replaced"
+    },
+    {
+      "pattern": "^\\.claude/commands/milestone-plan\\.md$",
+      "category": "distribution",
+      "rationale": "D-Feedback-Layout (CP3): the <feedback_dir> preamble states the durable feedback_layout resolution (scoped by construction for a stamped item, the unchanged legacy rule otherwise, REVIEW_PROTOCOL.md normative); step 7 prints the exact resolved feedback path.",
+      "expected_kind": "replaced"
+    },
+    {
+      "pattern": "^\\.claude/commands/apply-plan-review\\.md$",
+      "category": "distribution",
+      "rationale": "D-Feedback-Layout (CP3): the <feedback_dir> preamble states the durable feedback_layout resolution (scoped by construction for a stamped item, the unchanged legacy rule otherwise, REVIEW_PROTOCOL.md normative); step 1 prints the exact resolved path when REVIEW_FEEDBACK.md is absent.",
+      "expected_kind": "replaced"
+    },
+    {
+      "pattern": "^\\.claude/commands/apply-implementation-review\\.md$",
+      "category": "distribution",
+      "rationale": "D-Feedback-Layout (CP3): the <feedback_dir> preamble states the durable feedback_layout resolution (scoped by construction for a stamped item, the unchanged legacy rule otherwise, REVIEW_PROTOCOL.md normative); step 1 prints the exact resolved path when feedback is absent.",
+      "expected_kind": "replaced"
+    },
+    {
+      "pattern": "^\\.claude/commands/apply-functional-review\\.md$",
+      "category": "distribution",
+      "rationale": "D-Feedback-Layout (CP3): the <feedback_dir> preamble states the durable feedback_layout resolution (scoped by construction for a stamped item, the unchanged legacy rule otherwise, REVIEW_PROTOCOL.md normative); step 1 prints the exact resolved path when FUNCTIONAL_REVIEW.md is absent.",
+      "expected_kind": "replaced"
+    },
+    {
+      "pattern": "^\\.claude/commands/prepare-functional-review\\.md$",
+      "category": "distribution",
+      "rationale": "D-Feedback-Layout (CP3): the <feedback_dir> preamble states the durable feedback_layout resolution (scoped by construction for a stamped item, the unchanged legacy rule otherwise, REVIEW_PROTOCOL.md normative); step 4 calls ensure_feedback_dir and prints the exact resolved FUNCTIONAL_REVIEW.md path.",
+      "expected_kind": "replaced"
+    },
+    {
+      "pattern": "^\\.claude/commands/approve-review\\.md$",
+      "category": "distribution",
+      "rationale": "D-Feedback-Layout (CP3): the <feedback_dir> preamble states the durable feedback_layout resolution (scoped by construction for a stamped item, the unchanged legacy rule otherwise, REVIEW_PROTOCOL.md normative); preamble only.",
+      "expected_kind": "replaced"
+    },
+    {
+      "pattern": "^\\.claude/commands/review-functional\\.md$",
+      "category": "distribution",
+      "rationale": "D-Feedback-Layout (CP3): the <feedback_dir> preamble states the durable feedback_layout resolution (scoped by construction for a stamped item, the unchanged legacy rule otherwise, REVIEW_PROTOCOL.md normative); preamble only.",
+      "expected_kind": "replaced"
+    },
+    {
+      "pattern": "^scripts/workflow_integration_test\\.py$",
+      "category": "distribution",
+      "rationale": "D-Feedback-Layout (CP3): the ten command-file content hashes CP3 changes are updated, each with an intentional-content-change comment, and TestReviewPlanStep8OwnershipGuardIsPresent's guard-call pin is re-pointed to require state=. No pin is deleted; the v1 golden hashes are unchanged.",
       "expected_kind": "replaced"
     }
   ]
