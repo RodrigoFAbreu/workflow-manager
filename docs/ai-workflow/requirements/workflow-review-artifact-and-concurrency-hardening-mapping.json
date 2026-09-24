@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "work_item_id": "workflow-review-artifact-and-concurrency-hardening",
+  "requirements": {
+    "REQ-1": {
+      "description": "Every work item created under 2.6.0 resolves its current REVIEW_FEEDBACK.md (and functional-review files/markers) at .ai-review/<work-item-id>/feedback/ by construction; unrelated work items can never block one another through a shared feedback file.",
+      "checkpoint_ids": [
+        "CP3",
+        "CP8"
+      ]
+    },
+    "REQ-2": {
+      "description": "One authoritative feedback resolver (plus a machine-readable CLI contract for external consumers such as Controller) is used by every review/apply/manual-record/approve/functional-review path; legacy work items (no durable layout stamp) keep their existing scoped-else-flat resolution; completed legacy feedback never blocks a new work item and never is reinterpreted as another item's.",
+      "checkpoint_ids": [
+        "CP3",
+        "CP8"
+      ]
+    },
+    "REQ-3": {
+      "description": "An active work item whose artifact declarations predate the .workflow-manager/ fix no longer fails with UnclassifiedPathError when a workflow_manager update commits .workflow-manager/installation.json into its interval; the compatibility is release-derived, exact-path, fallback-only, never overrides a declared classification, moves no existing review_content_id, and every other unclassified path still fails closed.",
+      "checkpoint_ids": [
+        "CP1",
+        "CP8"
+      ]
+    },
+    "REQ-4": {
+      "description": "Durable state never advertises a plan revision as review-ready (AWAITING_LOCAL_PLAN_REVIEW) unless a finalized bundle bound to that work item, plan_revision and review_content_id exists; a failed or interrupted generation leaves a non-ready phase, and retry converges without a second revision advance or stale bundle identity.",
+      "checkpoint_ids": [
+        "CP4",
+        "CP8"
+      ]
+    },
+    "REQ-5": {
+      "description": "The plan-approval commit contains every declared plan-stage protected path contributing to the approved review identity (including newly introduced, dropped and renamed protected files), proven against the approved review_content_id before the commit exists; the recomputed post-commit identity equals the approved identity.",
+      "checkpoint_ids": [
+        "CP5",
+        "CP8"
+      ]
+    },
+    "REQ-6": {
+      "description": "Post-commit plan-approval verification and recovery derive truth only from the committed transaction (commit tree, committed WORKFLOW_STATE.json, journal), never from pre-commit in-memory or worktree state; a missing record raises a named error, never TypeError; recovery never creates or amends a second approval commit on a record/input error.",
+      "checkpoint_ids": [
+        "CP5",
+        "CP8"
+      ]
+    },
+    "REQ-7": {
+      "description": "Checkpoint claims and plan-amendment claims cannot both become valid concurrently across linked worktrees once every registered worktree's branch has merged the 2.6.0 update: a repository-global lifecycle lock serializes them and a repository-global amendment witness makes a foreign worktree's open or resolved amendment visible, failing closed on stale local state, with deterministic crash recovery and no new lock-order cycle (item 372(h) census updated). Before that merge, a worktree still running an older release is detected on every lock acquisition, and an unresolved amendment in it that the witness does not record is refused (the qualified, documented mixed-release posture); at most one materially distinct resolution of an amendment sequence becomes repository-valid: it is reserved repository-globally before any approval commit exists, recorded by a resolution digest separate from the request digest, never overwritten or reinterpreted, and a divergent resolution is refused at every predicate and at upgrade bootstrap rather than collapsed.",
+      "checkpoint_ids": [
+        "CP6",
+        "CP8"
+      ]
+    },
+    "REQ-8": {
+      "description": "AMENDMENT_DIFF.patch reflects the exact uncommitted amendment content under review (working-tree anchored against amendment_base_commit, protected plan-stage paths only), is identical in the manual-external archive, and remains outside bundle_id/review_content_id.",
+      "checkpoint_ids": [
+        "CP2",
+        "CP8"
+      ]
+    },
+    "REQ-9": {
+      "description": "The fixes for v2.3.1-001, v2.3.1-002 and v2.3.1-003 remain regression-protected in the new release (portable host-history test, first-class plan-amendment edge, first plan approval without WORKFLOW_STATE.json at HEAD).",
+      "checkpoint_ids": [
+        "CP8",
+        "CP9"
+      ]
+    },
+    "REQ-10": {
+      "description": "Workflow 2.6.0 ships as an authored release composed from the unchanged 2.5.1 base plus migration/overlays/2.6.0/, reproducible by tools/build_release.py --check; every earlier distribution/workflow/<version>/ stays byte-identical; normative docs, defect records, MIGRATION.md, README Status row and the CLAUDE.md downgrade posture state the new semantics.",
+      "checkpoint_ids": [
+        "CP7",
+        "CP9"
+      ]
+    },
+    "REQ-11": {
+      "description": "Updating a repository from installed Workflow 2.5.1 to 2.6.0 preserves active legacy work items (in plan review, implementing, and amending) without rewriting their state, and each continues through its next gate under the documented compatibility semantics.",
+      "checkpoint_ids": [
+        "CP8"
+      ]
+    }
+  }
+}

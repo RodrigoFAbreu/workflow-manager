@@ -1,0 +1,85 @@
+{
+  "schema_version": 1,
+  "work_item_id": "workflow-review-artifact-and-concurrency-hardening",
+  "plan_revision": 8,
+  "checkpoints": [
+    {
+      "id": "CP1",
+      "name": "Release-derived exact-path classification of the legacy .workflow-manager/installation.json record",
+      "depends_on": [],
+      "complexity": 2,
+      "session_target": 1
+    },
+    {
+      "id": "CP2",
+      "name": "Anchor AMENDMENT_DIFF.patch at the working tree and restate its documentation",
+      "depends_on": [],
+      "complexity": 1,
+      "session_target": 1
+    },
+    {
+      "id": "CP3",
+      "name": "Per-work-item feedback layout: one authoritative resolver, scoped-by-construction for new items, explicit legacy rule",
+      "depends_on": [
+        "CP1"
+      ],
+      "complexity": 3,
+      "session_target": 1
+    },
+    {
+      "id": "CP4",
+      "name": "Bundle-bound plan-review publication: split revision mirror from review-ready phase, recoverable generation",
+      "depends_on": [
+        "CP2",
+        "CP3"
+      ],
+      "complexity": 4,
+      "session_target": 1
+    },
+    {
+      "id": "CP5",
+      "name": "Plan-approval commit closure over the declared protected set and committed-truth post-commit verification",
+      "depends_on": [
+        "CP4"
+      ],
+      "complexity": 4,
+      "session_target": 1
+    },
+    {
+      "id": "CP6",
+      "name": "Repository-global lifecycle lock and amendment witness closing v2.4.0-002",
+      "depends_on": [
+        "CP5"
+      ],
+      "complexity": 5,
+      "session_target": 2
+    },
+    {
+      "id": "CP7",
+      "name": "Compose the 2.6.0 release; release docs, defect dispositions and downgrade posture",
+      "depends_on": [
+        "CP6"
+      ],
+      "complexity": 3,
+      "session_target": 1
+    },
+    {
+      "id": "CP8",
+      "name": "Disposable-repository and linked-worktree acceptance suite, including update from installed 2.5.1",
+      "depends_on": [
+        "CP7"
+      ],
+      "complexity": 4,
+      "session_target": 1
+    },
+    {
+      "id": "CP9",
+      "name": "Full regression, release parity and closed-defect regression verification",
+      "depends_on": [
+        "CP8"
+      ],
+      "complexity": 1,
+      "session_target": 1
+    }
+  ]
+}
