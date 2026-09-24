@@ -248,6 +248,23 @@ actually load-bearing control for the Skill exposure path, not mechanism
    `workflow_fingerprint.assert_bundle_not_rejected(repo_root,
    work_item_id)` here; a `BundleRejectedError` stops the command, naming
    the marker path and its recorded detail.
+   **Plan stage, `TWO_STAGE_PLAN_REVIEW_VERSIONS` items only — bundle-bound
+   check** (`D-Plan-Review-Bundle-Binding`, workflow-2.6.0, section 5.3
+   item 4): call `workflow_state.assert_plan_review_bundle_bound(repo_root,
+   work_item_id)`, which re-runs the plan bundle verifier and requires a
+   `BOUND` `plan_review_binding` record for exactly the bundle's
+   `review_content_id` (a `2.5.1` item at `AWAITING_PLAN_APPROVAL` with no
+   record is accepted when its bundle verifies; nothing is written).
+   Report its returned advisory, if any: a `bundle_id` differing from
+   `current_bundle_id` -- a wrapper-only regeneration after the bind -- is
+   advisory only and never blocks the approval. On a refusal, stop and
+   report the error's message, which names the remedy:
+   `ReviewedContentDriftError` (row 4a: restore the bound bytes from
+   `<bundle_dir>/files/<path>`, or withdraw with `/milestone-plan <id>`),
+   `PlanReviewBundleUnverifiedError` (rows 4b/4c: regenerate, or
+   withdraw), `PlanReviewBindingInconsistentError` (row 4d: withdraw with
+   `/milestone-plan <id>`). A `"1"` item and the implementation stage are
+   unchanged.
 3. **Resolve the basis**: call `workflow_state.resolve_approval_basis(...)`
    with the feedback round's status/bundle_id, the freshly recomputed
    current bundle_id, this turn's literal `user_confirmation` text (if the

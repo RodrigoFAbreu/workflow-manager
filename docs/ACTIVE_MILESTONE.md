@@ -20,8 +20,8 @@ process. See the plan's section 2 for non-goals.
 
 ## Current checkpoint
 
-**CP3 complete** (3 of 9 checkpoints). Next: CP4 (depends on CP2, CP3) —
-bundle-bound plan-review publication.
+**CP4 complete** (4 of 9 checkpoints). Next: CP5 (depends on CP4) —
+plan-approval commit closure and committed-truth post-commit verification.
 
 ### CP1 — Release-derived exact-path classification of the legacy installation record
 
@@ -240,6 +240,161 @@ payload plus this overlay (committed there as one scratch commit):
   test, to the pure `2.5.1` payload's (these read real repository history).
 - `workflow_fingerprint.py --resolve-feedback-path` smoke run: one JSON
   object, `legacy-flat` with no state file.
+- Every overlay payload file is matched by a `classification.json` rule.
+- `python3 tests/run_all.py --fast`: all green.
+- INV-9: `git diff b2060bf -- distribution/workflow/` is empty.
+
+### CP4 — Bundle-bound plan-review publication
+
+Implements the plan's section 5.3, `D-Plan-Review-Bundle-Binding` (revises
+`D-Plan-Revision-Publication`; requirement `REQ-4`). Delivered in
+`migration/overlays/2.6.0/`. `"1"`-governed behavior is unchanged
+throughout.
+
+**Mechanical enumeration (section 5.3 item 1), recorded before the edits:**
+
+- *`workflow_state.py` predicates reading a plan-stage phase:*
+  - `validate_local_plan_review_preconditions` (`== AWAITING_LOCAL_PLAN_REVIEW`)
+    and `validate_manual_plan_review_preconditions`
+    (`== AWAITING_MANUAL_EXTERNAL_PLAN_REVIEW`) are unaffected: only
+    stronger, because the bind is now the sole writer of the first.
+  - `record_local_plan_review`/`record_manual_plan_review` gain the
+    `CONSUMED` write on `REVISE`.
+  - `request_plan_amendment` (`_AMENDMENT_REQUEST_ALLOWED_PHASES`) gains
+    the `CONSUMED` write.
+  - `apply_plan_approval` has no phase precondition; `/approve-review plan`
+    step 2's reader now gates it.
+  - `BUNDLE_GENERATION_LEGAL_SOURCE_PHASES`/`CHECKPOINT_START_LEGAL_PHASES`
+    contain no plan-stage phase: unaffected.
+  - No predicate treated `AMENDING_PLAN` as "not yet under review"; the
+    generator has no phase check (the bind decides).
+- *Commands reading the post-publication phase:* `/review-plan`,
+  `/record-manual-plan-review`, `/approve-review plan` step 2 (now the
+  readers), `/milestone-plan` and `/apply-plan-review` (new entry),
+  `/apply-functional-review` (remediation child), `/request-plan-amendment`
+  (next step). `/milestone-implement` checks `IMPLEMENTING` only:
+  unaffected.
+- *Writers attempted at a ready phase and their decided behavior:*
+  - `route_work_item` and `publish_plan_revision` refuse with
+    `PlanReviewInProgressError`.
+  - The generator is a wrapper-only regeneration that binds nothing.
+  - `bind_plan_review_bundle` is idempotent at local review and refuses
+    with `PlanReviewAlreadyReadyError` elsewhere.
+  - `withdraw_plan_review` is the exit.
+- *`route_work_item` resume callers:* only `/milestone-plan` step 1, reached
+  at `PLANNING`/`REVISING_PLAN`/`AMENDING_PLAN` after the entry's
+  withdrawal. The remediation child's re-declaration runs at `PLANNING`.
+- *Protected edits before the publish, per command:*
+  - `/milestone-plan`: steps 3-5 edit, and the publish sits at the new
+    step-5 publication point.
+  - `/apply-plan-review`: steps 3-5 edit, and the publish is in step 5
+    after the regeneration, re-embed and staging. Its later steps write
+    only `plan-inputs/`.
+- *Exits between publish and bind:* only the generator-failure exits (each
+  reporting the explicit-id re-run, row 9) and a bind refusal (same
+  report). `apply-plan-review.md` step 6 is `"1"`-only, and 7'.2's second
+  generation is removed.
+
+**Delivered:**
+
+- `payload/scripts/workflow_state.py`:
+  - The publication split:
+    - mirror-only `publish_plan_revision` with a required
+      `review_content_id` and the `PUBLISHED` record;
+    - the plan-stage allow-list on it and on `route_work_item`'s resume
+      branch.
+  - The `plan_review_binding` record (`CONSUMED`/`PUBLISHED`/`BOUND`) and
+    its `validate_state` INV-3 check.
+  - `CONSUMED` writes in both `REVISE` writers and
+    `request_plan_amendment`, plus `ensure_plan_review_binding_marker`
+    (the INV-7 legacy marker).
+  - `bind_plan_review_bundle` and `withdraw_plan_review`.
+  - `verify_plan_review_bundle`, with the cause-named
+    `PlanReviewBundleUnverifiedError`/`ReviewedContentDriftError`.
+  - `plan_review_publication_status` (the total table) and its read-only
+    `--plan-review-publication-status` CLI.
+  - The readers `assert_plan_review_bundle_bound`/
+    `validate_local_plan_review_preconditions_bound`.
+  - `assert_plan_review_entry_phase`, `assert_plan_review_withdrawal_allowed`
+    and `assert_apply_plan_review_feedback`.
+  - 15 named errors.
+  - `transition_to_awaiting_local_plan_review` is retired: it always
+    raises `PlanReviewWriterRetiredError`.
+- `payload/scripts/workflow_fingerprint.py` and `prepare-ai-review.sh`:
+  - Plan-stage-only staging generation: the plan stage builds in
+    `current.staging-<token>/current/` with `.pin.staging-<token>/`, and
+    the archive and `AMENDMENT_DIFF.patch` are staged too.
+  - Author inputs come from `plan-inputs/`
+    (`resolve_plan_review_inputs_dir`, `seed_plan_review_inputs`).
+  - `finalize_staged_plan_bundle_generation`:
+    - on success it promotes everything and clears `REJECTED`;
+    - on failure it discards the staging area, with no withdrawal and no
+      marker.
+    - This is the deliberate `WFR-67` revision.
+  - Implementation/post-fix keep the in-place path; its checks were
+    factored unchanged into `_closing_bundle_generation_check`.
+  - **Implementation detail, not in the plan text:** the staging area
+    holds its bundle in a `current/` child so that item 341's archive
+    guard (the positional argument is the bare literal `current`) holds
+    unchanged.
+- Commands and normative docs:
+  - `milestone-plan`: the entry (row 1, withdrawal, marker, status), step 3
+    without its publish, the step-5 publication point, and step 6's bind.
+  - `apply-plan-review`: the entry, step 1's `REVISE`-only rule, step 5's
+    publish on every round, step 6 as `"1"`-only, and step 7' as
+    verify-plus-bind.
+  - `review-plan`, `record-manual-plan-review`, `approve-review` (step 2),
+    `apply-functional-review` and `request-plan-amendment`.
+  - `REVIEW_PROTOCOL.md` (`<plan_inputs_dir>`, staging, the `WFR-67`
+    revision stated as deliberate), `WORKFLOW_V2_PLAN.md` (revised
+    `D-Plan-Revision-Publication`, new `D-Plan-Review-Bundle-Binding`),
+    `MILESTONE_WORKFLOW.md`, `PLAN_REVIEW_WORKFLOW.md` and the operator
+    reference.
+  - `/milestone-plan`'s publication point is a `[2.1]` bullet closing
+    step 5 rather than a new numbered step, because a golden test
+    hash-pins steps 1-5 with the `[2.1]` bullets stripped.
+- Tests:
+  - New unit classes in `workflow_state_test.py` (37 tests).
+  - `TestPrepareAiReviewShPlanStageStaging` in
+    `workflow_fingerprint_generalization_test.py` (8).
+  - 13 real-repository scenario classes in
+    `workflow_acceptance_matrix_test.py` (85), covering every CP4 test
+    bullet.
+- **Pre-existing tests re-pointed, none deleted:**
+  - Publish phase-flip pins, the retired transition, `route_work_item`
+    resume fixtures (moved to a plan-stage phase), and both phase-writer
+    censuses.
+  - The acceptance driver now follows 2.6.0's command order: stage,
+    publish the fresh id, `plan-inputs/`, generate, verify and bind.
+    Every plan document gains checkpoint anchors.
+  - Rows B13, B14 and F4 re-planned mid-implementation through 2.5.1's
+    in-place re-publish, which 2.6.0 deliberately refuses. They now go
+    through `/request-plan-amendment`. B14 reaches the B8 wedge via an
+    amendment from `SELF_REVIEWING_IMPLEMENTATION`, since no plan
+    re-entry exists from `AWAITING_FUNCTIONAL_REVIEW`.
+  - The six restated command files' golden hashes are re-recorded.
+- **Recorded edge, for review:** at a ready phase, deleting the plan
+  document, registry or mapping refuses at the readers and the status
+  function with the named `InvalidPlanStageMetadataPathError`, not row 4a.
+  The plan's own section 5.3 item 6 limits `F = ⊥` to
+  `AbsentProtectedPathError`/`PlanRevisionMismatchError`, "any other
+  failure refuses (INV-3)". The withdrawal exit still works (pinned by
+  `test_deleted_metadata_path_is_a_named_refusal_and_withdrawal_still_exits`).
+- `classification.json`: CP4 rationales on every touched rule. The test
+  rules state that pre-existing tests were re-pointed.
+
+**Verified state.** Run in a temporary tree composed from the `2.5.1`
+payload plus this overlay:
+
+- `workflow_fingerprint_test` + `workflow_fingerprint_generalization_test`:
+  342 tests, OK.
+- `workflow_acceptance_matrix_test`: 231 tests, OK (18 skipped).
+- `workflow_state_test`: 897 tests, 2 errors. These are the same two
+  `TestCanonicalStateSerialization` live-state errors as CP2/CP3.
+- `workflow_integration_test`: 260 tests, 3 errors. These are the same
+  three `TestRetiredScopedRemediationLeavesNoLiveSurface` errors.
+- Demo/harness/obligations suites: 40 failing, identical test for test to
+  the pure `2.5.1` payload.
 - Every overlay payload file is matched by a `classification.json` rule.
 - `python3 tests/run_all.py --fast`: all green.
 - INV-9: `git diff b2060bf -- distribution/workflow/` is empty.

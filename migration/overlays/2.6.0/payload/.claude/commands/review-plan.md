@@ -80,6 +80,23 @@ normative definition.
    `workflow_fingerprint.assert_bundle_not_rejected(repo_root,
    work_item_id)` here; a `BundleRejectedError` stops the command, naming
    the marker path and its recorded detail.
+   **Bundle-bound check** (`D-Plan-Review-Bundle-Binding`, workflow-2.6.0,
+   section 5.3 item 4): call
+   `workflow_state.validate_local_plan_review_preconditions_bound(repo_root,
+   work_item)` -- steps 2-3's version and phase guards, then
+   `assert_plan_review_bundle_bound`, which re-runs the bundle verifier and
+   requires a `BOUND` `plan_review_binding` record for exactly the
+   bundle's `review_content_id` (a `2.5.1` item at this phase with no
+   record is accepted when its bundle verifies; nothing is written). Report
+   its returned advisory, if any -- a `bundle_id` differing from
+   `current_bundle_id` (a wrapper-only regeneration after the bind) never
+   blocks. On a refusal, stop and report the error's message, which names
+   the remedy: `ReviewedContentDriftError` (row 4a: the worktree drifted
+   from the bound content -- restore the bound bytes from
+   `<bundle_dir>/files/<path>`, or withdraw with `/milestone-plan <id>`),
+   `PlanReviewBundleUnverifiedError` (rows 4b/4c: regenerate, or
+   withdraw), `PlanReviewBindingInconsistentError` (row 4d: withdraw with
+   `/milestone-plan <id>`).
 6. **Independently verify** every finding the plan document claims as
    addressed against the actual repository state — never take the
    disposition table's word for it — and search for new findings, exactly
@@ -138,7 +155,10 @@ normative definition.
      `WORKFLOW_STATE.json`.
    - `REVISE`: `REVIEW_FEEDBACK.md`, plus the phase transition to
      `REVISING_PLAN` (`record_local_plan_review(..., verdict="REVISE", ...)`
-     — no ledger entry).
+     — no ledger entry) and, in the same write, the `CONSUMED`
+     `plan_review_binding` record for this `review_content_id`
+     (workflow-2.6.0, `D-Plan-Review-Bundle-Binding`), so the reviewed
+     content can never re-bind without an edit.
    - `BLOCK`: `REVIEW_FEEDBACK.md` only — `record_local_plan_review(...,
      verdict="BLOCK", ...)` is a true no-op; the work item stays at
      `AWAITING_LOCAL_PLAN_REVIEW`.
@@ -155,6 +175,9 @@ normative definition.
    work_item_id)` (`D-Feedback-Layout`, workflow-2.6.0), never a hard-coded
    flat path. For a `REVISE`: state that `/apply-plan-review` is
    next. For a `BLOCK`: state that explicit user resolution is required
-   before any further command runs. **Never** auto-continue to
+   before any further command runs -- then either re-review the unchanged
+   content, or edit the plan and withdraw it with `/milestone-plan
+   <work_item_id>`; `/apply-plan-review` never applies a plan-stage
+   `BLOCK` (workflow-2.6.0). **Never** auto-continue to
    `/apply-plan-review` or to the manual-external stage in this same
    invocation.

@@ -38,7 +38,11 @@ reimplementation) — no separate manual step is needed.
 The script is deterministic and safe to rerun: it always regenerates the
 git-derived files from current repository state, and leaves author-written
 files untouched if they already exist (it only creates empty stubs for
-missing ones, so the bundle structure stays stable at every stage).
+missing ones, so the bundle structure stays stable at every stage). At the
+`plan` stage (workflow-2.6.0) the author-written files are read from
+`<plan_inputs_dir>` instead and the bundle is assembled in a staging
+directory — see "Plan-stage staging generation and `<plan_inputs_dir>`"
+below.
 
 ### Bundle location: `.ai-review/<work_item_id>/` layout, with a compatibility fallback
 
@@ -48,6 +52,7 @@ The canonical layout is per-work-item:
 .ai-review/<work_item_id>/
 ├── current/            # the bundle currently under review (see structure below)
 ├── feedback/            # external feedback, placed here by the reviewer/user
+├── plan-inputs/         # plan stage only (workflow-2.6.0): the author-written inputs, <plan_inputs_dir>
 └── review-bundle.tar.gz # archive of current/
 ```
 
@@ -133,6 +138,62 @@ scoped writer is never relaxed. `/record-manual-plan-review` and
 whose `Work item:` is present and names another item
 (`assert_manual_feedback_names_work_item`); a file without that field is
 still bound by the hard `review_content_id` check.
+
+#### Plan-stage staging generation and `<plan_inputs_dir>` (`D-Plan-Review-Bundle-Binding`, workflow-2.6.0)
+
+`<plan_inputs_dir>` — wherever any command or document says it — is exactly
+what `workflow_fingerprint.resolve_plan_review_inputs_dir(repo_root,
+work_item_id)` returns: `.ai-review/<work_item_id>/plan-inputs/`, a sibling
+of `current/`. At the `plan` stage the four author-written files
+(`REVIEW_REQUEST.md`, `TEST_RESULTS.md`, `CONTEXT_FILES.txt`,
+`IMPLEMENTATION_SUMMARY.md`) are written there, never into `<bundle_dir>`.
+`/milestone-plan` step 6 and `/apply-plan-review` step 5 name it.
+
+`scripts/prepare-ai-review.sh`'s plan stage assembles the bundle in
+`.ai-review/<work_item_id>/current.staging-<token>/current/`, captures the
+plan-stage pin into a sibling `.ai-review/<work_item_id>/.pin.staging-<token>/`,
+and writes a staging archive (and, for an open amendment, a staging
+`AMENDMENT_DIFF.patch`). It copies each author file byte-for-byte from
+`<plan_inputs_dir>` into the staging bundle; a file missing there is seeded
+from `current/<file>` if that exists (read-only — the migration path for an
+author who has not yet moved), else stubbed empty as before. Every closing
+check, including `assert_review_request_states_review_content_id` and
+`assert_test_results_consistent_with_plan_review_request`, reads the staging
+copy. The copy is byte-exact, so `bundle_id` is computed over exactly the
+bytes an in-place generation would have hashed. Only once
+`finalize_staged_plan_bundle_generation`'s closing checks (the same checks
+`finalize_bundle_generation` runs in place) succeed are the pin, `current/`, the archive
+and `AMENDMENT_DIFF.patch` renamed into place, and any `REJECTED` marker
+cleared. So, in the real command order (refresh the inputs, then
+generate), nothing writes `current/` until that final rename.
+
+**Revised `WFR-67` semantics at the plan stage — a deliberate revision**
+(`LPR-R3-002`; `WORKFLOW_V2_PLAN.md`'s `D-Plan-Review-Bundle-Binding`).
+`WFR-67` requires that a failed closing binding assertion leave no
+review-ready artifact. A failed plan-stage generation's artifacts exist
+only in the staging directory, the staging pin and the staging archive, and
+the failure path removes exactly those: it **does not** call
+`withdraw_bundle` on `current/` and **writes no `REJECTED` marker**. The
+previous `current/`, its archive and `.pin` are left byte-identical. That
+previous bundle is review-ready only for its own content, and only while it
+is still the one the work item's `plan_review_binding` record says is
+`BOUND` — which every plan-stage reader checks by `review_content_id`
+(`assert_plan_review_bundle_bound`) — so a failed generation never makes
+the readers refuse a still-bound previous bundle, and never lets them
+accept unpublished content. A `REJECTED` marker written by `2.5.1`, or by
+an implementation-stage withdrawal, keeps its existing meaning:
+`assert_bundle_not_rejected` still refuses while it exists, and the next
+successful generation clears it. The pair of final renames is not atomic:
+a crash between them leaves a `current/` whose manifest, directory and
+archive disagree, which the bind verifier (`verify_plan_review_bundle`)
+refuses with `PlanReviewBundleUnverifiedError` — regenerate. Leftover
+`current.staging-*`/`.pin.staging-*` directories are read by nothing and
+removed by the next generation.
+
+**Stage scope.** The `implementation` and `post-fix` stages are unchanged:
+in-place generation, in-place author files under `<bundle_dir>`, and
+`withdraw_bundle` (quarantine plus a `REJECTED` marker) on a failed closing
+assertion, exactly as before.
 
 "Is on the scoped layout" is decided, for the **bundle** directory, from
 the work item's own root directory `.ai-review/<work_item_id>/` — never
@@ -225,6 +286,12 @@ under `.ai-review/source/`; `scripts/prepare-ai-review.sh` skips (and
 warns on) any such entry as defense in depth.
 
 ### Bundle structure
+
+At the `plan` stage this tree is first assembled under
+`.ai-review/<work_item_id>/current.staging-<token>/current/` and renamed onto
+`current/` only after a successful generation ("Plan-stage staging
+generation" above); its author-written files are byte-exact copies of
+`<plan_inputs_dir>`'s.
 
 ```text
 <bundle_dir>/                  # .ai-review/<work_item_id>/current/, or .ai-review/current/ (compatibility)
@@ -337,7 +404,10 @@ This is **portability vs. local staleness, split by consumer**:
   different HEAD, or carries forward a previous implementation round's
   evidence unexamined fails the closing consistency check (item 272,
   `assert_test_results_consistent_with_plan_review_request`,
-  `finalize_bundle_generation`) and is withdrawn rather than published.
+  `finalize_bundle_generation`) and is never published — at the `plan`
+  stage the failed staging generation is discarded and the previous
+  `current/` left intact (no withdrawal, no `REJECTED` marker; "Plan-stage
+  staging generation" above).
 - **CONTEXT_FILES.txt** — one repo-relative path per line, no comments. Only
   the files a reviewer genuinely needs beyond the diff itself (e.g. the ADR
   a decision follows, the domain glossary entry a rule depends on). The
@@ -364,7 +434,8 @@ refuses with `current/` intact.
 ### Computing `review_content_id`
 
 Every generation driver tells the author to refresh
-`<bundle_dir>/REVIEW_REQUEST.md`'s `review_content_id: <hex>` line before
+`REVIEW_REQUEST.md`'s `review_content_id: <hex>` line (in `<plan_inputs_dir>`
+at the `plan` stage, in `<bundle_dir>` otherwise) before
 running the generator, because
 `assert_review_request_states_review_content_id` runs inside
 `--write-manifest` and *refuses* the whole generation on a stale one

@@ -172,6 +172,17 @@ REQUIREMENTS_TWO = {
 }
 
 
+def plan_anchors(registry):
+    """One `D-Plan-Amendment-4` anchor pair per registry checkpoint, with
+    content that depends only on the checkpoint row -- so an amendment that
+    leaves a checkpoint unchanged reconciles it as unchanged (workflow-2.6.0
+    routes every mid-implementation re-plan through an amendment)."""
+    return "".join(
+        f"<!-- {c['id']} -->\n{c['id']} -- {c['name']}.\n<!-- /{c['id']} -->\n\n"
+        for c in registry["checkpoints"]
+    )
+
+
 class Item:
     """One work item's lifecycle, driven exactly the way the owning
     `.claude/commands/*.md` file says to drive it."""
@@ -324,15 +335,34 @@ class Item:
         self.sim.write(
             self.plan_path,
             f"# {self.wid} plan (Revision {plan_revision})\n\n{plan_body}\n"
-            + ws.render_registry_markdown(registry) + "\n",
+            + plan_anchors(registry) + ws.render_registry_markdown(registry) + "\n",
         )
-        self.tx(lambda state: ws.publish_plan_revision(
-            state, self.wid, plan_revision, self.now(),
-        ))
+        # workflow-2.6.0 (D-Plan-Review-Bundle-Binding): the publication
+        # point -- intent-to-add staging first (LPR-R3-003), then the
+        # mirror-only publish of the fresh id. The phase stays non-ready
+        # until `generate_plan_bundle` binds the generated bundle.
         self.stage_plan_files()
+        self.publish()
         if commit:
             self.sim.commit(f"plan({self.wid}): revision {plan_revision}",
                             {"Workflow-Work-Item": self.wid})
+
+    def publish(self):
+        """`publish_plan_revision` at the registry's revision, with the
+        fresh plan-stage id computed inside the same transaction."""
+        def mutator(state):
+            digest, _ = fingerprint.compute_review_content_id_plan_stage_for_work_item(self.root, self.wid)
+            return ws.publish_plan_revision(
+                state, self.wid, self.registry()["plan_revision"], self.now(), review_content_id=digest,
+            )
+        self.tx(mutator)
+
+    def bind_plan_bundle(self):
+        """`/milestone-plan` step 6's / `/apply-plan-review` step 7''s
+        verify-then-bind."""
+        binding = ws.verify_plan_review_bundle(self.root, self.wid)
+        self.tx(lambda state: ws.bind_plan_review_bundle(state, self.wid, binding=binding, now=self.now()))
+        return binding
 
     def stage_plan_files(self):
         """`/milestone-plan` step 3's staging step (salvage audit `B6`):
@@ -345,8 +375,13 @@ class Item:
 
     # ---------------- plan-stage bundle ----------------
 
-    def generate_plan_bundle(self, check=True, test_results=None, review_request=None):
-        bundle = self.bundle_dir(stage="plan")
+    def generate_plan_bundle(self, check=True, test_results=None, review_request=None, bind=True):
+        """Writes the author inputs to `plan-inputs/` (workflow-2.6.0: never
+        `current/`), runs the real generator, and -- as the commands do,
+        straight after a successful generation at a non-ready phase --
+        verifies and binds the bundle. A regeneration at a ready phase is
+        wrapper-only and binds nothing."""
+        bundle = self.root / fingerprint.resolve_plan_review_inputs_dir(self.root, self.wid)
         bundle.mkdir(parents=True, exist_ok=True)
         digest, _ = fingerprint.compute_review_content_id_plan_stage_for_work_item(self.root, self.wid)
         metadata = fingerprint.resolve_plan_stage_metadata(self.root, self.wid)
@@ -359,7 +394,10 @@ class Item:
             "No automated checks are required at the plan stage.\n"
         ))
         (bundle / "CONTEXT_FILES.txt").write_text("")
-        return self.sim.prepare(self.base_commit, "plan", self.wid, check=check)
+        proc = self.sim.prepare(self.base_commit, "plan", self.wid, check=check)
+        if bind and proc.returncode == 0 and self.entry()["phase"] in ws.PLAN_REVIEW_NON_READY_PHASES:
+            self.bind_plan_bundle()
+        return proc
 
     # ---------------- review feedback ----------------
 
@@ -438,9 +476,19 @@ class Item:
             self.root, self.wid, Path("docs/ai-workflow/WORKFLOW_STATE.json"),
         )
         pre_state = self.state()
+        amendment_kwargs = {}
+        history = entry.get("amendment_history") or []
+        if history and history[-1].get("resolved_at_plan_revision") is None:
+            pre_plan_text, pre_registry = ws.load_pre_amendment_snapshot(
+                self.root, self.wid, self.plan_path, self.registry_path, history[-1],
+            )
+            amendment_kwargs = dict(
+                pre_registry=pre_registry, pre_plan_text=pre_plan_text,
+                post_registry=self.registry(), post_plan_text=self.sim.read(self.plan_path),
+            )
         journal = ws.open_plan_approval_journal(
             self.root, work_item_id=self.wid, base_commit=self.base_commit,
-            pre_state=pre_state, record=record, approval_now=approval_now,
+            pre_state=pre_state, record=record, approval_now=approval_now, **amendment_kwargs,
             expected_bundle_id=bundle_id, expected_review_content_id=review_content_id,
             applicable_paths=plan.paths,
             fifth_member_applies=plan.artifacts_declaration_path is not None,
@@ -512,6 +560,46 @@ class Item:
             ws.close_plan_approval_journal(self.root)
         return commit
 
+    # ---------------- /request-plan-amendment + amended /milestone-plan ----------------
+
+    def request_amendment(self, reason="plan correction"):
+        """`/request-plan-amendment <id>`'s sole writer -- since
+        workflow-2.6.0 the only sanctioned route from `IMPLEMENTING`/
+        `SELF_REVIEWING_IMPLEMENTATION` back into plan review."""
+        self.tx(lambda state: ws.request_plan_amendment(
+            state, self.wid, reason, repo_root=self.root, now=self.now(),
+        ))
+
+    def amend_plan(self, plan_revision, checkpoints=None, requirements=None,
+                   plan_body="Plan body, amended.\n"):
+        """`/milestone-plan <id>` on an `AMENDING_PLAN` item: step 1's
+        mirror advance, the regenerated registry and mapping, the plan
+        document with one anchor pair per checkpoint (`D-Plan-Amendment-4`),
+        then the publication point. `generate_plan_bundle` binds it."""
+        config = json.loads(self.sim.read("docs/ai-workflow/WORKFLOW_CONFIG.json"))
+        checkpoints = CHECKPOINTS if checkpoints is None else checkpoints
+        requirements = REQUIREMENTS if requirements is None else requirements
+        self.tx(lambda state: ws.ensure_plan_review_binding_marker(state, self.wid, self.now()))
+        self.tx(lambda state: ws.route_work_item(
+            state, config, work_item_id=self.wid, work_item_type=self.wtype,
+            work_item_kind=self.wtype, plan_path=self.plan_path,
+            registry_path=self.registry_path, plan_revision=plan_revision,
+            now=self.now(), mapping_path=self.mapping_path, base_commit=self.base_commit,
+            repo_root=self.root,
+        ))
+        registry = ws.generate_registry(self.wid, plan_revision, checkpoints)
+        mapping = ws.generate_mapping(self.wid, requirements, registry=registry)
+        ws.write_registry_and_mapping(
+            self.root, Path(self.registry_path), Path(self.mapping_path), registry, mapping,
+        )
+        self.sim.write(
+            self.plan_path,
+            f"# {self.wid} plan (Revision {plan_revision})\n\n{plan_body}\n"
+            + plan_anchors(registry) + ws.render_registry_markdown(registry) + "\n",
+        )
+        self.stage_plan_files()
+        self.publish()
+
     # ---------------- /apply-plan-review ----------------
 
     def apply_plan_review(self, plan_revision, checkpoints=None, requirements=None,
@@ -526,13 +614,13 @@ class Item:
         self.sim.write(
             self.plan_path,
             f"# {self.wid} plan (Revision {plan_revision})\n\n{plan_body}\n"
-            + ws.render_registry_markdown(registry) + "\n",
+            + plan_anchors(registry) + ws.render_registry_markdown(registry) + "\n",
         )
-        self.tx(lambda state: ws.publish_plan_revision(state, self.wid, plan_revision, self.now()))
+        # workflow-2.6.0: step 5 stages, then publishes on every round;
+        # step 7' binds the bundle step 5 generated (`generate_plan_bundle`).
+        self.tx(lambda state: ws.ensure_plan_review_binding_marker(state, self.wid, self.now()))
         self.stage_plan_files()
-        self.tx(lambda state: ws.transition_to_awaiting_local_plan_review(
-            state, self.wid, self.now(),
-        ))
+        self.publish()
 
     # ---------------- /milestone-implement ----------------
 
@@ -967,8 +1055,14 @@ class PlanLifecycleProcess(MatrixCase):
     def test_a1_fresh_plan_to_approval(self):
         item = self.item
         item.milestone_plan()
-        self.assertEqual(item.entry()["phase"], "AWAITING_LOCAL_PLAN_REVIEW")
+        # workflow-2.6.0 (D-Plan-Review-Bundle-Binding): the publish is
+        # mirror-only; the item is review-ready only once its bundle binds.
+        self.assertEqual(item.entry()["phase"], "PLANNING")
+        self.assertEqual(item.entry()["plan_review_binding"]["status"], "PUBLISHED")
         item.generate_plan_bundle()
+        self.assertEqual(item.entry()["phase"], "AWAITING_LOCAL_PLAN_REVIEW")
+        self.assertEqual(item.entry()["plan_review_binding"]["status"], "BOUND")
+        self.assertEqual(item.entry()["current_bundle_id"], item.bundle_id())
         self.assertTrue((item.bundle_dir(stage="plan") / "MANIFEST.md").is_file())
         self.assertTrue((item.root / ".ai-review" / item.wid / "review-bundle.tar.gz").is_file())
         item.write_feedback("APPROVE")
@@ -1035,9 +1129,10 @@ class PlanLifecycleProcess(MatrixCase):
         item.record_plan_reviews(local="REVISE")
         self.assertEqual(item.entry()["phase"], "REVISING_PLAN")
         item.apply_plan_review(2, CHECKPOINTS_TWO, REQUIREMENTS_TWO)
-        self.assertEqual(item.entry()["phase"], "AWAITING_LOCAL_PLAN_REVIEW")
+        self.assertEqual(item.entry()["phase"], "REVISING_PLAN")
         self.assertEqual(item.entry()["plan_revision"], 2)
         item.generate_plan_bundle()
+        self.assertEqual(item.entry()["phase"], "AWAITING_LOCAL_PLAN_REVIEW")
         self.assertNotEqual(item.bundle_id(), first_bundle_id)
         item.write_feedback("APPROVE")
         item.record_plan_reviews(round=2)
@@ -1057,8 +1152,9 @@ class PlanLifecycleProcess(MatrixCase):
         item.record_plan_reviews(local="APPROVE", manual="REVISE", round=2)
         self.assertEqual(item.entry()["phase"], "REVISING_PLAN")
         item.apply_plan_review(3)
-        self.assertEqual(item.entry()["phase"], "AWAITING_LOCAL_PLAN_REVIEW")
+        self.assertEqual(item.entry()["phase"], "REVISING_PLAN")
         item.generate_plan_bundle()
+        self.assertEqual(item.entry()["phase"], "AWAITING_LOCAL_PLAN_REVIEW")
         item.write_feedback("APPROVE")
         item.record_plan_reviews(round=3)
         item.approve_plan()
@@ -1069,20 +1165,33 @@ class PlanLifecycleProcess(MatrixCase):
 
     def test_a4_plan_stage_stale_test_results_withdraws(self):
         """Ledger `I3`: the marker lines are a hard generator precondition,
-        and a miss withdraws rather than publishes."""
+        and a miss never publishes. workflow-2.6.0 (the revised `WFR-67`,
+        `D-Plan-Review-Bundle-Binding` item 5): the plan stage generates
+        into staging, so the miss discards the staging area instead of
+        withdrawing -- nothing becomes review-ready, no `REJECTED` marker
+        is written, and the item stays unbound at `PLANNING` (row 9)."""
         item = self.item
         item.milestone_plan()
         proc = item.generate_plan_bundle(check=False, test_results="")
         self.assertNotEqual(proc.returncode, 0)
-        self.assertIn("withdrawn", proc.stdout + proc.stderr)
+        self.assertIn("staging discarded", proc.stdout + proc.stderr)
         self.assertIn("TEST_RESULTS.md", proc.stdout + proc.stderr)
         self.assertFalse(item.bundle_dir(stage="plan").is_dir())
         self.assertFalse((item.root / ".ai-review" / item.wid / "review-bundle.tar.gz").is_file())
-        quarantined = list((item.root / ".ai-review" / item.wid).glob("current.rejected-*"))
-        self.assertEqual(len(quarantined), 1)
-        # And a clean regeneration afterwards publishes normally.
+        item_root = item.root / ".ai-review" / item.wid
+        self.assertEqual(list(item_root.glob("current.rejected-*")), [])
+        self.assertEqual(list(item_root.glob("current.staging-*")), [])
+        self.assertEqual(list(item_root.glob(".pin.staging-*")), [])
+        self.assertFalse((item_root / "REJECTED").exists())
+        self.assertEqual(item.entry()["phase"], "PLANNING")
+        self.assertEqual(
+            ws.plan_review_publication_status(item.root, item.state(), item.wid)["status"],
+            ws.PLAN_REVIEW_STATUS_PUBLISHED_UNBOUND,
+        )
+        # And a clean regeneration afterwards publishes and binds normally.
         item.generate_plan_bundle()
         self.assertTrue((item.bundle_dir(stage="plan") / "MANIFEST.md").is_file())
+        self.assertEqual(item.entry()["phase"], "AWAITING_LOCAL_PLAN_REVIEW")
 
 
 class PlanLifecycleProduct(PlanLifecycleProcess):
@@ -1487,13 +1596,18 @@ class ImplementationLifecycleProcess(MatrixCase):
         and `/accept-milestone`'s gate was unreachable -- the work item
         could not be advanced or completed by any command."""
         item = self.item
-        self.reach_technical_approved()
-        self.assertEqual(item.entry()["implementation_revision"], 1)
-
-        item.apply_plan_review(2, plan_body="Plan body, corrected after round 1.\n")
-        self.scratch.commit(f"plan({item.wid}): revision 2",
-                            {"Workflow-Work-Item": item.wid})
-        item.stage_plan_files()
+        # workflow-2.6.0 (`D-Plan-Review-Bundle-Binding`, `LPR-R4-002`): the
+        # 2.5.1 route to this state -- re-publishing a revised plan from
+        # `AWAITING_FUNCTIONAL_REVIEW` after a technical approval -- is now
+        # refused at the plan-stage allow-list, and no plan re-entry exists
+        # from that phase. The wedge is still reachable through the one
+        # sanctioned route: an amendment requested from
+        # `SELF_REVIEWING_IMPLEMENTATION` once every checkpoint is complete.
+        self.reach_plan_approved()
+        item.implement_checkpoint("CP1", {item.deliverable: "// round 1\n"})
+        self.assertEqual(item.entry()["phase"], "SELF_REVIEWING_IMPLEMENTATION")
+        item.request_amendment("plan-document correction")
+        item.amend_plan(2, plan_body="Plan body, corrected after round 1.\n")
         item.generate_plan_bundle()
         item.write_feedback("APPROVE")
         item.record_plan_reviews(round=2)
@@ -1536,22 +1650,14 @@ class ImplementationLifecycleProcess(MatrixCase):
         self.assertEqual(phase_before, "SELF_REVIEWING_IMPLEMENTATION")
         self.assertEqual(item.entry()["state_revision"], revision_before)
 
-        # And the round publishes from there. The plan revision changed no
-        # protected *implementation* content, so `resolve_bundle_generation_
-        # outcome` resolves `same_content` -- `D-Commit-Provenance`'s own
-        # "a plan-only correction requiring no protected implementation
-        # change" case (`GPT-R54-002`), legal from
-        # `SELF_REVIEWING_IMPLEMENTATION` exactly as from
-        # `APPLYING_REVIEW_FEEDBACK`. The revision and the reviewed head
-        # both stay pinned, and the supersession chain stays continuous.
-        pinned_head = item.entry()["reviewed_implementation_head"]
+        # And the round publishes from there -- the item's first
+        # implementation round, since the amendment preceded any bundle.
         outcome, s2, proc = item.generate_impl_bundle(
-            "implementation", expect_outcome="same_content", wrap_up=False,
+            "implementation", expect_outcome="ordinary", wrap_up=False,
         )
         self.assertEqual(proc.returncode, 0)
         self.assertEqual(item.entry()["phase"], "AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW")
         self.assertEqual(item.entry()["implementation_revision"], 1)
-        self.assertEqual(item.entry()["reviewed_implementation_head"], pinned_head)
         ws.validate_bundle_generation_record_commit(item.root, s2, item.wid)
         item.write_feedback("APPROVE")
         item.approve_implementation()
@@ -1574,9 +1680,16 @@ class ImplementationLifecycleProcess(MatrixCase):
         item.implement_checkpoint("CP1", {item.deliverable: "// CP1\n"})
         self.assertEqual(item.entry()["checkpoints"]["CP1"]["status"], "COMPLETE")
 
-        item.apply_plan_review(2, CHECKPOINTS_TWO, REQUIREMENTS_TWO,
-                               plan_body="Plan body, revised mid-implementation.\n")
-        self.assertEqual(item.entry()["phase"], "AWAITING_LOCAL_PLAN_REVIEW")
+        # workflow-2.6.0 (`D-Plan-Review-Bundle-Binding`, `LPR-R4-002`): the
+        # 2.5.1 in-place re-publish from `IMPLEMENTING` is refused before
+        # any state write, naming the amendment route; the edits the
+        # command made before its publish stay in the worktree.
+        with self.assertRaises(ws.PlanReviewPhaseNotPlanStageError) as refused:
+            item.apply_plan_review(2, CHECKPOINTS_TWO, REQUIREMENTS_TWO,
+                                   plan_body="Plan body, revised mid-implementation.\n")
+        self.assertIn(f"/request-plan-amendment {item.wid}", str(refused.exception))
+        self.assertEqual(item.entry()["phase"], "IMPLEMENTING")
+        self.assertEqual(item.entry()["plan_revision"], 1)
         # While the revision is uncommitted the approval is still current
         # by design: `approval_is_current` is commit-sourced, "exactly what
         # a fresh session sees, never uncommitted local edits". Ledger row
@@ -1599,7 +1712,10 @@ class ImplementationLifecycleProcess(MatrixCase):
         # recorded manifest.
         with self.assertRaises(ws.StalePlanApprovalRegistryReadError):
             ws.resolve_own_registry_completion_status(item.root, item.entry())
-        item.stage_plan_files()
+        # The sanctioned route back into plan review.
+        item.request_amendment("revised mid-implementation")
+        item.amend_plan(2, CHECKPOINTS_TWO, REQUIREMENTS_TWO,
+                        plan_body="Plan body, revised mid-implementation.\n")
         item.generate_plan_bundle()
         item.write_feedback("APPROVE")
         item.record_plan_reviews(round=2)
@@ -2744,13 +2860,16 @@ class RemediationChildFullCycle(MatrixCase):
         child.milestone_plan()
         resumed = child.entry()
         self.assertEqual(resumed["mapping_path"], child.mapping_path)
-        # Diagram finding `B1`: the child's plan-review entry is
-        # `publish_plan_revision`'s own version branch, and the child's
-        # governing version is the config default fixed at creation --
-        # `"2.1"` here, so `AWAITING_LOCAL_PLAN_REVIEW`, never
+        # Diagram finding `B1`: the child's governing version is the config
+        # default fixed at creation -- `"2.1"` here, so its plan-review
+        # entry is the two-stage one. Since workflow-2.6.0 the publish is
+        # mirror-only (`D-Plan-Review-Bundle-Binding`): the child waits at
+        # `PLANNING` with a `PUBLISHED` record until its bundle binds, and
+        # the bind writes `AWAITING_LOCAL_PLAN_REVIEW` -- never
         # `AWAITING_EXTERNAL_PLAN_REVIEW`.
         self.assertEqual(resumed["governing_workflow_version"], "2.1")
-        self.assertEqual(resumed["phase"], "AWAITING_LOCAL_PLAN_REVIEW")
+        self.assertEqual(resumed["phase"], "PLANNING")
+        self.assertEqual(resumed["plan_review_binding"]["status"], "PUBLISHED")
         self.assertEqual(resumed["parent_work_item_id"], parent.wid)
         # Focus still belongs to the parent -- every command below is
         # therefore driving a work item that is *not* `active_work_item_id`,
@@ -2766,17 +2885,20 @@ class RemediationChildFullCycle(MatrixCase):
         # to `AWAITING_LOCAL_PLAN_REVIEW` -- never straight to manual
         # review, and never touching the parent's own entry.
         child.generate_plan_bundle()
+        self.assertEqual(child.entry()["phase"], "AWAITING_LOCAL_PLAN_REVIEW")
         child.write_feedback("REVISE")
         child.record_plan_reviews(local="REVISE")
         self.assertEqual(child.entry()["phase"], "REVISING_PLAN")
         parent_before = dict(parent.entry())
         child.apply_plan_review(plan_revision=2)
-        self.assertEqual(child.entry()["phase"], "AWAITING_LOCAL_PLAN_REVIEW")
+        self.assertEqual(child.entry()["phase"], "REVISING_PLAN")
         self.assertEqual(child.entry()["plan_revision"], 2)
         self.assertEqual(parent.entry(), parent_before)
         self.assertEqual(child.state()["active_work_item_id"], parent.wid)
 
         child.generate_plan_bundle()
+        self.assertEqual(child.entry()["phase"], "AWAITING_LOCAL_PLAN_REVIEW")
+        self.assertEqual(parent.entry(), parent_before)
         child.write_feedback("APPROVE")
         child.record_plan_reviews(round=2)
         child.approve_plan()
@@ -3361,10 +3483,13 @@ class GeneratedArtifactsAreUsable(MatrixCase):
         # The sanctioned repair: a fresh plan revision through the real
         # two-stage review and a fresh approval -- never a hand-edited
         # approval record and never a widened exclusion to hide the change.
-        item.apply_plan_review(2, plan_body="Plan body, unchanged in substance.\n")
-        self.scratch.commit(f"plan({item.wid}): revision 2",
-                            {"Workflow-Work-Item": item.wid})
-        item.stage_plan_files()
+        # Since workflow-2.6.0 a revision from `IMPLEMENTING` goes through
+        # `/request-plan-amendment` (`D-Plan-Review-Bundle-Binding`'s
+        # plan-stage allow-list): the 2.5.1 in-place re-publish is refused.
+        with self.assertRaises(ws.PlanReviewPhaseNotPlanStageError):
+            item.publish()
+        item.request_amendment("declaration repair")
+        item.amend_plan(2, plan_body="Plan body, unchanged in substance.\n")
         item.generate_plan_bundle()
         item.write_feedback("APPROVE")
         item.record_plan_reviews(round=2)
@@ -3625,24 +3750,27 @@ class FirstAttemptPlanBundleResolution(unittest.TestCase):
     """
 
     def author_plan_bundle_and_generate(self, scratch, item):
-        """`/milestone-plan` step 6, verbatim: resolve, author, generate."""
+        """`/milestone-plan` step 6, verbatim: resolve, author, generate,
+        bind (workflow-2.6.0: the author inputs go to `<plan_inputs_dir>`,
+        and the bind straight after the generator writes the ready phase)."""
         bundle_rel = fingerprint.resolve_bundle_dir(scratch.root, item.wid, stage="plan")
         self.assertEqual(bundle_rel, Path(".ai-review") / item.wid / "current")
         bundle = scratch.root / bundle_rel
+        inputs = scratch.root / fingerprint.resolve_plan_review_inputs_dir(scratch.root, item.wid)
         digest, _ = fingerprint.compute_review_content_id_plan_stage_for_work_item(
             scratch.root, item.wid,
         )
         metadata = fingerprint.resolve_plan_stage_metadata(scratch.root, item.wid)
-        bundle.mkdir(parents=True, exist_ok=True)
-        (bundle / "REVIEW_REQUEST.md").write_text(
+        inputs.mkdir(parents=True, exist_ok=True)
+        (inputs / "REVIEW_REQUEST.md").write_text(
             f"# Review request\n\nstage: plan\nwork item: {item.wid}\n"
             f"review_content_id: {digest}\n"
         )
-        (bundle / "TEST_RESULTS.md").write_text(
+        (inputs / "TEST_RESULTS.md").write_text(
             f"stage: plan (revision {metadata.plan_revision})\nhead: {scratch.head()}\n\n"
             "No automated checks are required at the plan stage.\n"
         )
-        (bundle / "CONTEXT_FILES.txt").write_text("")
+        (inputs / "CONTEXT_FILES.txt").write_text("")
         proc = scratch.prepare(item.base_commit, "plan", item.wid, check=False)
         self.assertEqual(
             proc.returncode, 0,
@@ -3650,6 +3778,8 @@ class FirstAttemptPlanBundleResolution(unittest.TestCase):
             f"--- stderr ---\n{proc.stderr}",
         )
         self.assertTrue((bundle / "MANIFEST.md").is_file())
+        if item.entry()["phase"] in ws.PLAN_REVIEW_NON_READY_PHASES:
+            item.bind_plan_bundle()
         self.assertTrue(
             (scratch.root / ".ai-review" / item.wid / "review-bundle.tar.gz").is_file()
         )
@@ -4357,10 +4487,9 @@ class PlanDocumentRegistryTableFreshness(MatrixCase):
                 "(Revision 1)", f"(Revision {plan_revision})",
             ),
         )
-        item.tx(lambda state: ws.publish_plan_revision(
-            state, item.wid, plan_revision, item.now(),
-        ))
+        # workflow-2.6.0: staging precedes the publish of the fresh id.
         item.stage_plan_files()
+        item.publish()
         return registry
 
     def test_the_pre_repair_sequence_publishes_a_table_the_registry_contradicts(self):
@@ -4370,6 +4499,9 @@ class PlanDocumentRegistryTableFreshness(MatrixCase):
         item.milestone_plan()
         item.generate_plan_bundle()
         self.assertNotIn("CP2", self.scratch.read(item.plan_path))
+        # The round a revision follows (workflow-2.6.0: a ready item is
+        # never re-published in place).
+        item.record_plan_reviews(local="REVISE")
 
         registry = self._revise_without_re_embedding(
             item, 2, CHECKPOINTS_TWO, REQUIREMENTS_TWO,
@@ -4396,6 +4528,7 @@ class PlanDocumentRegistryTableFreshness(MatrixCase):
         item = self.item
         item.milestone_plan()
         item.generate_plan_bundle()
+        item.record_plan_reviews(local="REVISE")
         item.apply_plan_review(2, checkpoints=CHECKPOINTS_TWO, requirements=REQUIREMENTS_TWO)
 
         registry = item.registry()
@@ -4714,6 +4847,1541 @@ class CrossStageGenerationReuseProduct(CrossStageGenerationReuse):
     process-only row."""
 
     work_item_type = "product"
+
+
+# ===========================================================================
+# CP4. D-Plan-Review-Bundle-Binding (workflow-2.6.0), driven in the real
+# command order: publication split, bind, withdrawal, the total status
+# function, the readers, and the recoverable plan-stage generator.
+# ===========================================================================
+
+CP4_STATE_REL = "docs/ai-workflow/WORKFLOW_STATE.json"
+
+
+def cp4_state_bytes(item):
+    return (item.root / CP4_STATE_REL).read_bytes()
+
+
+def cp4_status(item):
+    return ws.plan_review_publication_status(item.root, item.state(), item.wid)
+
+
+def cp4_fresh_id(item):
+    digest, _ = fingerprint.compute_review_content_id_plan_stage_for_work_item(item.root, item.wid)
+    return digest
+
+
+def cp4_render_plan(item, plan_revision, plan_body, registry):
+    """The plan document exactly as `Item.milestone_plan`/`apply_plan_review`
+    render it: title, body, one anchor pair per checkpoint, the table."""
+    return (
+        f"# {item.wid} plan (Revision {plan_revision})\n\n{plan_body}\n"
+        + plan_anchors(registry) + ws.render_registry_markdown(registry) + "\n"
+    )
+
+
+def cp4_write_round_files(item, plan_revision, checkpoints=None, requirements=None,
+                          plan_body="Plan body, revised.\n"):
+    """`/apply-plan-review` steps 3-5's protected edits alone -- registry and
+    mapping regeneration plus the table re-embed -- with no entry marker, no
+    staging and no publish (so a scenario can stop between any two)."""
+    checkpoints = CHECKPOINTS if checkpoints is None else checkpoints
+    requirements = REQUIREMENTS if requirements is None else requirements
+    registry = ws.generate_registry(item.wid, plan_revision, checkpoints)
+    mapping = ws.generate_mapping(item.wid, requirements, registry=registry)
+    ws.write_registry_and_mapping(
+        item.root, Path(item.registry_path), Path(item.mapping_path), registry, mapping,
+    )
+    item.sim.write(item.plan_path, cp4_render_plan(item, plan_revision, plan_body, registry))
+    return registry
+
+
+def cp4_edit_prose(item, extra="An extra paragraph the author is still writing.\n"):
+    """A partial prose edit to the plan document: the revision marker, the
+    anchors and the table are untouched."""
+    text = item.sim.read(item.plan_path)
+    item.sim.write(item.plan_path, text.replace("\n\n", f"\n\n{extra}\n", 1))
+
+
+def cp4_set_title_revision(item, revision):
+    text = item.sim.read(item.plan_path)
+    item.sim.write(item.plan_path, re.sub(r"\(Revision \d+\)", f"(Revision {revision})", text, count=1))
+
+
+def cp4_item_root(item):
+    return item.root / ".ai-review" / item.wid
+
+
+def cp4_snapshot(path):
+    """Every byte under `path` (a file or a directory tree), keyed by
+    relative path -- for byte-identity comparisons."""
+    path = Path(path)
+    if path.is_file():
+        return {".": path.read_bytes()}
+    return {
+        str(p.relative_to(path)): p.read_bytes()
+        for p in sorted(path.rglob("*")) if p.is_file()
+    }
+
+
+def cp4_default_test_results(item, note=""):
+    metadata = fingerprint.resolve_plan_stage_metadata(item.root, item.wid)
+    return (
+        f"stage: plan (revision {metadata.plan_revision})\nhead: {item.sim.head()}\n\n"
+        f"No automated checks are required at the plan stage.\n{note}"
+    )
+
+
+def cp4_regenerate_wrapper_only(item, note="Re-run: wrapper-only regeneration.\n", bind=True):
+    """A regeneration whose protected content is unchanged: only an author
+    wrapper file (`TEST_RESULTS.md`'s prose) differs, so `review_content_id`
+    is unchanged and `bundle_id` is not."""
+    return item.generate_plan_bundle(test_results=cp4_default_test_results(item, note), bind=bind)
+
+
+def cp4_hand_edit(item, mutate):
+    """A hand edit of the item's entry -- how a scenario simulates a
+    `2.5.1`-shaped item or an out-of-band record no `2.6.0` writer
+    produces. Runs inside `state_transaction` so the file stays valid JSON
+    under the lock."""
+    def mutator(state):
+        new_state = json.loads(json.dumps(state))
+        mutate(new_state["work_items"][item.wid])
+        return new_state
+    item.tx(mutator)
+
+
+def cp4_make_legacy(work_item):
+    """A `2.5.1` item: no `plan_review_binding`, a null `current_bundle_id`."""
+    work_item.pop("plan_review_binding", None)
+    work_item["current_bundle_id"] = None
+
+
+def cp4_manifest_binding(item):
+    """The binding the on-disk `current/MANIFEST.md` claims, read without
+    verification -- for a direct `bind_plan_review_bundle` attempt against
+    a bundle the verifier would refuse."""
+    fields = fingerprint.read_plan_stage_manifest_fields(item.bundle_dir(stage="plan") / "MANIFEST.md")
+    return {
+        "review_content_id": fields["review_content_id"],
+        "bundle_id": fields["bundle_id"],
+        "plan_revision": fields["plan_revision"],
+    }
+
+
+def cp4_publish(item, plan_revision=None, review_content_id=None):
+    """`publish_plan_revision` at `plan_revision` (default: the registry's)
+    with the fresh id computed inside the mutator, or a given one."""
+    def mutator(state):
+        digest = review_content_id or cp4_fresh_id(item)
+        revision = plan_revision if plan_revision is not None else item.registry()["plan_revision"]
+        return ws.publish_plan_revision(state, item.wid, revision, item.now(), review_content_id=digest)
+    item.tx(mutator)
+
+
+def cp4_route(item, plan_revision):
+    config = json.loads(item.sim.read("docs/ai-workflow/WORKFLOW_CONFIG.json"))
+    item.tx(lambda state: ws.route_work_item(
+        state, config, work_item_id=item.wid, work_item_type=item.wtype,
+        work_item_kind=item.wtype, plan_path=item.plan_path,
+        registry_path=item.registry_path, plan_revision=plan_revision,
+        now=item.now(), mapping_path=item.mapping_path, base_commit=item.base_commit,
+        repo_root=item.root,
+    ))
+
+
+def cp4_open_plan_approval_journal(item):
+    """`/approve-review plan` up to and including step 4's journal open --
+    the same arguments `Item.approve_plan` passes -- and no further."""
+    confirmation = f"plan {item.wid}"
+    review_content_id, projection = fingerprint.compute_review_content_id_plan_stage_for_work_item(
+        item.root, item.wid,
+    )
+    bundle_id = item.bundle_id()
+    feedback = item.feedback_fields()
+    basis = ws.resolve_approval_basis(
+        latest_round_status=feedback["status"], feedback_bundle_id=feedback["reviewed_bundle_id"],
+        current_bundle_id=bundle_id, user_confirmation=confirmation,
+        work_item_id=item.wid, stage="plan",
+    )
+    approval_now = item.now()
+    record = ws.build_approval_record(
+        basis=basis, stage="plan", user_confirmation=confirmation, now=approval_now,
+        reviewed_bundle_id=bundle_id, approved_review_content_id=review_content_id,
+        review_content_manifest=projection["review_content_manifest"],
+    )
+    plan = fingerprint.resolve_plan_stage_approval_commit_paths(item.root, item.wid, Path(CP4_STATE_REL))
+    return ws.open_plan_approval_journal(
+        item.root, work_item_id=item.wid, base_commit=item.base_commit,
+        pre_state=item.state(), record=record, approval_now=approval_now,
+        expected_bundle_id=bundle_id, expected_review_content_id=review_content_id,
+        applicable_paths=plan.paths,
+        fifth_member_applies=plan.artifacts_declaration_path is not None,
+        fifth_member_sha256=plan.artifacts_declaration_sha256,
+        user_confirmation=confirmation,
+        quiescence_authorization="acceptance-matrix scenario",
+    )
+
+
+class _PlanReviewBindingCase(MatrixCase):
+    """Shared lifecycle points for the CP4 scenarios. No tests of its own."""
+
+    work_item_type = "process"
+
+    # --- lifecycle points ---
+
+    def reach_bound(self):
+        item = self.item
+        item.milestone_plan()
+        item.generate_plan_bundle()
+        self.assertEqual(item.entry()["phase"], "AWAITING_LOCAL_PLAN_REVIEW")
+        self.assertEqual(item.entry()["plan_review_binding"]["status"], "BOUND")
+        return item.entry()["plan_review_binding"]["bound"]
+
+    def reach_local_revise(self):
+        bound = self.reach_bound()
+        self.item.record_plan_reviews(local="REVISE")
+        self.assertEqual(self.item.entry()["phase"], "REVISING_PLAN")
+        return bound
+
+    def reach_manual(self):
+        bound = self.reach_bound()
+        item = self.item
+        item.tx(lambda state: ws.record_local_plan_review(
+            state, item.wid, verdict="APPROVE", bundle_id=item.bundle_id(),
+            review_content_id=cp4_fresh_id(item), round=1, now=item.now(),
+        ))
+        self.assertEqual(item.entry()["phase"], "AWAITING_MANUAL_EXTERNAL_PLAN_REVIEW")
+        return bound
+
+    def reach_approval(self):
+        bound = self.reach_bound()
+        self.item.write_feedback("APPROVE")
+        self.item.record_plan_reviews()
+        self.assertEqual(self.item.entry()["phase"], "AWAITING_PLAN_APPROVAL")
+        return bound
+
+    def reach_amending(self):
+        self.reach_plan_approved()
+        approved = self.item.entry()["plan_approval"]["approved_review_content_id"]
+        self.item.request_amendment()
+        self.assertEqual(self.item.entry()["phase"], "AMENDING_PLAN")
+        return approved
+
+    # --- assertions ---
+
+    def assertRow(self, row, status, item=None):
+        result = cp4_status(item or self.item)
+        self.assertEqual((result["row"], result["status"]), (row, status), result)
+        return result
+
+    def assertBound(self, plan_revision=None, item=None):
+        item = item or self.item
+        entry = item.entry()
+        self.assertEqual(entry["phase"], "AWAITING_LOCAL_PLAN_REVIEW")
+        record = entry["plan_review_binding"]
+        self.assertEqual(record["status"], "BOUND")
+        self.assertEqual(record["bound"]["review_content_id"], cp4_fresh_id(item))
+        self.assertEqual(record["bound"]["bundle_id"], item.bundle_id())
+        self.assertEqual(entry["current_bundle_id"], item.bundle_id())
+        if plan_revision is not None:
+            self.assertEqual(entry["plan_revision"], plan_revision)
+            self.assertEqual(record["bound"]["plan_revision"], plan_revision)
+        self.assertRow("2", ws.PLAN_REVIEW_STATUS_BOUND, item=item)
+        return record
+
+    def assertRefusesWithoutWrite(self, exc_type, fn, item=None):
+        item = item or self.item
+        before = cp4_state_bytes(item)
+        with self.assertRaises(exc_type) as ctx:
+            fn()
+        self.assertEqual(cp4_state_bytes(item), before, f"{exc_type.__name__} refusal wrote state")
+        return ctx.exception
+
+    def attempt_publish(self, exc_type, plan_revision=None, review_content_id=None):
+        return self.assertRefusesWithoutWrite(
+            exc_type, lambda: cp4_publish(self.item, plan_revision, review_content_id),
+        )
+
+    def attempt_bind(self, exc_type, binding=None):
+        """A direct bind against the on-disk bundle: through the verifier
+        when `binding` is None, else the given binding straight into the
+        mutator."""
+        item = self.item
+
+        def run():
+            use = binding if binding is not None else ws.verify_plan_review_bundle(item.root, item.wid)
+            item.tx(lambda state: ws.bind_plan_review_bundle(state, item.wid, binding=use, now=item.now()))
+        return self.assertRefusesWithoutWrite(exc_type, run)
+
+
+class PlanReviewBindVerifierRefusals(_PlanReviewBindingCase):
+    """`verify_plan_review_bundle` refuses every shape section 5.3 item 3
+    names, by cause; `bind_plan_review_bundle` refuses content the author
+    never published."""
+
+    def test_no_bundle_refuses_unverified(self):
+        """Published, never generated: nothing to bind."""
+        self.item.milestone_plan()
+        exc = self.attempt_bind(ws.PlanReviewBundleUnverifiedError)
+        self.assertIn("no MANIFEST.md", str(exc))
+        self.assertEqual(self.item.entry()["phase"], "PLANNING")
+
+    def test_rejected_bundle_refuses_unverified(self):
+        item = self.item
+        item.milestone_plan()
+        item.generate_plan_bundle(bind=False)
+        (cp4_item_root(item) / "REJECTED").write_text("REJECTED: test\n")
+        exc = self.attempt_bind(ws.PlanReviewBundleUnverifiedError)
+        self.assertIn("REJECTED", str(exc))
+
+    def test_stale_revision_manifest_refuses_unverified(self):
+        """A REVISE round published at revision 2 with the revision-1
+        bundle still on disk."""
+        item = self.item
+        self.reach_local_revise()
+        item.apply_plan_review(2)
+        exc = self.attempt_bind(ws.PlanReviewBundleUnverifiedError)
+        self.assertIn("stale-revision", str(exc))
+
+    def test_stale_review_content_id_refuses_drift(self):
+        """Content edited after generation: the bundle is internally
+        consistent, the worktree is not what it captured."""
+        item = self.item
+        item.milestone_plan()
+        item.generate_plan_bundle(bind=False)
+        cp4_edit_prose(item)
+        self.attempt_bind(ws.ReviewedContentDriftError)
+        self.assertEqual(item.entry()["phase"], "PLANNING")
+
+    def test_mixed_bundle_refuses_unverified(self):
+        """Section 3.3 variant 2's shape: `current/` content changed without
+        the manifest being re-written."""
+        item = self.item
+        item.milestone_plan()
+        item.generate_plan_bundle(bind=False)
+        path = item.bundle_dir(stage="plan") / "TEST_RESULTS.md"
+        path.write_text(path.read_text() + "edited in place\n")
+        exc = self.attempt_bind(ws.PlanReviewBundleUnverifiedError)
+        self.assertIn("bundle_id disagreement", str(exc))
+
+    def test_mismatched_archive_refuses_unverified(self):
+        import tarfile
+        item = self.item
+        item.milestone_plan()
+        item.generate_plan_bundle(bind=False)
+        forged = Path(tempfile.mkdtemp(prefix="cp4-archive-"))
+        self.addCleanup(shutil.rmtree, forged, True)
+        shutil.copytree(item.bundle_dir(stage="plan"), forged / "current")
+        (forged / "current" / "TEST_RESULTS.md").write_text("not what current/ holds\n")
+        with tarfile.open(cp4_item_root(item) / "review-bundle.tar.gz", "w:gz") as tf:
+            tf.add(forged / "current", arcname="current")
+        exc = self.attempt_bind(ws.PlanReviewBundleUnverifiedError)
+        self.assertIn("archive=", str(exc))
+
+    def test_bind_refuses_unpublished_record(self):
+        """`PLANNING`, registry written and staged, bundle generated, but
+        never published: no `PUBLISHED` record, no bind."""
+        item = self.item
+        cp4_route(item, 1)
+        cp4_write_round_files(item, 1, plan_body="Plan body.\n")
+        item.sim.write(item.artifacts_path, json.dumps(ws.generate_artifacts_declarations(
+            item.wid, item.plan_path, item.registry_path, item.mapping_path,
+            work_item_type=item.wtype,
+        ), indent=2) + "\n")
+        item.stage_plan_files()
+        item.generate_plan_bundle(bind=False)
+        self.assertNotIn("plan_review_binding", item.entry())
+        self.attempt_bind(ws.PlanReviewNotPublishedError)
+
+    def test_bind_refuses_content_other_than_the_published(self):
+        """Published, then edited, then regenerated: the bundle verifies for
+        content the author never declared complete."""
+        item = self.item
+        item.milestone_plan()
+        cp4_edit_prose(item)
+        item.generate_plan_bundle(bind=False)
+        binding = ws.verify_plan_review_bundle(item.root, item.wid)
+        self.assertNotEqual(binding["review_content_id"],
+                            item.entry()["plan_review_binding"]["published"]["review_content_id"])
+        self.attempt_bind(ws.PlanReviewNotPublishedError)
+
+
+class PlanReviewGeneratorRecovery(_PlanReviewBindingCase):
+    """The recoverable plan-stage generator (item 5) and the resume rows it
+    leaves (rows 9, 2, 3, 4b)."""
+
+    def _stale_inputs_round(self, **generate_kwargs):
+        item = self.item
+        consumed = self.reach_local_revise()
+        item.apply_plan_review(2, plan_body="Plan body, revised.\n")
+        self.assertEqual(item.entry()["plan_revision"], 2)
+        state_revision = item.entry()["state_revision"]
+        proc = item.generate_plan_bundle(check=False, **generate_kwargs)
+        self.assertNotEqual(proc.returncode, 0)
+        self.assertIn("staging discarded", proc.stdout + proc.stderr)
+        self.assertEqual(item.entry()["phase"], "REVISING_PLAN")
+        self.assertEqual(item.entry()["state_revision"], state_revision)
+        self.assertEqual(cp4_status(item)["row"], "9")
+        self.assertFalse(cp4_status(item)["bundle_verifies"])
+        # Retry after fixing the inputs: no second revision bump, then a bind.
+        item.generate_plan_bundle()
+        self.assertBound(plan_revision=2)
+        self.assertEqual(item.registry()["plan_revision"], 2)
+        return consumed
+
+    def test_variant_1_stale_test_results_ends_non_ready_then_retry_binds(self):
+        """Section 3.3 variant 1 through the real generator: a
+        `TEST_RESULTS.md` still naming the previous revision."""
+        self._stale_inputs_round(test_results=(
+            "stage: plan (revision 1)\nhead: HEAD\n\nNo automated checks are required.\n"
+        ))
+
+    def test_variant_2_stale_review_request_ends_non_ready_then_retry_binds(self):
+        """Section 3.3 variant 2 through the real generator: a
+        `REVIEW_REQUEST.md` still stating the reviewed (consumed) id."""
+        item = self.item
+        bound = self.reach_local_revise()
+        item.apply_plan_review(2)
+        proc = item.generate_plan_bundle(check=False, review_request=(
+            f"# Review request\n\nstage: plan\nwork item: {item.wid}\n"
+            f"review_content_id: {bound['review_content_id']}\n"
+        ))
+        self.assertNotEqual(proc.returncode, 0)
+        self.assertEqual(item.entry()["phase"], "REVISING_PLAN")
+        self.assertEqual(cp4_status(item)["row"], "9")
+        item.generate_plan_bundle()
+        self.assertBound(plan_revision=2)
+
+    def test_crash_between_generation_and_bind_bumping_round_binds_only(self):
+        item = self.item
+        self.reach_local_revise()
+        item.apply_plan_review(2)
+        item.generate_plan_bundle(bind=False)
+        status = self.assertRow("9", ws.PLAN_REVIEW_STATUS_PUBLISHED_UNBOUND)
+        self.assertTrue(status["bundle_verifies"])
+        self.assertIn("bind only", status["remedy"])
+        bundle_id = item.bundle_id()
+        item.bind_plan_bundle()
+        self.assertBound(plan_revision=2)
+        self.assertEqual(item.bundle_id(), bundle_id)
+
+    def test_crash_between_generation_and_bind_non_bumping_round_binds_only(self):
+        """A REVISE round that edits prose without advancing plan_revision."""
+        item = self.item
+        self.reach_local_revise()
+        item.apply_plan_review(1, plan_body="Plan body, reworded.\n")
+        self.assertEqual(item.entry()["plan_revision"], 1)
+        item.generate_plan_bundle(bind=False)
+        self.assertTrue(self.assertRow("9", ws.PLAN_REVIEW_STATUS_PUBLISHED_UNBOUND)["bundle_verifies"])
+        item.bind_plan_bundle()
+        self.assertBound(plan_revision=1)
+
+    def _assert_failed_generation_leaves_bound_bundle(self, **generate_kwargs):
+        item = self.item
+        self.reach_bound()
+        root = cp4_item_root(item)
+        current = cp4_snapshot(root / "current")
+        archive = cp4_snapshot(root / "review-bundle.tar.gz")
+        pin = cp4_snapshot(root / ".pin")
+        state = cp4_state_bytes(item)
+        proc = item.generate_plan_bundle(check=False, **generate_kwargs)
+        self.assertNotEqual(proc.returncode, 0)
+        self.assertEqual(cp4_snapshot(root / "current"), current)
+        self.assertEqual(cp4_snapshot(root / "review-bundle.tar.gz"), archive)
+        self.assertEqual(cp4_snapshot(root / ".pin"), pin)
+        self.assertFalse((root / "REJECTED").exists())
+        self.assertEqual(list(root.glob("current.rejected-*")), [])
+        self.assertEqual(list(root.glob("current.staging-*")), [])
+        self.assertEqual(list(root.glob(".pin.staging-*")), [])
+        self.assertEqual(cp4_state_bytes(item), state)
+        # The readers still accept the previous, still-bound bundle.
+        self.assertIsNone(ws.assert_plan_review_bundle_bound(item.root, item.wid))
+        self.assertIsNone(ws.validate_local_plan_review_preconditions_bound(item.root, item.entry()))
+        self.assertRow("2", ws.PLAN_REVIEW_STATUS_BOUND)
+
+    def test_failed_staging_generation_stale_test_results_keeps_bound_bundle(self):
+        self._assert_failed_generation_leaves_bound_bundle(
+            test_results="stage: plan (revision 7)\nhead: HEAD\n\nstale\n",
+        )
+
+    def test_failed_staging_generation_stale_review_request_keeps_bound_bundle(self):
+        self._assert_failed_generation_leaves_bound_bundle(
+            review_request=f"# Review request\n\nreview_content_id: {'a' * 64}\n",
+        )
+
+    def test_pre_existing_rejected_marker_refuses_readers_until_regeneration(self):
+        item = self.item
+        self.reach_bound()
+        (cp4_item_root(item) / "REJECTED").write_text("REJECTED: written by 2.5.1\n")
+        with self.assertRaises(ws.PlanReviewBundleUnverifiedError) as ctx:
+            ws.assert_plan_review_bundle_bound(item.root, item.wid)
+        self.assertIn("regenerate", str(ctx.exception))
+        self.assertRow("4b", ws.PLAN_REVIEW_STATUS_BUNDLE_UNVERIFIED)
+        # The next successful generation clears it; the new bundle_id is
+        # advisory only (content unchanged).
+        cp4_regenerate_wrapper_only(item)
+        self.assertFalse((cp4_item_root(item) / "REJECTED").exists())
+        advisory = ws.assert_plan_review_bundle_bound(item.root, item.wid)
+        self.assertIsNotNone(advisory)
+        self.assertEqual(item.entry()["phase"], "AWAITING_LOCAL_PLAN_REVIEW")
+
+    def test_implementation_stage_failure_still_withdraws(self):
+        """Stage scope: implementation-stage generation keeps `2.5.1`'s
+        in-place generation and `withdraw_bundle` quarantine."""
+        item = self.item
+        self.reach_plan_approved()
+        item.implement_checkpoint("CP1", {item.deliverable: "// round 1\n"})
+        _, _, proc = item.generate_impl_bundle(
+            "implementation", check=False, summary="# No revision line\n",
+        )
+        self.assertNotEqual(proc.returncode, 0)
+        self.assertIn("withdrawn", proc.stdout + proc.stderr)
+        root = cp4_item_root(item)
+        self.assertFalse((root / "current").exists())
+        self.assertFalse((root / "review-bundle.tar.gz").exists())
+        self.assertEqual(len(list(root.glob("current.rejected-*"))), 1)
+        self.assertEqual(list(root.glob("current.staging-*")), [])
+
+
+class PlanReviewConsumedContent(_PlanReviewBindingCase):
+    """Consumed content never re-binds (`LPR-R1-001`): publish and bind
+    both refuse `ConsumedPlanReviewContentError` before an edit plus
+    regeneration, and succeed after one."""
+
+    def _assert_consumed_refused_then_edit_binds(self, *, next_revision, amend=False):
+        item = self.item
+        # Publish of the unchanged content refuses early.
+        self.attempt_publish(ws.ConsumedPlanReviewContentError,
+                             plan_revision=item.entry()["plan_revision"])
+        # The reviewed bundle still on disk still verifies -- and bind refuses.
+        binding = ws.verify_plan_review_bundle(item.root, item.wid)
+        self.assertEqual(binding["review_content_id"],
+                         item.entry()["plan_review_binding"]["consumed"]["review_content_id"])
+        self.attempt_bind(ws.ConsumedPlanReviewContentError)
+        if amend:
+            item.amend_plan(next_revision)
+        else:
+            item.apply_plan_review(next_revision, plan_body="Plan body, after the verdict.\n")
+        item.generate_plan_bundle()
+        self.assertBound(plan_revision=next_revision)
+
+    def test_fresh_local_revise_with_reviewed_bundle_on_disk(self):
+        self.reach_local_revise()
+        self.assertRow("10", ws.PLAN_REVIEW_STATUS_NEEDS_EDIT)
+        self._assert_consumed_refused_then_edit_binds(next_revision=2)
+
+    def test_fresh_manual_revise(self):
+        item = self.item
+        self.reach_bound()
+        item.record_plan_reviews(local="APPROVE", manual="REVISE")
+        self.assertEqual(item.entry()["phase"], "REVISING_PLAN")
+        self.assertRow("10", ws.PLAN_REVIEW_STATUS_NEEDS_EDIT)
+        self._assert_consumed_refused_then_edit_binds(next_revision=2)
+
+    def test_fresh_amending_plan_with_approved_bundle_on_disk(self):
+        item = self.item
+        approved = self.reach_amending()
+        consumed = item.entry()["plan_review_binding"]["consumed"]
+        self.assertEqual(consumed["review_content_id"], approved)
+        self.assertFalse(consumed["legacy"])
+        self._assert_consumed_refused_then_edit_binds(next_revision=2, amend=True)
+
+    def test_non_bumping_round_refused_before_edit_bound_after(self):
+        item = self.item
+        self.reach_local_revise()
+        self.attempt_publish(ws.ConsumedPlanReviewContentError, plan_revision=1)
+        item.apply_plan_review(1, plan_body="Plan body, same revision, reworded.\n")
+        item.generate_plan_bundle()
+        self.assertBound(plan_revision=1)
+
+    def test_wrapper_only_regeneration_of_consumed_content_still_refused(self):
+        item = self.item
+        bound = self.reach_local_revise()
+        cp4_regenerate_wrapper_only(item, bind=False)
+        binding = ws.verify_plan_review_bundle(item.root, item.wid)
+        self.assertNotEqual(binding["bundle_id"], bound["bundle_id"])
+        self.assertEqual(binding["review_content_id"], bound["review_content_id"])
+        self.attempt_bind(ws.ConsumedPlanReviewContentError)
+        self.assertEqual(item.entry()["phase"], "REVISING_PLAN")
+
+
+class PlanReviewMidEditCrash(_PlanReviewBindingCase):
+    """A mid-edit crash never binds (`LPR-R2-001`): the entry status is
+    `EDIT_IN_PROGRESS` (row 11) and a direct bind against the on-disk
+    bundle refuses."""
+
+    def test_bumping_apply_plan_review_round(self):
+        """The plan document already carries the new checkpoint's section;
+        the registry is not regenerated yet."""
+        item = self.item
+        self.reach_local_revise()
+        text = item.sim.read(item.plan_path)
+        item.sim.write(item.plan_path, text + "<!-- CP2 -->\nCP2 -- second.\n<!-- /CP2 -->\n")
+        self.assertRow("11", ws.PLAN_REVIEW_STATUS_EDIT_IN_PROGRESS)
+        self.attempt_bind(ws.ReviewedContentDriftError)
+        self.attempt_bind(ws.ConsumedPlanReviewContentError, binding=cp4_manifest_binding(item))
+        self.assertEqual(item.entry()["phase"], "REVISING_PLAN")
+
+    def test_non_bumping_apply_plan_review_round(self):
+        item = self.item
+        self.reach_local_revise()
+        cp4_edit_prose(item)
+        self.assertRow("11", ws.PLAN_REVIEW_STATUS_EDIT_IN_PROGRESS)
+        self.attempt_bind(ws.ReviewedContentDriftError)
+        self.attempt_bind(ws.ConsumedPlanReviewContentError, binding=cp4_manifest_binding(item))
+
+    def test_amendment_under_milestone_plan_with_mirror_advanced(self):
+        """`/milestone-plan` step 1 advanced the mirror before any edit
+        (M > R): a mirror advance is not an "edits complete" fact."""
+        item = self.item
+        self.reach_amending()
+        item.tx(lambda state: ws.ensure_plan_review_binding_marker(state, item.wid, item.now()))
+        cp4_route(item, 2)
+        self.assertEqual(item.entry()["plan_revision"], 2)
+        self.assertEqual(item.registry()["plan_revision"], 1)
+        cp4_edit_prose(item)
+        self.assertRow("11", ws.PLAN_REVIEW_STATUS_EDIT_IN_PROGRESS)
+        exc = self.attempt_bind(ws.PlanReviewBundleUnverifiedError)
+        self.assertIn("stale-revision", str(exc))
+        self.assertEqual(item.entry()["phase"], "AMENDING_PLAN")
+
+    def test_revision_title_bumped_ahead_of_registry(self):
+        """`(Revision 2)` in the title, registry still at 1:
+        `PlanRevisionMismatchError`, read as F = bottom."""
+        item = self.item
+        self.reach_local_revise()
+        cp4_set_title_revision(item, 2)
+        status = self.assertRow("11", ws.PLAN_REVIEW_STATUS_EDIT_IN_PROGRESS)
+        self.assertIsNone(status["fresh_review_content_id"])
+        self.attempt_bind(ws.ReviewedContentDriftError)
+
+    def test_publish_followed_by_further_edits(self):
+        item = self.item
+        self.reach_local_revise()
+        item.apply_plan_review(2)
+        self.assertRow("9", ws.PLAN_REVIEW_STATUS_PUBLISHED_UNBOUND)
+        cp4_edit_prose(item)
+        self.assertRow("11", ws.PLAN_REVIEW_STATUS_EDIT_IN_PROGRESS)
+        item.generate_plan_bundle(bind=False)
+        self.attempt_bind(ws.PlanReviewNotPublishedError)
+        # The normal path: step 5 publishes again, then the bind succeeds.
+        cp4_publish(item)
+        item.bind_plan_bundle()
+        self.assertBound(plan_revision=2)
+
+
+class PlanReviewLegacyItems(_PlanReviewBindingCase):
+    """INV-7: items that entered their round under `2.5.1`."""
+
+    def test_legacy_revising_plan_needs_the_marker_then_one_advance(self):
+        item = self.item
+        self.reach_local_revise()
+        cp4_hand_edit(item, cp4_make_legacy)
+        self.assertRow("5", ws.PLAN_REVIEW_STATUS_LEGACY_UNMARKED)
+        # Before the marker: publish and bind both refuse, by name.
+        self.attempt_bind(ws.LegacyPlanReviewBindingUnknownError)
+        cp4_write_round_files(item, 2)
+        item.stage_plan_files()
+        exc = self.attempt_publish(ws.LegacyPlanReviewBindingUnknownError)
+        self.assertIn("ensure_plan_review_binding_marker", str(exc))
+        # Revert to the reviewed revision-1 content; the entry writes the marker.
+        cp4_write_round_files(item, 1, plan_body="Plan body.\n")
+        item.tx(lambda state: ws.ensure_plan_review_binding_marker(state, item.wid, item.now()))
+        record = item.entry()["plan_review_binding"]
+        self.assertEqual(record["status"], "CONSUMED")
+        self.assertEqual(record["consumed"], {"review_content_id": None, "plan_revision": 1, "legacy": True})
+        self.assertRow("11", ws.PLAN_REVIEW_STATUS_EDIT_IN_PROGRESS)
+        # At the marker's revision: refused, even after a prose edit.
+        self.attempt_publish(ws.ConsumedPlanReviewContentError, plan_revision=1)
+        self.attempt_bind(ws.ConsumedPlanReviewContentError)
+        cp4_edit_prose(item)
+        self.attempt_publish(ws.ConsumedPlanReviewContentError, plan_revision=1)
+        # One advance binds.
+        item.apply_plan_review(2)
+        item.generate_plan_bundle()
+        self.assertBound(plan_revision=2)
+
+    def _legacy_amending_without_approved_id(self, work_item):
+        cp4_make_legacy(work_item)
+        work_item["amendment_history"][-1]["superseded_plan_approval"] = None
+
+    def test_legacy_amending_plan_without_approved_id_needs_the_marker(self):
+        item = self.item
+        self.reach_amending()
+        cp4_hand_edit(item, self._legacy_amending_without_approved_id)
+        self.assertRow("5", ws.PLAN_REVIEW_STATUS_LEGACY_UNMARKED)
+        self.attempt_publish(ws.LegacyPlanReviewBindingUnknownError, plan_revision=1)
+        self.attempt_bind(ws.LegacyPlanReviewBindingUnknownError)
+        item.tx(lambda state: ws.ensure_plan_review_binding_marker(state, item.wid, item.now()))
+        self.assertEqual(item.entry()["plan_review_binding"]["consumed"],
+                         {"review_content_id": None, "plan_revision": 1, "legacy": True})
+        self.attempt_publish(ws.ConsumedPlanReviewContentError, plan_revision=1)
+        self.attempt_bind(ws.ConsumedPlanReviewContentError)
+        item.amend_plan(2)
+        item.generate_plan_bundle()
+        self.assertBound(plan_revision=2)
+
+    def test_legacy_amending_plan_with_approved_id_uses_the_amendment_record(self):
+        """`LPR-R3-006`: 2.5.1's /milestone-plan step 1 already advanced the
+        mirror; the marker comes from the amendment entry (non-legacy), and
+        the item binds after its edit with no extra advance."""
+        item = self.item
+        approved = self.reach_amending()
+        cp4_hand_edit(item, cp4_make_legacy)
+        cp4_route(item, 2)  # 2.5.1's step 1, before the update
+        self.assertRow("5", ws.PLAN_REVIEW_STATUS_LEGACY_UNMARKED)
+        item.tx(lambda state: ws.ensure_plan_review_binding_marker(state, item.wid, item.now()))
+        self.assertEqual(item.entry()["plan_review_binding"]["consumed"],
+                         {"review_content_id": approved, "plan_revision": 1, "legacy": False})
+        self.assertRow("11", ws.PLAN_REVIEW_STATUS_EDIT_IN_PROGRESS)
+        # The amended-away content is refused.
+        self.attempt_publish(ws.ConsumedPlanReviewContentError, plan_revision=2, review_content_id=approved)
+        # The edit, at the already-advanced revision: no extra advance.
+        cp4_write_round_files(item, 2, plan_body="Plan body, amended.\n")
+        item.stage_plan_files()
+        cp4_publish(item)
+        item.generate_plan_bundle()
+        self.assertBound(plan_revision=2)
+
+    def test_legacy_ready_item_is_accepted_and_never_written(self):
+        """A 2.5.1 item at AWAITING_MANUAL_EXTERNAL_PLAN_REVIEW with no record
+        and a null current_bundle_id: the readers accept it; nothing writes
+        a record or changes its phase."""
+        item = self.item
+        self.reach_manual()
+        cp4_hand_edit(item, cp4_make_legacy)
+        before = cp4_state_bytes(item)
+        self.assertRow("3", ws.PLAN_REVIEW_STATUS_BOUND)
+        self.assertIsNone(ws.assert_plan_review_bundle_bound(item.root, item.wid))
+        self.assertEqual(cp4_state_bytes(item), before)
+        self.assertNotIn("plan_review_binding", item.entry())
+        self.assertEqual(item.entry()["phase"], "AWAITING_MANUAL_EXTERNAL_PLAN_REVIEW")
+
+    def test_legacy_marker_feedback_check(self):
+        """`LPR-R3-006`: with the null-id marker, the durable check is exactly
+        `Work item:` = target and `Status: REVISE`."""
+        item = self.item
+        self.reach_local_revise()
+        cp4_hand_edit(item, cp4_make_legacy)
+        item.tx(lambda state: ws.ensure_plan_review_binding_marker(state, item.wid, item.now()))
+        status = self.assertRow("11", ws.PLAN_REVIEW_STATUS_EDIT_IN_PROGRESS)["status"]
+
+        def check(content):
+            return ws.assert_apply_plan_review_feedback(
+                item.entry(), item.wid, feedback_content=content, publication_status=status,
+            )
+        item.write_feedback("REVISE")
+        self.assertEqual(check((item.feedback_dir() / "REVIEW_FEEDBACK.md").read_text()), "durable")
+        item.write_feedback("REVISE", work_item="some-other-item")
+        with self.assertRaises(ws.FeedbackNotForConsumedContentError):
+            check((item.feedback_dir() / "REVIEW_FEEDBACK.md").read_text())
+        item.write_feedback("APPROVE")
+        with self.assertRaises(ws.FeedbackStatusNotApplicableError):
+            check((item.feedback_dir() / "REVIEW_FEEDBACK.md").read_text())
+
+
+class PlanReviewStatusTable(_PlanReviewBindingCase):
+    """The status function is total (`LPR-R2-001`): one test per row of
+    section 5.3 item 6's decision table."""
+
+    def test_row_1_not_plan_stage(self):
+        item = self.item
+        self.reach_plan_approved()
+        status = self.assertRow("1", ws.PLAN_REVIEW_STATUS_NOT_PLAN_STAGE)
+        self.assertIn(f"/request-plan-amendment {item.wid}", status["remedy"])
+
+    def test_row_2_bound(self):
+        self.reach_bound()
+        status = self.assertRow("2", ws.PLAN_REVIEW_STATUS_BOUND)
+        self.assertIsNone(status["advisory"])
+        self.assertIsNone(ws.assert_plan_review_bundle_bound(self.item.root, self.item.wid))
+
+    def test_row_3_legacy_ready_bundle_verifies(self):
+        self.reach_bound()
+        cp4_hand_edit(self.item, cp4_make_legacy)
+        self.assertRow("3", ws.PLAN_REVIEW_STATUS_BOUND)
+        self.assertIsNone(ws.assert_plan_review_bundle_bound(self.item.root, self.item.wid))
+
+    def test_row_4a_content_drifted(self):
+        item = self.item
+        self.reach_bound()
+        cp4_edit_prose(item)
+        self.assertRow("4a", ws.PLAN_REVIEW_STATUS_CONTENT_DRIFTED)
+        with self.assertRaises(ws.ReviewedContentDriftError) as ctx:
+            ws.assert_plan_review_bundle_bound(item.root, item.wid)
+        message = str(ctx.exception)
+        self.assertIn("(row 4a)", message)
+        self.assertIn(f".ai-review/{item.wid}/current/files/", message)
+        self.assertIn(f"/milestone-plan {item.wid}", message)
+
+    def test_row_4b_bundle_unverified(self):
+        item = self.item
+        self.reach_bound()
+        path = item.bundle_dir(stage="plan") / "CONTEXT_FILES.txt"
+        path.write_text("mixed\n")
+        self.assertRow("4b", ws.PLAN_REVIEW_STATUS_BUNDLE_UNVERIFIED)
+        with self.assertRaises(ws.PlanReviewBundleUnverifiedError) as ctx:
+            ws.assert_plan_review_bundle_bound(item.root, item.wid)
+        message = str(ctx.exception)
+        self.assertIn("(row 4b)", message)
+        self.assertIn(f"prepare-ai-review.sh <base> plan {item.wid}", message)
+        self.assertIn(f"/milestone-plan {item.wid}", message)
+
+    def test_row_4c_legacy_unverified(self):
+        item = self.item
+        self.reach_bound()
+        cp4_hand_edit(item, cp4_make_legacy)
+        shutil.rmtree(item.bundle_dir(stage="plan"))
+        self.assertRow("4c", ws.PLAN_REVIEW_STATUS_LEGACY_UNVERIFIED)
+        with self.assertRaises(ws.PlanReviewBundleUnverifiedError) as ctx:
+            ws.assert_plan_review_bundle_bound(item.root, item.wid)
+        message = str(ctx.exception)
+        self.assertIn("(row 4c)", message)
+        self.assertIn("regenerate", message)
+        self.assertIn(f"/milestone-plan {item.wid}", message)
+
+    def test_row_4d_ready_phase_with_published_record_is_inconsistent(self):
+        item = self.item
+        self.reach_bound()
+
+        def hand_edit(work_item):
+            record = work_item["plan_review_binding"]
+            record["status"] = "PUBLISHED"
+            record["bound"] = None
+        cp4_hand_edit(item, hand_edit)
+        with self.assertRaises(ws.PlanReviewBindingInconsistentError) as ctx:
+            cp4_status(item)
+        self.assertIn("row 4d", str(ctx.exception))
+        self.assertIn(f"/milestone-plan {item.wid}", str(ctx.exception))
+        with self.assertRaises(ws.PlanReviewBindingInconsistentError):
+            ws.assert_plan_review_bundle_bound(item.root, item.wid)
+        # The named remedy: the withdrawal writes the fail-closed marker.
+        item.tx(lambda state: ws.withdraw_plan_review(state, item.wid, item.now()))
+        self.assertEqual(item.entry()["plan_review_binding"]["consumed"]["legacy"], True)
+
+    def test_row_5_legacy_unmarked(self):
+        self.reach_local_revise()
+        cp4_hand_edit(self.item, cp4_make_legacy)
+        self.assertRow("5", ws.PLAN_REVIEW_STATUS_LEGACY_UNMARKED)
+
+    def test_row_6_non_ready_phase_with_bound_record_is_inconsistent(self):
+        item = self.item
+        self.reach_bound()
+        cp4_hand_edit(item, lambda work_item: work_item.update(phase="REVISING_PLAN"))
+        with self.assertRaises(ws.PlanReviewBindingInconsistentError) as ctx:
+            cp4_status(item)
+        self.assertIn("row 6", str(ctx.exception))
+        self.attempt_publish(ws.PlanReviewBindingInconsistentError, plan_revision=1)
+        self.attempt_bind(ws.PlanReviewBindingInconsistentError)
+
+    def test_row_7_first_round_planning_no_record_no_registry(self):
+        item = self.item
+        cp4_route(item, 1)
+        self.assertNotIn("plan_review_binding", item.entry())
+        self.assertFalse((item.root / item.registry_path).exists())
+        self.assertRow("7", ws.PLAN_REVIEW_STATUS_NEEDS_EDIT)
+
+    def test_row_11_planning_with_registry_and_no_record(self):
+        item = self.item
+        cp4_route(item, 1)
+        cp4_write_round_files(item, 1, plan_body="Plan body.\n")
+        item.sim.write(item.artifacts_path, json.dumps(ws.generate_artifacts_declarations(
+            item.wid, item.plan_path, item.registry_path, item.mapping_path,
+            work_item_type=item.wtype,
+        ), indent=2) + "\n")
+        item.stage_plan_files()
+        self.assertRow("11", ws.PLAN_REVIEW_STATUS_EDIT_IN_PROGRESS)
+
+    def test_row_8_needs_revision_resumes_step_5_without_differing(self):
+        """The registry was regenerated at R > M, then the session stopped
+        before the publish; re-running step 5 changes no bytes."""
+        item = self.item
+        self.reach_local_revise()
+        cp4_write_round_files(item, 2)
+        self.assertRow("8", ws.PLAN_REVIEW_STATUS_NEEDS_REVISION)
+        written = {p: (item.root / p).read_bytes() for p in (item.registry_path, item.mapping_path, item.plan_path)}
+        item.apply_plan_review(2)
+        self.assertEqual(
+            {p: (item.root / p).read_bytes() for p in written}, written,
+        )
+        self.assertRow("9", ws.PLAN_REVIEW_STATUS_PUBLISHED_UNBOUND)
+        item.generate_plan_bundle()
+        self.assertBound(plan_revision=2)
+
+    def test_row_9_published_unbound_before_and_after_generation(self):
+        item = self.item
+        item.milestone_plan()
+        self.assertFalse(self.assertRow("9", ws.PLAN_REVIEW_STATUS_PUBLISHED_UNBOUND)["bundle_verifies"])
+        item.generate_plan_bundle(bind=False)
+        self.assertTrue(self.assertRow("9", ws.PLAN_REVIEW_STATUS_PUBLISHED_UNBOUND)["bundle_verifies"])
+
+    def test_row_10_needs_edit_after_revise(self):
+        self.reach_local_revise()
+        self.assertRow("10", ws.PLAN_REVIEW_STATUS_NEEDS_EDIT)
+
+    def test_row_11_edit_in_progress(self):
+        self.reach_local_revise()
+        cp4_edit_prose(self.item)
+        self.assertRow("11", ws.PLAN_REVIEW_STATUS_EDIT_IN_PROGRESS)
+
+    def _durable_feedback_check(self, expected_status):
+        item = self.item
+        consumed = item.entry()["plan_review_binding"]["consumed"]["review_content_id"]
+        status = cp4_status(item)["status"]
+        self.assertEqual(status, expected_status)
+
+        def check(rcid):
+            item.write_feedback("REVISE", extra=f"review_content_id: {rcid}")
+            return ws.assert_apply_plan_review_feedback(
+                item.entry(), item.wid,
+                feedback_content=(item.feedback_dir() / "REVIEW_FEEDBACK.md").read_text(),
+                publication_status=status,
+            )
+        self.assertEqual(check(consumed), "durable")
+        before = cp4_state_bytes(item)
+        with self.assertRaises(ws.FeedbackNotForConsumedContentError):
+            check("b" * 64)
+        self.assertEqual(cp4_state_bytes(item), before)
+
+    def test_durable_feedback_check_under_published_unbound(self):
+        self.reach_local_revise()
+        self.item.apply_plan_review(2)
+        self._durable_feedback_check(ws.PLAN_REVIEW_STATUS_PUBLISHED_UNBOUND)
+
+    def test_durable_feedback_check_under_edit_in_progress(self):
+        self.reach_local_revise()
+        cp4_edit_prose(self.item)
+        self._durable_feedback_check(ws.PLAN_REVIEW_STATUS_EDIT_IN_PROGRESS)
+
+    def test_cli_prints_one_json_object(self):
+        item = self.item
+        item.milestone_plan()
+        before = cp4_state_bytes(item)
+        proc = _run(
+            [sys.executable, "scripts/workflow_state.py", "--plan-review-publication-status", item.wid],
+            cwd=item.root,
+        )
+        self.assertEqual(proc.stdout.count("\n"), 1)
+        printed = json.loads(proc.stdout)
+        self.assertEqual(printed["row"], "9")
+        self.assertEqual(printed["status"], ws.PLAN_REVIEW_STATUS_PUBLISHED_UNBOUND)
+        self.assertEqual(printed["work_item_id"], item.wid)
+        self.assertFalse(any(k.startswith("_") for k in printed))
+        self.assertEqual(cp4_state_bytes(item), before)
+
+
+class PlanReviewReadyPhaseWriters(_PlanReviewBindingCase):
+    """Ready-phase writers (`LPR-R3-001`/`LPR-R2-002`): after every call the
+    phase is ready only with a `BOUND` record, and no case wedges."""
+
+    def _withdraw(self):
+        item = self.item
+        ws.assert_plan_review_withdrawal_allowed(item.root, item.wid, explicit_id=True)
+        item.tx(lambda state: ws.withdraw_plan_review(state, item.wid, item.now()))
+
+    def _withdraw_then_rebind(self, bound, expected_phase="REVISING_PLAN"):
+        item = self.item
+        stages = item.entry().get("plan_review_stages")
+        self._withdraw()
+        entry = item.entry()
+        self.assertEqual(entry["phase"], expected_phase)
+        self.assertEqual(entry["plan_review_binding"]["status"], "CONSUMED")
+        self.assertEqual(entry["plan_review_binding"]["consumed"], {
+            "review_content_id": bound["review_content_id"],
+            "plan_revision": bound["plan_revision"], "legacy": False,
+        })
+        self.assertEqual(entry.get("plan_review_stages"), stages)
+        self.assertRow("10", ws.PLAN_REVIEW_STATUS_NEEDS_EDIT)
+        # The withdrawn content is refused ...
+        self.attempt_publish(ws.ConsumedPlanReviewContentError, plan_revision=bound["plan_revision"])
+        self.attempt_bind(ws.ConsumedPlanReviewContentError)
+        # ... and new content re-binds through the normal path.
+        next_revision = bound["plan_revision"] + 1
+        if expected_phase == "AMENDING_PLAN":
+            item.amend_plan(bound["plan_revision"], plan_body="Plan body, amended again.\n")
+            next_revision = bound["plan_revision"]
+        else:
+            item.apply_plan_review(next_revision)
+        item.generate_plan_bundle()
+        self.assertBound(plan_revision=next_revision)
+
+    def test_withdraw_from_awaiting_local_plan_review(self):
+        self._withdraw_then_rebind(self.reach_bound())
+
+    def test_withdraw_from_awaiting_manual_external_plan_review(self):
+        self._withdraw_then_rebind(self.reach_manual())
+
+    def test_withdraw_from_awaiting_plan_approval(self):
+        self._withdraw_then_rebind(self.reach_approval())
+
+    def test_withdraw_with_open_amendment_lands_on_amending_plan(self):
+        item = self.item
+        self.reach_amending()
+        item.amend_plan(2)
+        item.generate_plan_bundle()
+        bound = self.assertBound(plan_revision=2)["bound"]
+        self._withdraw_then_rebind(bound, expected_phase="AMENDING_PLAN")
+
+    def test_withdraw_at_non_ready_phase_refuses(self):
+        item = self.item
+        self.reach_local_revise()
+        self.assertRefusesWithoutWrite(
+            ws.PlanReviewNotReadyError,
+            lambda: item.tx(lambda state: ws.withdraw_plan_review(state, item.wid, item.now())),
+        )
+
+    def test_edit_then_regeneration_at_local_review_refuses_review_plan(self):
+        """An edit plus regeneration before any verdict: `/review-plan`
+        refuses naming both remedies; restoring the bound bytes (then
+        regenerating the now-stale bundle) returns to row 2."""
+        item = self.item
+        self.reach_bound()
+        bound_files = cp4_snapshot(item.bundle_dir(stage="plan") / "files")
+        # Without regenerating: restore straight from current/files/.
+        cp4_edit_prose(item)
+        with self.assertRaises(ws.ReviewedContentDriftError):
+            ws.validate_local_plan_review_preconditions_bound(item.root, item.entry())
+        (item.root / item.plan_path).write_bytes(
+            (item.bundle_dir(stage="plan") / "files" / item.plan_path).read_bytes())
+        self.assertRow("2", ws.PLAN_REVIEW_STATUS_BOUND)
+        # With a regeneration: the bundle verifies for the edited content,
+        # which is still not the bound content.
+        cp4_edit_prose(item)
+        proc = item.generate_plan_bundle()
+        self.assertEqual(proc.returncode, 0)
+        self.assertEqual(item.entry()["phase"], "AWAITING_LOCAL_PLAN_REVIEW")
+        self.assertRow("4a", ws.PLAN_REVIEW_STATUS_CONTENT_DRIFTED)
+        with self.assertRaises(ws.ReviewedContentDriftError) as ctx:
+            ws.validate_local_plan_review_preconditions_bound(item.root, item.entry())
+        self.assertIn("current/files/", str(ctx.exception))
+        self.assertIn(f"/milestone-plan {item.wid}", str(ctx.exception))
+        (item.root / item.plan_path).write_bytes(bound_files[item.plan_path])
+        cp4_regenerate_wrapper_only(item)
+        self.assertRow("2", ws.PLAN_REVIEW_STATUS_BOUND)
+        self.assertIsNotNone(ws.validate_local_plan_review_preconditions_bound(item.root, item.entry()))
+
+    def test_publish_and_route_refuse_at_each_ready_phase(self):
+        item = self.item
+        config = json.loads(item.sim.read("docs/ai-workflow/WORKFLOW_CONFIG.json"))
+        self.reach_bound()
+        for advance in (
+            lambda: None,
+            lambda: item.tx(lambda state: ws.record_local_plan_review(
+                state, item.wid, verdict="APPROVE", bundle_id=item.bundle_id(),
+                review_content_id=cp4_fresh_id(item), round=1, now=item.now(),
+            )),
+            lambda: (item.write_feedback("APPROVE"), item.tx(lambda state: ws.record_manual_plan_review(
+                state, item.wid, verdict="APPROVE", bundle_id=item.bundle_id(), round=1,
+                now=item.now(), current_review_content_id=cp4_fresh_id(item),
+                feedback_role="MANUAL_EXTERNAL_PLAN_REVIEW",
+                feedback_review_content_id=cp4_fresh_id(item),
+            ))),
+        ):
+            advance()
+            phase = item.entry()["phase"]
+            with self.subTest(phase=phase):
+                exc = self.attempt_publish(ws.PlanReviewInProgressError, plan_revision=1)
+                self.assertIn(f"/milestone-plan {item.wid}", str(exc))
+                self.attempt_publish(ws.PlanReviewInProgressError, plan_revision=2)
+                self.assertRefusesWithoutWrite(ws.PlanReviewInProgressError, lambda: item.tx(
+                    lambda state: ws.route_work_item(
+                        state, config, work_item_id=item.wid, work_item_type=item.wtype,
+                        work_item_kind=item.wtype, plan_path=item.plan_path,
+                        registry_path=item.registry_path, plan_revision=2, now=item.now(),
+                        mapping_path=item.mapping_path, base_commit=item.base_commit,
+                        repo_root=item.root,
+                    )))
+        self.assertEqual(item.entry()["phase"], "AWAITING_PLAN_APPROVAL")
+
+    def test_legacy_ready_item_with_withdrawn_bundle_recovers_by_regeneration(self):
+        item = self.item
+        self.reach_bound()
+        cp4_hand_edit(item, cp4_make_legacy)
+        # 2.5.1's withdrawal: the bundle quarantined, the archive removed.
+        root = cp4_item_root(item)
+        (root / "current").rename(root / "current.rejected-legacy")
+        (root / "review-bundle.tar.gz").unlink()
+        self.assertRow("4c", ws.PLAN_REVIEW_STATUS_LEGACY_UNVERIFIED)
+        with self.assertRaises(ws.PlanReviewBundleUnverifiedError):
+            ws.assert_plan_review_bundle_bound(item.root, item.wid)
+        before = cp4_state_bytes(item)
+        item.generate_plan_bundle()
+        self.assertEqual(cp4_state_bytes(item), before)
+        self.assertRow("3", ws.PLAN_REVIEW_STATUS_BOUND)
+        self.assertIsNone(ws.assert_plan_review_bundle_bound(item.root, item.wid))
+        self.assertNotIn("plan_review_binding", item.entry())
+
+
+class PlanReviewWrapperOnlyRegeneration(_PlanReviewBindingCase):
+    """A wrapper-only regeneration after the bind stays non-blocking
+    (`LPR-R2-002`); `bind` never regresses a ready phase."""
+
+    def test_manual_stage_ingests_with_advisory(self):
+        item = self.item
+        bound = self.reach_manual()
+        cp4_regenerate_wrapper_only(item)
+        new_bundle_id = item.bundle_id()
+        self.assertNotEqual(new_bundle_id, bound["bundle_id"])
+        advisory = ws.assert_plan_review_bundle_bound(item.root, item.wid)
+        self.assertIn(bound["bundle_id"], advisory)
+        self.assertIn(new_bundle_id, advisory)
+        exc = self.attempt_bind(ws.PlanReviewAlreadyReadyError)
+        self.assertIn("nothing was written", str(exc))
+        self.assertEqual(item.entry()["phase"], "AWAITING_MANUAL_EXTERNAL_PLAN_REVIEW")
+        rcid = cp4_fresh_id(item)
+        item.tx(lambda state: ws.record_manual_plan_review(
+            state, item.wid, verdict="APPROVE", bundle_id=new_bundle_id, round=1, now=item.now(),
+            current_review_content_id=rcid, feedback_role="MANUAL_EXTERNAL_PLAN_REVIEW",
+            feedback_review_content_id=rcid,
+        ))
+        self.assertEqual(item.entry()["phase"], "AWAITING_PLAN_APPROVAL")
+
+    def test_plan_approval_still_proceeds(self):
+        item = self.item
+        bound = self.reach_approval()
+        cp4_regenerate_wrapper_only(item)
+        self.assertNotEqual(item.bundle_id(), bound["bundle_id"])
+        self.assertIsNotNone(ws.assert_plan_review_bundle_bound(item.root, item.wid))
+        self.attempt_bind(ws.PlanReviewAlreadyReadyError)
+        self.assertEqual(item.entry()["phase"], "AWAITING_PLAN_APPROVAL")
+        item.write_feedback("APPROVE")
+        item.approve_plan()
+        self.assertEqual(item.entry()["phase"], "IMPLEMENTING")
+
+
+class PlanReviewSelfReviewEditsBind(_PlanReviewBindingCase):
+    """Self-review edits bind (`LPR-R4-001`), in the real `/milestone-plan`
+    step order: step 1 routes; step 3 writes the registry, mapping,
+    artifacts, table and stages; steps 4-5 edit; the publication point
+    regenerates, re-embeds, re-stages and publishes; step 6 generates and
+    binds."""
+
+    def milestone_plan_real_order(self, plan_revision=1, self_review=None, publish_at_step_3=False,
+                                  amendment=False):
+        item = self.item
+        # Step 1 (with the entry marker an amendment's entry writes).
+        if amendment:
+            item.tx(lambda state: ws.ensure_plan_review_binding_marker(state, item.wid, item.now()))
+        cp4_route(item, plan_revision)
+        # Step 3.
+        round_ = {"checkpoints": CHECKPOINTS, "requirements": REQUIREMENTS,
+                  "plan_body": "Plan body, amended.\n" if amendment else "Plan body.\n"}
+        cp4_write_round_files(item, plan_revision, round_["checkpoints"], round_["requirements"],
+                              round_["plan_body"])
+        if not amendment:
+            item.sim.write(item.artifacts_path, json.dumps(ws.generate_artifacts_declarations(
+                item.wid, item.plan_path, item.registry_path, item.mapping_path,
+                work_item_type=item.wtype,
+            ), indent=2) + "\n")
+        item.stage_plan_files()
+        step_3_id = cp4_fresh_id(item)
+        if publish_at_step_3:
+            cp4_publish(item)  # 2.5.1's position
+        # Steps 4-5: self-review edits in place.
+        if self_review is not None:
+            self_review(round_)
+        if not publish_at_step_3:
+            # The publication point.
+            registry = cp4_write_round_files(item, plan_revision, round_["checkpoints"],
+                                             round_["requirements"], round_["plan_body"])
+            self.assertEqual(registry["plan_revision"], plan_revision)
+            item.stage_plan_files()
+            cp4_publish(item)
+        return step_3_id
+
+    def _edit_plan_body(self, round_):
+        round_["plan_body"] += "Self-review: clarified the risk section.\n"
+        registry = self.item.registry()
+        self.item.sim.write(self.item.plan_path, cp4_render_plan(
+            self.item, registry["plan_revision"], round_["plan_body"], registry))
+
+    def test_self_review_edits_the_plan_document(self):
+        item = self.item
+        step_3_id = self.milestone_plan_real_order(self_review=self._edit_plan_body)
+        item.generate_plan_bundle()
+        record = self.assertBound(plan_revision=1)
+        self.assertNotEqual(record["bound"]["review_content_id"], step_3_id)
+        self.assertIn("Self-review", item.sim.read(item.plan_path))
+
+    def test_self_review_edits_artifacts_plan_stage_sets(self):
+        item = self.item
+
+        def edit_artifacts(round_):
+            declarations = json.loads(item.sim.read(item.artifacts_path))
+            declarations["plan_stage"]["excluded_paths"]["docs/NOTES.md"] = "scratch notes, not design"
+            item.sim.write(item.artifacts_path, json.dumps(declarations, indent=2) + "\n")
+        step_3_id = self.milestone_plan_real_order(self_review=edit_artifacts)
+        item.generate_plan_bundle()
+        record = self.assertBound(plan_revision=1)
+        self.assertNotEqual(record["bound"]["review_content_id"], step_3_id)
+        bound_decl = json.loads((item.bundle_dir(stage="plan") / "files" / item.artifacts_path).read_text())
+        self.assertIn("docs/NOTES.md", bound_decl["plan_stage"]["excluded_paths"])
+
+    def test_self_review_adds_a_checkpoint(self):
+        item = self.item
+
+        def add_checkpoint(round_):
+            round_["checkpoints"] = CHECKPOINTS_TWO
+            round_["requirements"] = REQUIREMENTS_TWO
+        self.milestone_plan_real_order(self_review=add_checkpoint)
+        item.generate_plan_bundle()
+        self.assertBound(plan_revision=1)
+        files = item.bundle_dir(stage="plan") / "files"
+        bound_registry = json.loads((files / item.registry_path).read_text())
+        self.assertEqual([c["id"] for c in bound_registry["checkpoints"]], ["CP1", "CP2"])
+        self.assertIn(ws.render_registry_markdown(bound_registry), (files / item.plan_path).read_text())
+
+    def test_amendment_round_with_a_self_review_edit_binds(self):
+        item = self.item
+        self.reach_amending()
+        self.milestone_plan_real_order(plan_revision=2, self_review=self._edit_plan_body, amendment=True)
+        item.generate_plan_bundle()
+        self.assertBound(plan_revision=2)
+        self.assertEqual(item.entry()["plan_review_binding"]["consumed"]["plan_revision"], 1)
+
+    def test_pinning_publish_at_2_5_1_step_3_then_edit_refuses_bind(self):
+        item = self.item
+        self.milestone_plan_real_order(self_review=self._edit_plan_body, publish_at_step_3=True)
+        item.generate_plan_bundle(bind=False)
+        self.attempt_bind(ws.PlanReviewNotPublishedError)
+        self.assertEqual(item.entry()["phase"], "PLANNING")
+        self.assertRow("11", ws.PLAN_REVIEW_STATUS_EDIT_IN_PROGRESS)
+
+    def test_first_round_with_untracked_plan_files(self):
+        """`LPR-R3-003`: publishing before the intent-to-add step refuses
+        while computing the id; the real order publishes, generates, binds."""
+        item = self.item
+        cp4_route(item, 1)
+        cp4_write_round_files(item, 1, plan_body="Plan body.\n")
+        item.sim.write(item.artifacts_path, json.dumps(ws.generate_artifacts_declarations(
+            item.wid, item.plan_path, item.registry_path, item.mapping_path,
+            work_item_type=item.wtype,
+        ), indent=2) + "\n")
+        self.attempt_publish(fingerprint.InvalidPlanStageMetadataPathError, plan_revision=1)
+        self.assertNotIn("plan_review_binding", item.entry())
+        item.stage_plan_files()
+        cp4_publish(item)
+        item.generate_plan_bundle()
+        self.assertBound(plan_revision=1)
+
+
+class PlanReviewPhaseAllowList(_PlanReviewBindingCase):
+    """The plan-stage allow-list (`LPR-R4-002`): outside
+    PLANNING/REVISING_PLAN/AMENDING_PLAN and the ready phases, every
+    plan-stage writer refuses before any write."""
+
+    def _assert_refuses_outside_plan_stage(self, names_amendment):
+        item = self.item
+        config = json.loads(item.sim.read("docs/ai-workflow/WORKFLOW_CONFIG.json"))
+        before = cp4_state_bytes(item)
+        for command in ("/milestone-plan", "/apply-plan-review"):
+            with self.assertRaises(ws.PlanReviewPhaseNotPlanStageError) as ctx:
+                ws.assert_plan_review_entry_phase(item.entry(), item.wid, command=command)
+            self.assertEqual(
+                f"/request-plan-amendment {item.wid}" in str(ctx.exception), names_amendment,
+                str(ctx.exception),
+            )
+        exc = self.attempt_publish(ws.PlanReviewPhaseNotPlanStageError, plan_revision=2)
+        self.assertEqual(f"/request-plan-amendment {item.wid}" in str(exc), names_amendment)
+        self.assertRefusesWithoutWrite(ws.PlanReviewPhaseNotPlanStageError, lambda: item.tx(
+            lambda state: ws.route_work_item(
+                state, config, work_item_id=item.wid, work_item_type=item.wtype,
+                work_item_kind=item.wtype, plan_path=item.plan_path,
+                registry_path=item.registry_path, plan_revision=2, now=item.now(),
+                mapping_path=item.mapping_path, base_commit=item.base_commit, repo_root=item.root,
+            )))
+        self.assertEqual(cp4_state_bytes(item), before)
+
+    def test_implementing_refuses_and_names_the_amendment_route(self):
+        self.reach_plan_approved()
+        self._assert_refuses_outside_plan_stage(names_amendment=True)
+
+    def test_awaiting_functional_review_refuses_without_an_amendment_route(self):
+        self.reach_technical_approved()
+        self._assert_refuses_outside_plan_stage(names_amendment=False)
+
+    def test_remediation_child_re_declaration_at_planning_still_succeeds(self):
+        parent = self.item
+        self.reach_plan_approved()
+        config = json.loads(self.scratch.read("docs/ai-workflow/WORKFLOW_CONFIG.json"))
+        holder = {}
+
+        def create(state):
+            new_state, child_id = ws.create_remediation_child_work_item(
+                state, config, parent_work_item_id=parent.wid,
+                plan_path=f"docs/ai-workflow/{parent.wid}-remediation-1-plan.md",
+                registry_path=f"docs/ai-workflow/registry/{parent.wid}-remediation-1-registry.json",
+                base_commit=self.scratch.head(), now=parent.now(),
+            )
+            holder["id"] = child_id
+            return new_state
+        parent.tx(create)
+        created = parent.state()["work_items"][holder["id"]]
+        self.assertEqual(created["phase"], "PLANNING")
+        child = Item(self.scratch, parent.wtype)
+        child.wid = holder["id"]
+        child.plan_path = created["plan_path"]
+        child.registry_path = created["registry_path"]
+        child.mapping_path = f"docs/ai-workflow/requirements/{child.wid}-mapping.json"
+        child.artifacts_path = f"docs/ai-workflow/registry/{child.wid}-artifacts.json"
+        child.base_commit = created["base_commit"]
+        ws.assert_plan_review_entry_phase(child.entry(), child.wid, command="/milestone-plan")
+        child.milestone_plan()  # the resume branch, at PLANNING
+        self.assertEqual(child.entry()["mapping_path"], child.mapping_path)
+        self.assertEqual(child.entry()["plan_review_binding"]["status"], "PUBLISHED")
+        child.generate_plan_bundle()
+        self.assertBound(plan_revision=1, item=child)
+
+    def test_version_1_publish_from_implementing_is_unchanged(self):
+        """`"1"`-governed `/bootstrap-workflow-v2` step 1 (dict level)."""
+        self.reach_plan_approved()
+        state = self.item.state()
+        work_item = state["work_items"][self.item.wid]
+        work_item["governing_workflow_version"] = "1"
+        self.assertEqual(work_item["phase"], "IMPLEMENTING")
+        new_state = ws.publish_plan_revision(state, self.item.wid, 2, "2026-02-01T00:00:00Z")
+        published = new_state["work_items"][self.item.wid]
+        self.assertEqual(published["phase"], "AWAITING_EXTERNAL_PLAN_REVIEW")
+        self.assertEqual(published["plan_revision"], 2)
+        self.assertEqual(published.get("plan_review_binding"), work_item.get("plan_review_binding"))
+
+
+class PlanReviewUnreadableFreshId(_PlanReviewBindingCase):
+    """Unreadable fresh id at a ready phase (`LPR-R4-003`): drift, never a
+    bare `PlanRevisionMismatchError`/`AbsentProtectedPathError`; the
+    withdrawal needs no fresh id."""
+
+    EXTRA = "docs/design-notes.md"
+
+    def _reach_bound_with_extra_protected_path(self):
+        item = self.item
+        declarations = ws.generate_artifacts_declarations(
+            item.wid, item.plan_path, item.registry_path, item.mapping_path,
+            work_item_type=item.wtype,
+        )
+        declarations["plan_stage"]["protected_paths"].append(self.EXTRA)
+        self.scratch.write(self.EXTRA, "design notes\n")
+        self.scratch.git("add", "-N", "--", self.EXTRA)
+        item.milestone_plan(artifacts=declarations)
+        item.generate_plan_bundle()
+        return self.assertBound(plan_revision=1)["bound"]
+
+    def _drift(self, kind):
+        if kind == "title":
+            cp4_set_title_revision(self.item, 2)
+        else:
+            (self.item.root / self.EXTRA).unlink()
+
+    def _assert_readers_refuse(self, exc_type, row):
+        item = self.item
+        for reader in (
+            lambda: ws.assert_plan_review_bundle_bound(item.root, item.wid),
+            lambda: ws.validate_local_plan_review_preconditions_bound(item.root, item.entry()),
+        ):
+            with self.assertRaises(exc_type) as ctx:
+                reader()
+            self.assertNotIsInstance(ctx.exception, fingerprint.PlanRevisionMismatchError)
+            self.assertNotIsInstance(ctx.exception, fingerprint.AbsentProtectedPathError)
+            self.assertIn(f"(row {row})", str(ctx.exception))
+            self.assertIn(f"/milestone-plan {item.wid}", str(ctx.exception))
+
+    def _bound_case(self, kind):
+        item = self.item
+        bound = self._reach_bound_with_extra_protected_path()
+        self._drift(kind)
+        status = self.assertRow("4a", ws.PLAN_REVIEW_STATUS_CONTENT_DRIFTED)
+        self.assertIsNone(status["fresh_review_content_id"])
+        self._assert_readers_refuse(ws.ReviewedContentDriftError, "4a")
+        item.tx(lambda state: ws.withdraw_plan_review(state, item.wid, item.now()))
+        self.assertEqual(item.entry()["plan_review_binding"]["consumed"]["review_content_id"],
+                         bound["review_content_id"])
+        self.assertRow("11", ws.PLAN_REVIEW_STATUS_EDIT_IN_PROGRESS)
+
+    def _legacy_case(self, kind):
+        item = self.item
+        self._reach_bound_with_extra_protected_path()
+        cp4_hand_edit(item, cp4_make_legacy)
+        self._drift(kind)
+        self.assertRow("4c", ws.PLAN_REVIEW_STATUS_LEGACY_UNVERIFIED)
+        self._assert_readers_refuse(ws.PlanReviewBundleUnverifiedError, "4c")
+        item.tx(lambda state: ws.withdraw_plan_review(state, item.wid, item.now()))
+        self.assertTrue(item.entry()["plan_review_binding"]["consumed"]["legacy"])
+        self.assertRow("11", ws.PLAN_REVIEW_STATUS_EDIT_IN_PROGRESS)
+
+    def test_bound_bumped_title(self):
+        self._bound_case("title")
+
+    def test_bound_deleted_protected_path(self):
+        self._bound_case("deleted")
+
+    def test_legacy_bumped_title(self):
+        self._legacy_case("title")
+
+    def test_legacy_deleted_protected_path(self):
+        self._legacy_case("deleted")
+
+    def test_withdrawal_needs_no_fresh_id_when_the_plan_document_is_deleted(self):
+        item = self.item
+        self.reach_bound()
+        (item.root / item.plan_path).unlink()
+        item.tx(lambda state: ws.withdraw_plan_review(state, item.wid, item.now()))
+        self.assertEqual(item.entry()["phase"], "REVISING_PLAN")
+
+    def test_deleted_metadata_path_is_a_named_refusal_and_withdrawal_still_exits(self):
+        """Section 5.3 item 6: `F` reads as unreadable only for
+        `AbsentProtectedPathError`/`PlanRevisionMismatchError`; "any other
+        failure refuses (INV-3)", and the plan names
+        `InvalidPlanStageMetadataPathError` as outside that set. Deleting
+        one of the three plan-stage *metadata* paths (here the mapping)
+        therefore refuses by that name at the readers and the status
+        function -- never a raw `TypeError`/`KeyError` -- and the withdrawal,
+        which computes no fresh id (`LPR-R4-003`), still exits."""
+        item = self.item
+        self.reach_bound()
+        (item.root / item.mapping_path).unlink()
+        with self.assertRaises(fingerprint.InvalidPlanStageMetadataPathError):
+            ws.assert_plan_review_bundle_bound(item.root, item.wid)
+        with self.assertRaises(fingerprint.InvalidPlanStageMetadataPathError):
+            ws.plan_review_publication_status(item.root, item.state(), item.wid)
+        item.tx(lambda state: ws.withdraw_plan_review(state, item.wid, item.now()))
+        self.assertEqual(item.entry()["phase"], "REVISING_PLAN")
+
+
+class PlanReviewWithdrawalGuards(_PlanReviewBindingCase):
+    """`/milestone-plan`'s entry guards before a withdrawal
+    (`LPR-R4-004`/`LPR-R4-006`/`LPR-R5-004`)."""
+
+    def test_implicit_target_refuses(self):
+        item = self.item
+        self.reach_bound()
+        exc = self.assertRefusesWithoutWrite(
+            ws.PlanReviewWithdrawalNeedsExplicitIdError,
+            lambda: ws.assert_plan_review_withdrawal_allowed(item.root, item.wid, explicit_id=False),
+        )
+        self.assertIn(f"/milestone-plan {item.wid}", str(exc))
+
+    def test_open_journal_for_this_item_refuses(self):
+        item = self.item
+        self.reach_approval()
+        item.write_feedback("APPROVE")
+        cp4_open_plan_approval_journal(item)
+        exc = self.assertRefusesWithoutWrite(
+            ws.PlanApprovalInProgressError,
+            lambda: ws.assert_plan_review_withdrawal_allowed(item.root, item.wid, explicit_id=True),
+        )
+        self.assertIn(f"/approve-review plan {item.wid}", str(exc))
+
+    def test_corrupt_journal_refuses(self):
+        item = self.item
+        self.reach_approval()
+        journal = item.root / ws.PLAN_APPROVAL_JOURNAL_PATH
+        journal.parent.mkdir(parents=True, exist_ok=True)
+        journal.write_text("{ not json")
+        self.assertRefusesWithoutWrite(
+            ws.PlanApprovalJournalUnavailableError,
+            lambda: ws.assert_plan_review_withdrawal_allowed(item.root, item.wid, explicit_id=True),
+        )
+
+    def test_journal_for_a_different_item_allows_withdrawal(self):
+        item = self.item
+        other = Item(self.scratch, "product")
+        other.base_commit = item.base_commit
+        (self.scratch.root / "docs/milestones").mkdir(parents=True, exist_ok=True)
+        other.milestone_plan()
+        other.generate_plan_bundle()
+        other.write_feedback("APPROVE")
+        other.record_plan_reviews()
+        cp4_open_plan_approval_journal(other)
+        self.reach_approval()
+        ws.assert_plan_review_withdrawal_allowed(item.root, item.wid, explicit_id=True)
+        item.tx(lambda state: ws.withdraw_plan_review(state, item.wid, item.now()))
+        self.assertEqual(item.entry()["phase"], "REVISING_PLAN")
+
+
+class PlanReviewNoExitBetweenPublishAndBind(_PlanReviewBindingCase):
+    """No command exits between its publish and its bind (`LPR-R5-001`,
+    `MPR-R1-O1`)."""
+
+    def _apply_feedback(self, status):
+        item = self.item
+        item.write_feedback(status)
+        publication = cp4_status(item)["status"]
+        return self.assertRefusesWithoutWrite(
+            ws.FeedbackStatusNotApplicableError,
+            lambda: ws.assert_apply_plan_review_feedback(
+                item.entry(), item.wid,
+                feedback_content=(item.feedback_dir() / "REVIEW_FEEDBACK.md").read_text(),
+                publication_status=publication,
+            ),
+        )
+
+    def test_block_feedback_at_revising_plan_refuses(self):
+        item = self.item
+        self.reach_local_revise()
+        exc = self._apply_feedback("BLOCK")
+        self.assertIn(f"/review-plan {item.wid}", str(exc))
+        self.assertIn(f"/milestone-plan {item.wid}", str(exc))
+
+    def test_approve_feedback_at_revising_plan_refuses(self):
+        self.reach_local_revise()
+        self._apply_feedback("APPROVE")
+
+    def test_forced_generator_failure_after_publish_then_rerun_binds(self):
+        item = self.item
+        self.reach_local_revise()
+        item.apply_plan_review(2)
+        state_revision = item.entry()["state_revision"]
+        proc = item.generate_plan_bundle(check=False, test_results="")
+        self.assertNotEqual(proc.returncode, 0)
+        self.assertRow("9", ws.PLAN_REVIEW_STATUS_PUBLISHED_UNBOUND)
+        self.assertEqual(item.entry()["state_revision"], state_revision)
+        # The explicit-id re-run: regenerate, then bind; the revision is untouched.
+        item.generate_plan_bundle()
+        self.assertBound(plan_revision=2)
+        self.assertEqual(item.registry()["plan_revision"], 2)
+
+    def test_single_generation_per_round(self):
+        item = self.item
+        self.reach_local_revise()
+        calls = []
+        original = self.scratch.prepare
+
+        def counting_prepare(*args, **kwargs):
+            calls.append(args)
+            return original(*args, **kwargs)
+        self.scratch.prepare = counting_prepare
+        # /apply-plan-review, one 2.1 round: step 5 (edits, publish,
+        # generation), then step 7' (verify + bind, no generation).
+        item.apply_plan_review(2)
+        item.generate_plan_bundle()
+        self.assertEqual(len(calls), 1)
+        self.assertBound(plan_revision=2)
+
+    def test_unverifiable_current_between_generation_and_bind_refuses_by_cause(self):
+        item = self.item
+        self.reach_local_revise()
+        item.apply_plan_review(2)
+        item.generate_plan_bundle(bind=False)
+        (item.bundle_dir(stage="plan") / "TEST_RESULTS.md").write_text("tampered\n")
+        self.attempt_bind(ws.PlanReviewBundleUnverifiedError)
+        status = self.assertRow("9", ws.PLAN_REVIEW_STATUS_PUBLISHED_UNBOUND)
+        self.assertFalse(status["bundle_verifies"])
+        self.assertEqual(item.entry()["phase"], "REVISING_PLAN")
+
+    def test_readers_refuse_an_unbound_bundle(self):
+        """A bundle generated but never bound, with the phase hand-set ready
+        (the record still PUBLISHED): row 4d at every reader."""
+        item = self.item
+        item.milestone_plan()
+        item.generate_plan_bundle(bind=False)
+        cp4_hand_edit(item, lambda work_item: work_item.update(phase="AWAITING_LOCAL_PLAN_REVIEW"))
+        for reader in (
+            lambda: ws.assert_plan_review_bundle_bound(item.root, item.wid),
+            lambda: ws.validate_local_plan_review_preconditions_bound(item.root, item.entry()),
+        ):
+            with self.assertRaises(ws.PlanReviewBindingInconsistentError):
+                reader()
 
 
 if __name__ == "__main__":

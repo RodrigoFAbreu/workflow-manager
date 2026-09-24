@@ -85,6 +85,23 @@ normative definition.
    `workflow_fingerprint.assert_bundle_not_rejected(repo_root,
    work_item_id)` here; a `BundleRejectedError` stops the command, naming
    the marker path and its recorded detail.
+   **Bundle-bound check** (`D-Plan-Review-Bundle-Binding`, workflow-2.6.0,
+   section 5.3 item 4): call
+   `workflow_state.assert_plan_review_bundle_bound(repo_root,
+   work_item_id)`, which re-runs the bundle verifier and requires a
+   `BOUND` `plan_review_binding` record for exactly the bundle's
+   `review_content_id` (a `2.5.1` item at this phase with no record is
+   accepted when its bundle verifies; nothing is written, and the phase is
+   never touched). Report its returned advisory, if any: a `bundle_id`
+   differing from `current_bundle_id` -- a wrapper-only regeneration after
+   the bind -- is advisory only and never blocks ingestion, exactly like
+   step 6's own `bundle_id` advisory. On a refusal, stop and report the
+   error's message, which names the remedy: `ReviewedContentDriftError`
+   (row 4a: restore the bound bytes from `<bundle_dir>/files/<path>`, or
+   withdraw with `/milestone-plan <id>`), `PlanReviewBundleUnverifiedError`
+   (rows 4b/4c: regenerate, or withdraw),
+   `PlanReviewBindingInconsistentError` (row 4d: withdraw with
+   `/milestone-plan <id>`).
 6. **Validate before writing anything**
    (`workflow_state.validate_manual_plan_review_preconditions`), in order:
    - the feedback's declared role is either the canonical
@@ -123,7 +140,10 @@ normative definition.
      `AWAITING_PLAN_APPROVAL`.
    - `REVISE`: only the phase transition to `REVISING_PLAN`
      (`record_manual_plan_review(..., verdict="REVISE", ...)` — no ledger
-     write).
+     write), plus, in the same write, the `CONSUMED` `plan_review_binding`
+     record for this `review_content_id` (workflow-2.6.0,
+     `D-Plan-Review-Bundle-Binding`), so the reviewed content can never
+     re-bind without an edit.
    - `BLOCK`: nothing (`record_manual_plan_review(..., verdict="BLOCK",
      ...)` is a true no-op; the work item stays at
      `AWAITING_MANUAL_EXTERNAL_PLAN_REVIEW`).
@@ -133,5 +153,8 @@ normative definition.
    is next and that only the user can invoke `/approve-review plan`. For a
    `REVISE`: state that `/apply-plan-review` is next. For a `BLOCK`: state
    that explicit user resolution is required before any further command
-   runs. **Never** auto-continue to `/apply-plan-review` or
+   runs -- then either re-review the unchanged content, or edit the plan
+   and withdraw it with `/milestone-plan <work_item_id>`;
+   `/apply-plan-review` never applies a plan-stage `BLOCK`
+   (workflow-2.6.0). **Never** auto-continue to `/apply-plan-review` or
    `/approve-review` in this same invocation.

@@ -139,7 +139,19 @@ mapfile -d '' -t UNTRACKED_FILES < <(git ls-files --others --exclude-standard -z
 if ((${#UNTRACKED_FILES[@]} > 0)); then
   git add -N -- "${UNTRACKED_FILES[@]}"
 fi
+# Plan-stage staging (workflow-2.6.0, D-Plan-Review-Bundle-Binding item 5):
+# set below for STAGE=plan only. Until the closing check promotes the
+# staging area into place, any exit removes it and its staging pin, leaving
+# the previous current/, archive and .pin byte-identical -- no withdrawal,
+# no REJECTED marker (the revised WFR-67).
+STAGING_TOKEN=""
+STAGING_ROOT=""
+STAGING_PIN_DIR=""
+STAGING_DONE=0
 cleanup() {
+  if [[ -n "$STAGING_ROOT" ]] && (( ! STAGING_DONE )); then
+    rm -rf -- "$STAGING_ROOT" "$STAGING_PIN_DIR"
+  fi
   if ((${#UNTRACKED_FILES[@]} > 0)); then
     git reset -- "${UNTRACKED_FILES[@]}" > /dev/null 2>&1 || true
   fi
@@ -159,6 +171,32 @@ else
   ROOT_DIR=".ai-review"
 fi
 BUNDLE_DIR="$ROOT_DIR/current"
+# The directory the archive is built from (its member root is always the
+# literal `current`) and where AMENDMENT_DIFF.patch is written.
+ARCHIVE_ROOT="$ROOT_DIR"
+
+# --- plan-stage staging (workflow-2.6.0, D-Plan-Review-Bundle-Binding item
+# 5): the plan stage assembles into $ROOT_DIR/current.staging-<token>/current/
+# (a `current/` child, so the archive's member root stays the bare literal
+# `current`), with its pin in $ROOT_DIR/.pin.staging-<token>/ and its archive
+# and AMENDMENT_DIFF.patch inside the staging area. Nothing under the live
+# current/ is written until --finalize-bundle has verified the staging
+# generation and renamed it into place. Leftovers of an interrupted earlier
+# generation are read by nothing and removed here. The implementation and
+# post-fix stages keep 2.5.1's in-place generation, byte-for-byte.
+if [[ "$STAGE" == "plan" ]]; then
+  mkdir -p "$ROOT_DIR"
+  for leftover in "$ROOT_DIR"/current.staging-* "$ROOT_DIR"/.pin.staging-* "$ROOT_DIR"/current.old-* "$ROOT_DIR"/.pin.old-*; do
+    if [[ -e "$leftover" || -L "$leftover" ]]; then
+      rm -rf -- "$leftover"
+    fi
+  done
+  STAGING_TOKEN=$(python3 -c 'import secrets; print(secrets.token_hex(16))')
+  STAGING_ROOT="$ROOT_DIR/current.staging-$STAGING_TOKEN"
+  STAGING_PIN_DIR="$ROOT_DIR/.pin.staging-$STAGING_TOKEN"
+  BUNDLE_DIR="$STAGING_ROOT/current"
+  ARCHIVE_ROOT="$STAGING_ROOT"
+fi
 FILES_DIR="$BUNDLE_DIR/files"
 mkdir -p "$FILES_DIR"
 
@@ -172,7 +210,7 @@ mkdir -p "$FILES_DIR"
 # bytes they describe (OPUS-R89-001 through OPUS-R92-003).
 if [[ "$STAGE" == "plan" ]]; then
   python3 "$REPO_ROOT/scripts/workflow_fingerprint.py" "$BASE_SHA" \
-    --work-item-id "$WORK_ITEM_ID" --derive-plan-stage-document
+    --work-item-id "$WORK_ITEM_ID" --derive-plan-stage-document --staging-token "$STAGING_TOKEN"
 fi
 
 # --- round-identity preflight (GPT-R42-001, GPT-R43-001, GPT-R43-003): run
@@ -361,16 +399,31 @@ fi
 # --- author-written files: create empty stubs only if missing, never
 # overwrite -- PLAN.md leaves this list for the plan stage (WFR-67): it was
 # already derived, unconditionally, above.
-STUB_FILES=(REVIEW_REQUEST.md IMPLEMENTATION_SUMMARY.md TEST_RESULTS.md CONTEXT_FILES.txt)
-if [[ "$STAGE" != "plan" ]]; then
-  STUB_FILES+=(PLAN.md)
+#
+# workflow-2.6.0 (D-Plan-Review-Bundle-Binding item 5): the plan stage
+# instead copies each author file byte-for-byte into the staging bundle from
+# $ROOT_DIR/plan-inputs/ (workflow_fingerprint.resolve_plan_review_inputs_dir),
+# seeded read-only from the live current/ copy when plan-inputs/ has none,
+# else stubbed empty -- so bundle_id covers exactly the bytes an in-place
+# generation would have hashed (INV-8), and nothing writes current/.
+if [[ "$STAGE" == "plan" ]]; then
+  PYTHONPATH="$REPO_ROOT/scripts:${PYTHONPATH:-}" python3 - "$REPO_ROOT" "$WORK_ITEM_ID" "$BUNDLE_DIR" <<'PYEOF'
+import sys
+from pathlib import Path
+import workflow_fingerprint as fingerprint
+
+repo_root, work_item_id, bundle_dir = Path(sys.argv[1]), sys.argv[2], Path(sys.argv[3])
+fingerprint.seed_plan_review_inputs(repo_root, work_item_id, repo_root / bundle_dir)
+PYEOF
+else
+  STUB_FILES=(REVIEW_REQUEST.md IMPLEMENTATION_SUMMARY.md TEST_RESULTS.md CONTEXT_FILES.txt PLAN.md)
+  for f in "${STUB_FILES[@]}"; do
+    path="$BUNDLE_DIR/$f"
+    if [[ ! -f "$path" ]]; then
+      : > "$path"
+    fi
+  done
 fi
-for f in "${STUB_FILES[@]}"; do
-  path="$BUNDLE_DIR/$f"
-  if [[ ! -f "$path" ]]; then
-    : > "$path"
-  fi
-done
 
 # --- generated: CHANGED_FILES.txt (metadata + stat + name-status + worktree status) ---
 CHANGED_FILES="$BUNDLE_DIR/CHANGED_FILES.txt"
@@ -445,14 +498,14 @@ done < <(git diff --name-status -z "$BASE_SHA" -- .)
 # does not otherwise touch. A protected path absent from files/ (not part
 # of this round's diff) is left absent.
 if [[ "$STAGE" == "plan" ]]; then
-  PYTHONPATH="$REPO_ROOT/scripts:${PYTHONPATH:-}" python3 - "$REPO_ROOT" "$WORK_ITEM_ID" "$BUNDLE_DIR" <<'PYEOF'
+  PYTHONPATH="$REPO_ROOT/scripts:${PYTHONPATH:-}" python3 - "$REPO_ROOT" "$WORK_ITEM_ID" "$BUNDLE_DIR" "$STAGING_PIN_DIR" <<'PYEOF'
 import sys
 from pathlib import Path
 import workflow_fingerprint as fingerprint
 
 repo_root, work_item_id, bundle_dir = Path(sys.argv[1]), sys.argv[2], Path(sys.argv[3])
 metadata = fingerprint.resolve_plan_stage_metadata(repo_root, work_item_id)
-pin_dir = repo_root / ".ai-review" / work_item_id / ".pin"
+pin_dir = repo_root / sys.argv[4]
 fingerprint.refresh_files_copy_from_pin(pin_dir, bundle_dir, metadata)
 PYEOF
 fi
@@ -507,7 +560,7 @@ fi
 MANIFEST_WRITTEN=0
 if [[ "$STAGE" == "plan" ]]; then
   python3 "$REPO_ROOT/scripts/workflow_fingerprint.py" "$BASE_SHA" \
-    --work-item-id "$WORK_ITEM_ID" --write-manifest
+    --work-item-id "$WORK_ITEM_ID" --write-manifest --staging-token "$STAGING_TOKEN"
   MANIFEST_WRITTEN=1
 elif [[ ( "$STAGE" == "implementation" || "$STAGE" == "post-fix" ) && -n "$WORK_ITEM_ID" ]]; then
   python3 "$REPO_ROOT/scripts/workflow_fingerprint.py" "$BASE_SHA" \
@@ -549,6 +602,11 @@ fi
 # keeps a rename that deletion-plus-new-file pair under any user's
 # diff.renames setting.
 #
+# Plan-stage staging (workflow-2.6.0): the patch is written into the staging
+# area and archived from there; --finalize-bundle renames it next to the live
+# current/ on success, or removes the live copy when this generation wrote
+# none (no amendment open).
+#
 # Written here, after --write-manifest, never before it: the pin above has
 # already been byte-checked against the worktree for every currently
 # declared path, so for those paths this diff describes exactly the bytes
@@ -566,7 +624,7 @@ fi
 # written -- a genuine amendment-diff failure for a work item that *does*
 # have an open amendment is exactly what a reviewer needs to see.
 if [[ "$STAGE" == "plan" ]]; then
-  AMENDMENT_DIFF_FILE="$ROOT_DIR/AMENDMENT_DIFF.patch"
+  AMENDMENT_DIFF_FILE="$ARCHIVE_ROOT/AMENDMENT_DIFF.patch"
   PYTHONPATH="$REPO_ROOT/scripts:${PYTHONPATH:-}" python3 - \
       "$REPO_ROOT" "$WORK_ITEM_ID" "$AMENDMENT_DIFF_FILE" "$BUNDLE_DIR/MANIFEST.md" <<'PYEOF'
 import json
@@ -626,6 +684,12 @@ fi
 # corrupted or truncated in place.
 ARCHIVE="$ROOT_DIR/review-bundle.tar.gz"
 ARCHIVE_TMP="$ARCHIVE.tmp"
+if [[ "$STAGE" == "plan" ]]; then
+  # workflow-2.6.0: the plan stage archives into its staging area; the
+  # staged finalization below renames it onto $ARCHIVE only on success.
+  ARCHIVE="$STAGING_ROOT/review-bundle.tar.gz"
+  ARCHIVE_TMP="$ARCHIVE.tmp"
+fi
 # workflow-2.4.0, D-Plan-Amendment-5: bundle AMENDMENT_DIFF.patch into the
 # archive too, conditionally, when present -- otherwise the manual external
 # reviewer, who works exclusively from review-bundle.tar.gz, never sees it.
@@ -639,7 +703,7 @@ ARCHIVE_TMP="$ARCHIVE.tmp"
 # never a caller-influenced value -- true here regardless of argument order,
 # since AMENDMENT_DIFF.patch is always this fixed literal name, gated only
 # on its own existence, never on any work-item- or token-derived value.
-tar -czf "$ARCHIVE_TMP" -C "$ROOT_DIR" $(cd "$ROOT_DIR" && [ -f AMENDMENT_DIFF.patch ] && echo AMENDMENT_DIFF.patch) current
+tar -czf "$ARCHIVE_TMP" -C "$ARCHIVE_ROOT" $(cd "$ARCHIVE_ROOT" && [ -f AMENDMENT_DIFF.patch ] && echo AMENDMENT_DIFF.patch) current
 mv -f "$ARCHIVE_TMP" "$ARCHIVE"
 
 # --- closing check (D-Fingerprint-Generalization, GPT-R30-001/003; WFR-67
@@ -682,16 +746,31 @@ mv -f "$ARCHIVE_TMP" "$ARCHIVE"
 # suppress the check would be the same filesystem-state reasoning
 # inverted, and would additionally destroy the published round's own
 # identity record; the flag is the producer state itself.
+#
+# workflow-2.6.0 (D-Plan-Review-Bundle-Binding item 5, the revised WFR-67):
+# the plan stage finalizes its staging generation instead -- on success the
+# staging bundle, pin, archive and AMENDMENT_DIFF.patch are renamed into
+# place and any REJECTED marker is cleared; on failure the staging area is
+# discarded and the previous current/, archive and .pin stay byte-identical,
+# with no withdrawal and no REJECTED marker.
 if (( MANIFEST_WRITTEN )); then
   FINALIZE_ARGS=("$BASE_SHA" --finalize-bundle "$BUNDLE_DIR" "$ARCHIVE" --generation-stage "$STAGE")
   if [[ -n "$WORK_ITEM_ID" ]]; then
     FINALIZE_ARGS+=(--work-item-id "$WORK_ITEM_ID")
+  fi
+  if [[ "$STAGE" == "plan" ]]; then
+    FINALIZE_ARGS+=(--staging-token "$STAGING_TOKEN")
   fi
   set +e
   FINALIZE_CHECK=$(python3 "$REPO_ROOT/scripts/workflow_fingerprint.py" "${FINALIZE_ARGS[@]}")
   FINALIZE_EXIT=$?
   set -e
   FINALIZE_STATUS=$(printf '%s\n' "$FINALIZE_CHECK" | sed -n 's/^status: //p')
+  if [[ "$STAGE" == "plan" && "$FINALIZE_STATUS" == "ok" ]]; then
+    STAGING_DONE=1
+    BUNDLE_DIR="$ROOT_DIR/current"
+    ARCHIVE="$ROOT_DIR/review-bundle.tar.gz"
+  fi
   if [[ "$FINALIZE_EXIT" -ne 0 || "$FINALIZE_STATUS" != "ok" ]]; then
     echo "error: bundle generation did not finalize cleanly:" >&2
     printf '%s\n' "$FINALIZE_CHECK" >&2

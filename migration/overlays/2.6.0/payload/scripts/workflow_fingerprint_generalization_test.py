@@ -2402,5 +2402,225 @@ class TestBundleRelocation(unittest.TestCase):
             fingerprint.verify_relocation_file_set_complete(source_snapshot, dest_dir)  # must not raise
 
 
+
+class TestPrepareAiReviewShPlanStageStaging(unittest.TestCase):
+    """workflow-2.6.0 CP4 (`D-Plan-Review-Bundle-Binding` item 5, the
+    revised `WFR-67`): the plan stage assembles into
+    `.ai-review/<id>/current.staging-<token>/` with a staging pin and
+    archive, reads its author inputs from `plan-inputs/`, and renames into
+    place only after the closing checks pass. A failed generation discards
+    the staging area and leaves the previous `current/`, archive and
+    `.pin` byte-identical -- no withdrawal, no `REJECTED` marker. Driven
+    end to end through the real `prepare-ai-review.sh`."""
+
+    ITEM = "stage-item"
+
+    def _install_scripts(self, repo):
+        scripts_dir = repo.root / "scripts"
+        scripts_dir.mkdir(parents=True, exist_ok=True)
+        for name in ("prepare-ai-review.sh", "workflow_fingerprint.py", "workflow_state.py"):
+            shutil.copy(_REAL_SCRIPTS_DIR / name, scripts_dir / name)
+        script_path = scripts_dir / "prepare-ai-review.sh"
+        script_path.chmod(script_path.stat().st_mode | stat.S_IEXEC)
+        return script_path
+
+    def _seed(self, repo):
+        script_path = self._install_scripts(repo)
+        _write_second_item(repo, self.ITEM)
+        repo.commit_plan_docs_as_base()
+        state_path = repo.root / "docs" / "ai-workflow" / "WORKFLOW_STATE.json"
+        state = json.loads(state_path.read_text())
+        state["work_items"][self.ITEM]["base_commit"] = repo.base
+        state_path.write_text(json.dumps(state))
+        subprocess.run(["git", "add", "-A"], cwd=repo.root, check=True)
+        subprocess.run(["git", "commit", "-q", "-m", "fix declared base_commit"], cwd=repo.root, check=True)
+        return script_path
+
+    def _item_root(self, repo):
+        return repo.root / ".ai-review" / self.ITEM
+
+    def _write_inputs(self, repo, *, where="plan-inputs", test_results=None, review_request=None):
+        target = self._item_root(repo) / where
+        target.mkdir(parents=True, exist_ok=True)
+        digest, _ = fingerprint.compute_review_content_id_plan_stage_for_work_item(repo.root, self.ITEM)
+        _, head = fingerprint.current_worktree_root_and_head(repo.root)
+        (target / "REVIEW_REQUEST.md").write_text(
+            review_request if review_request is not None else f"stage: plan\nreview_content_id: {digest}\n"
+        )
+        (target / "TEST_RESULTS.md").write_text(
+            test_results if test_results is not None else f"stage: plan (revision 1)\nhead: {head}\n"
+        )
+        (target / "CONTEXT_FILES.txt").write_text("")
+        return target
+
+    def _run(self, repo, script_path):
+        return subprocess.run(
+            ["bash", str(script_path), repo.base, "plan", self.ITEM],
+            cwd=repo.root, capture_output=True, text=True,
+        )
+
+    def _tree_digest(self, path: Path) -> dict:
+        if path.is_file():
+            return {"": hashlib.sha256(path.read_bytes()).hexdigest()}
+        return {
+            p.relative_to(path).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
+            for p in sorted(path.rglob("*")) if p.is_file()
+        }
+
+    def _published_snapshot(self, repo):
+        root = self._item_root(repo)
+        return {
+            name: self._tree_digest(root / name)
+            for name in ("current", "review-bundle.tar.gz", ".pin")
+        }
+
+    def _assert_no_staging_left(self, repo):
+        names = sorted(p.name for p in self._item_root(repo).iterdir())
+        leftovers = [n for n in names if n.startswith(("current.staging-", ".pin.staging-", "current.old-", ".pin.old-"))]
+        self.assertEqual(leftovers, [], names)
+
+    def _assert_bundle_self_consistent(self, repo):
+        bundle = self._item_root(repo) / "current"
+        recorded = fingerprint.read_manifest_identifiers(bundle / "MANIFEST.md")["bundle_id"]
+        self.assertEqual(fingerprint.compute_bundle_id(bundle)[0], recorded)
+        self.assertEqual(
+            fingerprint.compute_archived_bundle_id(self._item_root(repo) / "review-bundle.tar.gz"), recorded,
+        )
+
+    def test_success_promotes_the_staging_generation_from_plan_inputs(self):
+        with h.ScratchRepo() as repo:
+            script_path = self._seed(repo)
+            inputs = self._write_inputs(repo)
+            before_inputs = self._tree_digest(inputs)
+            result = self._run(repo, script_path)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("current.staging-", result.stdout)
+            bundle = self._item_root(repo) / "current"
+            self.assertEqual((bundle / "REVIEW_REQUEST.md").read_bytes(), (inputs / "REVIEW_REQUEST.md").read_bytes())
+            self.assertEqual((bundle / "TEST_RESULTS.md").read_bytes(), (inputs / "TEST_RESULTS.md").read_bytes())
+            self.assertEqual((bundle / "IMPLEMENTATION_SUMMARY.md").read_bytes(), b"")
+            self.assertTrue((self._item_root(repo) / ".pin").is_dir())
+            self.assertEqual(self._tree_digest(inputs), before_inputs, "plan-inputs/ is never written")
+            self._assert_bundle_self_consistent(repo)
+            self._assert_no_staging_left(repo)
+
+    def test_a_failed_generation_leaves_the_previous_bundle_byte_identical(self):
+        """Section 3.3's two variants: a stale `TEST_RESULTS.md` (fails at
+        finalization) and a stale `REVIEW_REQUEST.md` (fails inside
+        `--write-manifest`, before finalization -- the variant that used to
+        leave a mixed bundle)."""
+        for variant in ("stale TEST_RESULTS.md", "stale REVIEW_REQUEST.md"):
+            with self.subTest(variant=variant), h.ScratchRepo() as repo:
+                script_path = self._seed(repo)
+                self._write_inputs(repo)
+                self.assertEqual(self._run(repo, script_path).returncode, 0)
+                before = self._published_snapshot(repo)
+                plan_path = repo.root / "docs" / "ai-workflow" / "WORKFLOW_V2_PLAN.md"
+                plan_path.write_text(plan_path.read_text() + "an edit the next round publishes\n")
+                if variant == "stale TEST_RESULTS.md":
+                    self._write_inputs(repo, test_results="stage: implementation\n")
+                else:
+                    self._write_inputs(repo, review_request="stage: plan\nreview_content_id: " + "0" * 64 + "\n")
+                result = self._run(repo, script_path)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(self._published_snapshot(repo), before)
+                self.assertFalse((self._item_root(repo) / "REJECTED").exists())
+                self.assertEqual(list(self._item_root(repo).glob("current.rejected-*")), [])
+                self._assert_no_staging_left(repo)
+                fingerprint.assert_bundle_not_rejected(repo.root, self.ITEM)
+
+    def test_a_pre_existing_rejected_marker_survives_failure_and_is_cleared_by_success(self):
+        with h.ScratchRepo() as repo:
+            script_path = self._seed(repo)
+            self._write_inputs(repo)
+            self.assertEqual(self._run(repo, script_path).returncode, 0)
+            marker = self._item_root(repo) / "REJECTED"
+            marker.write_text("REJECTED: left by an earlier withdrawal\n")
+            self._write_inputs(repo, test_results="")
+            self.assertNotEqual(self._run(repo, script_path).returncode, 0)
+            with self.assertRaises(fingerprint.BundleRejectedError):
+                fingerprint.assert_bundle_not_rejected(repo.root, self.ITEM)
+            self._write_inputs(repo)
+            self.assertEqual(self._run(repo, script_path).returncode, 0)
+            self.assertFalse(marker.exists())
+
+    def test_inputs_seed_from_current_when_plan_inputs_has_none(self):
+        """The migration path: an author who still writes into `current/`
+        (read-only to the generator) gets exactly those bytes, and the
+        resulting `bundle_id` equals the one the same bytes produce from
+        `plan-inputs/` -- the bundle hashes content by relative path, never
+        by where the author file came from (INV-8)."""
+        with h.ScratchRepo() as repo:
+            script_path = self._seed(repo)
+            inputs = self._write_inputs(repo)
+            self.assertEqual(self._run(repo, script_path).returncode, 0)
+            from_inputs = fingerprint.read_manifest_identifiers(
+                self._item_root(repo) / "current" / "MANIFEST.md")["bundle_id"]
+            shutil.rmtree(inputs)
+            self.assertEqual(self._run(repo, script_path).returncode, 0)
+            from_current = fingerprint.read_manifest_identifiers(
+                self._item_root(repo) / "current" / "MANIFEST.md")["bundle_id"]
+            self.assertEqual(from_current, from_inputs)
+            self._assert_bundle_self_consistent(repo)
+
+    def test_seed_plan_review_inputs_sources_and_refusals(self):
+        with h.ScratchRepo() as repo:
+            _write_second_item(repo, self.ITEM)
+            item_root = self._item_root(repo)
+            (item_root / "plan-inputs").mkdir(parents=True)
+            (item_root / "current").mkdir()
+            (item_root / "plan-inputs" / "REVIEW_REQUEST.md").write_text("from inputs\n")
+            (item_root / "current" / "REVIEW_REQUEST.md").write_text("from current\n")
+            (item_root / "current" / "TEST_RESULTS.md").write_text("seeded\n")
+            script = item_root / "current" / "CONTEXT_FILES.txt"
+            script.write_text("")
+            script.chmod(0o755)
+            dest = Path(tempfile.mkdtemp(prefix="wf-seed-"))
+            self.addCleanup(shutil.rmtree, dest, True)
+            sources = fingerprint.seed_plan_review_inputs(repo.root, self.ITEM, dest)
+            self.assertEqual(sources, {
+                "REVIEW_REQUEST.md": "plan-inputs", "TEST_RESULTS.md": "current",
+                "CONTEXT_FILES.txt": "current", "IMPLEMENTATION_SUMMARY.md": "stub",
+            })
+            self.assertEqual((dest / "REVIEW_REQUEST.md").read_text(), "from inputs\n")
+            self.assertEqual((dest / "TEST_RESULTS.md").read_text(), "seeded\n")
+            self.assertTrue(os.access(dest / "CONTEXT_FILES.txt", os.X_OK), "the executable bit is hashed")
+            self.assertEqual((dest / "IMPLEMENTATION_SUMMARY.md").read_bytes(), b"")
+            self.assertEqual((item_root / "current" / "REVIEW_REQUEST.md").read_text(), "from current\n")
+            (item_root / "plan-inputs" / "TEST_RESULTS.md").symlink_to(item_root / "current" / "TEST_RESULTS.md")
+            with self.assertRaises(fingerprint.PlanReviewInputPathError):
+                fingerprint.seed_plan_review_inputs(repo.root, self.ITEM, dest)
+
+    def test_leftovers_of_an_interrupted_generation_are_removed_by_the_next(self):
+        with h.ScratchRepo() as repo:
+            script_path = self._seed(repo)
+            self._write_inputs(repo)
+            item_root = self._item_root(repo)
+            for name in ("current.staging-" + "a" * 32, ".pin.staging-" + "a" * 32, "current.old-" + "b" * 32):
+                (item_root / name / "current").mkdir(parents=True)
+            self.assertEqual(self._run(repo, script_path).returncode, 0)
+            self._assert_no_staging_left(repo)
+
+    def test_staging_paths_validate_the_token(self):
+        with h.ScratchRepo() as repo:
+            for bad in ("", "../x", "A" * 32, "a" * 31):
+                with self.subTest(token=bad), self.assertRaises(fingerprint.InvalidStagingTokenError):
+                    fingerprint.plan_stage_staging_paths(repo.root, self.ITEM, bad)
+            paths = fingerprint.plan_stage_staging_paths(repo.root, self.ITEM, "f" * 32)
+            self.assertEqual(paths["bundle_dir"].name, "current")
+            self.assertEqual(paths["root"].parent, paths["pin_dir"].parent)
+
+    def test_resolve_plan_review_inputs_dir_is_a_sibling_of_current(self):
+        with h.ScratchRepo() as repo:
+            self.assertEqual(
+                fingerprint.resolve_plan_review_inputs_dir(repo.root, self.ITEM),
+                Path(".ai-review") / self.ITEM / "plan-inputs",
+            )
+            self.assertEqual(
+                fingerprint.resolve_plan_review_inputs_dir(repo.root, self.ITEM).parent,
+                fingerprint.resolve_bundle_dir(repo.root, self.ITEM, stage="plan").parent,
+            )
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -252,12 +252,17 @@ all in the same invocation.
      `AWAITING_LOCAL_PLAN_REVIEW` when its
      `governing_workflow_version` is `"2.1"` (the config default at
      creation) and at `AWAITING_EXTERNAL_PLAN_REVIEW` when it is `"1"` --
-     `publish_plan_revision`'s own version branch, not a special
-     remediation rule. **workflow-2.5.0**: a `"2.2"` child (the config
-     default once a repository has activated `"2.2"`) enters review at
-     `AWAITING_LOCAL_PLAN_REVIEW` identically to a `"2.1"` child --
-     `publish_plan_revision`'s own `TWO_STAGE_PLAN_REVIEW_VERSIONS` branch
-     covers both, so this is the same code path, not a third one. Only
+     the ordinary per-version writers, not a special remediation rule: for
+     a `"1"` child, `publish_plan_revision`'s `"1"` branch writes
+     `AWAITING_EXTERNAL_PLAN_REVIEW`; for a two-stage child,
+     `publish_plan_revision` is mirror-only and `/milestone-plan <child-id>`
+     step 6's `bind_plan_review_bundle` writes `AWAITING_LOCAL_PLAN_REVIEW`
+     once the child's bundle verifies (`D-Plan-Review-Bundle-Binding`,
+     workflow-2.6.0, `LPR-R1-006`). **workflow-2.5.0**: a `"2.2"` child
+     (the config default once a repository has activated `"2.2"`) enters
+     review at `AWAITING_LOCAL_PLAN_REVIEW` identically to a `"2.1"` child
+     -- the same `TWO_STAGE_PLAN_REVIEW_VERSIONS` publish-then-bind path
+     covers both, not a third one. Only
      `/accept-milestone <child-id>` clears the
      parent's `IncompleteChildWorkItemError` block, so the parent cannot
      complete until the child does.

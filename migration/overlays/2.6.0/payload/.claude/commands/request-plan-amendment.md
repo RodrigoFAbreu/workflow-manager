@@ -156,7 +156,10 @@ and wait.
    `superseded_plan_approval.review_content_manifest`, never a stored copy
    of the plan/registry documents themselves, `D-Plan-Amendment-3`); sets
    `amendment_base_commit` to the current `HEAD`; and writes `phase =
-   "AMENDING_PLAN"`.
+   "AMENDING_PLAN"`. For a `TWO_STAGE_PLAN_REVIEW_VERSIONS` item it also
+   writes the `CONSUMED` `plan_review_binding` record for the approved
+   content being amended (`D-Plan-Review-Bundle-Binding`, workflow-2.6.0),
+   so that content can never re-bind without an edit.
 
    `AmendmentApprovalCommitUnreachableError`/
    `WrongPhaseForAmendmentRequestError`: stop and report the exception's

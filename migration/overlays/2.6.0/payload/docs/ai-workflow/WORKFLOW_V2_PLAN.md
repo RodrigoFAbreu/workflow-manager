@@ -21758,14 +21758,34 @@ terminal-phase item and never touches any other work item's entry. It is written
 through the same serialized state-write primitive every other state writer uses
 (`D1`), never as a plain JSON edit.
 
+**Revised by `workflow-2.6.0` (`D-Plan-Review-Bundle-Binding`, below): mirror-only
+for a `TWO_STAGE_PLAN_REVIEW_VERSIONS` item.** The `"1"` branch above is
+byte-for-byte unchanged. For a `"2.1"`/`"2.2"` item,
+`publish_plan_revision(state, work_item_id, plan_revision, now, *,
+review_content_id)` writes `plan_revision`, `state_revision` and
+`last_transition`, **leaves `phase` unchanged** (at `PLANNING`, `REVISING_PLAN`
+or `AMENDING_PLAN`, the only phases it runs at), and writes the
+`plan_review_binding` record's `PUBLISHED` status for `review_content_id` — the
+fresh plan-stage id, computed inside the same `state_transaction` mutator after
+the registry regeneration, the table re-embed and the intent-to-add staging
+step. It is the author's "edits declared complete" act; the review-ready phase
+`AWAITING_LOCAL_PLAN_REVIEW` is written only by `bind_plan_review_bundle`, once
+a bundle of exactly that content verifies. `WFR-65`'s "mirror before
+generation" invariant is kept exactly: every call site still publishes before
+the bundle is generated. Idempotence now means the same revision *and* the same
+published content.
+
 **Its call sites are exhaustive, and each is named here rather than left to
 convention**:
 
-1. `/milestone-plan` step 3's `[2.1]` registry write — the ordinary path, which
-   already calls `route_work_item(...)` for the mirror and now also owns the
-   phase transition;
-2. `/apply-plan-review` step 5, on both branches, whenever the revision counter
-   advances as part of applying feedback;
+1. `/milestone-plan`'s `[2.1]` publication point, between its steps 5 and 6
+   (`workflow-2.6.0`: moved out of step 3's registry write, so every
+   self-review edit in steps 4-5 precedes it, `LPR-R4-001`) — the ordinary
+   path, which calls `route_work_item(...)` for the mirror advance in step 1;
+2. `/apply-plan-review` step 5 — for a `"1"` item whenever the revision counter
+   advances as part of applying feedback; for a `"2.1"`/`"2.2"` item on
+   **every** round (`workflow-2.6.0`: the revision counter's advance now
+   governs only the registry regeneration);
 3. `D-Bootstrap`'s `/bootstrap-workflow-v2` — the sole driver of the
    permanently-v1 `workflow-v2-1-core`, and therefore the owner of a
    **self-discovered** revision opened while `IMPLEMENTING`. Its step 1
@@ -33389,6 +33409,152 @@ is recorded with the `2.6.0` release.
 hand-pasted manual verdict may omit it, and it decides ownership, not
 location); keying on `governing_workflow_version`; moving legacy items
 (orphans an unconsumed file mid-round).
+
+### D-Plan-Review-Bundle-Binding — the review-ready phase is written only for a verified bundle of published content (`workflow-2.6.0`; revises `D-Plan-Revision-Publication`)
+
+**Problem.** Under `2.5.1`, `publish_plan_revision` wrote
+`AWAITING_LOCAL_PLAN_REVIEW` before the bundle existed (`/milestone-plan` step
+3, ahead of its own self-review edits), and `/apply-plan-review` step 7'
+re-wrote it with a bare phase flip (`transition_to_awaiting_local_plan_review`).
+Nothing tied the ready phase to a bundle: a failed generation left an item
+review-ready over a missing, withdrawn or mixed bundle; already-reviewed
+content could re-enter review after a wrapper-only regeneration; and
+`/milestone-plan <id>` at `IMPLEMENTING` silently re-entered plan review. The
+design separates "the revision exists" from "the revision is review-ready".
+Every rule below applies to `TWO_STAGE_PLAN_REVIEW_VERSIONS` items only;
+`"1"`-governed behavior is byte-for-byte unchanged.
+
+**Decision.**
+
+1. **Mirror-only publication** (see the revised `D-Plan-Revision-Publication`
+   above). `publish_plan_revision` and `route_work_item`'s resume-branch
+   revision advance run only at `PLANNING`, `REVISING_PLAN` or `AMENDING_PLAN`
+   — an allow-list, not a deny-list. At a ready phase
+   (`AWAITING_LOCAL_PLAN_REVIEW`, `AWAITING_MANUAL_EXTERNAL_PLAN_REVIEW`,
+   `AWAITING_PLAN_APPROVAL`) they refuse with `PlanReviewInProgressError`,
+   naming the withdrawal (item 7); at any other phase with
+   `PlanReviewPhaseNotPlanStageError`, naming `/request-plan-amendment <id>`
+   only where an amendment is allowed. Every command publishes after its last
+   protected edit (`/milestone-plan`'s publication point after steps 4-5,
+   which re-runs the registry/mapping regeneration, re-embeds the table
+   unconditionally and re-applies the intent-to-add staging before the
+   publish; `/apply-plan-review` step 5), and no command exits between its
+   publish and its bind except a reported generator failure, whose report
+   names the explicit-id re-run of the same command (`LPR-R5-001`).
+   `/apply-plan-review` step 6 is `"1"`-only, and its step 7'.2 second
+   generation is removed, so step 5 is the round's single generation
+   (`MPR-R1-O1`).
+2. **The durable record, `plan_review_binding`.** A new work-item field,
+   `{"status": "CONSUMED"|"PUBLISHED"|"BOUND", "at", "consumed", "published",
+   "bound"}`, keyed on `review_content_id`, never `bundle_id`. Its writers:
+   - **`CONSUMED`** — every transition that takes reviewed content out of
+     review, from its own inputs: `record_local_plan_review`/
+     `record_manual_plan_review` on `REVISE`, `request_plan_amendment` (the
+     approved content being amended), and `withdraw_plan_review` (the `BOUND`
+     record's own `bound` content). A `2.5.1` item mid-round with no record
+     gets, at command entry (`ensure_plan_review_binding_marker`), a
+     fail-closed legacy marker at the current mirror — or, for an open
+     amendment with a recorded `approved_review_content_id`, the non-legacy
+     `CONSUMED` record from it; until then publish and bind refuse with
+     `LegacyPlanReviewBindingUnknownError`;
+   - **`PUBLISHED`** — `publish_plan_revision`, which refuses early with
+     `ConsumedPlanReviewContentError` for consumed content (or, for a legacy
+     marker, a revision not past it);
+   - **`BOUND`** — `bind_plan_review_bundle` only.
+
+   `validate_state` accepts the record and refuses an unknown `status` or a
+   malformed sub-object (INV-3).
+3. **The sole writer of the review-ready phase.** The read-only verifier
+   `verify_plan_review_bundle(repo_root, work_item_id)` returns a binding only
+   when `current/MANIFEST.md` is present, the bundle is not rejected, the
+   manifest's `plan_revision` equals the mirror, its `review_content_id`
+   equals a fresh recomputation, and `current/`, the manifest and the archive
+   agree on `bundle_id`; it refuses by cause with `ReviewedContentDriftError`
+   (the worktree drifted from a consistent bundle) or
+   `PlanReviewBundleUnverifiedError` (anything else).
+   `bind_plan_review_bundle(state, work_item_id, *, binding, now)` decides
+   legitimacy entirely inside its `state_transaction` mutator: it requires a
+   non-ready plan-stage phase, a `PUBLISHED` record whose content and revision
+   equal the binding's (`PlanReviewNotPublishedError` otherwise), and content
+   that is not consumed (`ConsumedPlanReviewContentError`). It then writes
+   `AWAITING_LOCAL_PLAN_REVIEW`, `current_bundle_id` and `BOUND`. It is
+   idempotent for the same bound content at `AWAITING_LOCAL_PLAN_REVIEW` and
+   never regresses a later ready phase (`PlanReviewAlreadyReadyError`).
+   `transition_to_awaiting_local_plan_review` is retired and always raises
+   `PlanReviewWriterRetiredError`.
+4. **Readers enforce the binding.** `assert_plan_review_bundle_bound(repo_root,
+   work_item_id)` — called by `/review-plan` (through
+   `validate_local_plan_review_preconditions_bound`),
+   `/record-manual-plan-review` and `/approve-review plan` step 2 — re-runs
+   the verifier and requires a `BOUND` record for exactly the bundle's
+   `review_content_id`. A `bundle_id` differing from `current_bundle_id` (a
+   wrapper-only regeneration) is advisory only, never a block. Every refusal
+   names its remedy — restore the bound bytes from `current/files/<path>`,
+   regenerate, or withdraw with `/milestone-plan <id>` — including an
+   unreadable fresh id, never surfaced as the bare
+   `PlanRevisionMismatchError`/`AbsentProtectedPathError`. A `2.5.1` ready
+   item with no record is accepted when its bundle verifies; nothing is
+   back-filled (INV-7).
+5. **A recoverable generator.** At the `plan` stage only,
+   `prepare-ai-review.sh` assembles the bundle, the pin and the archive under
+   `.ai-review/<id>/current.staging-<token>/` and `.pin.staging-<token>/`, and
+   renames them into place only after `finalize_staged_plan_bundle_generation`'s
+   closing checks succeed.
+   The author inputs live in `.ai-review/<id>/plan-inputs/`
+   (`workflow_fingerprint.resolve_plan_review_inputs_dir`) and are copied
+   byte-for-byte into the staging bundle, seeded from `current/<file>` when
+   missing, so `bundle_id` is unchanged for identical bytes (INV-8) and
+   nothing writes `current/` until the final rename. **The failure path is a
+   deliberate revision of `WFR-67`** (`LPR-R3-002`): a failed plan-stage
+   generation discards only its staging artifacts, **does not** call
+   `withdraw_bundle` on `current/`, and **writes no `REJECTED` marker**, so
+   the previous `current/`, archive and pin stay byte-identical. `WFR-67`'s
+   own requirement — a failed closing binding assertion leaves no review-ready
+   artifact — still holds, because the failed generation's artifacts never
+   leave staging, and the previous bundle is review-ready only while it is
+   the `BOUND` one (item 4). A pre-existing `REJECTED` marker keeps its
+   meaning and is cleared by the next successful generation. The
+   implementation and post-fix stages are unchanged.
+6. **One total resume rule.** `plan_review_publication_status(repo_root,
+   state, work_item_id)` evaluates, read-only, a first-match decision table
+   over the phase, the registry's revision, the mirror, the record and the
+   fresh id (`⊥` when a plan-stage file is absent or the `(Revision N)`
+   marker disagrees): row 1 `NOT_PLAN_STAGE` (both commands refuse at entry,
+   before any write); ready rows 2/3 `BOUND`, 4a `CONTENT_DRIFTED`, 4b
+   `BUNDLE_UNVERIFIED`, 4c `LEGACY_UNVERIFIED`, 4d inconsistent (refuses);
+   non-ready rows 5 `LEGACY_UNMARKED`, 6 inconsistent (refuses), 7 and 10
+   `NEEDS_EDIT`, 8 `NEEDS_REVISION`, 9 `PUBLISHED_UNBOUND` (regenerate if
+   needed, then bind; never re-advance the revision), 11 `EDIT_IN_PROGRESS`.
+   It is consulted once, at `/milestone-plan`'s and `/apply-plan-review`'s
+   entry; the status only routes, and legitimacy stays with item 3's mutator.
+   Under rows 9 and 11 `/apply-plan-review` checks feedback against the
+   durable `CONSUMED` record rather than the possibly regenerated bundle
+   (`assert_apply_plan_review_feedback`), and it applies only `Status:
+   REVISE` — a plan-stage `BLOCK` is resolved at its ready phase, by
+   re-review of the unchanged content or by an edit plus withdrawal. A
+   read-only CLI, `python3 scripts/workflow_state.py
+   --plan-review-publication-status <id>`, prints the same result as one JSON
+   object for Controller.
+7. **Withdrawal from review.** `withdraw_plan_review(state, work_item_id,
+   now)` is the one sanctioned way to leave a ready phase for editing without
+   a `REVISE` verdict; `/milestone-plan <id>`'s entry is its only command
+   caller. It reads only the phase, the record and `amendment_history` (never
+   the fresh id, so no worktree state can block it), moves the item to
+   `AMENDING_PLAN` if an amendment is open, else `REVISING_PLAN`, writes
+   `CONSUMED` from the bound content (or the legacy marker), leaves
+   `plan_review_stages` to the recomputation rule, and refuses at a non-ready
+   phase (`PlanReviewNotReadyError`). The command withdraws only when its
+   argument is a `work_items` key (`PlanReviewWithdrawalNeedsExplicitIdError`
+   otherwise), never while an open plan-approval journal names the item
+   (`PlanApprovalInProgressError`; an unreadable journal refuses too), and
+   reports that both recorded stages were discarded and the content consumed.
+
+**Rejected alternatives.** Deciding bind legitimacy from bundle verification
+alone (the ordinary start of every round also verifies); keying on
+`bundle_id` (a wrapper-only regeneration would re-admit rejected content);
+back-filling legacy ready items (nothing needs it); keeping
+`/apply-plan-review` step 6 or step 7'.2 for two-stage items (each is an
+unreported exit between publish and bind).
 
 ## Preserved ownership (unchanged, extended)
 

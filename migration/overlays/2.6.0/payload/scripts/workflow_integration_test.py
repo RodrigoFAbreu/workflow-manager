@@ -834,7 +834,12 @@ _GOLDEN_COMMAND_FILE_SHA256 = {
     # construction for a feedback_layout: "scoped" item (legacy rule
     # otherwise) and step 7 prints the exact resolved feedback path --
     # intentional content change.
-    "milestone-plan.md": "9d2561ff764ab7d981325c86bda85be2e9c73068e9afee0db24e5702437c1999",
+    # milestone-plan.md further updated, D-Plan-Review-Bundle-Binding
+    # (workflow-2.6.0, CP4): the [2.1] plan-review entry (row-1 refusal,
+    # ready-phase withdrawal, marker, status), step 3 loses its publish, step
+    # 5's publication point, <plan_inputs_dir>, and step 6's bind --
+    # intentional content change, not a regression.
+    "milestone-plan.md": "c00fc9bcdc5b1c907604c451b38c5eedb245ae0b5dbca20c7e311e10e9fb323f",
     # milestone-implement.md further updated, OPUS-R129-001: step 1f's
     # checkpoint-completion commit instruction now states explicitly that
     # the Workflow-Checkpoint/Workflow-Work-Item trailer must be the
@@ -947,7 +952,10 @@ _GOLDEN_COMMAND_FILE_SHA256 = {
     # CP3): the preamble now states resolve_feedback_dir's feedback_layout-
     # keyed resolution (scoped by construction, legacy rule otherwise) --
     # intentional content change.
-    "approve-review.md": "b9a0855d18bbd1ce0d87b41c70b8c8bf541ff8777be1adfc4f60f73ac25fa3ca",
+    # approve-review.md further updated, D-Plan-Review-Bundle-Binding
+    # (workflow-2.6.0, CP4): step 2's bound-bundle reader at the plan stage --
+    # intentional content change, not a regression.
+    "approve-review.md": "b23abd3afa7af6a2bc10d6017081ca56806668a5282ad7e710f3a832bc33e57c",
     # accept-milestone.md updated, baseline-freeze correctness fix
     # (OPUS-R129-001): step 6's completion-commit instruction now states
     # the same "trailers must be the commit message's own final paragraph"
@@ -995,7 +1003,13 @@ _GOLDEN_COMMAND_FILE_SHA256 = {
     # states feedback_layout-keyed resolution and step 1 prints the exact
     # resolved path when REVIEW_FEEDBACK.md is absent -- intentional content
     # change.
-    "apply-plan-review.md": "32c078d597583380eea68325236805d6e46fa4dc53a175c649dba6c1b1f98a9a",
+    # apply-plan-review.md further updated, D-Plan-Review-Bundle-Binding
+    # (workflow-2.6.0, CP4): the [2.1] entry, step 1's REVISE-only acceptance
+    # and durable feedback check, step 5's publish on every round after
+    # staging, <plan_inputs_dir>, step 6 restated "1"-only, and step 7' as
+    # verify-plus-bind with 7'.2's regeneration removed -- intentional content
+    # change, not a regression.
+    "apply-plan-review.md": "553bf408189fdcd44b4ace41d897d27cb2c136dbf07632b0626da76d60737ccb",
     # apply-implementation-review.md (WF8c item (c)): step 7's
     # record_bundle_generation call site widened to first resolve the
     # outcome (resolve_bundle_generation_outcome) and write the matching
@@ -1050,13 +1064,21 @@ _GOLDEN_COMMAND_FILE_SHA256 = {
     # ownership guard passes state= (bounded legacy-writer terminal-owner
     # relaxation) and calls ensure_feedback_dir before the write; step 9
     # prints the exact resolved paste path -- intentional content change.
-    "review-plan.md": "a7a19b5d339269aac164054776b7ea2395d842200320df3b3701d33b9b77f801",
+    # review-plan.md further updated, D-Plan-Review-Bundle-Binding
+    # (workflow-2.6.0, CP4): the bound-bundle reader
+    # (validate_local_plan_review_preconditions_bound) and the CONSUMED write
+    # on REVISE -- intentional content change, not a regression.
+    "review-plan.md": "232d0f54c72e8ab4d5e7299ce1b846e82fdd98748877262975547394d60f08e5",
     # record-manual-plan-review.md further updated, D-Feedback-Layout
     # (workflow-2.6.0, CP3): preamble states feedback_layout-keyed
     # resolution; step 4 prints the exact resolved paste path and adds the
     # assert_manual_feedback_names_work_item foreign-Work-item refusal
     # before any state write -- intentional content change.
-    "record-manual-plan-review.md": "bf6f48725278a4b8d53e65c3123b4e09c3c45dd9b85ad5d8577ff8999b786da1",
+    # record-manual-plan-review.md further updated, D-Plan-Review-Bundle-
+    # Binding (workflow-2.6.0, CP4): the bound-bundle reader
+    # (assert_plan_review_bundle_bound) and the CONSUMED write on REVISE --
+    # intentional content change, not a regression.
+    "record-manual-plan-review.md": "1713522d5b1d116dd44429d3764b78839db023800700227421ff0a859f9421cb",
     # bootstrap-workflow-v2.md (WF8c scope clauses (l)/(p)/(q), GPT-R108-002/
     # OPUS-R109-004): the driver-range text made checkpoint-agnostic
     # (OPUS-R102-009), a NO_CHECKPOINT terminal-wrap-up branch added to step
@@ -1214,7 +1236,11 @@ _GOLDEN_COMMAND_FILE_SHA256 = {
     # (workflow-2.6.0, CP3): the preamble states feedback_layout-keyed
     # resolution and step 1 prints the exact resolved path when
     # FUNCTIONAL_REVIEW.md is absent -- intentional content change.
-    "apply-functional-review.md": "998046161a83ac7c539ef07edd0f1ebf6e340a6956b872418dfa0d2561fdd568",
+    # apply-functional-review.md further updated, D-Plan-Review-Bundle-Binding
+    # (workflow-2.6.0, CP4): a two-stage remediation child's publish is
+    # mirror-only and its bind writes AWAITING_LOCAL_PLAN_REVIEW --
+    # intentional content change, not a regression.
+    "apply-functional-review.md": "25b42a93c05e4c2f40cc3f05041878b48ddb8459b9313e9c4f9820edbda27139",
 }
 
 
@@ -2293,6 +2319,11 @@ _MATRIX_HELPER_SECTION_OWNERS = {
     ),
     "/approve-review plan": ("approve-review.md",),
     "/apply-plan-review": ("apply-plan-review.md",),
+    # workflow-2.6.0 (D-Plan-Review-Bundle-Binding): the only sanctioned
+    # route from `IMPLEMENTING` back into plan review.
+    "/request-plan-amendment + amended /milestone-plan": (
+        "request-plan-amendment.md", "milestone-plan.md",
+    ),
     "/milestone-implement": ("milestone-implement.md",),
     "/milestone-implement wrap-up": ("milestone-implement.md",),
     "bundle generation": (
@@ -3936,9 +3967,10 @@ class TestTwoStagePlanReviewIntegration(unittest.TestCase):
         protected plan document -- not a dict field mutation -- changes
         the real recomputed `review_content_id`, so the local-stage
         ledger entry recorded against the old id no longer satisfies
-        `plan_approval_gate_reachable`, and
-        `transition_to_awaiting_local_plan_review` is the sole documented
-        path back to `AWAITING_LOCAL_PLAN_REVIEW`."""
+        `plan_approval_gate_reachable`, and -- since workflow-2.6.0, which
+        retires `transition_to_awaiting_local_plan_review` -- the sole path
+        back to `AWAITING_LOCAL_PLAN_REVIEW` is a `REVISE`, an edit, a
+        publish of the edited content and `bind_plan_review_bundle`."""
         with h.ScratchRepo() as repo:
             repo.write_plan_docs(work_item_id="wi")
             repo.commit_plan_docs_as_base()
@@ -3978,13 +4010,28 @@ class TestTwoStagePlanReviewIntegration(unittest.TestCase):
                 current_review_content_id=new_id,
             ))
 
-            state = ws.transition_to_awaiting_local_plan_review(state, "wi", now="t3")
+            with self.assertRaises(ws.PlanReviewWriterRetiredError):
+                ws.transition_to_awaiting_local_plan_review(state, "wi", now="t3")
+            # A manual-external REVISE consumes the reviewed content; the
+            # edited content is published and bound (its bundle's identity
+            # is stubbed here -- the binding's verification is covered by
+            # TestPlanReviewBundleBinding).
+            state["work_items"]["wi"]["phase"] = "AWAITING_MANUAL_EXTERNAL_PLAN_REVIEW"
+            state = ws.record_manual_plan_review(
+                state, "wi", verdict="REVISE", bundle_id="b1", round=1, now="t2",
+                current_review_content_id=old_id, feedback_role="MANUAL_EXTERNAL_PLAN_REVIEW",
+                feedback_review_content_id=old_id,
+            )
+            self.assertEqual(state["work_items"]["wi"]["plan_review_binding"]["consumed"]["review_content_id"], old_id)
+            plan_revision = state["work_items"]["wi"]["plan_revision"]
+            state = ws.publish_plan_revision(state, "wi", plan_revision, "t3", review_content_id=new_id)
+            state = ws.bind_plan_review_bundle(state, "wi", binding={
+                "review_content_id": new_id, "bundle_id": "c" * 64, "plan_revision": plan_revision,
+            }, now="t3")
             self.assertEqual(state["work_items"]["wi"]["phase"], "AWAITING_LOCAL_PLAN_REVIEW")
 
             # And the stale ledger's own review_content_id still names the
-            # old, now-superseded id -- never explicitly cleared, exactly
-            # as transition_to_awaiting_local_plan_review's own docstring
-            # describes.
+            # old, now-superseded id -- never explicitly cleared.
             self.assertEqual(
                 state["work_items"]["wi"]["plan_review_stages"]["review_content_id"], old_id,
             )
@@ -6654,9 +6701,11 @@ class TestOperatorReferenceMatchesReality(unittest.TestCase):
                 written.add(match.group(1))
             for match in re.finditer(r'^\s*"phase":\s*"([A-Z_]+)"', line):
                 written.add(match.group(1))
-        # `publish_plan_revision` writes through a local name; its two
-        # version-keyed constants are the only such case (asserted by
-        # workflow_state_test.TestPersistedPhaseWriterCensus).
+        # `publish_plan_revision` writes through a local name (asserted by
+        # workflow_state_test.TestPersistedPhaseWriterCensus); since
+        # workflow-2.6.0 only its `"1"` constant remains, and
+        # `bind_plan_review_bundle` writes `AWAITING_LOCAL_PLAN_REVIEW` as a
+        # literal -- the set below stays a superset either way.
         written |= {"AWAITING_LOCAL_PLAN_REVIEW", "AWAITING_EXTERNAL_PLAN_REVIEW"}
         # workflow-2.5.0: `record_bundle_generation` writes through a call
         # to `bundle_generation_target_phase(...)`, not a literal or a
@@ -6678,10 +6727,12 @@ class TestOperatorReferenceMatchesReality(unittest.TestCase):
         expected = {
             "PLANNING": ["default_work_item"],
             "AWAITING_EXTERNAL_PLAN_REVIEW": ["publish_plan_revision"],
-            "AWAITING_LOCAL_PLAN_REVIEW": ["publish_plan_revision",
-                                           "transition_to_awaiting_local_plan_review"],
+            # workflow-2.6.0 (D-Plan-Review-Bundle-Binding): the bind is the
+            # sole writer; the withdrawal is the verdict-free exit.
+            "AWAITING_LOCAL_PLAN_REVIEW": ["bind_plan_review_bundle"],
             "AWAITING_MANUAL_EXTERNAL_PLAN_REVIEW": ["record_local_plan_review"],
-            "REVISING_PLAN": ["record_local_plan_review", "record_manual_plan_review"],
+            "REVISING_PLAN": ["record_local_plan_review", "record_manual_plan_review",
+                              "withdraw_plan_review"],
             "AWAITING_PLAN_APPROVAL": ["record_manual_plan_review"],
             "IMPLEMENTING": ["apply_plan_approval"],
             "SELF_REVIEWING_IMPLEMENTATION": ["complete_checkpoint",
@@ -6692,7 +6743,7 @@ class TestOperatorReferenceMatchesReality(unittest.TestCase):
                                            "promote_legacy_work_item"],
             "MILESTONE_COMPLETE": ["complete_work_item"],
             "LEGACY_READY": ["import_legacy_work_item"],
-            "AMENDING_PLAN": ["request_plan_amendment"],
+            "AMENDING_PLAN": ["request_plan_amendment", "withdraw_plan_review"],
             "AWAITING_LOCAL_IMPLEMENTATION_REVIEW": ["record_bundle_generation"],
             "AWAITING_MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": ["record_local_implementation_review"],
         }

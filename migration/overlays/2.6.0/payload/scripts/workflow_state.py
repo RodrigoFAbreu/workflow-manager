@@ -271,6 +271,7 @@ APPROVAL_STAGES = frozenset({"plan", "implementation", "acceptance"})
 FUNCTIONAL_CHECKLIST_PATH = "docs/ACTIVE_MILESTONE.md"
 
 _GIT_OBJECT_ID_RE = re.compile(r"^[0-9a-f]{40}$")
+_SHA256_HEX_RE = re.compile(r"^[0-9a-f]{64}$")
 
 # D-Plan-Review-Stages' verdict/state transition table: the only three
 # verdicts either `/review-plan` or `/record-manual-plan-review` ever
@@ -300,6 +301,26 @@ MANUAL_EXTERNAL_PLAN_REVIEW = "MANUAL_EXTERNAL_PLAN_REVIEW"
 # `_validate_plan_review_stages`. A `"2.2"` item is a `"2.1"` item for plan
 # review purposes: it runs the identical two-stage mechanism, unchanged.
 TWO_STAGE_PLAN_REVIEW_VERSIONS = frozenset({"2.1", "2.2"})
+
+# workflow-2.6.0 CP4 (D-Plan-Review-Bundle-Binding): the plan-stage phase
+# partition for a `TWO_STAGE_PLAN_REVIEW_VERSIONS` item. "Ready" phases tell
+# a reviewer to act on a bound bundle; "non-ready" phases are where the
+# author edits, publishes and binds. Every other non-terminal phase is
+# outside the plan stage (row 1): no publish, no revision advance, no bind.
+PLAN_REVIEW_READY_PHASES = frozenset({
+    "AWAITING_LOCAL_PLAN_REVIEW",
+    "AWAITING_MANUAL_EXTERNAL_PLAN_REVIEW",
+    "AWAITING_PLAN_APPROVAL",
+})
+PLAN_REVIEW_NON_READY_PHASES = frozenset({"PLANNING", "REVISING_PLAN", "AMENDING_PLAN"})
+
+# `plan_review_binding.status`'s closed vocabulary (INV-3).
+PLAN_REVIEW_BINDING_CONSUMED = "CONSUMED"
+PLAN_REVIEW_BINDING_PUBLISHED = "PUBLISHED"
+PLAN_REVIEW_BINDING_BOUND = "BOUND"
+PLAN_REVIEW_BINDING_STATUSES = frozenset({
+    PLAN_REVIEW_BINDING_CONSUMED, PLAN_REVIEW_BINDING_PUBLISHED, PLAN_REVIEW_BINDING_BOUND,
+})
 
 # Canonical, SCREAMING_SNAKE_CASE `implementation_review_stages` key casing
 # (workflow-2.5.0, D-Implementation-Review-Stages), mirroring
@@ -920,6 +941,133 @@ class TerminalPlanRevisionPublicationError(Exception):
     `WFR-65`) when the named work item's `phase` is already terminal
     (`MILESTONE_COMPLETE`) -- a plan revision can never be published
     against an item that has already reached its own terminal state."""
+
+
+# ---------------------------------------------------------------------------
+# workflow-2.6.0 CP4: D-Plan-Review-Bundle-Binding -- the named refusals of
+# the publication split, the bind, the withdrawal and the readers. Every one
+# is raised before any write (INV-3); none applies to a `"1"`-governed item.
+# ---------------------------------------------------------------------------
+
+
+class PlanReviewPhaseNotPlanStageError(Exception):
+    """Raised for a `TWO_STAGE_PLAN_REVIEW_VERSIONS` item whose phase is
+    neither a ready plan-review phase nor a non-ready plan-stage phase
+    (`PLANNING`/`REVISING_PLAN`/`AMENDING_PLAN`): `publish_plan_revision`,
+    `route_work_item`'s resume-branch revision advance, `bind_plan_review_bundle`,
+    and the entry of `/milestone-plan` and `/apply-plan-review` (row 1).
+    The message names `/request-plan-amendment <id>` only when the phase
+    admits an amendment."""
+
+
+class PlanReviewInProgressError(Exception):
+    """Raised by `publish_plan_revision` and `route_work_item`'s resume
+    branch at a ready plan-review phase: content under review is never
+    re-published in place. The sanctioned exit is the withdrawal
+    `/milestone-plan <id>` performs (`withdraw_plan_review`)."""
+
+
+class PlanReviewNotPublishedError(Exception):
+    """Raised by `bind_plan_review_bundle` when the record is not
+    `PUBLISHED`, or the binding is not the published content -- content
+    the author never declared complete cannot enter review."""
+
+
+class ConsumedPlanReviewContentError(Exception):
+    """Raised by `publish_plan_revision` and `bind_plan_review_bundle` when
+    the content equals the `CONSUMED` record's `review_content_id`, or --
+    for a legacy marker, whose id is null -- when `plan_revision` does not
+    exceed the marker's. Content already taken out of review never
+    re-binds."""
+
+
+class LegacyPlanReviewBindingUnknownError(Exception):
+    """Raised by `publish_plan_revision` and `bind_plan_review_bundle` for a
+    `REVISING_PLAN`/`AMENDING_PLAN` item with no `plan_review_binding`
+    record (a `2.5.1` item mid-round): nothing durable says which content
+    it already reviewed. Remedy: the entry step of `/apply-plan-review` or
+    `/milestone-plan` writes the fail-closed marker
+    (`ensure_plan_review_binding_marker`)."""
+
+
+class PlanReviewAlreadyReadyError(Exception):
+    """Raised by `bind_plan_review_bundle` at a ready phase other than an
+    idempotent re-bind at `AWAITING_LOCAL_PLAN_REVIEW` -- a bind never
+    moves a manual-stage or approval-stage item back to local review."""
+
+
+class PlanReviewBindingInconsistentError(Exception):
+    """Raised when the phase and the `plan_review_binding` record
+    contradict each other in a way no `2.6.0` writer produces (rows 4d
+    and 6): a ready phase holding a `CONSUMED`/`PUBLISHED` record, or a
+    non-ready phase holding a `BOUND` one (INV-3)."""
+
+
+class PlanReviewNotReadyError(Exception):
+    """Raised by `withdraw_plan_review` and the readers at a phase that is
+    not a ready plan-review phase -- nothing is under review to withdraw
+    or to read."""
+
+
+class PlanReviewBundleUnverifiedError(Exception):
+    """`verify_plan_review_bundle`'s refusal for anything other than
+    content drift: no bundle, a rejected bundle, a stale-revision or
+    foreign manifest, or a `current/`/manifest/archive disagreement. The
+    readers also raise it for a legacy ready item whose content drifted
+    (row 4c), chaining the underlying error."""
+
+
+class ReviewedContentDriftError(Exception):
+    """The bundle is internally consistent (manifest, `current/` and
+    archive agree) but the worktree's fresh plan-stage `review_content_id`
+    differs from the one the bundle captured -- or cannot be computed at
+    all (a bumped `(Revision N)` title, a deleted or renamed protected
+    path). Remedy: restore the bound bytes from `current/files/<path>`, or
+    withdraw with `/milestone-plan <id>`."""
+
+
+class PlanReviewWithdrawalNeedsExplicitIdError(Exception):
+    """Raised by `/milestone-plan`'s entry when its target resolved to an
+    item at a ready phase without the work item being named explicitly
+    (no argument, or the one-argument base-SHA form): a withdrawal
+    consumes the bound content and discards both recorded stages, so it
+    is only ever a deliberate act (`/milestone-plan <id>`)."""
+
+
+class PlanApprovalInProgressError(Exception):
+    """Raised by `/milestone-plan`'s entry, before a withdrawal, when an
+    open plan-approval journal names this work item -- resume or take
+    over through `/approve-review plan <id>` instead."""
+
+
+class FeedbackStatusNotApplicableError(Exception):
+    """Raised by `/apply-plan-review` step 1 for a
+    `TWO_STAGE_PLAN_REVIEW_VERSIONS` item whose feedback `Status:` is not
+    `REVISE`. A plan-stage `BLOCK` writes no transition, so it is resolved
+    at its ready phase (re-review the unchanged content, or edit and
+    withdraw with `/milestone-plan <id>`); an `APPROVE` is never applied."""
+
+
+class FeedbackNotForConsumedContentError(Exception):
+    """`/apply-plan-review` step 1's durable feedback check (rows 9 and 11):
+    the feedback does not name the content the `CONSUMED` record took out
+    of review -- its `review_content_id` differs, or, for a legacy marker
+    (null id), its `Work item:` is another item or its `Status:` is not
+    `REVISE`."""
+
+
+class InvalidPlanReviewBindingError(Exception):
+    """Raised by `validate_state` for a malformed `plan_review_binding`
+    record: an unknown `status`, a present `null`, a missing or extra key,
+    a malformed sub-object, or a status whose sub-objects contradict it
+    (INV-3)."""
+
+
+class PlanReviewWriterRetiredError(Exception):
+    """Raised by `transition_to_awaiting_local_plan_review`, retired as a
+    free-standing writer by workflow-2.6.0: `bind_plan_review_bundle` is
+    the sole writer of `AWAITING_LOCAL_PLAN_REVIEW` for a
+    `TWO_STAGE_PLAN_REVIEW_VERSIONS` item."""
 
 
 class MissingRegistryForPlanRevisionMirrorCheckError(Exception):
@@ -7685,6 +7833,12 @@ def route_work_item(
       writes that field.
     - An id naming an existing *terminal* entry is a hard error: ids are
       not reused after `MILESTONE_COMPLETE`.
+    - **For a `TWO_STAGE_PLAN_REVIEW_VERSIONS` item, the resume branch runs
+      only at `PLANNING`, `REVISING_PLAN` or `AMENDING_PLAN`**
+      (`D-Plan-Review-Bundle-Binding`, workflow-2.6.0, `LPR-R4-002`): at a
+      ready phase it refuses with `PlanReviewInProgressError`, at any other
+      phase with `PlanReviewPhaseNotPlanStageError`, before any write. A
+      `"1"`-governed item is unchanged.
     - `active_work_item_id` is set to this id only if no other item is
       currently active (or this item already is) -- routing never steals
       focus from unrelated in-flight, non-terminal work (D1's "resume-focus
@@ -7732,6 +7886,10 @@ def route_work_item(
         # legacy (`fingerprint.resolve_feedback_layout`).
         work_items[work_item_id]["feedback_layout"] = fingerprint.FEEDBACK_LAYOUT_SCOPED
     else:
+        # D-Plan-Review-Bundle-Binding (workflow-2.6.0, LPR-R4-002): the
+        # resume branch advances the revision only at a non-ready
+        # plan-stage phase, before any field is touched.
+        assert_plan_stage_non_ready_phase(existing, work_item_id, action="advance its plan revision")
         for field_name, supplied in (
             ("plan_path", plan_path), ("registry_path", registry_path),
             ("mapping_path", mapping_path), ("base_commit", base_commit),
@@ -7759,29 +7917,57 @@ def route_work_item(
     return new_state
 
 
-def publish_plan_revision(state: dict, work_item_id: str, plan_revision: int, now: str) -> dict:
+def publish_plan_revision(
+    state: dict, work_item_id: str, plan_revision: int, now: str,
+    *, review_content_id: str | None = None,
+) -> dict:
     """`D-Plan-Revision-Publication`'s single sanctioned writer of a
     plan-revision bump (`WFR-65`): the operation that writes a new
     `plan_revision` into a work item's registry must, in the same
     operation and before any bundle is generated, publish that same value
     to `WORKFLOW_STATE.json`'s non-authoritative mirror through this one
-    entry point -- never as a plain JSON edit. Sets `plan_revision` to the
-    given value and `phase` to `AWAITING_EXTERNAL_PLAN_REVIEW` for a
-    `"1"`-governed item or `AWAITING_LOCAL_PLAN_REVIEW` for a
-    `TWO_STAGE_PLAN_REVIEW_VERSIONS`-governed (`"2.1"`/`"2.2"`) one
-    (`D-Plan-Review-Stages` enters local review first; workflow-2.5.0
-    widens this from a bare `"2.1"` literal to the membership constant --
-    a `"2.2"` item is a `"2.1"` item for plan review purposes).
+    entry point -- never as a plain JSON edit.
 
-    Exhaustive call sites (named, not left to convention): `/milestone-plan`
-    step 3's `[2.1]` registry write; `/apply-plan-review` step 5, on both
-    branches, whenever the revision counter advances as part of applying
-    feedback; `/bootstrap-workflow-v2`'s step 1 state-sync, for a
-    self-discovered revision of the permanently-`"1"`-governed
-    `workflow-v2-1-core` opened while `IMPLEMENTING`.
+    **`"1"`-governed item** (unchanged): sets `plan_revision` to the given
+    value and `phase` to `AWAITING_EXTERNAL_PLAN_REVIEW`.
+    `review_content_id` is ignored.
+
+    **`TWO_STAGE_PLAN_REVIEW_VERSIONS` item** (`D-Plan-Review-Bundle-
+    Binding`, workflow-2.6.0): **mirror-only**. Sets `plan_revision`,
+    `state_revision` and `last_transition`, **leaves `phase` unchanged**,
+    and writes the `PUBLISHED` record -- `published = {review_content_id,
+    plan_revision}`, `consumed` carried forward, `bound` cleared. This call
+    is the author's "edits declared complete" act; `bind_plan_review_bundle`
+    is the only writer of `AWAITING_LOCAL_PLAN_REVIEW`. `review_content_id`
+    (required) is the fresh plan-stage id, computed through
+    `REVIEW_PROTOCOL.md`'s canonical entry point inside the same
+    `state_transaction` mutator, after the registry regeneration, the
+    table re-embed and the intent-to-add staging step. Refuses, before any
+    write:
+    - at a ready phase, `PlanReviewInProgressError`; at any phase outside
+      `PLANNING`/`REVISING_PLAN`/`AMENDING_PLAN`,
+      `PlanReviewPhaseNotPlanStageError` (the plan-stage allow-list);
+    - at `REVISING_PLAN`/`AMENDING_PLAN` with no record,
+      `LegacyPlanReviewBindingUnknownError`; with a `BOUND` record,
+      `PlanReviewBindingInconsistentError`;
+    - content equal to `consumed.review_content_id`, or -- for a legacy
+      marker -- a `plan_revision` not greater than the marker's,
+      `ConsumedPlanReviewContentError` (an early refusal that only saves a
+      wasted generation; `bind` repeats it).
+
+    Exhaustive call sites (named, not left to convention): `/milestone-plan`'s
+    `[2.1]` publication point between its steps 5 and 6 (workflow-2.6.0:
+    moved out of step 3, so every self-review edit precedes it);
+    `/apply-plan-review` step 5, on **every** `2.x` round (the revision
+    counter's advance now governs only the registry regeneration), and
+    for a `"1"` item whenever the revision advances; `/bootstrap-workflow-v2`'s
+    step 1 state-sync, for a self-discovered revision of the
+    permanently-`"1"`-governed `workflow-v2-1-core` opened while
+    `IMPLEMENTING`.
 
     Idempotent: re-running with the same `plan_revision` and the resulting
-    phase already reached is a true no-op -- no `state_revision`/
+    state already reached (`"1"`: the target phase; `2.x`: a `PUBLISHED`
+    record for the same content) is a true no-op -- no `state_revision`/
     `last_transition` bump -- so an interrupted revision is retried rather
     than repaired. Refuses a terminal-phase item
     (`TerminalPlanRevisionPublicationError`) and, by construction, touches
@@ -7794,7 +7980,9 @@ def publish_plan_revision(state: dict, work_item_id: str, plan_revision: int, no
         )
     governing_version = work_item.get("governing_workflow_version")
     if governing_version in TWO_STAGE_PLAN_REVIEW_VERSIONS:
-        target_phase = "AWAITING_LOCAL_PLAN_REVIEW"
+        return _publish_plan_revision_two_stage(
+            state, work_item_id, plan_revision, now, review_content_id=review_content_id,
+        )
     elif governing_version == "1":
         target_phase = "AWAITING_EXTERNAL_PLAN_REVIEW"
     else:
@@ -7810,6 +7998,45 @@ def publish_plan_revision(state: dict, work_item_id: str, plan_revision: int, no
     new_work_item = new_state["work_items"][work_item_id]
     new_work_item["plan_revision"] = plan_revision
     new_work_item["phase"] = target_phase
+    new_work_item["state_revision"] = new_work_item.get("state_revision", 1) + 1
+    new_work_item["last_transition"] = now
+    return new_state
+
+
+def _publish_plan_revision_two_stage(
+    state: dict, work_item_id: str, plan_revision: int, now: str, *, review_content_id: str | None,
+) -> dict:
+    """`publish_plan_revision`'s `TWO_STAGE_PLAN_REVIEW_VERSIONS` branch --
+    see that function's docstring."""
+    work_item = state["work_items"][work_item_id]
+    assert_plan_stage_non_ready_phase(work_item, work_item_id, action="publish a plan revision")
+    if not isinstance(review_content_id, str) or not _SHA256_HEX_RE.match(review_content_id):
+        raise TypeError(
+            f"publish_plan_revision({work_item_id!r}): a TWO_STAGE_PLAN_REVIEW_VERSIONS item "
+            f"requires review_content_id=<the fresh plan-stage id>, got {review_content_id!r}"
+        )
+    record = _plan_review_binding_for_write(work_item, work_item_id)
+    _assert_not_consumed(record, work_item_id, review_content_id, plan_revision)
+
+    published = {"review_content_id": review_content_id, "plan_revision": plan_revision}
+    if (
+        work_item.get("plan_revision") == plan_revision
+        and record is not None
+        and record["status"] == PLAN_REVIEW_BINDING_PUBLISHED
+        and record["published"] == published
+    ):
+        return state
+
+    new_state = copy.deepcopy(state)
+    new_work_item = new_state["work_items"][work_item_id]
+    new_work_item["plan_revision"] = plan_revision
+    new_work_item["plan_review_binding"] = {
+        "status": PLAN_REVIEW_BINDING_PUBLISHED,
+        "at": now,
+        "consumed": copy.deepcopy(record["consumed"]) if record is not None else None,
+        "published": published,
+        "bound": None,
+    }
     new_work_item["state_revision"] = new_work_item.get("state_revision", 1) + 1
     new_work_item["last_transition"] = now
     return new_state
@@ -11020,7 +11247,10 @@ def request_plan_amendment(
     a stored copy of the documents themselves); sets `amendment_base_commit`
     to the current `HEAD`; and writes `phase = "AMENDING_PLAN"` as a direct
     string literal (never through a local name), so the AST-derived phase
-    census resolves it without a third hardcoded compensation entry.
+    census resolves it without a third hardcoded compensation entry. For a
+    `TWO_STAGE_PLAN_REVIEW_VERSIONS` item it also writes the `CONSUMED`
+    `plan_review_binding` record from `plan_approval.approved_review_content_id`
+    and the current mirror (`D-Plan-Review-Bundle-Binding`, workflow-2.6.0).
 
     This function performs one read of Git identity (`HEAD`'s own SHA, and
     the reachability check above) -- both are needed to compute the exact
@@ -11133,6 +11363,15 @@ def request_plan_amendment(
     new_work_item["plan_approval"]["status"] = "SUPERSEDED"
     new_work_item["amendment_base_commit"] = head
     new_work_item["phase"] = "AMENDING_PLAN"
+    # D-Plan-Review-Bundle-Binding (workflow-2.6.0): the approved content
+    # being amended is taken out of approval -- it can never re-bind. A
+    # `"1"`-governed item has no binding record; an approval with no
+    # recorded id gets the fail-closed legacy marker instead.
+    if new_work_item.get("governing_workflow_version") in TWO_STAGE_PLAN_REVIEW_VERSIONS:
+        _write_consumed_plan_review_binding(
+            new_work_item, review_content_id=plan_approval.get("approved_review_content_id"),
+            plan_revision=new_work_item.get("plan_revision"), now=now,
+        )
     new_work_item["state_revision"] = new_work_item.get("state_revision", 1) + 1
     new_work_item["last_transition"] = now
     return new_state
@@ -12406,6 +12645,10 @@ def record_local_plan_review(
       `AWAITING_MANUAL_EXTERNAL_PLAN_REVIEW`.
     - `REVISE`: no ledger write; transitions to `REVISING_PLAN`. Can never
       reach `AWAITING_MANUAL_EXTERNAL_PLAN_REVIEW` (missing-test item 94).
+      Also writes the `CONSUMED` `plan_review_binding` record from this
+      call's own `review_content_id` and the current mirror
+      (`D-Plan-Review-Bundle-Binding`, workflow-2.6.0): the reviewed
+      content can never re-bind.
     - `BLOCK`: no ledger write, no phase transition -- a true no-op
       (missing-test item 95); the returned state is unchanged.
     """
@@ -12427,6 +12670,10 @@ def record_local_plan_review(
         work_item["phase"] = "AWAITING_MANUAL_EXTERNAL_PLAN_REVIEW"
     elif verdict == "REVISE":
         work_item["phase"] = "REVISING_PLAN"
+        _write_consumed_plan_review_binding(
+            work_item, review_content_id=review_content_id,
+            plan_revision=work_item.get("plan_revision"), now=now,
+        )
     else:  # BLOCK
         return state
 
@@ -12525,7 +12772,10 @@ def record_manual_plan_review(
       of whether it matches the current recomputed one, so the ledger
       records what the reviewer actually saw (`OPUS-R14-005`, missing-test
       item 113) -- and transitions to `AWAITING_PLAN_APPROVAL`.
-    - `REVISE`: no ledger write; transitions to `REVISING_PLAN`.
+    - `REVISE`: no ledger write; transitions to `REVISING_PLAN`, writing
+      the `CONSUMED` `plan_review_binding` record from
+      `current_review_content_id` (equal to the feedback's, by the
+      preconditions) and the current mirror (workflow-2.6.0).
     - `BLOCK`: no ledger write, no phase transition -- a true no-op
       (missing-test item 99); the returned state is unchanged.
     """
@@ -12546,6 +12796,10 @@ def record_manual_plan_review(
         work_item["phase"] = "AWAITING_PLAN_APPROVAL"
     elif verdict == "REVISE":
         work_item["phase"] = "REVISING_PLAN"
+        _write_consumed_plan_review_binding(
+            work_item, review_content_id=current_review_content_id,
+            plan_revision=work_item.get("plan_revision"), now=now,
+        )
     else:  # BLOCK
         return state
 
@@ -12556,28 +12810,805 @@ def record_manual_plan_review(
 
 
 def transition_to_awaiting_local_plan_review(state: dict, work_item_id: str, now: str) -> dict:
-    """`/apply-plan-review`'s revised exit step for a `TWO_STAGE_PLAN_
-    REVIEW_VERSIONS`-governed (`"2.1"`/`"2.2"`) item alike (D-Plan-Review-
-    Stages, resolves `GPT-R11-003`/`-007`; corrected workflow-2.5.0 from
-    describing this as `"2.1"`-only -- the exit step is identical for
-    `"2.2"`, D-Implementation-Review-Version-Activation's inheritance
-    rule): after every accepted plan edit, the work item transitions to
-    `AWAITING_LOCAL_PLAN_REVIEW` -- never
-    self-declaring plan readiness. The stale `plan_review_stages` ledger
-    (if any) is left as-is, never explicitly cleared: its own
-    `review_content_id` no longer matches the freshly recomputed one the
-    moment the edit lands, so both stages already read as absent by the
-    recomputation rule (`plan_approval_gate_reachable`). This is the sole
-    path back to `AWAITING_LOCAL_PLAN_REVIEW`, whether the edit was driven
-    by a local-model `REVISE` or a manual-external `REVISE` (missing-test
-    item 89) -- no path re-enters manual-external review without a fresh
-    local pass first."""
+    """**Retired as a free-standing writer** (workflow-2.6.0,
+    `D-Plan-Review-Bundle-Binding` item 3). Through `2.5.1` this was
+    `/apply-plan-review`'s exit step for a `TWO_STAGE_PLAN_REVIEW_VERSIONS`
+    item: a bare phase flip to `AWAITING_LOCAL_PLAN_REVIEW` that no bundle
+    had to back. `bind_plan_review_bundle` is now the sole writer of that
+    phase, and it writes it only for a verified bundle of the published
+    content (INV-2). Every `2.x` round still returns to a fresh local
+    review -- no path re-enters manual-external review without one -- but
+    through the bind. Always raises `PlanReviewWriterRetiredError`, writing
+    nothing."""
+    raise PlanReviewWriterRetiredError(
+        f"transition_to_awaiting_local_plan_review({work_item_id!r}) is retired "
+        f"(workflow-2.6.0, D-Plan-Review-Bundle-Binding): verify the published bundle "
+        f"with verify_plan_review_bundle and write the phase with bind_plan_review_bundle"
+    )
+
+
+# ---------------------------------------------------------------------------
+# workflow-2.6.0 CP4: D-Plan-Review-Bundle-Binding -- "the revision exists"
+# is separated from "the revision is review-ready". `publish_plan_revision`
+# is mirror-only for a two-stage item and records the author's "edits
+# complete" act (`PUBLISHED`); `bind_plan_review_bundle` is the sole writer
+# of `AWAITING_LOCAL_PLAN_REVIEW`, legitimate only against the freshly
+# re-read `plan_review_binding` record; `withdraw_plan_review` is the one
+# sanctioned exit from a ready phase without a verdict. The record's three
+# facts -- `consumed` (taken out of review), `published` (declared
+# complete), `bound` (bundle last bound) -- are the durable discriminator
+# a verifying bundle alone cannot be (section 5.3 item 2).
+# ---------------------------------------------------------------------------
+
+PLAN_REVIEW_BINDING_KEYS = frozenset({"status", "at", "consumed", "published", "bound"})
+_PLAN_REVIEW_BINDING_CONSUMED_KEYS = frozenset({"review_content_id", "plan_revision", "legacy"})
+_PLAN_REVIEW_BINDING_PUBLISHED_KEYS = frozenset({"review_content_id", "plan_revision"})
+_PLAN_REVIEW_BINDING_BOUND_KEYS = frozenset({"review_content_id", "bundle_id", "plan_revision"})
+
+# `plan_review_publication_status`'s status vocabulary, one per row group of
+# section 5.3 item 6's decision table (rows 4d and 6 refuse instead).
+PLAN_REVIEW_STATUS_NOT_PLAN_STAGE = "NOT_PLAN_STAGE"
+PLAN_REVIEW_STATUS_BOUND = "BOUND"
+PLAN_REVIEW_STATUS_CONTENT_DRIFTED = "CONTENT_DRIFTED"
+PLAN_REVIEW_STATUS_BUNDLE_UNVERIFIED = "BUNDLE_UNVERIFIED"
+PLAN_REVIEW_STATUS_LEGACY_UNVERIFIED = "LEGACY_UNVERIFIED"
+PLAN_REVIEW_STATUS_LEGACY_UNMARKED = "LEGACY_UNMARKED"
+PLAN_REVIEW_STATUS_NEEDS_EDIT = "NEEDS_EDIT"
+PLAN_REVIEW_STATUS_NEEDS_REVISION = "NEEDS_REVISION"
+PLAN_REVIEW_STATUS_PUBLISHED_UNBOUND = "PUBLISHED_UNBOUND"
+PLAN_REVIEW_STATUS_EDIT_IN_PROGRESS = "EDIT_IN_PROGRESS"
+
+# The two statuses under which `/apply-plan-review` step 1 checks feedback
+# against the durable `CONSUMED` record instead of the on-disk bundle, which
+# may already have been regenerated (rows 9 and 11, `LPR-R2-007`).
+PLAN_REVIEW_DURABLE_FEEDBACK_CHECK_STATUSES = frozenset({
+    PLAN_REVIEW_STATUS_PUBLISHED_UNBOUND, PLAN_REVIEW_STATUS_EDIT_IN_PROGRESS,
+})
+
+
+def _plan_review_remedy_withdraw(work_item_id: str) -> str:
+    return f"withdraw with /milestone-plan {work_item_id} (it consumes this content and discards both recorded stages)"
+
+
+def _plan_review_remedy_rerun(command: str, work_item_id: str) -> str:
+    return (
+        f"re-run {command} {work_item_id} with the explicit work-item id: its entry resumes at "
+        f"PUBLISHED_UNBOUND (row 9), regenerates if no bundle verifies for the published "
+        f"content, then binds -- never re-advancing the revision"
+    )
+
+
+def _not_plan_stage_message(work_item_id: str, phase: str | None, action: str) -> str:
+    message = (
+        f"{work_item_id!r} is at phase {phase!r}, outside the plan stage (PLANNING/"
+        f"REVISING_PLAN/AMENDING_PLAN, or a ready plan-review phase) -- refusing to {action}"
+    )
+    if phase in _AMENDMENT_REQUEST_ALLOWED_PHASES:
+        return message + f"; the route back to planning is /request-plan-amendment {work_item_id}"
+    return message + "; this release sanctions no plan re-entry from this phase"
+
+
+def assert_plan_stage_non_ready_phase(work_item: dict, work_item_id: str, *, action: str) -> None:
+    """The plan-stage allow-list (`LPR-R3-001`/`LPR-R4-002`) shared by
+    `publish_plan_revision` and `route_work_item`'s resume branch: for a
+    `TWO_STAGE_PLAN_REVIEW_VERSIONS` item, `action` runs only at
+    `PLANNING`, `REVISING_PLAN` or `AMENDING_PLAN`. A ready phase refuses
+    with `PlanReviewInProgressError` (naming the withdrawal), any other
+    phase with `PlanReviewPhaseNotPlanStageError`. A `"1"`-governed item,
+    or one with any other governing version, is not checked here."""
+    if work_item.get("governing_workflow_version") not in TWO_STAGE_PLAN_REVIEW_VERSIONS:
+        return
+    phase = work_item.get("phase")
+    if phase in PLAN_REVIEW_NON_READY_PHASES:
+        return
+    if phase in PLAN_REVIEW_READY_PHASES:
+        raise PlanReviewInProgressError(
+            f"{work_item_id!r} is under plan review at {phase!r} -- refusing to {action} "
+            f"in place; the sanctioned exit is to {_plan_review_remedy_withdraw(work_item_id)}"
+        )
+    raise PlanReviewPhaseNotPlanStageError(_not_plan_stage_message(work_item_id, phase, action))
+
+
+def assert_plan_review_entry_phase(work_item: dict, work_item_id: str, *, command: str) -> None:
+    """Row 1 of section 5.3 item 6's table, checked at the entry of
+    `/milestone-plan` and `/apply-plan-review` for a
+    `TWO_STAGE_PLAN_REVIEW_VERSIONS` item, before any write -- including
+    `route_work_item`'s mirror advance: a phase that is neither ready nor
+    non-ready refuses with `PlanReviewPhaseNotPlanStageError`."""
+    if work_item.get("governing_workflow_version") not in TWO_STAGE_PLAN_REVIEW_VERSIONS:
+        return
+    phase = work_item.get("phase")
+    if phase in PLAN_REVIEW_READY_PHASES or phase in PLAN_REVIEW_NON_READY_PHASES:
+        return
+    raise PlanReviewPhaseNotPlanStageError(_not_plan_stage_message(work_item_id, phase, f"run {command}"))
+
+
+def _validate_plan_review_binding(work_item_id: str, work_item: dict) -> None:
+    """`validate_state`'s shape check for `plan_review_binding` (INV-3):
+    absent means no record; a present value must be an object with exactly
+    `PLAN_REVIEW_BINDING_KEYS`, a known `status`, well-formed sub-objects,
+    and sub-objects consistent with that status -- `CONSUMED` has
+    `consumed` and neither of the others, `PUBLISHED` has `published` and
+    no `bound`, `BOUND` has `bound`. A legacy `consumed` carries a null id;
+    a non-legacy one a 64-hex id."""
+    if "plan_review_binding" not in work_item:
+        return
+    record = work_item["plan_review_binding"]
+    where = f"work_items[{work_item_id!r}].plan_review_binding"
+
+    def _bad(detail: str) -> InvalidPlanReviewBindingError:
+        return InvalidPlanReviewBindingError(f"{where} {detail}: {record!r}")
+
+    def _revision_ok(value) -> bool:
+        return isinstance(value, int) and not isinstance(value, bool) and value >= 1
+
+    def _id_ok(value) -> bool:
+        return isinstance(value, str) and bool(_SHA256_HEX_RE.match(value))
+
+    if not isinstance(record, dict) or set(record) != PLAN_REVIEW_BINDING_KEYS:
+        raise _bad(f"must be an object with exactly the keys {sorted(PLAN_REVIEW_BINDING_KEYS)}")
+    status = record["status"]
+    if not isinstance(status, str) or status not in PLAN_REVIEW_BINDING_STATUSES:
+        raise _bad(f"has unknown status {status!r}")
+    if not isinstance(record["at"], str) or not record["at"]:
+        raise _bad("has a missing or non-string 'at'")
+    consumed, published, bound = record["consumed"], record["published"], record["bound"]
+    if consumed is not None:
+        if not isinstance(consumed, dict) or set(consumed) != _PLAN_REVIEW_BINDING_CONSUMED_KEYS:
+            raise _bad("has a malformed 'consumed'")
+        if not isinstance(consumed["legacy"], bool) or not _revision_ok(consumed["plan_revision"]):
+            raise _bad("has a malformed 'consumed'")
+        if consumed["legacy"] != (consumed["review_content_id"] is None):
+            raise _bad("has a 'consumed' whose legacy flag disagrees with its id")
+        if consumed["review_content_id"] is not None and not _id_ok(consumed["review_content_id"]):
+            raise _bad("has a malformed 'consumed.review_content_id'")
+    if published is not None:
+        if not isinstance(published, dict) or set(published) != _PLAN_REVIEW_BINDING_PUBLISHED_KEYS:
+            raise _bad("has a malformed 'published'")
+        if not _id_ok(published["review_content_id"]) or not _revision_ok(published["plan_revision"]):
+            raise _bad("has a malformed 'published'")
+    if bound is not None:
+        if not isinstance(bound, dict) or set(bound) != _PLAN_REVIEW_BINDING_BOUND_KEYS:
+            raise _bad("has a malformed 'bound'")
+        if (
+            not _id_ok(bound["review_content_id"]) or not _id_ok(bound["bundle_id"])
+            or not _revision_ok(bound["plan_revision"])
+        ):
+            raise _bad("has a malformed 'bound'")
+    if status == PLAN_REVIEW_BINDING_CONSUMED and (consumed is None or published is not None or bound is not None):
+        raise _bad("is CONSUMED but does not carry exactly a 'consumed' fact")
+    if status == PLAN_REVIEW_BINDING_PUBLISHED and (published is None or bound is not None):
+        raise _bad("is PUBLISHED but does not carry a 'published' fact without a 'bound' one")
+    if status == PLAN_REVIEW_BINDING_BOUND and bound is None:
+        raise _bad("is BOUND but carries no 'bound' fact")
+
+
+def _plan_review_binding_record(work_item: dict, work_item_id: str) -> dict | None:
+    """The item's `plan_review_binding`, shape-checked, or `None`."""
+    _validate_plan_review_binding(work_item_id, work_item)
+    return work_item.get("plan_review_binding")
+
+
+def _plan_review_binding_for_write(work_item: dict, work_item_id: str) -> dict | None:
+    """The record the two non-ready-phase writers (`publish_plan_revision`,
+    `bind_plan_review_bundle`) act on. Refuses a legacy mid-round item
+    with no record (`LegacyPlanReviewBindingUnknownError`, row 5 before
+    its entry marker exists) and a non-ready phase holding a `BOUND`
+    record (`PlanReviewBindingInconsistentError`, row 6). `None` only at
+    `PLANNING`."""
+    record = _plan_review_binding_record(work_item, work_item_id)
+    phase = work_item.get("phase")
+    if record is None:
+        if phase in ("REVISING_PLAN", "AMENDING_PLAN"):
+            raise LegacyPlanReviewBindingUnknownError(
+                f"{work_item_id!r} is at {phase!r} with no plan_review_binding record (an item "
+                f"that entered this round before workflow-2.6.0): nothing durable says which "
+                f"content it already reviewed. Re-run /apply-plan-review {work_item_id} or "
+                f"/milestone-plan {work_item_id}: its entry writes the fail-closed marker "
+                f"(ensure_plan_review_binding_marker), after which one revision advance binds"
+            )
+        return None
+    if record["status"] == PLAN_REVIEW_BINDING_BOUND:
+        raise PlanReviewBindingInconsistentError(
+            f"{work_item_id!r} is at non-ready phase {phase!r} but its plan_review_binding is "
+            f"BOUND -- every exit from a ready phase writes CONSUMED, so this record was not "
+            f"written by workflow-2.6.0 (row 6); refusing rather than guessing"
+        )
+    return record
+
+
+def _assert_not_consumed(record: dict | None, work_item_id: str, review_content_id: str, plan_revision: int) -> None:
+    consumed = record.get("consumed") if record is not None else None
+    if consumed is None:
+        return
+    if consumed["review_content_id"] is not None and consumed["review_content_id"] == review_content_id:
+        raise ConsumedPlanReviewContentError(
+            f"{work_item_id!r}: review_content_id {review_content_id!r} is the content already "
+            f"taken out of review (plan_review_binding.consumed, plan_revision "
+            f"{consumed['plan_revision']}) -- it never re-binds; edit the plan, then regenerate"
+        )
+    if consumed["legacy"] and plan_revision <= consumed["plan_revision"]:
+        raise ConsumedPlanReviewContentError(
+            f"{work_item_id!r}: the fail-closed legacy marker records no review_content_id, so "
+            f"plan_revision {plan_revision} must exceed the marker's {consumed['plan_revision']} "
+            f"-- advance the revision once (an edit plus the registry regeneration), then regenerate"
+        )
+
+
+def _write_consumed_plan_review_binding(
+    work_item: dict, *, review_content_id: str | None, plan_revision: int, now: str,
+) -> None:
+    """In-place `CONSUMED` write shared by every transition that takes
+    content out of review for editing, from that transition's own inputs.
+    A null id writes the fail-closed legacy marker (`legacy: true`)."""
+    work_item["plan_review_binding"] = {
+        "status": PLAN_REVIEW_BINDING_CONSUMED,
+        "at": now,
+        "consumed": {
+            "review_content_id": review_content_id,
+            "plan_revision": plan_revision,
+            "legacy": review_content_id is None,
+        },
+        "published": None,
+        "bound": None,
+    }
+
+
+def _plan_amendment_is_open(work_item: dict) -> bool:
+    """The same open-amendment test `apply_plan_approval` uses: the last
+    `amendment_history` entry is unresolved."""
+    history = work_item.get("amendment_history") or []
+    return bool(history) and history[-1].get("resolved_at_plan_revision") is None
+
+
+def ensure_plan_review_binding_marker(state: dict, work_item_id: str, now: str) -> dict:
+    """Row 5's entry write (INV-7), run by the first `state_transaction` of
+    `/apply-plan-review` and `/milestone-plan` for a
+    `TWO_STAGE_PLAN_REVIEW_VERSIONS` item at `REVISING_PLAN`/`AMENDING_PLAN`
+    with no `plan_review_binding` record -- a `2.5.1` item mid-round.
+
+    - An `AMENDING_PLAN` item whose open amendment recorded, at request
+      time, the approved `review_content_id` it took out of approval gets
+      the non-legacy `CONSUMED` record from
+      `superseded_plan_approval.approved_review_content_id` and
+      `superseded_plan_revision` (`LPR-R3-006`) -- exactly what `2.6.0`'s
+      own `request_plan_amendment` writes.
+    - Otherwise, the fail-closed legacy marker at the current mirror: the
+      next publish and bind need one revision advance.
+
+    A true no-op (the input state returned) in every other case: a record
+    already exists, another phase, or another governing version."""
+    work_item = state["work_items"][work_item_id]
+    if work_item.get("governing_workflow_version") not in TWO_STAGE_PLAN_REVIEW_VERSIONS:
+        return state
+    if work_item.get("phase") not in ("REVISING_PLAN", "AMENDING_PLAN"):
+        return state
+    if _plan_review_binding_record(work_item, work_item_id) is not None:
+        return state
+    review_content_id = None
+    plan_revision = work_item.get("plan_revision")
+    if work_item.get("phase") == "AMENDING_PLAN" and _plan_amendment_is_open(work_item):
+        entry = work_item["amendment_history"][-1]
+        superseded = entry.get("superseded_plan_approval") or {}
+        approved_id = superseded.get("approved_review_content_id")
+        superseded_revision = entry.get("superseded_plan_revision")
+        if isinstance(approved_id, str) and isinstance(superseded_revision, int):
+            review_content_id, plan_revision = approved_id, superseded_revision
     new_state = copy.deepcopy(state)
-    work_item = new_state["work_items"][work_item_id]
-    work_item["phase"] = "AWAITING_LOCAL_PLAN_REVIEW"
-    work_item["state_revision"] = work_item.get("state_revision", 1) + 1
-    work_item["last_transition"] = now
+    new_work_item = new_state["work_items"][work_item_id]
+    _write_consumed_plan_review_binding(
+        new_work_item, review_content_id=review_content_id, plan_revision=plan_revision, now=now,
+    )
+    new_work_item["state_revision"] = new_work_item.get("state_revision", 1) + 1
+    new_work_item["last_transition"] = now
     return new_state
+
+
+def bind_plan_review_bundle(state: dict, work_item_id: str, *, binding: dict, now: str) -> dict:
+    """The **sole writer** of `AWAITING_LOCAL_PLAN_REVIEW` for a
+    `TWO_STAGE_PLAN_REVIEW_VERSIONS` item (INV-2): a pure mutator run
+    inside `state_transaction`. `binding` is `verify_plan_review_bundle`'s
+    return value -- `{review_content_id, bundle_id, plan_revision}` of a
+    bundle that verified on disk.
+
+    Legitimacy is decided here, against the freshly re-read state, never
+    by a caller's reading of the status. It succeeds only when:
+    - the phase is `PLANNING`, `REVISING_PLAN` or `AMENDING_PLAN`;
+    - the record is `PUBLISHED`, and the binding's `review_content_id` and
+      `plan_revision` equal `published`'s and the latter equals the
+      current mirror (`PlanReviewNotPublishedError` otherwise);
+    - the binding's id differs from a non-null `consumed.review_content_id`
+      and, for a legacy marker, its `plan_revision` exceeds the marker's
+      (`ConsumedPlanReviewContentError`).
+    A legacy mid-round item with no record refuses
+    (`LegacyPlanReviewBindingUnknownError`), as does a non-ready `BOUND`
+    record (`PlanReviewBindingInconsistentError`).
+
+    On success: `phase = AWAITING_LOCAL_PLAN_REVIEW`, `current_bundle_id`
+    written (a reader-facing pointer, compared advisorily only), and the
+    `BOUND` record with `bound` filled in and `consumed`/`published`
+    carried forward.
+
+    Idempotent: already `BOUND` to the same `review_content_id` at
+    `AWAITING_LOCAL_PLAN_REVIEW` is a no-op, even for a different
+    `bundle_id` (a wrapper-only regeneration; the caller reports it as
+    advisory). Never regresses a phase: at any other ready phase it
+    refuses with `PlanReviewAlreadyReadyError` and writes nothing."""
+    work_item = state["work_items"][work_item_id]
+    _require_v2_1_plan_review(work_item)
+    if not isinstance(binding, dict) or set(binding) != _PLAN_REVIEW_BINDING_BOUND_KEYS:
+        raise TypeError(f"bind_plan_review_bundle: malformed binding {binding!r}")
+    phase = work_item.get("phase")
+    if phase in PLAN_REVIEW_READY_PHASES:
+        record = _plan_review_binding_record(work_item, work_item_id)
+        if (
+            phase == "AWAITING_LOCAL_PLAN_REVIEW" and record is not None
+            and record["status"] == PLAN_REVIEW_BINDING_BOUND
+            and record["bound"]["review_content_id"] == binding["review_content_id"]
+        ):
+            return state
+        raise PlanReviewAlreadyReadyError(
+            f"{work_item_id!r} is already at ready phase {phase!r} -- a bind never moves an "
+            f"item back to local review; nothing was written"
+        )
+    if phase not in PLAN_REVIEW_NON_READY_PHASES:
+        raise PlanReviewPhaseNotPlanStageError(_not_plan_stage_message(work_item_id, phase, "bind a plan-review bundle"))
+    record = _plan_review_binding_for_write(work_item, work_item_id)
+    if record is None:
+        raise PlanReviewNotPublishedError(
+            f"{work_item_id!r} has no PUBLISHED plan_review_binding record -- publish the "
+            f"completed content (publish_plan_revision) before binding a bundle of it"
+        )
+    _assert_not_consumed(record, work_item_id, binding["review_content_id"], binding["plan_revision"])
+    expected = {"review_content_id": binding["review_content_id"], "plan_revision": binding["plan_revision"]}
+    if (
+        record["status"] != PLAN_REVIEW_BINDING_PUBLISHED
+        or record["published"] != expected
+        or work_item.get("plan_revision") != binding["plan_revision"]
+    ):
+        raise PlanReviewNotPublishedError(
+            f"{work_item_id!r}: the bundle's content (review_content_id "
+            f"{binding['review_content_id']!r}, plan_revision {binding['plan_revision']}) is not "
+            f"the published content (record {record['status']}, published {record['published']!r}, "
+            f"mirror {work_item.get('plan_revision')!r}) -- content the author never declared "
+            f"complete cannot enter review"
+        )
+    new_state = copy.deepcopy(state)
+    new_work_item = new_state["work_items"][work_item_id]
+    new_work_item["phase"] = "AWAITING_LOCAL_PLAN_REVIEW"
+    new_work_item["current_bundle_id"] = binding["bundle_id"]
+    new_work_item["plan_review_binding"] = {
+        "status": PLAN_REVIEW_BINDING_BOUND,
+        "at": now,
+        "consumed": copy.deepcopy(record["consumed"]),
+        "published": copy.deepcopy(record["published"]),
+        "bound": dict(binding),
+    }
+    new_work_item["state_revision"] = new_work_item.get("state_revision", 1) + 1
+    new_work_item["last_transition"] = now
+    return new_state
+
+
+def withdraw_plan_review(state: dict, work_item_id: str, now: str) -> dict:
+    """The one sanctioned way for a `TWO_STAGE_PLAN_REVIEW_VERSIONS` item to
+    leave a ready phase for editing without a `REVISE` verdict (section
+    5.3 item 7); `/milestone-plan <id>`'s entry is its only command
+    caller. A pure mutator that reads only the phase, the
+    `plan_review_binding` record and `amendment_history` -- it computes no
+    fresh id and reads no plan-stage file, so no worktree state can make
+    it raise. In one write it:
+    - moves the phase to `AMENDING_PLAN` if the last `amendment_history`
+      entry is unresolved, else `REVISING_PLAN`;
+    - writes `CONSUMED` from a `BOUND` record's own `bound` fields
+      (`legacy: false`); any other record, or none (a `2.5.1` ready item,
+      or row 4d), gets the fail-closed legacy marker at the current mirror;
+    - leaves `plan_review_stages`, `current_bundle_id`, the bundle, the pin
+      and `plan-inputs/` untouched.
+    Refuses at any non-ready phase (`PlanReviewNotReadyError`), writing
+    nothing -- so a re-run after a crash that followed the withdrawal
+    simply finds the non-ready row."""
+    work_item = state["work_items"][work_item_id]
+    _require_v2_1_plan_review(work_item)
+    phase = work_item.get("phase")
+    if phase not in PLAN_REVIEW_READY_PHASES:
+        raise PlanReviewNotReadyError(
+            f"{work_item_id!r} is at {phase!r}, not a ready plan-review phase -- nothing is "
+            f"under review to withdraw"
+        )
+    record = work_item.get("plan_review_binding")
+    bound = None
+    if isinstance(record, dict) and record.get("status") == PLAN_REVIEW_BINDING_BOUND:
+        bound = record.get("bound")
+    new_state = copy.deepcopy(state)
+    new_work_item = new_state["work_items"][work_item_id]
+    if _plan_amendment_is_open(work_item):
+        new_work_item["phase"] = "AMENDING_PLAN"
+    else:
+        new_work_item["phase"] = "REVISING_PLAN"
+    if isinstance(bound, dict) and isinstance(bound.get("review_content_id"), str):
+        _write_consumed_plan_review_binding(
+            new_work_item, review_content_id=bound["review_content_id"],
+            plan_revision=bound["plan_revision"], now=now,
+        )
+    else:
+        _write_consumed_plan_review_binding(
+            new_work_item, review_content_id=None,
+            plan_revision=new_work_item.get("plan_revision"), now=now,
+        )
+    new_work_item["state_revision"] = new_work_item.get("state_revision", 1) + 1
+    new_work_item["last_transition"] = now
+    return new_state
+
+
+def assert_plan_review_withdrawal_allowed(repo_root: Path, work_item_id: str, *, explicit_id: bool) -> None:
+    """`/milestone-plan`'s entry guards before a ready-phase withdrawal,
+    run before any write:
+    - `explicit_id` is `False` unless the command's argument was a
+      `work_items` key (the `<id>` or `<id> <base-sha>` forms): a run with
+      no argument, or with the one-argument base-SHA form, refuses with
+      `PlanReviewWithdrawalNeedsExplicitIdError` (`LPR-R4-006`/`LPR-R5-004`);
+    - an open plan-approval journal naming this item refuses with
+      `PlanApprovalInProgressError`; an unreadable one propagates
+      `PlanApprovalJournalUnavailableError` -- an undecidable journal is
+      never read as "no transaction in progress" (`LPR-R4-004`). A journal
+      for a different item does not block."""
+    if not explicit_id:
+        raise PlanReviewWithdrawalNeedsExplicitIdError(
+            f"{work_item_id!r} is under plan review; /milestone-plan was not given its id "
+            f"explicitly, and a withdrawal consumes the bound content and discards both recorded "
+            f"stages -- run /milestone-plan {work_item_id} to withdraw deliberately. Nothing was written"
+        )
+    journal = read_plan_approval_journal(repo_root)
+    if journal is not None and journal.get("work_item_id") == work_item_id:
+        raise PlanApprovalInProgressError(
+            f"an open plan-approval journal names {work_item_id!r} -- resume or take it over "
+            f"through /approve-review plan {work_item_id}; nothing was withdrawn"
+        )
+
+
+def compute_fresh_plan_review_content_id(repo_root: Path, work_item_id: str) -> str | None:
+    """The fresh plan-stage id `F`, through `REVIEW_PROTOCOL.md`'s canonical
+    entry point, or `None` (`F = ⊥`) when a plan-stage protected path is
+    absent (`AbsentProtectedPathError`) or the document's `(Revision N)`
+    marker disagrees with the registry (`PlanRevisionMismatchError`). Any
+    other failure propagates (INV-3)."""
+    try:
+        digest, _projection = fingerprint.compute_review_content_id_plan_stage_for_work_item(
+            repo_root, work_item_id,
+        )
+    except (fingerprint.AbsentProtectedPathError, fingerprint.PlanRevisionMismatchError):
+        return None
+    return digest
+
+
+def verify_plan_review_bundle(repo_root: Path, work_item_id: str, *, state: dict | None = None) -> dict:
+    """Read-only. Returns the binding `{review_content_id, bundle_id,
+    plan_revision}` of `.ai-review/<id>/current/` only when:
+    - `MANIFEST.md` is present, is a plan-stage manifest for this item,
+      and its `plan_revision` equals the state mirror;
+    - the bundle is not `REJECTED`;
+    - the recomputed `bundle_id` of `current/` equals the manifest's and
+      the archive's;
+    - the manifest's `review_content_id` equals a fresh recomputation.
+
+    The last condition failing -- or the fresh id being unreadable -- on an
+    otherwise consistent bundle raises `ReviewedContentDriftError`;
+    everything else raises `PlanReviewBundleUnverifiedError`, chaining the
+    underlying error where there is one. `state`, if given, supplies the
+    mirror; otherwise it is read from the worktree."""
+    if state is None:
+        state = _load_json(Path(repo_root) / DEFAULT_STATE_PATH)
+    work_item = state["work_items"][work_item_id]
+    mirror = work_item.get("plan_revision")
+    bundle_rel = fingerprint.resolve_bundle_dir(repo_root, work_item_id, stage="plan")
+    bundle_dir = Path(repo_root) / bundle_rel
+    manifest_path = bundle_dir / fingerprint.MANIFEST_FILENAME
+    archive_path = bundle_dir.parent / "review-bundle.tar.gz"
+
+    def _unverified(detail: str) -> PlanReviewBundleUnverifiedError:
+        return PlanReviewBundleUnverifiedError(f"{work_item_id!r}'s plan-review bundle ({bundle_rel}) does not verify: {detail}")
+
+    if not manifest_path.is_file():
+        raise _unverified("no MANIFEST.md -- no bundle has been generated, or it was withdrawn")
+    try:
+        fingerprint.assert_bundle_not_rejected(repo_root, work_item_id)
+    except fingerprint.BundleRejectedError as exc:
+        raise _unverified(f"the bundle is REJECTED ({exc})") from exc
+    fields = fingerprint.read_plan_stage_manifest_fields(manifest_path)
+    if fields.get("stage") != "plan" or fields.get("work_item_id") != work_item_id:
+        raise _unverified(
+            f"MANIFEST.md is not a plan-stage manifest for this item (stage "
+            f"{fields.get('stage')!r}, work_item_id {fields.get('work_item_id')!r})"
+        )
+    if fields.get("plan_revision") != mirror:
+        raise _unverified(
+            f"MANIFEST.md's plan_revision {fields.get('plan_revision')!r} is not the state "
+            f"mirror {mirror!r} -- a stale-revision bundle"
+        )
+    recorded_bundle_id = fields.get("bundle_id")
+    recorded_content_id = fields.get("review_content_id")
+    if recorded_bundle_id is None or recorded_content_id is None:
+        raise _unverified("MANIFEST.md records no bundle_id or no review_content_id")
+    try:
+        ondisk_bundle_id, _ = fingerprint.compute_bundle_id(bundle_dir)
+        archived_bundle_id = fingerprint.compute_archived_bundle_id(archive_path)
+    except Exception as exc:  # noqa: BLE001 -- every recomputation failure is "does not verify"
+        raise _unverified(f"bundle_id recomputation failed ({type(exc).__name__}: {exc})") from exc
+    if not (recorded_bundle_id == ondisk_bundle_id == archived_bundle_id):
+        raise _unverified(
+            f"bundle_id disagreement: manifest={recorded_bundle_id} current/={ondisk_bundle_id} "
+            f"archive={archived_bundle_id} (a mixed bundle, or an interrupted promotion)"
+        )
+    try:
+        fresh_digest, _ = fingerprint.compute_review_content_id_plan_stage_for_work_item(repo_root, work_item_id)
+    except (fingerprint.AbsentProtectedPathError, fingerprint.PlanRevisionMismatchError) as exc:
+        raise ReviewedContentDriftError(
+            f"{work_item_id!r}: the worktree's plan-stage review_content_id cannot be computed "
+            f"({type(exc).__name__}: {exc}) -- the protected content drifted from the bundle's "
+            f"{recorded_content_id!r}"
+        ) from exc
+    if fresh_digest != recorded_content_id:
+        raise ReviewedContentDriftError(
+            f"{work_item_id!r}: the worktree's plan-stage review_content_id {fresh_digest!r} is "
+            f"not the bundle's {recorded_content_id!r} -- the protected content drifted"
+        )
+    return {"review_content_id": recorded_content_id, "bundle_id": recorded_bundle_id, "plan_revision": mirror}
+
+
+def _registry_plan_revision_or_none(repo_root: Path, work_item: dict, work_item_id: str) -> int | None:
+    """The registry's own `plan_revision` (`R`), or `None` when the item
+    declares no registry or its file does not exist yet (row 7). A present
+    but unreadable or malformed registry refuses (INV-3)."""
+    registry_path = work_item.get("registry_path")
+    if registry_path is None:
+        return None
+    full_path = Path(repo_root) / registry_path
+    if not full_path.exists():
+        return None
+    registry = _load_json(full_path)
+    revision = registry.get("plan_revision") if isinstance(registry, dict) else None
+    if not isinstance(revision, int) or isinstance(revision, bool) or revision < 1:
+        raise CorruptJsonError(f"{registry_path} declares no valid plan_revision for {work_item_id!r}")
+    return revision
+
+
+def plan_review_publication_status(repo_root: Path, state: dict, work_item_id: str) -> dict:
+    """Section 5.3 item 6's total decision table, read-only: the first
+    matching row wins. Inputs are the durable facts (phase, the registry's
+    revision `R`, the mirror `M`, the `plan_review_binding` record) plus
+    the fresh plan-stage id `F`, computed only in rows that need it
+    (`compute_fresh_plan_review_content_id`; `None` is `⊥`).
+
+    Returns `{work_item_id, phase, row, status, remedy}` plus, where the
+    row computed them, `fresh_review_content_id`, `bundle_id`,
+    `bundle_verifies`, `advisory` and `detail`; the underlying exception of
+    a refusing row is kept under the private key `_error` (never
+    serialized). Rows 4d and 6 raise `PlanReviewBindingInconsistentError`
+    instead (INV-3). The status only routes -- legitimacy is decided by
+    `bind_plan_review_bundle` -- so a routing error can at worst send a run
+    to a refusal."""
+    work_item = state["work_items"][work_item_id]
+    _require_v2_1_plan_review(work_item)
+    phase = work_item.get("phase")
+    record = _plan_review_binding_record(work_item, work_item_id)
+    result = {"work_item_id": work_item_id, "phase": phase}
+
+    def _row(row: str, status: str, remedy: str, **extra) -> dict:
+        result.update(row=row, status=status, remedy=remedy, **extra)
+        return result
+
+    if phase not in PLAN_REVIEW_READY_PHASES and phase not in PLAN_REVIEW_NON_READY_PHASES:
+        return _row("1", PLAN_REVIEW_STATUS_NOT_PLAN_STAGE, _not_plan_stage_message(work_item_id, phase, "resume plan review"))
+
+    if phase in PLAN_REVIEW_READY_PHASES:
+        withdraw = _plan_review_remedy_withdraw(work_item_id)
+        if record is None:
+            try:
+                binding = verify_plan_review_bundle(repo_root, work_item_id, state=state)
+            except (PlanReviewBundleUnverifiedError, ReviewedContentDriftError) as exc:
+                return _row(
+                    "4c", PLAN_REVIEW_STATUS_LEGACY_UNVERIFIED,
+                    f"regenerate the bundle (./scripts/prepare-ai-review.sh <base> plan {work_item_id}), "
+                    f"after which the legacy ready item is accepted as-is; or {withdraw}",
+                    detail=str(exc), _error=exc,
+                )
+            return _row("3", PLAN_REVIEW_STATUS_BOUND, "nothing to do", bundle_id=binding["bundle_id"],
+                        fresh_review_content_id=binding["review_content_id"], advisory=None)
+        if record["status"] != PLAN_REVIEW_BINDING_BOUND:
+            raise PlanReviewBindingInconsistentError(
+                f"{work_item_id!r} is at ready phase {phase!r} with a {record['status']} "
+                f"plan_review_binding record -- no workflow-2.6.0 call leaves a ready phase holding "
+                f"anything but BOUND (row 4d); {withdraw}, which writes the fail-closed marker"
+            )
+        bound_id = record["bound"]["review_content_id"]
+        fresh = compute_fresh_plan_review_content_id(repo_root, work_item_id)
+        restore = (
+            f"restore the bound bytes from .ai-review/{work_item_id}/current/files/<path> "
+            f"(and the plan's (Revision N) title), which returns to row 2"
+        )
+        if fresh is None or fresh != bound_id:
+            try:
+                verify_plan_review_bundle(repo_root, work_item_id, state=state)
+                cause = None
+            except (PlanReviewBundleUnverifiedError, ReviewedContentDriftError) as exc:
+                cause = exc
+            detail = (
+                f"the worktree's fresh plan-stage review_content_id is "
+                f"{'unreadable' if fresh is None else repr(fresh)}, not the bound {bound_id!r}"
+            )
+            return _row("4a", PLAN_REVIEW_STATUS_CONTENT_DRIFTED, f"{restore}; or {withdraw} and take the normal path",
+                        fresh_review_content_id=fresh, detail=detail, _error=cause)
+        try:
+            binding = verify_plan_review_bundle(repo_root, work_item_id, state=state)
+        except (PlanReviewBundleUnverifiedError, ReviewedContentDriftError) as exc:
+            return _row(
+                "4b", PLAN_REVIEW_STATUS_BUNDLE_UNVERIFIED,
+                f"regenerate the bundle (./scripts/prepare-ai-review.sh <base> plan {work_item_id}); "
+                f"the content is unchanged, so row 2 then matches and the new bundle_id is advisory; "
+                f"or {withdraw}",
+                fresh_review_content_id=fresh, detail=str(exc), _error=exc,
+            )
+        return _row(
+            "2", PLAN_REVIEW_STATUS_BOUND, "nothing to do", fresh_review_content_id=fresh,
+            bundle_id=binding["bundle_id"],
+            advisory=_plan_review_bundle_id_advisory(work_item.get("current_bundle_id"), binding["bundle_id"]),
+        )
+
+    # Non-ready phase.
+    if record is None and phase in ("REVISING_PLAN", "AMENDING_PLAN"):
+        return _row("5", PLAN_REVIEW_STATUS_LEGACY_UNMARKED,
+                    "the entry state_transaction writes the marker (ensure_plan_review_binding_marker), then re-evaluates")
+    if record is not None and record["status"] == PLAN_REVIEW_BINDING_BOUND:
+        raise PlanReviewBindingInconsistentError(
+            f"{work_item_id!r} is at non-ready phase {phase!r} with a BOUND plan_review_binding "
+            f"record -- every exit from a ready phase writes CONSUMED (row 6); refusing"
+        )
+    registry_revision = _registry_plan_revision_or_none(repo_root, work_item, work_item_id)
+    normal = "the normal path"
+    if registry_revision is None:
+        return _row("7", PLAN_REVIEW_STATUS_NEEDS_EDIT, normal)
+    mirror = work_item.get("plan_revision")
+    if isinstance(mirror, int) and mirror < registry_revision:
+        return _row(
+            "8", PLAN_REVIEW_STATUS_NEEDS_REVISION,
+            "re-run the command's own publication step at the registry's revision "
+            "(/apply-plan-review step 5, or /milestone-plan's publication point), then publish",
+        )
+    fresh = compute_fresh_plan_review_content_id(repo_root, work_item_id)
+    if record is not None and record["status"] == PLAN_REVIEW_BINDING_PUBLISHED:
+        published = record["published"]
+        if mirror == registry_revision == published["plan_revision"] and fresh == published["review_content_id"]:
+            try:
+                binding = verify_plan_review_bundle(repo_root, work_item_id, state=state)
+                verifies = binding["review_content_id"] == fresh
+            except (PlanReviewBundleUnverifiedError, ReviewedContentDriftError):
+                verifies = False
+            return _row(
+                "9", PLAN_REVIEW_STATUS_PUBLISHED_UNBOUND,
+                ("bind only" if verifies else "regenerate, then bind") + "; never re-advance the revision",
+                fresh_review_content_id=fresh, bundle_verifies=verifies,
+            )
+    if record is not None and record["status"] == PLAN_REVIEW_BINDING_CONSUMED and not record["consumed"]["legacy"]:
+        consumed = record["consumed"]
+        if mirror == registry_revision == consumed["plan_revision"] and fresh == consumed["review_content_id"]:
+            return _row("10", PLAN_REVIEW_STATUS_NEEDS_EDIT, normal, fresh_review_content_id=fresh)
+    return _row("11", PLAN_REVIEW_STATUS_EDIT_IN_PROGRESS, normal, fresh_review_content_id=fresh)
+
+
+def _plan_review_bundle_id_advisory(current_bundle_id: str | None, bundle_id: str) -> str | None:
+    """A `bundle_id` differing from `current_bundle_id` is advisory only (a
+    wrapper-only regeneration after the bind), reported the way
+    `check_manual_stage_bundle_id_advisory` reports one. A null pointer (a
+    `2.5.1` item) has nothing to compare."""
+    if current_bundle_id is None:
+        return None
+    return check_manual_stage_bundle_id_advisory(bundle_id, current_bundle_id)
+
+
+def assert_plan_review_bundle_bound(repo_root: Path, work_item_id: str, *, state: dict | None = None) -> str | None:
+    """The readers' binding check (section 5.3 item 4), called by
+    `validate_local_plan_review_preconditions_bound` (`/review-plan`),
+    `/record-manual-plan-review` and `/approve-review plan` step 2 for a
+    `TWO_STAGE_PLAN_REVIEW_VERSIONS` item at a ready phase. Re-runs the
+    verifier through `plan_review_publication_status` and requires a
+    `BOUND` record whose `bound.review_content_id` equals the bundle's --
+    or, for a `2.5.1` ready item with no record, a verifying bundle (INV-7;
+    nothing is back-filled, the phase is never touched). Returns the
+    advisory string for a `bundle_id` differing from `current_bundle_id`,
+    else `None`; never requires them equal.
+
+    Refuses with the row's remedy text: `ReviewedContentDriftError` (row
+    4a, including an unreadable fresh id), `PlanReviewBundleUnverifiedError`
+    (rows 4b and 4c), `PlanReviewBindingInconsistentError` (row 4d), and
+    `PlanReviewNotReadyError` at a non-ready phase. Never the bare
+    `PlanRevisionMismatchError`/`AbsentProtectedPathError`."""
+    if state is None:
+        state = _load_json(Path(repo_root) / DEFAULT_STATE_PATH)
+    work_item = state["work_items"][work_item_id]
+    if work_item.get("phase") not in PLAN_REVIEW_READY_PHASES:
+        raise PlanReviewNotReadyError(
+            f"{work_item_id!r} is at {work_item.get('phase')!r}, not a ready plan-review phase -- "
+            f"no bound bundle to read"
+        )
+    status = plan_review_publication_status(repo_root, state, work_item_id)
+    if status["status"] == PLAN_REVIEW_STATUS_BOUND:
+        return status.get("advisory")
+    message = f"{status['detail']} (row {status['row']}). Remedy: {status['remedy']}"
+    if status["status"] == PLAN_REVIEW_STATUS_CONTENT_DRIFTED:
+        raise ReviewedContentDriftError(message) from status.get("_error")
+    raise PlanReviewBundleUnverifiedError(message) from status.get("_error")
+
+
+def validate_local_plan_review_preconditions_bound(repo_root: Path, work_item: dict) -> str | None:
+    """The repo-aware wrapper `/review-plan` calls:
+    `validate_local_plan_review_preconditions` (version and phase), then
+    `assert_plan_review_bundle_bound`. Returns the latter's advisory."""
+    validate_local_plan_review_preconditions(work_item)
+    return assert_plan_review_bundle_bound(repo_root, work_item["work_item_id"])
+
+
+def assert_apply_plan_review_feedback(
+    work_item: dict, work_item_id: str, *, feedback_content: str, publication_status: str,
+) -> str:
+    """`/apply-plan-review` step 1's `TWO_STAGE_PLAN_REVIEW_VERSIONS`
+    acceptance rule, before any write:
+
+    - Only `Status: REVISE` applies. `BLOCK` and `APPROVE` refuse with
+      `FeedbackStatusNotApplicableError`: a plan-stage `BLOCK` writes no
+      transition, so it is resolved at its ready phase -- re-review the
+      unchanged content (row 2), or edit and withdraw with
+      `/milestone-plan <id>` (row 4a).
+    - Under `PUBLISHED_UNBOUND`/`EDIT_IN_PROGRESS` (rows 9 and 11) the
+      on-disk bundle may already have been regenerated, so the feedback is
+      checked against the durable `CONSUMED` fact instead
+      (`FeedbackNotForConsumedContentError`): its `review_content_id` must
+      equal `consumed.review_content_id`; for a legacy marker (null id) its
+      `Work item:` must name this item and its `Status:` be `REVISE`, with
+      no revision comparison. Returns `"durable"`.
+    - Under any other status, returns `"bundle"`: the caller runs step 1's
+      unchanged binding against the on-disk bundle, which is still the
+      reviewed one (row 10).
+    A `"1"`-governed item returns `"bundle"` unconditionally."""
+    if work_item.get("governing_workflow_version") not in TWO_STAGE_PLAN_REVIEW_VERSIONS:
+        return "bundle"
+    fields = fingerprint.parse_review_feedback_binding_fields(feedback_content)
+    status = fields.get("status")
+    if status != "REVISE":
+        routes = (
+            f"a plan-stage BLOCK is resolved at its ready phase: after the blocking issue is "
+            f"resolved, re-review the unchanged content (/review-plan {work_item_id}), or edit the "
+            f"plan and withdraw with /milestone-plan {work_item_id}"
+            if status == "BLOCK" else
+            "only a REVISE verdict is ever applied by /apply-plan-review for a two-stage item"
+        )
+        raise FeedbackStatusNotApplicableError(
+            f"{work_item_id!r}: the feedback's Status is {status!r}, not REVISE -- {routes}. "
+            f"Nothing was written"
+        )
+    if publication_status not in PLAN_REVIEW_DURABLE_FEEDBACK_CHECK_STATUSES:
+        return "bundle"
+    record = _plan_review_binding_record(work_item, work_item_id)
+    consumed = record.get("consumed") if record is not None else None
+    if consumed is None:
+        raise FeedbackNotForConsumedContentError(
+            f"{work_item_id!r} records no consumed content (plan_review_binding "
+            f"{record['status'] if record else None}) -- there is no reviewed round for this "
+            f"feedback to belong to"
+        )
+    if consumed["legacy"]:
+        if fields.get("work_item") != work_item_id:
+            raise FeedbackNotForConsumedContentError(
+                f"the feedback names work item {fields.get('work_item')!r}, not {work_item_id!r}"
+            )
+        return "durable"
+    feedback_content_id = fingerprint.parse_feedback_review_content_id(feedback_content)
+    if feedback_content_id != consumed["review_content_id"]:
+        raise FeedbackNotForConsumedContentError(
+            f"{work_item_id!r}: the feedback's review_content_id {feedback_content_id!r} is not "
+            f"the consumed content {consumed['review_content_id']!r} -- it does not belong to the "
+            f"round being applied"
+        )
+    return "durable"
 
 
 # ---------------------------------------------------------------------------
@@ -13146,6 +14177,7 @@ def _validate_work_item(work_item_id: str, work_item: dict) -> None:
     _validate_plan_review_stages(work_item)
     _validate_implementation_review_stages(work_item)
     _validate_technical_review_block_pins(work_item)
+    _validate_plan_review_binding(work_item_id, work_item)
 
     # I2 (workflow-v2-3-followups continued scope, external cross-model
     # review rounds 2 and 4): validate_approval_record's shape check
@@ -14012,3 +15044,30 @@ def sweep_applying_review_feedback_version_claims(
     for path, text in paths_and_texts.items():
         findings.extend(find_applying_review_feedback_version_claims(path, text))
     return findings
+
+
+def _plan_review_publication_status_cli(argv: list[str] | None = None) -> int:
+    """Read-only CLI (`D-Plan-Review-Bundle-Binding`, workflow-2.6.0): print
+    `plan_review_publication_status` for one work item as a single JSON
+    object -- the contract Controller consumes instead of re-deriving the
+    table. Rows 4d and 6 print `{"error": <name>, "message": ...}` and exit
+    1. Writes nothing."""
+    import argparse
+
+    parser = argparse.ArgumentParser(description=_plan_review_publication_status_cli.__doc__)
+    parser.add_argument("--plan-review-publication-status", metavar="WORK_ITEM_ID", required=True)
+    args = parser.parse_args(argv)
+    repo_root = Path(_run(["git", "rev-parse", "--show-toplevel"], cwd=Path.cwd()).strip())
+    work_item_id = args.plan_review_publication_status
+    state = _load_json(repo_root / DEFAULT_STATE_PATH)
+    try:
+        status = plan_review_publication_status(repo_root, state, work_item_id)
+    except PlanReviewBindingInconsistentError as exc:
+        print(json.dumps({"error": type(exc).__name__, "message": str(exc)}, sort_keys=True))
+        return 1
+    print(json.dumps({k: v for k, v in status.items() if not k.startswith("_")}, sort_keys=True))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(_plan_review_publication_status_cli())

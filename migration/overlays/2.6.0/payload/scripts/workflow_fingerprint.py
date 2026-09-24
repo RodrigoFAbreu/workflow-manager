@@ -2377,7 +2377,7 @@ def _pin_dir_for_work_item(repo_root: Path, work_item_id: str) -> Path:
 
 
 def capture_plan_stage_pin(
-    repo_root: Path, work_item_id: str, metadata: PlanStageMetadata,
+    repo_root: Path, work_item_id: str, metadata: PlanStageMetadata, *, pin_dir: Path | None = None,
 ) -> Path:
     """Reads every one of `metadata.protected_paths` exactly once, from
     the live worktree, into a private snapshot directory -- so a
@@ -2390,9 +2390,15 @@ def capture_plan_stage_pin(
     symlink, or not a regular file (this doubles as the derivation's own
     fail-closed precondition, part 2). Replaces any prior pin atomically
     (`os.replace` onto the final name), so an interrupted capture never
-    leaves a partial pin looking current. Returns the pin directory."""
-    pin_dir = _pin_dir_for_work_item(repo_root, work_item_id)
-    tmp_pin_dir = pin_dir.with_name(".pin.tmp")
+    leaves a partial pin looking current. Returns the pin directory.
+
+    `pin_dir` (workflow-2.6.0, `D-Plan-Review-Bundle-Binding` item 5)
+    redirects the capture to a staging generation's own
+    `.pin.staging-<token>/`, which only a successful finalization renames
+    onto `.pin`; `None` keeps the in-place `.pin`."""
+    if pin_dir is None:
+        pin_dir = _pin_dir_for_work_item(repo_root, work_item_id)
+    tmp_pin_dir = pin_dir.with_name(pin_dir.name + ".tmp")
     if tmp_pin_dir.exists():
         shutil.rmtree(tmp_pin_dir)
     tmp_pin_dir.mkdir(parents=True)
@@ -2633,31 +2639,22 @@ def clear_rejected_marker_if_present(repo_root: Path, work_item_id: str) -> None
         marker_path.unlink()
 
 
-def finalize_bundle_generation(
+def _closing_bundle_generation_check(
     repo_root: Path, bundle_dir: Path, archive_path: Path, stage: str, work_item_id: str | None,
-) -> dict:
-    """The closing half of one `prepare-ai-review.sh` generation run,
-    factored out into one testable function: the pre-existing three-way
-    `bundle_id` reproducibility check (manifest / on-disk / archived);
-    for the plan stage, additionally the byte-identity binding check
-    (part 3, when a pin was captured) and the `TEST_RESULTS.md`/
-    `REVIEW_REQUEST.md` consistency check (item 272, unconditional --
-    does not depend on a pin); for the implementation/post-fix stages,
-    `assert_stage_completeness`'s `IMPLEMENTATION_SUMMARY.md` revision-
-    consistency check (`OPUS-R133-003`: this branch existed since WF5 but
-    had no live caller before this, so a bundle whose author-written
-    summary stated a stale `implementation_revision` published anyway);
-    on any failure, and only when `work_item_id` is given (the marker
-    mechanism has no flat-compatibility-layout counterpart), withdrawal
-    (part 3b) rather than leaving a stale-but-self-verifying artifact in
-    place; on success, clearing any pre-existing `REJECTED` marker for
-    this work item. Returns a dict describing the outcome; never
-    swallows a withdrawal
-    step's own `BundleWithdrawalError`."""
+    *, pin_dir: Path | None = None,
+) -> tuple[str | None, str | None]:
+    """The checks `finalize_bundle_generation` and
+    `finalize_staged_plan_bundle_generation` share: the three-way
+    `bundle_id` reproducibility check; for the plan stage the pin
+    byte-identity binding (when a pin exists at `pin_dir`, default the
+    in-place `.pin`) and the `TEST_RESULTS.md`/`REVIEW_REQUEST.md`
+    consistency check; for implementation/post-fix the stage-completeness
+    check. Returns `(recorded_bundle_id, mismatch_detail)`;
+    `recorded_bundle_id` is `None` when `MANIFEST.md` records none."""
     recorded = read_manifest_identifiers(bundle_dir / MANIFEST_FILENAME)
     recorded_bundle_id = recorded.get("bundle_id")
     if recorded_bundle_id is None:
-        return {"status": "error", "message": "MANIFEST.md has no recorded bundle_id"}
+        return None, "MANIFEST.md has no recorded bundle_id"
 
     ondisk_bundle_id, _ = compute_bundle_id(bundle_dir)
 
@@ -2675,7 +2672,8 @@ def finalize_bundle_generation(
             )
         elif stage == "plan" and work_item_id is not None:
             metadata = resolve_plan_stage_metadata(repo_root, work_item_id)
-            pin_dir = _pin_dir_for_work_item(repo_root, work_item_id)
+            if pin_dir is None:
+                pin_dir = _pin_dir_for_work_item(repo_root, work_item_id)
             if pin_dir.is_dir():
                 try:
                     assert_plan_stage_document_matches_pin(
@@ -2733,19 +2731,255 @@ def finalize_bundle_generation(
                     )
                 except StageCompletenessError as exc:
                     mismatch_detail = str(exc)
+    return recorded_bundle_id, mismatch_detail
 
-        if mismatch_detail is not None:
-            if work_item_id is not None:
-                quarantine_path = withdraw_bundle(repo_root, work_item_id, mismatch_detail)
-                return {
-                    "status": "withdrawn",
-                    "message": mismatch_detail,
-                    "quarantine": str(quarantine_path),
-                }
-            return {"status": "mismatch", "message": mismatch_detail}
+
+def finalize_bundle_generation(
+    repo_root: Path, bundle_dir: Path, archive_path: Path, stage: str, work_item_id: str | None,
+) -> dict:
+    """The closing half of one in-place `prepare-ai-review.sh` generation
+    run -- since workflow-2.6.0 the implementation and post-fix stages
+    only (the plan stage generates into staging and finalizes through
+    `finalize_staged_plan_bundle_generation`); a direct call at the plan
+    stage keeps its `2.5.1` behavior. The checks are
+    `_closing_bundle_generation_check`'s: the pre-existing three-way
+    `bundle_id` reproducibility check (manifest / on-disk / archived);
+    for the plan stage, additionally the byte-identity binding check
+    (part 3, when a pin was captured) and the `TEST_RESULTS.md`/
+    `REVIEW_REQUEST.md` consistency check (item 272, unconditional --
+    does not depend on a pin); for the implementation/post-fix stages,
+    `assert_stage_completeness`'s `IMPLEMENTATION_SUMMARY.md` revision-
+    consistency check (`OPUS-R133-003`: this branch existed since WF5 but
+    had no live caller before this, so a bundle whose author-written
+    summary stated a stale `implementation_revision` published anyway);
+    on any failure, and only when `work_item_id` is given (the marker
+    mechanism has no flat-compatibility-layout counterpart), withdrawal
+    (part 3b) rather than leaving a stale-but-self-verifying artifact in
+    place; on success, clearing any pre-existing `REJECTED` marker for
+    this work item. Returns a dict describing the outcome; never
+    swallows a withdrawal
+    step's own `BundleWithdrawalError`."""
+    recorded_bundle_id, mismatch_detail = _closing_bundle_generation_check(
+        repo_root, bundle_dir, archive_path, stage, work_item_id,
+    )
+    if recorded_bundle_id is None:
+        return {"status": "error", "message": mismatch_detail}
+
+    if mismatch_detail is not None:
+        if work_item_id is not None:
+            quarantine_path = withdraw_bundle(repo_root, work_item_id, mismatch_detail)
+            return {
+                "status": "withdrawn",
+                "message": mismatch_detail,
+                "quarantine": str(quarantine_path),
+            }
+        return {"status": "mismatch", "message": mismatch_detail}
 
     if work_item_id is not None:
         clear_rejected_marker_if_present(repo_root, work_item_id)
+    return {"status": "ok", "bundle_id": recorded_bundle_id}
+
+
+# ---------------------------------------------------------------------------
+# workflow-2.6.0 CP4: D-Plan-Review-Bundle-Binding item 5 -- a recoverable
+# plan-stage generator. The plan stage assembles its bundle, pin, archive and
+# AMENDMENT_DIFF.patch in a per-run staging area and renames them into place
+# only after the closing checks pass. A failed generation removes the
+# staging area and leaves the previous `current/`, archive and `.pin`
+# byte-identical: it withdraws nothing and writes no `REJECTED` marker (the
+# revised `WFR-67`), because its own artifacts never became review-ready.
+# The implementation and post-fix stages keep the in-place generation and
+# `withdraw_bundle` failure path above, unchanged.
+# ---------------------------------------------------------------------------
+
+PLAN_REVIEW_INPUT_FILES: tuple[str, ...] = (
+    "REVIEW_REQUEST.md", "IMPLEMENTATION_SUMMARY.md", "TEST_RESULTS.md", "CONTEXT_FILES.txt",
+)
+_STAGING_TOKEN_RE = re.compile(r"^[0-9a-f]{32}$")
+_LEFTOVER_STAGING_PREFIXES: tuple[str, ...] = ("current.staging-", ".pin.staging-", "current.old-", ".pin.old-")
+
+
+class InvalidStagingTokenError(Exception):
+    """Raised for a plan-stage staging token that is not 32 lowercase hex
+    characters -- the token is interpolated into sibling directory names
+    and never trusted beyond that grammar."""
+
+
+class PlanReviewInputPathError(Exception):
+    """Raised when a `plan-inputs/` author file (or its `current/` seed) is
+    a symlink or not a regular file -- it is copied byte-for-byte into
+    the bundle, so only a regular file is accepted."""
+
+
+class PlanStagePromotionError(Exception):
+    """Raised when a staged plan-stage generation that passed every
+    closing check cannot be renamed into place. What was already renamed
+    stays; the verifier (`workflow_state.verify_plan_review_bundle`)
+    refuses a `current/`/manifest/archive disagreement, and the remedy is
+    to regenerate."""
+
+
+def resolve_plan_review_inputs_dir(repo_root: Path, work_item_id: str) -> Path:
+    """The plan stage's author-input directory,
+    `.ai-review/<work_item_id>/plan-inputs/` (repo-root-relative) -- a
+    sibling of `current/`, never inside it. `/milestone-plan` step 6 and
+    `/apply-plan-review` step 5 write `REVIEW_REQUEST.md`,
+    `TEST_RESULTS.md`, `CONTEXT_FILES.txt` (and, if ever needed,
+    `IMPLEMENTATION_SUMMARY.md`) here, never into `current/`; the
+    generator copies each byte-for-byte into its staging bundle."""
+    validate_work_item_id(work_item_id)
+    return Path(".ai-review") / work_item_id / "plan-inputs"
+
+
+def plan_stage_staging_paths(repo_root: Path, work_item_id: str, token: str) -> dict[str, Path]:
+    """Absolute paths of one staged plan-stage generation, keyed
+    `root` (the staging area, `.ai-review/<id>/current.staging-<token>/`),
+    `bundle_dir` (its `current/` child, so the archive's member root stays
+    the bare literal `current`), `archive` (the temporary archive),
+    `amendment_diff` and `pin_dir` (`.ai-review/<id>/.pin.staging-<token>/`)."""
+    validate_work_item_id(work_item_id)
+    if not isinstance(token, str) or not _STAGING_TOKEN_RE.match(token):
+        raise InvalidStagingTokenError(f"invalid plan-stage staging token {token!r}")
+    item_root = Path(repo_root) / ".ai-review" / work_item_id
+    staging_root = item_root / f"current.staging-{token}"
+    return {
+        "root": staging_root,
+        "bundle_dir": staging_root / "current",
+        "archive": staging_root / "review-bundle.tar.gz",
+        "amendment_diff": staging_root / "AMENDMENT_DIFF.patch",
+        "pin_dir": item_root / f".pin.staging-{token}",
+    }
+
+
+def remove_leftover_plan_stage_staging(repo_root: Path, work_item_id: str) -> list[str]:
+    """Removes every leftover staging or superseded directory of a previous,
+    interrupted plan-stage generation for `work_item_id`
+    (`current.staging-*`, `.pin.staging-*`, `current.old-*`, `.pin.old-*`).
+    Nothing reads them; the next generation removes them. Returns the
+    removed names."""
+    validate_work_item_id(work_item_id)
+    item_root = Path(repo_root) / ".ai-review" / work_item_id
+    removed: list[str] = []
+    if not item_root.is_dir():
+        return removed
+    for entry in sorted(item_root.iterdir()):
+        if entry.name.startswith(_LEFTOVER_STAGING_PREFIXES):
+            if entry.is_symlink() or not entry.is_dir():
+                entry.unlink()
+            else:
+                shutil.rmtree(entry)
+            removed.append(entry.name)
+    return removed
+
+
+def discard_plan_stage_staging(repo_root: Path, work_item_id: str, token: str) -> None:
+    """Removes one staged generation's staging area and staging pin -- the
+    failure path of the revised `WFR-67`. Never touches `current/`, the
+    archive, `.pin` or the `REJECTED` marker. Idempotent."""
+    paths = plan_stage_staging_paths(repo_root, work_item_id, token)
+    for path in (paths["root"], paths["pin_dir"]):
+        if path.is_dir() and not path.is_symlink():
+            shutil.rmtree(path)
+
+
+def seed_plan_review_inputs(repo_root: Path, work_item_id: str, bundle_dir: Path) -> dict[str, str]:
+    """Copies each of `PLAN_REVIEW_INPUT_FILES` byte-for-byte (content and
+    owner-executable bit, which `compute_bundle_id` hashes) into a staging
+    `bundle_dir`: from `plan-inputs/<file>` when present; else from the
+    existing `current/<file>` (read-only -- the migration path for an
+    author who has not moved yet); else an empty stub, exactly as `2.5.1`
+    stubbed a missing author file. Returns `{file: source}` with source
+    `"plan-inputs"`, `"current"` or `"stub"`. A symlinked or non-regular
+    source refuses (`PlanReviewInputPathError`)."""
+    inputs_dir = Path(repo_root) / resolve_plan_review_inputs_dir(repo_root, work_item_id)
+    current_dir = Path(repo_root) / ".ai-review" / work_item_id / "current"
+    sources: dict[str, str] = {}
+    for name in PLAN_REVIEW_INPUT_FILES:
+        dest = bundle_dir / name
+        for label, source in (("plan-inputs", inputs_dir / name), ("current", current_dir / name)):
+            if source.is_symlink() or (source.exists() and not source.is_file()):
+                raise PlanReviewInputPathError(f"{source} is a symlink or not a regular file")
+            if source.is_file():
+                dest.write_bytes(source.read_bytes())
+                os.chmod(dest, 0o755 if _owner_executable(source.stat().st_mode) else 0o644)
+                sources[name] = label
+                break
+        else:
+            dest.write_bytes(b"")
+            sources[name] = "stub"
+    return sources
+
+
+def _promote_plan_stage_staging(repo_root: Path, work_item_id: str, token: str) -> None:
+    """Renames a verified staging generation into place: the pin, then
+    `current/`, then the archive, then `AMENDMENT_DIFF.patch` (removed
+    when this generation wrote none), then removes the superseded copies
+    and the staging area. The renames are not atomic as a set; INV-2 rests
+    on the bind verifier, which refuses the `current/`/manifest/archive
+    disagreement a crash between them leaves."""
+    paths = plan_stage_staging_paths(repo_root, work_item_id, token)
+    item_root = Path(repo_root) / ".ai-review" / work_item_id
+    live_current = item_root / "current"
+    live_pin = item_root / ".pin"
+    old_current = item_root / f"current.old-{token}"
+    old_pin = item_root / f".pin.old-{token}"
+    step = "start"
+    try:
+        step = "rename pin"
+        if paths["pin_dir"].is_dir():
+            if live_pin.exists():
+                os.rename(live_pin, old_pin)
+            os.rename(paths["pin_dir"], live_pin)
+        step = "rename current/"
+        if live_current.exists():
+            os.rename(live_current, old_current)
+        os.rename(paths["bundle_dir"], live_current)
+        step = "rename archive"
+        os.replace(paths["archive"], item_root / "review-bundle.tar.gz")
+        step = "rename AMENDMENT_DIFF.patch"
+        if paths["amendment_diff"].is_file():
+            os.replace(paths["amendment_diff"], item_root / "AMENDMENT_DIFF.patch")
+        else:
+            (item_root / "AMENDMENT_DIFF.patch").unlink(missing_ok=True)
+        step = "remove superseded copies"
+        for leftover in (old_current, old_pin, paths["root"]):
+            if leftover.is_dir():
+                shutil.rmtree(leftover)
+    except OSError as exc:
+        raise PlanStagePromotionError(
+            f"promoting staged plan-stage generation {token} for {work_item_id!r} failed at step "
+            f"{step!r} ({exc!r}) -- regenerate; the verifier refuses the partial result"
+        ) from exc
+
+
+def finalize_staged_plan_bundle_generation(repo_root: Path, work_item_id: str, token: str) -> dict:
+    """The plan stage's closing half (workflow-2.6.0): runs
+    `_closing_bundle_generation_check` against the staging bundle, staging
+    archive and staging pin. On any failure it discards the staging area
+    and staging pin (`discard_plan_stage_staging`) and returns
+    `{"status": "failed", ...}` -- **no** `withdraw_bundle`, **no**
+    `REJECTED` marker, and the previous `current/`, archive and `.pin`
+    byte-identical (the revised `WFR-67`). On success it renames everything
+    into place (`_promote_plan_stage_staging`), then clears any
+    pre-existing `REJECTED` marker, and returns `{"status": "ok",
+    "bundle_id": ...}`."""
+    paths = plan_stage_staging_paths(repo_root, work_item_id, token)
+    try:
+        recorded_bundle_id, mismatch_detail = _closing_bundle_generation_check(
+            repo_root, paths["bundle_dir"], paths["archive"], "plan", work_item_id,
+            pin_dir=paths["pin_dir"],
+        )
+    except Exception as exc:  # noqa: BLE001 -- any closing-check failure discards the staging area
+        recorded_bundle_id, mismatch_detail = None, f"{type(exc).__name__}: {exc}"
+    if recorded_bundle_id is None or mismatch_detail is not None:
+        discard_plan_stage_staging(repo_root, work_item_id, token)
+        return {
+            "status": "failed",
+            "message": mismatch_detail,
+            "note": "staging discarded; the previous current/, archive and .pin are unchanged; no REJECTED marker written",
+        }
+    _promote_plan_stage_staging(repo_root, work_item_id, token)
+    clear_rejected_marker_if_present(repo_root, work_item_id)
     return {"status": "ok", "bundle_id": recorded_bundle_id}
 
 
@@ -3026,6 +3260,23 @@ def parse_review_feedback_binding_fields(content: str) -> dict[str, str | None]:
         "reviewed_base_commit": base_commit_match.group(1) if base_commit_match else None,
         "work_item": work_item_match.group(1) if work_item_match else None,
     }
+
+
+_FEEDBACK_REVIEW_CONTENT_ID_RE = re.compile(
+    r"^[ \t]*(?:[-*][ \t]+)?(?:Reviewed[ \t]+)?`?review_content_id`?:[ \t]*`?([0-9a-f]{64})`?[ \t]*$",
+    re.MULTILINE | re.IGNORECASE,
+)
+
+
+def parse_feedback_review_content_id(content: str) -> str | None:
+    """The plan-stage `review_content_id` a `REVIEW_FEEDBACK.md` states as
+    its own labelled line (`review_content_id: <hex>`, optionally
+    `Reviewed review_content_id:`, a list bullet or backticks), used by
+    `/apply-plan-review`'s durable feedback check (workflow-2.6.0). `None`
+    when absent, or when the file states more than one distinct value --
+    an ambiguous statement never matches."""
+    values = {match.group(1).lower() for match in _FEEDBACK_REVIEW_CONTENT_ID_RE.finditer(content)}
+    return values.pop() if len(values) == 1 else None
 
 
 def assert_manual_feedback_names_work_item(content: str, *, work_item_id: str) -> None:
@@ -3440,6 +3691,47 @@ def read_manifest_identifiers(manifest_path: Path) -> dict[str, str]:
     return fields
 
 
+_MANIFEST_STAGE_LINE_RE = re.compile(r"^stage: (\S+)$", re.MULTILINE)
+_MANIFEST_PLAN_REVISION_LINE_RE = re.compile(r"^plan_revision: ([0-9]+)$", re.MULTILINE)
+
+
+def read_plan_stage_manifest_fields(manifest_path: Path) -> dict:
+    """Read-only (workflow-2.6.0, `D-Plan-Review-Bundle-Binding`): the
+    header fields `workflow_state.verify_plan_review_bundle` checks --
+    `stage`, `work_item_id`, `plan_revision` (an `int`), `bundle_id` and
+    `review_content_id`. A field with no header line is `None`; so is
+    every field of an absent file."""
+    fields: dict = {
+        "stage": None, "work_item_id": None, "plan_revision": None,
+        "bundle_id": None, "review_content_id": None,
+    }
+    if not manifest_path.is_file():
+        return fields
+    content = manifest_path.read_text()
+    stage_match = _MANIFEST_STAGE_LINE_RE.search(content)
+    revision_match = _MANIFEST_PLAN_REVISION_LINE_RE.search(content)
+    fields["stage"] = stage_match.group(1) if stage_match else None
+    fields["work_item_id"] = _read_manifest_binding_fields(manifest_path)["work_item_id"]
+    fields["plan_revision"] = int(revision_match.group(1)) if revision_match else None
+    fields.update(read_manifest_identifiers(manifest_path))
+    return fields
+
+
+def compute_archived_bundle_id(archive_path: Path) -> str:
+    """`compute_bundle_id` over the `current/` member of a bundle archive,
+    extracted into a private temporary directory (read-only with respect
+    to the repository). Raises if the archive is absent or unreadable, or
+    its `current/` does not hash."""
+    with tempfile.TemporaryDirectory() as tmp:
+        with tarfile.open(archive_path) as tf:
+            try:
+                tf.extractall(tmp, filter="data")
+            except TypeError:  # a Python without extraction filters
+                tf.extractall(tmp)
+        bundle_id, _ = compute_bundle_id(Path(tmp) / "current")
+    return bundle_id
+
+
 _REVIEW_CONTENT_ID_STATEMENT_RE = re.compile(r"^review_content_id: ([0-9a-f]{64})$", re.MULTILINE)
 
 
@@ -3605,6 +3897,7 @@ REQUIRED_GENERATION_FILES: frozenset[str] = frozenset(
 
 def write_manifest_with_verified_identifiers_for_work_item(
     repo_root: Path, work_item_id: str, *, base: str | None = None, allow_rebind: bool = False,
+    bundle_dir: Path | None = None, pin_dir: Path | None = None,
 ) -> tuple[str, str]:
     """Work-item-generic entry point for `write_manifest_with_verified_identifiers`
     (`D-Fingerprint-Generalization`): resolves `bundle_dir` internally as
@@ -3630,8 +3923,17 @@ def write_manifest_with_verified_identifiers_for_work_item(
     exists), it is passed through to `write_manifest_with_verified_identifiers`
     automatically -- no separate flag needed, and no behavior change for
     any caller that never captured one (the ordinary case for every
-    existing test and for every non-plan-stage caller)."""
-    resolved_bundle_dir = repo_root / ".ai-review" / work_item_id / "current"
+    existing test and for every non-plan-stage caller).
+
+    **Staging** (workflow-2.6.0, `D-Plan-Review-Bundle-Binding` item 5):
+    `bundle_dir`/`pin_dir`, when given, name a staged plan-stage
+    generation's own bundle directory and pin (`plan_stage_staging_paths`)
+    instead of the in-place ones. The staging directory holds no manifest
+    yet, so the work-item/base binding check (fail-closed matrix
+    conditions 12/13) is run against the live `current/MANIFEST.md` the
+    staging generation will replace -- the same check, at the same
+    moment, as an in-place generation."""
+    resolved_bundle_dir = bundle_dir if bundle_dir is not None else repo_root / ".ai-review" / work_item_id / "current"
     missing = sorted(
         f for f in REQUIRED_GENERATION_FILES if not (resolved_bundle_dir / f).is_file()
     )
@@ -3640,7 +3942,13 @@ def write_manifest_with_verified_identifiers_for_work_item(
 
     metadata = resolve_plan_stage_metadata(repo_root, work_item_id)
     base_to_use = base if base is not None else metadata.base_commit
-    pin_dir = _pin_dir_for_work_item(repo_root, work_item_id)
+    if pin_dir is None:
+        pin_dir = _pin_dir_for_work_item(repo_root, work_item_id)
+    if bundle_dir is not None and not allow_rebind:
+        _assert_manifest_binding_agrees(
+            repo_root / ".ai-review" / work_item_id / "current" / MANIFEST_FILENAME,
+            work_item_id=work_item_id, base_commit=resolve_base(repo_root, base_to_use),
+        )
 
     return write_manifest_with_verified_identifiers(
         repo_root, resolved_bundle_dir, base_to_use,
@@ -3967,6 +4275,18 @@ if __name__ == "__main__":
         help="the bundle stage being finalized with --finalize-bundle (mirrors prepare-ai-review.sh's own $STAGE)",
     )
     parser.add_argument(
+        "--staging-token", default=None,
+        help=(
+            "workflow-2.6.0 plan-stage staging (D-Plan-Review-Bundle-Binding): "
+            "with --derive-plan-stage-document, --write-manifest (plan stage) "
+            "or --finalize-bundle --generation-stage plan, act on the staged "
+            "generation .ai-review/<id>/current.staging-<token>/ and its "
+            ".pin.staging-<token>/ instead of the in-place current/ and .pin. "
+            "--finalize-bundle then promotes on success and discards the "
+            "staging area on failure (no withdrawal, no REJECTED marker)."
+        ),
+    )
+    parser.add_argument(
         "--resolve-feedback-path", metavar="WORK_ITEM_ID", default=None,
         help=(
             "D-Feedback-Layout's machine-readable contract: print one JSON "
@@ -3995,14 +4315,31 @@ if __name__ == "__main__":
                 "error: --work-item-id is required with --derive-plan-stage-document"
             )
         bundle_dir = repo_root / ".ai-review" / args.work_item_id / "current"
+        staging_pin_dir = None
+        if args.staging_token is not None:
+            staging = plan_stage_staging_paths(repo_root, args.work_item_id, args.staging_token)
+            bundle_dir, staging_pin_dir = staging["bundle_dir"], staging["pin_dir"]
         metadata = resolve_plan_stage_metadata(repo_root, args.work_item_id)
-        pin_dir = capture_plan_stage_pin(repo_root, args.work_item_id, metadata)
+        pin_dir = capture_plan_stage_pin(repo_root, args.work_item_id, metadata, pin_dir=staging_pin_dir)
         derive_plan_stage_document(pin_dir, bundle_dir, metadata)
         print("=== derived plan-stage document (WFR-67) ===")
         print(f"work_item_id: {args.work_item_id}")
         print(f"pinned snapshot: {pin_dir}")
         print(f"wrote: {bundle_dir / 'PLAN.md'}")
         raise SystemExit(0)
+
+    if args.finalize_bundle and args.staging_token is not None:
+        if args.generation_stage != "plan" or not args.work_item_id:
+            raise SystemExit(
+                "error: --staging-token with --finalize-bundle requires "
+                "--generation-stage plan and --work-item-id"
+            )
+        result = finalize_staged_plan_bundle_generation(repo_root, args.work_item_id, args.staging_token)
+        print(f"status: {result['status']}")
+        for key, value in result.items():
+            if key != "status":
+                print(f"{key}: {value}")
+        raise SystemExit(0 if result["status"] == "ok" else 1)
 
     if args.finalize_bundle:
         bundle_dir_arg, archive_arg = args.finalize_bundle
@@ -4032,11 +4369,19 @@ if __name__ == "__main__":
             digest, bundle_id = write_manifest_with_verified_identifiers_implementation_stage_for_work_item(
                 repo_root, args.work_item_id, args.base, allow_rebind=args.rebind,
             )
+        elif args.staging_token is not None:
+            staging = plan_stage_staging_paths(repo_root, args.work_item_id, args.staging_token)
+            digest, bundle_id = write_manifest_with_verified_identifiers_for_work_item(
+                repo_root, args.work_item_id, base=args.base, allow_rebind=args.rebind,
+                bundle_dir=staging["bundle_dir"], pin_dir=staging["pin_dir"],
+            )
         else:
             digest, bundle_id = write_manifest_with_verified_identifiers_for_work_item(
                 repo_root, args.work_item_id, base=args.base, allow_rebind=args.rebind,
             )
         manifest_path = repo_root / ".ai-review" / args.work_item_id / "current" / MANIFEST_FILENAME
+        if args.staging_token is not None and args.stage == "plan":
+            manifest_path = plan_stage_staging_paths(repo_root, args.work_item_id, args.staging_token)["bundle_dir"] / MANIFEST_FILENAME
         print(f"=== wrote MANIFEST.md (stage: {args.stage}) ===")
         print(f"work_item_id: {args.work_item_id}")
         print(f"wrote: {manifest_path}")

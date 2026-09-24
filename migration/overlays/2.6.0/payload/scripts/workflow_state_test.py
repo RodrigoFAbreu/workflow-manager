@@ -1719,7 +1719,9 @@ class TestWorkItemRouting(unittest.TestCase):
         self.assertEqual(state, _base_state())
 
     def test_resuming_existing_non_terminal_entry_only_advances_revision_fields(self):
-        state = _base_state(wi=_base_work_item(governing_workflow_version="2.1"))
+        # workflow-2.6.0: a two-stage item's resume branch runs only at a
+        # non-ready plan-stage phase (`D-Plan-Review-Bundle-Binding`).
+        state = _base_state(wi=_base_work_item(governing_workflow_version="2.1", phase="PLANNING"))
         config = ws.default_config()
         new_state = ws.route_work_item(
             state, config, work_item_id="wi", work_item_type="process",
@@ -1815,15 +1817,24 @@ class TestPublishPlanRevision(unittest.TestCase):
         registry = {"work_item_id": "wi", "plan_revision": 63, "checkpoints": []}
         ws.validate_state(new_state, registry=registry)
 
-    def test_v21_governed_enters_awaiting_local_plan_review(self):
-        """Item 371(d): a `"2.1"`-governed item's target phase is
-        `AWAITING_LOCAL_PLAN_REVIEW`, never `AWAITING_EXTERNAL_PLAN_REVIEW`
-        -- `D-Plan-Review-Stages` always enters local review first."""
+    def test_v21_governed_publish_is_mirror_only(self):
+        """Item 371(d), re-pointed by workflow-2.6.0
+        (`D-Plan-Review-Bundle-Binding` item 1): a `"2.1"`-governed item's
+        publish advances the mirror and records `PUBLISHED`, but leaves the
+        phase alone -- `bind_plan_review_bundle` alone writes
+        `AWAITING_LOCAL_PLAN_REVIEW`, and never `AWAITING_EXTERNAL_PLAN_REVIEW`
+        (`D-Plan-Review-Stages` always enters local review first)."""
         wi = _v21_work_item(phase="REVISING_PLAN", plan_revision=4, state_revision=2)
-        new_state = ws.publish_plan_revision(_base_state(wi=wi), "wi", 5, "t1")
+        wi["plan_review_binding"] = {
+            "status": "CONSUMED", "at": "t0", "published": None, "bound": None,
+            "consumed": {"review_content_id": "b" * 64, "plan_revision": 4, "legacy": False},
+        }
+        new_state = ws.publish_plan_revision(_base_state(wi=wi), "wi", 5, "t1", review_content_id="a" * 64)
         item = new_state["work_items"]["wi"]
         self.assertEqual(item["plan_revision"], 5)
-        self.assertEqual(item["phase"], "AWAITING_LOCAL_PLAN_REVIEW")
+        self.assertEqual(item["phase"], "REVISING_PLAN")
+        self.assertEqual(item["plan_review_binding"]["status"], "PUBLISHED")
+        self.assertEqual(item["plan_review_binding"]["published"], {"review_content_id": "a" * 64, "plan_revision": 5})
 
     def test_idempotent_retry_is_a_true_no_op(self):
         """Item 371(b): re-running with the same `plan_revision` and the
@@ -3999,13 +4010,26 @@ class TestTransitionToAwaitingLocalPlanReview(unittest.TestCase):
         """Missing-test item 89: whether the edit was driven by a local or
         manual-external REVISE, the next required stage is always
         AWAITING_LOCAL_PLAN_REVIEW -- never directly back to manual-external
-        review or to AWAITING_PLAN_APPROVAL."""
+        review or to AWAITING_PLAN_APPROVAL.
+
+        workflow-2.6.0: `transition_to_awaiting_local_plan_review` is
+        retired (it refuses, writing nothing); the same edge is now written
+        by `bind_plan_review_bundle` for the published content, which is
+        what this test drives."""
         wi = _v21_work_item(phase="REVISING_PLAN", state_revision=3, plan_review_stages={
             "review_content_id": "stale",
             "LOCAL_MODEL_PLAN_REVIEW": {"bundle_id": "b1", "verdict": "APPROVE", "round": 1, "completed_at": "t1"},
             "MANUAL_EXTERNAL_PLAN_REVIEW": None,
+        }, plan_revision=2, plan_review_binding={
+            "status": "PUBLISHED", "at": "t1", "bound": None,
+            "consumed": {"review_content_id": "b" * 64, "plan_revision": 1, "legacy": False},
+            "published": {"review_content_id": "a" * 64, "plan_revision": 2},
         })
-        new_state = ws.transition_to_awaiting_local_plan_review(_base_state(wi=wi), "wi", now="t2")
+        with self.assertRaises(ws.PlanReviewWriterRetiredError):
+            ws.transition_to_awaiting_local_plan_review(_base_state(wi=wi), "wi", now="t2")
+        new_state = ws.bind_plan_review_bundle(_base_state(wi=wi), "wi", binding={
+            "review_content_id": "a" * 64, "bundle_id": "c" * 64, "plan_revision": 2,
+        }, now="t2")
         item = new_state["work_items"]["wi"]
         self.assertEqual(item["phase"], "AWAITING_LOCAL_PLAN_REVIEW")
         self.assertEqual(item["state_revision"], 4)
@@ -7588,7 +7612,9 @@ class TestRemediationChildWorkItem(unittest.TestCase):
         version `create_remediation_child_work_item` fixed from the config
         default at creation. Under this repository's own default (`"2.1"`)
         that is `AWAITING_LOCAL_PLAN_REVIEW`; only a `"1"` default produces
-        the phase the diagram named."""
+        the phase the diagram named. workflow-2.6.0: for `"2.1"` the
+        publish is mirror-only, and the bind of the published bundle writes
+        that phase."""
         for default_version, expected_phase in (
             ("2.1", "AWAITING_LOCAL_PLAN_REVIEW"),
             ("1", "AWAITING_EXTERNAL_PLAN_REVIEW"),
@@ -7604,7 +7630,12 @@ class TestRemediationChildWorkItem(unittest.TestCase):
                 child = created["work_items"][child_id]
                 self.assertEqual(child["governing_workflow_version"], default_version)
                 self.assertEqual(child["phase"], "PLANNING")
-                planned = ws.publish_plan_revision(created, child_id, 1, "t2")
+                planned = ws.publish_plan_revision(created, child_id, 1, "t2", review_content_id="a" * 64)
+                if default_version == "2.1":
+                    self.assertEqual(planned["work_items"][child_id]["phase"], "PLANNING")
+                    planned = ws.bind_plan_review_bundle(planned, child_id, binding={
+                        "review_content_id": "a" * 64, "bundle_id": "c" * 64, "plan_revision": 1,
+                    }, now="t3")
                 self.assertEqual(planned["work_items"][child_id]["phase"], expected_phase)
                 # And planning the child never repoints focus away from the
                 # parent, which is why every command driving it needs an
@@ -10495,11 +10526,14 @@ class TestPersistedPhaseWriterCensus(unittest.TestCase):
     EXPECTED_WRITERS = {
         "PLANNING": {"default_work_item"},
         "AWAITING_EXTERNAL_PLAN_REVIEW": {"publish_plan_revision"},
-        "AWAITING_LOCAL_PLAN_REVIEW": {
-            "publish_plan_revision", "transition_to_awaiting_local_plan_review",
-        },
+        # workflow-2.6.0 (D-Plan-Review-Bundle-Binding): the bind is the sole
+        # writer -- `publish_plan_revision` is mirror-only for a two-stage
+        # item and `transition_to_awaiting_local_plan_review` is retired.
+        "AWAITING_LOCAL_PLAN_REVIEW": {"bind_plan_review_bundle"},
         "AWAITING_MANUAL_EXTERNAL_PLAN_REVIEW": {"record_local_plan_review"},
-        "REVISING_PLAN": {"record_local_plan_review", "record_manual_plan_review"},
+        "REVISING_PLAN": {
+            "record_local_plan_review", "record_manual_plan_review", "withdraw_plan_review",
+        },
         "AWAITING_PLAN_APPROVAL": {"record_manual_plan_review"},
         "IMPLEMENTING": {"apply_plan_approval"},
         "SELF_REVIEWING_IMPLEMENTATION": {
@@ -10526,7 +10560,7 @@ class TestPersistedPhaseWriterCensus(unittest.TestCase):
         # DECLARED_BUT_UNWRITTEN's four -- the mechanism must survive an
         # interruption between the request and the first post-request
         # /milestone-plan call.
-        "AMENDING_PLAN": {"request_plan_amendment"},
+        "AMENDING_PLAN": {"request_plan_amendment", "withdraw_plan_review"},
     }
 
     def test_every_write_site_resolves_to_a_named_phase(self):
@@ -12446,15 +12480,18 @@ class TestTwoStagePlanReviewVersionsInheritance(unittest.TestCase):
     "2.1" stay byte-unchanged."""
 
     def test_publish_plan_revision_target_phase_per_version(self):
+        """workflow-2.6.0: `"1"` is unchanged; a two-stage item's publish is
+        mirror-only, so its phase stays `PLANNING` (the bind writes
+        `AWAITING_LOCAL_PLAN_REVIEW`)."""
         expected = {
             "1": "AWAITING_EXTERNAL_PLAN_REVIEW",
-            "2.1": "AWAITING_LOCAL_PLAN_REVIEW",
-            "2.2": "AWAITING_LOCAL_PLAN_REVIEW",
+            "2.1": "PLANNING",
+            "2.2": "PLANNING",
         }
         for version, target_phase in expected.items():
             with self.subTest(version=version):
                 wi = _base_work_item(governing_workflow_version=version, phase="PLANNING", plan_revision=1)
-                new_state = ws.publish_plan_revision(_base_state(wi=wi), "wi", 2, "t1")
+                new_state = ws.publish_plan_revision(_base_state(wi=wi), "wi", 2, "t1", review_content_id="a" * 64)
                 self.assertEqual(new_state["work_items"]["wi"]["phase"], target_phase)
 
     def test_publish_plan_revision_rejects_unsupported_version(self):
@@ -12521,8 +12558,19 @@ class TestTwoStagePlanReviewVersionsInheritance(unittest.TestCase):
             ws.validate_state(_base_state(wi=wi))
 
     def test_transition_to_awaiting_local_plan_review_works_for_2_2(self):
-        wi = _base_work_item(governing_workflow_version="2.2", phase="REVISING_PLAN")
-        new_state = ws.transition_to_awaiting_local_plan_review(_base_state(wi=wi), "wi", "t1")
+        """workflow-2.6.0: the retired writer refuses for `"2.2"` exactly as
+        for `"2.1"`; the bind is the `"2.2"` writer of the same edge."""
+        wi = _base_work_item(governing_workflow_version="2.2", phase="REVISING_PLAN", plan_revision=2,
+                             plan_review_binding={
+                                 "status": "PUBLISHED", "at": "t0", "bound": None,
+                                 "consumed": {"review_content_id": "b" * 64, "plan_revision": 1, "legacy": False},
+                                 "published": {"review_content_id": "a" * 64, "plan_revision": 2},
+                             })
+        with self.assertRaises(ws.PlanReviewWriterRetiredError):
+            ws.transition_to_awaiting_local_plan_review(_base_state(wi=wi), "wi", "t1")
+        new_state = ws.bind_plan_review_bundle(_base_state(wi=wi), "wi", binding={
+            "review_content_id": "a" * 64, "bundle_id": "c" * 64, "plan_revision": 2,
+        }, now="t1")
         self.assertEqual(new_state["work_items"]["wi"]["phase"], "AWAITING_LOCAL_PLAN_REVIEW")
 
 
@@ -12629,7 +12677,8 @@ class TestActivatingDoesNotMutateExistingWorkItems(unittest.TestCase):
         self.assertEqual(new_state["work_items"]["fresh"]["governing_workflow_version"], "2.2")
 
     def test_route_work_item_resume_branch_also_leaves_governing_version_untouched(self):
-        existing = _base_work_item(governing_workflow_version="2.1", phase="IMPLEMENTING", plan_revision=1)
+        # workflow-2.6.0: the resume branch runs at a plan-stage phase.
+        existing = _base_work_item(governing_workflow_version="2.1", phase="REVISING_PLAN", plan_revision=1)
         state = _base_state(existing=existing)
         config_2_2_default = {
             "schema_version": ws.SCHEMA_VERSION,
@@ -14779,7 +14828,7 @@ class TestFeedbackLayoutStamp(unittest.TestCase):
         self.assertNotIn("feedback_layout", new_state["work_items"]["parent"], "the parent is never back-filled")
 
     def test_resume_never_stamps_a_legacy_item(self):
-        state = _base_state(wi=_base_work_item(governing_workflow_version="2.2"))
+        state = _base_state(wi=_base_work_item(governing_workflow_version="2.2", phase="REVISING_PLAN"))
         self.assertNotIn("feedback_layout", state["work_items"]["wi"])
         resumed = self._route(state, "wi", plan_revision=2, now="t2")
         self.assertNotIn("feedback_layout", resumed["work_items"]["wi"])
@@ -14802,6 +14851,506 @@ class TestFeedbackLayoutStamp(unittest.TestCase):
                 state["work_items"]["wi"]["feedback_layout"] = value
                 with self.assertRaises(fingerprint.UnknownFeedbackLayoutError):
                     ws.validate_state(state)
+
+
+
+# ---------------------------------------------------------------------------
+# workflow-2.6.0 CP4: D-Plan-Review-Bundle-Binding -- dict-level coverage of
+# the publication split, the `plan_review_binding` record's writers and
+# validator, the bind, the withdrawal and step 1's feedback rule. The
+# real-repository scenarios (verifier, status table, generator staging,
+# command order) live in workflow_acceptance_matrix_test.py and
+# workflow_fingerprint_generalization_test.py.
+# ---------------------------------------------------------------------------
+
+_CP4_A, _CP4_B, _CP4_C, _CP4_D = "a" * 64, "b" * 64, "c" * 64, "d" * 64
+
+
+def _cp4_record(status, *, consumed=None, published=None, bound=None, at="t0"):
+    return {"status": status, "at": at, "consumed": consumed, "published": published, "bound": bound}
+
+
+def _cp4_consumed(review_content_id=_CP4_B, plan_revision=1):
+    return {"review_content_id": review_content_id, "plan_revision": plan_revision,
+            "legacy": review_content_id is None}
+
+
+def _cp4_item(version="2.2", phase="REVISING_PLAN", plan_revision=1, record="default", **overrides):
+    wi = _base_work_item(governing_workflow_version=version, phase=phase, plan_revision=plan_revision, **overrides)
+    if record == "default":
+        record = _cp4_record("CONSUMED", consumed=_cp4_consumed(plan_revision=plan_revision))
+    if record is not None:
+        wi["plan_review_binding"] = record
+    return wi
+
+
+def _cp4_binding(review_content_id=_CP4_A, bundle_id=_CP4_C, plan_revision=2):
+    return {"review_content_id": review_content_id, "bundle_id": bundle_id, "plan_revision": plan_revision}
+
+
+class TestPlanReviewBindingValidation(unittest.TestCase):
+    """`validate_state` accepts every well-formed record and refuses every
+    malformed one by name (INV-3)."""
+
+    def _validate(self, record):
+        wi = _cp4_item(record=None)
+        wi["plan_review_binding"] = record
+        ws.validate_state(_base_state(wi=wi))
+
+    def test_absent_record_is_valid(self):
+        ws.validate_state(_base_state(wi=_cp4_item(record=None)))
+
+    def test_each_well_formed_status_is_valid(self):
+        for record in (
+            _cp4_record("CONSUMED", consumed=_cp4_consumed()),
+            _cp4_record("CONSUMED", consumed=_cp4_consumed(None, 3)),
+            _cp4_record("PUBLISHED", published={"review_content_id": _CP4_A, "plan_revision": 2}),
+            _cp4_record("PUBLISHED", consumed=_cp4_consumed(),
+                        published={"review_content_id": _CP4_A, "plan_revision": 2}),
+            _cp4_record("BOUND", consumed=_cp4_consumed(),
+                        published={"review_content_id": _CP4_A, "plan_revision": 2},
+                        bound=_cp4_binding()),
+        ):
+            with self.subTest(status=record["status"], legacy=bool(record["consumed"] and record["consumed"]["legacy"])):
+                self._validate(record)
+
+    def test_malformed_records_refuse_by_name(self):
+        good_published = {"review_content_id": _CP4_A, "plan_revision": 2}
+        cases = {
+            "present null": None,
+            "not an object": ["CONSUMED"],
+            "unknown status": _cp4_record("REVIEWED", consumed=_cp4_consumed()),
+            "unhashable status": dict(_cp4_record("CONSUMED", consumed=_cp4_consumed()), status=["CONSUMED"]),
+            "missing key": {"status": "CONSUMED", "at": "t0", "consumed": _cp4_consumed(), "published": None},
+            "extra key": dict(_cp4_record("CONSUMED", consumed=_cp4_consumed()), extra=1),
+            "empty at": _cp4_record("CONSUMED", consumed=_cp4_consumed(), at=""),
+            "legacy flag disagrees": _cp4_record("CONSUMED", consumed={
+                "review_content_id": _CP4_B, "plan_revision": 1, "legacy": True}),
+            "non-hex consumed id": _cp4_record("CONSUMED", consumed={
+                "review_content_id": "stale", "plan_revision": 1, "legacy": False}),
+            "bool revision": _cp4_record("CONSUMED", consumed={
+                "review_content_id": _CP4_B, "plan_revision": True, "legacy": False}),
+            "zero revision": _cp4_record("PUBLISHED", published={"review_content_id": _CP4_A, "plan_revision": 0}),
+            "malformed bound": _cp4_record("BOUND", bound={"review_content_id": _CP4_A, "plan_revision": 2}),
+            "CONSUMED without consumed": _cp4_record("CONSUMED"),
+            "CONSUMED with published": _cp4_record("CONSUMED", consumed=_cp4_consumed(), published=good_published),
+            "PUBLISHED without published": _cp4_record("PUBLISHED", consumed=_cp4_consumed()),
+            "PUBLISHED with bound": _cp4_record("PUBLISHED", published=good_published, bound=_cp4_binding()),
+            "BOUND without bound": _cp4_record("BOUND", published=good_published),
+        }
+        for name, record in cases.items():
+            with self.subTest(case=name):
+                with self.assertRaises(ws.InvalidPlanReviewBindingError):
+                    self._validate(record)
+
+
+class TestPublishPlanRevisionTwoStage(unittest.TestCase):
+    """Section 5.3 item 1: mirror-only publication with the `PUBLISHED`
+    record, the plan-stage allow-list, and the early consumed refusal."""
+
+    def test_phase_unchanged_at_each_non_ready_phase(self):
+        for version in ("2.1", "2.2"):
+            for phase, record in (
+                ("PLANNING", None),
+                ("REVISING_PLAN", "default"),
+                ("AMENDING_PLAN", "default"),
+            ):
+                with self.subTest(version=version, phase=phase):
+                    wi = _cp4_item(version=version, phase=phase, record=record, state_revision=4)
+                    state = _base_state(wi=wi)
+                    new_state = ws.publish_plan_revision(state, "wi", 2, "t1", review_content_id=_CP4_A)
+                    item = new_state["work_items"]["wi"]
+                    self.assertEqual(item["phase"], phase)
+                    self.assertEqual(item["plan_revision"], 2)
+                    self.assertEqual(item["state_revision"], 5)
+                    self.assertEqual(item["plan_review_binding"], {
+                        "status": "PUBLISHED", "at": "t1",
+                        "consumed": None if record is None else _cp4_consumed(),
+                        "published": {"review_content_id": _CP4_A, "plan_revision": 2},
+                        "bound": None,
+                    })
+                    self.assertNotIn("plan_review_binding", state["work_items"]["wi"]) if record is None else None
+                    ws.validate_state(new_state)
+
+    def test_same_round_republish_after_further_edits_replaces_published(self):
+        state = _base_state(wi=_cp4_item())
+        first = ws.publish_plan_revision(state, "wi", 2, "t1", review_content_id=_CP4_A)
+        second = ws.publish_plan_revision(first, "wi", 2, "t2", review_content_id=_CP4_D)
+        record = second["work_items"]["wi"]["plan_review_binding"]
+        self.assertEqual(record["published"], {"review_content_id": _CP4_D, "plan_revision": 2})
+        self.assertEqual(record["consumed"], _cp4_consumed())
+
+    def test_republishing_the_same_content_is_a_true_no_op(self):
+        state = ws.publish_plan_revision(_base_state(wi=_cp4_item()), "wi", 2, "t1", review_content_id=_CP4_A)
+        again = ws.publish_plan_revision(state, "wi", 2, "t9", review_content_id=_CP4_A)
+        self.assertIs(again, state)
+
+    def test_review_content_id_is_required(self):
+        for bad in (None, "stale", _CP4_A.upper()):
+            with self.subTest(review_content_id=bad):
+                with self.assertRaises(TypeError):
+                    ws.publish_plan_revision(_base_state(wi=_cp4_item()), "wi", 2, "t1", review_content_id=bad)
+
+    def test_consumed_content_refused_early(self):
+        with self.assertRaises(ws.ConsumedPlanReviewContentError):
+            ws.publish_plan_revision(_base_state(wi=_cp4_item()), "wi", 1, "t1", review_content_id=_CP4_B)
+
+    def test_legacy_marker_needs_one_revision_advance(self):
+        wi = _cp4_item(plan_revision=3, record=_cp4_record("CONSUMED", consumed=_cp4_consumed(None, 3)))
+        with self.assertRaises(ws.ConsumedPlanReviewContentError):
+            ws.publish_plan_revision(_base_state(wi=wi), "wi", 3, "t1", review_content_id=_CP4_A)
+        published = ws.publish_plan_revision(_base_state(wi=wi), "wi", 4, "t1", review_content_id=_CP4_A)
+        self.assertEqual(published["work_items"]["wi"]["plan_review_binding"]["status"], "PUBLISHED")
+
+    def test_legacy_mid_round_item_without_record_refuses(self):
+        for phase in ("REVISING_PLAN", "AMENDING_PLAN"):
+            with self.subTest(phase=phase):
+                with self.assertRaises(ws.LegacyPlanReviewBindingUnknownError) as refused:
+                    ws.publish_plan_revision(
+                        _base_state(wi=_cp4_item(phase=phase, record=None)), "wi", 2, "t1",
+                        review_content_id=_CP4_A,
+                    )
+                self.assertIn("ensure_plan_review_binding_marker", str(refused.exception))
+
+    def test_bound_record_at_a_non_ready_phase_is_inconsistent(self):
+        wi = _cp4_item(record=_cp4_record("BOUND", bound=_cp4_binding(plan_revision=1)))
+        with self.assertRaises(ws.PlanReviewBindingInconsistentError):
+            ws.publish_plan_revision(_base_state(wi=wi), "wi", 2, "t1", review_content_id=_CP4_A)
+
+    def test_ready_phases_refuse_in_place_republication(self):
+        for phase in sorted(ws.PLAN_REVIEW_READY_PHASES):
+            with self.subTest(phase=phase):
+                state = _base_state(wi=_cp4_item(phase=phase, record=None))
+                with self.assertRaises(ws.PlanReviewInProgressError) as refused:
+                    ws.publish_plan_revision(state, "wi", 2, "t1", review_content_id=_CP4_A)
+                self.assertIn("/milestone-plan wi", str(refused.exception))
+
+    def test_phases_outside_the_plan_stage_refuse(self):
+        for phase, names_amendment in (
+            ("IMPLEMENTING", True), ("SELF_REVIEWING_IMPLEMENTATION", True),
+            ("AWAITING_FUNCTIONAL_REVIEW", False), ("APPLYING_REVIEW_FEEDBACK", False),
+            ("AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW", False),
+        ):
+            with self.subTest(phase=phase):
+                with self.assertRaises(ws.PlanReviewPhaseNotPlanStageError) as refused:
+                    ws.publish_plan_revision(
+                        _base_state(wi=_cp4_item(phase=phase, record=None)), "wi", 2, "t1",
+                        review_content_id=_CP4_A,
+                    )
+                self.assertEqual("/request-plan-amendment wi" in str(refused.exception), names_amendment)
+
+    def test_v1_behavior_is_unchanged(self):
+        """`"1"` stays byte-for-byte `2.5.1`'s: the target phase, no record,
+        `review_content_id` ignored, the same no-op rule."""
+        for phase in ("PLANNING", "IMPLEMENTING", "REVISING_PLAN"):
+            with self.subTest(phase=phase):
+                wi = _base_work_item(governing_workflow_version="1", phase=phase, plan_revision=1,
+                                     state_revision=2, last_transition="t0")
+                expected = dict(wi, plan_revision=2, phase="AWAITING_EXTERNAL_PLAN_REVIEW",
+                                state_revision=3, last_transition="t1")
+                for kwargs in ({}, {"review_content_id": _CP4_A}):
+                    new_state = ws.publish_plan_revision(_base_state(wi=wi), "wi", 2, "t1", **kwargs)
+                    self.assertEqual(new_state["work_items"]["wi"], expected)
+                done = _base_state(wi=expected)
+                self.assertIs(ws.publish_plan_revision(done, "wi", 2, "t2"), done)
+
+
+class TestRouteWorkItemPlanStageAllowList(unittest.TestCase):
+    """`LPR-R4-002`: the resume branch's revision advance runs only at a
+    non-ready plan-stage phase for a two-stage item."""
+
+    def _route(self, state):
+        return ws.route_work_item(
+            state, ws.default_config(), work_item_id="wi", work_item_type="process",
+            work_item_kind="process", plan_path="p", registry_path="r",
+            plan_revision=2, now="t1",
+        )
+
+    def test_refuses_at_ready_and_outside_phases_writing_nothing(self):
+        for phase, error in (
+            ("AWAITING_LOCAL_PLAN_REVIEW", ws.PlanReviewInProgressError),
+            ("AWAITING_MANUAL_EXTERNAL_PLAN_REVIEW", ws.PlanReviewInProgressError),
+            ("AWAITING_PLAN_APPROVAL", ws.PlanReviewInProgressError),
+            ("IMPLEMENTING", ws.PlanReviewPhaseNotPlanStageError),
+            ("AWAITING_FUNCTIONAL_REVIEW", ws.PlanReviewPhaseNotPlanStageError),
+        ):
+            with self.subTest(phase=phase):
+                state = _base_state(wi=_cp4_item(phase=phase, record=None))
+                snapshot = json.dumps(state, sort_keys=True)
+                with self.assertRaises(error):
+                    self._route(state)
+                self.assertEqual(json.dumps(state, sort_keys=True), snapshot)
+
+    def test_advances_at_each_non_ready_phase(self):
+        for phase in sorted(ws.PLAN_REVIEW_NON_READY_PHASES):
+            with self.subTest(phase=phase):
+                routed = self._route(_base_state(wi=_cp4_item(phase=phase, record=None)))
+                self.assertEqual(routed["work_items"]["wi"]["plan_revision"], 2)
+                self.assertEqual(routed["work_items"]["wi"]["phase"], phase)
+
+    def test_v1_item_is_unchanged(self):
+        state = _base_state(wi=_base_work_item(governing_workflow_version="1", phase="IMPLEMENTING"))
+        self.assertEqual(self._route(state)["work_items"]["wi"]["plan_revision"], 2)
+
+
+class TestBindPlanReviewBundle(unittest.TestCase):
+    """Section 5.3 item 3: the sole writer of `AWAITING_LOCAL_PLAN_REVIEW`,
+    legitimate only against the freshly re-read record."""
+
+    def _published(self, phase="REVISING_PLAN", consumed="default", plan_revision=2):
+        consumed = _cp4_consumed() if consumed == "default" else consumed
+        return _cp4_item(phase=phase, plan_revision=plan_revision, record=_cp4_record(
+            "PUBLISHED", consumed=consumed,
+            published={"review_content_id": _CP4_A, "plan_revision": plan_revision},
+        ), state_revision=7)
+
+    def test_success_writes_the_ready_phase_pointer_and_bound_record(self):
+        for phase in sorted(ws.PLAN_REVIEW_NON_READY_PHASES):
+            with self.subTest(phase=phase):
+                new_state = ws.bind_plan_review_bundle(
+                    _base_state(wi=self._published(phase=phase)), "wi", binding=_cp4_binding(), now="t2",
+                )
+                item = new_state["work_items"]["wi"]
+                self.assertEqual(item["phase"], "AWAITING_LOCAL_PLAN_REVIEW")
+                self.assertEqual(item["current_bundle_id"], _CP4_C)
+                self.assertEqual(item["state_revision"], 8)
+                self.assertEqual(item["plan_review_binding"], {
+                    "status": "BOUND", "at": "t2", "consumed": _cp4_consumed(),
+                    "published": {"review_content_id": _CP4_A, "plan_revision": 2},
+                    "bound": _cp4_binding(),
+                })
+                ws.validate_state(new_state)
+
+    def test_idempotent_rebind_at_local_review_even_for_a_new_bundle_id(self):
+        bound = ws.bind_plan_review_bundle(_base_state(wi=self._published()), "wi", binding=_cp4_binding(), now="t2")
+        again = ws.bind_plan_review_bundle(bound, "wi", binding=_cp4_binding(bundle_id=_CP4_D), now="t3")
+        self.assertIs(again, bound)
+
+    def test_never_regresses_a_later_ready_phase(self):
+        bound = ws.bind_plan_review_bundle(_base_state(wi=self._published()), "wi", binding=_cp4_binding(), now="t2")
+        for phase in ("AWAITING_MANUAL_EXTERNAL_PLAN_REVIEW", "AWAITING_PLAN_APPROVAL"):
+            with self.subTest(phase=phase):
+                state = copy.deepcopy(bound)
+                state["work_items"]["wi"]["phase"] = phase
+                with self.assertRaises(ws.PlanReviewAlreadyReadyError):
+                    ws.bind_plan_review_bundle(state, "wi", binding=_cp4_binding(), now="t3")
+        with self.assertRaises(ws.PlanReviewAlreadyReadyError):
+            ws.bind_plan_review_bundle(bound, "wi", binding=_cp4_binding(review_content_id=_CP4_D), now="t3")
+
+    def test_unpublished_content_never_binds(self):
+        cases = {
+            "consumed record": (_cp4_item(plan_revision=2), _cp4_binding()),
+            "planning, no record": (_cp4_item(phase="PLANNING", plan_revision=2, record=None), _cp4_binding()),
+            "different content": (self._published(), _cp4_binding(review_content_id=_CP4_D)),
+            "different revision": (self._published(), _cp4_binding(plan_revision=3)),
+            "mirror moved on": (dict(self._published(), plan_revision=3), _cp4_binding()),
+        }
+        for name, (wi, binding) in cases.items():
+            with self.subTest(case=name):
+                with self.assertRaises(ws.PlanReviewNotPublishedError):
+                    ws.bind_plan_review_bundle(_base_state(wi=wi), "wi", binding=binding, now="t2")
+
+    def test_consumed_content_never_binds(self):
+        wi = self._published(consumed=_cp4_consumed(_CP4_A, 1))
+        with self.assertRaises(ws.ConsumedPlanReviewContentError):
+            ws.bind_plan_review_bundle(_base_state(wi=wi), "wi", binding=_cp4_binding(), now="t2")
+        legacy = self._published(consumed=_cp4_consumed(None, 2))
+        with self.assertRaises(ws.ConsumedPlanReviewContentError):
+            ws.bind_plan_review_bundle(_base_state(wi=legacy), "wi", binding=_cp4_binding(), now="t2")
+
+    def test_legacy_inconsistent_and_out_of_stage_refusals(self):
+        with self.assertRaises(ws.LegacyPlanReviewBindingUnknownError):
+            ws.bind_plan_review_bundle(_base_state(wi=_cp4_item(record=None)), "wi", binding=_cp4_binding(), now="t")
+        with self.assertRaises(ws.PlanReviewBindingInconsistentError):
+            ws.bind_plan_review_bundle(_base_state(wi=_cp4_item(record=_cp4_record(
+                "BOUND", bound=_cp4_binding()))), "wi", binding=_cp4_binding(), now="t")
+        with self.assertRaises(ws.PlanReviewPhaseNotPlanStageError):
+            ws.bind_plan_review_bundle(_base_state(wi=self._published(phase="IMPLEMENTING")),
+                                       "wi", binding=_cp4_binding(), now="t")
+        with self.assertRaises(ws.WrongGoverningVersionForPlanReviewStageError):
+            ws.bind_plan_review_bundle(_base_state(wi=_base_work_item(phase="REVISING_PLAN")),
+                                       "wi", binding=_cp4_binding(), now="t")
+        with self.assertRaises(TypeError):
+            ws.bind_plan_review_bundle(_base_state(wi=self._published()), "wi",
+                                       binding=dict(_cp4_binding(), extra=1), now="t")
+
+
+class TestWithdrawPlanReview(unittest.TestCase):
+    """Section 5.3 item 7: the verdict-free exit from a ready phase."""
+
+    def _bound(self, phase, **overrides):
+        return _cp4_item(phase=phase, plan_revision=2, record=_cp4_record(
+            "BOUND", consumed=_cp4_consumed(),
+            published={"review_content_id": _CP4_A, "plan_revision": 2}, bound=_cp4_binding(),
+        ), current_bundle_id=_CP4_C, plan_review_stages={"review_content_id": _CP4_A}, **overrides)
+
+    def test_each_ready_phase_withdraws_to_revising_plan_consuming_the_bound_content(self):
+        for phase in sorted(ws.PLAN_REVIEW_READY_PHASES):
+            with self.subTest(phase=phase):
+                state = _base_state(wi=self._bound(phase))
+                new_state = ws.withdraw_plan_review(state, "wi", "t5")
+                item = new_state["work_items"]["wi"]
+                self.assertEqual(item["phase"], "REVISING_PLAN")
+                self.assertEqual(item["plan_review_binding"], _cp4_record(
+                    "CONSUMED", consumed=_cp4_consumed(_CP4_A, 2), at="t5"))
+                # Untouched: the stages ledger and the bundle pointer.
+                self.assertEqual(item["plan_review_stages"], {"review_content_id": _CP4_A})
+                self.assertEqual(item["current_bundle_id"], _CP4_C)
+                # And the withdrawn content can never re-publish.
+                with self.assertRaises(ws.ConsumedPlanReviewContentError):
+                    ws.publish_plan_revision(new_state, "wi", 2, "t6", review_content_id=_CP4_A)
+
+    def test_an_open_amendment_withdraws_to_amending_plan(self):
+        wi = self._bound("AWAITING_LOCAL_PLAN_REVIEW", amendment_history=[
+            {"amendment_id": "0", "resolved_at_plan_revision": None},
+        ])
+        new_state = ws.withdraw_plan_review(_base_state(wi=wi), "wi", "t5")
+        self.assertEqual(new_state["work_items"]["wi"]["phase"], "AMENDING_PLAN")
+
+    def test_no_record_or_an_inconsistent_one_gets_the_legacy_marker(self):
+        for record in (None, _cp4_record("PUBLISHED", published={"review_content_id": _CP4_A, "plan_revision": 2})):
+            with self.subTest(record=None if record is None else record["status"]):
+                wi = _cp4_item(phase="AWAITING_MANUAL_EXTERNAL_PLAN_REVIEW", plan_revision=4, record=record)
+                item = ws.withdraw_plan_review(_base_state(wi=wi), "wi", "t5")["work_items"]["wi"]
+                self.assertEqual(item["plan_review_binding"]["consumed"], _cp4_consumed(None, 4))
+
+    def test_a_non_ready_phase_refuses_writing_nothing(self):
+        for phase in ("REVISING_PLAN", "PLANNING", "IMPLEMENTING"):
+            with self.subTest(phase=phase):
+                state = _base_state(wi=_cp4_item(phase=phase))
+                with self.assertRaises(ws.PlanReviewNotReadyError):
+                    ws.withdraw_plan_review(state, "wi", "t5")
+
+
+class TestConsumedPlanReviewBindingWriters(unittest.TestCase):
+    """Section 5.3 item 2: every transition that takes reviewed content out
+    of review writes `CONSUMED` from its own inputs."""
+
+    def test_local_revise_consumes_its_own_review_content_id(self):
+        wi = _cp4_item(phase="AWAITING_LOCAL_PLAN_REVIEW", plan_revision=3, record=None)
+        item = ws.record_local_plan_review(
+            _base_state(wi=wi), "wi", verdict="REVISE", bundle_id="b1",
+            review_content_id=_CP4_A, round=1, now="t1",
+        )["work_items"]["wi"]
+        self.assertEqual(item["plan_review_binding"], _cp4_record("CONSUMED", consumed=_cp4_consumed(_CP4_A, 3), at="t1"))
+
+    def test_manual_revise_consumes_the_current_review_content_id(self):
+        wi = _cp4_item(phase="AWAITING_MANUAL_EXTERNAL_PLAN_REVIEW", plan_revision=3, record=None,
+                       plan_review_stages={
+                           "review_content_id": _CP4_A,
+                           "LOCAL_MODEL_PLAN_REVIEW": {"bundle_id": "b1", "verdict": "APPROVE",
+                                                       "round": 1, "completed_at": "t0"},
+                           "MANUAL_EXTERNAL_PLAN_REVIEW": None,
+                       })
+        item = ws.record_manual_plan_review(
+            _base_state(wi=wi), "wi", verdict="REVISE", bundle_id="b1", round=1, now="t1",
+            current_review_content_id=_CP4_A, feedback_role="MANUAL_EXTERNAL_PLAN_REVIEW",
+            feedback_review_content_id=_CP4_A,
+        )["work_items"]["wi"]
+        self.assertEqual(item["plan_review_binding"]["consumed"], _cp4_consumed(_CP4_A, 3))
+
+    def test_approve_and_block_leave_the_record_alone(self):
+        record = _cp4_record("BOUND", consumed=_cp4_consumed(), bound=_cp4_binding(plan_revision=1),
+                             published={"review_content_id": _CP4_A, "plan_revision": 1})
+        wi = _cp4_item(phase="AWAITING_LOCAL_PLAN_REVIEW", record=record)
+        for verdict in ("APPROVE", "BLOCK"):
+            with self.subTest(verdict=verdict):
+                item = ws.record_local_plan_review(
+                    _base_state(wi=copy.deepcopy(wi)), "wi", verdict=verdict, bundle_id="b1",
+                    review_content_id=_CP4_A, round=1, now="t1",
+                )["work_items"]["wi"]
+                self.assertEqual(item["plan_review_binding"], record)
+
+
+class TestEnsurePlanReviewBindingMarker(unittest.TestCase):
+    """Row 5's entry write (INV-7, `LPR-R3-006`)."""
+
+    def test_legacy_revising_plan_item_gets_the_null_id_marker(self):
+        wi = _cp4_item(phase="REVISING_PLAN", plan_revision=4, record=None, state_revision=2)
+        item = ws.ensure_plan_review_binding_marker(_base_state(wi=wi), "wi", "t1")["work_items"]["wi"]
+        self.assertEqual(item["plan_review_binding"], _cp4_record("CONSUMED", consumed=_cp4_consumed(None, 4), at="t1"))
+        self.assertEqual(item["state_revision"], 3)
+
+    def test_legacy_amending_plan_item_uses_its_open_amendment_record(self):
+        entry = {"amendment_id": "0", "resolved_at_plan_revision": None, "superseded_plan_revision": 2,
+                 "superseded_plan_approval": {"approved_review_content_id": _CP4_D}}
+        wi = _cp4_item(phase="AMENDING_PLAN", plan_revision=3, record=None, amendment_history=[entry])
+        item = ws.ensure_plan_review_binding_marker(_base_state(wi=wi), "wi", "t1")["work_items"]["wi"]
+        self.assertEqual(item["plan_review_binding"]["consumed"], _cp4_consumed(_CP4_D, 2))
+        without_id = copy.deepcopy(wi)
+        without_id["amendment_history"][0]["superseded_plan_approval"]["approved_review_content_id"] = None
+        item = ws.ensure_plan_review_binding_marker(_base_state(wi=without_id), "wi", "t1")["work_items"]["wi"]
+        self.assertEqual(item["plan_review_binding"]["consumed"], _cp4_consumed(None, 3))
+
+    def test_no_op_everywhere_else(self):
+        for wi in (
+            _cp4_item(),                                         # record already exists
+            _cp4_item(phase="PLANNING", record=None),            # first round
+            _cp4_item(phase="AWAITING_LOCAL_PLAN_REVIEW", record=None),
+            _base_work_item(governing_workflow_version="1", phase="REVISING_PLAN"),
+        ):
+            with self.subTest(phase=wi["phase"], version=wi["governing_workflow_version"]):
+                state = _base_state(wi=wi)
+                self.assertIs(ws.ensure_plan_review_binding_marker(state, "wi", "t1"), state)
+
+
+class TestAssertApplyPlanReviewFeedback(unittest.TestCase):
+    """`/apply-plan-review` step 1 for a two-stage item: `REVISE` only, and
+    the durable feedback check under rows 9 and 11."""
+
+    @staticmethod
+    def _feedback(status="REVISE", work_item="wi", review_content_id=_CP4_B):
+        lines = [f"Status: {status}", f"Work item: {work_item}"]
+        if review_content_id is not None:
+            lines.append(f"review_content_id: {review_content_id}")
+        return "\n".join(lines) + "\n"
+
+    def test_block_and_approve_are_never_applied(self):
+        for status in ("BLOCK", "APPROVE", None):
+            with self.subTest(status=status):
+                content = self._feedback(status=status) if status else "Work item: wi\n"
+                with self.assertRaises(ws.FeedbackStatusNotApplicableError) as refused:
+                    ws.assert_apply_plan_review_feedback(
+                        _cp4_item(), "wi", feedback_content=content, publication_status="NEEDS_EDIT",
+                    )
+                if status == "BLOCK":
+                    self.assertIn("/milestone-plan wi", str(refused.exception))
+                    self.assertIn("/review-plan wi", str(refused.exception))
+
+    def test_durable_check_binds_to_the_consumed_content(self):
+        for status in sorted(ws.PLAN_REVIEW_DURABLE_FEEDBACK_CHECK_STATUSES):
+            with self.subTest(status=status):
+                self.assertEqual(ws.assert_apply_plan_review_feedback(
+                    _cp4_item(), "wi", feedback_content=self._feedback(), publication_status=status,
+                ), "durable")
+                for bad in (_CP4_A, None):
+                    with self.assertRaises(ws.FeedbackNotForConsumedContentError):
+                        ws.assert_apply_plan_review_feedback(
+                            _cp4_item(), "wi", feedback_content=self._feedback(review_content_id=bad),
+                            publication_status=status,
+                        )
+
+    def test_legacy_marker_checks_work_item_and_status_only(self):
+        legacy = _cp4_item(record=_cp4_record("CONSUMED", consumed=_cp4_consumed(None, 1)))
+        self.assertEqual(ws.assert_apply_plan_review_feedback(
+            legacy, "wi", feedback_content=self._feedback(review_content_id=None),
+            publication_status="EDIT_IN_PROGRESS",
+        ), "durable")
+        with self.assertRaises(ws.FeedbackNotForConsumedContentError):
+            ws.assert_apply_plan_review_feedback(
+                legacy, "wi", feedback_content=self._feedback(work_item="other"),
+                publication_status="EDIT_IN_PROGRESS",
+            )
+
+    def test_other_statuses_defer_to_the_on_disk_bundle_binding(self):
+        self.assertEqual(ws.assert_apply_plan_review_feedback(
+            _cp4_item(), "wi", feedback_content=self._feedback(review_content_id=_CP4_A),
+            publication_status="NEEDS_EDIT",
+        ), "bundle")
+        v1 = _base_work_item(governing_workflow_version="1", phase="REVISING_PLAN")
+        self.assertEqual(ws.assert_apply_plan_review_feedback(
+            v1, "wi", feedback_content=self._feedback(status="BLOCK"), publication_status="NEEDS_EDIT",
+        ), "bundle")
 
 
 if __name__ == "__main__":
