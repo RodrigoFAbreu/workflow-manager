@@ -32100,9 +32100,52 @@ nothing" is visibly distinct from "it never ran."
   identity problem. `scripts/prepare-ai-review.sh`, when generating a
   plan-stage bundle for a work item whose `amendment_history`'s last entry
   is open (`resolved_at_plan_revision` still `null`, B4), additionally
-  writes `AMENDMENT_DIFF.patch` -- `git diff <amendment_base_commit>..HEAD`
-  restricted to the plan-stage protected paths, for reviewer convenience
-  only.
+  writes `AMENDMENT_DIFF.patch` -- a diff of the plan-stage protected
+  design set since `amendment_base_commit`, for reviewer convenience
+  only. Through `workflow-2.5.1` this was `git diff
+  <amendment_base_commit>..HEAD`; `workflow-2.6.0` anchors it at the
+  working tree instead (see "Working-tree anchor" below).
+
+  **Working-tree anchor (`workflow-2.6.0`, `v2.4.0-003`).** The `..HEAD`
+  form was always empty: the amended plan stays uncommitted until
+  `/approve-review plan` commits it, so `HEAD` never carried the edit the
+  patch existed to show, and no test ran the block. The generator now
+  writes `git diff --no-renames <amendment_base_commit> -- <pathspec>`,
+  anchored at the working tree; its own intent-to-add covers new,
+  untracked protected files, and its EXIT trap restores the index. The
+  pathspec is the sorted union of:
+  - the `plan_stage.protected_paths` declared in `<work_item_id>-artifacts.json`
+    **at `amendment_base_commit`** (read with `git show`; empty if the file
+    is absent there);
+  - the ones declared now; and
+  - `<work_item_id>-artifacts.json` itself, which is not a plan-stage
+    protected path, so without it a declaration edit would not appear at
+    all.
+
+  A still-declared protected path cannot be absent (`capture_plan_stage_pin`
+  raises `AbsentProtectedPathError` first), so the only reachable deletion
+  is a path dropped from the declaration and removed from the worktree: it
+  is in the base-side half and appears as `deleted file`. A rename is that
+  deletion plus a newly declared path appearing as `new file`;
+  `--no-renames` keeps that shape under any `diff.renames` setting, so Git's
+  rename detection is never relied on. A path dropped from the declaration
+  but still present appears as its content diff only if it changed since
+  `amendment_base_commit`; either way the `<work_item_id>-artifacts.json`
+  hunk shows it leaving the protected set. A leading `#` comment block
+  names `work_item_id`, `amendment_id`, `amendment_base_commit`,
+  `plan_revision` and the bundle's `review_content_id`; `git apply`
+  ignores text before the first `diff --git`, so the patch still applies
+  against `amendment_base_commit`. The block runs after `--write-manifest`
+  (after the pin and its pin/worktree byte-identity check), so for every
+  currently declared path the diff describes exactly the bytes
+  `review_content_id` hashes; base-only paths are outside the current
+  identity by definition and are shown, never hashed, and
+  `<work_item_id>-artifacts.json`'s bytes are outside both identities (only
+  its declared key sets are hashed). The file is still convenience only:
+  outside `current/`, hashed into neither `bundle_id` nor
+  `review_content_id`. Pinned by `workflow_fingerprint_generalization_test.py`'s
+  `TestPrepareAiReviewShAmendmentDiffWorkingTreeAnchor`, through the real
+  script.
 
   **Placement, corrected this revision (B5-new)**: revision 2 wrote it to
   `<bundle_dir>/AMENDMENT_DIFF.patch` and claimed it was "never hashed" --

@@ -173,13 +173,32 @@ present, is a **sibling** of `<bundle_dir>` itself, at
 tree above, and never hashed into `bundle_id`/`review_content_id`, both of
 which walk only `<bundle_dir>`. `scripts/prepare-ai-review.sh` writes it
 during a plan-stage generation for a work item whose `amendment_history`'s
-last entry is still open (`resolved_at_plan_revision` still `null`) —
-`git diff <amendment_base_commit>..HEAD` restricted to the plan-stage
-protected paths, reviewer convenience only — and deletes any stale copy
-once no amendment is open. The manual-external-review archive
-(`review-bundle.tar.gz`) bundles it alongside `current/` when present, so
-both the local and the manual-external reviewer see the identical
-convenience diff.
+last entry is still open (`resolved_at_plan_revision` still `null`),
+reviewer convenience only, and deletes any stale copy once no amendment is
+open. The manual-external-review archive (`review-bundle.tar.gz`) bundles
+it alongside `current/` when present, so both the local and the
+manual-external reviewer see the identical convenience diff.
+
+**`workflow-2.6.0`** (`v2.4.0-003`): the patch is anchored at the **working
+tree** — `git diff --no-renames <amendment_base_commit> -- <pathspec>` —
+because the amended plan stays uncommitted until `/approve-review plan`
+commits it; the `<amendment_base_commit>..HEAD` form earlier releases
+wrote was therefore always empty. It shows the uncommitted amendment
+itself, and new untracked protected files as `new file` (the generator's
+own intent-to-add, restored on exit). The pathspec is the sorted union of
+the `plan_stage.protected_paths` declared in `<work_item_id>-artifacts.json`
+at `amendment_base_commit` (empty when absent there), the ones declared
+now, and `<work_item_id>-artifacts.json` itself: a path dropped from the
+declaration and removed from the worktree appears as `deleted file`, a
+rename as that deletion plus a `new file`, and every declaration change
+appears in the `<work_item_id>-artifacts.json` hunk (a dropped path left
+unchanged in the worktree has no hunk of its own). A leading `#` comment
+block names `work_item_id`, `amendment_id`, `amendment_base_commit`,
+`plan_revision` and this bundle's `review_content_id`; `git apply` ignores
+it, so the patch applies against `amendment_base_commit`. It is written
+after `MANIFEST.md`, so for every currently declared path it describes the
+same bytes `review_content_id` hashes. It remains convenience only:
+nothing checks it, and it is hashed into neither identity.
 
 ### Generation diagnostic metadata (`worktree_root`/`generation_head`)
 

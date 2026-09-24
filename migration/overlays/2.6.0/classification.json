@@ -27,13 +27,31 @@
     {
       "pattern": "^docs/ai-workflow/REVIEW_PROTOCOL\\.md$",
       "category": "distribution",
-      "rationale": "D-Tooling-Ambient-Classification (CP1): the Computing review_content_id section gains the classification paragraph naming the one release-derived fallback, where it sits in the classification order, and what stays fail-closed.",
+      "rationale": "D-Tooling-Ambient-Classification (CP1): the Computing review_content_id section gains the classification paragraph naming the one release-derived fallback, where it sits in the classification order, and what stays fail-closed. D-Plan-Amendment-5 revision (CP2): \"Bundle structure\" restates AMENDMENT_DIFF.patch to the working-tree anchor -- the base-plus-current-plus-declaration pathspec union, --no-renames, the provenance preamble, and its placement after MANIFEST.md -- and states it stays convenience only.",
       "expected_kind": "replaced"
     },
     {
       "pattern": "^docs/ai-workflow/WORKFLOW_V2_PLAN\\.md$",
       "category": "distribution",
-      "rationale": "D-Tooling-Ambient-Classification (CP1): new design section carrying the problem, the decision, its release-derived authority, the identity-stability argument, the fail-closed boundary, the justification relative to the frozen plan-stage classifier, and the rejected alternatives.",
+      "rationale": "D-Tooling-Ambient-Classification (CP1): new design section carrying the problem, the decision, its release-derived authority, the identity-stability argument, the fail-closed boundary, the justification relative to the frozen plan-stage classifier, and the rejected alternatives. D-Plan-Amendment-5 revision (CP2): the section's AMENDMENT_DIFF.patch paragraph gains a \"Working-tree anchor\" subsection -- why the ..HEAD form was always empty, the pathspec union and its reachable deletion/rename shapes, the provenance preamble, and consistency with the reviewed bytes.",
+      "expected_kind": "replaced"
+    },
+    {
+      "pattern": "^scripts/prepare-ai-review\\.sh$",
+      "category": "distribution",
+      "rationale": "D-Plan-Amendment-5 revision (CP2, v2.4.0-003): the AMENDMENT_DIFF.patch block drops ..HEAD and diffs amendment_base_commit against the working tree (--no-renames), over the sorted union of the plan_stage.protected_paths declared at amendment_base_commit, the ones declared now and <id>-artifacts.json itself; it gains a provenance preamble (work_item_id, amendment_id, amendment_base_commit, plan_revision, review_content_id) and moves after --write-manifest so the preamble can carry the manifest's review_content_id. The file stays outside current/ and outside both identities; the archive line and every other block are unchanged.",
+      "expected_kind": "replaced"
+    },
+    {
+      "pattern": "^scripts/workflow_fingerprint_generalization_test\\.py$",
+      "category": "distribution",
+      "rationale": "D-Plan-Amendment-5 revision (CP2): adds TestPrepareAiReviewShAmendmentDiffWorkingTreeAnchor, driving the real prepare-ai-review.sh in scratch repositories -- uncommitted plan edit (with a ..HEAD control arm), untracked new protected file with the index restored, dropped-and-deleted path, rename as deletion plus new file, dropped-but-kept changed and unchanged paths, artifacts declaration absent at the base, non-protected edits absent, archive member byte-identity, bundle_id invariance, removal after resolution, preamble fields, and git apply --check at amendment_base_commit. Additive only: every pre-existing test is unmodified.",
+      "expected_kind": "replaced"
+    },
+    {
+      "pattern": "^\\.claude/commands/request-plan-amendment\\.md$",
+      "category": "distribution",
+      "rationale": "D-Plan-Amendment-5 revision (CP2): step 4's note on AMENDMENT_DIFF.patch states the working-tree anchor, so the patch shows the still-uncommitted amended plan. The generator-mention wording workflow_integration_test.py's census pins (mention-only, no run/rerun invocation) is kept.",
       "expected_kind": "replaced"
     }
   ]
