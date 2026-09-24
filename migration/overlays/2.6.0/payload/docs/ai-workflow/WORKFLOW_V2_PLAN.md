@@ -33556,6 +33556,131 @@ back-filling legacy ready items (nothing needs it); keeping
 `/apply-plan-review` step 6 or step 7'.2 for two-stage items (each is an
 unreported exit between publish and bind).
 
+### D-Plan-Approval-Closure — the plan-approval commit closes over the declared protected set, proven before it exists and verified from what it committed (`workflow-2.6.0`)
+
+**Problem.** Under `2.5.1` the approval commit's member set was fixed:
+`resolve_plan_stage_approval_commit_paths` returned the plan document,
+registry, mapping, `WORKFLOW_STATE.json` and a conditional
+`<id>-artifacts.json`, and never consulted the declared
+`plan_stage.protected_paths` -- while the approved `review_content_id` hashes
+every declared protected path, snapshotted from the worktree. Omissions were
+invisible to the checks (`assert_committed_path_set_matches` is a subset
+check), so a declared-protected companion that was new (intent-to-add),
+edited, or renamed failed only *after* the commit existed
+(`AbsentProtectedPathError`, `PostApprovalManifestMismatchError`,
+`UnclassifiedPathError`), where step 6a routed it into 6a1's amend, which
+re-staged the same insufficient set and stopped. Separately, step 6a passed
+the command's own pre-commit `work_item` to the verifier while the journal
+design deliberately keeps the worktree state pre-approval until step 6c: a
+first approval raised `TypeError: 'NoneType' object is not subscriptable`,
+and a re-approval over a `STALE`/`SUPERSEDED` record raised a *false*
+`PostApprovalManifestMismatchError` against the old id and was routed into
+the amend -- the only path in the design that replaces an approval commit,
+triggered by a verifier-input error. The design applies to every governing
+version's plan-stage approval; the implementation stage is unchanged apart
+from the shared helper's named error.
+
+**Decision.**
+
+1. **Commit members.** Every declared `plan_stage.protected_paths` entry of
+   the worktree declaration the approved identity was computed from;
+   `WORKFLOW_STATE.json`; `<id>-artifacts.json` under the unchanged
+   pending-and-fresh rule; and **removals** -- every path protected under
+   `HEAD`'s committed declaration and tracked at `HEAD` that is absent from
+   both the current declaration and the worktree, staged as a deletion. A
+   rename is a removal plus an addition. A path the current declaration no
+   longer protects but that is still in the worktree (including one deleted
+   and re-created) is not a member: nothing is staged for it, `HEAD`'s copy
+   stays, and the reviewed declaration keeps it out of the identity. A first
+   approval has no committed declaration, so its removal set is empty.
+   `PlanApprovalCommitPlan` gains `protected_paths` and `removal_paths`
+   (both defaulted, so a hand-built plan still constructs); the journal
+   gains an optional `removal_paths` (a `2.5.1` journal, which never staged
+   a removal, reads as `[]`).
+2. **Freshness before mutation, per member kind**
+   (`workflow_state.resolve_fresh_plan_approval_members`, `/approve-review`
+   step 4a, after step 2's bundle-bound check). The empty-index precondition
+   runs first and names the staged-`git mv` remedy. Against the bound bundle
+   (`current/`, never `.pin`): a protected member's worktree bytes must equal
+   its `files/` capture when one exists, otherwise its blob at the bundle's
+   own `MANIFEST.md` `base_commit` (the generator's capture condition: every
+   member either was captured or equalled that blob at generation), and with
+   neither it refuses; a removal member must be neither captured nor listed
+   among the bundle's protected paths; the artifacts declaration keeps its
+   rule; `WORKFLOW_STATE.json` is not compared. Every failure is
+   `ReviewedContentDriftError` naming the path and member kind (a stale
+   declaration's `StaleArtifactsDeclarationError` chained under it), before
+   the journal opens. Step 5 re-resolves inside its guarded window and
+   requires the journal's pinned set (`PlanApprovalMemberSetChangedError`
+   otherwise, rolled back), so the worktree-absence condition that defines a
+   removal is evaluated against the tree that is staged. An edit to a
+   declared protected path usually refuses one step earlier, at step 2 (it
+   moves the fresh id); the per-member check is what reaches a removal
+   member the bound bundle captured and an artifacts-declaration byte edit
+   outside its hashed key sets, and stays defense in depth for the rest.
+3. **Pre-commit closure proof** (`prove_plan_approval_index_closure`, step
+   6.3a). After staging and the state pin, `git write-tree`, then the
+   plan-stage identity recomputed at that tree
+   (`compute_review_content_id_plan_stage_at_commit_for_work_item` accepts
+   any tree-ish), required to equal the journal's
+   `expected_review_content_id`, with every removal absent. A failure is
+   `PlanApprovalClosureProofError`; the outcome is still `NOT_COMMITTED`, so
+   step 6b rolls back and there is no commit to amend.
+4. **Committed-truth verification** (`verify_plan_approval_commit(repo_root,
+   journal, commit)`, the one function the in-session and every resumed or
+   taken-over step 6a run): the committed state blob against the journal
+   pin; the work item derived from the committed `WORKFLOW_STATE.json`; its
+   `plan_approval.approved_review_content_id` and the identity recomputed at
+   the commit both equal to the journal's pin; the two-sided path-set check
+   -- nothing outside the members in the commit
+   (`assert_committed_path_set_matches`), every protected path of the
+   committed record exactly as approved and every removal absent
+   (`assert_committed_plan_approval_closure`); the artifacts blob when it
+   was a member.
+5. **Named errors.** `verify_post_approval_manifest_match` raises
+   `MissingApprovalRecordError` for a missing record at either stage, and
+   takes an optional explicit `expected_review_content_id` (the plan stage
+   always passes the journal's); a record naming another id is
+   `CommittedApprovalRecordMismatchError`, raised before any recomputation.
+   The implementation-stage transaction is otherwise unchanged.
+6. **Amend gating** (`classify_post_commit_verification_failure`). 6a1's
+   amend is reachable only for `TREE_CONTENT`: a committed blob differing
+   from the staged and pinned bytes (`CommittedStateBlobMismatchError`,
+   `CommittedBlobMismatchError`, `CommittedProtectedContentMismatchError`),
+   the committed tree recomputing to another identity
+   (`PostApprovalManifestMismatchError`) or missing a protected member
+   (`AbsentProtectedPathError`). Everything else -- a record, input or
+   verifier error, an unclassified path, anything unforeseen, and an extra
+   path in the commit (`CommittedPathSetMismatchError`, a membership defect
+   re-staging cannot remove) -- stops with `HEAD` unchanged (INV-5). 6a1
+   re-stages the journal's members, never a fresh resolution, since `HEAD`
+   is then the approval commit; its one-shot rule (`WF8c` 348(jj)) stands.
+   CP6 of this release adds `assert_amendment_resolution_held` before 6a1's
+   re-staging for an item with an open amendment.
+7. **Declined.** Forward-completing a `COMMITTED` outcome without the
+   takeover gate after the owner process died; the takeover gate is
+   unchanged.
+
+**Recovery.** Re-entry at any `progress` step converges through
+`verify_plan_approval_commit` plus 6c/6d; discovery by trailer plus first
+parent is unchanged; the approval-trailer commit count for a round stays 1
+(tested). Step 6d's closing check narrows from a whole-tree `git status
+--porcelain` to a clean index and clean members, because a de-protected path
+still in the worktree legitimately survives the approval uncommitted.
+
+**Identity stability (INV-8).** No hashed projection changes: the member set,
+the freshness check, the proof and the verifier read identities, they never
+compute a new one, and the tree-ish generalization only admits a new input
+kind to an unchanged computation.
+
+**Rejected alternatives.** Gating protected members on `HEAD` instead of the
+bundle's `base_commit` (a member can differ from `HEAD` and still equal its
+`base_commit` blob, so it would need a second comparison source anyway);
+capturing every protected path in the generator (moves `bundle_id` for such
+bundles, breaking INV-8); keeping the pre-commit `work_item` and only
+null-guarding it (the `STALE`/`SUPERSEDED` false mismatch would remain and
+still route to the amend).
+
 ## Preserved ownership (unchanged, extended)
 
 `CLAUDE.md`'s gate-count section points at `MILESTONE_WORKFLOW.md`;

@@ -15353,5 +15353,148 @@ class TestAssertApplyPlanReviewFeedback(unittest.TestCase):
         ), "bundle")
 
 
+
+class TestPlanApprovalClosureUnits(unittest.TestCase):
+    """workflow-2.6.0 CP5, `D-Plan-Approval-Closure`: the pure pieces. The
+    command-shaped scenarios live in `workflow_acceptance_matrix_test.py`
+    (`PlanApprovalClosure*`, `PlanApprovalCommittedTruth`)."""
+
+    def _journal_dict(self, **overrides):
+        journal = {field: "x" for field in ws._PLAN_APPROVAL_JOURNAL_REQUIRED_STR_FIELDS}
+        journal.update({
+            "schema_version": ws.PLAN_APPROVAL_JOURNAL_SCHEMA_VERSION,
+            "applicable_paths": ["a.md"], "fifth_member_applies": False,
+            "takeover_count": 0, "previous_owner_tokens": [],
+        })
+        journal.update(overrides)
+        return journal
+
+    def _write_journal(self, root, journal):
+        path = ws.plan_approval_journal_path(root)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(journal))
+
+    def test_amend_gate_admits_only_tree_content_defects(self):
+        tree_content = (
+            ws.CommittedStateBlobMismatchError("x"), ws.CommittedBlobMismatchError("x"),
+            ws.CommittedProtectedContentMismatchError("x"), ws.PostApprovalManifestMismatchError("x"),
+            fingerprint.AbsentProtectedPathError("x"),
+        )
+        for exc in tree_content:
+            self.assertEqual(ws.classify_post_commit_verification_failure(exc),
+                             ws.POST_COMMIT_FAILURE_TREE_CONTENT, type(exc).__name__)
+        record_or_input = (
+            ws.MissingApprovalRecordError("x"), ws.CommittedApprovalRecordMismatchError("x"),
+            ws.CommittedPathSetMismatchError("x"), fingerprint.UnclassifiedPathError("x"),
+            TypeError("'NoneType' object is not subscriptable"), KeyError("x"), ValueError("x"),
+            subprocess.CalledProcessError(1, ["git"]),
+        )
+        for exc in record_or_input:
+            self.assertEqual(ws.classify_post_commit_verification_failure(exc),
+                             ws.POST_COMMIT_FAILURE_RECORD_OR_INPUT, type(exc).__name__)
+
+    def test_protected_content_mismatch_is_not_a_path_set_mismatch(self):
+        """The amend corrects content, never membership: the two must stay
+        distinguishable by type."""
+        self.assertFalse(issubclass(ws.CommittedProtectedContentMismatchError,
+                                    ws.CommittedPathSetMismatchError))
+
+    def test_missing_record_is_a_named_error_at_both_stages(self):
+        cases = (None, {}, {"plan_approval": None}, {"plan_approval": {}},
+                 {"plan_approval": {"approved_review_content_id": None}},
+                 {"technical_approval": None}, {"technical_approval": "not a dict"})
+        for stage in ("plan", "implementation"):
+            for work_item in cases:
+                with self.subTest(stage=stage, work_item=work_item):
+                    with self.assertRaises(ws.MissingApprovalRecordError):
+                        ws.verify_post_approval_manifest_match(
+                            Path("/nonexistent"), work_item, stage=stage,
+                            base_commit="HEAD", commit="HEAD",
+                        )
+
+    def test_explicit_expected_id_refuses_a_different_record_before_recomputing(self):
+        work_item = {"work_item_id": "x", "work_item_type": "process",
+                     "plan_approval": {"approved_review_content_id": "a" * 64}}
+        with self.assertRaises(ws.CommittedApprovalRecordMismatchError) as ctx:
+            ws.verify_post_approval_manifest_match(
+                Path("/nonexistent"), work_item, stage="plan", base_commit="HEAD",
+                commit="HEAD", expected_review_content_id="b" * 64,
+            )
+        self.assertIn("a" * 64, str(ctx.exception))
+        self.assertIn("b" * 64, str(ctx.exception))
+
+    def test_journal_removal_paths_must_be_a_subset_of_the_members(self):
+        with ScratchRepo() as repo:
+            with self.assertRaises(ValueError):
+                ws.open_plan_approval_journal(
+                    repo.root, work_item_id="x", base_commit=repo.base, pre_state={},
+                    record={}, approval_now="2026-01-01T00:00:00Z", expected_bundle_id="b",
+                    expected_review_content_id="r", applicable_paths=("a.md",),
+                    removal_paths=("gone.md",), fifth_member_applies=False,
+                    fifth_member_sha256=None, user_confirmation="u", quiescence_authorization="q",
+                )
+            self.assertIsNone(ws.read_plan_approval_journal(repo.root))
+
+    def test_a_2_5_1_journal_without_removal_paths_still_reads(self):
+        with ScratchRepo() as repo:
+            self._write_journal(repo.root, self._journal_dict())
+            journal = ws.read_plan_approval_journal(repo.root)
+            self.assertNotIn("removal_paths", journal)
+            self.assertEqual(journal.get("removal_paths", []), [])
+
+    def test_a_malformed_removal_paths_field_fails_closed(self):
+        for bad in ("a.md", [1], None, {"a.md": 1}):
+            with self.subTest(bad=bad), ScratchRepo() as repo:
+                self._write_journal(repo.root, self._journal_dict(removal_paths=bad))
+                with self.assertRaises(ws.PlanApprovalJournalUnavailableError) as ctx:
+                    ws.read_plan_approval_journal(repo.root)
+                self.assertIn("removal_paths", str(ctx.exception))
+
+    def test_manifest_protected_path_reader(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest = Path(tmp) / "MANIFEST.md"
+            self.assertIsNone(fingerprint.read_plan_stage_manifest_protected_paths(manifest))
+            self.assertIsNone(fingerprint.read_plan_stage_manifest_base_commit(manifest))
+            manifest.write_text(
+                "# Bundle Manifest\n\nstage: plan\nbase_commit: " + "c" * 40 + "\n\n"
+                "## Protected paths\n- docs/a.md\n- docs/b.md\n\n"
+                "## Excluded paths (exact match)\n- `x` — y\n"
+            )
+            self.assertEqual(fingerprint.read_plan_stage_manifest_protected_paths(manifest),
+                             frozenset({"docs/a.md", "docs/b.md"}))
+            self.assertEqual(fingerprint.read_plan_stage_manifest_base_commit(manifest), "c" * 40)
+            manifest.write_text("# Bundle Manifest\n\nstage: plan\n")
+            self.assertIsNone(fingerprint.read_plan_stage_manifest_protected_paths(manifest))
+
+    def test_commit_plan_defaults_keep_hand_built_plans_working(self):
+        plan = fingerprint.PlanApprovalCommitPlan(("a",), None, None)
+        self.assertEqual(plan.protected_paths, ())
+        self.assertEqual(plan.removal_paths, ())
+
+    def test_staging_stages_an_absent_member_as_a_deletion(self):
+        with ScratchRepo() as repo:
+            (repo.root / "keep.md").write_text("keep\n")
+            (repo.root / "gone.md").write_text("gone\n")
+            _run(["git", "add", "keep.md", "gone.md"], cwd=repo.root)
+            _run(["git", "commit", "-q", "-m", "two files"], cwd=repo.root)
+            (repo.root / "gone.md").unlink()
+            (repo.root / "keep.md").write_text("keep, edited\n")
+            ws.stage_plan_approval_commit_paths(repo.root, ("keep.md", "gone.md", "never-existed.md"))
+            staged = subprocess.run(
+                ["git", "diff", "--cached", "--name-status", "HEAD"], cwd=repo.root,
+                capture_output=True, text=True, check=True,
+            ).stdout.split("\n")
+            self.assertIn("D\tgone.md", staged)
+            self.assertIn("M\tkeep.md", staged)
+
+    def test_dirty_index_refusal_names_the_git_mv_remedy(self):
+        with ScratchRepo() as repo:
+            _run(["git", "mv", "README.md", "RENAMED.md"], cwd=repo.root)
+            with self.assertRaises(ws.DirtyIndexBeforeStagingError) as ctx:
+                ws.assert_plan_approval_index_clean(repo.root)
+            self.assertIn("git mv", str(ctx.exception))
+            self.assertIn("git restore --staged", str(ctx.exception))
+
+
 if __name__ == "__main__":
     unittest.main()

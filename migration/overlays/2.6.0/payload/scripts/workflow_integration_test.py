@@ -839,7 +839,10 @@ _GOLDEN_COMMAND_FILE_SHA256 = {
     # ready-phase withdrawal, marker, status), step 3 loses its publish, step
     # 5's publication point, <plan_inputs_dir>, and step 6's bind --
     # intentional content change, not a regression.
-    "milestone-plan.md": "c00fc9bcdc5b1c907604c451b38c5eedb245ae0b5dbca20c7e311e10e9fb323f",
+    # milestone-plan.md further updated, D-Plan-Approval-Closure
+    # (workflow-2.6.0, CP5): step 3's staging note names the approval
+    # commit's widened member set (every declared protected path).
+    "milestone-plan.md": "7da28cc9a7fe69198af0796ee4e86868348cd9dbf3db07db58b09bd35ec05b8e",
     # milestone-implement.md further updated, OPUS-R129-001: step 1f's
     # checkpoint-completion commit instruction now states explicitly that
     # the Workflow-Checkpoint/Workflow-Work-Item trailer must be the
@@ -955,7 +958,13 @@ _GOLDEN_COMMAND_FILE_SHA256 = {
     # approve-review.md further updated, D-Plan-Review-Bundle-Binding
     # (workflow-2.6.0, CP4): step 2's bound-bundle reader at the plan stage --
     # intentional content change, not a regression.
-    "approve-review.md": "b23abd3afa7af6a2bc10d6017081ca56806668a5282ad7e710f3a832bc33e57c",
+    # approve-review.md further updated, D-Plan-Approval-Closure
+    # (workflow-2.6.0, CP5): step 4a's fresh member set (declared protected
+    # paths plus removals, freshness per member kind, the git-mv remedy),
+    # step 5's in-window re-resolution, step 6.3a's write-tree proof, step
+    # 6a's committed-truth verification and amend gate, and step 6d's
+    # narrowed closing check.
+    "approve-review.md": "a8482058f3d8aba2015d615acdded32128979c4b7d098f87fa884d6542c6bb64",
     # accept-milestone.md updated, baseline-freeze correctness fix
     # (OPUS-R129-001): step 6's completion-commit instruction now states
     # the same "trailers must be the commit message's own final paragraph"
@@ -4120,6 +4129,12 @@ class TestPlanStageApprovalCommitMembership(unittest.TestCase):
                     f"docs/ai-workflow/requirements/{wi}-mapping.json",
                     "docs/ai-workflow/WORKFLOW_STATE.json",
                     artifacts_rel,
+                    # workflow-2.6.0 (`D-Plan-Approval-Closure`): every
+                    # declared protected path is a member -- this fixture's
+                    # declaration also protects the audit and decisions
+                    # documents (re-pointed from 2.5.1's fixed four/five).
+                    "docs/ai-workflow/WORKFLOW_V2_AUDIT.md",
+                    "docs/TECHNICAL_DECISIONS.md",
                 },
             )
             self.assertEqual(plan.artifacts_declaration_path, artifacts_rel)
@@ -4199,6 +4214,12 @@ class TestPlanStageApprovalCommitMembership(unittest.TestCase):
                     f"docs/ai-workflow/registry/{wi}-registry.json",
                     f"docs/ai-workflow/requirements/{wi}-mapping.json",
                     "docs/ai-workflow/WORKFLOW_STATE.json",
+                    # workflow-2.6.0 (`D-Plan-Approval-Closure`): every
+                    # declared protected path is a member -- this fixture's
+                    # declaration also protects the audit and decisions
+                    # documents (re-pointed from 2.5.1's fixed four/five).
+                    "docs/ai-workflow/WORKFLOW_V2_AUDIT.md",
+                    "docs/TECHNICAL_DECISIONS.md",
                 },
             )
             self.assertIsNone(plan.artifacts_declaration_path)
@@ -5954,7 +5975,10 @@ class TestPlanApprovalPermanentSiteEndToEnd(unittest.TestCase):
             fifth = plan.artifacts_declaration_path
             self.assertIsNotNone(fifth)
             ordinary_paths = tuple(p for p in plan.paths if p not in (str(_STATE_PATH), fifth))
-            self.assertEqual(len(ordinary_paths), 3)
+            # workflow-2.6.0 (`D-Plan-Approval-Closure`): the plan doc,
+            # registry and mapping plus the fixture's two further declared
+            # protected paths (re-pointed from 2.5.1's fixed three).
+            self.assertEqual(len(ordinary_paths), 5)
             with ws.plan_approval_guarded_mutation(
                 repo.root, owner_token=owner_token, step="step-5-stage-and-pin", now="t2",
             ):

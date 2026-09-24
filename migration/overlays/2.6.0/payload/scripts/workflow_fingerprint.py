@@ -1054,14 +1054,23 @@ def resolve_plan_stage_metadata(
 class PlanApprovalCommitPlan(NamedTuple):
     """Named, immutable result of `resolve_plan_stage_approval_commit_paths`
     — the exact `git add`/commit member set plus the pinned identity of
-    the conditional fifth member, if any. `artifacts_declaration_path`/
-    `artifacts_declaration_sha256` are both `None` together (four-member
-    set) or both set together (five-member set) — never one without the
-    other, so a caller can branch on either field interchangeably."""
+    the conditional artifacts-declaration member, if any.
+    `artifacts_declaration_path`/`artifacts_declaration_sha256` are both
+    `None` together (no declaration member) or both set together — never
+    one without the other, so a caller can branch on either field
+    interchangeably.
+
+    workflow-2.6.0 (`D-Plan-Approval-Closure`): `paths` is every member,
+    removals included. `protected_paths` is the declared
+    `plan_stage.protected_paths` subset of it, and `removal_paths` the
+    subset staged as deletions. Both default to empty so a caller
+    constructing a plan by hand keeps working."""
 
     paths: tuple[str, ...]
     artifacts_declaration_path: str | None
     artifacts_declaration_sha256: str | None
+    protected_paths: tuple[str, ...] = ()
+    removal_paths: tuple[str, ...] = ()
 
 
 def resolve_plan_stage_approval_commit_paths(
@@ -1109,11 +1118,53 @@ def resolve_plan_stage_approval_commit_paths(
     source `resolve_plan_stage_metadata` call, if the declaration is
     missing from the working tree entirely — `MissingWorkItemArtifactsDeclarationError`,
     unchanged by this function, which never re-raises it: by the time this
-    function runs, the working-tree file is already known to exist."""
+    function runs, the working-tree file is already known to exist.
+
+    **workflow-2.6.0, `D-Plan-Approval-Closure` (section 5.4 item 1).** The
+    member set is no longer fixed at four or five. It is:
+
+    - every declared `plan_stage.protected_paths` entry of the worktree
+      declaration the approved identity was computed from (the plan
+      document, registry and mapping always among them, and first, in that
+      order -- `resolve_plan_stage_metadata` refuses a declaration that
+      does not protect them -- then any further protected path, sorted);
+    - `state_path`;
+    - `<work_item_id>-artifacts.json`, under the conditional rule above,
+      unchanged;
+    - **removals**: every path protected under `HEAD`'s committed
+      declaration and tracked at `HEAD` that is absent from both the
+      current declaration and the worktree. A rename is therefore a
+      removal plus an addition. A path the current declaration no longer
+      protects but that is still present in the worktree is not a member.
+      With no declaration at `HEAD` (a first approval) the removal set is
+      empty by definition.
+
+    This function only resolves. The per-member freshness check against
+    the bound bundle (section 5.4 item 2) is
+    `workflow_state.resolve_fresh_plan_approval_members`, which calls it."""
     metadata = resolve_plan_stage_metadata(repo_root, work_item_id)
-    base_paths = (metadata.plan_path, metadata.registry_path, metadata.mapping_path, _to_posix(state_path))
+    state_rel = _to_posix(state_path)
+    ordered_protected = (metadata.plan_path, metadata.registry_path, metadata.mapping_path) + tuple(
+        sorted(metadata.protected_paths - {metadata.plan_path, metadata.registry_path, metadata.mapping_path})
+    )
 
     artifacts_rel = _to_posix(artifacts_path_for_work_item(work_item_id))
+    removal_paths = _plan_approval_removal_paths(
+        repo_root, artifacts_rel, metadata.protected_paths,
+    )
+
+    def _plan(declaration_member: str | None, declaration_sha256: str | None) -> PlanApprovalCommitPlan:
+        members: list[str] = []
+        for member in ordered_protected + (state_rel,) + (
+            (declaration_member,) if declaration_member else ()
+        ) + removal_paths:
+            if member not in members:
+                members.append(member)
+        return PlanApprovalCommitPlan(
+            tuple(members), declaration_member, declaration_sha256,
+            protected_paths=ordered_protected, removal_paths=removal_paths,
+        )
+
     worktree_bytes = (repo_root / artifacts_rel).read_bytes()
     head_bytes = (
         _read_bytes_at_source(repo_root, artifacts_rel, "HEAD")
@@ -1121,8 +1172,8 @@ def resolve_plan_stage_approval_commit_paths(
         else None
     )
     if head_bytes == worktree_bytes:
-        # Condition 1 fails: unchanged since HEAD, no fifth member.
-        return PlanApprovalCommitPlan(base_paths, None, None)
+        # Condition 1 fails: unchanged since HEAD, no declaration member.
+        return _plan(None, None)
 
     bundle_dir = resolve_bundle_dir(repo_root, work_item_id, stage="plan")
     captured_path = repo_root / bundle_dir / "files" / artifacts_rel
@@ -1134,9 +1185,32 @@ def resolve_plan_stage_approval_commit_paths(
             f"{captured_path} — regenerate the bundle before approving, or "
             f"revert the declaration to what the bundle/reviewer actually saw"
         )
-    return PlanApprovalCommitPlan(
-        base_paths + (artifacts_rel,), artifacts_rel, hashlib.sha256(worktree_bytes).hexdigest(),
+    return _plan(artifacts_rel, hashlib.sha256(worktree_bytes).hexdigest())
+
+
+def _plan_approval_removal_paths(
+    repo_root: Path, artifacts_rel: str, current_protected: frozenset[str],
+) -> tuple[str, ...]:
+    """`D-Plan-Approval-Closure`'s removal members, sorted: protected under
+    `HEAD`'s committed declaration, tracked at `HEAD`, and absent from both
+    `current_protected` and the worktree (`os.path.lexists`, so a dangling
+    symlink still counts as present). No declaration at `HEAD`, or one with
+    no `plan_stage` key, protects nothing, so the set is empty."""
+    if not _path_exists_at_source(repo_root, artifacts_rel, "HEAD"):
+        return ()
+    head_declaration = json.loads(_read_bytes_at_source(repo_root, artifacts_rel, "HEAD"))
+    if not isinstance(head_declaration, dict) or head_declaration.get("plan_stage") is None:
+        return ()
+    head_protected, _, _ = load_plan_stage_classification(
+        repo_root, Path(artifacts_rel), at_commit="HEAD",
     )
+    removals = []
+    for path in sorted(head_protected - current_protected):
+        if os.path.lexists(repo_root / path):
+            continue
+        if _snapshot_commit(repo_root, "HEAD", path)["exists"]:
+            removals.append(path)
+    return tuple(removals)
 
 
 # ---------------------------------------------------------------------------
@@ -1539,7 +1613,14 @@ def compute_review_content_id_plan_stage_at_commit(
     shape, snapshot read from a commit instead of the working tree, and
     (OPUS-R8-005) the same fail-closed classification precondition, scoped
     to `base..commit`. Same no-default discipline as the worktree-source
-    function above (`GPT-R30-005`)."""
+    function above (`GPT-R30-005`).
+
+    workflow-2.6.0 (`D-Plan-Approval-Closure` item 3): `commit` may be any
+    tree-ish, not only a commit -- every read here (`git ls-tree`, `git
+    diff <base> <tree-ish>`, `git show <tree-ish>:<path>`) accepts a bare
+    tree object, which is how `/approve-review plan` proves the staged
+    index (`git write-tree`) before any commit exists. Only `base` must
+    resolve to a commit."""
     validate_work_item_id(work_item_id)
     validate_work_item_type(work_item_type)
     base_full = resolve_base(repo_root, base)
@@ -3715,6 +3796,35 @@ def read_plan_stage_manifest_fields(manifest_path: Path) -> dict:
     fields["plan_revision"] = int(revision_match.group(1)) if revision_match else None
     fields.update(read_manifest_identifiers(manifest_path))
     return fields
+
+
+def read_plan_stage_manifest_base_commit(manifest_path: Path) -> str | None:
+    """Read-only (workflow-2.6.0, `D-Plan-Approval-Closure`): the
+    `base_commit:` header line of a bundle's `MANIFEST.md` -- the commit the
+    generator diffed against to decide which paths it captured under
+    `files/`. `None` for an absent file or line."""
+    return _read_manifest_binding_fields(manifest_path)["base_commit"]
+
+
+def read_plan_stage_manifest_protected_paths(manifest_path: Path) -> frozenset[str] | None:
+    """Read-only (workflow-2.6.0, `D-Plan-Approval-Closure`): the entries of
+    a plan-stage `MANIFEST.md`'s `## Protected paths` section, i.e. the
+    declared protected set the reviewer saw. `None` when the file or the
+    section is absent, so a caller can refuse rather than read "nothing was
+    protected"."""
+    if not manifest_path.is_file():
+        return None
+    section: set[str] | None = None
+    for line in manifest_path.read_text().splitlines():
+        if line.startswith("## "):
+            if section is not None:
+                break
+            if line.strip() == "## Protected paths":
+                section = set()
+            continue
+        if section is not None and line.startswith("- "):
+            section.add(line[2:].strip())
+    return frozenset(section) if section is not None else None
 
 
 def compute_archived_bundle_id(archive_path: Path) -> str:

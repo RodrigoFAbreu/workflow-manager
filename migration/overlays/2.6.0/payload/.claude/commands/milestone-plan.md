@@ -317,8 +317,9 @@ until that final rename (`REVIEW_PROTOCOL.md`'s "Bundle location").
      **intent-to-add** — `git add -N -- <those four paths>` — and leave
      them that way. Do **not** commit them: the plan-approval commit
      `/approve-review plan` creates is what commits all four, together
-     with `WORKFLOW_STATE.json`, as its own four-or-five-member set
-     (`resolve_plan_stage_approval_commit_paths`).
+     with `WORKFLOW_STATE.json` and every other declared protected path,
+     as its own member set (`resolve_plan_stage_approval_commit_paths`,
+     `D-Plan-Approval-Closure`, workflow-2.6.0).
 
      This step is load-bearing, not housekeeping.
      `workflow_fingerprint.resolve_plan_stage_metadata` — the resolver

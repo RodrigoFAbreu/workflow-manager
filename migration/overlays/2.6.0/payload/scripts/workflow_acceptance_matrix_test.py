@@ -41,6 +41,7 @@ Run it directly:
 from __future__ import annotations
 
 import base64
+import copy
 import json
 import os
 import re
@@ -50,6 +51,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import workflow_fingerprint as fingerprint
 import workflow_state as ws
@@ -441,9 +443,22 @@ class Item:
 
     # ---------------- /approve-review plan ----------------
 
-    def approve_plan(self, user_confirmation=None):
+    def approve_plan(self, user_confirmation=None, stop_after=None, commit_env=None,
+                     before_proof=None):
         """`/approve-review plan` steps 1-6d: the full journal/guard/
-        staging/commit/classify/verify/materialize transaction."""
+        staging/commit/classify/verify/materialize transaction.
+
+        workflow-2.6.0 (`D-Plan-Approval-Closure`): a **command-shaped**
+        driver. It follows the command's real data flow -- step 2's
+        bundle-bound check, step 4a's fresh member set (protected paths
+        and removals), step 5's in-window re-resolution, step 6.3a's
+        write-tree proof, and step 6a's verification from the committed
+        transaction (`verify_plan_approval_commit`), never a hand-built
+        post-state. A failure from step 5 through 6.3a takes step 6b's
+        rollback and re-raises. `stop_after="commit"` returns right after
+        step 6.4, simulating a crash; `complete_plan_approval` is the
+        resume. `commit_env` is passed to step 6.4's `git commit` (hooks);
+        `before_proof` runs just before step 6.3a (index tampering)."""
         confirmation = user_confirmation or f"plan {self.wid}"
         entry = self.entry()
         review_content_id, projection = fingerprint.compute_review_content_id_plan_stage_for_work_item(
@@ -452,6 +467,8 @@ class Item:
         bundle_id = self.bundle_id()
         fingerprint.assert_local_generation_matches(self.root, self.bundle_dir(stage="plan") / "MANIFEST.md")
         fingerprint.assert_bundle_not_rejected(self.root, self.wid)
+        if entry["governing_workflow_version"] in ws.TWO_STAGE_PLAN_REVIEW_VERSIONS:
+            ws.assert_plan_review_bundle_bound(self.root, self.wid)
         feedback = self.feedback_fields()
         if not ws.plan_approval_gate_reachable(
             latest_round_status=feedback["status"],
@@ -472,9 +489,8 @@ class Item:
             reviewed_bundle_id=bundle_id, approved_review_content_id=review_content_id,
             review_content_manifest=projection["review_content_manifest"],
         )
-        plan = fingerprint.resolve_plan_stage_approval_commit_paths(
-            self.root, self.wid, Path("docs/ai-workflow/WORKFLOW_STATE.json"),
-        )
+        # Step 4a: the complete, fresh member set, before any mutation.
+        plan = ws.resolve_fresh_plan_approval_members(self.root, self.wid)
         pre_state = self.state()
         amendment_kwargs = {}
         history = entry.get("amendment_history") or []
@@ -490,63 +506,120 @@ class Item:
             self.root, work_item_id=self.wid, base_commit=self.base_commit,
             pre_state=pre_state, record=record, approval_now=approval_now, **amendment_kwargs,
             expected_bundle_id=bundle_id, expected_review_content_id=review_content_id,
-            applicable_paths=plan.paths,
+            applicable_paths=plan.paths, removal_paths=plan.removal_paths,
             fifth_member_applies=plan.artifacts_declaration_path is not None,
             fifth_member_sha256=plan.artifacts_declaration_sha256,
             user_confirmation=confirmation,
             quiescence_authorization="acceptance-matrix scenario",
         )
         owner = journal["owner_token"]
-        ordinary = tuple(p for p in plan.paths if p != "docs/ai-workflow/WORKFLOW_STATE.json")
-        with ws.plan_approval_guarded_mutation(
-            self.root, owner_token=owner, step="step-5-stage-and-pin", now=self.now(),
-        ):
-            ws.stage_plan_approval_commit_paths(self.root, ordinary)
-            if plan.artifacts_declaration_path:
-                ws.verify_staged_blob_sha256(
-                    self.root, plan.artifacts_declaration_path, plan.artifacts_declaration_sha256,
-                )
-        with ws.plan_approval_guarded_mutation(
-            self.root, owner_token=owner, step="step-6.1b-state-pin", now=self.now(),
-        ):
-            if not ws.plan_approval_state_matches_pre_transaction(
-                self.root, journal["pre_procedure_state_sha256"],
+        try:
+            with ws.plan_approval_guarded_mutation(
+                self.root, owner_token=owner, step="step-5-stage-and-pin", now=self.now(),
             ):
-                raise AssertionError("WORKFLOW_STATE.json changed since journal open")
-            ws.pin_plan_approval_state_blob(
-                self.root, base64.b64decode(journal["expected_post_state_b64"]),
-            )
-            ws.verify_staged_plan_approval_state_blob(
-                self.root, journal["expected_post_state_sha256"],
-            )
-        staged = self.sim.git("diff", "--name-only", "--cached", "HEAD").stdout.split()
-        outside = [p for p in staged if p not in journal["applicable_paths"]]
-        if outside:
-            raise AssertionError(f"staged paths outside the applicable set: {outside}")
+                ws.assert_plan_approval_member_set_unchanged(self.root, journal)
+                self._stage_and_pin_members(journal)
+            with ws.plan_approval_guarded_mutation(
+                self.root, owner_token=owner, step="step-6.1b-state-pin", now=self.now(),
+            ):
+                self._pin_state_blob(journal)
+            staged = self.sim.git("diff", "--name-only", "--cached", "HEAD").stdout.split()
+            outside = [p for p in staged if p not in journal["applicable_paths"]]
+            if outside:
+                raise AssertionError(f"staged paths outside the applicable set: {outside}")
+            if before_proof is not None:
+                before_proof()
+            ws.prove_plan_approval_index_closure(self.root, journal)
+        except BaseException:
+            self.rollback_plan_approval(owner)
+            raise
         with ws.plan_approval_guarded_mutation(
             self.root, owner_token=owner, step="step-6.5-commit", now=self.now(),
         ):
-            self.sim.git("commit", "-q", "-m", (
+            _run(["git", "commit", "-q", "-m", (
                 f"chore({self.wid}): plan-stage approval\n\nBasis: {basis}.\n\n"
                 f"Workflow-Plan-Approval: {review_content_id}\n"
                 f"Workflow-Work-Item: {self.wid}\n"
-            ))
-        commit = self.sim.head()
-        outcome = ws.classify_plan_approval_outcome(self.root, journal)
+            )], cwd=self.root, env=commit_env)
+        if stop_after == "commit":
+            return self.sim.head()
+        return self.complete_plan_approval(owner, stop_after=stop_after)
+
+    def _stage_and_pin_members(self, journal):
+        """Step 5's (and 6a1's) staging body: every non-state member,
+        removals as deletions, then the artifacts-declaration pin."""
+        ordinary = tuple(
+            p for p in journal["applicable_paths"] if p != "docs/ai-workflow/WORKFLOW_STATE.json"
+        )
+        ws.stage_plan_approval_commit_paths(self.root, ordinary)
+        if journal["fifth_member_applies"]:
+            ws.verify_staged_blob_sha256(
+                self.root, self.artifacts_path, journal["fifth_member_sha256"],
+            )
+
+    def _pin_state_blob(self, journal):
+        """Step 6.2's (and 6a1's) body: compare-and-swap, pin, verify."""
+        if not ws.plan_approval_state_matches_pre_transaction(
+            self.root, journal["pre_procedure_state_sha256"],
+        ):
+            raise AssertionError("WORKFLOW_STATE.json changed since journal open")
+        ws.pin_plan_approval_state_blob(
+            self.root, base64.b64decode(journal["expected_post_state_b64"]),
+        )
+        ws.verify_staged_plan_approval_state_blob(
+            self.root, journal["expected_post_state_sha256"],
+        )
+
+    def rollback_plan_approval(self, owner):
+        """Step 6b: guarded index reset and journal close."""
+        lease = ws.acquire_plan_approval_guard(
+            self.root, holder_owner_token=owner, step="rollback-index-reset", now=self.now(),
+        )
+        try:
+            ws.rollback_plan_approval_transaction(self.root, owner_token=owner)
+        finally:
+            ws.release_plan_approval_guard(self.root, lease)
+
+    def complete_plan_approval(self, owner, stop_after=None):
+        """Steps 6a-6d from durable state alone -- what the in-session run
+        and every resumed or taken-over run execute: classify, verify the
+        committed transaction (6a1's single amend only for a
+        `TREE_CONTENT` failure), materialize, close. `stop_after=
+        "materialize"` returns before 6d, simulating a crash there."""
+        evidence = ws.plan_approval_takeover_evidence(self.root)
+        journal = evidence["journal"]
+        if journal is None or evidence["owner_token"] != owner:
+            raise AssertionError(f"no open plan-approval transaction owned by {owner!r}")
+        outcome = evidence["outcome"]
+        if outcome == ws.PLAN_APPROVAL_OUTCOME_NOT_COMMITTED:
+            self.rollback_plan_approval(owner)
+            return None
         if outcome != ws.PLAN_APPROVAL_OUTCOME_COMMITTED:
             raise AssertionError(f"unexpected plan-approval outcome: {outcome}")
-        post_item = dict(self.entry())
-        post_item["plan_approval"] = record
-        ws.verify_post_approval_manifest_match(
-            self.root, post_item, stage="plan", base_commit=self.base_commit, commit=commit,
+        commit = ws.discover_plan_approval_commit(
+            self.root, self.wid, journal["expected_review_content_id"], journal["base_commit"], "HEAD",
         )
-        ws.assert_committed_path_set_matches(self.root, commit, journal["applicable_paths"])
-        ws.verify_committed_plan_approval_state_blob(
-            self.root, commit, journal["expected_post_state_sha256"],
-        )
+        try:
+            ws.verify_plan_approval_commit(self.root, journal, commit)
+        except Exception as exc:
+            if ws.classify_post_commit_verification_failure(exc) != ws.POST_COMMIT_FAILURE_TREE_CONTENT:
+                raise
+            # 6a1: the one amend, only for a proven tree-content defect.
+            with ws.plan_approval_guarded_mutation(
+                self.root, owner_token=owner, step="step-7b-amend-stage", now=self.now(),
+            ):
+                self._stage_and_pin_members(journal)
+                self._pin_state_blob(journal)
+            with ws.plan_approval_guarded_mutation(
+                self.root, owner_token=owner, step="step-7d-amend-commit", now=self.now(),
+            ):
+                self.sim.git("commit", "-q", "--amend", "--no-edit")
+            commit = self.sim.head()
+            ws.verify_plan_approval_commit(self.root, journal, commit)
         with ws.plan_approval_guarded_mutation(
             self.root, owner_token=owner, step="step-8b-materialize", now=self.now(),
         ):
+            pre_state = json.loads(base64.b64decode(journal["pre_procedure_state_b64"]))
             post_state = json.loads(base64.b64decode(journal["expected_post_state_b64"]))
             if ws.classify_plan_approval_materialize_target(
                 self.root, self.wid, pre_state, post_state,
@@ -554,6 +627,8 @@ class Item:
                 ws.materialize_plan_approval_state(
                     self.root, commit, journal["expected_post_state_sha256"],
                 )
+        if stop_after == "materialize":
+            return commit
         with ws.plan_approval_guarded_mutation(
             self.root, owner_token=owner, step="step-8a-close-journal", now=self.now(),
         ):
@@ -571,7 +646,7 @@ class Item:
         ))
 
     def amend_plan(self, plan_revision, checkpoints=None, requirements=None,
-                   plan_body="Plan body, amended.\n"):
+                   plan_body="Plan body, amended.\n", artifacts=None):
         """`/milestone-plan <id>` on an `AMENDING_PLAN` item: step 1's
         mirror advance, the regenerated registry and mapping, the plan
         document with one anchor pair per checkpoint (`D-Plan-Amendment-4`),
@@ -592,6 +667,8 @@ class Item:
         ws.write_registry_and_mapping(
             self.root, Path(self.registry_path), Path(self.mapping_path), registry, mapping,
         )
+        if artifacts is not None:
+            self.sim.write(self.artifacts_path, json.dumps(artifacts, indent=2) + "\n")
         self.sim.write(
             self.plan_path,
             f"# {self.wid} plan (Revision {plan_revision})\n\n{plan_body}\n"
@@ -6382,6 +6459,604 @@ class PlanReviewNoExitBetweenPublishAndBind(_PlanReviewBindingCase):
         ):
             with self.assertRaises(ws.PlanReviewBindingInconsistentError):
                 reader()
+
+
+
+# ===========================================================================
+# workflow-2.6.0 CP5: `D-Plan-Approval-Closure` -- the approval commit
+# closes over the declared protected set plus removals, proven before the
+# commit exists, and verified from the committed transaction. Every row
+# drives `Item.approve_plan`, the command-shaped driver: the command's real
+# data flow, never a hand-built post-state.
+# ===========================================================================
+
+CP5_COMPANION = "docs/ai-workflow/WI_COMPANION.md"
+CP5_RENAMED = "docs/ai-workflow/WI_COMPANION_RENAMED.md"
+
+
+def cp5_declarations(item, protected_extra=()):
+    declarations = ws.generate_artifacts_declarations(
+        item.wid, item.plan_path, item.registry_path, item.mapping_path,
+        work_item_type=item.wtype,
+    )
+    declarations["plan_stage"]["protected_paths"].extend(protected_extra)
+    return declarations
+
+
+def cp5_approval_commit_count(item, review_content_id=None):
+    """Commits on `HEAD`'s history carrying this item's plan-approval
+    trailer (for one `review_content_id`, or any)."""
+    log = item.sim.git("log", "--format=%H%x00%B%x01", "HEAD").stdout
+    count = 0
+    for record in log.split("\x01"):
+        body = record.partition("\x00")[2]
+        if f"Workflow-Work-Item: {item.wid}" not in body:
+            continue
+        for line in body.splitlines():
+            if line.startswith("Workflow-Plan-Approval: ") and (
+                review_content_id is None or line.split(": ", 1)[1].strip() == review_content_id
+            ):
+                count += 1
+    return count
+
+
+def cp5_tree_blob(item, commit, path):
+    out = item.sim.git("ls-tree", commit, "--", path).stdout.strip()
+    return out.split()[2] if out else None
+
+
+def cp5_changed(item, commit):
+    return set(item.sim.git("diff-tree", "--no-commit-id", "--name-only", "-r", commit).stdout.split())
+
+
+class _PlanApprovalClosureCase(MatrixCase):
+    """Shared lifecycle points for the CP5 rows. No tests of its own."""
+
+    work_item_type = "process"
+
+    def plan_with(self, protected_extra=(), files=None, intent_to_add=()):
+        item = self.item
+        for rel, content in (files or {}).items():
+            self.scratch.write(rel, content)
+        if intent_to_add:
+            self.scratch.git("add", "-N", "--", *intent_to_add)
+        item.milestone_plan(artifacts=cp5_declarations(item, protected_extra))
+        item.generate_plan_bundle()
+        item.write_feedback("APPROVE")
+        item.record_plan_reviews()
+        self.assertEqual(item.entry()["phase"], "AWAITING_PLAN_APPROVAL")
+
+    def approve(self, **kwargs):
+        item = self.item
+        commit = item.approve_plan(**kwargs)
+        self.assertEqual(item.entry()["phase"], "IMPLEMENTING")
+        self.assertIsNone(ws.read_plan_approval_journal(item.root))
+        self.assertEqual(commit, self.scratch.head())
+        rcid = item.entry()["plan_approval"]["approved_review_content_id"]
+        self.assertEqual(cp5_approval_commit_count(item, rcid), 1)
+        self.assertTrue(ws.implementing_entry_reachable(item.root, item.entry(), item.base_commit))
+        return commit
+
+    def assert_refused_before_mutation(self, exc_type, action, contains=()):
+        item = self.item
+        head = self.scratch.head()
+        index = self.scratch.git("diff", "--name-only", "--cached", "HEAD").stdout
+        state = self.scratch.read(CP4_STATE_REL)
+        with self.assertRaises(exc_type) as ctx:
+            action()
+        for text in contains:
+            self.assertIn(text, str(ctx.exception))
+        self.assertEqual(self.scratch.head(), head)
+        self.assertEqual(self.scratch.git("diff", "--name-only", "--cached", "HEAD").stdout, index)
+        self.assertEqual(self.scratch.read(CP4_STATE_REL), state)
+        self.assertIsNone(ws.read_plan_approval_journal(item.root))
+        return ctx.exception
+
+    def approve_with_companion(self, content="companion v1\n"):
+        """First approval of an item whose declaration protects a new,
+        intent-to-add companion -- `HEAD` then carries a declaration that
+        protects it."""
+        self.plan_with((CP5_COMPANION,), {CP5_COMPANION: content}, (CP5_COMPANION,))
+        return self.approve()
+
+    def amend_to(self, protected_extra, plan_body, before_generation=None):
+        """`/request-plan-amendment`, then an amended `/milestone-plan` whose
+        declaration protects `protected_extra`, then the two reviews."""
+        item = self.item
+        item.request_amendment("companion change")
+        if before_generation is not None:
+            before_generation()
+        item.amend_plan(2, plan_body=plan_body, artifacts=cp5_declarations(item, protected_extra))
+        item.generate_plan_bundle()
+        item.write_feedback("APPROVE")
+        item.record_plan_reviews(round=2)
+        self.assertEqual(item.entry()["phase"], "AWAITING_PLAN_APPROVAL")
+
+
+class PlanApprovalClosureMembers(_PlanApprovalClosureCase):
+    """Section 5.4 item 1: the member set, through the command."""
+
+    def test_intent_to_add_companion_is_committed_and_verifies(self):
+        """The previously observed case (`AbsentProtectedPathError` after
+        the commit under 2.5.1): an intent-to-add declared-protected
+        companion is now a member, committed once, and verifies."""
+        commit = self.approve_with_companion()
+        self.assertIn(CP5_COMPANION, cp5_changed(self.item, commit))
+        self.assertEqual(self.scratch.git("show", f"{commit}:{CP5_COMPANION}").stdout, "companion v1\n")
+
+    def test_the_2_5_1_member_set_would_have_omitted_the_companion(self):
+        """Control arm: the four base members alone never name it."""
+        self.plan_with((CP5_COMPANION,), {CP5_COMPANION: "companion\n"}, (CP5_COMPANION,))
+        plan = ws.resolve_fresh_plan_approval_members(self.item.root, self.item.wid)
+        item = self.item
+        legacy = {item.plan_path, item.registry_path, item.mapping_path, CP4_STATE_REL, item.artifacts_path}
+        self.assertNotIn(CP5_COMPANION, legacy)
+        self.assertIn(CP5_COMPANION, plan.paths)
+        self.assertIn(CP5_COMPANION, plan.protected_paths)
+        self.assertEqual(plan.paths[:3], (item.plan_path, item.registry_path, item.mapping_path))
+
+    def test_fully_untracked_companion_is_committed(self):
+        self.plan_with((CP5_COMPANION,), {CP5_COMPANION: "untracked companion\n"})
+        self.assertIn(CP5_COMPANION, self.scratch.git("ls-files", "--others", "--exclude-standard").stdout)
+        commit = self.approve()
+        self.assertIn(CP5_COMPANION, cp5_changed(self.item, commit))
+
+    def test_tracked_and_edited_companion_is_committed(self):
+        self.scratch.write(CP5_COMPANION, "pre-existing design notes\n")
+        self.scratch.commit("docs: companion before this item's plan")
+        self.item.base_commit = self.scratch.head()
+        self.plan_with((CP5_COMPANION,), {CP5_COMPANION: "pre-existing design notes, edited\n"})
+        commit = self.approve()
+        self.assertIn(CP5_COMPANION, cp5_changed(self.item, commit))
+        self.assertEqual(self.scratch.git("show", f"{commit}:{CP5_COMPANION}").stdout,
+                         "pre-existing design notes, edited\n")
+
+    def test_first_approval_has_an_empty_removal_set(self):
+        """`LPR-R1-009`: no declaration at `HEAD`, so no removals."""
+        self.plan_with((CP5_COMPANION,), {CP5_COMPANION: "c\n"}, (CP5_COMPANION,))
+        self.assertFalse(self.scratch.git("cat-file", "-e", f"HEAD:{self.item.artifacts_path}",
+                                          check=False).returncode == 0)
+        plan = ws.resolve_fresh_plan_approval_members(self.item.root, self.item.wid)
+        self.assertEqual(plan.removal_paths, ())
+
+    def test_companion_dropped_from_the_declaration_is_committed_as_a_deletion(self):
+        first = self.approve_with_companion()
+        self.assertIsNotNone(cp5_tree_blob(self.item, first, CP5_COMPANION))
+
+        def drop():
+            (self.item.root / CP5_COMPANION).unlink()
+        self.amend_to((), "Plan body, companion dropped.\n", before_generation=drop)
+        plan = ws.resolve_fresh_plan_approval_members(self.item.root, self.item.wid)
+        self.assertEqual(plan.removal_paths, (CP5_COMPANION,))
+        commit = self.approve()
+        self.assertIn(CP5_COMPANION, cp5_changed(self.item, commit))
+        self.assertIsNone(cp5_tree_blob(self.item, commit, CP5_COMPANION))
+
+    def test_rename_via_mv_is_a_removal_plus_an_addition(self):
+        self.approve_with_companion()
+
+        def rename():
+            os.rename(self.item.root / CP5_COMPANION, self.item.root / CP5_RENAMED)
+        self.amend_to((CP5_RENAMED,), "Plan body, companion renamed.\n", before_generation=rename)
+        plan = ws.resolve_fresh_plan_approval_members(self.item.root, self.item.wid)
+        self.assertEqual(plan.removal_paths, (CP5_COMPANION,))
+        self.assertIn(CP5_RENAMED, plan.protected_paths)
+        commit = self.approve()
+        self.assertIsNone(cp5_tree_blob(self.item, commit, CP5_COMPANION))
+        self.assertEqual(self.scratch.git("show", f"{commit}:{CP5_RENAMED}").stdout, "companion v1\n")
+
+    def test_rename_via_git_mv_refuses_with_the_named_remedy_then_succeeds(self):
+        self.approve_with_companion()
+
+        def rename():
+            self.scratch.git("mv", CP5_COMPANION, CP5_RENAMED)
+        self.amend_to((CP5_RENAMED,), "Plan body, companion git-mv'd.\n", before_generation=rename)
+        self.assertTrue(self.scratch.git("diff", "--name-only", "--cached", "HEAD").stdout.strip())
+        self.assert_refused_before_mutation(
+            ws.DirtyIndexBeforeStagingError, self.item.approve_plan,
+            contains=("git mv", "git restore --staged"),
+        )
+        # The named remedy: unstage both sides, keep the rename.
+        self.scratch.git("restore", "--staged", "--", CP5_COMPANION, CP5_RENAMED)
+        commit = self.approve()
+        self.assertIsNone(cp5_tree_blob(self.item, commit, CP5_COMPANION))
+        self.assertIsNotNone(cp5_tree_blob(self.item, commit, CP5_RENAMED))
+
+    def test_de_protected_path_recreated_in_the_worktree_is_not_a_removal(self):
+        """`LPR-R4-005`: dropped from the declaration, deleted, then
+        re-created under an excluded classification -- no deletion is
+        staged, `HEAD`'s copy survives, the proofs pass, the approval
+        succeeds. (The same path left deleted is the dropped-companion row
+        above.)"""
+        first = self.approve_with_companion()
+        head_blob = cp5_tree_blob(self.item, first, CP5_COMPANION)
+
+        def drop_and_recreate():
+            (self.item.root / CP5_COMPANION).unlink()
+            self.scratch.write(CP5_COMPANION, "re-created, now excluded\n")
+        self.amend_to((), "Plan body, companion de-protected.\n", before_generation=drop_and_recreate)
+        plan = ws.resolve_fresh_plan_approval_members(self.item.root, self.item.wid)
+        self.assertEqual(plan.removal_paths, ())
+        self.assertNotIn(CP5_COMPANION, plan.paths)
+        commit = self.approve()
+        self.assertNotIn(CP5_COMPANION, cp5_changed(self.item, commit))
+        self.assertEqual(cp5_tree_blob(self.item, commit, CP5_COMPANION), head_blob)
+        self.assertEqual(self.scratch.read(CP5_COMPANION), "re-created, now excluded\n")
+
+
+class PlanApprovalClosureFreshness(_PlanApprovalClosureCase):
+    """Section 5.4 item 2: freshness per member kind, before any mutation."""
+
+    def test_companion_edited_after_generation_refuses_before_any_mutation(self):
+        self.plan_with((CP5_COMPANION,), {CP5_COMPANION: "reviewed\n"}, (CP5_COMPANION,))
+        self.scratch.write(CP5_COMPANION, "edited after the bundle\n")
+        self.assert_refused_before_mutation(ws.ReviewedContentDriftError, self.item.approve_plan)
+        # The per-member check refuses it too, independently of step 2.
+        with self.assertRaises(ws.ReviewedContentDriftError) as ctx:
+            ws.resolve_fresh_plan_approval_members(self.item.root, self.item.wid)
+        self.assertIn(f"{CP5_COMPANION} (protected member)", str(ctx.exception))
+
+    def test_failed_regeneration_then_approve_refuses_at_step_2(self):
+        """`LPR-R1-002`/`LPR-R3-002`, in the real command order: refresh
+        `plan-inputs/`, edit a protected member, force a staging-generation
+        failure. `current/` is byte-identical, and `/approve-review plan`
+        refuses at step 2 before any mutation."""
+        item = self.item
+        self.plan_with()
+        bundle = item.root / item.bundle_dir(stage="plan")
+        before = {p.relative_to(bundle): p.read_bytes() for p in bundle.rglob("*") if p.is_file()}
+        item.sim.write(item.plan_path, item.sim.read(item.plan_path) + "\nAn edit after review.\n")
+        proc = item.generate_plan_bundle(check=False, review_request=(
+            f"# Review request\n\nstage: plan\nwork item: {item.wid}\n"
+            f"review_content_id: {'0' * 64}\n"
+        ))
+        self.assertNotEqual(proc.returncode, 0)
+        after = {p.relative_to(bundle): p.read_bytes() for p in bundle.rglob("*") if p.is_file()}
+        self.assertEqual(after, before)
+        self.assert_refused_before_mutation(ws.ReviewedContentDriftError, item.approve_plan)
+
+    def test_artifacts_byte_edit_outside_its_key_sets_refuses_at_the_member_check(self):
+        """The fresh id does not hash the declaration's bytes, so step 2
+        passes; the per-member check refuses under the same name."""
+        item = self.item
+        self.plan_with()
+        path = item.root / item.artifacts_path
+        path.write_text(json.dumps(json.loads(path.read_text()), indent=4) + "\n")
+        ws.assert_plan_review_bundle_bound(item.root, item.wid)
+        exc = self.assert_refused_before_mutation(ws.ReviewedContentDriftError, item.approve_plan)
+        self.assertIn("artifacts declaration member", str(exc))
+        self.assertIsInstance(exc.__cause__, fingerprint.StaleArtifactsDeclarationError)
+
+    def test_unchanged_tracked_companion_approves_against_its_base_commit_blob(self):
+        """`LPR-R5-002`: present, tracked and unchanged since
+        `base_commit`, so never captured -- compared against its
+        `base_commit` blob, approves, and no content change is staged."""
+        item = self.item
+        self.scratch.write(CP5_COMPANION, "pre-existing design input\n")
+        item.base_commit = self.scratch.commit("docs: design input before this item")
+        self.plan_with((CP5_COMPANION,))
+        self.assertFalse((item.root / item.bundle_dir(stage="plan") / "files" / CP5_COMPANION).exists())
+        commit = self.approve()
+        self.assertNotIn(CP5_COMPANION, cp5_changed(item, commit))
+
+    def test_uncaptured_member_differing_from_base_commit_refuses(self):
+        """Edited after generation, no capture: refuses (step 2 first; the
+        per-member check independently)."""
+        item = self.item
+        self.scratch.write(CP5_COMPANION, "pre-existing design input\n")
+        item.base_commit = self.scratch.commit("docs: design input before this item")
+        self.plan_with((CP5_COMPANION,))
+        self.scratch.write(CP5_COMPANION, "edited after generation\n")
+        self.assert_refused_before_mutation(ws.ReviewedContentDriftError, item.approve_plan)
+        with self.assertRaises(ws.ReviewedContentDriftError) as ctx:
+            ws.resolve_fresh_plan_approval_members(item.root, item.wid)
+        self.assertIn("base_commit", str(ctx.exception))
+
+    def test_uncaptured_member_reverted_to_its_base_commit_blob_approves(self):
+        """A commit after `base_commit` touched the member and the worktree
+        reverted it: differs from `HEAD`, equals its `base_commit` blob,
+        has no capture -- approves (the `HEAD`-keyed alternative would have
+        needed a second source)."""
+        item = self.item
+        self.scratch.write(CP5_COMPANION, "pre-existing design input\n")
+        item.base_commit = self.scratch.commit("docs: design input before this item")
+        self.scratch.write(CP5_COMPANION, "touched after base\n")
+        self.scratch.commit("docs: a post-base touch")
+        self.scratch.write(CP5_COMPANION, "pre-existing design input\n")
+        self.plan_with((CP5_COMPANION,))
+        self.assertFalse((item.root / item.bundle_dir(stage="plan") / "files" / CP5_COMPANION).exists())
+        commit = self.approve()
+        self.assertIn(CP5_COMPANION, cp5_changed(item, commit))
+        self.assertEqual(self.scratch.git("show", f"{commit}:{CP5_COMPANION}").stdout,
+                         "pre-existing design input\n")
+
+    def test_member_absent_at_base_commit_with_no_capture_refuses_directly(self):
+        """Defense-in-depth pin, driven directly: a member that appeared
+        after generation (step 2's id check refuses it in the command)."""
+        item = self.item
+        self.plan_with()
+        declared = cp5_declarations(item, (CP5_COMPANION,))
+        self.scratch.write(CP5_COMPANION, "appeared after generation\n")
+        plan = fingerprint.PlanApprovalCommitPlan(
+            (item.plan_path, CP5_COMPANION), None, None,
+            protected_paths=(item.plan_path, CP5_COMPANION),
+        )
+        self.assertIn(CP5_COMPANION, declared["plan_stage"]["protected_paths"])
+        with self.assertRaises(ws.ReviewedContentDriftError) as ctx:
+            ws.assert_plan_approval_members_fresh(item.root, item.wid, plan)
+        self.assertIn("appeared after the bundle was generated", str(ctx.exception))
+
+    def test_removal_member_still_in_the_bound_bundle_refuses(self):
+        """`LPR-R4-005`: the amended declaration no longer protects the
+        companion, but the file was still present (now excluded) when the
+        bound bundle was generated, so the bundle captured it; the author
+        deleted it afterwards. The fresh id is unchanged -- step 2 passes --
+        and only the per-member check refuses: the reviewer saw the file,
+        so its deletion cannot be committed without a regeneration."""
+        item = self.item
+        self.approve_with_companion()
+        self.amend_to((), "Plan body, companion de-protected.\n")
+        bundle = item.root / item.bundle_dir(stage="plan")
+        self.assertTrue((bundle / "files" / CP5_COMPANION).is_file())
+        (item.root / CP5_COMPANION).unlink()
+        ws.assert_plan_review_bundle_bound(item.root, item.wid)
+        exc = self.assert_refused_before_mutation(ws.ReviewedContentDriftError, item.approve_plan)
+        self.assertIn(f"{CP5_COMPANION} (removal member)", str(exc))
+
+
+class PlanApprovalClosureProof(_PlanApprovalClosureCase):
+    """Section 5.4 item 3: the write-tree proof, before the commit."""
+
+    def test_proof_failure_is_a_not_committed_rollback_not_an_amend(self):
+        item = self.item
+        self.plan_with()
+        head = self.scratch.head()
+
+        def tamper():
+            tampered = subprocess.run(
+                ["git", "hash-object", "-w", "--stdin"], cwd=item.root, input=b"tampered\n",
+                capture_output=True, check=True,
+            ).stdout.decode().strip()
+            self.scratch.git("update-index", "--cacheinfo", f"100644,{tampered},{item.plan_path}")
+        with self.assertRaises(ws.PlanApprovalClosureProofError):
+            item.approve_plan(before_proof=tamper)
+        self.assertEqual(self.scratch.head(), head)
+        self.assertEqual(self.scratch.git("diff", "--name-only", "--cached", "HEAD").stdout.strip(), "")
+        self.assertIsNone(ws.read_plan_approval_journal(item.root))
+        self.assertEqual(item.entry()["phase"], "AWAITING_PLAN_APPROVAL")
+        self.assertEqual(cp5_approval_commit_count(item), 0)
+        # Retried untampered, it commits once.
+        item.stage_plan_files()
+        self.approve()
+
+    def test_commit_source_identity_accepts_a_bare_tree(self):
+        """Item 3's generalization to a tree-ish: the approval commit's
+        own tree recomputes to the same id as the commit."""
+        item = self.item
+        self.plan_with()
+        commit = self.approve()
+        tree = self.scratch.git("rev-parse", f"{commit}^{{tree}}").stdout.strip()
+        self.assertEqual(self.scratch.git("cat-file", "-t", tree).stdout.strip(), "tree")
+        by_tree, _ = fingerprint.compute_review_content_id_plan_stage_at_commit_for_work_item(
+            item.root, item.wid, tree, base=item.base_commit,
+        )
+        by_commit, _ = fingerprint.compute_review_content_id_plan_stage_at_commit_for_work_item(
+            item.root, item.wid, commit, base=item.base_commit,
+        )
+        self.assertEqual(by_tree, by_commit)
+        self.assertEqual(by_tree, item.entry()["plan_approval"]["approved_review_content_id"])
+
+
+class PlanApprovalCommittedTruth(_PlanApprovalClosureCase):
+    """Section 5.4 items 4-6 (the section 3.5 fix): verification from the
+    committed transaction, the named error, and the amend gate."""
+
+    def test_first_approval_with_no_state_file_at_head_commits_once_and_verifies(self):
+        """`v2.3.1-003` together with the section 3.5 `TypeError` case."""
+        item = self.item
+        self.scratch.git("rm", "-q", "--cached", "--", CP4_STATE_REL)
+        self.scratch.git("commit", "-q", "-m", "chore: untrack the state file")
+        item.base_commit = self.scratch.head()
+        self.assertNotEqual(self.scratch.git("cat-file", "-e", f"HEAD:{CP4_STATE_REL}",
+                                             check=False).returncode, 0)
+        self.plan_with()
+        pre_commit_entry = item.entry()
+        self.assertIsNone(pre_commit_entry["plan_approval"])
+        commit = self.approve()
+        self.assertIn(CP4_STATE_REL, cp5_changed(item, commit))
+        # The 2.5.1 data flow -- the pre-commit work item -- is now a named
+        # verifier-input error, never a TypeError, and never an amend.
+        with self.assertRaises(ws.MissingApprovalRecordError) as ctx:
+            ws.verify_post_approval_manifest_match(
+                item.root, pre_commit_entry, stage="plan", base_commit=item.base_commit, commit=commit,
+            )
+        self.assertEqual(ws.classify_post_commit_verification_failure(ctx.exception),
+                         ws.POST_COMMIT_FAILURE_RECORD_OR_INPUT)
+
+    def test_prior_stale_approval_verifies_with_no_false_mismatch(self):
+        item = self.item
+        self.plan_with()
+        digest, projection = fingerprint.compute_review_content_id_plan_stage_for_work_item(item.root, item.wid)
+        old = ws.build_approval_record(
+            basis="EXTERNAL_APPROVE", stage="plan", user_confirmation=f"plan {item.wid}",
+            now=item.now(), reviewed_bundle_id="1" * 64, approved_review_content_id="2" * 64,
+            review_content_manifest=projection["review_content_manifest"],
+        )
+        old["status"] = "STALE"
+
+        def seed_stale(state):
+            state = copy.deepcopy(state)
+            state["work_items"][item.wid]["plan_approval"] = old
+            return state
+        item.tx(seed_stale)
+        pre_commit_entry = item.entry()
+        commit = item.approve_plan(stop_after="commit")
+        # 2.5.1's call shape: a false mismatch against the *old* id ...
+        with self.assertRaises(ws.PostApprovalManifestMismatchError):
+            ws.verify_post_approval_manifest_match(
+                item.root, pre_commit_entry, stage="plan", base_commit=item.base_commit, commit=commit,
+            )
+        # ... which, given the pinned id, is now a named record error.
+        with self.assertRaises(ws.CommittedApprovalRecordMismatchError) as ctx:
+            ws.verify_post_approval_manifest_match(
+                item.root, pre_commit_entry, stage="plan", base_commit=item.base_commit, commit=commit,
+                expected_review_content_id=digest,
+            )
+        self.assertEqual(ws.classify_post_commit_verification_failure(ctx.exception),
+                         ws.POST_COMMIT_FAILURE_RECORD_OR_INPUT)
+        owner = ws.read_plan_approval_journal(item.root)["owner_token"]
+        self.assertEqual(item.complete_plan_approval(owner), commit)
+        self.assertEqual(item.entry()["plan_approval"]["status"], "CURRENT")
+        self.assertEqual(cp5_approval_commit_count(item), 1)
+
+    def test_prior_superseded_approval_verifies_with_no_false_mismatch(self):
+        item = self.item
+        first = self.approve_with_companion()
+        self.amend_to((CP5_COMPANION,), "Plan body, amended.\n")
+        self.assertEqual(item.entry()["plan_approval"]["status"], "SUPERSEDED")
+        commit = self.approve()
+        self.assertNotEqual(commit, first)
+        self.assertEqual(cp5_approval_commit_count(item), 2)
+        self.assertEqual(item.entry()["plan_approval"]["status"], "CURRENT")
+
+    def test_crash_after_commit_resumes_in_session(self):
+        item = self.item
+        self.plan_with()
+        commit = item.approve_plan(stop_after="commit")
+        journal = ws.read_plan_approval_journal(item.root)
+        self.assertEqual(ws.classify_plan_approval_outcome(item.root, journal),
+                         ws.PLAN_APPROVAL_OUTCOME_COMMITTED)
+        self.assertEqual(item.complete_plan_approval(journal["owner_token"]), commit)
+        self.assertEqual(item.entry()["phase"], "IMPLEMENTING")
+        self.assertIsNone(ws.read_plan_approval_journal(item.root))
+        self.assertEqual(cp5_approval_commit_count(item), 1)
+
+    def test_crash_after_commit_resumes_via_takeover(self):
+        item = self.item
+        self.plan_with()
+        commit = item.approve_plan(stop_after="commit")
+        evidence = ws.plan_approval_takeover_evidence(item.root)
+        self.assertEqual(evidence["outcome"], ws.PLAN_APPROVAL_OUTCOME_COMMITTED)
+        new_token = ws.take_over_plan_approval_transaction(
+            item.root, work_item_id=item.wid, now=item.now(),
+            user_authorization=ws.plan_approval_takeover_authorization_literal(evidence),
+            evidence=evidence,
+        )
+        self.assertNotEqual(new_token, evidence["owner_token"])
+        self.assertEqual(item.complete_plan_approval(new_token), commit)
+        self.assertEqual(item.entry()["phase"], "IMPLEMENTING")
+        self.assertEqual(cp5_approval_commit_count(item), 1)
+
+    def test_crash_after_materialize_before_close_takes_the_noop_path(self):
+        item = self.item
+        self.plan_with()
+        commit = item.approve_plan(stop_after="materialize")
+        self.assertIsNotNone(ws.read_plan_approval_journal(item.root))
+        materialized = self.scratch.read(CP4_STATE_REL)
+        journal = ws.read_plan_approval_journal(item.root)
+        pre_state = json.loads(base64.b64decode(journal["pre_procedure_state_b64"]))
+        post_state = json.loads(base64.b64decode(journal["expected_post_state_b64"]))
+        self.assertEqual(ws.classify_plan_approval_materialize_target(item.root, item.wid, pre_state, post_state),
+                         ws.PLAN_APPROVAL_MATERIALIZE_NOOP)
+        self.assertEqual(item.complete_plan_approval(journal["owner_token"]), commit)
+        self.assertEqual(self.scratch.read(CP4_STATE_REL), materialized)
+        self.assertIsNone(ws.read_plan_approval_journal(item.root))
+        self.assertEqual(cp5_approval_commit_count(item), 1)
+
+    def test_record_or_input_error_never_amends(self):
+        """The section 3.5 data flow after a crash: the pre-commit work item
+        reaches the verifier. Named error, classified record/input, `HEAD`
+        unchanged, one approval commit -- and the real resume converges."""
+        item = self.item
+        self.plan_with()
+        pre_commit_entry = item.entry()
+        commit = item.approve_plan(stop_after="commit")
+        with self.assertRaises(ws.MissingApprovalRecordError) as ctx:
+            ws.verify_post_approval_manifest_match(
+                item.root, pre_commit_entry, stage="plan", base_commit=item.base_commit, commit=commit,
+            )
+        self.assertEqual(ws.classify_post_commit_verification_failure(ctx.exception),
+                         ws.POST_COMMIT_FAILURE_RECORD_OR_INPUT)
+        owner = ws.read_plan_approval_journal(item.root)["owner_token"]
+        for error in (ws.MissingApprovalRecordError("record"), KeyError("input"),
+                      TypeError("verifier")):
+            with mock.patch.object(ws, "verify_plan_approval_commit", side_effect=error):
+                with self.assertRaises(type(error)):
+                    item.complete_plan_approval(owner)
+            self.assertEqual(self.scratch.head(), commit)
+            self.assertEqual(cp5_approval_commit_count(item), 1)
+        self.assertEqual(item.complete_plan_approval(owner), commit)
+        self.assertEqual(cp5_approval_commit_count(item), 1)
+
+    def _install_pre_commit_hook(self, body):
+        hook = self.item.root / ".git" / "hooks" / "pre-commit"
+        hook.parent.mkdir(parents=True, exist_ok=True)
+        hook.write_text("#!/bin/sh\nrm -f \"$0\"\n" + body)
+        hook.chmod(0o755)
+
+    def test_hook_tree_content_defect_takes_the_single_amend(self):
+        """A one-shot `pre-commit` hook stages other bytes for a protected
+        member after the proof: `TREE_CONTENT`, one amend, same parent,
+        still exactly one approval commit."""
+        item = self.item
+        self.plan_with((CP5_COMPANION,), {CP5_COMPANION: "reviewed companion\n"}, (CP5_COMPANION,))
+        head = self.scratch.head()
+        self._install_pre_commit_hook(
+            "blob=$(printf 'hook rewrite\\n' | git hash-object -w --stdin)\n"
+            f"git update-index --cacheinfo 100644,$blob,{CP5_COMPANION}\n"
+        )
+        commit = item.approve_plan(stop_after="commit")
+        self.assertEqual(self.scratch.git("show", f"{commit}:{CP5_COMPANION}").stdout, "hook rewrite\n")
+        journal = ws.read_plan_approval_journal(item.root)
+        with self.assertRaises(Exception) as ctx:
+            ws.verify_plan_approval_commit(item.root, journal, commit)
+        self.assertEqual(ws.classify_post_commit_verification_failure(ctx.exception),
+                         ws.POST_COMMIT_FAILURE_TREE_CONTENT)
+        amended = item.complete_plan_approval(journal["owner_token"])
+        self.assertNotEqual(amended, commit)
+        self.assertEqual(self.scratch.git("rev-parse", f"{amended}^").stdout.strip(), head)
+        self.assertEqual(self.scratch.git("show", f"{amended}:{CP5_COMPANION}").stdout,
+                         "reviewed companion\n")
+        self.assertEqual(cp5_approval_commit_count(item), 1)
+        self.assertEqual(item.entry()["phase"], "IMPLEMENTING")
+
+    def test_hook_extra_path_stops_without_amending(self):
+        """An extra (classified) path in the commit is a membership defect
+        the amend cannot correct: `RECORD_OR_INPUT`, stop, `HEAD`
+        unchanged, the journal left for a human."""
+        item = self.item
+        self.plan_with()
+        self._install_pre_commit_hook(
+            "printf 'roadmap edit\\n' >> docs/ROADMAP.md\ngit add docs/ROADMAP.md\n"
+        )
+        commit = item.approve_plan(stop_after="commit")
+        journal = ws.read_plan_approval_journal(item.root)
+        with self.assertRaises(ws.CommittedPathSetMismatchError) as ctx:
+            item.complete_plan_approval(journal["owner_token"])
+        self.assertEqual(ws.classify_post_commit_verification_failure(ctx.exception),
+                         ws.POST_COMMIT_FAILURE_RECORD_OR_INPUT)
+        self.assertEqual(self.scratch.head(), commit)
+        self.assertIsNotNone(ws.read_plan_approval_journal(item.root))
+        self.assertEqual(cp5_approval_commit_count(item), 1)
+
+    def test_none_record_raises_the_named_error(self):
+        for work_item in ({"work_item_id": "x", "plan_approval": None}, {"work_item_id": "x"},
+                          {"work_item_id": "x", "plan_approval": {"approved_review_content_id": None}}):
+            with self.assertRaises(ws.MissingApprovalRecordError):
+                ws.verify_post_approval_manifest_match(
+                    self.item.root, work_item, stage="plan", base_commit="HEAD", commit="HEAD",
+                )
+
+    def test_implementation_stage_helper_has_the_same_named_error_guard(self):
+        with self.assertRaises(ws.MissingApprovalRecordError):
+            ws.verify_post_approval_manifest_match(
+                self.item.root, {"work_item_id": "x", "technical_approval": None},
+                stage="implementation", base_commit="HEAD", commit="HEAD",
+            )
+
+    def test_implementation_stage_approval_is_otherwise_unchanged(self):
+        self.reach_technical_approved()
+        self.assertEqual(self.item.entry()["phase"], "AWAITING_FUNCTIONAL_REVIEW")
 
 
 if __name__ == "__main__":

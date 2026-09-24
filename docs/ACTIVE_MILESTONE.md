@@ -20,8 +20,9 @@ process. See the plan's section 2 for non-goals.
 
 ## Current checkpoint
 
-**CP4 complete** (4 of 9 checkpoints). Next: CP5 (depends on CP4) —
-plan-approval commit closure and committed-truth post-commit verification.
+**CP5 complete** (5 of 9 checkpoints). Next: CP6 (depends on CP5) —
+repository-global lifecycle lock and amendment witness closing
+`v2.4.0-002`.
 
 ### CP1 — Release-derived exact-path classification of the legacy installation record
 
@@ -399,6 +400,114 @@ payload plus this overlay:
 - `python3 tests/run_all.py --fast`: all green.
 - INV-9: `git diff b2060bf -- distribution/workflow/` is empty.
 
+### CP5 — Plan-approval commit closure and committed-truth verification
+
+Implements the plan's section 5.4, `D-Plan-Approval-Closure` (items 1-6;
+item 7 declined as planned). Delivered in `migration/overlays/2.6.0/`.
+
+**Delivered:**
+
+- `payload/scripts/workflow_fingerprint.py`:
+  - `resolve_plan_stage_approval_commit_paths` returns every declared
+    `plan_stage.protected_paths` entry (plan, registry and mapping first),
+    `WORKFLOW_STATE.json`, the unchanged conditional artifacts-declaration
+    member, and the removals: protected under `HEAD`'s committed
+    declaration, tracked at `HEAD`, and absent from both the current
+    declaration and the worktree. A first approval has none.
+  - `PlanApprovalCommitPlan` gains `protected_paths` and `removal_paths`,
+    both defaulted, so hand-built plans still construct.
+  - `read_plan_stage_manifest_base_commit` and
+    `read_plan_stage_manifest_protected_paths`.
+  - `compute_review_content_id_plan_stage_at_commit` is documented as
+    accepting any tree-ish. No code change was needed: every Git read it
+    makes already accepts a bare tree.
+- `payload/scripts/workflow_state.py`:
+  - `resolve_fresh_plan_approval_members` (step 4a, read-only). It runs:
+    - the empty-index precondition, whose refusal now names the
+      staged-`git mv` remedy;
+    - the member set;
+    - per-member freshness against the bound bundle. A protected member
+      is compared with its `files/` capture, otherwise with its blob at
+      the bundle's `MANIFEST.md` `base_commit`, otherwise it refuses. A
+      removal member must be neither captured nor declared.
+    - Every failure is `ReviewedContentDriftError`. A stale
+      declaration's `StaleArtifactsDeclarationError` is chained under it.
+  - `assert_plan_approval_member_set_unchanged`: step 5's re-resolution
+    inside the guarded window.
+  - `prove_plan_approval_index_closure` (step 6.3a): `git write-tree`,
+    then the identity at that tree. Every removal must be absent.
+  - `verify_plan_approval_commit`: the one post-commit verification. It
+    derives the work item from the committed state and runs the two-sided
+    path-set check (`assert_committed_plan_approval_closure` for the
+    closure side).
+  - `classify_post_commit_verification_failure`: the amend gate.
+  - `verify_post_approval_manifest_match` gains
+    `MissingApprovalRecordError` at both stages and an optional explicit
+    `expected_review_content_id`.
+  - `stage_plan_approval_commit_paths` stages an absent member as a
+    deletion.
+  - The journal gains an optional `removal_paths`. A `2.5.1` journal
+    reads as `[]`.
+  - 5 named errors.
+- `approve-review.md`: steps 4a, 4c, 5, the new 6.3a, 6a/6a1, 6b's range
+  and 6d, plus the implementation-stage verifier bullet.
+  `milestone-plan.md`: the member-set sentence in step 3.
+  `WORKFLOW_V2_PLAN.md`: new `D-Plan-Approval-Closure` section.
+- Tests:
+  - `Item.approve_plan` in the acceptance matrix is now a
+    **command-shaped driver**. It follows the command's real data flow
+    through steps 2-6d: the bound-bundle check, the fresh member set, the
+    in-window re-resolution, the proof, `verify_plan_approval_commit`, the
+    amend gate and the rollback. A resumable `complete_plan_approval`
+    covers the rest. There is no hand-built post-state. All 231
+    pre-existing rows pass through it unchanged.
+  - 4 new scenario classes (31 tests) cover every CP5 test bullet. The
+    amend-gate rows use real one-shot `pre-commit` hooks.
+  - `TestPlanApprovalClosureUnits` (11 unit tests).
+- **Pre-existing tests re-pointed, none deleted:** three integration tests
+  pinned `2.5.1`'s fixed four/five-member set on a fixture whose
+  declaration protects two further documents. The `approve-review.md` and
+  `milestone-plan.md` golden hashes are re-recorded.
+- **Implementation details, not in the plan text, for review:**
+  - **An extra path is not amended.** An extra path in the approval
+    commit (`CommittedPathSetMismatchError`) classifies
+    `RECORD_OR_INPUT`: stop, no amend. The amend re-stages members and
+    cannot remove a path, so an amend there could never succeed. This
+    matches the frozen bootstrap design's "recovery corrects content,
+    never membership". The closure side's content failures get their own
+    `CommittedProtectedContentMismatchError`, which classifies
+    `TREE_CONTENT`.
+  - **Revision errors stop.** A hook that corrupts the plan document's
+    `(Revision N)` title makes the committed-tree recompute raise a
+    revision error. That classifies `RECORD_OR_INPUT` (stop), the
+    conservative reading of INV-5.
+  - **Step 6d's closing check is narrowed** to a clean index and clean
+    members. A de-protected path left in the worktree legitimately
+    survives the approval.
+  - **6a1 re-stages the journal's members,** never a fresh resolution,
+    because `HEAD` is by then the approval commit.
+  - **The CP6 precondition is not built yet.** 6a1's
+    `assert_amendment_resolution_held` precondition is named in the
+    command as CP6's addition.
+
+**Verified state.** Run in a temporary Git repository composed from the
+`2.5.1` payload plus this overlay:
+
+- `workflow_acceptance_matrix_test`: 262 tests, OK (18 skipped). That is
+  the 231 pre-existing rows, now driven through the command-shaped
+  driver, plus the 31 new ones.
+- `workflow_state_test`: 908 tests, 2 errors. These are the same two
+  `TestCanonicalStateSerialization` live-state errors as CP2-CP4.
+- `workflow_integration_test`: 260 tests, 3 errors. These are the same
+  three `TestRetiredScopedRemediationLeavesNoLiveSurface` errors.
+- `workflow_fingerprint_test` + `workflow_fingerprint_generalization_test`:
+  342 tests, OK.
+- Demo/harness/obligations suites: 40 failing, identical test for test to
+  the pure `2.5.1` payload.
+- Every overlay payload file is matched by a `classification.json` rule.
+- `python3 tests/run_all.py --fast`: all green.
+- INV-9: `git diff b2060bf -- distribution/workflow/` is empty.
+
 ## Current blockers
 
 None.
@@ -412,4 +521,4 @@ None.
 ## Next action
 
 Invoke `/milestone-implement workflow-review-artifact-and-concurrency-hardening`
-to implement CP4.
+to implement CP6.

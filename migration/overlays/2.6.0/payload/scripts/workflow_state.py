@@ -458,6 +458,58 @@ class PostApprovalManifestMismatchError(Exception):
     record's word alone."""
 
 
+class MissingApprovalRecordError(Exception):
+    """workflow-2.6.0 (`D-Plan-Approval-Closure` item 5): the work item
+    handed to `verify_post_approval_manifest_match` carries no approval
+    record for the stage (or no usable `approved_review_content_id`) --
+    the named replacement for the `TypeError: 'NoneType' object is not
+    subscriptable` a first plan approval used to raise when the command
+    passed its own pre-commit `work_item` to the post-commit verifier. A
+    verifier-input error: never a reason to amend (INV-5)."""
+
+
+class CommittedApprovalRecordMismatchError(Exception):
+    """workflow-2.6.0 (`D-Plan-Approval-Closure` items 4-5): the approval
+    record the verifier was given names a different
+    `approved_review_content_id` than the one the plan-approval journal
+    pinned -- for example a prior `STALE`/`SUPERSEDED` record read from
+    pre-commit memory instead of the committed transaction. A record or
+    input error, distinct from `PostApprovalManifestMismatchError` (the
+    committed *tree* recomputes to something else): never a reason to
+    amend (INV-5)."""
+
+
+class PlanApprovalClosureProofError(Exception):
+    """workflow-2.6.0 (`D-Plan-Approval-Closure` item 3): the staged index,
+    written as a tree (`git write-tree`) before any commit exists, does not
+    recompute to the journal's `expected_review_content_id`, or cannot be
+    recomputed at all. Raised inside the transaction before the commit, so
+    the outcome stays `NOT_COMMITTED` and step 6b rolls back: there is no
+    commit to amend."""
+
+
+class PlanApprovalMemberSetChangedError(Exception):
+    """workflow-2.6.0 (`D-Plan-Approval-Closure` item 2): re-resolving the
+    approval-commit member set inside step 5's guarded window, immediately
+    before staging, produced a different set (members or removals) than
+    the one pinned in the journal at step 4c -- the worktree changed
+    between the two. Raised inside the window, so step 6b rolls back."""
+
+
+class CommittedProtectedContentMismatchError(Exception):
+    """workflow-2.6.0 (`D-Plan-Approval-Closure` item 4, the second side of
+    the two-sided path-set check): a protected path of the committed
+    approval record is omitted from, or differs in, the approval commit,
+    or a removal member is still present in it -- the committed tree's
+    *content* differs from the staged and pinned bytes, which 6a1's amend
+    can correct. (An *extra* path is `CommittedPathSetMismatchError`, a
+    membership defect the amend cannot correct.)"""
+
+
+POST_COMMIT_FAILURE_TREE_CONTENT = "TREE_CONTENT"
+POST_COMMIT_FAILURE_RECORD_OR_INPUT = "RECORD_OR_INPUT"
+
+
 class DirtyIndexBeforeStagingError(Exception):
     """`/approve-review`'s Git index-isolation precondition: the index
     already differs from `HEAD` *before* this invocation stages anything
@@ -2146,6 +2198,7 @@ def implementing_entry_reachable(
 
 def verify_post_approval_manifest_match(
     repo_root: Path, work_item: dict, *, stage: str, base_commit: str, commit: str,
+    expected_review_content_id: str | None = None,
 ) -> None:
     """WFR-06: "the committed plan exactly matches the reviewed working-
     tree content after the plan-approval commit", generalized to either
@@ -2153,10 +2206,35 @@ def verify_post_approval_manifest_match(
     committed content and asserts it equals the approval record's
     `approved_review_content_id` exactly -- run once, immediately after
     `/approve-review` creates the commit, never trusted on the record's
-    word alone."""
+    word alone.
+
+    workflow-2.6.0 (`D-Plan-Approval-Closure` item 5): a missing record, or
+    one without a string `approved_review_content_id`, raises
+    `MissingApprovalRecordError` at both stages instead of a raw
+    `TypeError`/`KeyError`. `expected_review_content_id`, when given, is
+    the value the committed transaction must carry (the plan stage passes
+    the journal's pin, via `verify_plan_approval_commit`): a record naming
+    a different id raises `CommittedApprovalRecordMismatchError` before any
+    recomputation, and the committed tree is then compared against the
+    explicit value. Omitted, the record's own id is the expected value --
+    the implementation stage's unchanged behavior."""
     record_field = "plan_approval" if stage == "plan" else "technical_approval"
-    record = work_item[record_field]
-    expected = record["approved_review_content_id"]
+    record = work_item.get(record_field) if isinstance(work_item, dict) else None
+    recorded = record.get("approved_review_content_id") if isinstance(record, dict) else None
+    if not isinstance(recorded, str):
+        work_item_id = work_item.get("work_item_id") if isinstance(work_item, dict) else None
+        raise MissingApprovalRecordError(
+            f"{work_item_id}/{stage}: the work item handed to the post-commit verifier carries no "
+            f"{record_field} record with an approved_review_content_id -- pass the work item "
+            f"derived from the committed state (verify_plan_approval_commit), never the "
+            f"command's own pre-commit copy"
+        )
+    if expected_review_content_id is not None and recorded != expected_review_content_id:
+        raise CommittedApprovalRecordMismatchError(
+            f"{work_item.get('work_item_id')}/{stage}: the {record_field} record names "
+            f"{recorded!r}, but the committed transaction pinned {expected_review_content_id!r}"
+        )
+    expected = recorded
     actual = approval_review_content_id(
         repo_root, stage=stage, base_commit=base_commit,
         work_item_type=work_item["work_item_type"], work_item_id=work_item["work_item_id"],
@@ -2218,15 +2296,20 @@ def stage_plan_approval_commit_paths(repo_root: Path, paths: tuple[str, ...]) ->
        appear would reject a coincidentally-unchanged member for no real
        reason.
 
-    Never `git add -A`/`git add .`."""
-    dirty = _run(["git", "diff", "--name-only", "--cached", "HEAD"], cwd=repo_root)
-    already_staged = {line for line in dirty.splitlines() if line}
-    if already_staged:
-        raise DirtyIndexBeforeStagingError(
-            f"Git index already differs from HEAD before staging began: "
-            f"{sorted(already_staged)} -- resolve or unstage these first"
-        )
-    _run(["git", "add", "--", *paths], cwd=repo_root)
+    Never `git add -A`/`git add .`.
+
+    workflow-2.6.0 (`D-Plan-Approval-Closure`): a member absent from the
+    worktree -- a removal member -- is staged as a deletion (`git rm
+    --cached --ignore-unmatch`, which is also a no-op for a path already
+    absent from the index, as on 6a1's re-staging after the commit already
+    deleted it); every present member goes through `git add` as before."""
+    assert_plan_approval_index_clean(repo_root)
+    present = tuple(path for path in paths if os.path.lexists(repo_root / path))
+    absent = tuple(path for path in paths if path not in present)
+    if present:
+        _run(["git", "add", "--", *present], cwd=repo_root)
+    if absent:
+        _run(["git", "rm", "--cached", "-q", "--ignore-unmatch", "--", *absent], cwd=repo_root)
     staged = _run(["git", "diff", "--name-only", "--cached", "HEAD"], cwd=repo_root)
     actual = {line for line in staged.splitlines() if line}
     expected = set(paths)
@@ -2308,6 +2391,307 @@ def assert_committed_path_set_matches(
             f"{sorted(unexpected)}, outside the resolved approval-commit member "
             f"set {sorted(expected)}"
         )
+
+
+# ---------------------------------------------------------------------------
+# workflow-2.6.0, `D-Plan-Approval-Closure` (section 5.4 of the
+# workflow-review-artifact-and-concurrency-hardening plan): the approval
+# commit's members are the declared protected set plus removals, each
+# proven fresh against the bound bundle before any mutation; the staged
+# index is proven to recompute to the approved identity before the commit
+# exists; and post-commit verification derives its truth from the
+# committed transaction alone, with `git commit --amend` reachable only
+# for a proven tree-content defect.
+# ---------------------------------------------------------------------------
+
+
+def assert_plan_approval_index_clean(repo_root: Path) -> None:
+    """The approval's empty-index precondition: `git diff --name-only
+    --cached HEAD` must be empty (an unstaged intent-to-add marker is not
+    reported, so `/milestone-plan`'s own markers pass). Raises
+    `DirtyIndexBeforeStagingError`, naming the staged paths and the
+    staged-`git mv` remedy -- the usual way a protected path's rename ends
+    up in the index."""
+    dirty = _run(["git", "diff", "--name-only", "--cached", "HEAD"], cwd=repo_root)
+    already_staged = sorted({line for line in dirty.splitlines() if line})
+    if already_staged:
+        raise DirtyIndexBeforeStagingError(
+            f"Git index already differs from HEAD before staging began: {already_staged} -- "
+            f"resolve or unstage these first. A staged `git mv` of a protected path is the "
+            f"usual cause: unstage both sides (`git restore --staged -- <old> <new>`), keep "
+            f"the rename in the working tree, and re-run -- the approval commit stages the "
+            f"removal and the addition itself"
+        )
+
+
+def _plan_approval_member_bytes(path: Path) -> bytes | None:
+    """A member's comparable bytes: a symlink's target string (what Git
+    stores for it), a regular file's content, `None` when absent."""
+    if path.is_symlink():
+        return os.readlink(path).encode()
+    if not path.exists():
+        return None
+    if not path.is_file():
+        raise fingerprint.UnsupportedPathTypeError(str(path))
+    return path.read_bytes()
+
+
+def assert_plan_approval_members_fresh(
+    repo_root: Path, work_item_id: str, plan: "fingerprint.PlanApprovalCommitPlan",
+) -> None:
+    """Section 5.4 item 2, per member kind, against the bound bundle
+    (`current/`, which `/approve-review plan` step 2 has already verified;
+    never `.ai-review/<id>/.pin`, a generation-time artifact):
+
+    - **protected member**: the worktree bytes must equal the bundle's
+      captured copy (`current/files/<path>`) when one exists, otherwise
+      the path's blob at the bundle's own `MANIFEST.md` `base_commit`
+      (the generator captures exactly the paths that differ from that
+      commit, so an uncaptured member was byte-equal to it at generation);
+      with neither, the member appeared after generation and refuses;
+    - **removal member**: the bound bundle must neither have captured it
+      nor list it among its `## Protected paths` -- a reviewer who saw the
+      file cannot have its deletion committed without a regeneration;
+    - the artifacts declaration keeps its own rule
+      (`resolve_plan_stage_approval_commit_paths`) and
+      `WORKFLOW_STATE.json` is not compared.
+
+    Every failure raises `ReviewedContentDriftError` naming the path and
+    the member kind. Read-only."""
+    bundle_dir = repo_root / fingerprint.resolve_bundle_dir(repo_root, work_item_id, stage="plan")
+    manifest = bundle_dir / "MANIFEST.md"
+    base_commit = fingerprint.read_plan_stage_manifest_base_commit(manifest)
+    declared = fingerprint.read_plan_stage_manifest_protected_paths(manifest)
+    if base_commit is None or declared is None:
+        raise ReviewedContentDriftError(
+            f"{manifest} records no base_commit or no '## Protected paths' section -- the "
+            f"approval members cannot be compared against what the reviewer saw; regenerate "
+            f"the bundle, or withdraw with /milestone-plan {work_item_id}"
+        )
+    for path in plan.protected_paths:
+        captured = bundle_dir / "files" / path
+        if os.path.lexists(captured):
+            expected = _plan_approval_member_bytes(captured)
+            source = f"the bound bundle's capture {captured}"
+        else:
+            snapshot = fingerprint._snapshot_commit(repo_root, base_commit, path)
+            if not snapshot["exists"]:
+                raise ReviewedContentDriftError(
+                    f"{path} (protected member): the bound bundle has no capture of it and it "
+                    f"is absent at its base_commit {base_commit} -- it appeared after the "
+                    f"bundle was generated; regenerate the bundle, or withdraw with "
+                    f"/milestone-plan {work_item_id}"
+                )
+            expected = _run_bytes(["git", "cat-file", "blob", snapshot["blob"]], cwd=repo_root)
+            source = f"its blob at the bound bundle's base_commit {base_commit}"
+        if _plan_approval_member_bytes(repo_root / path) != expected:
+            raise ReviewedContentDriftError(
+                f"{path} (protected member): the working tree differs from {source} -- "
+                f"restore the reviewed bytes, or regenerate the bundle / withdraw with "
+                f"/milestone-plan {work_item_id}"
+            )
+    for path in plan.removal_paths:
+        if os.path.lexists(bundle_dir / "files" / path) or path in declared:
+            raise ReviewedContentDriftError(
+                f"{path} (removal member): the bound bundle still captured or protected it, so "
+                f"its deletion was never reviewed -- regenerate the bundle, or withdraw with "
+                f"/milestone-plan {work_item_id}"
+            )
+
+
+def resolve_fresh_plan_approval_members(
+    repo_root: Path, work_item_id: str, *, state_path: Path = DEFAULT_STATE_PATH,
+) -> "fingerprint.PlanApprovalCommitPlan":
+    """`/approve-review plan` step 4a, before any durable mutation: the
+    empty-index precondition (`assert_plan_approval_index_clean`), the
+    member set (`fingerprint.resolve_plan_stage_approval_commit_paths`),
+    and its freshness (`assert_plan_approval_members_fresh`). A stale
+    artifacts declaration (`StaleArtifactsDeclarationError`) is reported
+    as `ReviewedContentDriftError` too, chaining it, so every member kind
+    refuses under the one name. Read-only."""
+    assert_plan_approval_index_clean(repo_root)
+    try:
+        plan = fingerprint.resolve_plan_stage_approval_commit_paths(repo_root, work_item_id, state_path)
+    except fingerprint.StaleArtifactsDeclarationError as exc:
+        raise ReviewedContentDriftError(
+            f"{fingerprint.artifacts_path_for_work_item(work_item_id).as_posix()} (artifacts "
+            f"declaration member): {exc}"
+        ) from exc
+    assert_plan_approval_members_fresh(repo_root, work_item_id, plan)
+    return plan
+
+
+def assert_plan_approval_member_set_unchanged(
+    repo_root: Path, journal: dict, *, state_path: Path = DEFAULT_STATE_PATH,
+) -> "fingerprint.PlanApprovalCommitPlan":
+    """Step 5, inside its guarded window, immediately before staging:
+    re-resolve the fresh member set and require it to equal the one the
+    journal pinned (members and removals alike), so the worktree-absence
+    condition that defines a removal is evaluated against the tree that is
+    staged. Raises `PlanApprovalMemberSetChangedError` (or whatever the
+    re-resolution raises); either way the caller rolls back. Never called
+    from 6a1's re-staging, where `HEAD` is already the approval commit."""
+    plan = resolve_fresh_plan_approval_members(repo_root, journal["work_item_id"], state_path=state_path)
+    if (sorted(plan.paths) != sorted(journal["applicable_paths"])
+            or sorted(plan.removal_paths) != sorted(journal.get("removal_paths", []))):
+        raise PlanApprovalMemberSetChangedError(
+            f"{journal['work_item_id']}: the approval-commit member set is now "
+            f"{sorted(plan.paths)} (removals {sorted(plan.removal_paths)}), but the journal "
+            f"pinned {sorted(journal['applicable_paths'])} (removals "
+            f"{sorted(journal.get('removal_paths', []))})"
+        )
+    return plan
+
+
+def prove_plan_approval_index_closure(repo_root: Path, journal: dict) -> str:
+    """Section 5.4 item 3, after every member and the state blob are
+    staged and before the commit exists: write the index as a tree (`git
+    write-tree`) and recompute the plan-stage `review_content_id` against
+    it (`compute_review_content_id_plan_stage_at_commit_for_work_item`,
+    which accepts a tree-ish), requiring the journal's
+    `expected_review_content_id`; every journal removal must also be
+    absent from the tree. Returns the tree id. Raises
+    `PlanApprovalClosureProofError` -- chaining any underlying error -- so
+    the caller takes step 6b's `NOT_COMMITTED` rollback."""
+    work_item_id = journal["work_item_id"]
+    expected = journal["expected_review_content_id"]
+    try:
+        tree = _run(["git", "write-tree"], cwd=repo_root).strip()
+        actual, _ = fingerprint.compute_review_content_id_plan_stage_at_commit_for_work_item(
+            repo_root, work_item_id, tree, base=journal["base_commit"],
+        )
+        present_removals = [
+            path for path in journal.get("removal_paths", [])
+            if fingerprint._snapshot_commit(repo_root, tree, path)["exists"]
+        ]
+    except Exception as exc:
+        raise PlanApprovalClosureProofError(
+            f"{work_item_id}: the staged index could not be recomputed as the approved "
+            f"plan-stage identity ({type(exc).__name__}: {exc}) -- nothing was committed"
+        ) from exc
+    if actual != expected:
+        raise PlanApprovalClosureProofError(
+            f"{work_item_id}: the staged index (tree {tree}) recomputes to {actual!r}, not the "
+            f"approved {expected!r} -- a protected member is missing from or differs in the "
+            f"index; nothing was committed"
+        )
+    if present_removals:
+        raise PlanApprovalClosureProofError(
+            f"{work_item_id}: removal members {present_removals} are still present in the "
+            f"staged index (tree {tree}); nothing was committed"
+        )
+    return tree
+
+
+def assert_committed_plan_approval_closure(
+    repo_root: Path, commit: str, *, review_content_manifest: list, removal_paths: tuple[str, ...] | list,
+) -> None:
+    """The second side of section 5.4 item 4's two-sided path-set check
+    (the first, "nothing outside the member set", is
+    `assert_committed_path_set_matches`): every protected path of the
+    committed approval record's `review_content_manifest` must be at
+    `commit` exactly as approved -- so one that differs from the parent is
+    necessarily in the commit -- and every removal must be absent at
+    `commit`. Raises `CommittedProtectedContentMismatchError`, naming the
+    path."""
+    for entry in review_content_manifest:
+        path = entry["path"]
+        committed = fingerprint._snapshot_commit(repo_root, commit, path)
+        approved = {"exists": entry["exists"], "mode": entry["mode"], "blob": entry["blob"]}
+        if committed != approved:
+            parent = fingerprint._snapshot_commit(repo_root, f"{commit}^", path)
+            omitted = "omitted from" if committed == parent else "differs in"
+            raise CommittedProtectedContentMismatchError(
+                f"protected path {path} is {omitted} commit {commit}: committed {committed}, "
+                f"approved {approved}"
+            )
+    for path in removal_paths:
+        if fingerprint._snapshot_commit(repo_root, commit, path)["exists"]:
+            raise CommittedProtectedContentMismatchError(
+                f"removal member {path} is still present at commit {commit}"
+            )
+
+
+def verify_plan_approval_commit(
+    repo_root: Path, journal: dict, commit: str, *, state_path: Path = DEFAULT_STATE_PATH,
+) -> dict:
+    """Section 5.4 item 4, the one post-commit verification both the
+    in-session step 6a and every resumed or taken-over step 6a run. Its
+    truth is the committed transaction, never the command's pre-commit
+    memory (the section 3.5 `TypeError` and false-mismatch fix). In order:
+
+    1. `verify_committed_plan_approval_state_blob` against the journal pin;
+    2. the work item is derived from the committed `WORKFLOW_STATE.json`
+       at `commit` (`MissingApprovalRecordError` if it cannot be);
+    3. its `plan_approval.approved_review_content_id` must equal the
+       journal's `expected_review_content_id`, and the identity recomputed
+       at `commit` must equal it too (`verify_post_approval_manifest_match`
+       with the explicit expected value);
+    4. the two-sided path-set check: nothing outside the journal's
+       members is in the commit (`assert_committed_path_set_matches`), and
+       every protected path is as approved and every removal absent
+       (`assert_committed_plan_approval_closure`);
+    5. the artifacts declaration's committed blob, when it was a member.
+
+    Returns the committed work item. On a failure, pass the exception to
+    `classify_post_commit_verification_failure` before considering 6a1."""
+    verify_committed_plan_approval_state_blob(
+        repo_root, commit, journal["expected_post_state_sha256"], state_path=state_path,
+    )
+    work_item_id = journal["work_item_id"]
+    try:
+        committed_state = json.loads(_read_committed_bytes(repo_root, commit, str(state_path)))
+    except (subprocess.CalledProcessError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise MissingApprovalRecordError(
+            f"{work_item_id}/plan: {state_path} at {commit} cannot be read as JSON ({exc})"
+        ) from exc
+    work_items = committed_state.get("work_items") if isinstance(committed_state, dict) else None
+    work_item = work_items.get(work_item_id) if isinstance(work_items, dict) else None
+    if not isinstance(work_item, dict):
+        raise MissingApprovalRecordError(
+            f"{work_item_id}/plan: {state_path} at {commit} has no work_items entry for it"
+        )
+    verify_post_approval_manifest_match(
+        repo_root, work_item, stage="plan", base_commit=journal["base_commit"], commit=commit,
+        expected_review_content_id=journal["expected_review_content_id"],
+    )
+    assert_committed_path_set_matches(repo_root, commit, tuple(journal["applicable_paths"]))
+    assert_committed_plan_approval_closure(
+        repo_root, commit,
+        review_content_manifest=work_item["plan_approval"]["review_content_manifest"],
+        removal_paths=journal.get("removal_paths", []),
+    )
+    if journal["fifth_member_applies"]:
+        verify_committed_blob_sha256(
+            repo_root, commit, fingerprint.artifacts_path_for_work_item(work_item_id).as_posix(),
+            journal["fifth_member_sha256"],
+        )
+    return work_item
+
+
+def classify_post_commit_verification_failure(exc: BaseException) -> str:
+    """Section 5.4 item 6, the amend gate: `POST_COMMIT_FAILURE_TREE_CONTENT`
+    only for a proven tree-content defect of the commit just created -- a
+    committed blob differing from the staged and pinned bytes
+    (`CommittedStateBlobMismatchError`, `CommittedBlobMismatchError`,
+    `CommittedProtectedContentMismatchError`), the committed tree
+    recomputing to another identity (`PostApprovalManifestMismatchError`)
+    or missing a protected member (`AbsentProtectedPathError`) after the
+    write-tree proof passed -- each a defect re-staging the pinned bytes
+    corrects. Everything else is `POST_COMMIT_FAILURE_RECORD_OR_INPUT`,
+    and step 6a stops with `HEAD` unchanged (INV-5): a missing or
+    mismatched record, a verifier-input error, an unclassified path,
+    anything unforeseen, and an extra path in the commit
+    (`CommittedPathSetMismatchError`), which the amend cannot remove
+    ("recovery corrects content, never membership"). Pure."""
+    tree_content = (
+        CommittedStateBlobMismatchError, CommittedBlobMismatchError,
+        CommittedProtectedContentMismatchError, PostApprovalManifestMismatchError,
+        fingerprint.AbsentProtectedPathError,
+    )
+    if isinstance(exc, tree_content):
+        return POST_COMMIT_FAILURE_TREE_CONTENT
+    return POST_COMMIT_FAILURE_RECORD_OR_INPUT
 
 
 def rollback_plan_approval_write(
@@ -2429,6 +2813,7 @@ def open_plan_approval_journal(
     path: Path = PLAN_APPROVAL_JOURNAL_PATH,
     pre_registry: dict | None = None, pre_plan_text: str | None = None,
     post_registry: dict | None = None, post_plan_text: str | None = None,
+    removal_paths: tuple[str, ...] = (),
 ) -> dict:
     """Opens the durable, crash-resumable plan-approval transaction
     journal (`WFR-63`, missing-test item 349): this invocation's own
@@ -2463,7 +2848,19 @@ def open_plan_approval_journal(
     internal `apply_plan_approval` call above -- this function performs no
     read of its own to obtain them and no amendment-specific logic; it
     stays a thin, journal-writing orchestrator exactly as it already is
-    for `record`/`base_commit`/every other caller-supplied argument."""
+    for `record`/`base_commit`/every other caller-supplied argument.
+
+    workflow-2.6.0, `D-Plan-Approval-Closure`: `removal_paths` (step 4a's
+    `plan.removal_paths`, a subset of `applicable_paths`) is pinned as the
+    journal's `removal_paths`, which the write-tree proof and
+    `verify_plan_approval_commit` read. The field is optional on read: a
+    journal opened by `2.5.1`, which never staged a removal, reads as
+    `[]`."""
+    if not set(removal_paths) <= set(applicable_paths):
+        raise ValueError(
+            f"removal_paths {sorted(removal_paths)} must be a subset of applicable_paths "
+            f"{sorted(applicable_paths)}"
+        )
     full_path = plan_approval_journal_path(repo_root, path)
     full_path.parent.mkdir(parents=True, exist_ok=True)
     repo_root_id, git_common_dir, worktree_root = _git_identity(repo_root)
@@ -2493,6 +2890,7 @@ def open_plan_approval_journal(
         "expected_bundle_id": expected_bundle_id,
         "expected_review_content_id": expected_review_content_id,
         "applicable_paths": sorted(applicable_paths),
+        "removal_paths": sorted(removal_paths),
         "fifth_member_applies": fifth_member_applies,
         "fifth_member_sha256": fifth_member_sha256,
         "user_confirmation": user_confirmation,
@@ -2567,6 +2965,10 @@ def read_plan_approval_journal(repo_root: Path, path: Path = PLAN_APPROVAL_JOURN
     ]
     if not isinstance(journal.get("applicable_paths"), list):
         missing.append("applicable_paths")
+    # workflow-2.6.0: optional (a 2.5.1 journal has none), typed when present.
+    removal_paths = journal.get("removal_paths", [])
+    if not isinstance(removal_paths, list) or not all(isinstance(p, str) for p in removal_paths):
+        missing.append("removal_paths")
     if not isinstance(journal.get("fifth_member_applies"), bool):
         missing.append("fifth_member_applies")
     takeover_count = journal.get("takeover_count")
