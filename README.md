@@ -15,7 +15,7 @@ overwriting the work-item state those repositories accumulate.
 | `2.4.0` | authored in this repository — `2.3.1` base plus the plan-amendment-mechanism overlay | 7/7 suites, 1498 tests — same suite set as `2.3.1`, plus 58 new cases | 1497 of 1498 (the same documented exception) |
 | `2.5.0` | authored in this repository — `2.4.0` base plus the implementation-review-two-stage overlay | 7/7 suites, 1669 tests — same suite set as `2.4.0`, plus 171 new cases | 1669 of 1669 |
 | `2.5.1` | authored in this repository — `2.5.0` base plus the workflow-2-5-1-checkpoint-id-compatibility overlay | 7/7 suites, 1681 tests — same suite set as `2.5.0`, plus 12 new cases | 1681 of 1681 |
-| `2.6.0` | authored in this repository — `2.5.1` base plus the workflow-review-artifact-and-concurrency-hardening overlay | 7/7 suites, 1973 tests — same suite set as `2.5.1`, plus 292 new cases | 1973 of 1973 |
+| `2.6.0` | authored in this repository — `2.5.1` base plus the workflow-review-artifact-and-concurrency-hardening overlay | 7/7 suites, 1976 tests — same suite set as `2.5.1`, plus 295 new cases | 1976 of 1976 |
 
 `workflow_manager releases` prints every release present, each release's own
 `provenance` distinguishing an upstream extraction from an authored one; both

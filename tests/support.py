@@ -163,7 +163,7 @@ CI_SUITES = {
         "workflow_integration_test.py": 267,
         "workflow_acceptance_matrix_test.py": 280,
         "workflow_state_completion_obligations_test.py": 106,
-        "workflow_fingerprint_generalization_test.py": 100,
+        "workflow_fingerprint_generalization_test.py": 103,
     },
 }
 

@@ -615,6 +615,17 @@ fi
 # `git apply` ignores text before the first `diff --git`, so the patch
 # stays applicable against amendment_base_commit.
 #
+# The diff is captured as bytes and written as bytes: a protected file that
+# is not valid UTF-8 must never abort a gate over an artifact outside
+# bundle_id. Every option that user or system git configuration could flip
+# is pinned on the command line (--no-ext-diff, --no-textconv, --no-color,
+# explicit a/ b/ prefixes, --no-renames), `--binary` keeps binary protected
+# files applicable, and `--literal-pathspecs` treats every declared path as
+# a literal rather than a pathspec pattern. A newly declared protected file
+# that is gitignored is hashed by review_content_id but never staged
+# intent-to-add above (`--exclude-standard`), so it is absent from this
+# patch -- reviewer convenience only, never a completeness claim.
+#
 # Only the state-file read/parse is wrapped (OPUS-R145-004, IMPL4-O1): this
 # block runs for every plan-stage generation, including work items that
 # will never amend, so a failure there degenerates to "no amendment is
@@ -656,8 +667,12 @@ if is_open:
         base_protected = frozenset()
     pathspec = sorted(base_protected | metadata.protected_paths | {artifacts_path.as_posix()})
     diff = subprocess.run(
-        ["git", "diff", "--no-renames", base_commit, "--", *pathspec],
-        cwd=repo_root, check=True, capture_output=True, text=True,
+        [
+            "git", "--literal-pathspecs", "diff", "--no-ext-diff", "--no-textconv",
+            "--no-color", "--src-prefix=a/", "--dst-prefix=b/", "--no-renames",
+            "--binary", base_commit, "--", *pathspec,
+        ],
+        cwd=repo_root, check=True, capture_output=True,
     ).stdout
     identifiers = fingerprint.read_manifest_identifiers(manifest_path)
     preamble = (
@@ -671,7 +686,7 @@ if is_open:
         f"# review_content_id: {identifiers['review_content_id']}\n"
         "\n"
     )
-    out_path.write_text(preamble + diff)
+    out_path.write_bytes(preamble.encode("utf-8") + diff)
 else:
     out_path.unlink(missing_ok=True)
 PYEOF
@@ -703,7 +718,11 @@ fi
 # never a caller-influenced value -- true here regardless of argument order,
 # since AMENDMENT_DIFF.patch is always this fixed literal name, gated only
 # on its own existence, never on any work-item- or token-derived value.
-tar -czf "$ARCHIVE_TMP" -C "$ARCHIVE_ROOT" $(cd "$ARCHIVE_ROOT" && [ -f AMENDMENT_DIFF.patch ] && echo AMENDMENT_DIFF.patch) current
+# workflow-2.6.0: it is also gated on the plan stage. The patch describes a
+# plan-stage amendment only; an implementation or post-fix archive built
+# after the amendment resolved must never carry the stale plan-stage copy
+# still sitting next to current/.
+tar -czf "$ARCHIVE_TMP" -C "$ARCHIVE_ROOT" $([[ "$STAGE" == "plan" ]] && cd "$ARCHIVE_ROOT" && [ -f AMENDMENT_DIFF.patch ] && echo AMENDMENT_DIFF.patch) current
 mv -f "$ARCHIVE_TMP" "$ARCHIVE"
 
 # --- closing check (D-Fingerprint-Generalization, GPT-R30-001/003; WFR-67

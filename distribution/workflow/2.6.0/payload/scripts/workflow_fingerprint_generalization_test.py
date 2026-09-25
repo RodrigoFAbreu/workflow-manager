@@ -1407,10 +1407,13 @@ class TestPrepareAiReviewShAmendmentDiffWorkingTreeAnchor(unittest.TestCase):
         plan_path = repo.root / self.PLAN
         plan_path.write_text(plan_path.read_text() + f"{line}\n")
 
-    def _generate(self, repo, script_path):
+    def _generate(self, repo, script_path, *, as_bytes=False, env=None):
         """Writes the two author-written plan-stage preconditions for the
         current working tree, runs the real script, and returns the
-        patch's text, or `None` when the script wrote none."""
+        patch's text (its bytes with `as_bytes`), or `None` when the
+        script wrote none. `env`, when given, replaces the script's own
+        environment -- the preconditions above are always computed under
+        the caller's."""
         digest, _ = fingerprint.compute_review_content_id_plan_stage_for_work_item(
             repo.root, self.ITEM,
         )
@@ -1421,11 +1424,13 @@ class TestPrepareAiReviewShAmendmentDiffWorkingTreeAnchor(unittest.TestCase):
         (bundle_dir / "TEST_RESULTS.md").write_text(f"stage: plan (revision 1)\nhead: {current_head}\n")
         result = subprocess.run(
             ["bash", str(script_path), repo.base, "plan", self.ITEM],
-            cwd=repo.root, capture_output=True, text=True,
+            cwd=repo.root, capture_output=True, text=True, env=env,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         patch_path = repo.root / ".ai-review" / self.ITEM / "AMENDMENT_DIFF.patch"
-        return patch_path.read_text() if patch_path.is_file() else None
+        if not patch_path.is_file():
+            return None
+        return patch_path.read_bytes() if as_bytes else patch_path.read_text()
 
     def _file_section(self, patch, path):
         """The patch's own section for `path` (header through the next
@@ -1449,7 +1454,10 @@ class TestPrepareAiReviewShAmendmentDiffWorkingTreeAnchor(unittest.TestCase):
         try:
             self._git(repo, "worktree", "add", "-q", "--detach", str(worktree / "wt"), commit)
             patch_file = worktree / "AMENDMENT_DIFF.patch"
-            patch_file.write_text(patch)
+            if isinstance(patch, bytes):
+                patch_file.write_bytes(patch)
+            else:
+                patch_file.write_text(patch)
             result = subprocess.run(
                 ["git", "apply", "--check", str(patch_file)],
                 cwd=worktree / "wt", capture_output=True, text=True,
@@ -1627,6 +1635,69 @@ class TestPrepareAiReviewShAmendmentDiffWorkingTreeAnchor(unittest.TestCase):
             patch = self._generate(repo, script_path)
             self._assert_applies_at(repo, base, patch)
 
+    def test_non_utf8_and_binary_protected_content_generates_an_applicable_patch(self):
+        """Implementation review round 1, Important 4: a protected file
+        that is not valid UTF-8 aborted the whole plan-stage generation
+        while an amendment was open (`text=True` capture). The patch is
+        bytes end to end now, and `--binary` keeps a binary protected
+        file applicable."""
+        binary_path = "docs/ai-workflow/AMENDED_DIAGRAM.bin"
+        with h.ScratchRepo() as repo:
+            script_path, base = self._seed_open_amendment(repo)
+            # The plan itself must stay UTF-8 (its title line is parsed);
+            # any other protected file carries no such constraint.
+            audit_path = repo.root / self.AUDIT
+            audit_path.write_bytes(audit_path.read_bytes() + b"caf\xe9 latin-1 design line\n")
+            self._edit_declaration(repo, add=[binary_path])
+            (repo.root / binary_path).write_bytes(bytes(range(256)) * 4)
+            patch = self._generate(repo, script_path, as_bytes=True)
+            self.assertIsNotNone(patch)
+            self.assertTrue(patch.startswith(b"# AMENDMENT_DIFF.patch"))
+            self.assertIn(b"+caf\xe9 latin-1 design line\n", patch)
+            self.assertIn(f"diff --git a/{binary_path} b/{binary_path}\n".encode(), patch)
+            self.assertIn(b"GIT binary patch", patch)
+            self._assert_applies_at(repo, base, patch)
+
+    def test_patch_is_byte_stable_under_a_hostile_global_git_config(self):
+        """Implementation review round 1, Important 5: every git option
+        that shapes the patch is pinned on the command line, so a user's
+        `diff.noprefix`, `diff.mnemonicPrefix`, `color.ui=always`,
+        `diff.external` or `diff.renames` changes nothing -- byte for
+        byte -- and `git apply --check` still accepts it."""
+        renamed = "docs/ai-workflow/WORKFLOW_V2_AUDIT_RENAMED.md"
+        with h.ScratchRepo() as repo:
+            script_path, base = self._seed_open_amendment(repo)
+            self._edit_declaration(repo, drop=[self.AUDIT], add=[renamed], exclude=[self.AUDIT])
+            (repo.root / self.AUDIT).rename(repo.root / renamed)
+            self._amend_plan(repo)
+            baseline = self._generate(repo, script_path, as_bytes=True)
+            self.assertIsNotNone(baseline)
+
+            config_dir = Path(tempfile.mkdtemp(prefix="wf-hostile-git-config-"))
+            try:
+                external = config_dir / "external-diff.sh"
+                external.write_text("#!/bin/sh\necho EXTERNAL-DIFF-RAN\n")
+                external.chmod(0o755)
+                hostile = config_dir / "gitconfig"
+                hostile.write_text(
+                    "[diff]\n"
+                    "\tnoprefix = true\n"
+                    "\tmnemonicPrefix = true\n"
+                    "\trenames = copies\n"
+                    f"\texternal = {external}\n"
+                    "[color]\n"
+                    "\tui = always\n"
+                    "\tdiff = always\n"
+                )
+                env = dict(os.environ, GIT_CONFIG_GLOBAL=str(hostile))
+                hostile_patch = self._generate(repo, script_path, as_bytes=True, env=env)
+            finally:
+                shutil.rmtree(config_dir, ignore_errors=True)
+            self.assertEqual(hostile_patch, baseline)
+            self.assertNotIn(b"EXTERNAL-DIFF-RAN", hostile_patch)
+            self.assertNotIn(b"\x1b[", hostile_patch)
+            self._assert_applies_at(repo, base, hostile_patch)
+
 
 class TestPrepareAiReviewShImplementationStageHeadGuard(unittest.TestCase):
     """GPT-R42-001: an implementation/post-fix bundle must not be
@@ -1762,6 +1833,41 @@ class TestPrepareAiReviewShImplementationStageHeadGuard(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             manifest_text = (bundle_dir / "MANIFEST.md").read_text()
             self.assertIn(f"reviewed_implementation_head: {impl_head}", manifest_text)
+
+    def test_stale_amendment_diff_patch_is_never_archived_at_the_implementation_stage(self):
+        """Implementation review round 1, Optional 1: once an amendment has
+        resolved, the plan stage's last `AMENDMENT_DIFF.patch` can still
+        sit next to `current/`. The archive includes it only at the plan
+        stage, so an implementation or post-fix archive never ships that
+        stale plan-stage copy."""
+        with h.ScratchRepo() as repo:
+            work_item_id = "wi"
+            impl_head = self._seed_and_implement(repo, work_item_id)
+            self._write_review_request(repo, work_item_id, repo.base, impl_head)
+            entry = ws.default_work_item(
+                work_item_id=work_item_id, work_item_type="process", work_item_kind="process",
+                plan_path="docs/ai-workflow/WORKFLOW_V2_PLAN.md",
+                registry_path=f"docs/ai-workflow/registry/{work_item_id}-registry.json",
+                mapping_path=f"docs/ai-workflow/requirements/{work_item_id}-mapping.json",
+                base_commit=repo.base, governing_workflow_version="1",
+                plan_revision=1, last_transition="t0",
+            )
+            entry["reviewed_implementation_head"] = impl_head
+            entry["implementation_revision"] = 1
+            repo.write_workflow_state(active_work_item_id=work_item_id, **{work_item_id: entry})
+            root_dir = repo.root / ".ai-review" / work_item_id
+            (root_dir / "AMENDMENT_DIFF.patch").write_text("# stale plan-stage patch\n")
+
+            script_path = self._install_scripts(repo)
+            result = subprocess.run(
+                ["bash", str(script_path), repo.base, "post-fix", work_item_id],
+                cwd=repo.root, capture_output=True, text=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            with tarfile.open(root_dir / "review-bundle.tar.gz", "r:gz") as tar:
+                names = tar.getnames()
+            self.assertIn("current", names)
+            self.assertNotIn("AMENDMENT_DIFF.patch", names)
 
     def test_interrupted_after_durability_commit_resumes_without_a_second_commit(self):
         """Item 227 (`WF8c`): a simulated interruption after the

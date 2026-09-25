@@ -9,7 +9,7 @@
   "provenance": {
     "origin": "authored",
     "base_release": "2.5.1",
-    "overlay_commit": "736e170035b08800845bf4255198675e2ce424b1"
+    "overlay_commit": "87ecfe86d585a4f2fc27e79ec151e3ac3068ec21"
   },
   "categories": {
     "distribution": "Canonical Workflow implementation. Copied byte-for-byte into the payload and installed into every managed target repository.",
@@ -648,13 +648,13 @@
       "location": "payload/scripts/prepare-ai-review.sh",
       "category": "distribution",
       "rule": "^scripts/prepare-ai-review\\.sh$",
-      "rationale": "D-Plan-Amendment-5 revision (CP2, v2.4.0-003): the AMENDMENT_DIFF.patch block drops ..HEAD and diffs amendment_base_commit against the working tree (--no-renames), over the sorted union of the plan_stage.protected_paths declared at amendment_base_commit, the ones declared now and <id>-artifacts.json itself; it gains a provenance preamble (work_item_id, amendment_id, amendment_base_commit, plan_revision, review_content_id) and moves after --write-manifest so the preamble can carry the manifest's review_content_id. The file stays outside current/ and outside both identities; the archive line and every other block are unchanged. D-Plan-Review-Bundle-Binding (CP4): the plan stage assembles into .ai-review/<id>/current.staging-<token>/current/ with a .pin.staging-<token>/ pin, its archive and AMENDMENT_DIFF.patch inside the staging area (the archive's member root stays the bare literal current, item 341), copies the author files from plan-inputs/ (seed_plan_review_inputs), finalizes with --staging-token, and removes the staging area on any exit before promotion; leftovers of an interrupted generation are removed at the start. The implementation, post-fix and functional-review stages are unchanged.",
-      "sha256": "3a12270b35aa5de2a4b7d2f90f78ea1fb019086a425346838a2e219a1f84a93c",
-      "size": 39289,
+      "rationale": "D-Plan-Amendment-5 revision (CP2, v2.4.0-003): the AMENDMENT_DIFF.patch block drops ..HEAD and diffs amendment_base_commit against the working tree (--no-renames), over the sorted union of the plan_stage.protected_paths declared at amendment_base_commit, the ones declared now and <id>-artifacts.json itself; it gains a provenance preamble (work_item_id, amendment_id, amendment_base_commit, plan_revision, review_content_id) and moves after --write-manifest so the preamble can carry the manifest's review_content_id. The file stays outside current/ and outside both identities; the archive line and every other block are unchanged. D-Plan-Review-Bundle-Binding (CP4): the plan stage assembles into .ai-review/<id>/current.staging-<token>/current/ with a .pin.staging-<token>/ pin, its archive and AMENDMENT_DIFF.patch inside the staging area (the archive's member root stays the bare literal current, item 341), copies the author files from plan-inputs/ (seed_plan_review_inputs), finalizes with --staging-token, and removes the staging area on any exit before promotion; leftovers of an interrupted generation are removed at the start. The implementation, post-fix and functional-review stages are unchanged. Implementation review round 1 fixes: the AMENDMENT_DIFF.patch diff is captured and written as bytes (a non-UTF-8 protected file no longer aborts the plan-stage generation), with every configuration-sensitive option pinned on the command line (--literal-pathspecs, --no-ext-diff, --no-textconv, --no-color, explicit a/ b/ prefixes, --no-renames, --binary), and the archive includes AMENDMENT_DIFF.patch only at the plan stage, so an implementation or post-fix archive never ships a stale plan-stage copy.",
+      "sha256": "06babdaa873c4be57c6a9c476b28d3461e972ab50a1e655412174b1d7be2361d",
+      "size": 40481,
       "executable": true,
       "overlay_delta": {
         "base_sha256": "902c3be9b5ff54228c5635d044828af618246d6ccca81df856eac271bf495c5e",
-        "diff_sha256": "0e78176aa9fcce3e681466ffb4ecfe3308a5e98b689cac3d6d615902d160480f"
+        "diff_sha256": "dedc9f89c23ab9d87784d403245aae2678bb3b7fc691533648d48d548ff828a0"
       }
     },
     {
@@ -701,13 +701,13 @@
       "location": "payload/scripts/workflow_fingerprint_generalization_test.py",
       "category": "distribution",
       "rule": "^scripts/workflow_fingerprint_generalization_test\\.py$",
-      "rationale": "D-Plan-Amendment-5 revision (CP2): adds TestPrepareAiReviewShAmendmentDiffWorkingTreeAnchor, driving the real prepare-ai-review.sh in scratch repositories -- uncommitted plan edit (with a ..HEAD control arm), untracked new protected file with the index restored, dropped-and-deleted path, rename as deletion plus new file, dropped-but-kept changed and unchanged paths, artifacts declaration absent at the base, non-protected edits absent, archive member byte-identity, bundle_id invariance, removal after resolution, preamble fields, and git apply --check at amendment_base_commit. Additive only: every pre-existing test is unmodified. D-Plan-Review-Bundle-Binding (CP4): adds TestPrepareAiReviewShPlanStageStaging -- promotion from plan-inputs/, both section 3.3 failure variants leaving the previous current/, archive and .pin byte-identical with no REJECTED marker or staging leftover, a pre-existing REJECTED marker surviving failure and cleared by success, current/ seeding with a location-independent bundle_id, seed sources/mode/symlink refusal, leftover removal, and staging-token validation. Additive only.",
-      "sha256": "b5a3951d1c2bdf02dff7a927cdd125ce8266e98e91b08e49a9122a6f1e6196e5",
-      "size": 147095,
+      "rationale": "D-Plan-Amendment-5 revision (CP2): adds TestPrepareAiReviewShAmendmentDiffWorkingTreeAnchor, driving the real prepare-ai-review.sh in scratch repositories -- uncommitted plan edit (with a ..HEAD control arm), untracked new protected file with the index restored, dropped-and-deleted path, rename as deletion plus new file, dropped-but-kept changed and unchanged paths, artifacts declaration absent at the base, non-protected edits absent, archive member byte-identity, bundle_id invariance, removal after resolution, preamble fields, and git apply --check at amendment_base_commit. Additive only: every pre-existing test is unmodified. D-Plan-Review-Bundle-Binding (CP4): adds TestPrepareAiReviewShPlanStageStaging -- promotion from plan-inputs/, both section 3.3 failure variants leaving the previous current/, archive and .pin byte-identical with no REJECTED marker or staging leftover, a pre-existing REJECTED marker surviving failure and cleared by success, current/ seeding with a location-independent bundle_id, seed sources/mode/symlink refusal, leftover removal, and staging-token validation. Additive only. Implementation review round 1: adds non-UTF-8 and binary protected content (an applicable patch), byte-stability under a hostile GIT_CONFIG_GLOBAL, and an implementation-stage archive that excludes a stale AMENDMENT_DIFF.patch; the class's _generate/_assert_applies_at helpers gain byte and environment parameters.",
+      "sha256": "59302a8a305fbeb5172dba0570e946b4d181f13c613564dcfef0543323293b66",
+      "size": 153064,
       "executable": false,
       "overlay_delta": {
         "base_sha256": "857734878cb35ddc4c5671de543387012a884c3d12ea03d4b3890d0abe666eef",
-        "diff_sha256": "7cdfcfb96af1fab60316ad1396c823fe73cf6ec98d77706afc8eea511ea34366"
+        "diff_sha256": "5d8047715641ef8e97466c79d54dc7f3bb6361a9d6bf74470f82e4119733d4a4"
       }
     },
     {
