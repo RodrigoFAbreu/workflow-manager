@@ -986,7 +986,7 @@ _GOLDEN_COMMAND_FILE_SHA256 = {
     # Implementation review round 2 (I1): step 4a reads the staged diff
     # NUL-delimited, step 6.3 calls assert_staged_path_set_within, and step
     # 6d's member-dirty check is literal -- intentional.
-    "approve-review.md": "644b1cd66560af0771d73851f519e09e63e0665b614a08e6ae652a858237a903",
+    "approve-review.md": "65d60c81f4a3023d9447977f5e9d7ec892fef45254f7735dfd1c9fee70597995",
     # accept-milestone.md updated, baseline-freeze correctness fix
     # (OPUS-R129-001): step 6's completion-commit instruction now states
     # the same "trailers must be the commit message's own final paragraph"

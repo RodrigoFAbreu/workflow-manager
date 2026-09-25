@@ -9,7 +9,7 @@
   "provenance": {
     "origin": "authored",
     "base_release": "2.5.1",
-    "overlay_commit": "cc123983be82e525cf1e5e2dc22a8cfcefcaa00f"
+    "overlay_commit": "201c82da1d6df76ce2f2a07d16fe3d14078e90aa"
   },
   "categories": {
     "distribution": "Canonical Workflow implementation. Copied byte-for-byte into the payload and installed into every managed target repository.",
@@ -730,12 +730,12 @@
       "category": "distribution",
       "rule": "^scripts/workflow_integration_test\\.py$",
       "rationale": "D-Feedback-Layout (CP3): the ten command-file content hashes CP3 changes are updated, each with an intentional-content-change comment, and TestReviewPlanStep8OwnershipGuardIsPresent's guard-call pin is re-pointed to require state=. No pin is deleted; the v1 golden hashes are unchanged. D-Plan-Review-Bundle-Binding (CP4): re-points test_a_real_committed_plan_edit_after_local_approval_invalidates_the_stage (the retired transition now refuses; a manual REVISE, publish and bind drive the same edge), the operator-reference phase-writer expectations, and registers the acceptance matrix's new amendment helper section in _MATRIX_HELPER_SECTION_OWNERS; the golden command-file hashes are re-recorded for the command files CP4 restates. None deleted. D-Plan-Approval-Closure (CP5): three pre-existing tests that pinned 2.5.1's fixed four/five-member set are re-pointed to the declared protected set (their fixture protects two further documents), none deleted; approve-review.md's and milestone-plan.md's golden hashes are re-recorded. D-Repo-Global-Lifecycle (CP6): adds TestApproveReviewLifecycleEntryTable (test 29) -- section 5.6's entry table asserted row by row over the live approve-review.md (4d directly after 4c and named nowhere else, 4b still skipping 4c-6, step 5's first_commit mode, 6a1's held check before its amend_recovery staging, 6b capturing journal_tokens before the rollback and releasing after it, 6c1's advance directly before 6d, and the table's rows). The approve-review.md and milestone-implement.md golden hashes are re-recorded with annotations. Implementation review round 1: the golden hashes of approve-review.md and apply-plan-review.md are updated for their documented round-1 additions. Implementation review round 2 (I1): the golden hashes of approve-review.md and milestone-plan.md are re-recorded for their literal/NUL-safe path instructions.",
-      "sha256": "6d0b6fbcdf4f0abc15c4e3160cd4197d0974fbdb094dae9a3e45af3de224cbcc",
+      "sha256": "6264b4005532a9fb22d87cc3140f4252815c11e28b55c8934a85a130f1a65c3e",
       "size": 406863,
       "executable": false,
       "overlay_delta": {
         "base_sha256": "b313349388b6c471f891b24376d1091073b85f9680a832904b9cd8ca9a9e7cee",
-        "diff_sha256": "b1f3160159f7e331cd0bc19f2b909a6b52f948d4326be9c1d6fef1ec7b06d3ba"
+        "diff_sha256": "4d8b4d9f06843240073e60f7b81aa42fef985acd2a5f30a5fd19f9f472a3016e"
       }
     },
     {
