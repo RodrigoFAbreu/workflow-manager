@@ -958,9 +958,100 @@ The unrelated working-tree changes to `.gitignore`,
 `.workflow-manager/installation.json` and `docs/ROADMAP.md` were there
 before this checkpoint. They were left untouched and not committed.
 
+## Implementation review round 1 (`LOCAL_MODEL_IMPLEMENTATION_REVIEW`, `REVISE`)
+
+Feedback bound to bundle `9b929aeb…93c6`, `review_content_id`
+`b70c675f…b308`, `implementation_revision` 1. It had no Blocking findings
+and five Important ones. Each was reproduced before any change, with a new
+test that fails on the reviewed code. All five are fixed in the `2.6.0`
+overlay, and the release was rebuilt.
+
+- **Important 4 (CP2): non-UTF-8 protected content.** Fixed.
+  `AMENDMENT_DIFF.patch` is now captured and written as bytes.
+- **Important 5 (CP2): git-config sensitivity.** Fixed. Every option that
+  shapes the patch is pinned on the command line: `--literal-pathspecs`,
+  `--no-ext-diff`, `--no-textconv`, `--no-color`, `a/` `b/` prefixes,
+  `--no-renames` and `--binary`. The new test regenerates under a hostile
+  `GIT_CONFIG_GLOBAL` (`noprefix`, `mnemonicPrefix`, `renames = copies`,
+  an external diff and `color = always`). The patch must be
+  byte-identical and still pass `git apply --check`.
+- **Important 1 (CP4): re-bound content reaching plan approval.** Partly
+  fixed, and the rest is waiting for a plan amendment.
+  - `apply_plan_approval` now refuses a `TWO_STAGE_PLAN_REVIEW_VERSIONS`
+    item at any phase other than `AWAITING_PLAN_APPROVAL`
+    (`PlanApprovalPhaseError`). `approve-review.md` step 0 says so. The
+    withdraw → detour → restore sequence can therefore no longer reach
+    approval from `AWAITING_LOCAL_PLAN_REVIEW`.
+  - One thing is not fixed: content A can still **re-bind** and re-enter
+    review as an ordinary round. Section 5.3's closing guarantee, and the
+    recovery-table row "the withdrawn content is `CONSUMED` and cannot
+    re-bind", are still stronger than the design.
+  - The approved plan fixes `consumed` as a single slot with exactly
+    `{review_content_id, plan_revision, legacy}`, written "never from a
+    prior record". Restoring the guarantee, or narrowing that prose, both
+    change the plan.
+  - The user decided (2026-09-25) to settle section 5.3's semantics
+    through a plan amendment rather than in this fix round.
+- **Important 2 (CP6): unreadable committed state wedging the witness.**
+  Fixed. An unreadable committed `WORKFLOW_STATE.json` in another worktree
+  now makes the test undecidable. The refusal carries the evidence-bound
+  literal, and the literal clears it. This covers every read that
+  previously raised: `RESOLVING` step 1 (resolver `HEAD`, resolver branch
+  tip), step 2a (`_resolution_visible_anywhere`, which now also returns
+  the unreadable reasons), `clear_amendment_resolution`'s scan, and the
+  `OPEN` orphan test's branch-tip and requester reads.
+- **Important 3 (CP6): upgrade-topology wedge.** Fixed. While the witness
+  is absent, a lagging worktree's unresolved entry counts as recorded if
+  the bootstrap would record the same entry (same seq, request projection
+  and `amendment_base_commit`) from a `2.6.0` worktree: any non-lagging
+  one, or the evaluating one. Both reported topologies are tests now.
+  An entry held only by lagging worktrees still refuses (plan test 13g,
+  unchanged). A lagging worktree whose working tree already carries the
+  update is told to commit it, not to merge it.
+
+Optional findings:
+
+- **Applied:**
+  - 1: the archive includes `AMENDMENT_DIFF.patch` at the plan stage only.
+  - 3: `--literal-pathspecs`.
+  - 4: the gitignored-new-protected-file gap is documented in
+    `prepare-ai-review.sh`.
+  - 5: `--no-renames` on the empty-index and post-staging checks.
+  - 7: the witness publish fsyncs its directory.
+  - 8: `request_plan_amendment_transaction` rolls the `OPEN` witness back
+    when the state publish raises. It does not roll back if the state
+    already holds the entry or cannot be read.
+  - 10: `apply-plan-review.md` step 5 notes the forced revision advance
+    for a legacy-marked item.
+  - 11: the overlay classification says 12 named errors.
+  - 12: `docs/MIGRATION.md` now says `2.4.0` is recorded.
+- **Not applied, with reasons:**
+  - 2: a failure-injection test for `PlanStagePromotionError`, and the
+    skipped `clear_rejected_marker_if_present` on a late cleanup failure.
+    This needs a promotion-crash harness. The skipped marker clear fails
+    safe: the next generation clears it.
+  - 6: re-checking 6a1's re-staged members against
+    `review_content_manifest`. The post-amend verification already
+    refuses a drifted member. The cost is one wasted amend attempt, not a
+    wrong commit.
+  - 9: a `git stash` of committed-but-unapproved `AMENDING_PLAN` state.
+    This is a residual to document through the amendment above, alongside
+    section 5.6's other residuals.
+  - 13: CP8 concurrency depth. REQ-7's concurrency evidence stays with
+    CP6's real-process race tests, as the reviewer notes.
+
+The counts move from 1973 to 1989 (+16): `workflow_state_test.py` from 959
+to 972, and `workflow_fingerprint_generalization_test.py` from 100 to 103.
+`tests/support.py` and `README.md` are updated to match.
+
 ## Current blockers
 
-None.
+Important 1's residual (section 5.3's "never re-binds" guarantee) is
+waiting on a plan amendment, as the user decided. `/request-plan-amendment` accepts only
+`IMPLEMENTING`/`SELF_REVIEWING_IMPLEMENTATION`
+(`_AMENDMENT_REQUEST_ALLOWED_PHASES`), and this item is at
+`APPLYING_REVIEW_FEEDBACK`, so it cannot be requested from here. The user
+chooses the route.
 
 ## Active plan
 
@@ -970,6 +1061,8 @@ None.
 
 ## Next action
 
-Invoke `/milestone-implement workflow-review-artifact-and-concurrency-hardening`
-again to enter `SELF_REVIEWING_IMPLEMENTATION`, run the full-milestone
-self-review and generate the implementation-review bundle.
+The user decides how to settle Important 1's residual (see Current
+blockers). The round-1 fixes are committed. The post-fix regeneration
+(`/apply-implementation-review` step 7) has deliberately not run yet. Once
+the route is chosen, it is the step that re-enters
+`AWAITING_LOCAL_IMPLEMENTATION_REVIEW`.

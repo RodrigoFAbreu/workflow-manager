@@ -204,7 +204,15 @@ normative definition.
      `AWAITING_LOCAL_PLAN_REVIEW`). No later step of this command edits a
      plan-stage protected path. It refuses before any write with
      `ConsumedPlanReviewContentError` when the content is still the
-     reviewed (consumed) content -- apply the accepted edits first -- and
+     reviewed (consumed) content -- apply the accepted edits first. For an
+     item carrying the fail-closed legacy marker (`consumed.legacy: true`,
+     a `2.5.1` item mid-round at update, written by step 0's
+     `ensure_plan_review_binding_marker`) the same error also fires when
+     `plan_revision` does not exceed the marker's: that marker records no
+     `review_content_id`, so this round **must advance the revision**
+     (an edit plus the registry regeneration above) even if it would
+     otherwise not bump -- a non-bumping round against a legacy marker is
+     refused, safely and naming that remedy. It also refuses
      with `LegacyPlanReviewBindingUnknownError`,
      `PlanReviewInProgressError`, `PlanReviewPhaseNotPlanStageError` or
      `PlanReviewBindingInconsistentError` as step 0's status would predict.

@@ -1034,8 +1034,9 @@ _GOLDEN_COMMAND_FILE_SHA256 = {
     # and durable feedback check, step 5's publish on every round after
     # staging, <plan_inputs_dir>, step 6 restated "1"-only, and step 7' as
     # verify-plus-bind with 7'.2's regeneration removed -- intentional content
-    # change, not a regression.
-    "apply-plan-review.md": "553bf408189fdcd44b4ace41d897d27cb2c136dbf07632b0626da76d60737ccb",
+    # change, not a regression. Implementation review round 1: step 5 states
+    # that a legacy-marked item must advance plan_revision -- intentional.
+    "apply-plan-review.md": "23ce3fe5becac0d4ff444f410bad79a6a8549f7ab50aa471ede94beb37079e96",
     # apply-implementation-review.md (WF8c item (c)): step 7's
     # record_bundle_generation call site widened to first resolve the
     # outcome (resolve_bundle_generation_outcome) and write the matching

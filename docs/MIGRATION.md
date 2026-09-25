@@ -247,9 +247,10 @@ same warning as an operator instruction.
 
 ## Workflow v2.6.0 — an authored release
 
-`2.6.0` is authored in this repository, like `2.4.0`, `2.5.0` and `2.5.1`
-(which have no separate records here; their evidence lives in their own
-work items' narratives and in `README.md`'s Status table). It ships the
+`2.6.0` is authored in this repository, like `2.4.0` (recorded above),
+`2.5.0` and `2.5.1` (which have no separate records here; their evidence
+lives in their own work items' narratives and in `README.md`'s Status
+table). It ships the
 review-artifact, publication and concurrency hardening of
 `docs/ai-workflow/WORKFLOW_REVIEW_ARTIFACT_AND_CONCURRENCY_HARDENING_PLAN.md`
 on top of the unmodified `2.5.1` base. It adds no phase, review stage or
