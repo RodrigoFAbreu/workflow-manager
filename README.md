@@ -15,6 +15,7 @@ overwriting the work-item state those repositories accumulate.
 | `2.4.0` | authored in this repository — `2.3.1` base plus the plan-amendment-mechanism overlay | 7/7 suites, 1498 tests — same suite set as `2.3.1`, plus 58 new cases | 1497 of 1498 (the same documented exception) |
 | `2.5.0` | authored in this repository — `2.4.0` base plus the implementation-review-two-stage overlay | 7/7 suites, 1669 tests — same suite set as `2.4.0`, plus 171 new cases | 1669 of 1669 |
 | `2.5.1` | authored in this repository — `2.5.0` base plus the workflow-2-5-1-checkpoint-id-compatibility overlay | 7/7 suites, 1681 tests — same suite set as `2.5.0`, plus 12 new cases | 1681 of 1681 |
+| `2.6.0` | authored in this repository — `2.5.1` base plus the workflow-review-artifact-and-concurrency-hardening overlay | 7/7 suites, 1973 tests — same suite set as `2.5.1`, plus 292 new cases | 1973 of 1973 |
 
 `workflow_manager releases` prints every release present, each release's own
 `provenance` distinguishing an upstream extraction from an authored one; both
@@ -77,8 +78,8 @@ python3 tools/migrate.py --check    # prove the committed tree is reproducible
 Both read the upstream repository through `git show` only. Nothing here ever
 writes to it.
 
-An authored release (`2.4.0`, `2.5.0`, `2.5.1`) is re-derived the same way,
-from its own base release and overlay instead of an upstream tag:
+An authored release (`2.4.0`, `2.5.0`, `2.5.1`, `2.6.0`) is re-derived the
+same way, from its own base release and overlay instead of an upstream tag:
 
 ```bash
 python3 tools/build_release.py --overlay migration/overlays/2.4.0            # rebuild
@@ -87,6 +88,8 @@ python3 tools/build_release.py --overlay migration/overlays/2.5.0            # s
 python3 tools/build_release.py --overlay migration/overlays/2.5.0 --check    # prove it reproduces
 python3 tools/build_release.py --overlay migration/overlays/2.5.1            # same, for 2.5.1
 python3 tools/build_release.py --overlay migration/overlays/2.5.1 --check    # prove it reproduces
+python3 tools/build_release.py --overlay migration/overlays/2.6.0            # same, for 2.6.0
+python3 tools/build_release.py --overlay migration/overlays/2.6.0 --check    # prove it reproduces
 ```
 
 See [`docs/ARCHITECTURE.md`'s "Authored releases"](docs/ARCHITECTURE.md#authored-releases)

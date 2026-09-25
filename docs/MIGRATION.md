@@ -244,3 +244,44 @@ held `NEEDS_REVALIDATION`, or a plan approval that ever held `SUPERSEDED`,
 must not run `workflow_manager update --release-version 2.3.1` against
 itself again. `CLAUDE.md`'s "Adding an authored Workflow release" states the
 same warning as an operator instruction.
+
+## Workflow v2.6.0 — an authored release
+
+`2.6.0` is authored in this repository, like `2.4.0`, `2.5.0` and `2.5.1`
+(which have no separate records here; their evidence lives in their own
+work items' narratives and in `README.md`'s Status table). It ships the
+review-artifact, publication and concurrency hardening of
+`docs/ai-workflow/WORKFLOW_REVIEW_ARTIFACT_AND_CONCURRENCY_HARDENING_PLAN.md`
+on top of the unmodified `2.5.1` base. It adds no phase, review stage or
+governing workflow version (the plan's section 6.3). Every fix is
+version-independent code:
+
+- release-derived classification of `.workflow-manager/installation.json`
+  (CP1);
+- a working-tree-anchored `AMENDMENT_DIFF.patch` (CP2);
+- the per-work-item feedback layout (CP3);
+- bundle-bound plan-review publication (CP4);
+- plan-approval commit closure (CP5);
+- the repository-global lifecycle lock and amendment witness (CP6).
+
+| | |
+|---|---|
+| Base release | `2.5.1`, verified against its own manifest before the overlay is applied; `git diff <base_commit> -- distribution/workflow/2.5.1/` is empty |
+| Overlay | `migration/overlays/2.6.0/` — 29 payload files replaced, 0 added: both engine modules, `prepare-ai-review.sh`, five of the seven frozen suites, both `verify_372h_*` dry-run scripts, thirteen `.claude/commands/` files and six normative documents |
+| Provenance | `distribution/workflow/2.6.0/manifest.json`'s `provenance`: `{"origin": "authored", "base_release": "2.5.1", "overlay_commit": "736e170035b08800845bf4255198675e2ce424b1"}` — the build-time `HEAD`, which is the CP6 commit immediately preceding the CP7 commit that carries the built tree (the same parent-pointer convention as `2.4.0` above) |
+| Manifest | 63 artifacts (39 `distribution`, 22 `conformance`, 2 `host-evidence`), 6 templates |
+| Byte-level provenance | Every overlay-replaced file records an `overlay_delta`. `tools/build_release.py --overlay migration/overlays/2.6.0 --check` reproduces the committed `distribution/workflow/2.6.0/` from the base release and the overlay alone |
+| Frozen suite against the conformance fixture | 7/7 suites, 1973 tests — the same suite set as `2.5.1`, plus 292 new cases (`workflow_fingerprint_test.py` 218→242, `workflow_state_test.py` 853→959, `workflow_integration_test.py` 260→267, `workflow_acceptance_matrix_test.py` 146→280, `workflow_fingerprint_generalization_test.py` 79→100) |
+| Frozen suite in a bootstrapped repository | 1973 of 1973; `migration/portability_exceptions.json`'s `by_version["2.6.0"]` is empty |
+| Defect dispositions | `v2.4.0-001` closed (CP1), `v2.4.0-002` closed, qualified (CP6; mutual exclusion holds only once every registered worktree's branch has merged the update), `v2.4.0-003` closed (CP2) — each record's own "`2.6.0` disposition" section cites its tests |
+
+### Downgrade posture
+
+Downgrading a repository that has ever run `2.6.0` to any older release is
+**unsupported**. `2.5.1` ignores every new persisted key rather than
+rejecting it (`feedback_layout`, `plan_review_binding`,
+`resolved_review_content_id`, and the amendment witness under the common
+git dir), so a downgrade fails silently, not loudly. Running mixed
+releases across linked worktrees is unsupported for the same reason.
+`CLAUDE.md`'s "Adding an authored Workflow release" states both as operator
+instructions.

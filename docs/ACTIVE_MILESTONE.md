@@ -20,9 +20,9 @@ process. See the plan's section 2 for non-goals.
 
 ## Current checkpoint
 
-**CP6 complete** (6 of 9 checkpoints). Next: CP7 (depends on CP6) —
-compose the `2.6.0` release; release docs, defect dispositions and
-downgrade posture.
+**CP7 complete** (7 of 9 checkpoints). Next: CP8 (depends on CP7) —
+disposable-repository and linked-worktree acceptance suite, including
+update from installed `2.5.1`.
 
 ### CP1 — Release-derived exact-path classification of the legacy installation record
 
@@ -690,6 +690,79 @@ explicitly.
 - `python3 tests/run_all.py --fast`: all green.
 - INV-9: `git diff b2060bf -- distribution/workflow/` is empty.
 
+### CP7 — Compose the `2.6.0` release
+
+Implements the plan's CP7 and section 6.2 (requirement `REQ-10`).
+
+- `migration/overlays/2.6.0/classification.json` was already complete: each
+  of the 29 overlay payload files is matched by exactly one rule, so
+  nothing changed there.
+- `python3 tools/build_release.py --overlay migration/overlays/2.6.0`
+  composed `distribution/workflow/2.6.0/`: 63 artifacts (39
+  `distribution`, 22 `conformance`, 2 `host-evidence`), 6 templates, 29
+  `overlay_replaced`, 0 `overlay_added`, `overlay_commit` `736e170`
+  (CP6). The `--check` run reproduces it byte for byte.
+- `tests/support.py` `CI_SUITES["2.6.0"]`, counted from the composed
+  payload's own suites. Five suites differ from `2.5.1`: fingerprint 242,
+  state 959, integration 267, acceptance matrix 280 and generalization
+  100. Harness (19) and obligations (106) are unchanged.
+  Total 1973, or 292 more than `2.5.1`'s 1681. The same loader count
+  reproduces the pinned `2.5.1` values.
+- `migration/portability_exceptions.json` gets the empty
+  `by_version["2.6.0"]`. No genuine exception arose.
+- Per-release classes: `TestConformanceFixture260` and
+  `TestBootstrappedTarget260` (`tests/test_conformance_suite.py`),
+  `TestBootstrappedRepositorySatisfiesTheFrozenSuite260`
+  (`tests/test_bootstrap_e2e.py`), and
+  `TestReadmeStatusTableMatchesCiSuites.test_2_6_0_row_matches_ci_suites`
+  (`tests/test_internal_references.py`). Because five suites move, its "new
+  cases" is the whole-release delta against `2.5.1`, not `2.5.1`'s
+  two-suite sum.
+- `README.md`: `2.6.0` Status row and rebuild commands. `docs/MIGRATION.md`:
+  new "Workflow v2.6.0 — an authored release" record with its own downgrade
+  posture. `CLAUDE.md`: the authored-release list, plus the `2.6.0`
+  downgrade paragraph. That paragraph cites CP3's and CP6's mechanical
+  finding (ignored, not rejected, so the failure is silent), lists section
+  6.2's five conditions, and states the mixed-release posture.
+- `docs/defects/v2.4.0-001`, `-002` and `-003` each get a status-line
+  update and a "`2.6.0` disposition" section citing their tests. `-001`:
+  closed, plus the out-of-scope process-item update hazard (section 3.2).
+  `-002`: closed, qualified, with section 5.6's residual quoted verbatim.
+  `-003`: closed (repair form 1).
+- **CP6 test portability defect, found by this checkpoint's full run and
+  fixed in the overlay.** Eight git calls in CP6's `workflow_state_test.py`
+  tests (`TestRepoGlobalLifecycleClaimAndAmendment`,
+  `TestAmendmentWitnessCrashRecovery`, `TestAmendmentWitnessUpgradeBootstrap`,
+  `TestAmendmentBootstrapResolutionFork`) named the branch `main` literally.
+  `ScratchRepo`'s `git init -q` names it from `init.defaultBranch`, and the
+  conformance harness isolates git config (`GIT_CONFIG_GLOBAL=/dev/null`,
+  `tests/support.py`), so it was `master` there. The result was 7 errors
+  against both the fixture and the bootstrapped target. CP6's narrow checks
+  had passed only under a global config that sets `main`. A new
+  `_primary_branch(root)` helper (`git symbolic-ref --short HEAD`) replaces
+  every literal. The test count is unchanged (959), no assertion changed,
+  the shared base `ScratchRepo` fixture is untouched, and
+  `distribution/workflow/2.6.0/` was rebuilt from the overlay. It is not a
+  portability exception: the test was wrong, so `by_version["2.6.0"]`
+  stays empty.
+
+**Verified state.**
+
+- `python3 tests/run_all.py` (full, non-`--fast`), after the CP6
+  test-portability fix above: 11/11 files OK, including
+  `test_conformance_suite.py` (1360.8s: `TestConformanceFixture260` and
+  `TestBootstrappedTarget260` green, 1973 tests) and
+  `test_bootstrap_e2e.py` (665.4s:
+  `TestBootstrappedRepositorySatisfiesTheFrozenSuite260`'s failure set
+  equals the empty `by_version["2.6.0"]`). The README row's values
+  (1973, +292, 1973 of 1973) come from this run. The run before the fix
+  failed exactly as described above: 3 conformance failures and 1
+  bootstrap-e2e failure, all caused by the branch-name literal.
+- `python3 tools/build_release.py --overlay migration/overlays/2.6.0 --check`:
+  reproduces `distribution/workflow/2.6.0/` byte for byte.
+- `python3 tools/migrate.py --check`: OK.
+- INV-9: `git diff b2060bf -- distribution/workflow/2.5.1/` is empty.
+
 ## Current blockers
 
 None.
@@ -703,4 +776,4 @@ None.
 ## Next action
 
 Invoke `/milestone-implement workflow-review-artifact-and-concurrency-hardening`
-to implement CP7.
+to implement CP8.

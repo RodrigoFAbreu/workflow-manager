@@ -186,6 +186,19 @@ class TestConformanceFixture251(_ConformanceFixtureAssertions, unittest.TestCase
         pass
 
 
+class TestConformanceFixture260(_ConformanceFixtureAssertions, unittest.TestCase):
+    """workflow-2.6.0's own CP7 obligation
+    (workflow-review-artifact-and-concurrency-hardening), mirroring
+    `TestConformanceFixture251` exactly: the same frozen suite, run a fifth
+    time against `distribution/workflow/2.6.0/`'s own authored payload, in
+    addition to (never instead of) the earlier releases' classes above."""
+
+    WORKFLOW_VERSION = "2.6.0"
+
+    class Run(_SuiteRun):
+        pass
+
+
 class _BootstrappedTargetAssertions:
     """Shared assertions for `TestBootstrappedTarget*` -- mirrors
     `_ConformanceFixtureAssertions`'s own mixin shape and reasoning."""
@@ -283,9 +296,21 @@ class TestBootstrappedTarget251(_BootstrappedTargetAssertions, unittest.TestCase
         pass
 
 
+class TestBootstrappedTarget260(_BootstrappedTargetAssertions, unittest.TestCase):
+    """workflow-2.6.0's own CP7 obligation
+    (workflow-review-artifact-and-concurrency-hardening), mirroring
+    `TestBootstrappedTarget251` exactly: the same clean-target run, a fifth
+    time, against `2.6.0`'s own authored payload."""
+
+    WORKFLOW_VERSION = "2.6.0"
+
+    class Run(_SuiteRun):
+        pass
+
+
 def _overlay_payload_roots() -> list[tuple[str, Path]]:
     """`(version, payload_root)` for every authored overlay present under
-    `migration/overlays/` -- today `2.4.0`, `2.5.0`, and `2.5.1`, but never
+    `migration/overlays/` -- today `2.4.0`, `2.5.0`, `2.5.1`, and `2.6.0`, but never
     hardcoded to any of them: a further authored release adds its own
     overlay directory and is picked up here without touching this file
     (mirrors D-Authored-Release-4's own "for every authored release

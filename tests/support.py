@@ -149,6 +149,22 @@ CI_SUITES = {
         "workflow_state_completion_obligations_test.py": 106,
         "workflow_fingerprint_generalization_test.py": 79,
     },
+    #: `2.6.0` is this repository's fourth authored release
+    #: (workflow-review-artifact-and-concurrency-hardening): an overlay on
+    #: top of the unmodified `2.5.1` base, replacing both engine modules,
+    #: every frozen suite except `workflow_test_harness_test.py`/
+    #: `workflow_state_completion_obligations_test.py`, the review commands
+    #: and the normative documents. Same suite set as `2.5.1`; counts pinned
+    #: to what that release's own overlay payload actually produces.
+    "2.6.0": {
+        "workflow_fingerprint_test.py": 242,
+        "workflow_state_test.py": 959,
+        "workflow_test_harness_test.py": 19,
+        "workflow_integration_test.py": 267,
+        "workflow_acceptance_matrix_test.py": 280,
+        "workflow_state_completion_obligations_test.py": 106,
+        "workflow_fingerprint_generalization_test.py": 100,
+    },
 }
 
 

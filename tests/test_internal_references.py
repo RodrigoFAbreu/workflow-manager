@@ -420,6 +420,10 @@ class TestReadmeStatusTableMatchesCiSuites(unittest.TestCase):
         r"`2\.5\.1` \|.*?7/7 suites, (\d+) tests — same suite set as "
         r"`2\.5\.0`, plus (\d+) new cases \| (\d+) of (\d+)"
     )
+    _README_2_6_0_ROW_RE = re.compile(
+        r"`2\.6\.0` \|.*?7/7 suites, (\d+) tests — same suite set as "
+        r"`2\.5\.1`, plus (\d+) new cases \| (\d+) of (\d+)"
+    )
 
     def _readme_text(self) -> str:
         return (REPO_ROOT / "README.md").read_text()
@@ -505,6 +509,28 @@ class TestReadmeStatusTableMatchesCiSuites(unittest.TestCase):
         )
         exception_count = sum(
             len(tests) for tests in expected_portability_exceptions("2.5.1").values()
+        )
+        self.assertEqual(recorded_total, actual_total)
+        self.assertEqual(recorded_new, actual_new)
+        self.assertEqual(recorded_of, actual_total)
+        self.assertEqual(recorded_pass, actual_total - exception_count)
+
+    def test_2_6_0_row_matches_ci_suites(self):
+        # `2.6.0`'s own base is `2.5.1`, and unlike `2.5.1` its overlay
+        # replaces five of the seven frozen suites, so "new cases" is the
+        # whole-release delta against `2.5.1`'s own totals rather than a
+        # two-suite sum -- the same drift-prevention shape, one release
+        # later.
+        match = self._README_2_6_0_ROW_RE.search(self._readme_text())
+        self.assertIsNotNone(match, "README.md 2.6.0 Status row not found")
+        recorded_total, recorded_new, recorded_pass, recorded_of = (
+            int(match.group(1)), int(match.group(2)),
+            int(match.group(3)), int(match.group(4)),
+        )
+        actual_total = sum(CI_SUITES["2.6.0"].values())
+        actual_new = actual_total - sum(CI_SUITES["2.5.1"].values())
+        exception_count = sum(
+            len(tests) for tests in expected_portability_exceptions("2.6.0").values()
         )
         self.assertEqual(recorded_total, actual_total)
         self.assertEqual(recorded_new, actual_new)

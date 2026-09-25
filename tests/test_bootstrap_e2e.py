@@ -157,6 +157,18 @@ class TestBootstrappedRepositorySatisfiesTheFrozenSuite251(
     WORKFLOW_VERSION = "2.5.1"
 
 
+class TestBootstrappedRepositorySatisfiesTheFrozenSuite260(
+    _BootstrappedRepositorySatisfiesTheFrozenSuiteAssertions, unittest.TestCase,
+):
+    """workflow-2.6.0's own CP7 obligation
+    (workflow-review-artifact-and-concurrency-hardening), mirroring
+    `TestBootstrappedRepositorySatisfiesTheFrozenSuite251` exactly: the same
+    bootstrapped-repository gate, a fifth time, against `2.6.0`'s own
+    authored release."""
+
+    WORKFLOW_VERSION = "2.6.0"
+
+
 class TestUpdatePreservesLiveWorkItemState(unittest.TestCase):
     """An update must not cost a repository its work."""
 
