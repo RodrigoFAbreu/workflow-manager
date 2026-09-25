@@ -20,9 +20,9 @@ process. See the plan's section 2 for non-goals.
 
 ## Current checkpoint
 
-**CP8 complete** (8 of 9 checkpoints). Next: CP9 (depends on CP8) —
-full regression, release parity and closed-defect regression
-verification (verification-only).
+**CP9 complete** (9 of 9 checkpoints). Every registry checkpoint is
+complete. Next: the self-review and implementation-review bundle
+(`/milestone-implement` step 2 onward).
 
 ### CP1 — Release-derived exact-path classification of the legacy installation record
 
@@ -916,6 +916,48 @@ to; it is used only against `2.3.1`/`2.4.0`.
 - The new test file and `tests/run_all.py` classify as
   implementation-stage protected (`tests/`) under this item's declaration.
 
+### CP9 — Full regression, release parity and closed-defect regression verification
+
+Implements the plan's CP9 (requirements `REQ-9` and `REQ-10`). This
+checkpoint is verification-only and writes no artifact. No disagreement was
+found, so no owning checkpoint needed a fix.
+
+**Verified state** (all run in this checkpoint, from `HEAD` `813ac82`):
+
+- `python3 tests/run_all.py --fast`: all 8 fast suites OK.
+- `python3 tests/run_all.py` (full): all 12 suites OK, exit 0.
+  `test_conformance_suite.py` took 1336.6s, `test_bootstrap_e2e.py` 666.9s,
+  `test_implementation_review_two_stage_disposable_repo.py` 11.4s and
+  `test_workflow_2_6_0_hardening_disposable_repo.py` 28.0s.
+- Clean-target failure set: `TestBootstrappedTarget260` and
+  `TestBootstrappedRepositorySatisfiesTheFrozenSuite260` passed. Both
+  assert that the failure set equals `by_version["2.6.0"]` exactly, and
+  that set is empty. `TestConformanceFixture260` passed its per-suite count
+  equality against `CI_SUITES["2.6.0"]`.
+- `python3 tools/build_release.py --overlay migration/overlays/2.6.0 --check`:
+  `distribution/workflow/2.6.0/` matches a fresh build from base `2.5.1`
+  plus the overlay.
+- `python3 tools/migrate.py --check`: `distribution/workflow/2.3.1/` matches
+  a fresh extraction of the frozen upstream release.
+- INV-9: `git diff b2060bf -- distribution/workflow/{2.3.1,2.4.0,2.5.0,2.5.1}/`
+  is empty (0 lines).
+- README's `2.6.0` row reads "7/7 suites, 1973 tests ... 1973 of 1973".
+  That agrees with `CI_SUITES["2.6.0"]`
+  (242 + 959 + 19 + 267 + 280 + 106 + 100 = 1973 across 7 suites) and with
+  the empty `by_version["2.6.0"]`. The conformance run above asserts both.
+- `v2.3.1-001/-002/-003` (`REQ-9`): still regression-protected by CP8's
+  census tests, which passed in the full run.
+
+**Process note.** The first `--fast` run overlapped the full run, which was
+regenerating `distribution/`, so `test_disposable_repo_fixtures.py` briefly
+saw no `2.3.1/manifest.json`. That was a harness collision, not a defect.
+Run on its own afterwards, `--fast` passed, and the full run's own fast
+tier passed too.
+
+The unrelated working-tree changes to `.gitignore`,
+`.workflow-manager/installation.json` and `docs/ROADMAP.md` were there
+before this checkpoint. They were left untouched and not committed.
+
 ## Current blockers
 
 None.
@@ -929,4 +971,5 @@ None.
 ## Next action
 
 Invoke `/milestone-implement workflow-review-artifact-and-concurrency-hardening`
-to run CP9 (verification-only).
+again to enter `SELF_REVIEWING_IMPLEMENTATION`, run the full-milestone
+self-review and generate the implementation-review bundle.

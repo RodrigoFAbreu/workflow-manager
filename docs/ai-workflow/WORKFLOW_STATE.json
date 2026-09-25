@@ -2218,14 +2218,14 @@
       "registry_path": "docs/ai-workflow/registry/workflow-review-artifact-and-concurrency-hardening-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/workflow-review-artifact-and-concurrency-hardening-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "IMPLEMENTING",
+      "phase": "SELF_REVIEWING_IMPLEMENTATION",
       "plan_revision": 8,
       "implementation_revision": null,
       "functional_review_round": null,
       "base_commit": "b2060bf462ec120c5ca4d284a3670b248c5828e8",
       "reviewed_implementation_head": null,
       "current_checkpoint_id": null,
-      "last_completed_checkpoint_id": "CP8",
+      "last_completed_checkpoint_id": "CP9",
       "checkpoints": {
         "CP1": {
           "status": "COMPLETE",
@@ -2258,6 +2258,10 @@
         "CP8": {
           "status": "COMPLETE",
           "start_commit": "62d206b974ef7a674c39f4d778f56b252ccda438"
+        },
+        "CP9": {
+          "status": "COMPLETE",
+          "start_commit": "813ac821a08e7bed68907309b62283f5131b81c9"
         }
       },
       "current_bundle_id": null,
@@ -2311,8 +2315,8 @@
       },
       "functional_acceptance_status": null,
       "blocking_decisions": [],
-      "state_revision": 43,
-      "last_transition": "2026-09-25T10:43:00Z"
+      "state_revision": 45,
+      "last_transition": "2026-09-25T11:19:28Z"
     }
   }
 }
