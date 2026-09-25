@@ -6749,8 +6749,11 @@ class PlanApprovalClosureMembers(_PlanApprovalClosureCase):
             ws.DirtyIndexBeforeStagingError, self.item.approve_plan,
             contains=("git mv", "git --literal-pathspecs restore --staged"),
         )
-        # The named remedy: unstage both sides, keep the rename.
-        self.scratch.git("restore", "--staged", "--", CP5_COMPANION, CP5_RENAMED)
+        # The named remedy, exactly as the refusal prints it: unstage both
+        # sides, keep the rename.
+        self.scratch.git(
+            "--literal-pathspecs", "restore", "--staged", "--", CP5_COMPANION, CP5_RENAMED
+        )
         commit = self.approve()
         self.assertIsNone(cp5_tree_blob(self.item, commit, CP5_COMPANION))
         self.assertIsNotNone(cp5_tree_blob(self.item, commit, CP5_RENAMED))

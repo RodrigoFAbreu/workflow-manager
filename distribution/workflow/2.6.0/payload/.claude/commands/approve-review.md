@@ -334,7 +334,9 @@ actually load-bearing control for the Skill exposure path, not mechanism
       --name-only -z --cached HEAD` must be empty. `DirtyIndexBeforeStagingError` names the staged
       paths and the usual cause, a staged `git mv` of a protected path:
       unstage both sides (`git --literal-pathspecs restore --staged -- <old>
-      <new>`), keep the
+      <new>`, with `GIT_GLOB_PATHSPECS`/`GIT_NOGLOB_PATHSPECS`/
+      `GIT_ICASE_PATHSPECS` unset -- Git refuses `--literal-pathspecs`
+      combined with any of them), keep the
       rename in the working tree, and re-run — the approval commit stages
       the removal and the addition itself;
     - **the member set**

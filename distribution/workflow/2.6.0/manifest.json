@@ -9,7 +9,7 @@
   "provenance": {
     "origin": "authored",
     "base_release": "2.5.1",
-    "overlay_commit": "a886069e4a7fbd8968ded89edd0a260bf3440a32"
+    "overlay_commit": "cc123983be82e525cf1e5e2dc22a8cfcefcaa00f"
   },
   "categories": {
     "distribution": "Canonical Workflow implementation. Copied byte-for-byte into the payload and installed into every managed target repository.",
@@ -90,12 +90,12 @@
       "category": "distribution",
       "rule": "^\\.claude/commands/approve-review\\.md$",
       "rationale": "D-Feedback-Layout (CP3): the <feedback_dir> preamble states the durable feedback_layout resolution (scoped by construction for a stamped item, the unchanged legacy rule otherwise, REVIEW_PROTOCOL.md normative); preamble only. D-Plan-Review-Bundle-Binding (CP4): step 2's bound-bundle reader (assert_plan_review_bundle_bound) at the plan stage for two-stage items. D-Plan-Approval-Closure (CP5): step 4a resolves the fresh member set (declared protected paths plus removals, freshness per member kind, the git-mv remedy) before any mutation; step 4c pins removal_paths; step 5 re-resolves in-window and stages removals as deletions; new step 6.3a write-tree proof (a failure is a NOT_COMMITTED rollback); step 6a verifies through verify_plan_approval_commit from the committed transaction and reaches 6a1's amend only for a TREE_CONTENT failure; step 6d's closing check narrows to a clean index and clean members; the implementation-stage verifier bullet names MissingApprovalRecordError. D-Repo-Global-Lifecycle (CP6): section 5.6's entry table under step 4b (whose takeover flow is unchanged and now says why it never reaches 4d); new step 4d (reserve_amendment_resolution, its refusals routed through 6b); step 5 stages through stage_plan_approval_members in first_commit mode; 6a1 runs assert_amendment_resolution_held before its first guarded window and re-stages in amend_recovery mode with the proof; 6b captures journal_tokens before the rollback and calls release_amendment_resolution after it; new step 6c1 (advance_amendment_witness with the journal and the verified commit) before 6d. Implementation review round 1: step 0's two-stage plan branch states that the plan stage is approvable only at AWAITING_PLAN_APPROVAL (apply_plan_approval's PlanApprovalPhaseError). Implementation review round 2 (I1): step 4a's empty-index precondition reads the staged diff NUL-delimited, step 6.3 calls workflow_state.assert_staged_path_set_within, and step 6d's member-dirty check is git --literal-pathspecs status.",
-      "sha256": "644b1cd66560af0771d73851f519e09e63e0665b614a08e6ae652a858237a903",
-      "size": 61146,
+      "sha256": "65d60c81f4a3023d9447977f5e9d7ec892fef45254f7735dfd1c9fee70597995",
+      "size": 61300,
       "executable": false,
       "overlay_delta": {
         "base_sha256": "0ff381aa856ac7a8a0d30c66cbb8204b376922599ae74aa1c02002cafb70a034",
-        "diff_sha256": "2f7114380fe165e05df4d398701e42196d1b7bddf5fda36b3e428d37c63542d6"
+        "diff_sha256": "a136e5e8b380b703f9f755ed31fe6be0fda355244d5e3e10f8da50a961523d14"
       }
     },
     {
@@ -663,12 +663,12 @@
       "category": "distribution",
       "rule": "^scripts/workflow_acceptance_matrix_test\\.py$",
       "rationale": "D-Feedback-Layout (CP3): the feedback_dir() helper is re-pointed -- the matrix item is created through route_work_item, so it asserts the scoped layout and creates the directory through ensure_feedback_dir, the same call every production writer makes. No scenario changes. D-Plan-Review-Bundle-Binding (CP4): the Item driver follows 2.6.0's command order -- stage, publish the fresh id, write author inputs to plan-inputs/, generate, verify and bind -- gains request_amendment/amend_plan and amendment-aware approve_plan, and gives every plan document one anchor pair per checkpoint. Rows that re-planned mid-implementation through 2.5.1's in-place re-publish (B13, B14, F4) are re-pointed through /request-plan-amendment, the one route 2.6.0 sanctions (B13 also asserts the in-place route's refusal); A1-A4 and C7 assert the bind, not the publish, writes AWAITING_LOCAL_PLAN_REVIEW; A4 asserts the revised WFR-67 (staging discarded, no REJECTED marker). New scenario classes cover the CP4 test list against real repositories. None deleted. D-Plan-Approval-Closure (CP5): Item.approve_plan becomes a command-shaped driver of /approve-review plan steps 2-6d with the command's real data flow (step 2's bound-bundle check, step 4a's fresh member set, step 5's re-resolution, step 6.3a's proof, step 6a's verify_plan_approval_commit and amend gate, step 6b's rollback) and a resumable complete_plan_approval -- no hand-built post-state; every pre-existing row runs through it unchanged. Adds PlanApprovalClosureMembers, PlanApprovalClosureFreshness, PlanApprovalClosureProof and PlanApprovalCommittedTruth covering every CP5 test bullet, including real pre-commit hooks for the amend gate. D-Repo-Global-Lifecycle (CP6): the command-shaped driver gains step 4d (reserve_amendment_resolution, rolled back through 6b on refusal), stage_plan_approval_members in first_commit mode at step 5 and amend_recovery mode at 6a1 after assert_amendment_resolution_held, 6b's journal-token capture before the rollback and release_amendment_resolution after it, and the 6c1 advance before 6d, with hook seams at each step boundary; request_amendment goes through request_plan_amendment_transaction (optionally committing the state, request-plan-amendment.md step 3); Scratch.attach/Scratch.worktree and Item.attach drive linked worktrees and worker processes. Every pre-existing row runs through the extended driver unchanged. New RepoGlobalLifecycleAcrossWorktrees (tests 8, 17 in both orders with real processes, 18 for a different and an identical plan, 22(a)/(b)/(e), 23, 25 in four variants, 26, 28 attached/detached with the only-current-token regression), driving /approve-review plan in real worker processes that pause or SIGKILL at a named step. Implementation review round 2 (I1): PlanApprovalClosureLiteralPaths drives /approve-review plan with ASCII-control, glob-metacharacter, bracket, leading-colon and non-ASCII protected members, plus an absent *.md removal member, asserting the exact committed member set and an untouched worktree-edited decoy; the driver's step 6.3 calls assert_staged_path_set_within and its intent-to-add staging is literal.",
-      "sha256": "0d93a321d3a36a5b6fa2f755b6f4edc2bc90a476e2dc4974f93de35669961a79",
-      "size": 403822,
+      "sha256": "ba649f6015b8ad2ac0ce6546ecccae17cdf9234ba505ac8a6a8fddb67acb0c17",
+      "size": 403911,
       "executable": false,
       "overlay_delta": {
         "base_sha256": "5049f23916b5513bef467f8151ecbd92a8f6cb386ecee5f05664ffcbc4cb84a5",
-        "diff_sha256": "a485214b67813ea5b915f434462a29e3718425f5dd11bbba12cacd22cd5bef77"
+        "diff_sha256": "b9bc7ed1975c57a966ae9d3c6d7f790dd76f4efe3edea7ebe453a46ec523174f"
       }
     },
     {
