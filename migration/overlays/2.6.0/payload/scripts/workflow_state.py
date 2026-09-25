@@ -2365,7 +2365,11 @@ def stage_plan_approval_commit_paths(repo_root: Path, paths: tuple[str, ...]) ->
         _run(["git", "add", "--", *present], cwd=repo_root)
     if absent:
         _run(["git", "rm", "--cached", "-q", "--ignore-unmatch", "--", *absent], cwd=repo_root)
-    staged = _run(["git", "diff", "--name-only", "--cached", "HEAD"], cwd=repo_root)
+    # `--no-renames`: under rename detection (porcelain `git diff`'s default,
+    # and `diff.renames`), a staged non-member deletion paired with a
+    # similar member addition reports only the member's name -- the
+    # deletion would slip past this check to the post-commit one.
+    staged = _run(["git", "diff", "--no-renames", "--name-only", "--cached", "HEAD"], cwd=repo_root)
     actual = {line for line in staged.splitlines() if line}
     expected = set(paths)
     unexpected = actual - expected
@@ -2467,7 +2471,7 @@ def assert_plan_approval_index_clean(repo_root: Path) -> None:
     `DirtyIndexBeforeStagingError`, naming the staged paths and the
     staged-`git mv` remedy -- the usual way a protected path's rename ends
     up in the index."""
-    dirty = _run(["git", "diff", "--name-only", "--cached", "HEAD"], cwd=repo_root)
+    dirty = _run(["git", "diff", "--no-renames", "--name-only", "--cached", "HEAD"], cwd=repo_root)
     already_staged = sorted({line for line in dirty.splitlines() if line})
     if already_staged:
         raise DirtyIndexBeforeStagingError(
@@ -7163,6 +7167,13 @@ def _publish_amendment_witness(repo_root: Path, work_item_id: str, witness: dict
     except BaseException:
         Path(tmp_name).unlink(missing_ok=True)
         raise
+    # The rename itself is durable only once the directory entry is, as for
+    # the plan-approval journal's own publication.
+    dir_fd = os.open(str(path.parent), os.O_RDONLY)
+    try:
+        os.fsync(dir_fd)
+    finally:
+        os.close(dir_fd)
 
 
 def _witness_without_previous(witness: dict) -> dict:
@@ -7849,11 +7860,18 @@ def request_plan_amendment_transaction(repo_root: Path, work_item_id: str, reaso
     including its `resolve_claim` quiescence read, now serialized with
     every claim publication in every worktree -- publishes the `OPEN`
     witness (seq = the history length + 1) and only then lets the state
-    publish. Both inside (9). Returns the published state."""
+    publish. Both inside (9). Returns the published state.
+
+    If the state publish fails after the witness was published, the
+    witness is rolled back to its `previous` before the error propagates
+    (implementation review round 1, Optional 8) -- unless the working-tree
+    state already holds the published entry, or cannot be read, in which
+    case it is left for the orphan test and its evidence-bound literal."""
     with lifecycle_lock(repo_root, work_item_id):
-        witness, _probe = _evaluate_lifecycle(repo_root, work_item_id, LIFECYCLE_SIDE_AMENDMENT)
+        witness, probe = _evaluate_lifecycle(repo_root, work_item_id, LIFECYCLE_SIDE_AMENDMENT)
         here = _here_identity(repo_root)
         head_len = len(_history(_committed_item_view(repo_root, "HEAD", work_item_id)))
+        published: dict = {}
 
         def mutator(state: dict) -> dict:
             new_state = request_plan_amendment(state, work_item_id, reason, repo_root=repo_root, now=now)
@@ -7871,7 +7889,7 @@ def request_plan_amendment_transaction(repo_root: Path, work_item_id: str, reaso
                     f"records seq {witness['amendment_seq']} ({witness['status']}) and this "
                     f"worktree's HEAD holds {head_len} -- merge the recorded amendment first",
                     evidence={"seq": seq, "witness_seq": witness["amendment_seq"]})
-            _publish_amendment_witness(repo_root, work_item_id, _witness_template(
+            opened = _witness_template(
                 work_item_id, amendment_seq=seq, status=AMENDMENT_WITNESS_OPEN,
                 amendment_base_commit=item.get("amendment_base_commit"),
                 requester_worktree_root=here["root"], requester_worktree_git_dir=here["git_dir"],
@@ -7879,10 +7897,24 @@ def request_plan_amendment_transaction(repo_root: Path, work_item_id: str, reaso
                 requested_at=history[-1].get("requested_at"),
                 request_projection_sha256=amendment_request_projection_sha256(history[-1]),
                 previous=_witness_without_previous(witness),
-            ))
+            )
+            _publish_amendment_witness(repo_root, work_item_id, opened)
+            published["witness"] = opened
             return new_state
 
-        return state_transaction(repo_root, mutator)
+        try:
+            return state_transaction(repo_root, mutator)
+        except BaseException:
+            opened = published.get("witness")
+            if opened is not None:
+                try:
+                    entry = _entry(_worktree_item_view(repo_root, work_item_id), opened["amendment_seq"])
+                except LifecycleStateUnreadableError:
+                    entry = {}  # undecidable: leave the witness to the orphan test
+                if entry is None or (entry and amendment_request_projection_sha256(entry)
+                                     != opened["request_projection_sha256"]):
+                    _rollback_witness(repo_root, work_item_id, opened, probe)
+            raise
 
 
 def _enforce_claim_lifecycle(repo_root: Path, work_item_id: str) -> None:

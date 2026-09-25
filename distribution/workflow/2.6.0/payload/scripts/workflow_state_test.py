@@ -12232,6 +12232,31 @@ class TestAmendmentWitnessCrashRecovery(unittest.TestCase):
             self.assertEqual(claim["checkpoint_id"], "CP2")
             self.assertEqual(ws.read_amendment_witness(repo.root, "wi")["status"], ws.AMENDMENT_WITNESS_NONE)
 
+    def test_a_state_publish_that_raises_rolls_the_open_witness_back(self):
+        """Implementation review round 1, Optional 8: the state publish
+        raising (not a SIGKILL) after the `OPEN` witness was published
+        rolls the witness back to its `previous` in-process, so no orphan
+        is left for the next holder -- and the state is unchanged."""
+        with ScratchRepo() as repo:
+            _lifecycle_repo(repo)
+            ws.release_checkpoint(repo.root, "wi", "CP2", owner_token=ws.claim_checkpoint(
+                repo.root, "wi", "CP2", now="t0")["owner_token"])  # writes NONE
+            state_before = (repo.root / _STATE_REL).read_bytes()
+
+            def refuse_to_publish(*_args, **_kwargs):
+                raise OSError("disk full")
+
+            original = ws._publish_state_file
+            ws._publish_state_file = refuse_to_publish
+            try:
+                with self.assertRaises(OSError):
+                    ws.request_plan_amendment_transaction(repo.root, "wi", "reason", now="t1")
+            finally:
+                ws._publish_state_file = original
+            self.assertEqual(ws.read_amendment_witness(repo.root, "wi"), ws._none_witness("wi"))
+            self.assertEqual((repo.root / _STATE_REL).read_bytes(), state_before)
+            ws.claim_checkpoint(repo.root, "wi", "CP2", now="t2")
+
     def test_sigkill_orphan_with_the_requester_worktree_removed_requires_the_literal(self):
         """CP6 test 7, second half: the test cannot complete, so it refuses
         and offers `clear amendment witness <wi> <sha256>`; a wrong digest
@@ -16693,6 +16718,42 @@ class TestWithdrawPlanReview(unittest.TestCase):
                 state = _base_state(wi=_cp4_item(phase=phase))
                 with self.assertRaises(ws.PlanReviewNotReadyError):
                     ws.withdraw_plan_review(state, "wi", "t5")
+
+
+class TestPlanApprovalStagedDiffIgnoresRenames(unittest.TestCase):
+    """Implementation review round 1, Optional 5: the empty-index
+    precondition and the post-staging member-set check read the staged
+    diff with `--no-renames`, so a staged non-member deletion that Git
+    would pair with a similar member addition as a rename is still named."""
+
+    _CONTENT = "".join(f"design line {i}\n" for i in range(40))
+
+    def _seed(self, repo):
+        (repo.root / "old.md").write_text(self._CONTENT)
+        _git_in(repo.root, "add", "old.md")
+        _git_in(repo.root, "commit", "-q", "-m", "seed old.md")
+        _git_in(repo.root, "rm", "--cached", "-q", "old.md")
+        (repo.root / "new.md").write_text(self._CONTENT)
+
+    def test_the_index_clean_check_names_the_deleted_side(self):
+        with ScratchRepo() as repo:
+            self._seed(repo)
+            _git_in(repo.root, "add", "new.md")
+            with self.assertRaises(ws.DirtyIndexBeforeStagingError) as refused:
+                ws.assert_plan_approval_index_clean(repo.root)
+            self.assertIn("old.md", str(refused.exception))
+
+    def test_the_post_staging_check_names_a_non_member_deletion(self):
+        with ScratchRepo() as repo:
+            self._seed(repo)
+            original = ws.assert_plan_approval_index_clean
+            ws.assert_plan_approval_index_clean = lambda _root: None  # the deletion got past it
+            try:
+                with self.assertRaises(ws.UnexpectedStagedPathSetError) as refused:
+                    ws.stage_plan_approval_commit_paths(repo.root, ("new.md",))
+            finally:
+                ws.assert_plan_approval_index_clean = original
+            self.assertIn("old.md", str(refused.exception))
 
 
 class TestPlanApprovalPhaseGate(unittest.TestCase):
