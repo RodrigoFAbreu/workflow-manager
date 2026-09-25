@@ -975,23 +975,27 @@ overlay, and the release was rebuilt.
   `GIT_CONFIG_GLOBAL` (`noprefix`, `mnemonicPrefix`, `renames = copies`,
   an external diff and `color = always`). The patch must be
   byte-identical and still pass `git apply --check`.
-- **Important 1 (CP4): re-bound content reaching plan approval.** Partly
-  fixed, and the rest is waiting for a plan amendment.
-  - `apply_plan_approval` now refuses a `TWO_STAGE_PLAN_REVIEW_VERSIONS`
-    item at any phase other than `AWAITING_PLAN_APPROVAL`
-    (`PlanApprovalPhaseError`). `approve-review.md` step 0 says so. The
-    withdraw → detour → restore sequence can therefore no longer reach
-    approval from `AWAITING_LOCAL_PLAN_REVIEW`.
-  - One thing is not fixed: content A can still **re-bind** and re-enter
-    review as an ordinary round. Section 5.3's closing guarantee, and the
-    recovery-table row "the withdrawn content is `CONSUMED` and cannot
-    re-bind", are still stronger than the design.
-  - The approved plan fixes `consumed` as a single slot with exactly
-    `{review_content_id, plan_revision, legacy}`, written "never from a
-    prior record". Restoring the guarantee, or narrowing that prose, both
-    change the plan.
-  - The user decided (2026-09-25) to settle section 5.3's semantics
-    through a plan amendment rather than in this fix round.
+- **Important 1 (CP4): re-bound content reaching plan approval.**
+  **Partially resolved.** The user dispositioned this on 2026-09-25.
+  - Closed: the stale-approval shortcut. `apply_plan_approval` refuses a
+    `TWO_STAGE_PLAN_REVIEW_VERSIONS` item at any phase other than
+    `AWAITING_PLAN_APPROVAL` (`PlanApprovalPhaseError`, `799b80d`), and
+    `approve-review.md` step 0 says so.
+  - Still open: withdraw → detour → restore can re-bind the same
+    `review_content_id` for a *fresh* review, and both stages must then
+    approve it again. Section 5.3's "never re-binds" wording, and the
+    recovery-table row that mirrors it, remain stronger than the
+    implementation.
+  - Why it stays open: enforcing that wording needs a design/schema change,
+    such as a consumed-content history. Plan revision 8 pins `consumed` as a
+    single slot. The change cannot be introduced while this item is at
+    `APPLYING_REVIEW_FEEDBACK`, because `/request-plan-amendment` accepts
+    only `IMPLEMENTING`/`SELF_REVIEWING_IMPLEMENTATION`. The user directed
+    that no consumed-history schema be invented in this round.
+  - Mandatory follow-up: recorded as
+    `docs/defects/v2.6.0-001-withdrawn-plan-content-can-rebind-after-a-detour.md`,
+    which names both acceptable resolutions (enforce, or narrow normatively)
+    and the regression test either one must satisfy.
 - **Important 2 (CP6): unreadable committed state wedging the witness.**
   Fixed. An unreadable committed `WORKFLOW_STATE.json` in another worktree
   now makes the test undecidable. The refusal carries the evidence-bound
@@ -1046,12 +1050,8 @@ to 972, and `workflow_fingerprint_generalization_test.py` from 100 to 103.
 
 ## Current blockers
 
-Important 1's residual (section 5.3's "never re-binds" guarantee) is
-waiting on a plan amendment, as the user decided. `/request-plan-amendment` accepts only
-`IMPLEMENTING`/`SELF_REVIEWING_IMPLEMENTATION`
-(`_AMENDMENT_REQUEST_ALLOWED_PHASES`), and this item is at
-`APPLYING_REVIEW_FEEDBACK`, so it cannot be requested from here. The user
-chooses the route.
+None. Important 1's residual is dispositioned as a mandatory follow-up
+(`v2.6.0-001`), not as a blocker for this round.
 
 ## Active plan
 
@@ -1061,8 +1061,7 @@ chooses the route.
 
 ## Next action
 
-The user decides how to settle Important 1's residual (see Current
-blockers). The round-1 fixes are committed. The post-fix regeneration
-(`/apply-implementation-review` step 7) has deliberately not run yet. Once
-the route is chosen, it is the step that re-enters
-`AWAITING_LOCAL_IMPLEMENTATION_REVIEW`.
+The round-1 post-fix bundle is regenerated (implementation revision 2),
+and the item is at `AWAITING_LOCAL_IMPLEMENTATION_REVIEW`. Next is
+`/review-implementation workflow-review-artifact-and-concurrency-hardening`,
+which should evaluate Important 1's partial disposition explicitly.
