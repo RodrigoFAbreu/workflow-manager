@@ -1048,6 +1048,74 @@ The counts move from 1973 to 1989 (+16): `workflow_state_test.py` from 959
 to 972, and `workflow_fingerprint_generalization_test.py` from 100 to 103.
 `tests/support.py` and `README.md` are updated to match.
 
+## Implementation review round 2 (`MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW`, `REVISE`)
+
+Feedback bound to bundle `2629fcaf…6f4e`, `review_content_id`
+`11b4eac4…64bf`, `implementation_revision` 2.
+`LOCAL_MODEL_IMPLEMENTATION_REVIEW` round 2 had approved the same content.
+The reviewer accepted Important 1's partial disposition and found Important
+2-5 resolved. There were no Blocking findings and one new Important one.
+
+- **I1 (CP5): approval staging and closure were not literal- or
+  byte-safe.** Fixed. Reproduced first against the reviewed code:
+  - An absent `*.md` removal member made `git rm --cached -- '*.md'` unstage
+    every tracked Markdown file, which is worse than the review described.
+  - A present `*.md` member staged a worktree-edited `a.md`.
+  - A non-ASCII member came back C-quoted from `--name-only`.
+
+  Every case refused (`UnexpectedStagedPathSetError`,
+  `CommittedPathSetMismatchError`).
+
+  Now:
+  - `stage_plan_approval_commit_paths` runs `git add`/`git rm --cached`
+    under `--literal-pathspecs`.
+  - The empty-index, post-staging and post-commit path-set checks read
+    `-z` output through `_git_path_set`, which decodes with `os.fsdecode`.
+  - The new `assert_staged_path_set_within` backs `/approve-review` step
+    6.3, so the operator never compares quoted output by eye.
+  - `_snapshot_commit` and the tracked-metadata checks use
+    `--literal-pathspecs`, so a leading-`:` member is not read as pathspec
+    magic.
+
+  The same defect sat at two more boundaries a declared path crosses, and
+  both are fixed too:
+  - `prepare-ai-review.sh`'s untracked-file `git add -N` and its exit-trap
+    `git reset`. The reset could also unstage unrelated staged files that
+    matched a glob-named untracked file.
+  - `/milestone-plan` step 3's intent-to-add instruction.
+
+  `approve-review.md` steps 4a, 6.3 and 6d follow. New
+  `PlanApprovalClosureLiteralPaths` (5 rows) drives the real
+  `Item.approve_plan` with these members:
+  - an ASCII control;
+  - `docs/ai-workflow/*.md`;
+  - `[DW]ECOY.md` and `:WI_MAGIC.md`;
+  - `désign.md`;
+  - an absent `*.md` removal member.
+
+  Each row asserts the exact committed member set, and that a tracked,
+  worktree-edited decoy the glob would match stays unstaged and
+  uncommitted.
+- **O1 applied.** `AMENDMENT_DIFF.patch` pins `-U3`, and its `git diff`
+  runs with `GIT_DIFF_OPTS` removed. A mid-file edit under
+  `diff.context=0` plus `GIT_DIFF_OPTS=--unified=0` stays byte-identical
+  and `git apply --check`-clean. The new test fails without the fix.
+- **O2 applied.** The current-only-form oracle pins the implementation's
+  own diff options.
+- **O4 applied.** The `v2.6.0-001` defect record now lists
+  `WORKFLOW_V2_1_OPERATOR_REFERENCE.md` among the documents to reconcile.
+- **O3 not applied.** Aligning `_bootstrap_derivable_entries` with the
+  RESOLVED-witness asymmetric topology changes CP6's derivation rule, not a
+  boundary. The current refusal fails closed and the documented remedy
+  (merge the update into the lagging worktree) works. The reviewer rated
+  it a later cleanup.
+- **O5 not applied.** Each remaining bare `LifecycleStateUnreadableError`
+  site needs its own remedy text and test. It fails closed today.
+
+The counts move from 1989 to 1995 (+6):
+- `workflow_acceptance_matrix_test.py`: 280 → 285.
+- `workflow_fingerprint_generalization_test.py`: 103 → 104.
+
 ## Current blockers
 
 None. Important 1's residual is dispositioned as a mandatory follow-up
@@ -1061,7 +1129,8 @@ None. Important 1's residual is dispositioned as a mandatory follow-up
 
 ## Next action
 
-The round-1 post-fix bundle is regenerated (implementation revision 2),
-and the item is at `AWAITING_LOCAL_IMPLEMENTATION_REVIEW`. Next is
+The round-2 post-fix bundle is regenerated (implementation revision 3),
+and the item is at `AWAITING_LOCAL_IMPLEMENTATION_REVIEW`. Both stages run
+again. Next is
 `/review-implementation workflow-review-artifact-and-concurrency-hardening`,
-which should evaluate Important 1's partial disposition explicitly.
+then the manual external review.
