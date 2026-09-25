@@ -7514,12 +7514,55 @@ def _rollback_witness(repo_root: Path, work_item_id: str, witness: dict, probe: 
 # ------------------------------ the predicate list --------------------------
 
 
-def _lagging_checks(repo_root: Path, work_item_id: str, witness: dict | None, probe: dict) -> None:
+def _bootstrap_derivable_entries(probe: dict, here: dict | None, work_item_id: str) -> frozenset:
+    """`(seq, amendment_request_projection_sha256, amendment_base_commit)`
+    of every unresolved `amendment_history` entry the upgrade bootstrap
+    would record from a worktree that runs `2.6.0`: every non-lagging
+    worktree's working-tree and `HEAD`-committed state, plus the evaluating
+    worktree's own (whatever its committed installation record says, the
+    process evaluating it is a `2.6.0` process). Consulted only while the
+    witness is absent (implementation review round 1, Important 3): an
+    amendment opened before the update and carried into a worktree that
+    has not merged it yet is the same amendment the bootstrap is about to
+    record -- not an unrecorded `2.5.1` amendment -- and so is an
+    amendment in an evaluating worktree whose update is applied but not
+    yet committed. An entry held only by lagging worktrees stays
+    unrecorded (plan test 13g)."""
+    derivable = set()
+    for worktree in probe["worktrees"]:
+        if worktree["lagging"] and (here is None or worktree["realpath"] != here["realpath"]):
+            continue
+        for view in (_worktree_item_view(worktree["path"], work_item_id),
+                     _committed_item_view(worktree["path"], "HEAD", work_item_id)):
+            for index, entry in enumerate(_history(view), start=1):
+                if entry.get("resolved_at_plan_revision") is None:
+                    derivable.add((index, amendment_request_projection_sha256(entry),
+                                   view.get("amendment_base_commit")))
+    return frozenset(derivable)
+
+
+def _working_tree_release_is_current(worktree_root) -> bool:
+    """Whether `worktree_root`'s *working-tree* installation record already
+    names a release at or above `LIFECYCLE_MIN_RELEASE` -- `workflow_manager
+    update` applied there but not committed, so the remedy for its lag is
+    to commit the update, not to merge it."""
+    try:
+        installed = json.loads((Path(worktree_root) / INSTALLATION_RECORD_PATH).read_bytes())
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return False
+    version = installed.get("workflow_version") if isinstance(installed, dict) else None
+    return not workflow_release_lags(version)
+
+
+def _lagging_checks(repo_root: Path, work_item_id: str, witness: dict | None, probe: dict, *,
+                    derivable: frozenset = frozenset()) -> None:
     """While any worktree lags (section 5.6): an unresolved amendment in a
     lagging worktree that the witness does not record refuses
     (`LaggingWorktreeAmendmentError`), and a lagging `HEAD` carrying a
     different resolution of the witness's seq refuses
-    (`AmendmentResolutionConflictError`). The witness is never changed."""
+    (`AmendmentResolutionConflictError`). The witness is never changed.
+    `derivable` (`_bootstrap_derivable_entries`, witness absent only)
+    counts an entry the bootstrap is about to record as recorded."""
     status = witness.get("status") if witness else None
     seq = witness.get("amendment_seq", 0) if witness else 0
     for worktree in probe["lagging"]:
@@ -7537,14 +7580,22 @@ def _lagging_checks(repo_root: Path, work_item_id: str, witness: dict | None, pr
                             and view.get("amendment_base_commit") == witness.get("amendment_base_commit")
                         )
                     )
+                ) or (
+                    (index, amendment_request_projection_sha256(entry),
+                     view.get("amendment_base_commit")) in derivable
                 )
                 if not recorded:
+                    remedy = (
+                        f"commit the {LIFECYCLE_MIN_RELEASE} update in that worktree -- its working "
+                        f"tree already carries it, but its committed installation record does not"
+                        if _working_tree_release_is_current(worktree["path"]) else
+                        f"finish or discard it there, or merge the {LIFECYCLE_MIN_RELEASE} update "
+                        f"into that branch")
                     raise LaggingWorktreeAmendmentError(
                         f"{work_item_id!r}: worktree {worktree['path']} (branch "
                         f"{worktree['branch']!r}, installed Workflow {worktree['version']!r}) holds "
                         f"an unresolved amendment seq {index} in its {where} that the amendment "
-                        f"witness does not record -- finish or discard it there, or merge the "
-                        f"{LIFECYCLE_MIN_RELEASE} update into that branch",
+                        f"witness does not record -- {remedy}",
                         evidence={"worktree": worktree["path"], "branch": worktree["branch"],
                                   "installed_version": worktree["version"], "seq": index})
         if status in (AMENDMENT_WITNESS_RESOLVED, AMENDMENT_WITNESS_RESOLVING) and _shows_resolved(head_view, seq):
@@ -7577,7 +7628,9 @@ def _evaluate_lifecycle(repo_root: Path, work_item_id: str, side: str, *,
     here_path = here["path"] if here is not None else str(repo_root)
     witness = read_amendment_witness(repo_root, work_item_id)
     if probe["lagging"]:
-        _lagging_checks(repo_root, work_item_id, witness, probe)
+        derivable = (_bootstrap_derivable_entries(probe, here, work_item_id)
+                     if witness is None else frozenset())
+        _lagging_checks(repo_root, work_item_id, witness, probe, derivable=derivable)
     if witness is None:
         witness = _bootstrap_amendment_witness(repo_root, work_item_id, probe)
 

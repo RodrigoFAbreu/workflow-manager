@@ -12697,6 +12697,75 @@ class TestAmendmentWitnessUpgradeBootstrap(unittest.TestCase):
             self.assertIn("does not record", str(refused.exception))
             self.assertNotIn("merge the resolved amendment first", str(refused.exception))
 
+    def test_an_amendment_predating_the_update_carried_into_a_lagging_worktree_does_not_wedge(self):
+        """Implementation review round 1, Important 3, first topology: under
+        `2.5.1`, an amendment is opened and committed on the primary branch;
+        worktree `b` branches afterwards and so carries the same entry.
+        The `2.6.0` update is then committed on the primary branch only, so
+        `b` lags while holding that entry. The primary worktree's own
+        resolution must reach the bootstrap -- which records exactly that
+        entry -- rather than refuse as an unrecorded `2.5.1` amendment in
+        `b` (whose "finish or discard it there" remedy would be wrong: it
+        is the same amendment)."""
+        with ScratchRepo() as repo:
+            _lifecycle_repo(repo, install="2.5.1")
+            _amend_without_witness(repo.root)
+            wt_b = repo.worktree("b")
+            _install_release(repo.root, "2.6.0")
+            self.assertIsNone(_witness_bytes(repo.root))
+            journal = _open_amendment_approval(repo, repo.root)
+            ws.reserve_amendment_resolution(repo.root, "wi", journal, now="t1")
+            witness = ws.read_amendment_witness(repo.root, "wi")
+            self.assertEqual((witness["status"], witness["amendment_seq"]),
+                             (ws.AMENDMENT_WITNESS_RESOLVING, 1))
+            entry = _read_state(wt_b)["work_items"]["wi"]["amendment_history"][0]
+            self.assertEqual(witness["request_projection_sha256"],
+                             ws.amendment_request_projection_sha256(entry))
+            commit = _commit_journal_approval(repo.root, journal)
+            ws.advance_amendment_witness(repo.root, "wi", journal=journal, commit=commit)
+            ws.close_plan_approval_journal(repo.root)
+            self.assertEqual(ws.read_amendment_witness(repo.root, "wi")["status"],
+                             ws.AMENDMENT_WITNESS_RESOLVED)
+            # `b` still lags and still holds the (now resolved elsewhere)
+            # entry unresolved: recorded, so a claim here is not refused
+            # as lagging.
+            ws.claim_checkpoint(repo.root, "wi", "CP2", now="t2")
+
+    def test_an_uncommitted_update_in_the_amending_worktree_does_not_wedge_it(self):
+        """Important 3, single-worktree topology: `workflow_manager update`
+        does not commit, so the amending worktree's committed installation
+        record still says `2.5.1` while its working tree (and the process
+        evaluating it) runs `2.6.0`. It lags against itself, but its own
+        amendment is exactly what the bootstrap records -- never "merge the
+        update into that branch"."""
+        with ScratchRepo() as repo:
+            _lifecycle_repo(repo, install="2.5.1")
+            _amend_without_witness(repo.root)
+            record = repo.root / ".workflow-manager" / "installation.json"
+            record.write_text(json.dumps({"schema_version": 1, "workflow_version": "2.6.0"}) + "\n")
+            self.assertTrue(ws._probe_worktrees(repo.root)["lagging"])
+            journal = _open_amendment_approval(repo, repo.root)
+            ws.reserve_amendment_resolution(repo.root, "wi", journal, now="t1")
+            self.assertEqual(ws.read_amendment_witness(repo.root, "wi")["status"],
+                             ws.AMENDMENT_WITNESS_RESOLVING)
+
+    def test_a_lagging_worktree_with_an_uncommitted_update_is_told_to_commit_it(self):
+        """Important 3, the remedy text: a lagging worktree whose working
+        tree already carries the update, holding an amendment of its own
+        that nothing else records, still refuses (plan test 13g) -- but
+        names committing the update, not merging it."""
+        with ScratchRepo() as repo:
+            _lifecycle_repo(repo)
+            wt_b = repo.worktree("b")
+            _install_release(wt_b, "2.5.1")
+            _amend_without_witness(wt_b, commit=False)
+            (wt_b / ".workflow-manager" / "installation.json").write_text(
+                json.dumps({"schema_version": 1, "workflow_version": "2.6.0"}) + "\n")
+            with self.assertRaises(ws.LaggingWorktreeAmendmentError) as refused:
+                ws.claim_checkpoint(repo.root, "wi", "CP2", now="t1")
+            self.assertIn("commit the 2.6.0 update in that worktree", str(refused.exception))
+            self.assertIsNone(_witness_bytes(repo.root))
+
     def test_a_lagging_worktree_without_an_unresolved_amendment_does_not_block(self):
         """CP6 test 13g: a lagging worktree alone is not a refusal."""
         with ScratchRepo() as repo:
