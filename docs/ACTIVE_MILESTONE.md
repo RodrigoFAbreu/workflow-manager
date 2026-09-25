@@ -20,9 +20,9 @@ process. See the plan's section 2 for non-goals.
 
 ## Current checkpoint
 
-**CP7 complete** (7 of 9 checkpoints). Next: CP8 (depends on CP7) —
-disposable-repository and linked-worktree acceptance suite, including
-update from installed `2.5.1`.
+**CP8 complete** (8 of 9 checkpoints). Next: CP9 (depends on CP8) —
+full regression, release parity and closed-defect regression
+verification (verification-only).
 
 ### CP1 — Release-derived exact-path classification of the legacy installation record
 
@@ -763,6 +763,159 @@ Implements the plan's CP7 and section 6.2 (requirement `REQ-10`).
 - `python3 tools/migrate.py --check`: OK.
 - INV-9: `git diff b2060bf -- distribution/workflow/2.5.1/` is empty.
 
+### CP8 — Disposable-repository and linked-worktree acceptance
+
+Implements the plan's CP8 (requirements `REQ-1` to `REQ-9` and `REQ-11`
+end to end). New `tests/test_workflow_2_6_0_hardening_disposable_repo.py`,
+registered in `tests/run_all.py`'s slow tier next to the `2.5.0`
+disposable suite.
+
+**How it drives the installed release.** Every test installs real
+releases with `workflow_manager.install.bootstrap`/`update`. Every step
+then runs in a subprocess whose `sys.path` starts with that checkout's own
+installed `scripts/`, so a `2.5.1`→`2.6.0` update mid-test really switches
+bytes, and a lagging linked worktree really runs `2.5.1`. The
+command-shaped drivers are the installed release's own acceptance-matrix
+harness (`Scratch`/`Item`, part of the `full` profile), pointed at the
+installed repository. The module adds only:
+
+- `Item` re-pointed at a chosen work-item id, so several items coexist;
+- review feedback written the way `/review-plan` writes it, through the
+  release's own guard and resolver;
+- the command steps the harness does not wrap: `/record-manual-plan-review`
+  steps 4-7, `/review-plan`'s `REVISE`, `/apply-plan-review`'s entry;
+- for `2.5.1` checkouts, their own amendment request and resolution, which
+  the `2.5.1` harness predates.
+
+`src/workflow_manager/fixture.py`, `tools/` and `pyproject.toml` are
+unchanged.
+
+**One class per scenario** (18 tests):
+
+1. Two concurrent fresh items write local plan-review feedback at
+   `.ai-review/<id>/feedback/`, never the flat directory.
+   `--resolve-feedback-path` prints exactly `resolve_feedback_path_contract`.
+2. A `2.5.1` item runs to `MILESTONE_COMPLETE`, leaving flat feedback.
+   After the update, a new item's local review lands at its scoped path,
+   and A's file is byte-identical.
+3. A `2.5.1` item waits at `AWAITING_MANUAL_EXTERNAL_PLAN_REVIEW` with an
+   unconsumed flat `REVISE`, and the update is committed.
+   `/record-manual-plan-review` and `/apply-plan-review` both resolve the
+   flat file. The item goes to `REVISING_PLAN` with a `CONSUMED` record,
+   then back to `AWAITING_LOCAL_PLAN_REVIEW`, bound at revision 2.
+4. `2.3.1` and `2.4.0` product items run without a local exclude, and the
+   update is committed. `implementing_entry_reachable` holds, the plan
+   digest equals the recorded approval, and the implementation digest
+   equals its pre-update value. A novel committed path still raises
+   `UnclassifiedPathError`. The control arm runs the base release's own
+   bytes against the same history:
+   - `2.3.1` wedges at both stages;
+   - `2.4.0` wedges only at the implementation stage, because its
+     generator already excluded `.workflow-manager/` at the plan stage.
+5. Both section 3.3 variants, stale `TEST_RESULTS.md` and stale
+   `REVIEW_REQUEST.md`, after the publish:
+   - the item stays at `REVISING_PLAN`, row 9 (`PUBLISHED_UNBOUND`);
+   - `current/` is byte-identical, with no `REJECTED` and no staging
+     leftovers;
+   - the reader refuses;
+   - the re-run binds at revision 2, a single bump.
+6. A brand-new, untracked protected companion:
+   - the approval commit contains it;
+   - the identity recomputed from that commit equals the approved one;
+   - exactly one approval commit exists;
+   - the worktree is clean.
+   This holds in session, and after a crash right after the commit, when a
+   new process takes the transaction over and completes it.
+7. Three tests:
+   - *Fresh `2.6.0`, two worktrees.* Claim first, and the amendment refuses
+     with `AmendmentCheckpointActiveError`, naming the claimant. Amendment
+     first, and the claim refuses with `AmendmentInFlightError` while the
+     claimant's own state says `IMPLEMENTING`, with nothing published. Once
+     the amendment resolves, the unmerged worktree gets
+     `StaleLifecycleStateError` ("merge the resolved amendment first") and
+     is admitted after the merge.
+   - *Mixed release.* A lagging worktree alone refuses nothing, and no
+     `NONE` sentinel is written. Its `2.5.1` amendment request makes an
+     updated claim refuse with `LaggingWorktreeAmendmentError` (evidence:
+     worktree, branch, `2.5.1`, seq 1), still with no sentinel.
+   - *Resolution.* `main` and `b` carry the same open amendment and approve
+     different amended plans:
+     - `main` dies right after 4d, so `b` refuses with
+       `AmendmentResolutionReservedError`;
+     - `main`'s takeover rolls back and releases, then `main` re-approves;
+     - the witness is `RESOLVED` with `main`'s committed resolution digest;
+     - `b` then refuses with `StaleLifecycleStateError`;
+     - exactly two approval commits exist (round 1 plus one resolution).
+
+     A lagging worktree carrying the same open seq resolves it unreserved
+     with its `2.5.1` scripts and a different plan. The next `2.6.0` claim
+     refuses with `AmendmentResolutionConflictError` (recorded = the
+     winner's digest), and the witness stays unchanged.
+8. During an open amendment, `AMENDMENT_DIFF.patch` is non-empty and shows
+   the uncommitted amended plan. The archive member is byte-identical.
+9. Four `2.5.1` items are caught by the update. Their committed state blob
+   is unchanged by the update commit.
+   - `IMPLEMENTING` completes `CP2`.
+   - `AWAITING_LOCAL_PLAN_REVIEW` passes the bound-bundle reader with
+     nothing back-filled, then records the local `APPROVE`.
+   - `AMENDING_PLAN` has no witness before the first (9) holder. Its
+     entry marker is the non-legacy `CONSUMED` record from the superseded
+     approval. It resolves through `/approve-review plan`, and the witness
+     ends `RESOLVED` at seq 1.
+   - `REVISING_PLAN` mid-apply works as follows:
+     - a publish before the entry refuses with
+       `LegacyPlanReviewBindingUnknownError`;
+     - the entry writes the legacy marker at revision 1;
+     - a same-revision publish then refuses with
+       `ConsumedPlanReviewContentError` and writes no state;
+     - one advance binds at revision 2.
+
+Plus `TestClosedDefectCensus`:
+
+- the named `v2.3.1-001`/`-002`/`-003` tests (section 3.8) exist in the
+  composed payload;
+- they pass in an installed `2.6.0` repository: 44 tests, one skip, the
+  host-note test, which skips by design without RepFlow's note;
+- `by_version["2.6.0"]` is empty, `TestBootstrappedTarget260` exists, and
+  `test_amendment_update_path.py` is still in the fast tier;
+- `v2.3.1-003` is re-proved end to end: a first approval with no state file
+  at `HEAD`, through `verify_plan_approval_commit`, commits the state as
+  `100644`.
+
+**Payload defects found: none.** No scenario exposed a payload defect, so
+the overlay, `distribution/workflow/2.6.0/` and the CI counts are
+untouched.
+
+**Two expectations were corrected against the plan text.** Both times the
+engine was right and the first draft of the test was wrong:
+
+- **Scenario 9.** Section 6.1 names `LegacyPlanReviewBindingUnknownError`
+  for the refusal *before* the marker exists. After the marker, the
+  same-revision refusal is `ConsumedPlanReviewContentError`. The test now
+  pins both.
+- **Scenario 7.** A resolver that dies *after* its approval commit does not
+  leave `AmendmentResolutionReservedError` for the other worktree: the
+  committed resolution is visible, so predicate step 1 self-heals the
+  witness to `RESOLVED`, and the other side gets `StaleLifecycleStateError`
+  (CP6 test 8). So the test crashes the resolver after 4d instead.
+
+**Observation, not fixed:** `fixture.drive_synthetic_work_item_through_checkpoints`
+cannot drive a `2.6.0` target. Its publish passes no `review_content_id`,
+which `2.6.0` requires for a two-stage item (`TypeError`). No test asks it
+to; it is used only against `2.3.1`/`2.4.0`.
+
+**Verified state.**
+
+- `python3 tests/test_workflow_2_6_0_hardening_disposable_repo.py`:
+  18 tests, OK (about 28s).
+- `python3 tests/run_all.py --fast`: all green.
+- `python3 tools/build_release.py --overlay migration/overlays/2.6.0 --check`:
+  reproduces `distribution/workflow/2.6.0/` byte for byte.
+- INV-9: `git diff b2060bf -- distribution/workflow/{2.3.1,2.4.0,2.5.0,2.5.1}/`
+  is empty.
+- The new test file and `tests/run_all.py` classify as
+  implementation-stage protected (`tests/`) under this item's declaration.
+
 ## Current blockers
 
 None.
@@ -776,4 +929,4 @@ None.
 ## Next action
 
 Invoke `/milestone-implement workflow-review-artifact-and-concurrency-hardening`
-to implement CP8.
+to run CP9 (verification-only).
