@@ -2218,7 +2218,7 @@
       "registry_path": "docs/ai-workflow/registry/workflow-review-artifact-and-concurrency-hardening-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/workflow-review-artifact-and-concurrency-hardening-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "APPLYING_REVIEW_FEEDBACK",
       "plan_revision": 8,
       "implementation_revision": 1,
       "functional_review_round": null,
@@ -2315,8 +2315,8 @@
       },
       "functional_acceptance_status": null,
       "blocking_decisions": [],
-      "state_revision": 46,
-      "last_transition": "2026-09-25T12:57:14Z"
+      "state_revision": 47,
+      "last_transition": "2026-09-25T13:34:54Z"
     }
   }
 }
