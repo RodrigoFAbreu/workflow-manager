@@ -1059,6 +1059,17 @@ class PlanReviewBindingInconsistentError(Exception):
     non-ready phase holding a `BOUND` one (INV-3)."""
 
 
+class PlanApprovalPhaseError(Exception):
+    """Raised by `apply_plan_approval` for a `TWO_STAGE_PLAN_REVIEW_VERSIONS`
+    item whose phase is not `AWAITING_PLAN_APPROVAL` (workflow-2.6.0,
+    implementation review round 1, Important 1). The content-keyed
+    `plan_review_stages` ledger alone cannot decide approval: content that
+    was dual-approved, consumed, and later re-bound at
+    `AWAITING_LOCAL_PLAN_REVIEW` still reads as approved there. Only the
+    manual stage's own `APPROVE` writes `AWAITING_PLAN_APPROVAL`, so the
+    phase is the gate."""
+
+
 class PlanReviewNotReadyError(Exception):
     """Raised by `withdraw_plan_review` and the readers at a phase that is
     not a ready plan-review phase -- nothing is under review to withdraw
@@ -13072,6 +13083,20 @@ def apply_plan_approval(
     validate_approval_record(record, stage="plan")
     new_state = copy.deepcopy(state)
     work_item = new_state["work_items"][work_item_id]
+    # workflow-2.6.0 (implementation review round 1, Important 1): a
+    # two-stage item is approvable only at AWAITING_PLAN_APPROVAL -- never
+    # from AWAITING_LOCAL_PLAN_REVIEW, even when re-bound, previously
+    # consumed content still reads as dual-approved in the ledger. A "1"
+    # item has no such phase writer and is unchanged.
+    if (
+        work_item.get("governing_workflow_version") in TWO_STAGE_PLAN_REVIEW_VERSIONS
+        and work_item.get("phase") != "AWAITING_PLAN_APPROVAL"
+    ):
+        raise PlanApprovalPhaseError(
+            f"{work_item_id!r} is at {work_item.get('phase')!r}, not AWAITING_PLAN_APPROVAL -- "
+            f"a two-stage plan approval is applied only after the manual external stage's own "
+            f"APPROVE for the current content; nothing was written"
+        )
     amendment_history = work_item.get("amendment_history") or []
     pre_side_supplied = pre_registry is not None or pre_plan_text is not None
     if (

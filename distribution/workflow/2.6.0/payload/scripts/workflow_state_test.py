@@ -16532,6 +16532,83 @@ class TestWithdrawPlanReview(unittest.TestCase):
                     ws.withdraw_plan_review(state, "wi", "t5")
 
 
+class TestPlanApprovalPhaseGate(unittest.TestCase):
+    """Implementation review round 1, Important 1: `consumed` is a single
+    slot, and neither the withdrawal nor a `REVISE` discards
+    `plan_review_stages` (section 5.3 item 7). So dual-approved content A,
+    withdrawn, displaced from the slot by a detour through B, and restored
+    byte for byte, publishes and binds again -- and the content-keyed
+    ledger reads A's two `APPROVE`s as live at `AWAITING_LOCAL_PLAN_REVIEW`.
+    `apply_plan_approval` refuses a two-stage item anywhere but
+    `AWAITING_PLAN_APPROVAL`, so that ledger read never reaches approval."""
+
+    @staticmethod
+    def _record(review_content_id=_CP4_A):
+        return ws.build_approval_record(
+            basis="EXTERNAL_APPROVE", stage="plan", user_confirmation="approve wi plan",
+            now="t9", reviewed_bundle_id=_CP4_C, approved_review_content_id=review_content_id,
+            review_content_manifest=[],
+        )
+
+    def _dual_approved(self, version):
+        stages = {
+            "review_content_id": _CP4_A,
+            ws.LOCAL_MODEL_PLAN_REVIEW: {"bundle_id": _CP4_C, "verdict": "APPROVE",
+                                         "round": 1, "completed_at": "t1"},
+            ws.MANUAL_EXTERNAL_PLAN_REVIEW: {"bundle_id": _CP4_C, "verdict": "APPROVE",
+                                             "round": 1, "completed_at": "t2"},
+        }
+        return _base_state(wi=_cp4_item(
+            version=version, phase="AWAITING_PLAN_APPROVAL", plan_revision=2,
+            record=_cp4_record("BOUND", consumed=None,
+                               published={"review_content_id": _CP4_A, "plan_revision": 2},
+                               bound=_cp4_binding(_CP4_A, _CP4_C, 2)),
+            current_bundle_id=_CP4_C, plan_review_stages=stages,
+        ))
+
+    def test_withdraw_detour_restore_never_reaches_plan_approval(self):
+        for version in sorted(ws.TWO_STAGE_PLAN_REVIEW_VERSIONS):
+            with self.subTest(version=version):
+                state = ws.withdraw_plan_review(self._dual_approved(version), "wi", "t3")
+                state = ws.publish_plan_revision(state, "wi", 3, "t4", review_content_id=_CP4_B)
+                state = ws.bind_plan_review_bundle(
+                    state, "wi", binding=_cp4_binding(_CP4_B, _CP4_D, 3), now="t5")
+                state = ws.withdraw_plan_review(state, "wi", "t6")
+                # A is no longer the consumed slot, so it publishes and binds again.
+                state = ws.publish_plan_revision(state, "wi", 4, "t7", review_content_id=_CP4_A)
+                state = ws.bind_plan_review_bundle(
+                    state, "wi", binding=_cp4_binding(_CP4_A, _CP4_C, 4), now="t8")
+                item = state["work_items"]["wi"]
+                self.assertEqual(item["phase"], "AWAITING_LOCAL_PLAN_REVIEW")
+                # The ledger alone still reads as dual-approved for A ...
+                self.assertTrue(ws.plan_approval_gate_reachable(
+                    latest_round_status="APPROVE", governing_workflow_version=version,
+                    plan_review_stages=item["plan_review_stages"],
+                    current_review_content_id=_CP4_A,
+                ))
+                # ... but the approval itself refuses, writing nothing.
+                with self.assertRaises(ws.PlanApprovalPhaseError):
+                    ws.apply_plan_approval(state, "wi", self._record(), "t9")
+
+    def test_every_other_phase_refuses_and_awaiting_plan_approval_applies(self):
+        for version in sorted(ws.TWO_STAGE_PLAN_REVIEW_VERSIONS):
+            for phase in sorted(ws.KNOWN_PHASES - {"AWAITING_PLAN_APPROVAL"}):
+                with self.subTest(version=version, phase=phase):
+                    state = self._dual_approved(version)
+                    state["work_items"]["wi"]["phase"] = phase
+                    with self.assertRaises(ws.PlanApprovalPhaseError):
+                        ws.apply_plan_approval(state, "wi", self._record(), "t9")
+            with self.subTest(version=version, phase="AWAITING_PLAN_APPROVAL"):
+                new_state = ws.apply_plan_approval(self._dual_approved(version), "wi", self._record(), "t9")
+                self.assertEqual(new_state["work_items"]["wi"]["phase"], "IMPLEMENTING")
+
+    def test_a_version_1_item_is_unchanged(self):
+        state = self._dual_approved("1")
+        state["work_items"]["wi"]["phase"] = "AWAITING_EXTERNAL_PLAN_REVIEW"
+        new_state = ws.apply_plan_approval(state, "wi", self._record(), "t9")
+        self.assertEqual(new_state["work_items"]["wi"]["phase"], "IMPLEMENTING")
+
+
 class TestConsumedPlanReviewBindingWriters(unittest.TestCase):
     """Section 5.3 item 2: every transition that takes reviewed content out
     of review writes `CONSUMED` from its own inputs."""

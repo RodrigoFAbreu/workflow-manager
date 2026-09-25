@@ -978,8 +978,10 @@ _GOLDEN_COMMAND_FILE_SHA256 = {
     # held check and amend_recovery staging, step 6b's token capture and
     # release, and the new step 6c1 advance before 6d -- intentional
     # content change, pinned row by row by
-    # TestApproveReviewLifecycleEntryTable.
-    "approve-review.md": "ad9f453b75efa0d99f07774c8b75d5c55da7dc1b6db471bb37212f5ef008cbcd",
+    # TestApproveReviewLifecycleEntryTable. Implementation review round 1:
+    # step 0's two-stage plan branch states the AWAITING_PLAN_APPROVAL-only
+    # gate (apply_plan_approval's PlanApprovalPhaseError) -- intentional.
+    "approve-review.md": "3244f76d882d1018efeeaa42da3a6f11f492c10faefbb1cf113197325263504b",
     # accept-milestone.md updated, baseline-freeze correctness fix
     # (OPUS-R129-001): step 6's completion-commit instruction now states
     # the same "trailers must be the commit message's own final paragraph"

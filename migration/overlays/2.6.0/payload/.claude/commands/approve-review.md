@@ -81,7 +81,15 @@ actually load-bearing control for the Skill exposure path, not mechanism
      `workflow-v2-1-core` was this repository's sole tracked work item; it
      no longer is, and this branch is not, and never was, inert in general
      — it governs every `"2.1"`-governed work item anywhere this Workflow
-     is installed.
+     is installed. **The plan stage is approvable only at
+     `AWAITING_PLAN_APPROVAL`** (workflow-2.6.0, implementation review
+     round 1): refuse at step 1, naming the actual phase, for any other
+     phase. The ledger check alone does not decide it -- content that was
+     dual-approved, then withdrawn, displaced from the single `consumed`
+     slot and restored can re-bind at `AWAITING_LOCAL_PLAN_REVIEW` while
+     the content-keyed ledger still reads its two `APPROVE`s -- and
+     `apply_plan_approval` itself refuses such an item with
+     `PlanApprovalPhaseError`, before any journal is opened.
    - **`governing_workflow_version: "2.2"`** (workflow-2.5.0,
      `D-Implementation-Review-Version-Activation`): steps 1-7 execute
      identically to the `"2.1"` branch immediately above for the **plan**
