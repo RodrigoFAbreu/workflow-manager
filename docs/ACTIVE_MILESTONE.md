@@ -20,9 +20,9 @@ process. See the plan's section 2 for non-goals.
 
 ## Current checkpoint
 
-**CP5 complete** (5 of 9 checkpoints). Next: CP6 (depends on CP5) —
-repository-global lifecycle lock and amendment witness closing
-`v2.4.0-002`.
+**CP6 complete** (6 of 9 checkpoints). Next: CP7 (depends on CP6) —
+compose the `2.6.0` release; release docs, defect dispositions and
+downgrade posture.
 
 ### CP1 — Release-derived exact-path classification of the legacy installation record
 
@@ -508,6 +508,188 @@ item 7 declined as planned). Delivered in `migration/overlays/2.6.0/`.
 - `python3 tests/run_all.py --fast`: all green.
 - INV-9: `git diff b2060bf -- distribution/workflow/` is empty.
 
+### CP6 — Repository-global lifecycle lock and amendment witness
+
+Implements the plan's section 5.6, `D-Repo-Global-Lifecycle` (closes
+`v2.4.0-002`; INV-6, INV-10). Delivered in `migration/overlays/2.6.0/`.
+
+**Pre-edit evidence (section 6.2's downgrade paragraph depends on it).** Run
+against `distribution/workflow/2.5.1/payload/scripts/` before any edit:
+`2.5.1`'s `validate_state` has no `amendment_history` entry-key check, so a
+state whose resolved entry carries `resolved_review_content_id` (a hex
+string, or even an integer) validates cleanly. The key is **ignored, not
+rejected**, the same finding CP3 recorded for `feedback_layout`.
+
+**Delivered:**
+
+- `payload/scripts/workflow_state.py`:
+  - **Primitive (9)**, `lifecycle_lock`: a per-work-item `flock` at
+    `<git-common-dir>/ai-workflow/checkpoint-claims/<token>.lifecycle.lock`,
+    never unlinked. It is a pure source. A process-local held-set
+    (`_held_primitives`), which every existing `flock` and lease now
+    registers in, must be empty when it is taken
+    (`LifecycleLockOrderError`).
+  - **The amendment witness**, `<token>.amendment.json`
+    (`OPEN`/`RESOLVING`/`RESOLVED`/`NONE`), written by tempfile plus
+    `os.replace`. A torn, symlinked or unknown-shaped witness refuses
+    (`AmendmentWitnessUnavailableError`).
+  - `amendment_request_projection_sha256` and
+    `amendment_resolution_projection_sha256`.
+  - The lag probe, with `workflow_release_version_key` ordering versions
+    numerically and treating an unorderable version as lagging.
+  - The upgrade bootstrap (the request and resolution fork checks, the
+    legacy trailer comparison, and no `NONE` sentinel while a worktree
+    lags), the two orphan tests with their evidence-bound clear literals,
+    and the predicate list (`_evaluate_lifecycle`).
+  - `claim_checkpoint` runs (9) → (2) → witness check → phase check →
+    publish. `adopt_claim` and an absent-claim `take_over_claim` take (9)
+    before (6)/(5); the takeover's guarded window moved, unchanged, into
+    `_take_over_claim_window`.
+  - `request_plan_amendment` refuses without (9)
+    (`LifecycleLockNotHeldError`). `request_plan_amendment_transaction` is
+    the one entry point, and it publishes the `OPEN` witness before the
+    state.
+  - The resolution side: `reserve_amendment_resolution` (4d),
+    `assert_amendment_resolution_held` (6a1), `advance_amendment_witness`
+    (6c1), `release_amendment_resolution` (after 6b), and
+    `stage_plan_approval_members` with `first_commit`/`amend_recovery`
+    modes.
+  - `apply_plan_approval` records `resolved_review_content_id`.
+    `open_plan_approval_journal` refuses an amendment-resolving transaction
+    while a claim is live.
+  - 11 named errors under `LifecycleRefusalError`.
+- `payload/docs/ai-workflow/dry-run/verify_372h_*.py`: primitive 9, the five
+  (9) edges as code-derivable, the stated totals (16 edges, 9/7) replacing
+  the hard-coded 11 and 6/5, the re-anchored `(6)→(8)` mutation, and a new
+  regression that removes both `(9)→(8)` evidence paths.
+- Commands:
+  - `approve-review.md`: the entry table under 4b, the new 4d, step 5's
+    `first_commit` staging, 6a1's held check and `amend_recovery` staging,
+    6b's token capture and release, and the new 6c1 advance before 6d.
+  - `request-plan-amendment.md`: steps 1-2 (the closed race, the new entry
+    point, every refusal and its remedy).
+  - `milestone-implement.md` (new to the overlay): step 1d's lifecycle
+    refusals and remedies, and step 1c's routing to them.
+- `WORKFLOW_V2_PLAN.md`: the edge table, the primitive list, the totals,
+  the blocking list, the acyclicity argument, the `(2)→(8)` paragraph,
+  `D-Plan-Amendment-1`'s bullet (now repository-wide), and a new
+  `D-Repo-Global-Lifecycle` section.
+- Tests, with every CP6 test bullet 1-29 covered:
+  - `workflow_state_test.py` (51 new tests):
+    - `TestCrossWorktreeAmendmentClaimResidualXModelR9B1` is inverted
+      into `TestCrossWorktreeAmendmentClaimRaceIsClosed` (tests 1-4,
+      including real-process races in both orders);
+    - `TestAmendmentClaimRaceRealProcesses` keeps the same-worktree races
+      (test 16);
+    - new classes for tests 5-13i and 19-28 at the unit level, with real
+      linked worktrees, `SIGKILL`ed workers and real plan-approval
+      journals.
+  - `workflow_acceptance_matrix_test.py`: the command-shaped driver gains
+    4d, the staging modes, 6a1's held check, 6b's capture-then-release and
+    the 6c1 advance, with hook seams. The new
+    `RepoGlobalLifecycleAcrossWorktrees` (18 rows) drives
+    `/approve-review plan` in worker processes that pause or `SIGKILL` at a
+    named step (tests 8, 17, 18, 22, 23, 25, 26, 27, 28).
+  - `workflow_integration_test.py`: `TestApproveReviewLifecycleEntryTable`
+    (test 29).
+- **Pre-existing tests changed, none deleted:**
+  - four tests that acquired a lease to stand in for a live holder now
+    release it at the end, because the held-set correctly carried it into
+    every later test in the process;
+  - `TestRequestPlanAmendment` calls the pure mutator holding (9);
+  - the golden hashes of `approve-review.md` and `milestone-implement.md`
+    are re-recorded.
+- **Deviation from the plan text, for review.** The census finds
+  **sixteen** edges, not the fifteen section 5.6 states, with a **9/7**
+  split, not 8/7. The extra edge is `(9)→(3)`: an absent-claim
+  `take_over_claim` must hold (9) across its publication, and that
+  publication's guarded (5) window already establishes this worktree's
+  identity (the existing `(5)→(3)` edge). Avoiding the edge would mean
+  writing the identity before the takeover's re-verification, which
+  breaks its "refuse, having mutated nothing" contract. The edge is
+  blocking but acyclic: the blocking sources `{1, 5, 8, 9}` and targets
+  `{2, 3, 6}` stay disjoint. The script, the plan table and
+  `WORKFLOW_V2_PLAN.md` all state 16 and 9/7.
+- **Implementation details, not in the plan text, for review:**
+  - The witness is always written with every field; a field a status does
+    not use is `null`.
+  - A bootstrap-written `OPEN` at seq S has a `previous` derived from the
+    requester's entry S-1 (a `RESOLVED` witness), or `NONE` when S is 1,
+    so a rollback never returns to "absent".
+  - A rollback always writes `previous`, even a `NONE` the bootstrap
+    left unwritten because a worktree lagged (bootstrap step 6: "never to
+    absent"). The lagging checks run on every acquisition anyway.
+  - An unreadable state file in any worktree makes the `OPEN` orphan test
+    undecidable, so the literal is offered and can clear the witness.
+  - The `amend_recovery` evidence is the proof object
+    `assert_amendment_resolution_held` returns, passed to the staging
+    entry. The held check takes (9), and the staging runs inside a guarded
+    window, where (9) cannot be taken.
+  - An owner's `advance_amendment_witness` with a journal raises
+    `AmendmentResolutionHeldError` if the witness does not end `RESOLVED`
+    with the pinned digest, and 6c1 then stops without closing the journal.
+  - `milestone-implement.md` step 1d now states that `claim_checkpoint`
+    returns the claim record (the token is its `owner_token` field). This
+    session tripped on the old wording while claiming CP6: it recovered
+    through the documented `CONTINUE_CLAIM` path, and the claim, the state
+    write and the token are correct.
+
+**Independent review of the implementation against section 5.6**
+(a read-only review agent, before commit). Four defects were confirmed:
+- **Fixed:** an unreadable state file made the `OPEN` orphan test refuse
+  with no literal, and the literal itself could not clear it;
+- **Fixed:** the impossible reservation case raised
+  `AmendmentResolutionConflictError`, whose remedy is wrong; it is now
+  `AmendmentWitnessUnavailableError` (INV-3);
+- **Fixed:** a rollback could delete the witness;
+- **Not fixed, a plan-level gap -- needs a decision in review:** an
+  amendment written by a lagging `2.5.1` worktree becomes invisible once
+  that worktree merges the `2.6.0` update. That merge is the remedy
+  `LaggingWorktreeAmendmentError` names, but once the worktree stops
+  lagging, section 5.6 reads no other worktree's state under a `NONE` or
+  `RESOLVED` witness, and CP6 test 13d asserts exactly that. So a claim or
+  an amendment request from another worktree is then admitted while that
+  amendment is open. Closing this needs the plan to choose between
+  (a) always scanning other worktrees' states (dropping test 13d's cost
+  property), (b) re-bootstrapping (adopting the amendment as `OPEN`) when
+  a worktree first stops lagging, or (c) narrowing the remedy to "finish or
+  discard it before merging the update". The implementation follows the
+  plan's text. The only change: that worktree's own request and
+  reservation now refuse naming the unrecorded amendment, instead of the
+  wrong "merge the resolved amendment first" (regression test
+  `test_an_updated_worktree_names_its_own_unrecorded_amendment`).
+
+The reviewer also noted, without calling it a defect: with no witness,
+the lag checks run before the bootstrap, as test 13g requires. So a lagging
+worktree's stale unresolved entry blocks every lifecycle operation for the
+item until it updates, whereas the same state under an existing witness
+passes. The outcome depends on order, and the plan could settle it
+explicitly.
+
+**Verified state.** Run in a temporary Git repository composed from the
+`2.5.1` payload plus this overlay:
+
+- `workflow_state_test`: 959 tests, 2 errors (1 skipped: the pin against
+  the real `release._version_key` runs only where `workflow_manager` is
+  importable; run separately with `PYTHONPATH=src`, it passes). The 2
+  errors are the same two `TestCanonicalStateSerialization` live-state
+  errors as CP2-CP5.
+- `workflow_acceptance_matrix_test`: 280 tests, OK (18 skipped). That is
+  the 262 CP5 rows, all through the extended driver, plus the 18 new ones.
+- `workflow_integration_test`: 267 tests, 3 errors. These are the same
+  three `TestRetiredScopedRemediationLeavesNoLiveSurface` errors.
+- `workflow_fingerprint_test` + `workflow_fingerprint_generalization_test`:
+  342 tests, OK.
+- Demo/harness/obligations suites: 40 failing, identical test for test to
+  the pure `2.5.1` payload.
+- Both `verify_372h_*.py` scripts pass standalone: 9 primitives, 12
+  code-derivable plus 4 orchestrated edges, 9/7, acyclic, and every
+  regression including the new `(9)→(8)` one.
+- Every overlay payload file (29) is matched by exactly one
+  `classification.json` rule.
+- `python3 tests/run_all.py --fast`: all green.
+- INV-9: `git diff b2060bf -- distribution/workflow/` is empty.
+
 ## Current blockers
 
 None.
@@ -521,4 +703,4 @@ None.
 ## Next action
 
 Invoke `/milestone-implement workflow-review-artifact-and-concurrency-hardening`
-to implement CP6.
+to implement CP7.

@@ -92,6 +92,7 @@ class Scratch:
 
     def __init__(self, name="wf-acceptance"):
         self.root = Path(tempfile.mkdtemp(prefix=f"{name}-"))
+        self._worktrees = []
         source = _tooling_dir()
         _run(["git", "init", "-q", "-b", "main"], cwd=self.root)
         _run(["git", "config", "user.email", "acceptance@example.com"], cwd=self.root)
@@ -106,7 +107,28 @@ class Scratch:
         self.write("AGENTS.md", "agents\n")
         self.write("CLAUDE.md", "claude\n")
 
+    @classmethod
+    def attach(cls, root):
+        """A `Scratch` view of an existing checkout -- a linked worktree
+        of another scratch repository, or a scratch repository reopened
+        from a worker process (workflow-2.6.0, CP6). Initializes nothing
+        and cleans nothing up."""
+        scratch = cls.__new__(cls)
+        scratch.root = Path(root)
+        scratch._worktrees = []
+        return scratch
+
+    def worktree(self, name):
+        """A linked worktree on a new branch `name` at `HEAD`, removed by
+        `cleanup` -- a second Claude Code session's checkout."""
+        path = self.root.parent / f"{self.root.name}-{name}"
+        self.git("worktree", "add", "-q", "-b", name, str(path), "HEAD")
+        self._worktrees.append(path)
+        return Scratch.attach(path)
+
     def cleanup(self):
+        for path in getattr(self, "_worktrees", []):
+            shutil.rmtree(path, ignore_errors=True)
         shutil.rmtree(self.root, ignore_errors=True)
 
     def write(self, rel, content):
@@ -210,7 +232,26 @@ class Item:
         #: as `/approve-review` step 2 says (ledger `O35`).
         self.last_feedback_binding_mismatch = None
 
+    @classmethod
+    def attach(cls, scratch, work_item_type, governing="2.1", clock_start=0):
+        """The same work item seen from another checkout (a linked
+        worktree, or a worker process): its `base_commit` read back from
+        that checkout's own state (workflow-2.6.0, CP6)."""
+        item = cls(scratch, work_item_type, governing)
+        item.base_commit = item.entry()["base_commit"]
+        item._clock = clock_start
+        return item
+
     # ---------------- plumbing ----------------
+
+    @staticmethod
+    def _hook(hooks, point, *args):
+        """Run the caller-supplied callable registered for `point`, if any
+        -- the seams CP6's rows use to pause, crash or inspect the
+        transaction between two of the command's steps."""
+        callback = (hooks or {}).get(point)
+        if callback is not None:
+            callback(*args)
 
     def now(self):
         self._clock += 1
@@ -444,7 +485,7 @@ class Item:
     # ---------------- /approve-review plan ----------------
 
     def approve_plan(self, user_confirmation=None, stop_after=None, commit_env=None,
-                     before_proof=None):
+                     before_proof=None, hooks=None):
         """`/approve-review plan` steps 1-6d: the full journal/guard/
         staging/commit/classify/verify/materialize transaction.
 
@@ -458,7 +499,18 @@ class Item:
         rollback and re-raises. `stop_after="commit"` returns right after
         step 6.4, simulating a crash; `complete_plan_approval` is the
         resume. `commit_env` is passed to step 6.4's `git commit` (hooks);
-        `before_proof` runs just before step 6.3a (index tampering)."""
+        `before_proof` runs just before step 6.3a (index tampering).
+
+        workflow-2.6.0 (`D-Repo-Global-Lifecycle`, CP6): step 4d reserves
+        the open amendment's resolution right after 4c opens the journal
+        (a no-op for an item with no open amendment), step 5 stages
+        through `stage_plan_approval_members` in `first_commit` mode, a
+        refused reservation takes step 6b's rollback, and 6b captures the
+        journal's tokens before the rollback so the release that follows
+        it matches the reservation. `hooks` maps a step boundary
+        (`after_journal`, `after_reserve`, `after_stage`, `after_pin`,
+        `after_commit`, and `complete_plan_approval`'s own) to a
+        callable."""
         confirmation = user_confirmation or f"plan {self.wid}"
         entry = self.entry()
         review_content_id, projection = fingerprint.compute_review_content_id_plan_stage_for_work_item(
@@ -513,16 +565,26 @@ class Item:
             quiescence_authorization="acceptance-matrix scenario",
         )
         owner = journal["owner_token"]
+        self._hook(hooks, "after_journal", journal)
+        try:
+            # Step 4d: the reservation, holding (9) alone, before staging.
+            ws.reserve_amendment_resolution(self.root, self.wid, journal, now=self.now())
+        except BaseException:
+            self.rollback_plan_approval(owner)
+            raise
+        self._hook(hooks, "after_reserve", journal)
         try:
             with ws.plan_approval_guarded_mutation(
                 self.root, owner_token=owner, step="step-5-stage-and-pin", now=self.now(),
             ):
                 ws.assert_plan_approval_member_set_unchanged(self.root, journal)
-                self._stage_and_pin_members(journal)
+                self._stage_and_pin_members(journal, mode=ws.PLAN_APPROVAL_STAGING_FIRST_COMMIT)
+            self._hook(hooks, "after_stage", journal)
             with ws.plan_approval_guarded_mutation(
                 self.root, owner_token=owner, step="step-6.1b-state-pin", now=self.now(),
             ):
                 self._pin_state_blob(journal)
+            self._hook(hooks, "after_pin", journal)
             staged = self.sim.git("diff", "--name-only", "--cached", "HEAD").stdout.split()
             outside = [p for p in staged if p not in journal["applicable_paths"]]
             if outside:
@@ -541,21 +603,18 @@ class Item:
                 f"Workflow-Plan-Approval: {review_content_id}\n"
                 f"Workflow-Work-Item: {self.wid}\n"
             )], cwd=self.root, env=commit_env)
+        self._hook(hooks, "after_commit", journal)
         if stop_after == "commit":
             return self.sim.head()
-        return self.complete_plan_approval(owner, stop_after=stop_after)
+        return self.complete_plan_approval(owner, stop_after=stop_after, hooks=hooks)
 
-    def _stage_and_pin_members(self, journal):
-        """Step 5's (and 6a1's) staging body: every non-state member,
-        removals as deletions, then the artifacts-declaration pin."""
-        ordinary = tuple(
-            p for p in journal["applicable_paths"] if p != "docs/ai-workflow/WORKFLOW_STATE.json"
-        )
-        ws.stage_plan_approval_commit_paths(self.root, ordinary)
-        if journal["fifth_member_applies"]:
-            ws.verify_staged_blob_sha256(
-                self.root, self.artifacts_path, journal["fifth_member_sha256"],
-            )
+    def _stage_and_pin_members(self, journal, *, mode, resolution_held=None):
+        """Step 5's (and 6a1's) staging body, through the one staging
+        entry: every non-state member, removals as deletions, then the
+        artifacts-declaration pin -- after asserting the evidence `mode`
+        requires on an open-amendment item (workflow-2.6.0)."""
+        ws.stage_plan_approval_members(self.root, journal, mode=mode,
+                                       resolution_held=resolution_held)
 
     def _pin_state_blob(self, journal):
         """Step 6.2's (and 6a1's) body: compare-and-swap, pin, verify."""
@@ -570,8 +629,17 @@ class Item:
             self.root, journal["expected_post_state_sha256"],
         )
 
-    def rollback_plan_approval(self, owner):
-        """Step 6b: guarded index reset and journal close."""
+    def rollback_plan_approval(self, owner, *, release_tokens=None):
+        """Step 6b: capture the journal's `owner_token` plus every
+        `previous_owner_tokens` entry *before* the rollback closes the
+        journal, then the guarded index reset and journal close, then
+        (workflow-2.6.0) `release_amendment_resolution` with the captured
+        tokens -- a no-op unless this transaction's reservation is live.
+        `release_tokens` overrides the captured set (CP6 test 28's
+        regression variant)."""
+        journal = ws.read_plan_approval_journal(self.root)
+        tokens = ([journal["owner_token"], *journal["previous_owner_tokens"]]
+                  if journal is not None else [owner])
         lease = ws.acquire_plan_approval_guard(
             self.root, holder_owner_token=owner, step="rollback-index-reset", now=self.now(),
         )
@@ -579,20 +647,29 @@ class Item:
             ws.rollback_plan_approval_transaction(self.root, owner_token=owner)
         finally:
             ws.release_plan_approval_guard(self.root, lease)
+        ws.release_amendment_resolution(
+            self.root, self.wid, tokens if release_tokens is None else release_tokens)
 
-    def complete_plan_approval(self, owner, stop_after=None):
+    def complete_plan_approval(self, owner, stop_after=None, hooks=None, release_tokens=None):
         """Steps 6a-6d from durable state alone -- what the in-session run
         and every resumed or taken-over run execute: classify, verify the
         committed transaction (6a1's single amend only for a
         `TREE_CONTENT` failure), materialize, close. `stop_after=
-        "materialize"` returns before 6d, simulating a crash there."""
+        "materialize"` returns before 6d, simulating a crash there.
+
+        workflow-2.6.0 (CP6): 6a1 first runs
+        `assert_amendment_resolution_held` (outside every guarded window)
+        and re-stages in `amend_recovery` mode with its proof; the advance
+        (`advance_amendment_witness` with the journal and the verified
+        commit) runs between 6c and 6d, so the journal outlives the
+        reservation's `RESOLVING` state. Never reaches step 4d."""
         evidence = ws.plan_approval_takeover_evidence(self.root)
         journal = evidence["journal"]
         if journal is None or evidence["owner_token"] != owner:
             raise AssertionError(f"no open plan-approval transaction owned by {owner!r}")
         outcome = evidence["outcome"]
         if outcome == ws.PLAN_APPROVAL_OUTCOME_NOT_COMMITTED:
-            self.rollback_plan_approval(owner)
+            self.rollback_plan_approval(owner, release_tokens=release_tokens)
             return None
         if outcome != ws.PLAN_APPROVAL_OUTCOME_COMMITTED:
             raise AssertionError(f"unexpected plan-approval outcome: {outcome}")
@@ -604,11 +681,15 @@ class Item:
         except Exception as exc:
             if ws.classify_post_commit_verification_failure(exc) != ws.POST_COMMIT_FAILURE_TREE_CONTENT:
                 raise
-            # 6a1: the one amend, only for a proven tree-content defect.
+            # 6a1: the one amend, only for a proven tree-content defect --
+            # after the held check, which takes (9) alone and writes nothing.
+            proof = ws.assert_amendment_resolution_held(self.root, self.wid, journal)
+            self._hook(hooks, "after_held_check", journal)
             with ws.plan_approval_guarded_mutation(
                 self.root, owner_token=owner, step="step-7b-amend-stage", now=self.now(),
             ):
-                self._stage_and_pin_members(journal)
+                self._stage_and_pin_members(
+                    journal, mode=ws.PLAN_APPROVAL_STAGING_AMEND_RECOVERY, resolution_held=proof)
                 self._pin_state_blob(journal)
             with ws.plan_approval_guarded_mutation(
                 self.root, owner_token=owner, step="step-7d-amend-commit", now=self.now(),
@@ -627,23 +708,34 @@ class Item:
                 ws.materialize_plan_approval_state(
                     self.root, commit, journal["expected_post_state_sha256"],
                 )
+        self._hook(hooks, "after_materialize", journal)
         if stop_after == "materialize":
             return commit
+        # Between 6c and 6d: bind the resolution (a no-op without one).
+        ws.advance_amendment_witness(self.root, self.wid, journal=journal, commit=commit)
+        self._hook(hooks, "after_advance", journal)
         with ws.plan_approval_guarded_mutation(
             self.root, owner_token=owner, step="step-8a-close-journal", now=self.now(),
         ):
             ws.close_plan_approval_journal(self.root)
+        self._hook(hooks, "after_close", journal)
         return commit
 
     # ---------------- /request-plan-amendment + amended /milestone-plan ----------------
 
-    def request_amendment(self, reason="plan correction"):
-        """`/request-plan-amendment <id>`'s sole writer -- since
-        workflow-2.6.0 the only sanctioned route from `IMPLEMENTING`/
-        `SELF_REVIEWING_IMPLEMENTATION` back into plan review."""
-        self.tx(lambda state: ws.request_plan_amendment(
-            state, self.wid, reason, repo_root=self.root, now=self.now(),
-        ))
+    def request_amendment(self, reason="plan correction", commit=False):
+        """`/request-plan-amendment <id>` step 2 -- since workflow-2.6.0 the
+        only sanctioned route from `IMPLEMENTING`/
+        `SELF_REVIEWING_IMPLEMENTATION` back into plan review, and (CP6)
+        always through `request_plan_amendment_transaction`: the lifecycle
+        lock (9), the witness predicate list, then the `OPEN` witness and
+        the state. `commit=True` adds step 3, the state write committed
+        alone."""
+        ws.request_plan_amendment_transaction(self.root, self.wid, reason, now=self.now())
+        if commit:
+            self.sim.commit(f"chore({self.wid}): request plan amendment",
+                            {"Workflow-Work-Item": self.wid},
+                            paths=["docs/ai-workflow/WORKFLOW_STATE.json"])
 
     def amend_plan(self, plan_revision, checkpoints=None, requirements=None,
                    plan_body="Plan body, amended.\n", artifacts=None):
@@ -7057,6 +7149,576 @@ class PlanApprovalCommittedTruth(_PlanApprovalClosureCase):
     def test_implementation_stage_approval_is_otherwise_unchanged(self):
         self.reach_technical_approved()
         self.assertEqual(self.item.entry()["phase"], "AWAITING_FUNCTIONAL_REVIEW")
+
+
+# ===========================================================================
+# workflow-2.6.0, `D-Repo-Global-Lifecycle` (CP6): one resolution per
+# amendment sequence, driven through `/approve-review plan`'s real flow in
+# real linked worktrees and real processes.
+# ===========================================================================
+
+_CP6_APPROVE_WORKER_SOURCE = """
+import json
+import os
+import signal
+import sys
+import time
+from pathlib import Path
+
+scripts_dir, root, wtype, clock, point, action, ready, go, out = sys.argv[1:10]
+sys.path.insert(0, scripts_dir)
+import workflow_acceptance_matrix_test as matrix
+
+item = matrix.Item.attach(matrix.Scratch.attach(root), wtype, clock_start=int(clock))
+
+
+def hook(*_args):
+    # CP6: a real process that stops exactly at one step boundary of
+    # `/approve-review plan` -- `SIGKILL`ed there, or paused until the
+    # test releases it.
+    if action == "kill":
+        os.kill(os.getpid(), signal.SIGKILL)
+    Path(ready).write_text("paused")
+    deadline = time.monotonic() + 120
+    while not Path(go).exists():
+        if time.monotonic() > deadline:
+            sys.exit(3)
+        time.sleep(0.005)
+
+
+try:
+    commit = item.approve_plan(hooks={} if action == "none" else {point: hook})
+    Path(out).write_text(json.dumps({"outcome": "success", "commit": commit}))
+except Exception as exc:  # noqa: BLE001 -- the test asserts the exact type
+    Path(out).write_text(json.dumps({"outcome": "refused", "error": type(exc).__name__,
+                                     "detail": str(exc)}))
+"""
+
+CHECKPOINTS_B = CHECKPOINTS_TWO + [
+    {"id": "CP3", "name": "third", "depends_on": ["CP2"], "complexity": "S", "session_target": 1},
+]
+REQUIREMENTS_B = dict(REQUIREMENTS_TWO, R3={"description": "a third thing", "checkpoint_ids": ["CP3"]})
+STATE_REL = "docs/ai-workflow/WORKFLOW_STATE.json"
+
+
+def approval_trailer_commits(scratch, work_item_id):
+    """Every commit reachable from any ref that carries a
+    `Workflow-Plan-Approval:` trailer for `work_item_id` -- repository-wide,
+    so both worktrees' branches are counted."""
+    out = scratch.git(
+        "log", "--all", "--format=%H%x09%(trailers:key=Workflow-Plan-Approval,valueonly,separator=%x2C)"
+        "%x09%(trailers:key=Workflow-Work-Item,valueonly,separator=%x2C)",
+    ).stdout
+    commits = []
+    for line in out.splitlines():
+        sha, approval, work_item = (line.split("\t") + ["", ""])[:3]
+        if approval.strip() and work_item.strip() == work_item_id:
+            commits.append(sha)
+    return commits
+
+
+class RepoGlobalLifecycleAcrossWorktrees(MatrixCase):
+    """CP6 tests 8, 17, 18, 22(a)/(b)/(e), 23, 25, 26 and 28: two linked
+    worktrees whose branches carry the same unresolved amendment seq 1
+    (witness `OPEN`), each driving `/approve-review plan` exactly as the
+    command says -- 4b/4c/4d, the staging modes, 6a/6a1/6b/6c, the advance
+    and 6d."""
+
+    work_item_type = "process"
+
+    def setUp(self):
+        super().setUp()
+        self.io = Path(tempfile.mkdtemp(prefix="wf-cp6-io-"))
+        self.addCleanup(shutil.rmtree, self.io, True)
+        self._procs = []
+        self.addCleanup(lambda: [p.kill() for p in self._procs if p.poll() is None])
+
+    # ---------------- fixtures ----------------
+
+    def _open_amendment_in_two_worktrees(self):
+        """Round 1 approved and CP1 implemented on `main`; the amendment
+        requested and committed (`request-plan-amendment.md` step 3); then
+        worktree `b` branched from it, so both branches carry seq 1."""
+        item = self.item
+        self.scratch.write(".workflow-manager/installation.json",
+                           json.dumps({"schema_version": 1, "workflow_version": "2.6.0"}) + "\n")
+        self.scratch.commit("install workflow 2.6.0", paths=[".workflow-manager/installation.json"])
+        item.milestone_plan(checkpoints=CHECKPOINTS_TWO, requirements=REQUIREMENTS_TWO)
+        item.generate_plan_bundle()
+        item.write_feedback("APPROVE")
+        item.record_plan_reviews()
+        item.approve_plan()
+        item.implement_checkpoint("CP1", {item.deliverable: "// CP1\n"})
+        item.request_amendment("one resolution per sequence", commit=True)
+        worktree = self.scratch.worktree("b")
+        return item, Item.attach(worktree, self.work_item_type, clock_start=50_000)
+
+    @staticmethod
+    def _review_amended_plan(item, *, divergent=False):
+        """`/milestone-plan` on the `AMENDING_PLAN` item, then both review
+        stages. `divergent` gives this worktree a different amended plan
+        (a third checkpoint, so a different reconciliation outcome too)."""
+        if divergent:
+            item.amend_plan(2, CHECKPOINTS_B, REQUIREMENTS_B, plan_body="Plan body, amended by B.\n")
+        else:
+            item.amend_plan(2, CHECKPOINTS_TWO, REQUIREMENTS_TWO, plan_body="Plan body, amended.\n")
+        item.generate_plan_bundle()
+        item.write_feedback("APPROVE")
+        item.record_plan_reviews(round=2)
+
+    def _worker(self, item, point, action, tag):
+        """`/approve-review plan` for `item` in its own OS process, stopped
+        at `point` by `action` (`pause`, `kill` or `none`)."""
+        worker = self.io / f"approve-{tag}.py"
+        worker.write_text(_CP6_APPROVE_WORKER_SOURCE)
+        env = dict(os.environ)
+        env.setdefault("GIT_CONFIG_GLOBAL", "/dev/null")
+        env.setdefault("GIT_CONFIG_SYSTEM", "/dev/null")
+        env["PYTHONPATH"] = str(_tooling_dir()) + (
+            os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else "")
+        proc = subprocess.Popen(
+            [sys.executable, str(worker), str(_tooling_dir()), str(item.root), item.wtype,
+             str(item._clock + 10_000), point, action, str(self.io / f"ready-{tag}"),
+             str(self.io / f"go-{tag}"), str(self.io / f"out-{tag}.json")],
+            env=env,
+        )
+        self._procs.append(proc)
+        return proc
+
+    def _wait(self, tag):
+        deadline = __import__("time").monotonic() + 120
+        while not (self.io / f"ready-{tag}").exists():
+            if __import__("time").monotonic() > deadline:
+                raise AssertionError(f"worker {tag} never reached its pause point")
+            __import__("time").sleep(0.005)
+
+    def _release(self, tag):
+        (self.io / f"go-{tag}").write_text("go")
+
+    def _result(self, tag):
+        return json.loads((self.io / f"out-{tag}.json").read_text())
+
+    @staticmethod
+    def _witness(item):
+        return ws.read_amendment_witness(item.root, item.wid)
+
+    @staticmethod
+    def _witness_bytes(item):
+        return ws.read_amendment_witness_bytes(item.root, item.wid)
+
+    def _head_resolution_digest(self, item):
+        committed = json.loads(item.sim.git("show", f"HEAD:{STATE_REL}").stdout)
+        entry = committed["work_items"][item.wid]["amendment_history"][0]
+        return ws.amendment_resolution_projection_sha256(entry)
+
+    def _take_over(self, item):
+        """`approve-review.md` step 4b's recovery: the next invocation finds
+        the journal open, reports and stops; the user's literal takes the
+        transaction over."""
+        evidence = ws.plan_approval_takeover_evidence(item.root)
+        self.assertIsNotNone(evidence["journal"], "4b: a transaction must be open")
+        literal = ws.plan_approval_takeover_authorization_literal(evidence)
+        return ws.take_over_plan_approval_transaction(
+            item.root, work_item_id=item.wid, now=item.now(), user_authorization=literal,
+            evidence=evidence)
+
+    def _forbid_reservation(self):
+        """Instrumentation: a taken-over run resumes at 6a and must never
+        reach 4d (section 5.6's entry table)."""
+        return mock.patch.object(ws, "reserve_amendment_resolution",
+                                 side_effect=AssertionError("4d reached from a taken-over run"))
+
+    def _install_pre_commit_hook(self, body):
+        hook = self.scratch.root / ".git" / "hooks" / "pre-commit"
+        hook.parent.mkdir(parents=True, exist_ok=True)
+        hook.write_text("#!/bin/sh\nrm -f \"$0\"\n" + body)
+        hook.chmod(0o755)
+
+    # ---------------- 17: divergent concurrent resolution ----------------
+
+    def _divergent_concurrent_resolution(self, *, a_wins):
+        item_a, item_b = self._open_amendment_in_two_worktrees()
+        self._review_amended_plan(item_a)
+        self._review_amended_plan(item_b, divergent=True)
+        winner, loser = (item_a, item_b) if a_wins else (item_b, item_a)
+        loser_head = loser.sim.head()
+        self._worker(loser, "after_journal", "pause", "loser")
+        self._wait("loser")
+        self._worker(winner, "after_reserve", "pause", "winner")
+        self._wait("winner")
+        self._release("loser")
+        self.assertEqual(self._procs[0].wait(timeout=120), 0)
+        refused = self._result("loser")
+        self.assertEqual((refused["outcome"], refused["error"]),
+                         ("refused", "AmendmentResolutionReservedError"), refused)
+        winner_rcid = self._witness(winner)["resolution_reservation"]["approved_review_content_id"]
+        self.assertIn(os.path.realpath(winner.root), refused["detail"])
+        self.assertIn(repr("main" if a_wins else "b"), refused["detail"])
+        self.assertIn(winner_rcid, refused["detail"])
+        # The loser took 6b: journal closed, HEAD and index untouched.
+        self.assertIsNone(ws.read_plan_approval_journal(loser.root))
+        self.assertEqual(loser.sim.head(), loser_head)
+        self.assertEqual(loser.sim.git("diff", "--name-only", "--cached", "HEAD").stdout, "")
+        self._release("winner")
+        self.assertEqual(self._procs[1].wait(timeout=120), 0)
+        self.assertEqual(self._result("winner")["outcome"], "success", self._result("winner"))
+        witness = self._witness(winner)
+        self.assertEqual(witness["status"], ws.AMENDMENT_WITNESS_RESOLVED)
+        self.assertEqual(witness["resolution_projection_sha256"], self._head_resolution_digest(winner))
+        self.assertEqual(len(approval_trailer_commits(self.scratch, self.item.wid)), 2,
+                         "round 1's approval plus exactly one resolution of seq 1")
+
+    def test_cp6_17_divergent_concurrent_resolution_a_reserves_first(self):
+        self._divergent_concurrent_resolution(a_wins=True)
+
+    def test_cp6_17_divergent_concurrent_resolution_b_reserves_first(self):
+        self._divergent_concurrent_resolution(a_wins=False)
+
+    # ---------------- 18: second resolution after RESOLVED ----------------
+
+    def _second_resolution_after_resolved(self, *, identical):
+        """CP6 test 18. Refusing the *identical* plan is intended, not a
+        missing idempotence (revision 8, `LPR-R7-002`): predicate step 3
+        refuses because B's `HEAD` lacks the resolution, "whether or not its
+        amended plan is the same one" (section 5.6) -- an identical approval
+        would be a second approval commit, so B merges A's instead."""
+        item_a, item_b = self._open_amendment_in_two_worktrees()
+        self._review_amended_plan(item_a)
+        item_a.approve_plan()
+        self.assertEqual(self._witness(item_a)["status"], ws.AMENDMENT_WITNESS_RESOLVED)
+        self._review_amended_plan(item_b, divergent=not identical)
+        head, witness = item_b.sim.head(), self._witness_bytes(item_b)
+        tree = item_b.sim.git("write-tree").stdout
+        with self.assertRaises(ws.StaleLifecycleStateError) as refused:
+            item_b.approve_plan()
+        self.assertIn("merge the resolved amendment first", str(refused.exception))
+        self.assertEqual(item_b.sim.head(), head)
+        self.assertEqual(item_b.sim.git("write-tree").stdout, tree)
+        self.assertEqual(self._witness_bytes(item_b), witness)
+        self.assertIsNone(ws.read_plan_approval_journal(item_b.root))
+        self.assertEqual(len(approval_trailer_commits(self.scratch, self.item.wid)), 2)
+        # B discards its own attempt and merges A's resolution; its claim
+        # is then admitted.
+        item_b.sim.git("reset", "-q", "--hard")
+        item_b.sim.git("merge", "-q", "--no-edit", "main")
+        claim = ws.claim_checkpoint(item_b.root, item_b.wid, "CP2", now=item_b.now())
+        self.assertEqual(claim["checkpoint_id"], "CP2")
+
+    def test_cp6_18_a_different_second_resolution_refuses_before_any_staging(self):
+        self._second_resolution_after_resolved(identical=False)
+
+    def test_cp6_18_an_identical_second_resolution_refuses_too(self):
+        self._second_resolution_after_resolved(identical=True)
+
+    # ---------------- 8: a lost advance self-heals ----------------
+
+    def test_cp6_08_sigkill_after_the_commit_self_heals_in_the_resolvers_resumed_run(self):
+        item_a, item_b = self._open_amendment_in_two_worktrees()
+        self._review_amended_plan(item_a)
+        proc = self._worker(item_a, "after_commit", "kill", "a")
+        self.assertEqual(proc.wait(timeout=120), -9)
+        self.assertEqual(self._witness(item_a)["status"], ws.AMENDMENT_WITNESS_RESOLVING)
+        reserved = self._witness(item_a)["resolution_reservation"]["resolution_projection_sha256"]
+        new_owner = self._take_over(item_a)
+        with self._forbid_reservation():
+            item_a.complete_plan_approval(new_owner)
+        witness = self._witness(item_a)
+        self.assertEqual(witness["status"], ws.AMENDMENT_WITNESS_RESOLVED)
+        self.assertEqual(witness["resolution_projection_sha256"], reserved)
+        self.assertEqual(witness["resolved_commit"], item_a.sim.head())
+        self.assertIsNone(ws.read_plan_approval_journal(item_a.root))
+        self.assertEqual(len(approval_trailer_commits(self.scratch, self.item.wid)), 2)
+
+    def test_cp6_08_sigkill_after_the_commit_self_heals_from_another_worktrees_claim(self):
+        item_a, item_b = self._open_amendment_in_two_worktrees()
+        self._review_amended_plan(item_a)
+        proc = self._worker(item_a, "after_commit", "kill", "a")
+        self.assertEqual(proc.wait(timeout=120), -9)
+        reserved = self._witness(item_a)["resolution_reservation"]["resolution_projection_sha256"]
+        with self.assertRaises(ws.StaleLifecycleStateError):
+            ws.claim_checkpoint(item_b.root, item_b.wid, "CP2", now=item_b.now())
+        witness = self._witness(item_b)
+        self.assertEqual((witness["status"], witness["resolution_projection_sha256"]),
+                         (ws.AMENDMENT_WITNESS_RESOLVED, reserved))
+        # The resolver's own resumed run then finds it already advanced.
+        with self._forbid_reservation():
+            item_a.complete_plan_approval(self._take_over(item_a))
+        self.assertEqual(self._witness(item_a)["resolution_projection_sha256"], reserved)
+
+    # ---------------- 22: reservation crash recovery ----------------
+
+    def test_cp6_22a_sigkill_between_4c_and_4d_recovers_through_4b_6a_6b(self):
+        item_a, item_b = self._open_amendment_in_two_worktrees()
+        self._review_amended_plan(item_a)
+        witness_before = self._witness_bytes(item_a)
+        proc = self._worker(item_a, "after_journal", "kill", "a")
+        self.assertEqual(proc.wait(timeout=120), -9)
+        self.assertEqual(self._witness_bytes(item_a), witness_before)
+        new_owner = self._take_over(item_a)
+        with self._forbid_reservation():
+            self.assertIsNone(item_a.complete_plan_approval(new_owner))  # 6a NOT_COMMITTED, 6b
+        self.assertEqual(self._witness_bytes(item_a), witness_before)
+        self.assertIsNone(ws.read_plan_approval_journal(item_a.root))
+        # A fresh invocation then reserves at 4d and completes.
+        item_a.stage_plan_files()
+        item_a.approve_plan()
+        self.assertEqual(self._witness(item_a)["status"], ws.AMENDMENT_WITNESS_RESOLVED)
+
+    def test_cp6_22a_variant_another_worktree_reserves_in_the_window(self):
+        item_a, item_b = self._open_amendment_in_two_worktrees()
+        self._review_amended_plan(item_a)
+        self._review_amended_plan(item_b, divergent=True)
+        proc = self._worker(item_a, "after_journal", "kill", "a")
+        self.assertEqual(proc.wait(timeout=120), -9)
+        with self._forbid_reservation():
+            item_a.complete_plan_approval(self._take_over(item_a))
+        self._worker(item_b, "after_reserve", "pause", "b")
+        self._wait("b")
+        head = item_a.sim.head()
+        item_a.stage_plan_files()
+        with self.assertRaises(ws.AmendmentResolutionReservedError):
+            item_a.approve_plan()
+        self.assertEqual(item_a.sim.head(), head)
+        self.assertIsNone(ws.read_plan_approval_journal(item_a.root))
+        self._release("b")
+        self.assertEqual(self._procs[-1].wait(timeout=120), 0)
+        self.assertEqual(self._result("b")["outcome"], "success", self._result("b"))
+        self.assertEqual(len(approval_trailer_commits(self.scratch, self.item.wid)), 2)
+
+    def test_cp6_22b_a_killed_resolver_with_its_journal_open_keeps_its_reservation(self):
+        item_a, item_b = self._open_amendment_in_two_worktrees()
+        self._review_amended_plan(item_a)
+        self._review_amended_plan(item_b, divergent=True)
+        proc = self._worker(item_a, "after_reserve", "kill", "a")
+        self.assertEqual(proc.wait(timeout=120), -9)
+        reserved = self._witness_bytes(item_a)
+        with self.assertRaises(ws.AmendmentResolutionReservedError):
+            item_b.approve_plan()
+        with self.assertRaises(ws.AmendmentInFlightError):
+            ws.claim_checkpoint(item_b.root, item_b.wid, "CP2", now=item_b.now())
+        self.assertEqual(self._witness_bytes(item_a), reserved, "nothing rolls it back automatically")
+
+    def test_cp6_22e_and_28_a_taken_over_reservation_stays_live_then_releases_in_band(self):
+        """22(e): after a takeover of A's journal the reservation is live
+        against B through `previous_owner_tokens`, and the taken-over run
+        never reaches 4d. 28: that run's `NOT_COMMITTED` rollback releases
+        in band, with the tokens captured before the rollback; B can then
+        reserve."""
+        item_a, item_b = self._open_amendment_in_two_worktrees()
+        self._review_amended_plan(item_a)
+        self._review_amended_plan(item_b, divergent=True)
+        proc = self._worker(item_a, "after_pin", "kill", "a")
+        self.assertEqual(proc.wait(timeout=120), -9)
+        new_owner = self._take_over(item_a)
+        journal = ws.read_plan_approval_journal(item_a.root)
+        reservation = self._witness(item_a)["resolution_reservation"]
+        self.assertIn(reservation["journal_owner_token"], journal["previous_owner_tokens"])
+        with self.assertRaises(ws.AmendmentResolutionReservedError):
+            item_b.approve_plan()
+        with self._forbid_reservation():
+            self.assertIsNone(item_a.complete_plan_approval(new_owner))
+        self.assertEqual(self._witness(item_a)["status"], ws.AMENDMENT_WITNESS_OPEN)
+        item_b.stage_plan_files()
+        item_b.approve_plan()
+        self.assertEqual(self._witness(item_b)["resolution_projection_sha256"],
+                         self._head_resolution_digest(item_b))
+
+    def test_cp6_28_the_release_works_on_a_detached_head_and_needs_every_captured_token(self):
+        for only_current in (False, True):
+            with self.subTest(only_current_token=only_current):
+                scratch = Scratch()
+                self.addCleanup(scratch.cleanup)
+                self.scratch, self.item = scratch, Item(scratch, self.work_item_type)
+                self.item.seed()
+                item_a, _item_b = self._open_amendment_in_two_worktrees()
+                item_a.sim.git("checkout", "-q", "--detach")
+                self._review_amended_plan(item_a)
+                tag = f"a-{only_current}"
+                proc = self._worker(item_a, "after_reserve", "kill", tag)
+                self.assertEqual(proc.wait(timeout=120), -9)
+                self.assertIsNone(self._witness(item_a)["resolution_reservation"]["resolver_branch"])
+                new_owner = self._take_over(item_a)
+                with self._forbid_reservation():
+                    item_a.complete_plan_approval(
+                        new_owner, release_tokens=[new_owner] if only_current else None)
+                self.assertEqual(self._witness(item_a)["status"],
+                                 ws.AMENDMENT_WITNESS_RESOLVING if only_current
+                                 else ws.AMENDMENT_WITNESS_OPEN)
+
+    # ---------------- 23: no flock across turns ----------------
+
+    def test_cp6_23_the_lifecycle_lock_is_never_held_between_steps_or_inside_a_guarded_window(self):
+        item_a, _item_b = self._open_amendment_in_two_worktrees()
+        self._review_amended_plan(item_a)
+        seen = []
+
+        def nothing_held(point):
+            def check(*_args):
+                self.assertEqual(ws.held_primitives(), (), point)
+                seen.append(point)
+            return check
+
+        points = ("after_journal", "after_reserve", "after_stage", "after_pin", "after_commit",
+                  "after_materialize", "after_advance", "after_close")
+        hooks = {point: nothing_held(point) for point in points}
+
+        def guarded_window_refuses(journal):
+            lease = ws.acquire_plan_approval_guard(
+                item_a.root, holder_owner_token=journal["owner_token"],
+                step="step-5-stage-and-pin", now=item_a.now())
+            try:
+                for call in (lambda: ws.reserve_amendment_resolution(item_a.root, item_a.wid, journal,
+                                                                     now="t"),
+                             lambda: ws.assert_amendment_resolution_held(item_a.root, item_a.wid, journal),
+                             lambda: ws.advance_amendment_witness(item_a.root, item_a.wid, journal=journal)):
+                    with self.assertRaises(ws.LifecycleLockOrderError):
+                        call()
+            finally:
+                ws.release_plan_approval_guard(item_a.root, lease)
+            nothing_held("after_reserve")()
+
+        hooks["after_reserve"] = guarded_window_refuses
+        item_a.approve_plan(hooks=hooks)
+        self.assertEqual(set(seen), set(points))
+        self.assertEqual(self._witness(item_a)["status"], ws.AMENDMENT_WITNESS_RESOLVED)
+
+    # ---------------- 25/26: recovery after the journal opens ----------------
+
+    def _amend_recovery(self, *, taken_over, pre_advanced):
+        """CP6 test 25: a one-shot `pre-commit` hook rewrites a non-state
+        member (`TREE_CONTENT`); 6a1 holds the resolution and amends."""
+        item_a, item_b = self._open_amendment_in_two_worktrees()
+        self._review_amended_plan(item_a)
+        # The staged plan document plus one line: its `(Revision N)` title
+        # survives, so the defect is pure tree content.
+        self._install_pre_commit_hook(
+            f"blob=$( (git show :{item_a.plan_path}; printf 'hook rewrite\\n') "
+            "| git hash-object -w --stdin)\n"
+            f"git update-index --cacheinfo 100644,$blob,{item_a.plan_path}\n")
+        pre_amend = []
+
+        def advance_from_b(_journal):
+            pre_amend.append(item_a.sim.head())
+            if pre_advanced:
+                with self.assertRaises(ws.StaleLifecycleStateError):
+                    ws.claim_checkpoint(item_b.root, item_b.wid, "CP2", now=item_b.now())
+                self.assertEqual(self._witness(item_a)["status"], ws.AMENDMENT_WITNESS_RESOLVED)
+
+        held_writes = []
+        real_held = ws.assert_amendment_resolution_held
+
+        def held_check(*args, **kwargs):
+            before = self._witness_bytes(item_a)
+            try:
+                return real_held(*args, **kwargs)
+            finally:
+                held_writes.append(before == self._witness_bytes(item_a))
+
+        with mock.patch.object(ws, "assert_amendment_resolution_held", side_effect=held_check):
+            if taken_over:
+                item_a.approve_plan(stop_after="commit", hooks={"after_commit": advance_from_b})
+                advanced_before = self._witness(item_a)
+                with self._forbid_reservation():
+                    amended = item_a.complete_plan_approval(self._take_over(item_a))
+            else:
+                advanced_before = None
+
+                def capture(journal):
+                    advance_from_b(journal)
+                    nonlocal advanced_before
+                    advanced_before = self._witness(item_a)
+
+                amended = item_a.approve_plan(hooks={"after_commit": capture})
+        self.assertEqual(held_writes, [True], "6a1's held check ran once and wrote nothing")
+        self.assertNotEqual(amended, pre_amend[0])
+        self.assertEqual(approval_trailer_commits(self.scratch, self.item.wid)[0], amended)
+        self.assertEqual(len(approval_trailer_commits(self.scratch, self.item.wid)), 2)
+        witness = self._witness(item_a)
+        self.assertEqual(witness["status"], ws.AMENDMENT_WITNESS_RESOLVED)
+        self.assertEqual(witness["resolution_projection_sha256"], self._head_resolution_digest(item_a))
+        self.assertEqual(witness["resolved_commit"], amended)
+        if pre_advanced:
+            self.assertEqual(advanced_before["resolved_commit"], pre_amend[0])
+            self.assertEqual({k: v for k, v in witness.items() if k != "resolved_commit"},
+                             {k: v for k, v in advanced_before.items() if k != "resolved_commit"},
+                             "the owner's advance rewrites resolved_commit and nothing else")
+
+    def test_cp6_25_amend_recovery_in_session_with_the_reservation_live(self):
+        self._amend_recovery(taken_over=False, pre_advanced=False)
+
+    def test_cp6_25_amend_recovery_in_session_already_advanced_by_another_worktree(self):
+        self._amend_recovery(taken_over=False, pre_advanced=True)
+
+    def test_cp6_25_amend_recovery_after_a_takeover_with_the_reservation_live(self):
+        self._amend_recovery(taken_over=True, pre_advanced=False)
+
+    def test_cp6_25_amend_recovery_after_a_takeover_already_advanced_by_another_worktree(self):
+        self._amend_recovery(taken_over=True, pre_advanced=True)
+
+    def test_cp6_27_6a1_stops_before_its_first_guarded_window_on_a_witness_it_cannot_hold(self):
+        """CP6 test 27, through the command flow: a `TREE_CONTENT` commit
+        routes 6a into 6a1, whose held check meets a planted `OPEN` witness
+        and raises `AmendmentResolutionHeldError` -- no amend, and `HEAD`,
+        the index, the journal, the owner progress and the witness bytes
+        are exactly as found."""
+        item_a, _item_b = self._open_amendment_in_two_worktrees()
+        self._review_amended_plan(item_a)
+        self._install_pre_commit_hook(
+            f"blob=$( (git show :{item_a.plan_path}; printf 'hook rewrite\\n') "
+            "| git hash-object -w --stdin)\n"
+            f"git update-index --cacheinfo 100644,$blob,{item_a.plan_path}\n")
+        commit = item_a.approve_plan(stop_after="commit")
+        planted = self._witness(item_a)["previous"]  # the OPEN witness the reservation replaced
+        path = ws.amendment_witness_path(item_a.root, item_a.wid)
+        path.write_text(json.dumps(planted, indent=2, sort_keys=True) + "\n")
+        witness = self._witness_bytes(item_a)
+        journal = ws.read_plan_approval_journal(item_a.root)
+        journal_bytes = ws.plan_approval_journal_path(item_a.root).read_bytes()
+        progress = ws.read_plan_approval_owner_progress(item_a.root, journal["owner_token"])
+        with self.assertRaises(ws.AmendmentResolutionHeldError):
+            item_a.complete_plan_approval(journal["owner_token"])
+        self.assertEqual(item_a.sim.head(), commit)
+        self.assertEqual(item_a.sim.git("diff", "--name-only", "--cached", "HEAD").stdout, "")
+        self.assertEqual(ws.plan_approval_journal_path(item_a.root).read_bytes(), journal_bytes)
+        self.assertEqual(ws.read_plan_approval_owner_progress(item_a.root, journal["owner_token"]),
+                         progress)
+        self.assertEqual(self._witness_bytes(item_a), witness)
+        self.assertEqual(ws.held_primitives(), ())
+
+    def test_cp6_26_a_hook_rewriting_the_state_blob_is_reserved_not_a_conflict(self):
+        """CP6 test 26: the committed entry N's digest differs from the
+        reservation's. Before 6a1, B's claim reading the resolver's `HEAD`
+        refuses with `AmendmentResolutionReservedError` (predicate step 1's
+        in-flight exception) and binds nothing; 6a1's held check passes on
+        the journal's pinned digest, the amend repairs the blob, and the
+        advance binds the reserved digest."""
+        item_a, item_b = self._open_amendment_in_two_worktrees()
+        self._review_amended_plan(item_a)
+        rewritten = self.io / "rewritten-state.json"
+
+        def write_rewritten_state(journal):
+            post = json.loads(base64.b64decode(journal["expected_post_state_b64"]))
+            post["work_items"][item_a.wid]["amendment_history"][0]["reconciliation_outcome"] = {
+                "CP1": "needs_revalidation"}
+            rewritten.write_text(json.dumps(post, indent=2) + "\n")
+
+        self._install_pre_commit_hook(
+            f"blob=$(git hash-object -w {rewritten})\n"
+            f"git update-index --cacheinfo 100644,$blob,{STATE_REL}\n")
+        commit = item_a.approve_plan(stop_after="commit", hooks={"after_pin": write_rewritten_state})
+        reserved = self._witness(item_a)["resolution_reservation"]["resolution_projection_sha256"]
+        self.assertNotEqual(self._head_resolution_digest(item_a), reserved)
+        witness_before = self._witness_bytes(item_a)
+        with self.assertRaises(ws.AmendmentResolutionReservedError):
+            ws.claim_checkpoint(item_b.root, item_b.wid, "CP2", now=item_b.now())
+        self.assertEqual(self._witness_bytes(item_a), witness_before)
+        amended = item_a.complete_plan_approval(ws.read_plan_approval_journal(item_a.root)["owner_token"])
+        self.assertNotEqual(amended, commit)
+        self.assertEqual(self._head_resolution_digest(item_a), reserved)
+        witness = self._witness(item_a)
+        self.assertEqual((witness["status"], witness["resolution_projection_sha256"]),
+                         (ws.AMENDMENT_WITNESS_RESOLVED, reserved))
+        self.assertEqual(len(approval_trailer_commits(self.scratch, self.item.wid)), 2)
 
 
 if __name__ == "__main__":

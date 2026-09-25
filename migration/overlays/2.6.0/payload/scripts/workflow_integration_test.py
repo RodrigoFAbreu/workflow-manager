@@ -857,7 +857,15 @@ _GOLDEN_COMMAND_FILE_SHA256 = {
     # closing the gap a fresh Opus review found at this second trailer-
     # write site in an already-corrected file -- intentional content
     # change.
-    "milestone-implement.md": "937cd2b0fd75e87df4317a9567397294c2ff11c555974704387228745b58276f",
+    #
+    # milestone-implement.md further updated, D-Repo-Global-Lifecycle
+    # (workflow-2.6.0, CP6): step 1d names claim_checkpoint's lifecycle
+    # refusals and their remedies (the amendment witness checked under the
+    # repository-global lifecycle lock before the local phase check), step
+    # 1c routes adopt_claim's to them, and step 1d states that
+    # claim_checkpoint returns the claim record whose owner_token field is
+    # the token -- intentional content change.
+    "milestone-implement.md": "dd3ceefd29d6ad2533f8df6ad14a76ea0acb35cb021e2b788174aa11179f45e1",
     # approve-review.md (WF8c item (c), same-content bundle-generation
     # republication idempotency; further updated WF8c item (b): the
     # trailing caveat naming the dedicated /recover-implementation-provenance
@@ -964,7 +972,14 @@ _GOLDEN_COMMAND_FILE_SHA256 = {
     # step 5's in-window re-resolution, step 6.3a's write-tree proof, step
     # 6a's committed-truth verification and amend gate, and step 6d's
     # narrowed closing check.
-    "approve-review.md": "a8482058f3d8aba2015d615acdded32128979c4b7d098f87fa884d6542c6bb64",
+    # approve-review.md further updated, D-Repo-Global-Lifecycle
+    # (workflow-2.6.0, CP6): section 5.6's entry table under step 4b, the
+    # new step 4d reservation, step 5's first_commit staging entry, 6a1's
+    # held check and amend_recovery staging, step 6b's token capture and
+    # release, and the new step 6c1 advance before 6d -- intentional
+    # content change, pinned row by row by
+    # TestApproveReviewLifecycleEntryTable.
+    "approve-review.md": "ad9f453b75efa0d99f07774c8b75d5c55da7dc1b6db471bb37212f5ef008cbcd",
     # accept-milestone.md updated, baseline-freeze correctness fix
     # (OPUS-R129-001): step 6's completion-commit instruction now states
     # the same "trailers must be the commit message's own final paragraph"
@@ -7389,6 +7404,104 @@ class TestLifecycleDiagramMatchesTheCode(unittest.TestCase):
         self.assertEqual(unknown, {"accept-scoped-remediation"})
         self.assertIn("HISTORICAL / RETIRED", _diagram_text())
         self.assertTrue(named & on_disk)
+
+
+def _approve_review_step_blocks(text: str) -> tuple[list[str], dict[str, str]]:
+    """`approve-review.md`'s top-level steps in file order -- numbered and
+    lettered alike (`4b.`, `4d.`, `6c1.`) -- as `(labels, {label: block})`.
+    A block runs from its own label line to the next label line; indented
+    lines (lists, the entry table) never start a block."""
+    labels: list[str] = []
+    blocks: dict[str, str] = {}
+    current: str | None = None
+    lines: list[str] = []
+    for line in text.splitlines(keepends=True):
+        match = re.match(r"^(\d+[a-z]?\d*)\.\s", line)
+        if match:
+            if current is not None:
+                blocks[current] = "".join(lines)
+            current, lines = match.group(1), [line]
+            labels.append(current)
+        elif current is not None:
+            lines.append(line)
+    if current is not None:
+        blocks[current] = "".join(lines)
+    return labels, blocks
+
+
+def _squash(text: str) -> str:
+    return re.sub(r"\s+", " ", text)
+
+
+class TestApproveReviewLifecycleEntryTable(unittest.TestCase):
+    """CP6 test 29 (workflow-2.6.0, `D-Repo-Global-Lifecycle`): the entry
+    table in the plan's section 5.6 is the command. Asserted row by row
+    over the live `approve-review.md`: 4d follows 4c and is named nowhere
+    else, 4b still skips 4c-6 after a takeover, 6a1 names the held check
+    and the `amend_recovery` mode, 6b captures the tokens before calling
+    `rollback_plan_approval_transaction`, and the advance precedes 6d."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.text = _command_text("approve-review.md")
+        cls.labels, cls.blocks = _approve_review_step_blocks(cls.text)
+
+    def _follows(self, earlier: str, later: str) -> None:
+        self.assertEqual(self.labels.index(later), self.labels.index(earlier) + 1,
+                         f"{later} must directly follow {earlier}: {self.labels}")
+
+    def test_4d_directly_follows_4c_and_the_reservation_is_named_nowhere_else(self):
+        self._follows("4c", "4d")
+        self._follows("4d", "5")
+        self.assertIn("reserve_amendment_resolution", self.blocks["4d"])
+        elsewhere = [label for label, block in self.blocks.items()
+                     if label != "4d" and "reserve_amendment_resolution" in block]
+        self.assertEqual(elsewhere, [])
+        self.assertIn("run step 6b's rollback", _squash(self.blocks["4d"]))
+
+    def test_4b_still_skips_4c_through_6_after_a_takeover(self):
+        block = _squash(self.blocks["4b"])
+        self.assertIn("skipping straight past steps 4c-6", block)
+        self.assertIn("never reaches step 4d or first-commit staging", block)
+
+    def test_step_5_stages_in_first_commit_mode(self):
+        block = _squash(self.blocks["5"])
+        self.assertIn("stage_plan_approval_members(repo_root, journal, "
+                      "mode=workflow_state.PLAN_APPROVAL_STAGING_FIRST_COMMIT)", block)
+        self.assertIn("AmendmentResolutionHeldError", block)
+
+    def test_6a1_names_the_held_check_and_the_amend_recovery_mode(self):
+        block = _squash(self.blocks["6a"])
+        held = block.index("assert_amendment_resolution_held(repo_root, work_item_id, journal)")
+        self.assertIn("before the `step-7b-amend-stage` window opens", block)
+        self.assertLess(held, block.index("mode=workflow_state.PLAN_APPROVAL_STAGING_AMEND_RECOVERY"))
+        self.assertIn("resolution_held=proof", block)
+        self.assertNotIn("reserve_amendment_resolution", block)
+
+    def test_6b_captures_the_tokens_before_the_rollback_and_releases_after_it(self):
+        block = _squash(self.blocks["6b"])
+        captured = block.index("journal_tokens = [journal[\"owner_token\"], "
+                               "*journal[\"previous_owner_tokens\"]]")
+        rollback = block.index("rollback_plan_approval_transaction")
+        release = block.index("release_amendment_resolution(repo_root, work_item_id, journal_tokens)")
+        self.assertLess(captured, rollback)
+        self.assertLess(block.index("rollback_plan_approval_transaction(repo_root,"), release)
+
+    def test_the_advance_precedes_6d(self):
+        self._follows("6c", "6c1")
+        self._follows("6c1", "6d")
+        self.assertIn("advance_amendment_witness(repo_root, work_item_id, journal=journal, "
+                      "commit=<the verified commit>)", _squash(self.blocks["6c1"]))
+        self.assertIn("reached only after step 6c1 succeeds", _squash(self.blocks["6d"]))
+        elsewhere = [label for label, block in self.blocks.items()
+                     if label != "6c1" and "advance_amendment_witness" in block]
+        self.assertEqual(elsewhere, [])
+
+    def test_the_entry_table_rows_are_the_plans(self):
+        rows = re.findall(r"^\s*\| ([^|]+?) \|", self.blocks["4b"], re.MULTILINE)
+        entries = [row for row in rows if row not in ("Entry", "---")]
+        self.assertEqual(entries, ["4b", "4c", "4d", "5, 6.x", "6a", "6a1", "6b",
+                                   "6c → 6c1 → 6d", "6a `AMBIGUOUS`"])
 
 
 if __name__ == "__main__":

@@ -29006,7 +29006,8 @@ implementation rather than from this document's own prose (see item 372(h)
 and "Revision 91" below) — a hand-maintained enumeration is, demonstrably now
 three times over, the thing that goes stale, which is why the closing rule
 below is a conformance obligation with a test owner rather than a convention.
-This design has **eight** lock-shaped primitives:
+This design has **nine** lock-shaped primitives (eight through workflow-2.5.1;
+workflow-2.6.0's `D-Repo-Global-Lifecycle` adds (9)):
 
 1. the per-work-item **transaction** mutation/handoff guard
    (`.ai-review/runtime/PLAN_APPROVAL_MUTATION.lease`, link-based,
@@ -29061,12 +29062,27 @@ This design has **eight** lock-shaped primitives:
    mutex) is not disturbed by admitting it as a lock-order primitive too — the
    two are not exclusive, and the ordering obligation this section exists to
    close applies to every object meeting the stated predicate regardless of
-   what else the object also is.
+   what else the object also is;
+9. the repository-global **lifecycle lock**,
+   `…/checkpoint-claims/<sha256(work_item_id)>.lifecycle.lock` (`flock`,
+   never unlinked, added workflow-2.6.0, `D-Repo-Global-Lifecycle`) — the
+   per-work-item primitive, rooted at the git common dir, that serializes
+   every claim publication with every amendment request and every
+   resolution reservation, advance and release across all linked worktrees.
+   It is a **pure source**: acquired only while the process holds no other
+   primitive (a process-local held-set asserts it,
+   `LifecycleLockOrderError`), so every edge touching it is `(9)→X` and no
+   edge targets it. The amendment witness beside it
+   (`<token>.amendment.json`) is written by tempfile plus `os.replace`, not
+   `os.link`, and is not a primitive.
 
-The whole order over them is **eleven edges — six blocking and five
-non-blocking, widened from ten/six/four this round (workflow-v2.4.0,
+The whole order over them is **sixteen edges — nine blocking and seven
+non-blocking since workflow-2.6.0 (`D-Repo-Global-Lifecycle` adds the five
+`(9)`-sourced edges: `(9)→(2)`, `(9)→(3)`, `(9)→(6)` blocking, `(9)→(5)`,
+`(9)→(8)` non-blocking); eleven — six blocking and five non-blocking —
+through workflow-2.5.1, widened from ten/six/four in workflow-v2.4.0,
 plan-amendment-mechanism round 8 external implementation review,
-`XMODEL-R8-B1`)** — and it is a **DAG rather than a
+`XMODEL-R8-B1`** — and it is a **DAG rather than a
 forest** over its blocking half; the raw eleven-edge relation itself contains
 two real two-cycles and is not, and does not need to be, acyclic as a whole
 (see "Blocking vs. non-blocking edges" below) — revision 75's "forest with one
@@ -29084,9 +29100,29 @@ claim:
 (8) checkpoint-claims/<wi>.json   →  (6) …/<wi>.guardlock  [owner_mutation → acquire_guard, step 1d/1f, claim held across the guardlock's real flock acquisition]  -- blocking  [new, revision 94, `OPUS-R118-002`]
 (8) checkpoint-claims/<wi>.json   →  (2) WORKFLOW_STATE.lock  [step 1d: (8) published by claim_checkpoint before owner_mutation opens; the state write inside that window is reached while (8) is still held; repeated at step 1f]  -- blocking  [new, revision 95, `OPUS-R119-001`]
 (8) checkpoint-claims/<wi>.json   →  (3) WORKTREE_IDENTITY.lock  [step 1d: the identity refresh inside owner_mutation's window is reached while (8) is still held]  -- blocking  [new, revision 95, `OPUS-R119-001`]
-(2) WORKFLOW_STATE.lock           →  (8) checkpoint-claims/<wi>.json   [claim_checkpoint's own pre-publication phase check, XMODEL-R8-B1: publication now runs inside `state_lock`, closing the window in which a checkpoint claim could be published between `request_plan_amendment`'s authoritative `resolve_claim(...)` read and its `AMENDING_PLAN` commit -- within one worktree root only; `XMODEL-R9-B1`/`docs/defects/v2.4.0-002-amendment-claim-race-crosses-worktree-boundary.md` records that a claim published from a different linked worktree is not caught]  -- non-blocking  [new, workflow-v2.4.0 plan-amendment-mechanism round 8, `XMODEL-R8-B1`]
+(2) WORKFLOW_STATE.lock           →  (8) checkpoint-claims/<wi>.json   [claim_checkpoint's own pre-publication phase check, XMODEL-R8-B1: publication runs inside `state_lock`, closing the window in which a checkpoint claim could be published between `request_plan_amendment`'s authoritative `resolve_claim(...)` read and its `AMENDING_PLAN` commit within one worktree root; across linked worktrees (`XMODEL-R9-B1`, `v2.4.0-002`) the window is closed by (9) and the amendment witness since workflow-2.6.0, see `D-Repo-Global-Lifecycle`]  -- non-blocking  [new, workflow-v2.4.0 plan-amendment-mechanism round 8, `XMODEL-R8-B1`]
+(9) …/<wi>.lifecycle.lock         →  (2) WORKFLOW_STATE.lock      [claim_checkpoint (9) → (2) → witness check → _claim_or_refuse; request_plan_amendment_transaction's state_transaction]  -- blocking  [new, workflow-2.6.0, `D-Repo-Global-Lifecycle`]
+(9) …/<wi>.lifecycle.lock         →  (8) checkpoint-claims/<wi>.json   [claim_checkpoint's and adopt_claim's claim publication, both under (9)]  -- non-blocking  [new, workflow-2.6.0, `D-Repo-Global-Lifecycle`]
+(9) …/<wi>.lifecycle.lock         →  (6) …/<wi>.guardlock  [adopt_claim's guard_mutation_lock; absent-claim take_over_claim's acquire_guard]  -- blocking  [new, workflow-2.6.0, `D-Repo-Global-Lifecycle`]
+(9) …/<wi>.lifecycle.lock         →  (5) checkpoint-claims/<wi>.lease  [absent-claim take_over_claim's acquire_guard publish]  -- non-blocking  [new, workflow-2.6.0, `D-Repo-Global-Lifecycle`]
+(9) …/<wi>.lifecycle.lock         →  (3) WORKTREE_IDENTITY.lock   [absent-claim take_over_claim's _establish_or_repair_identity, inside its (5) window]  -- blocking  [new, workflow-2.6.0, `D-Repo-Global-Lifecycle`; found by the census, not in the plan's hand count]
 (4) identity-gap.lock                                             [isolated leaf, no edge either way]
 ```
+
+**workflow-2.6.0 (`D-Repo-Global-Lifecycle`):** all five `(9)` edges are
+code-derivable — instances of the "Guard-bracket nesting" shape, through
+`with lifecycle_lock(...):` in `claim_checkpoint` (`(9)→(2)`, `(9)→(8)`),
+`adopt_claim` (`(9)→(6)`, `(9)→(8)`) and an absent-claim `take_over_claim`
+(`(9)→(6)`, `(9)→(5)`, `(9)→(3)`). So twelve of the sixteen are
+code-derivable and the same four are command-orchestrated.
+`(9)→(3)` was not in the plan's own hand count
+(`WORKFLOW_REVIEW_ARTIFACT_AND_CONCURRENCY_HARDENING_PLAN.md` section 5.6
+stated fifteen edges and an 8/7 split). `verify_372h_raw_edge_derivation.py`
+rediscovered it, because an absent-claim takeover under (9) runs
+`_establish_or_repair_identity` inside its (5) window, exactly as the
+existing `(5)→(3)` edge records. The takeover keeps its "refuse, having
+mutated nothing" contract rather than moving the identity write out of the
+window to avoid the edge; the stated totals are therefore sixteen and 9/7.
 
 **Not all eleven edges are code-derivable from `scripts/workflow_state.py`
 alone, and this document no longer states one equality rule that silently
@@ -29142,10 +29178,13 @@ wait, only when `Y` is one of those five; an edge landing on `(1)`, `(5)`, or
 (`XMODEL-R8-B1`, workflow-v2.4.0 plan-amendment-mechanism round 8) lands on
 `(8)`, so it is non-blocking on the identical footing, regardless of `(2)`
 being one of the five blocking primitives itself: the discriminator classifies
-by the *target*, never the source. Of the eleven edges
+by the *target*, never the source. Of the sixteen edges
 above, the **blocking** ones are `(1)→(2)`, `(5)→(2)`, `(8)→(2)`, `(5)→(3)`,
-`(8)→(3)`, `(8)→(6)`; the **non-blocking** ones are `(7)→(1)`, `(6)→(5)`,
-`(6)→(8)`, `(8)→(5)`, `(2)→(8)`.
+`(8)→(3)`, `(8)→(6)`, and since workflow-2.6.0 `(9)→(2)`, `(9)→(3)`,
+`(9)→(6)`; the **non-blocking** ones are `(7)→(1)`, `(6)→(5)`,
+`(6)→(8)`, `(8)→(5)`, `(2)→(8)`, and since workflow-2.6.0 `(9)→(5)`,
+`(9)→(8)`. `(9)` is itself an `fcntl.flock` primitive, so it joins the
+blocking-target set the discriminator uses, but no edge targets it.
 
 **The discriminator's own limit, and the one normative clause that closes
 it** (added, revision 95, external plan review, `OPUS-R119-004`): the rule
@@ -29355,10 +29394,17 @@ stated at the strength each mechanism actually has:
   `repo_root / DEFAULT_STATE_PATH`, that worktree's own working-tree copy
   of `WORKFLOW_STATE.json`, which cannot observe a phase committed only to
   another worktree's own branch, however well the two operations are
-  serialized. This release deliberately leaves that residual open rather
+  serialized. `2.4.0` deliberately left that residual open rather
   than half-fixing it -- see
   `docs/defects/v2.4.0-002-amendment-claim-race-crosses-worktree-boundary.md`
-  for the full accounting and what a real fix would need.
+  for the full accounting. **workflow-2.6.0 closes it**
+  (`D-Repo-Global-Lifecycle`, below) with exactly the two things that
+  record named: a `claims_dir`-rooted serialization primitive, `(9)`, taken
+  before `(2)` by `claim_checkpoint` and by
+  `request_plan_amendment_transaction`, and a repository-global witness for
+  the amendment, which a claim from any worktree reads before its own local
+  phase check. `(2)→(8)` itself is unchanged; it now always sits inside a
+  `(9)` window.
 
 **The blocking edges are acyclic, and that is the property deadlock-freedom
 actually requires; the raw eleven-edge graph is not acyclic, and does not need
@@ -29384,6 +29430,13 @@ abandoned destructive-guard recovery, `authorize_identity_reference_gap`,
 identity establishment, state mutation and the bootstrap transaction were
 each traced again against the corrected eleven-edge, blocking/non-blocking-
 classified graph, and no blocking cycle is constructible in any of them.
+**workflow-2.6.0 (`D-Repo-Global-Lifecycle`):** the three new blocking
+edges `(9)→(2)`, `(9)→(3)`, `(9)→(6)` add one source, `(9)`, and no
+target. The blocking sources are now `{1, 5, 8, 9}`, the targets are still
+`{2, 3, 6}`, and the two sets stay disjoint, because `(9)` is a pure source
+(acquired only while nothing else is held, asserted at run time by the
+held-set). `(9)` is a single digit, so the edge table's `^\((\d)\)`
+parser needs no change.
 
 The raw graph — blocking and non-blocking edges together, "X may be held
 while Y is acquired," with no distinction drawn — **does** contain two cycles:
@@ -30815,6 +30868,15 @@ Two further preconditions, both refusals rather than silent handling:
   that check reads its own worktree's working-tree `WORKFLOW_STATE.json`.
   Left open for `2.4.0` rather than half-fixed; see
   `docs/defects/v2.4.0-002-amendment-claim-race-crosses-worktree-boundary.md`.
+  **Repository-wide since workflow-2.6.0** (`D-Repo-Global-Lifecycle`):
+  `/request-plan-amendment` runs through `request_plan_amendment_transaction`,
+  which holds the repository-global lifecycle lock (9) across this
+  precondition's `resolve_claim` read and the `AMENDING_PLAN` publication,
+  and publishes the amendment witness. Every claim publisher takes the same
+  (9) and refuses while the witness shows the amendment open, whatever its
+  own worktree's local phase is. The guarantee holds once every registered
+  worktree's branch has merged the `2.6.0` update; a lagging worktree's
+  unrecorded amendment is detected and refused.
 - **No open plan-approval or approval journal.** Mirrors
   `/approve-review`'s existing "already-open approval journal" refusal --
   an amendment must never race an in-flight approval commit.
@@ -33716,6 +33778,153 @@ approval, the same proactive-classification discipline
 Unchanged scope from revision 5: metrics (hooks, status-line, per-session
 storage, retention, the background-`SubagentStop` empirical check),
 context governance, subagent routing.
+
+### D-Repo-Global-Lifecycle — one repository-global lifecycle lock and one amendment witness, so an amendment and a checkpoint start, or two resolutions of one amendment, can never both happen across linked worktrees (`workflow-2.6.0`; closes `v2.4.0-002`)
+
+**Problem.** `v2.4.0-002` had two independent causes, both still present in
+`2.5.1`. `WORKFLOW_STATE.lock` (primitive (2)) is per worktree, so an
+amendment requested in worktree A and a checkpoint claim published from
+worktree B were serialized by nothing. And `claim_checkpoint`'s phase check
+read only B's own working-tree state, which cannot see an `AMENDING_PLAN`
+committed on A's branch. Reproduced end to end: A committed `AMENDING_PLAN`,
+B published `CP2` and moved it to `IN_PROGRESS`, and `apply_plan_approval`
+never consulted claims. Two further paths published a claim without even
+the phase check: `take_over_claim` of an absent claim and `adopt_claim`.
+Resolution had the same gap one step later. Nothing stopped two worktrees
+whose branches carried the same unresolved amendment from each approving a
+different amended plan, and a resolution recorded only by its revision and
+reconciliation outcome could not even tell two such approvals apart.
+
+**Decision** (the normative text is
+`WORKFLOW_REVIEW_ARTIFACT_AND_CONCURRENCY_HARDENING_PLAN.md` section 5.6; the
+names below are `scripts/workflow_state.py`'s):
+
+1. **Primitive (9), the lifecycle lock.**
+   `<git-common-dir>/ai-workflow/checkpoint-claims/<token>.lifecycle.lock`, a
+   per-work-item `flock`, never unlinked, released by the kernel on process
+   death (`lifecycle_lock`). It is a pure source: the process-local held-set
+   (`_held_primitives`, which every other primitive registers in) must be
+   empty when it is taken (`LifecycleLockOrderError`). It is taken by
+   `claim_checkpoint` ((9) → (2) → witness check → phase check →
+   `_claim_or_refuse`), by `adopt_claim` and absent-claim `take_over_claim`
+   before (6)/(5), by `request_plan_amendment_transaction`, and by the four
+   resolution calls below. It is never held across a turn and never inside a
+   `plan_approval_guarded_mutation` window.
+2. **No bypass.** `request_plan_amendment`, the pure mutator, refuses unless
+   (9) is held for its work item (`LifecycleLockNotHeldError`);
+   `request_plan_amendment_transaction` is the only sanctioned caller. The
+   step-5 staging entry, `stage_plan_approval_members`, takes an explicit
+   mode: `first_commit` requires this journal's own 4d reservation, and
+   `amend_recovery` requires the proof a passing
+   `assert_amendment_resolution_held` returned
+   (`AmendmentResolutionHeldError` otherwise).
+3. **The amendment witness.** `<token>.amendment.json` beside the lock,
+   written by tempfile plus `os.replace` (not an `os.link` primitive),
+   advanced and rolled back, never deleted in ordinary operation. Its status
+   is `OPEN`, `RESOLVING`, `RESOLVED` or `NONE`. It records the sequence,
+   the requester worktree, branch and `amendment_base_commit`, the request
+   digest, and, by status, the reservation, the bound resolution digest, and
+   the `previous` witness a rollback restores. Anything torn, symlinked,
+   unknown-schema, unknown-status or missing a status's required fields
+   refuses (`AmendmentWitnessUnavailableError`). It is a gate, not an
+   authority: it can only cause refusals, and committed Git state stays
+   authoritative.
+4. **Two digests, one function each.** `amendment_request_projection_sha256`
+   hashes an `amendment_history` entry minus exactly the three
+   resolution-time keys, so an entry's request digest is the same before
+   and after resolution. `amendment_resolution_projection_sha256` hashes
+   the request digest plus `resolved_at_plan_revision`,
+   `reconciliation_outcome` and the new `resolved_review_content_id`, which
+   `apply_plan_approval` now writes equal to the approval's
+   `approved_review_content_id`. `2.5.1` ignores the new key: its
+   `validate_state` has no `amendment_history` entry-key check.
+5. **The predicate list**, identical for every side and evaluated under (9)
+   after the mixed-release lag probe (`_evaluate_lifecycle`):
+   (1) `OPEN`/`RESOLVING` at seq N with a committed resolution of N visible
+   (the evaluating `HEAD`; for `RESOLVING` also the resolver's `HEAD` or
+   branch tip): advance to `RESOLVED` binding that digest (`RESOLVING` only
+   when it equals the reservation's; otherwise
+   `AmendmentResolutionConflictError`, or `AmendmentResolutionReservedError`
+   when the only differing resolution is the reserving transaction's own
+   commit awaiting 6a1); (2) `OPEN` otherwise: the provable-orphan test
+   rolls it back, or the claim side refuses (`AmendmentInFlightError`), the
+   amendment side refuses, and the resolution side proceeds; (2a)
+   `RESOLVING` otherwise: the orphan-reservation test, or the claim and
+   amendment sides refuse (`AmendmentInFlightError`), and the resolution
+   side proceeds only for its own journal (`AmendmentResolutionReservedError`
+   otherwise); (3) `RESOLVED`: the evaluating `HEAD` must show N resolved
+   (`StaleLifecycleStateError`) with the bound digest
+   (`AmendmentResolutionConflictError`); (4) `NONE`: proceed; (5) absent:
+   the upgrade bootstrap.
+6. **Resolution: reserve before any commit.** `/approve-review plan` step 4d
+   (`reserve_amendment_resolution`, directly after 4c, the only reservation
+   point) rewrites `OPEN` to `RESOLVING` with the journal's token, the
+   resolver worktree and branch, and the pinned resolution digest. 6a1 holds
+   the resolution with `assert_amendment_resolution_held` (no predicate list,
+   no write, digest from the journal's pinned post-state). Step 6c1
+   (`advance_amendment_witness`, with the journal and the verified commit)
+   binds `RESOLVED` before 6d closes the journal, so an open journal always
+   outlives its reservation. Step 6b captures the journal's tokens before
+   the rollback and then calls `release_amendment_resolution`, which
+   restores `OPEN` in band, on a detached `HEAD` too.
+7. **Crash recovery without liveness heuristics.** A provable orphan `OPEN`
+   (requester still registered, on its branch, and neither it, its branch
+   tip nor any worktree holds the entry) or orphan reservation (resolver
+   still registered, on its branch, no journal holding the token, no
+   resolution anywhere) is rolled back automatically to `previous`. When the
+   test cannot complete (requester or resolver gone, unreadable, detached,
+   or switched branch), the refusal offers the evidence-bound literal
+   `clear amendment witness|resolution <wi> <sha256 of the witness bytes>`
+   (`clear_amendment_witness`, `clear_amendment_resolution`), which
+   re-checks liveness under (9) before rewriting to `previous`. A killed (9)
+   holder's `flock` dies with it.
+8. **Upgrade bootstrap** (INV-7). With no witness, one deterministic scan of
+   every registered worktree's `HEAD`-committed and working-tree state:
+   request and resolution agreement at every shared seq (with a
+   `Workflow-Plan-Approval:` trailer comparison for legacy resolutions),
+   `amendment_base_commit` agreement, and no working-tree resolution its own
+   `HEAD` lacks (`AmendmentBootstrapConflictError`, writing nothing);
+   then `RESOLVED` if any `HEAD` shows the last seq resolved, else `OPEN`
+   with a deterministic requester, else (never amended) the `NONE`
+   sentinel, which is not written while any worktree lags.
+9. **Mixed-release worktrees.** The lag probe reads every registered
+   worktree's `HEAD`-committed `.workflow-manager/installation.json`. A
+   `workflow_version` below `2.6.0` (compared numerically,
+   `workflow_release_version_key`, pinned against `release._version_key`),
+   or an absent, unreadable or unorderable one, lags. `bare` entries are
+   skipped. While any worktree lags, its unrecorded unresolved amendments
+   refuse (`LaggingWorktreeAmendmentError`) and its divergent resolutions
+   refuse (`AmendmentResolutionConflictError`); a lagging worktree alone
+   does not.
+10. **Defense in depth at approval.** `open_plan_approval_journal` refuses
+    (`AmendmentCheckpointActiveError`) to open an amendment-resolving
+    transaction while any checkpoint claim for the item is live.
+
+**Lock order.** Nine primitives and sixteen edges, nine blocking and seven
+non-blocking (see "The complete global partial order"): the five new edges
+are `(9)→(2)`, `(9)→(3)`, `(9)→(6)` (blocking) and `(9)→(5)`, `(9)→(8)`
+(non-blocking), all code-derivable and rediscovered by
+`docs/ai-workflow/dry-run/verify_372h_raw_edge_derivation.py`, with a
+regression that removes both of `(9)→(8)`'s evidence paths. The blocking
+sources `{1, 5, 8, 9}` and targets `{2, 3, 6}` stay disjoint.
+
+**Residual** (an unsupported mixed-release posture). The exclusion is
+guaranteed only once every registered worktree's branch has merged the
+`2.6.0` update. A lagging `2.5.1` process never takes (9) and never reads the
+witness. It can still claim while an amendment is `OPEN` (caught at approval
+by item 10 if the claim is still live), request an amendment (detected on the
+next (9) acquisition, but the window before that read is not closed), or
+resolve an `OPEN` amendment without reserving it (the first such resolution
+a `2.6.0` holder observes is bound; any different one is refused wherever it
+becomes visible). An amendment on a branch checked out in no worktree is not
+discoverable. Two independent `2.5.1` resolutions with equal revision and
+outcome, at least one landed without its trailer, compare equal at
+bootstrap; their checkpoint outcomes are identical by construction.
+
+**Forward compatibility.** The witness records worktree, branch and base
+identity, so a later release can record or enforce repository-global
+branch/base/worktree policy by extending this record rather than adding a
+second one. This release adds no such policy.
 
 ### Workflow v2.2 handoff (unchanged from revision 6)
 
