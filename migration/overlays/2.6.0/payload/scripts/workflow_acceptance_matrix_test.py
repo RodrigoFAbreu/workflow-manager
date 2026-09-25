@@ -42,6 +42,7 @@ from __future__ import annotations
 
 import base64
 import copy
+import hashlib
 import json
 import os
 import re
@@ -72,8 +73,8 @@ def _tooling_dir() -> Path:
     return Path(__file__).resolve().parent
 
 
-def _run(args, cwd, check=True, env=None):
-    full_env = dict(os.environ)
+def _run(args, cwd, check=True, env=None, unset=()):
+    full_env = {key: value for key, value in os.environ.items() if key not in unset}
     full_env.setdefault("GIT_CONFIG_GLOBAL", "/dev/null")
     full_env.setdefault("GIT_CONFIG_SYSTEM", "/dev/null")
     if env:
@@ -140,8 +141,8 @@ class Scratch:
     def read(self, rel):
         return (self.root / rel).read_text()
 
-    def git(self, *args, check=True):
-        return _run(["git", *args], cwd=self.root, check=check)
+    def git(self, *args, check=True, unset=()):
+        return _run(["git", *args], cwd=self.root, check=check, unset=unset)
 
     def head(self):
         return self.git("rev-parse", "HEAD").stdout.strip()
@@ -412,9 +413,11 @@ class Item:
         the four plan-stage files are marked intent-to-add and left that
         way, so `resolve_plan_stage_metadata`'s tracked-path requirement
         is satisfied and `/approve-review plan`'s own commit is what
-        commits them."""
-        self.sim.git("add", "-N", "--", self.plan_path, self.registry_path,
-                     self.mapping_path, self.artifacts_path)
+        commits them. Literal, as step 3 now states (round 3): a declared
+        `:x` path is marked as itself, never as pathspec magic for `x`."""
+        self.sim.git("--literal-pathspecs", "add", "-N", "--", self.plan_path, self.registry_path,
+                     self.mapping_path, self.artifacts_path,
+                     unset=fingerprint.CONFLICTING_PATHSPEC_ENV)
 
     # ---------------- plan-stage bundle ----------------
 
@@ -6608,7 +6611,8 @@ class _PlanApprovalClosureCase(MatrixCase):
         for rel, content in (files or {}).items():
             self.scratch.write(rel, content)
         if intent_to_add:
-            self.scratch.git("--literal-pathspecs", "add", "-N", "--", *intent_to_add)
+            self.scratch.git("--literal-pathspecs", "add", "-N", "--", *intent_to_add,
+                             unset=fingerprint.CONFLICTING_PATHSPEC_ENV)
         item.milestone_plan(artifacts=cp5_declarations(item, protected_extra))
         item.generate_plan_bundle()
         item.write_feedback("APPROVE")
@@ -6743,7 +6747,7 @@ class PlanApprovalClosureMembers(_PlanApprovalClosureCase):
         self.assertTrue(self.scratch.git("diff", "--name-only", "--cached", "HEAD").stdout.strip())
         self.assert_refused_before_mutation(
             ws.DirtyIndexBeforeStagingError, self.item.approve_plan,
-            contains=("git mv", "git restore --staged"),
+            contains=("git mv", "git --literal-pathspecs restore --staged"),
         )
         # The named remedy: unstage both sides, keep the rename.
         self.scratch.git("restore", "--staged", "--", CP5_COMPANION, CP5_RENAMED)
@@ -6937,10 +6941,45 @@ class PlanApprovalClosureLiteralPaths(_PlanApprovalClosureCase):
 
     def test_ascii_control_member_is_committed_exactly(self):
         _commit, changed = self.approve_member(CP5_COMPANION, "control\n")
-        self.assertLessEqual(changed, set(ws.read_plan_approval_journal(self.item.root) or {}) | {
+        self.assertLessEqual(changed, {
             self.item.plan_path, self.item.registry_path, self.item.mapping_path,
             CP4_STATE_REL, self.item.artifacts_path, CP5_COMPANION,
         })
+
+    def test_control_and_quoted_character_members_are_committed_exactly(self):
+        """Round 3, O2: characters `core.quotePath` C-quotes even in ASCII
+        -- a tab, a double quote, a backslash -- compare as themselves."""
+        for member in ("docs/ai-workflow/tab\there.md", 'docs/ai-workflow/say "hi".md',
+                       "docs/ai-workflow/back\\slash.md"):
+            with self.subTest(member=member):
+                self.setUp()
+                self.approve_member(member, f"literal {member}\n")
+                self.scratch.cleanup()
+
+    def test_noglob_pathspec_mode_neither_aborts_nor_widens_approval(self):
+        """Round 3, O1: Git refuses `--literal-pathspecs` alongside a
+        global pathspec mode, so `GIT_NOGLOB_PATHSPECS=1` -- under which
+        2.5.1 approved -- aborted 2.6.0's approval. Staging and the
+        metadata checks now drop that mode and the glob member stays a
+        literal. (`GIT_GLOB_PATHSPECS`/`GIT_ICASE_PATHSPECS` are not a row:
+        Git's `ls-tree` rejects that magic outright, so every release's
+        plain `ls-tree -- <path>` reads -- the identity-reference scan
+        among them -- already refused under them, 2.5.1 included.)"""
+        with mock.patch.dict(os.environ, {"GIT_NOGLOB_PATHSPECS": "1"}):
+            self.approve_member("docs/ai-workflow/*.md", "a file literally named *.md\n")
+
+    def test_literal_reads_drop_every_conflicting_global_pathspec_mode(self):
+        """Round 3, O1, per call site: each literal declared-path read
+        runs under every conflicting global mode rather than exiting 128."""
+        self.scratch.write("docs/ai-workflow/*.md", "literal\n")
+        head = self.scratch.commit("a literal glob-named file")
+        for mode in fingerprint.CONFLICTING_PATHSPEC_ENV:
+            with self.subTest(mode=mode), mock.patch.dict(os.environ, {mode: "1"}):
+                self.assertTrue(fingerprint._snapshot_commit(self.scratch.root, head, "docs/ai-workflow/*.md")["exists"])
+                fingerprint._validate_plan_stage_metadata_path(
+                    self.scratch.root, "plan_path", "docs/ai-workflow/*.md", None)
+                fingerprint._validate_plan_stage_metadata_path(
+                    self.scratch.root, "plan_path", "docs/ai-workflow/*.md", head)
 
     def test_glob_metacharacter_member_is_committed_as_a_literal(self):
         member = "docs/ai-workflow/*.md"
@@ -6992,6 +7031,87 @@ class PlanApprovalClosureLiteralPaths(_PlanApprovalClosureCase):
         self.assertEqual(self.scratch.git("config", "--get", "core.quotePath", check=False).stdout, "")
         _commit, changed = self.approve_member(member, "d\u00e9sign notes\n")
         self.assertNotIn('"docs/ai-workflow/d\\303\\251sign.md"', changed)
+
+
+class AmendedApprovalLiteralMetadataPath(_PlanApprovalClosureCase):
+    """Round 3, `I1-residual`: an amended plan approval whose declared
+    `plan_path` has a leading `:`. `load_pre_amendment_snapshot`'s
+    pinned-blob cross-check reads that path literally, never as pathspec
+    magic naming the tracked decoy `proc-item-plan.md`."""
+
+    def setUp(self):
+        self.scratch = Scratch()
+        self.addCleanup(self.scratch.cleanup)
+        self.item = Item(self.scratch, self.work_item_type)
+        self.item.plan_path = ":proc-item-plan.md"
+        self.scratch.write("proc-item-plan.md", "decoy a ':' pathspec would name\n")
+        self.item.seed()
+
+    def test_amended_approval_cross_checks_the_literal_pre_amendment_plan(self):
+        item = self.item
+        self.plan_with()
+        first = self.approve()
+        pre_plan = self.scratch.git("show", f"{first}:{item.plan_path}").stdout
+        self.amend_to((), "Plan body, amended.\n")
+        entry = item.entry()["amendment_history"][-1]
+        pre_plan_text, _ = ws.load_pre_amendment_snapshot(
+            item.root, item.wid, item.plan_path, item.registry_path, entry,
+        )
+        self.assertEqual(pre_plan_text, pre_plan)
+        self.approve()
+        self.assertEqual(self.scratch.git("show", "HEAD:proc-item-plan.md").stdout,
+                         "decoy a ':' pathspec would name\n")
+
+
+class DeclaredPathGitReads(unittest.TestCase):
+    """Round 3, `I1-residual` and its re-sweep, driven directly against a
+    real repository: each declared-path read is a literal whatever the
+    path's leading characters."""
+
+    def setUp(self):
+        self.scratch = Scratch()
+        self.addCleanup(self.scratch.cleanup)
+
+    def blob(self, rel):
+        return self.scratch.git("rev-parse", f"HEAD:{rel}").stdout.strip()
+
+    def test_pre_amendment_snapshot_reads_pathspec_shaped_paths_literally(self):
+        registry = {"checkpoints": [], "marker": "literal"}
+        self.scratch.write("plan.md", "decoy plan\n")
+        self.scratch.write("reg.json", json.dumps({"marker": "decoy"}))
+        self.scratch.write(":reg.json", json.dumps(registry))
+        plans = (":plan.md", ":(glob)*.md", ":!plan.md")
+        for plan in plans:
+            self.scratch.write(plan, f"literal {plan}\n")
+        commit = self.scratch.commit("pathspec-shaped metadata paths", paths=["."])
+        for plan in plans:
+            with self.subTest(plan_path=plan):
+                entry = {
+                    "pre_amendment_approval_commit": commit,
+                    "superseded_plan_approval": {"review_content_manifest": [
+                        {"path": plan, "blob": self.blob(plan)},
+                        {"path": ":reg.json", "blob": self.blob(":reg.json")},
+                    ]},
+                }
+                text, pre_registry = ws.load_pre_amendment_snapshot(
+                    self.scratch.root, "wi", plan, ":reg.json", entry,
+                )
+                self.assertEqual(text, f"literal {plan}\n")
+                self.assertEqual(pre_registry, registry)
+
+    def test_staged_blob_check_reads_a_stage_number_shaped_member_literally(self):
+        """`:0:x.md` is index stage 0 of `x.md` -- a member named `0:x.md`
+        is read at `:0:0:x.md`, never at `:0:x.md`."""
+        self.scratch.write("x.md", "not the member\n")
+        self.scratch.write("0:x.md", "the member\n")
+        self.scratch.git("add", "--", "x.md", "0:x.md")
+        ws.verify_staged_blob_sha256(
+            self.scratch.root, "0:x.md", hashlib.sha256(b"the member\n").hexdigest(),
+        )
+        with self.assertRaises(ws.StagedBlobMismatchError):
+            ws.verify_staged_blob_sha256(
+                self.scratch.root, "0:x.md", hashlib.sha256(b"not the member\n").hexdigest(),
+            )
 
 
 class PlanApprovalClosureProof(_PlanApprovalClosureCase):

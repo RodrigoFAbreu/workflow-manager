@@ -178,7 +178,8 @@ normative definition.
    making the step conditional only reintroduces the judgement call that
    produced the stale table. If this revision creates
    any of the four plan-stage files for the first time, apply
-   `/milestone-plan` step 3's staging step to it as well (`git add -N`,
+   `/milestone-plan` step 3's staging step to it as well (`git
+   --literal-pathspecs add -N`,
    salvage audit `B6`) -- **before** the publish below (workflow-2.6.0,
    `LPR-R3-003`): an untracked declared path makes
    `resolve_plan_stage_metadata` refuse, and both the two-stage publish's

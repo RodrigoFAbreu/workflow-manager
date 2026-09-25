@@ -844,7 +844,7 @@ _GOLDEN_COMMAND_FILE_SHA256 = {
     # commit's widened member set (every declared protected path).
     # Implementation review round 2 (I1): step 3's intent-to-add staging is
     # `git --literal-pathspecs add -N` -- intentional.
-    "milestone-plan.md": "8bb5eadff3a19158206211f5901668de3b162c7f4658dcaaa91c6ccf98a7aa03",
+    "milestone-plan.md": "1369139371201c39b9505b00bbbbed87b2cfeebf7f2112e98a42b031b1a8f003",
     # milestone-implement.md further updated, OPUS-R129-001: step 1f's
     # checkpoint-completion commit instruction now states explicitly that
     # the Workflow-Checkpoint/Workflow-Work-Item trailer must be the
@@ -986,7 +986,7 @@ _GOLDEN_COMMAND_FILE_SHA256 = {
     # Implementation review round 2 (I1): step 4a reads the staged diff
     # NUL-delimited, step 6.3 calls assert_staged_path_set_within, and step
     # 6d's member-dirty check is literal -- intentional.
-    "approve-review.md": "50d560d905bd106c3b653abb4c60940a49dda1d3aa47006c8bf9f68de702c6a5",
+    "approve-review.md": "644b1cd66560af0771d73851f519e09e63e0665b614a08e6ae652a858237a903",
     # accept-milestone.md updated, baseline-freeze correctness fix
     # (OPUS-R129-001): step 6's completion-commit instruction now states
     # the same "trailers must be the commit message's own final paragraph"
@@ -1041,7 +1041,7 @@ _GOLDEN_COMMAND_FILE_SHA256 = {
     # verify-plus-bind with 7'.2's regeneration removed -- intentional content
     # change, not a regression. Implementation review round 1: step 5 states
     # that a legacy-marked item must advance plan_revision -- intentional.
-    "apply-plan-review.md": "23ce3fe5becac0d4ff444f410bad79a6a8549f7ab50aa471ede94beb37079e96",
+    "apply-plan-review.md": "069fc470f11aa7e8b755fa2fd351662ab5c2e296f7af5ce208b7f5201acc1469",
     # apply-implementation-review.md (WF8c item (c)): step 7's
     # record_bundle_generation call site widened to first resolve the
     # outcome (resolve_bundle_generation_outcome) and write the matching
@@ -1825,7 +1825,7 @@ class TestGenerationCommandsNameTheCompleteAuthorInputSet(unittest.TestCase):
 
     def test_apply_plan_review_step5_points_at_the_same_staging_step(self):
         step5 = _extract_numbered_steps(_command_text("apply-plan-review.md"))["5"]
-        self.assertIn("git add -N", step5)
+        self.assertIn("add -N", step5)
         self.assertIn("resolve_plan_stage_metadata", step5)
 
     def test_milestone_plan_step3_passes_work_item_type_to_the_generator(self):

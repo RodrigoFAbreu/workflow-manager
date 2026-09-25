@@ -17104,7 +17104,7 @@ class TestPlanApprovalClosureUnits(unittest.TestCase):
             with self.assertRaises(ws.DirtyIndexBeforeStagingError) as ctx:
                 ws.assert_plan_approval_index_clean(repo.root)
             self.assertIn("git mv", str(ctx.exception))
-            self.assertIn("git restore --staged", str(ctx.exception))
+            self.assertIn("git --literal-pathspecs restore --staged", str(ctx.exception))
 
 
 if __name__ == "__main__":

@@ -610,6 +610,21 @@ def _owner_executable(st_mode: int) -> bool:
     return bool(st_mode & 0o100)
 
 
+# The global pathspec modes Git refuses to combine with
+# `--literal-pathspecs` (exit 128, "global 'literal' pathspec setting is
+# incompatible with all other global pathspec settings"). Every literal
+# declared-path read drops them from its environment, so an operator's
+# `GIT_GLOB_PATHSPECS=1` neither aborts approval/generation nor surfaces as
+# a misleading "not a tracked path" (implementation review round 3, `O1`).
+CONFLICTING_PATHSPEC_ENV = ("GIT_GLOB_PATHSPECS", "GIT_NOGLOB_PATHSPECS", "GIT_ICASE_PATHSPECS")
+
+
+def literal_pathspec_env() -> dict[str, str]:
+    """`os.environ` minus `CONFLICTING_PATHSPEC_ENV` -- the environment for
+    every `git --literal-pathspecs` call on a declared path."""
+    return {key: value for key, value in os.environ.items() if key not in CONFLICTING_PATHSPEC_ENV}
+
+
 def _run(args: list[str], cwd: Path, input_bytes: bytes | None = None) -> str:
     if input_bytes is None:
         result = subprocess.run(args, cwd=cwd, check=True, capture_output=True, text=True)
@@ -861,7 +876,7 @@ def _validate_plan_stage_metadata_path(
         _validate_repo_relative_file(repo_root, field_name, value)
         tracked = subprocess.run(
             ["git", "--literal-pathspecs", "ls-files", "--error-unmatch", "--", value],
-            cwd=repo_root, capture_output=True,
+            cwd=repo_root, capture_output=True, env=literal_pathspec_env(),
         )
         if tracked.returncode != 0:
             raise InvalidPlanStageMetadataPathError(f"{field_name} {value!r} is not a tracked path")
@@ -869,7 +884,7 @@ def _validate_plan_stage_metadata_path(
         _validate_repo_relative_path_grammar(field_name, value)
         out = subprocess.run(
             ["git", "--literal-pathspecs", "ls-tree", at_commit, "--", value],
-            cwd=repo_root, check=True, capture_output=True, text=True,
+            cwd=repo_root, check=True, capture_output=True, text=True, env=literal_pathspec_env(),
         ).stdout.strip()
         if not out:
             raise InvalidPlanStageMetadataPathError(
@@ -1510,7 +1525,7 @@ def _snapshot_commit(repo_root: Path, commit: str, rel_path: str) -> dict:
     is never read."""
     out = subprocess.run(
         ["git", "--literal-pathspecs", "ls-tree", commit, "--", rel_path],
-        cwd=repo_root, check=True, capture_output=True, text=True,
+        cwd=repo_root, check=True, capture_output=True, text=True, env=literal_pathspec_env(),
     ).stdout.strip()
     if not out:
         return {"exists": False, "mode": None, "blob": None}

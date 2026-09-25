@@ -17,6 +17,11 @@
 #     compatibility layout; given -> .ai-review/<work-item-id>/current/
 #     (WF5's relayout, D-Bundle-Manifest).
 set -euo pipefail
+# Every declared-path Git call below runs under `--literal-pathspecs`, which
+# Git refuses (exit 128) alongside any global glob/noglob/icase pathspec
+# mode -- drop those for this script and the Python it runs (implementation
+# review round 3, `O1`; `workflow_fingerprint.CONFLICTING_PATHSPEC_ENV`).
+unset GIT_GLOB_PATHSPECS GIT_NOGLOB_PATHSPECS GIT_ICASE_PATHSPECS
 
 usage() {
   echo "Usage: $0 <base-sha> <stage> [work-item-id]" >&2

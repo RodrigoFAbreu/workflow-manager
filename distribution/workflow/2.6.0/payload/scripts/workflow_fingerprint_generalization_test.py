@@ -31,6 +31,7 @@ import tarfile
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import workflow_fingerprint as fingerprint
 import workflow_state as ws
@@ -1359,8 +1360,13 @@ class TestPrepareAiReviewShAmendmentDiffWorkingTreeAnchor(unittest.TestCase):
         return script_path
 
     def _git(self, repo, *args):
+        # Scrubbed the way the product scrubs its own diff (round 3, O3): a
+        # runner-side `GIT_DIFF_OPTS` or global pathspec mode must not move
+        # the oracle away from the product output.
+        env = {key: value for key, value in fingerprint.literal_pathspec_env().items()
+               if key != "GIT_DIFF_OPTS"}
         return subprocess.run(
-            ["git", *args], cwd=repo.root, check=True, capture_output=True, text=True,
+            ["git", *args], cwd=repo.root, check=True, capture_output=True, text=True, env=env,
         ).stdout
 
     def _state_path(self, repo):
@@ -1742,6 +1748,16 @@ class TestPrepareAiReviewShAmendmentDiffWorkingTreeAnchor(unittest.TestCase):
                 shutil.rmtree(config_dir, ignore_errors=True)
             self.assertEqual(hostile_patch, baseline)
             self._assert_applies_at(repo, base, hostile_patch)
+
+    def test_runner_diff_opts_and_global_pathspec_modes_move_neither_product_nor_oracle(self):
+        """Implementation review round 3, O1/O3: a `GIT_DIFF_OPTS` or a
+        global glob/icase pathspec mode in the runner's own environment
+        neither aborts generation (Git refuses `--literal-pathspecs`
+        alongside those modes) nor shifts the oracle off the product."""
+        for hostile in ({"GIT_DIFF_OPTS": "--unified=0"}, {"GIT_GLOB_PATHSPECS": "1"},
+                        {"GIT_ICASE_PATHSPECS": "1"}, {"GIT_NOGLOB_PATHSPECS": "1"}):
+            with self.subTest(env=hostile), mock.patch.dict(os.environ, hostile):
+                self.test_artifacts_absent_at_the_amendment_base_gives_the_current_only_form()
 
 
 class TestPrepareAiReviewShImplementationStageHeadGuard(unittest.TestCase):

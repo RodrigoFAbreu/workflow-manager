@@ -336,9 +336,10 @@ until that final rename (`REVIEW_PROTOCOL.md`'s "Bundle location").
      tracked path` before writing any bundle content at all.
      Intent-to-add is the right form: it makes the paths index-visible
      without staging content, and
-     `workflow_state.stage_plan_approval_commit_paths`' own pre-staging
-     index-isolation check provably ignores an unstaged intent-to-add
-     marker (`git diff --name-only --cached HEAD` does not report one),
+     `workflow_state.assert_plan_approval_index_clean` -- the empty-index
+     check `stage_plan_approval_commit_paths` runs first -- provably
+     ignores an unstaged intent-to-add marker (`git diff --name-only
+     --cached HEAD` does not report one),
      so `/approve-review plan` step 5 still starts from a clean index.
      `prepare-ai-review.sh`'s own internal `git add -N` does not
      substitute for this: it runs *after* the plan-stage preflight that
@@ -364,7 +365,8 @@ until that final rename (`REVIEW_PROTOCOL.md`'s "Bundle location").
      2. re-embed `workflow_state.render_registry_markdown(registry)`'s
         output into the plan document, replacing the table already there,
         **unconditionally** (ledger row `I22`);
-     3. re-apply step 3's intent-to-add staging step (`git add -N`,
+     3. re-apply step 3's intent-to-add staging step (`git
+        --literal-pathspecs add -N`,
         idempotent -- it covers any plan-stage file step 4 created);
      4. call `workflow_state.state_transaction(repo_root, lambda state:
         workflow_state.publish_plan_revision(state, work_item_id,

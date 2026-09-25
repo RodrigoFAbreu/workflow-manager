@@ -1548,8 +1548,8 @@ class NonFirstParentFunctionalChecklistEvidenceError(Exception):
     first-parent transition."""
 
 
-def _run(args: list[str], cwd: Path) -> str:
-    result = subprocess.run(args, cwd=cwd, check=True, capture_output=True, text=True)
+def _run(args: list[str], cwd: Path, env: dict[str, str] | None = None) -> str:
+    result = subprocess.run(args, cwd=cwd, check=True, capture_output=True, text=True, env=env)
     return result.stdout
 
 
@@ -2067,9 +2067,11 @@ def load_pre_amendment_snapshot(
     lookup by `path`, never a re-derivation of the manifest), retrieves
     each blob's bytes via `git cat-file -p <blob>`, and cross-checks each
     retrieved blob is still reachable from
-    `entry["pre_amendment_approval_commit"]` via `git ls-tree
-    <pre_amendment_approval_commit> -- <path>` reporting the identical SHA,
-    before decoding. Returns `(pre_plan_text, pre_registry)` -- the plan
+    `entry["pre_amendment_approval_commit"]` via `git --literal-pathspecs
+    ls-tree <pre_amendment_approval_commit> -- <path>` reporting the
+    identical SHA, before decoding -- literal, so a declared `plan_path`
+    such as `:plan.md` names that file, never pathspec magic for `plan.md`
+    (implementation review round 3, `I1-residual`). Returns `(pre_plan_text, pre_registry)` -- the plan
     bytes decoded as UTF-8, the registry bytes parsed as JSON.
 
     Raises `AmendmentPreSnapshotUnreproducibleError`, naming the path and
@@ -2087,7 +2089,8 @@ def load_pre_amendment_snapshot(
                 f"superseded_plan_approval.review_content_manifest"
             )
         try:
-            ls_tree_out = _run(["git", "ls-tree", commit, "--", path], cwd=repo_root)
+            ls_tree_out = _run(["git", "--literal-pathspecs", "ls-tree", commit, "--", path],
+                               cwd=repo_root, env=fingerprint.literal_pathspec_env())
         except subprocess.CalledProcessError as exc:
             raise AmendmentPreSnapshotUnreproducibleError(
                 f"{work_item_id}: could not run 'git ls-tree {commit} -- {path}' to "
@@ -2379,10 +2382,11 @@ def stage_plan_approval_commit_paths(repo_root: Path, paths: tuple[str, ...]) ->
     present = tuple(path for path in paths if os.path.lexists(repo_root / path))
     absent = tuple(path for path in paths if path not in present)
     if present:
-        _run(["git", "--literal-pathspecs", "add", "--", *present], cwd=repo_root)
+        _run(["git", "--literal-pathspecs", "add", "--", *present], cwd=repo_root,
+             env=fingerprint.literal_pathspec_env())
     if absent:
         _run(["git", "--literal-pathspecs", "rm", "--cached", "-q", "--ignore-unmatch", "--", *absent],
-             cwd=repo_root)
+             cwd=repo_root, env=fingerprint.literal_pathspec_env())
     # `--no-renames`: under rename detection (porcelain `git diff`'s default,
     # and `diff.renames`), a staged non-member deletion paired with a
     # similar member addition reports only the member's name -- the
@@ -2415,9 +2419,14 @@ def verify_staged_blob_sha256(repo_root: Path, rel_path: str, expected_sha256: s
     pinned right after resolving it -- call after
     `stage_plan_approval_commit_paths`, before creating the commit, to
     close the race window between resolution and staging. Raises
-    `StagedBlobMismatchError` on a mismatch."""
+    `StagedBlobMismatchError` on a mismatch.
+
+    Reads `:0:<path>`, never `:<path>`: Git parses `:<n>:<rest>` as index
+    stage `<n>` of `<rest>`, so a declared member named `0:notes.md` would
+    otherwise be read back as `notes.md`'s staged blob (implementation
+    review round 3, the `I1-residual` re-sweep)."""
     content = subprocess.run(
-        ["git", "show", f":{rel_path}"], cwd=repo_root, capture_output=True, check=True,
+        ["git", "show", f":0:{rel_path}"], cwd=repo_root, capture_output=True, check=True,
     ).stdout
     actual = hashlib.sha256(content).hexdigest()
     if actual != expected_sha256:
@@ -2507,7 +2516,8 @@ def assert_plan_approval_index_clean(repo_root: Path) -> None:
         raise DirtyIndexBeforeStagingError(
             f"Git index already differs from HEAD before staging began: {already_staged} -- "
             f"resolve or unstage these first. A staged `git mv` of a protected path is the "
-            f"usual cause: unstage both sides (`git restore --staged -- <old> <new>`), keep "
+            f"usual cause: unstage both sides (`git --literal-pathspecs restore --staged -- "
+            f"<old> <new>`), keep "
             f"the rename in the working tree, and re-run -- the approval commit stages the "
             f"removal and the addition itself"
         )
