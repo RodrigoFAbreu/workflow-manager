@@ -314,7 +314,8 @@ until that final rename (`REVIEW_PROTOCOL.md`'s "Bundle location").
      same index-visible paths, so it would refuse with the same error): mark this item's own `plan_path`,
      `registry_path`, `mapping_path` and
      `docs/ai-workflow/registry/<work_item_id>-artifacts.json`
-     **intent-to-add** — `git add -N -- <those four paths>` — and leave
+     **intent-to-add** — `git --literal-pathspecs add -N -- <those four
+     paths>` (literal, so each names exactly itself) — and leave
      them that way. Do **not** commit them: the plan-approval commit
      `/approve-review plan` creates is what commits all four, together
      with `WORKFLOW_STATE.json` and every other declared protected path,

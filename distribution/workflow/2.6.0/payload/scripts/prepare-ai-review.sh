@@ -135,9 +135,12 @@ WORKTREE_STATUS=$(git status --short)
 # untracked (but not gitignored) files as intent-to-add so they show up as
 # additions in the diff/patch/name-status output below, then restore their
 # untracked status on exit so this script has no lasting effect on git state.
+# `--literal-pathspecs` on both sides (implementation review round 2, `I1`):
+# an untracked file named `*.md` or `:x` is marked, and later reset, as
+# exactly itself -- never as a pathspec that reaches other index entries.
 mapfile -d '' -t UNTRACKED_FILES < <(git ls-files --others --exclude-standard -z -- .)
 if ((${#UNTRACKED_FILES[@]} > 0)); then
-  git add -N -- "${UNTRACKED_FILES[@]}"
+  git --literal-pathspecs add -N -- "${UNTRACKED_FILES[@]}"
 fi
 # Plan-stage staging (workflow-2.6.0, D-Plan-Review-Bundle-Binding item 5):
 # set below for STAGE=plan only. Until the closing check promotes the
@@ -153,7 +156,7 @@ cleanup() {
     rm -rf -- "$STAGING_ROOT" "$STAGING_PIN_DIR"
   fi
   if ((${#UNTRACKED_FILES[@]} > 0)); then
-    git reset -- "${UNTRACKED_FILES[@]}" > /dev/null 2>&1 || true
+    git --literal-pathspecs reset -- "${UNTRACKED_FILES[@]}" > /dev/null 2>&1 || true
   fi
 }
 trap cleanup EXIT

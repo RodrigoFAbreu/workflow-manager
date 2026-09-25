@@ -2319,6 +2319,17 @@ def _read_committed_bytes(repo_root: Path, commit: str, rel_path: str) -> bytes:
     ).stdout
 
 
+def _git_path_set(args: list[str], repo_root: Path) -> set[str]:
+    """The exact path set a `-z` name-listing Git command (`diff
+    --name-only -z`, `diff-tree --name-only -z`) reports: NUL-delimited
+    bytes, decoded the way Python names the same file on disk
+    (`os.fsdecode`), so a declared path compares as itself -- never as the
+    C-quoted display form `core.quotePath` gives a non-ASCII or
+    control-character path in line-oriented output (implementation review
+    round 2, `I1`)."""
+    return {os.fsdecode(raw) for raw in _run_bytes(args, cwd=repo_root).split(b"\0") if raw}
+
+
 def stage_plan_approval_commit_paths(repo_root: Path, paths: tuple[str, ...]) -> None:
     """Stages exactly `paths` (`resolve_plan_stage_approval_commit_paths`'
     resolved member set -- four or five, per work item, per round) for a
@@ -2353,6 +2364,12 @@ def stage_plan_approval_commit_paths(repo_root: Path, paths: tuple[str, ...]) ->
 
     Never `git add -A`/`git add .`.
 
+    Every path is a literal: staging runs under `git --literal-pathspecs`,
+    so a declared member such as `*.md` or `:x` names exactly that file,
+    never a pathspec that also reaches (or unstages) other paths; and both
+    checks read NUL-delimited names (`_git_path_set`), so a non-ASCII
+    member compares as itself (implementation review round 2, `I1`).
+
     workflow-2.6.0 (`D-Plan-Approval-Closure`): a member absent from the
     worktree -- a removal member -- is staged as a deletion (`git rm
     --cached --ignore-unmatch`, which is also a no-op for a path already
@@ -2362,16 +2379,28 @@ def stage_plan_approval_commit_paths(repo_root: Path, paths: tuple[str, ...]) ->
     present = tuple(path for path in paths if os.path.lexists(repo_root / path))
     absent = tuple(path for path in paths if path not in present)
     if present:
-        _run(["git", "add", "--", *present], cwd=repo_root)
+        _run(["git", "--literal-pathspecs", "add", "--", *present], cwd=repo_root)
     if absent:
-        _run(["git", "rm", "--cached", "-q", "--ignore-unmatch", "--", *absent], cwd=repo_root)
+        _run(["git", "--literal-pathspecs", "rm", "--cached", "-q", "--ignore-unmatch", "--", *absent],
+             cwd=repo_root)
     # `--no-renames`: under rename detection (porcelain `git diff`'s default,
     # and `diff.renames`), a staged non-member deletion paired with a
     # similar member addition reports only the member's name -- the
     # deletion would slip past this check to the post-commit one.
-    staged = _run(["git", "diff", "--no-renames", "--name-only", "--cached", "HEAD"], cwd=repo_root)
-    actual = {line for line in staged.splitlines() if line}
-    expected = set(paths)
+    assert_staged_path_set_within(repo_root, paths)
+
+
+def assert_staged_path_set_within(repo_root: Path, expected_paths) -> None:
+    """The staged diff (`git diff --no-renames --name-only -z --cached
+    HEAD`, read exactly by `_git_path_set`) names no path outside
+    `expected_paths` -- a subset check; see
+    `stage_plan_approval_commit_paths`. `/approve-review` step 6.3 calls
+    it with `journal["applicable_paths"]`, so the assertion never depends
+    on reading `core.quotePath`'s display form by eye. Raises
+    `UnexpectedStagedPathSetError`."""
+    actual = _git_path_set(["git", "diff", "--no-renames", "--name-only", "-z", "--cached", "HEAD"],
+                           repo_root)
+    expected = set(expected_paths)
     unexpected = actual - expected
     if unexpected:
         raise UnexpectedStagedPathSetError(
@@ -2440,8 +2469,8 @@ def assert_committed_path_set_matches(
     `git commit` writes the final tree). Raises
     `CommittedPathSetMismatchError` naming the unexpected paths and the
     full expected set on a violation."""
-    changed = _run(["git", "diff-tree", "--no-commit-id", "--name-only", "-r", commit], cwd=repo_root)
-    actual = {line for line in changed.splitlines() if line}
+    actual = _git_path_set(["git", "diff-tree", "--no-commit-id", "--name-only", "-z", "-r", commit],
+                           repo_root)
     expected = set(expected_paths)
     unexpected = actual - expected
     if unexpected:
@@ -2471,8 +2500,9 @@ def assert_plan_approval_index_clean(repo_root: Path) -> None:
     `DirtyIndexBeforeStagingError`, naming the staged paths and the
     staged-`git mv` remedy -- the usual way a protected path's rename ends
     up in the index."""
-    dirty = _run(["git", "diff", "--no-renames", "--name-only", "--cached", "HEAD"], cwd=repo_root)
-    already_staged = sorted({line for line in dirty.splitlines() if line})
+    already_staged = sorted(_git_path_set(
+        ["git", "diff", "--no-renames", "--name-only", "-z", "--cached", "HEAD"], repo_root,
+    ))
     if already_staged:
         raise DirtyIndexBeforeStagingError(
             f"Git index already differs from HEAD before staging began: {already_staged} -- "

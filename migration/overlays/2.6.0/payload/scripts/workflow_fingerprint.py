@@ -860,7 +860,7 @@ def _validate_plan_stage_metadata_path(
     if at_commit is None:
         _validate_repo_relative_file(repo_root, field_name, value)
         tracked = subprocess.run(
-            ["git", "ls-files", "--error-unmatch", "--", value],
+            ["git", "--literal-pathspecs", "ls-files", "--error-unmatch", "--", value],
             cwd=repo_root, capture_output=True,
         )
         if tracked.returncode != 0:
@@ -868,7 +868,7 @@ def _validate_plan_stage_metadata_path(
     else:
         _validate_repo_relative_path_grammar(field_name, value)
         out = subprocess.run(
-            ["git", "ls-tree", at_commit, "--", value],
+            ["git", "--literal-pathspecs", "ls-tree", at_commit, "--", value],
             cwd=repo_root, check=True, capture_output=True, text=True,
         ).stdout.strip()
         if not out:
@@ -1504,9 +1504,12 @@ def _snapshot_worktree(repo_root: Path, rel_path: str) -> dict:
 def _snapshot_commit(repo_root: Path, commit: str, rel_path: str) -> dict:
     """Final state of one protected path at a commit, via `git ls-tree` —
     a direct snapshot read, not a diff, so it needs no abbreviation flag
-    and no status interpretation."""
+    and no status interpretation. `--literal-pathspecs`: a path such as
+    `:x` names that file, never pathspec magic for `x` (implementation
+    review round 2, `I1`); the output's own (possibly quoted) path field
+    is never read."""
     out = subprocess.run(
-        ["git", "ls-tree", commit, "--", rel_path],
+        ["git", "--literal-pathspecs", "ls-tree", commit, "--", rel_path],
         cwd=repo_root, check=True, capture_output=True, text=True,
     ).stdout.strip()
     if not out:

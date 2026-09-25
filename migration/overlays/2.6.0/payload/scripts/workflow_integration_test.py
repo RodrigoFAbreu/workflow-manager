@@ -842,7 +842,9 @@ _GOLDEN_COMMAND_FILE_SHA256 = {
     # milestone-plan.md further updated, D-Plan-Approval-Closure
     # (workflow-2.6.0, CP5): step 3's staging note names the approval
     # commit's widened member set (every declared protected path).
-    "milestone-plan.md": "7da28cc9a7fe69198af0796ee4e86868348cd9dbf3db07db58b09bd35ec05b8e",
+    # Implementation review round 2 (I1): step 3's intent-to-add staging is
+    # `git --literal-pathspecs add -N` -- intentional.
+    "milestone-plan.md": "8bb5eadff3a19158206211f5901668de3b162c7f4658dcaaa91c6ccf98a7aa03",
     # milestone-implement.md further updated, OPUS-R129-001: step 1f's
     # checkpoint-completion commit instruction now states explicitly that
     # the Workflow-Checkpoint/Workflow-Work-Item trailer must be the
@@ -981,7 +983,10 @@ _GOLDEN_COMMAND_FILE_SHA256 = {
     # TestApproveReviewLifecycleEntryTable. Implementation review round 1:
     # step 0's two-stage plan branch states the AWAITING_PLAN_APPROVAL-only
     # gate (apply_plan_approval's PlanApprovalPhaseError) -- intentional.
-    "approve-review.md": "3244f76d882d1018efeeaa42da3a6f11f492c10faefbb1cf113197325263504b",
+    # Implementation review round 2 (I1): step 4a reads the staged diff
+    # NUL-delimited, step 6.3 calls assert_staged_path_set_within, and step
+    # 6d's member-dirty check is literal -- intentional.
+    "approve-review.md": "50d560d905bd106c3b653abb4c60940a49dda1d3aa47006c8bf9f68de702c6a5",
     # accept-milestone.md updated, baseline-freeze correctness fix
     # (OPUS-R129-001): step 6's completion-commit instruction now states
     # the same "trailers must be the commit message's own final paragraph"

@@ -330,8 +330,8 @@ actually load-bearing control for the Skill exposure path, not mechanism
     (`plan` — referenced by that name in every step below;
     `D-Plan-Approval-Closure`, workflow-2.6.0). It runs, read-only and in
     order:
-    - **the empty-index precondition** — `git diff --name-only --cached
-      HEAD` must be empty. `DirtyIndexBeforeStagingError` names the staged
+    - **the empty-index precondition** — `git diff --no-renames
+      --name-only -z --cached HEAD` must be empty. `DirtyIndexBeforeStagingError` names the staged
       paths and the usual cause, a staged `git mv` of a protected path:
       unstage both sides (`git restore --staged -- <old> <new>`), keep the
       rename in the working tree, and re-run — the approval commit stages
@@ -604,12 +604,15 @@ actually load-bearing control for the Skill exposure path, not mechanism
      `workflow_state.verify_staged_plan_approval_state_blob(repo_root,
      journal["expected_post_state_sha256"])` to close the race window
      between the pin and the commit.
-   - **6.3 staged-set assertion** (unguarded, read-only): confirm the
-     complete staged diff (`git diff --name-only --cached HEAD`) names no
-     path outside `journal["applicable_paths"]` — a subset assertion,
-     since a member byte-identical to `HEAD` legitimately produces no
-     diff entry. A path outside the set: run step 6b's rollback and
-     stop, naming it, rather than let a pathspec-free commit absorb it
+   - **6.3 staged-set assertion** (unguarded, read-only): call
+     `workflow_state.assert_staged_path_set_within(repo_root,
+     journal["applicable_paths"])` — the complete staged diff, read
+     NUL-delimited so a non-ASCII member compares as itself rather than
+     as `core.quotePath`'s quoted display form, must name no path outside
+     the members — a subset assertion, since a member byte-identical to
+     `HEAD` legitimately produces no diff entry.
+     `UnexpectedStagedPathSetError`: run step 6b's rollback and stop,
+     naming the path, rather than let a pathspec-free commit absorb it
      silently.
    - **6.3a pre-commit closure proof** (unguarded, read-only;
      `D-Plan-Approval-Closure`, workflow-2.6.0): call
@@ -890,8 +893,9 @@ actually load-bearing control for the Skill exposure path, not mechanism
     Confirm the approval left nothing behind immediately afterward —
     `WF8c` item 348(e), narrowed by `D-Plan-Approval-Closure`
     (workflow-2.6.0): the index is clean (`git diff --name-only --cached
-    HEAD` empty) and no member is dirty (`git status --porcelain --
-    <journal["applicable_paths"]>` empty). A whole-tree `git status
+    HEAD` empty) and no member is dirty (`git --literal-pathspecs status
+    --porcelain -- <journal["applicable_paths"]>` empty — literal, so a
+    member such as `*.md` names only itself). A whole-tree `git status
     --porcelain` is no longer the check: a path the approved declaration
     stopped protecting but that is still in the worktree is by design not
     a member (step 4a), so its uncommitted state legitimately survives the

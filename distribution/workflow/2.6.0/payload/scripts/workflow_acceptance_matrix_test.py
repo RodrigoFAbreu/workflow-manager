@@ -585,10 +585,7 @@ class Item:
             ):
                 self._pin_state_blob(journal)
             self._hook(hooks, "after_pin", journal)
-            staged = self.sim.git("diff", "--name-only", "--cached", "HEAD").stdout.split()
-            outside = [p for p in staged if p not in journal["applicable_paths"]]
-            if outside:
-                raise AssertionError(f"staged paths outside the applicable set: {outside}")
+            ws.assert_staged_path_set_within(self.root, journal["applicable_paths"])
             if before_proof is not None:
                 before_proof()
             ws.prove_plan_approval_index_closure(self.root, journal)
@@ -6611,7 +6608,7 @@ class _PlanApprovalClosureCase(MatrixCase):
         for rel, content in (files or {}).items():
             self.scratch.write(rel, content)
         if intent_to_add:
-            self.scratch.git("add", "-N", "--", *intent_to_add)
+            self.scratch.git("--literal-pathspecs", "add", "-N", "--", *intent_to_add)
         item.milestone_plan(artifacts=cp5_declarations(item, protected_extra))
         item.generate_plan_bundle()
         item.write_feedback("APPROVE")
@@ -6894,6 +6891,107 @@ class PlanApprovalClosureFreshness(_PlanApprovalClosureCase):
         ws.assert_plan_review_bundle_bound(item.root, item.wid)
         exc = self.assert_refused_before_mutation(ws.ReviewedContentDriftError, item.approve_plan)
         self.assertIn(f"{CP5_COMPANION} (removal member)", str(exc))
+
+
+def cp5_changed_exact(item, commit):
+    """`cp5_changed`, NUL-delimited: the exact committed path set, never
+    `core.quotePath`'s display form or a whitespace split."""
+    out = subprocess.run(
+        ["git", "diff-tree", "--no-commit-id", "--name-only", "-z", "-r", commit],
+        cwd=item.root, capture_output=True, check=True,
+    ).stdout
+    return {os.fsdecode(raw) for raw in out.split(b"\0") if raw}
+
+
+class PlanApprovalClosureLiteralPaths(_PlanApprovalClosureCase):
+    """Implementation review round 2, `I1`: the closure machinery is total
+    over the path strings a declaration admits. A protected member is a
+    literal path at every Git boundary (`--literal-pathspecs`) and is read
+    back NUL-delimited, so a pathspec-metacharacter or non-ASCII member is
+    staged, committed and verified as exactly itself, and no non-member is
+    touched. Each row carries a tracked, worktree-edited decoy that a
+    pathspec reading of the member would reach."""
+
+    DECOY = "docs/ai-workflow/DECOY.md"
+
+    def setUp(self):
+        super().setUp()
+        self.scratch.write(self.DECOY, "decoy at base\n")
+        self.item.base_commit = self.scratch.commit("docs: a decoy a glob member would match")
+        self.scratch.write(self.DECOY, "decoy edited, never staged\n")
+
+    def assert_decoy_untouched(self, commit):
+        self.assertNotIn(self.DECOY, cp5_changed_exact(self.item, commit))
+        self.assertEqual(self.scratch.git("show", f"{commit}:{self.DECOY}").stdout, "decoy at base\n")
+        self.assertEqual(self.scratch.read(self.DECOY), "decoy edited, never staged\n")
+        self.assertEqual(self.scratch.git("diff", "--name-only", "--cached", "HEAD").stdout, "")
+
+    def approve_member(self, member, content):
+        self.plan_with((member,), {member: content}, (member,))
+        commit = self.approve()
+        changed = cp5_changed_exact(self.item, commit)
+        self.assertIn(member, changed)
+        self.assertEqual(self.scratch.git("show", f"{commit}:{member}").stdout, content)
+        self.assert_decoy_untouched(commit)
+        return commit, changed
+
+    def test_ascii_control_member_is_committed_exactly(self):
+        _commit, changed = self.approve_member(CP5_COMPANION, "control\n")
+        self.assertLessEqual(changed, set(ws.read_plan_approval_journal(self.item.root) or {}) | {
+            self.item.plan_path, self.item.registry_path, self.item.mapping_path,
+            CP4_STATE_REL, self.item.artifacts_path, CP5_COMPANION,
+        })
+
+    def test_glob_metacharacter_member_is_committed_as_a_literal(self):
+        member = "docs/ai-workflow/*.md"
+        _commit, changed = self.approve_member(member, "a file literally named *.md\n")
+        self.assertEqual({p for p in changed if p.endswith(".md") and "WI" not in p
+                          and p not in (self.item.plan_path,)}, {member})
+
+    def test_bracket_and_magic_prefix_members_are_committed_as_literals(self):
+        # What a pathspec reading of `:WI_MAGIC.md` would name instead,
+        # tracked at base (a worktree edit to it would be an unclassified
+        # change): that reading stages it, not the literal member.
+        self.scratch.write(self.DECOY, "decoy at base\n")
+        self.scratch.write("WI_MAGIC.md", "magic target at base\n")
+        self.item.base_commit = self.scratch.commit("docs: what a ':' pathspec would name")
+        self.scratch.write(self.DECOY, "decoy edited, never staged\n")
+        members = ("docs/ai-workflow/[DW]ECOY.md", ":WI_MAGIC.md")
+        self.plan_with(members, {m: f"literal {m}\n" for m in members}, members)
+        commit = self.approve()
+        changed = cp5_changed_exact(self.item, commit)
+        for member in members:
+            self.assertIn(member, changed)
+            self.assertEqual(self.scratch.git("show", f"{commit}:{member}").stdout, f"literal {member}\n")
+        self.assertNotIn("WI_MAGIC.md", changed)
+        self.assertEqual(self.scratch.git("show", f"{commit}:WI_MAGIC.md").stdout, "magic target at base\n")
+        self.assert_decoy_untouched(commit)
+
+    def test_absent_glob_metacharacter_removal_member_deletes_only_itself(self):
+        """The reproduced case: a dropped `*.md` member is staged as a
+        deletion of exactly that file -- no other Markdown path is
+        unstaged, and the approval commits."""
+        member = "docs/ai-workflow/*.md"
+        first, _ = self.approve_member(member, "literal glob member\n")
+        self.assertIsNotNone(cp5_tree_blob(self.item, first, member))
+
+        def drop():
+            (self.item.root / member).unlink()
+        self.amend_to((), "Plan body, glob member dropped.\n", before_generation=drop)
+        plan = ws.resolve_fresh_plan_approval_members(self.item.root, self.item.wid)
+        self.assertEqual(plan.removal_paths, (member,))
+        commit = self.approve()
+        changed = cp5_changed_exact(self.item, commit)
+        self.assertIn(member, changed)
+        self.assertIsNone(cp5_tree_blob(self.item, commit, member))
+        self.assertLessEqual(changed, set(plan.paths))
+        self.assert_decoy_untouched(commit)
+
+    def test_non_ascii_member_is_committed_and_verified(self):
+        member = "docs/ai-workflow/d\u00e9sign.md"
+        self.assertEqual(self.scratch.git("config", "--get", "core.quotePath", check=False).stdout, "")
+        _commit, changed = self.approve_member(member, "d\u00e9sign notes\n")
+        self.assertNotIn('"docs/ai-workflow/d\\303\\251sign.md"', changed)
 
 
 class PlanApprovalClosureProof(_PlanApprovalClosureCase):
