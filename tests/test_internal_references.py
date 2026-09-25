@@ -392,6 +392,144 @@ class TestMigrationEvidenceManifestFieldsMatchShippedManifest(unittest.TestCase)
         self.assertEqual(recorded_added, counts["overlay_added"])
 
 
+class TestAuthoredReleaseMigrationRecordMatchesShippedEvidence(unittest.TestCase):
+    """workflow-review-artifact-and-concurrency-hardening round-4 `I1`: the
+    two classes above pin only the `2.4.0` record (their regexes hard-code
+    `2\\.4\\.0`), so `docs/MIGRATION.md`'s `2.6.0` record drifted across
+    three remediation rounds undetected -- `overlay_commit`, the fixture
+    total, three per-suite deltas and the bootstrapped row -- the same
+    `IMPL11-B1` shape one release later. This is the table-driven version:
+    one entry per authored release whose record uses the `2.6.0` table
+    shape, each checked -- scoped to its own `## Workflow v<version>`
+    section -- against its shipped `manifest.json`, `CI_SUITES[<version>]`
+    (and its base release's) and `expected_portability_exceptions`. Every
+    rebuild moves `overlay_commit`, so the next round that forgets the
+    record fails here rather than needing a reviewer."""
+
+    #: Authored releases whose `docs/MIGRATION.md` record uses this table
+    #: shape. `2.4.0`'s older prose shape is pinned by the two classes above.
+    RELEASES = ("2.6.0",)
+
+    def _section(self, version: str) -> str:
+        text = (REPO_ROOT / "docs" / "MIGRATION.md").read_text()
+        match = re.search(
+            rf"^## Workflow v{re.escape(version)} — .*?(?=^## |\Z)",
+            text,
+            re.MULTILINE | re.DOTALL,
+        )
+        self.assertIsNotNone(match, f"{version} section not found in docs/MIGRATION.md")
+        return match.group(0)
+
+    def _row(self, version: str, pattern: str) -> re.Match:
+        match = re.search(pattern, self._section(version))
+        self.assertIsNotNone(match, f"{version} row not found: {pattern}")
+        return match
+
+    def _manifest(self, version: str) -> dict:
+        return json.loads(
+            (REPO_ROOT / "distribution" / "workflow" / version / "manifest.json").read_text()
+        )
+
+    def test_base_release_row_matches_shipped_manifest(self):
+        for version in self.RELEASES:
+            with self.subTest(version=version):
+                match = self._row(version, r"\| Base release \| `([^`]+)`")
+                self.assertEqual(
+                    match.group(1), self._manifest(version)["provenance"]["base_release"]
+                )
+
+    def test_provenance_row_matches_shipped_manifest(self):
+        for version in self.RELEASES:
+            with self.subTest(version=version):
+                match = self._row(
+                    version,
+                    rf"\| Provenance \| `distribution/workflow/{re.escape(version)}/"
+                    r"manifest\.json`'s `provenance`: `(\{.*?\})`",
+                )
+                self.assertEqual(
+                    json.loads(match.group(1)), self._manifest(version)["provenance"]
+                )
+
+    def test_overlay_row_counts_match_shipped_manifest(self):
+        for version in self.RELEASES:
+            with self.subTest(version=version):
+                match = self._row(
+                    version,
+                    rf"\| Overlay \| `migration/overlays/{re.escape(version)}/` . "
+                    r"(\d+) payload files replaced, (\d+) added",
+                )
+                counts = self._manifest(version)["counts"]
+                self.assertEqual(int(match.group(1)), counts["overlay_replaced"])
+                self.assertEqual(int(match.group(2)), counts["overlay_added"])
+
+    def test_manifest_row_counts_match_shipped_manifest(self):
+        for version in self.RELEASES:
+            with self.subTest(version=version):
+                match = self._row(
+                    version,
+                    r"\| Manifest \| (\d+) artifacts \((\d+) `distribution`, "
+                    r"(\d+) `conformance`, (\d+) `host-evidence`\), (\d+) templates",
+                )
+                counts = self._manifest(version)["counts"]
+                self.assertEqual(
+                    [int(g) for g in match.groups()],
+                    [
+                        counts["artifacts"],
+                        counts["by_category"]["distribution"],
+                        counts["by_category"]["conformance"],
+                        counts["by_category"]["host-evidence"],
+                        counts["templates"],
+                    ],
+                )
+
+    def test_fixture_row_matches_ci_suites(self):
+        """Suite count, total, the "plus N new cases" delta over the base
+        release, and every quoted per-suite `a→b` transition -- which must
+        also name exactly the suites whose counts moved."""
+        for version in self.RELEASES:
+            with self.subTest(version=version):
+                base = self._manifest(version)["provenance"]["base_release"]
+                match = self._row(
+                    version,
+                    r"\| Frozen suite against the conformance fixture \| "
+                    r"(\d+)/(\d+) suites, (\d+) tests — the same suite set as "
+                    rf"`{re.escape(base)}`, plus (\d+) new cases \(([^)]*)\)",
+                )
+                suites, base_suites = CI_SUITES[version], CI_SUITES[base]
+                self.assertEqual(int(match.group(1)), len(suites))
+                self.assertEqual(int(match.group(2)), len(suites))
+                self.assertEqual(int(match.group(3)), sum(suites.values()))
+                self.assertEqual(
+                    int(match.group(4)), sum(suites.values()) - sum(base_suites.values())
+                )
+                recorded = {
+                    name: (int(old), int(new))
+                    for name, old, new in re.findall(
+                        r"`([\w.]+\.py)` (\d+)→(\d+)", match.group(5)
+                    )
+                }
+                actual = {
+                    name: (base_suites[name], count)
+                    for name, count in suites.items()
+                    if base_suites.get(name) != count
+                }
+                self.assertEqual(recorded, actual)
+
+    def test_bootstrapped_row_matches_ci_suites_minus_documented_exceptions(self):
+        for version in self.RELEASES:
+            with self.subTest(version=version):
+                match = self._row(
+                    version,
+                    r"\| Frozen suite in a bootstrapped repository \| (\d+) of (\d+)",
+                )
+                total = sum(CI_SUITES[version].values())
+                exceptions = sum(
+                    len(tests) for tests in expected_portability_exceptions(version).values()
+                )
+                self.assertEqual(int(match.group(2)), total)
+                self.assertEqual(int(match.group(1)), total - exceptions)
+
+
 class TestReadmeStatusTableMatchesCiSuites(unittest.TestCase):
     """IMPL12-B1 missing test: `README.md`'s Status table -- the
     repository's front page -- quotes the same derived `CI_SUITES` totals
