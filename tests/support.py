@@ -161,9 +161,9 @@ CI_SUITES = {
         "workflow_state_test.py": 972,
         "workflow_test_harness_test.py": 19,
         "workflow_integration_test.py": 267,
-        "workflow_acceptance_matrix_test.py": 285,
+        "workflow_acceptance_matrix_test.py": 291,
         "workflow_state_completion_obligations_test.py": 106,
-        "workflow_fingerprint_generalization_test.py": 104,
+        "workflow_fingerprint_generalization_test.py": 105,
     },
 }
 

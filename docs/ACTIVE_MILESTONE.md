@@ -1116,6 +1116,77 @@ The counts move from 1989 to 1995 (+6):
 - `workflow_acceptance_matrix_test.py`: 280 → 285.
 - `workflow_fingerprint_generalization_test.py`: 103 → 104.
 
+## Implementation review round 3 (`LOCAL_MODEL_IMPLEMENTATION_REVIEW`, `REVISE`)
+
+Feedback bound to bundle `1cba8013…f9f34`, `review_content_id`
+`3bb5e04c…dcda`, `implementation_revision` 3. It had no Blocking findings
+and one Important finding, the residual of round 2's I1.
+
+- **I1-residual: `load_pre_amendment_snapshot` read a declared path as
+  a pathspec.** Fixed. Reproduced first: with both `x` and `:x` tracked,
+  `git ls-tree HEAD -- ':x'` returns `x`'s blob, so an amended approval
+  with a legal `:`-leading `plan_path` was refused
+  (`AmendmentPreSnapshotUnreproducibleError`). For `:(glob)…` and `:!…`
+  it was a Git error instead. The cross-check now runs `git
+  --literal-pathspecs ls-tree`. There are two new regressions:
+  - `AmendedApprovalLiteralMetadataPath` drives a real amended approval
+    whose `plan_path` is `:proc-item-plan.md`, with a tracked decoy
+    `proc-item-plan.md`.
+  - `DeclaredPathGitReads` calls the function directly with `:plan.md`,
+    `:(glob)*.md` and `:!plan.md`.
+
+  Both fail with the fix reverted.
+- **Re-sweep (acceptance criterion 2).** I checked every `git … --
+  <path>` and `<rev>:<path>` call in `workflow_state.py`,
+  `workflow_fingerprint.py` and `prepare-ai-review.sh`:
+  - The rest of the plain `--` calls pass a fixed constant, not a declared
+    path: the state path, the `scripts/` and `.claude/commands/` surface
+    prefixes, or `.`.
+  - `<rev>:<path>` reads are literal, because the path grammar rejects
+    `.`/`..` components and a leading `/`.
+
+  The sweep found one more defect in the same class:
+  `verify_staged_blob_sha256` read `:<path>`, and Git parses `:0:x.md` as
+  index stage 0 of `x.md`. A fifth member named `0:x.md` was therefore
+  checked against the wrong blob. It now reads `:0:<path>`. The new
+  `DeclaredPathGitReads` row fails with this fix reverted.
+- **O1 applied, with a narrowed premise.**
+  `workflow_fingerprint.literal_pathspec_env()` drops
+  `GIT_GLOB_PATHSPECS`/`GIT_NOGLOB_PATHSPECS`/`GIT_ICASE_PATHSPECS` for
+  every `--literal-pathspecs` call. `prepare-ai-review.sh` unsets them
+  once, which also covers the Python it runs.
+
+  The review said 2.5.1 worked under all three modes. That holds only for
+  `GIT_NOGLOB_PATHSPECS`. `git ls-tree` rejects glob/icase magic outright
+  ("pathspec magic not supported by this command"). 2.5.1's own plain
+  `ls-tree -- <path>` reads (the identity-reference scan on
+  `route_work_item`, and `_snapshot_commit`) therefore already failed
+  under the other two. The lifecycle row pins the real regression
+  (`GIT_NOGLOB_PATHSPECS`). A per-call-site row covers all three modes on
+  the literal reads, and the generator row covers all three plus
+  `GIT_DIFF_OPTS`. Full-lifecycle support for glob/icase modes would
+  scrub every Git call. That is a pre-existing limitation outside this
+  item.
+- **O2 applied.** The dead journal term is removed. A new row commits
+  tab, double-quote and backslash members exactly.
+- **O3 applied.** The generalization oracle's `_git` scrubs
+  `GIT_DIFF_OPTS` and the conflicting pathspec modes. The new row fails
+  with the scrub reverted.
+- **O4 applied.**
+  - `approve-review.md` and `DirtyIndexBeforeStagingError` now recommend
+    `git --literal-pathspecs restore --staged`.
+  - `milestone-plan.md` step 5.3 and `apply-plan-review.md` now say `git
+    --literal-pathspecs add -N`.
+  - The empty-index check is credited to
+    `assert_plan_approval_index_clean`.
+
+  The matrix harness's own step-3 simulation (`Item.stage_plan_files`)
+  was still a bare `git add -N`. It is now literal to match.
+
+The counts move from 1995 to 2002 (+7):
+- `workflow_acceptance_matrix_test.py`: 285 → 291.
+- `workflow_fingerprint_generalization_test.py`: 104 → 105.
+
 ## Current blockers
 
 None. Important 1's residual is dispositioned as a mandatory follow-up
@@ -1129,8 +1200,8 @@ None. Important 1's residual is dispositioned as a mandatory follow-up
 
 ## Next action
 
-The round-2 post-fix bundle is regenerated (implementation revision 3),
+The round-3 post-fix bundle is regenerated (implementation revision 4),
 and the item is at `AWAITING_LOCAL_IMPLEMENTATION_REVIEW`. Both stages run
 again. Next is
 `/review-implementation workflow-review-artifact-and-concurrency-hardening`,
-then the manual external review.
+preferably in a fresh session, then the manual external review.
