@@ -1550,7 +1550,14 @@ class TestPrepareAiReviewShAmendmentDiffWorkingTreeAnchor(unittest.TestCase):
             self._amend_plan(repo)
             patch = self._generate(repo, script_path)
             current_only = sorted(h.plan_stage_protected_paths(self.ITEM) | {self.ARTIFACTS})
-            expected = self._git(repo, "diff", base, "--", *current_only)
+            # The oracle pins the implementation's own diff options, so a
+            # configured external diff or context width cannot fail it
+            # while the product output is correct (round 2, O2).
+            expected = self._git(
+                repo, "--literal-pathspecs", "diff", "--no-ext-diff", "--no-textconv", "--no-color",
+                "--src-prefix=a/", "--dst-prefix=b/", "--no-renames", "--binary", "-U3",
+                base, "--", *current_only,
+            )
             self.assertEqual(patch.split("diff --git ", 1)[1], expected.split("diff --git ", 1)[1])
             self.assertTrue(patch.endswith(expected))
 
@@ -1696,6 +1703,44 @@ class TestPrepareAiReviewShAmendmentDiffWorkingTreeAnchor(unittest.TestCase):
             self.assertEqual(hostile_patch, baseline)
             self.assertNotIn(b"EXTERNAL-DIFF-RAN", hostile_patch)
             self.assertNotIn(b"\x1b[", hostile_patch)
+            self._assert_applies_at(repo, base, hostile_patch)
+
+    def test_mid_file_edit_keeps_context_under_a_zero_context_config_and_environment(self):
+        """Implementation review round 2, O1: `diff.context=0` and
+        `GIT_DIFF_OPTS=--unified=0` would give a mid-file edit a
+        zero-context hunk `git apply --check` rejects; the pinned `-U3`
+        and the scrubbed environment keep the patch byte-identical and
+        applicable."""
+        with h.ScratchRepo() as repo:
+            script_path, base = self._seed_open_amendment(repo)
+            plan_path = repo.root / self.PLAN
+            state_bytes = self._state_path(repo).read_bytes()
+            plan_path.write_text(plan_path.read_text() + "".join(f"design line {i}\n" for i in range(12)))
+            self._git(repo, "add", "--", self.PLAN)
+            self._git(repo, "commit", "-q", "-m", "a multi-line plan at the amendment base")
+            base = repo.head()
+            state = json.loads(state_bytes)
+            state["work_items"][self.ITEM]["amendment_base_commit"] = base
+            self._state_path(repo).write_text(json.dumps(state))
+            plan_path.write_text(plan_path.read_text().replace(
+                "design line 6\n", "design line 6, amended mid-file\n"))
+            baseline = self._generate(repo, script_path, as_bytes=True)
+            self.assertIn(b" design line 5\n-design line 6\n+design line 6, amended mid-file\n", baseline)
+
+            config_dir = Path(tempfile.mkdtemp(prefix="wf-zero-context-git-config-"))
+            try:
+                hostile = config_dir / "gitconfig"
+                hostile.write_text("[diff]\n\tcontext = 0\n")
+                env = dict(os.environ, GIT_CONFIG_GLOBAL=str(hostile), GIT_DIFF_OPTS="--unified=0")
+                zero_context = subprocess.run(
+                    ["git", "diff", base, "--", self.PLAN], cwd=repo.root, env=env,
+                    check=True, capture_output=True,
+                ).stdout
+                self.assertNotIn(b"\n design line 5\n", zero_context)  # the hazard is real
+                hostile_patch = self._generate(repo, script_path, as_bytes=True, env=env)
+            finally:
+                shutil.rmtree(config_dir, ignore_errors=True)
+            self.assertEqual(hostile_patch, baseline)
             self._assert_applies_at(repo, base, hostile_patch)
 
 

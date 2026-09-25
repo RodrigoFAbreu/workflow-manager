@@ -622,9 +622,12 @@ fi
 # is not valid UTF-8 must never abort a gate over an artifact outside
 # bundle_id. Every option that user or system git configuration could flip
 # is pinned on the command line (--no-ext-diff, --no-textconv, --no-color,
-# explicit a/ b/ prefixes, --no-renames), `--binary` keeps binary protected
-# files applicable, and `--literal-pathspecs` treats every declared path as
-# a literal rather than a pathspec pattern. A newly declared protected file
+# explicit a/ b/ prefixes, --no-renames, and -U3 over diff.context), and
+# GIT_DIFF_OPTS is removed from its environment, so no configured context
+# width can produce a zero-context hunk `git apply` rejects (implementation
+# review round 2, O1); `--binary` keeps binary protected files applicable,
+# and `--literal-pathspecs` treats every declared path as a literal rather
+# than a pathspec pattern. A newly declared protected file
 # that is gitignored is hashed by review_content_id but never staged
 # intent-to-add above (`--exclude-standard`), so it is absent from this
 # patch -- reviewer convenience only, never a completeness claim.
@@ -642,6 +645,7 @@ if [[ "$STAGE" == "plan" ]]; then
   PYTHONPATH="$REPO_ROOT/scripts:${PYTHONPATH:-}" python3 - \
       "$REPO_ROOT" "$WORK_ITEM_ID" "$AMENDMENT_DIFF_FILE" "$BUNDLE_DIR/MANIFEST.md" <<'PYEOF'
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -673,9 +677,10 @@ if is_open:
         [
             "git", "--literal-pathspecs", "diff", "--no-ext-diff", "--no-textconv",
             "--no-color", "--src-prefix=a/", "--dst-prefix=b/", "--no-renames",
-            "--binary", base_commit, "--", *pathspec,
+            "--binary", "-U3", base_commit, "--", *pathspec,
         ],
         cwd=repo_root, check=True, capture_output=True,
+        env={key: value for key, value in os.environ.items() if key != "GIT_DIFF_OPTS"},
     ).stdout
     identifiers = fingerprint.read_manifest_identifiers(manifest_path)
     preamble = (
