@@ -7386,11 +7386,17 @@ def _open_witness_liveness(repo_root: Path, work_item_id: str, witness: dict, pr
     seq = witness["amendment_seq"]
     digest = witness["request_projection_sha256"]
     branch = witness.get("requester_branch")
+    unreadable: list[str] = []
     if branch is not None:
         tip = _rev_sha(repo_root, f"refs/heads/{branch}")
-        if tip is not None and _entry(_committed_item_view(repo_root, tip, work_item_id), seq) is not None:
-            return "live", f"the tip of refs/heads/{branch} ({tip}) holds amendment seq {seq}"
-    unreadable: list[str] = []
+        if tip is not None:
+            try:
+                tip_view = _committed_item_view(repo_root, tip, work_item_id)
+            except LifecycleStateUnreadableError as exc:
+                unreadable.append(str(exc))
+                tip_view = None
+            if _entry(tip_view, seq) is not None:
+                return "live", f"the tip of refs/heads/{branch} ({tip}) holds amendment seq {seq}"
     for worktree in probe["worktrees"]:
         for where, read in (("working tree", lambda: _worktree_item_view(worktree["path"], work_item_id)),
                             ("HEAD", lambda: _committed_item_view(worktree["path"], "HEAD", work_item_id))):
@@ -7418,32 +7424,52 @@ def _open_witness_liveness(repo_root: Path, work_item_id: str, witness: dict, pr
     if _symbolic_head_branch(requester["path"]) != branch:
         return "undecidable", (f"the requester worktree {requester['path']} is no longer on "
                                f"refs/heads/{branch}")
-    if (_entry(_worktree_item_view(requester["path"], work_item_id), seq) is not None
-            or _entry(_committed_item_view(requester["path"], "HEAD", work_item_id), seq) is not None):
+    try:
+        requester_holds = (
+            _entry(_worktree_item_view(requester["path"], work_item_id), seq) is not None
+            or _entry(_committed_item_view(requester["path"], "HEAD", work_item_id), seq) is not None
+        )
+    except LifecycleStateUnreadableError as exc:
+        return "undecidable", f"the requester worktree's state cannot be read: {exc}"
+    if requester_holds:
         return "live", f"the requester worktree {requester['path']} holds amendment seq {seq}"
     return "orphan", ""
 
 
-def _resolution_visible_anywhere(repo_root: Path, work_item_id: str, witness: dict,
-                                 probe: dict) -> list[tuple[str, dict, str | None]]:
-    """Every `(source, entry, commit)` whose committed state shows the
-    witness's seq resolved: every registered worktree's `HEAD`, plus the
-    resolver branch's tip for a reservation."""
+def _resolution_visible_anywhere(
+    repo_root: Path, work_item_id: str, witness: dict, probe: dict,
+) -> tuple[list[tuple[str, dict, str | None]], list[str]]:
+    """`(found, unreadable)`: every `(source, entry, commit)` whose
+    committed state shows the witness's seq resolved -- every registered
+    worktree's `HEAD`, plus the resolver branch's tip for a reservation --
+    and the reason for every one of those committed states that could not
+    be read. An unreadable view is a test that cannot be completed, never
+    a refusal of its own (the crash table's "unreadable" case): the caller
+    decides, and offers the evidence-bound literal."""
     seq = witness["amendment_seq"]
     found = []
+    unreadable: list[str] = []
     for worktree in probe["worktrees"]:
         sha = _rev_sha(worktree["path"], "HEAD")
-        view = _committed_item_view(worktree["path"], "HEAD", work_item_id)
+        try:
+            view = _committed_item_view(worktree["path"], "HEAD", work_item_id)
+        except LifecycleStateUnreadableError as exc:
+            unreadable.append(str(exc))
+            continue
         if _shows_resolved(view, seq):
             found.append((f"worktree {worktree['path']} HEAD", _entry(view, seq), sha))
     reservation = witness.get("resolution_reservation") or {}
     branch = reservation.get("resolver_branch")
     if branch is not None:
         tip = _rev_sha(repo_root, f"refs/heads/{branch}")
-        view = _committed_item_view(repo_root, tip, work_item_id) if tip else None
+        try:
+            view = _committed_item_view(repo_root, tip, work_item_id) if tip else None
+        except LifecycleStateUnreadableError as exc:
+            unreadable.append(str(exc))
+            view = None
         if _shows_resolved(view, seq):
             found.append((f"refs/heads/{branch} tip", _entry(view, seq), tip))
-    return found
+    return found, unreadable
 
 
 def _reservation_liveness(repo_root: Path, work_item_id: str, witness: dict, probe: dict) -> tuple[str, str]:
@@ -7565,6 +7591,11 @@ def _evaluate_lifecycle(repo_root: Path, work_item_id: str, side: str, *,
                 visible.append(("evaluating HEAD", _entry(head_view, seq), _rev_sha(repo_root, "HEAD"),
                                 False))
             resolver = None
+            # Another worktree's committed state that cannot be read is a
+            # test that cannot be completed, not a refusal of its own: it
+            # can only make step 2a's orphan test undecidable, which offers
+            # the evidence-bound literal (crash table, "unreadable").
+            unreadable: list[str] = []
             if status == AMENDMENT_WITNESS_RESOLVING:
                 reservation = witness["resolution_reservation"]
                 resolver = _find_probed_worktree(probe, reservation["resolver_worktree_root"],
@@ -7574,14 +7605,22 @@ def _evaluate_lifecycle(repo_root: Path, work_item_id: str, side: str, *,
                     if is_here and visible:
                         visible = [(src, entry, sha, True) for src, entry, sha, _ in visible]
                     elif not is_here:
-                        view = _committed_item_view(resolver["path"], "HEAD", work_item_id)
+                        try:
+                            view = _committed_item_view(resolver["path"], "HEAD", work_item_id)
+                        except LifecycleStateUnreadableError as exc:
+                            unreadable.append(str(exc))
+                            view = None
                         if _shows_resolved(view, seq):
                             visible.append((f"resolver worktree {resolver['path']} HEAD",
                                             _entry(view, seq), _rev_sha(resolver["path"], "HEAD"), True))
                 branch = reservation.get("resolver_branch")
                 if branch is not None:
                     tip = _rev_sha(repo_root, f"refs/heads/{branch}")
-                    view = _committed_item_view(repo_root, tip, work_item_id) if tip else None
+                    try:
+                        view = _committed_item_view(repo_root, tip, work_item_id) if tip else None
+                    except LifecycleStateUnreadableError as exc:
+                        unreadable.append(str(exc))
+                        view = None
                     if _shows_resolved(view, seq):
                         visible.append((f"refs/heads/{branch} tip", _entry(view, seq), tip, True))
             if visible:
@@ -7648,7 +7687,9 @@ def _evaluate_lifecycle(repo_root: Path, work_item_id: str, side: str, *,
             if side in (LIFECYCLE_SIDE_RESOLUTION, LIFECYCLE_SIDE_ADVANCE) and journal is not None and (
                     reservation["journal_owner_token"] in _journal_tokens(journal)):
                 return witness, probe
-            elsewhere = [v for v in _resolution_visible_anywhere(repo_root, work_item_id, witness, probe)]
+            elsewhere, unreadable_elsewhere = _resolution_visible_anywhere(
+                repo_root, work_item_id, witness, probe)
+            unreadable.extend(u for u in unreadable_elsewhere if u not in unreadable)
             if elsewhere:
                 reserved = reservation["resolution_projection_sha256"]
                 matching = [v for v in elsewhere if amendment_resolution_projection_sha256(v[1]) == reserved]
@@ -7663,6 +7704,10 @@ def _evaluate_lifecycle(repo_root: Path, work_item_id: str, side: str, *,
                     f"a different resolution is committed ({digests})",
                     evidence={"seq": seq, "reserved": reserved, "visible": digests})
             verdict, detail = _reservation_liveness(repo_root, work_item_id, witness, probe)
+            if verdict == "orphan" and unreadable:
+                verdict, detail = "undecidable", (
+                    "a worktree's committed state cannot be read, so no resolution of this seq "
+                    "can be ruled out: " + "; ".join(unreadable))
             if verdict == "orphan":
                 witness = _rollback_witness(repo_root, work_item_id, witness, probe)
                 continue
@@ -8012,7 +8057,9 @@ def _clear_witness(repo_root: Path, work_item_id: str, *, user_authorization: st
         if expected_status == AMENDMENT_WITNESS_OPEN:
             verdict, detail = _open_witness_liveness(repo_root, work_item_id, witness, probe)
         else:
-            if _resolution_visible_anywhere(repo_root, work_item_id, witness, probe):
+            # An unreadable committed view only makes the test undecidable,
+            # which is exactly what the literal presented here resolves.
+            if _resolution_visible_anywhere(repo_root, work_item_id, witness, probe)[0]:
                 verdict, detail = "live", "a resolution of this seq is committed"
             else:
                 verdict, detail = _reservation_liveness(repo_root, work_item_id, witness, probe)

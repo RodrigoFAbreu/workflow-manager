@@ -12277,6 +12277,52 @@ class TestAmendmentWitnessCrashRecovery(unittest.TestCase):
             self.assertEqual(ws.read_amendment_witness(repo.root, "wi")["status"],
                              ws.AMENDMENT_WITNESS_NONE)
 
+    def test_an_unreadable_committed_state_in_an_unrelated_worktree_offers_the_literal(self):
+        """Implementation review round 1, Important 2 (`OPEN`): a worktree
+        that has nothing to do with the amendment commits an unreadable
+        `WORKFLOW_STATE.json`. The orphan test cannot be completed, so the
+        claim refuses with the evidence-bound literal -- never a bare
+        `LifecycleStateUnreadableError` -- and the literal clears it."""
+        with ScratchRepo() as repo:
+            _lifecycle_repo(repo)
+            wt_a = repo.worktree("a")
+            wt_b = repo.worktree("b")
+            _amend(wt_a, commit=False)
+            _git_in(wt_a, "checkout", "--", _STATE_REL)  # the request is abandoned
+            (wt_b / _STATE_REL).write_text("{torn")
+            _commit_lifecycle_state(wt_b, "an unrelated, broken state")
+            witness_before = _witness_bytes(repo.root)
+            with self.assertRaises(ws.AmendmentInFlightError) as refused:
+                ws.claim_checkpoint(repo.root, "wi", "CP2", now="t1")
+            literal = refused.exception.evidence["literal"]
+            self.assertEqual(literal, ws.amendment_witness_clear_literal(
+                "wi", hashlib.sha256(witness_before).hexdigest()))
+            self.assertEqual(_witness_bytes(repo.root), witness_before)
+            ws.clear_amendment_witness(repo.root, "wi", user_authorization=literal)
+            self.assertEqual(ws.read_amendment_witness(repo.root, "wi")["status"],
+                             ws.AMENDMENT_WITNESS_NONE)
+            ws.claim_checkpoint(repo.root, "wi", "CP2", now="t2")
+
+    def test_an_unreadable_requester_branch_tip_offers_the_literal(self):
+        """Implementation review round 1, Important 2 (`OPEN`, the
+        branch-tip read that runs before the per-worktree scan): the
+        requester's branch tip commits an unreadable state. Undecidable,
+        so the literal is offered, and it clears."""
+        with ScratchRepo() as repo:
+            _lifecycle_repo(repo)
+            wt_a = repo.worktree("a")
+            _amend(wt_a, commit=False)
+            (wt_a / _STATE_REL).write_text("{torn")
+            _commit_lifecycle_state(wt_a, "a broken state on the requester branch")
+            witness_before = _witness_bytes(repo.root)
+            with self.assertRaises(ws.AmendmentInFlightError) as refused:
+                ws.claim_checkpoint(repo.root, "wi", "CP2", now="t1")
+            literal = refused.exception.evidence["literal"]
+            self.assertEqual(_witness_bytes(repo.root), witness_before)
+            ws.clear_amendment_witness(repo.root, "wi", user_authorization=literal)
+            self.assertEqual(ws.read_amendment_witness(repo.root, "wi")["status"],
+                             ws.AMENDMENT_WITNESS_NONE)
+
     def test_a_branch_switch_never_rolls_back_a_live_amendment(self):
         """CP6 test 7a: A requests an amendment, commits it on its branch
         (`request-plan-amendment.md` step 3), then checks out another
@@ -12944,6 +12990,54 @@ class TestAmendmentResolutionReservation(unittest.TestCase):
             reserved = ws.read_amendment_witness(wt_a, "wi")["resolution_reservation"]
             self.assertEqual(ws.amendment_resolution_projection_sha256(committed_entry),
                              reserved["resolution_projection_sha256"])
+
+    def test_an_unreadable_committed_state_elsewhere_offers_the_resolution_literal(self):
+        """Implementation review round 1, Important 2 (`RESOLVING`): the
+        approval that reserved the resolution was abandoned, and an
+        unrelated worktree `b` commits an unreadable `WORKFLOW_STATE.json`.
+        The reservation's orphan test cannot be completed (`b` might hold
+        the resolution), so a claim refuses with the evidence-bound
+        `clear amendment resolution` literal -- never a bare
+        `LifecycleStateUnreadableError` with empty evidence -- and the
+        literal clears the reservation back to `OPEN`."""
+        with ScratchRepo() as repo:
+            wt_a = self._amended(repo)
+            wt_b = repo.worktree("b")
+            (wt_b / _STATE_REL).write_text("{torn")
+            _commit_lifecycle_state(wt_b, "an unrelated, broken state")
+            journal = _open_amendment_approval(repo, wt_a)
+            ws.reserve_amendment_resolution(wt_a, "wi", journal, now="t1")
+            ws.close_plan_approval_journal(wt_a)  # the approval is abandoned
+            witness_before = _witness_bytes(repo.root)
+            with self.assertRaises(ws.AmendmentInFlightError) as refused:
+                ws.claim_checkpoint(repo.root, "wi", "CP2", now="t2")
+            literal = refused.exception.evidence["literal"]
+            self.assertEqual(literal, ws.amendment_resolution_clear_literal(
+                "wi", hashlib.sha256(witness_before).hexdigest()))
+            self.assertEqual(_witness_bytes(repo.root), witness_before)
+            ws.clear_amendment_resolution(repo.root, "wi", user_authorization=literal)
+            self.assertEqual(ws.read_amendment_witness(repo.root, "wi")["status"],
+                             ws.AMENDMENT_WITNESS_OPEN)
+
+    def test_an_unreadable_resolver_head_offers_the_resolution_literal(self):
+        """Important 2, predicate step 1's own read: the resolver
+        worktree's `HEAD` itself commits an unreadable state after its
+        approval was abandoned."""
+        with ScratchRepo() as repo:
+            wt_a = self._amended(repo)
+            journal = _open_amendment_approval(repo, wt_a)
+            ws.reserve_amendment_resolution(wt_a, "wi", journal, now="t1")
+            ws.close_plan_approval_journal(wt_a)
+            (wt_a / _STATE_REL).write_text("{torn")
+            _commit_lifecycle_state(wt_a, "a broken state on the resolver branch")
+            witness_before = _witness_bytes(repo.root)
+            with self.assertRaises(ws.AmendmentInFlightError) as refused:
+                ws.claim_checkpoint(repo.root, "wi", "CP2", now="t2")
+            literal = refused.exception.evidence["literal"]
+            self.assertEqual(_witness_bytes(repo.root), witness_before)
+            ws.clear_amendment_resolution(repo.root, "wi", user_authorization=literal)
+            self.assertEqual(ws.read_amendment_witness(repo.root, "wi")["status"],
+                             ws.AMENDMENT_WITNESS_OPEN)
 
     def test_reserve_and_advance_are_idempotent_byte_for_byte(self):
         """CP6 test 21: re-running `reserve_amendment_resolution` on its own
