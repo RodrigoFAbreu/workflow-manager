@@ -1187,6 +1187,47 @@ The counts move from 1995 to 2002 (+7):
 - `workflow_acceptance_matrix_test.py`: 285 → 291.
 - `workflow_fingerprint_generalization_test.py`: 104 → 105.
 
+## Implementation review round 4 (`LOCAL_MODEL_IMPLEMENTATION_REVIEW`, `REVISE`)
+
+Feedback bound to bundle `6855d548…a3e`, `review_content_id`
+`4472240b…6ab`, `implementation_revision` 4. It had no Blocking findings
+and one Important finding. The round-3 fixes were confirmed load-bearing
+by mutation.
+
+- **I1: `docs/MIGRATION.md`'s `2.6.0` record was stale and unpinned.**
+  Fixed. Reproduced first: the record still quoted round 1's
+  `overlay_commit` (`736e170`, "the CP6 commit"), 1973 fixture tests, the
+  per-suite deltas `853→959`, `146→280` and `79→100`, and "1973 of 1973".
+  The shipped manifest and `CI_SUITES["2.6.0"]` say `a886069`, 2002
+  (+321), `853→972`, `146→291`, `79→105` and "2002 of 2002". The two
+  existing pin classes hard-code `2.4.0`, so nothing caught this.
+  - The record now matches, and the provenance sentence no longer claims
+    the CP6 commit.
+  - New `TestAuthoredReleaseMigrationRecordMatchesShippedEvidence` in
+    `tests/test_internal_references.py`. It is table-driven by release
+    and scoped to each release's own `## Workflow v<version>` section. It
+    pins the Base release, Provenance JSON, Overlay counts, Manifest
+    counts (per category), the fixture total, the "plus N new cases"
+    delta, every quoted per-suite `a→b` (and that exactly the moved
+    suites are quoted), and the bootstrapped row. It checks them against
+    the manifest, `CI_SUITES` and `expected_portability_exceptions`.
+    Against the stale text it failed three tests: provenance, fixture and
+    bootstrapped.
+  - The pin then did its job within this round. Each O1/O2 rebuild moved
+    `overlay_commit` (to `cc12398`, then `201c82d`), and the provenance
+    test failed until the record was updated in the same commit.
+- **O1 applied.** The `git mv` row of `PlanApprovalClosureMembers` now
+  runs the remedy exactly as printed: `git --literal-pathspecs restore
+  --staged`.
+- **O2 applied.** `approve-review.md`'s remedy text says the three
+  pathspec-mode variables must be unset, because Git refuses
+  `--literal-pathspecs` combined with any of them.
+  `TestGoldenCommandFileHashes`' recorded hash for that file is
+  re-recorded (`644b1cd6…` → `65d60c81…`), in a separate commit.
+
+The suite counts are unchanged at 2002. `test_internal_references.py`
+gains six tests.
+
 ## Current blockers
 
 None. Important 1's residual is dispositioned as a mandatory follow-up
@@ -1200,7 +1241,7 @@ None. Important 1's residual is dispositioned as a mandatory follow-up
 
 ## Next action
 
-The round-3 post-fix bundle is regenerated (implementation revision 4),
+The round-4 post-fix bundle is regenerated (implementation revision 5),
 and the item is at `AWAITING_LOCAL_IMPLEMENTATION_REVIEW`. Both stages run
 again. Next is
 `/review-implementation workflow-review-artifact-and-concurrency-hardening`,
