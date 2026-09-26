@@ -21,8 +21,8 @@ process. See the plan's section 2 for non-goals.
 ## Current checkpoint
 
 **CP9 complete** (9 of 9 checkpoints). Every registry checkpoint is
-complete. Next: the self-review and implementation-review bundle
-(`/milestone-implement` step 2 onward).
+complete and technically approved. Next: the functional review (see
+"Functional review checklist" below).
 
 ### CP1 — Release-derived exact-path classification of the legacy installation record
 
@@ -1228,6 +1228,115 @@ by mutation.
 The suite counts are unchanged at 2002. `test_internal_references.py`
 gains six tests.
 
+## Functional review checklist
+
+Technical approval: commit `7175de8` (implementation revision 5, basis
+`EXTERNAL_APPROVE`). You are testing the composed `distribution/workflow/2.6.0/`
+release as an operator would use it: installed into a throwaway repository.
+Put findings in `.ai-review/feedback/FUNCTIONAL_REVIEW.md`.
+
+**Setup.** From this checkout:
+
+```bash
+export M=~/Workspace/workflow-manager PYTHONPATH=~/Workspace/workflow-manager/src
+export T=$(mktemp -d)        # every flow below works under $T
+```
+
+No feature flags. The only test data is the throwaway repositories and work
+items each flow creates. Flows 1-3 were dry-run while this checklist was
+prepared; flows 4-6 state the documented contract.
+
+1. **Release is present and reproducible.**
+   - `python3 -m workflow_manager --manager-root $M releases` lists `2.6.0
+     ... [authored]`.
+   - `python3 $M/tools/build_release.py --overlay $M/migration/overlays/2.6.0 --check`
+     exits 0.
+   - Expected: both succeed; nothing under `$M` changes (`git -C $M status`).
+2. **Fresh install.**
+   ```bash
+   git init -q $T/a && git -C $T/a commit -q --allow-empty -m init
+   python3 -m workflow_manager --manager-root $M bootstrap $T/a
+   python3 -m workflow_manager --manager-root $M status $T/a
+   python3 -m workflow_manager --manager-root $M verify $T/a
+   cd $T/a && git add -A && git commit -qm "install 2.6.0"
+   python3 scripts/workflow_fingerprint.py --resolve-feedback-path demo-item
+   ```
+   - Expected: `bootstrapped workflow 2.6.0 (full)`, 62 managed files;
+     `status` says `clean`; `verify` says `installation matches workflow
+     2.6.0`.
+   - Expected: the last command prints one JSON object with `"layout":
+     "legacy-flat"` and `.ai-review/feedback/...` paths. There is no state
+     entry for `demo-item`, so the legacy rule applies.
+3. **Update from `2.5.1`; the installation record no longer wedges
+   classification** (`v2.4.0-001`, CP1).
+   ```bash
+   git init -q $T/b && cd $T/b && git commit -q --allow-empty -m init
+   python3 -m workflow_manager --manager-root $M --release-version 2.5.1 bootstrap .
+   git add -A && git commit -qm "install 2.5.1"
+   python3 -m workflow_manager --manager-root $M update . && git add -A && git commit -qm "update 2.6.0"
+   python3 -m workflow_manager --manager-root $M verify .
+   python3 -c "import sys; sys.path.insert(0,'scripts'); import workflow_fingerprint as wf
+   print(wf.classify_path('.workflow-manager/installation.json', frozenset(), {}, {}))
+   print(wf.classify_path_implementation_stage('.workflow-manager/installation.json', {}, {}, {}, {}))
+   wf.classify_path('.workflow-manager/other.json', frozenset(), {}, {})"
+   ```
+   - Expected: `updated . to workflow 2.6.0`; `verify` matches `2.6.0`.
+   - Expected: `excluded` twice, then `UnclassifiedPathError` for
+     `other.json`. The fallback covers exactly one path, not the directory.
+4. **One real work item, driven by Claude Code in `$T/a`** (CP3, CP4, CP5).
+   Open a Claude Code session in `$T/a` and run `/milestone-plan` for a
+   tiny item (for example, "add a `hello.txt` file"). Let its plan declare a
+   second plan-stage protected document that is new and untracked.
+   - After the plan bundle is generated, `python3
+     scripts/workflow_state.py --plan-review-publication-status <id>` reports
+     the item as bound, and `--resolve-feedback-path <id>` reports `"layout":
+     "scoped"` with `.ai-review/<id>/feedback/`.
+   - `/review-plan` writes its feedback under `.ai-review/<id>/feedback/`.
+     Nothing is written to `.ai-review/feedback/`.
+   - If you give a `REVISE`, `/apply-plan-review` reaches the next round with
+     a single `plan_revision` bump. `.ai-review/<id>/current/` is only
+     replaced when generation succeeds: no `current.staging-*` directory
+     remains and there is no `REJECTED` marker.
+   - `/approve-review plan <id>` makes exactly one approval commit. It
+     contains the new companion document, and `git status --porcelain` is
+     empty afterwards.
+5. **Open amendment shows the uncommitted plan** (CP2). After flow 4's
+   approval, from `IMPLEMENTING`, run `/request-plan-amendment` and edit the
+   plan without committing. Regenerate the plan bundle.
+   - Expected: `.ai-review/<id>/current/AMENDMENT_DIFF.patch` is non-empty
+     and shows your uncommitted edit. Its `#` preamble names the
+     `amendment_base_commit`. `git apply --check` accepts it at that commit.
+6. **Two linked worktrees cannot race an amendment** (CP6,
+   `v2.4.0-002`). Use a second item planned and approved like flow 4. Run
+   `git worktree add $T/a-wt -b wt` and merge `main` into `wt`.
+   - In one worktree, `/milestone-implement` claims a checkpoint. In the
+     other, `/request-plan-amendment` for the same item refuses with
+     `AmendmentCheckpointActiveError`, naming the claimant.
+   - In the other order, the claim refuses with `AmendmentInFlightError`,
+     and nothing is published.
+7. **Optional: watch the automated end-to-end scenarios.** Run `python3
+   $M/tests/test_workflow_2_6_0_hardening_disposable_repo.py -v` (about 30s,
+   18 tests), which drives flows 3-6 plus the mixed-release and
+   crash/takeover cases in real installed repositories.
+
+**Known limitations and out of scope.**
+- Mixed-release worktrees remain unsupported. A `2.5.1` worktree that has
+  not merged the update neither takes the lifecycle lock nor reads the
+  witness; `2.6.0` only narrows that window. This is the residual quoted
+  in `v2.4.0-002`'s `2.6.0` disposition, and the mandatory follow-up
+  `v2.6.0-001`.
+- Downgrading below `2.6.0` fails silently, not loudly. See `CLAUDE.md`'s
+  `2.6.0` downgrade paragraph. Don't treat that as a finding.
+- `fixture.drive_synthetic_work_item_through_checkpoints` cannot drive a
+  `2.6.0` target (CP8 observation). Nothing uses it that way.
+- Observed while preparing this checklist and not yet triaged:
+  `scripts/workflow_state.py --plan-review-publication-status <unknown-id>`
+  exits 1 with a raw `KeyError` traceback, not a named refusal. Record it
+  as a finding if you think it matters.
+- This repository's own unrelated working-tree edits (`.gitignore`,
+  `.workflow-manager/installation.json`, `docs/ROADMAP.md`) are not part
+  of this milestone.
+
 ## Current blockers
 
 None. Important 1's residual is dispositioned as a mandatory follow-up
@@ -1241,8 +1350,7 @@ None. Important 1's residual is dispositioned as a mandatory follow-up
 
 ## Next action
 
-The round-4 post-fix bundle is regenerated (implementation revision 5),
-and the item is at `AWAITING_LOCAL_IMPLEMENTATION_REVIEW`. Both stages run
-again. Next is
-`/review-implementation workflow-review-artifact-and-concurrency-hardening`,
-preferably in a fresh session, then the manual external review.
+Both implementation-review stages approved revision 5, and the technical
+approval is committed (`7175de8`). The item is at
+`AWAITING_FUNCTIONAL_REVIEW`. Next is the manual functional review using
+the checklist above. Findings go to `.ai-review/feedback/FUNCTIONAL_REVIEW.md`.
