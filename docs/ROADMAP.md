@@ -116,19 +116,45 @@ Important fixes carried here:
 
 ## Workflow 2.5.1
 
-**Status:** Current installed baseline.
+**Status:** Current installed baseline for this repository.
 
 Primary purpose:
 
 - compatibility/correctness follow-up for checkpoint identifiers and surrounding Workflow machinery.
 
-This is the baseline that the next hardening release should build from.
+This is the base release the 2.6.0 hardening overlay was built from. This repository intentionally remains installed on 2.5.1 until the post-2.6 Controller integration step (1.9) moves consumers to the released 2.6.x.
+
+---
+
+## Workflow 2.6.0
+
+**Status:** Complete authored release — accepted as milestone `workflow-review-artifact-and-concurrency-hardening` (section 1).
+
+Delivered:
+
+- per-work-item/scoped review feedback storage (new work items stamped `feedback_layout: "scoped"`);
+- legacy `.workflow-manager/installation.json` compatibility handling for active legacy work items (release-derived, exact-path terminal fallback; no declarations rewritten);
+- plan-review publication/binding hardening (`/apply-plan-review` ordering and recovery, `plan_review_binding`, `.ai-review/<id>/plan-inputs/`);
+- approval commit closure for newly introduced protected paths;
+- cross-worktree amendment/checkpoint coordination (repository-global lifecycle lock plus amendment witness under the common git dir);
+- correct, non-empty `AMENDMENT_DIFF.patch` anchored at the working tree;
+- regression preservation for v2.3.1-001, v2.3.1-002 and v2.3.1-003.
+
+Documented residuals / follow-ups left by the accepted implementation:
+
+- `v2.4.0-002` is closed **qualified**: mixed-release worktrees remain unsupported until every registered worktree's branch has merged the 2.6.0 update (see the defect record's 2.6.0 disposition and `CLAUDE.md`);
+- `v2.4.0-001`'s separate `workflow_manager update`-rewrites-protected-paths hazard for an active `process` work item is out of scope and belongs to milestone 5;
+- `v2.6.0-001` (withdrawn plan-stage content can re-bind after a detour) is open — partially mitigated in 2.6.0, mandatory follow-up for a later Workflow release.
 
 ---
 
 # 1. Review Artifact, Publication, and Concurrency Hardening
 
-**Priority:** Immediate / High
+**Status:** COMPLETE — accepted as Workflow 2.6.0 (milestone `workflow-review-artifact-and-concurrency-hardening`, commit `136c417`).
+
+The subsections below are retained as the milestone's scope record; see "Workflow 2.6.0" above and the Defect Disposition Summary for outcomes.
+
+**Priority:** Immediate / High (delivered)
 
 Suggested milestone:
 
@@ -223,6 +249,8 @@ At minimum:
 ---
 
 ## 1.2 Legacy active-work-item compatibility for `.workflow-manager/installation.json`
+
+**Status:** Closed in 2.6.0 (`v2.4.0-001` 2.6.0 disposition).
 
 ### Current state
 
@@ -352,7 +380,7 @@ The approval commit closure must be derived from the complete declared protected
 
 `v2.4.0-002-amendment-claim-race-crosses-worktree-boundary`
 
-**Status:** Still open after Workflow 2.5.0.
+**Status:** Closed, qualified, in 2.6.0 — closed for every repository whose registered worktrees have all merged the 2.6.0 update; mixed-release worktrees remain unsupported (residual stated in the defect record's 2.6.0 disposition).
 
 ### Problem
 
@@ -413,7 +441,7 @@ The defect is closed only when both causes are addressed.
 
 `v2.4.0-003-amendment-diff-anchored-at-head-is-always-empty`
 
-**Status:** Still open.
+**Status:** Closed in 2.6.0 (repair form 1, working-tree anchor).
 
 ### Problem
 
@@ -483,9 +511,176 @@ The milestone should include disposable-repository exercises covering:
 
 ---
 
+# 1.9 Post-2.6 Controller integration and Workflow Orchestration Protocol foundation
+
+**Priority:** NEXT — the 2.6 hardening release has been accepted as Workflow 2.6.0.
+
+The 2.6 hardening milestone (now complete) and the Controller trunk/branch/PR/release milestone run independently in parallel.
+
+After both complete, perform a small integration milestone first:
+
+- upgrade the Controller repository from Workflow 2.5.1 to the released 2.6.x;
+- verify the actual released contract rather than planning against unreleased details;
+- replace the Controller's copied feedback-path resolver with Workflow's authoritative resolver/query;
+- update/re-measure Controller expectations that still name Workflow internal state writers;
+- validate 2.5.1 -> 2.6.x migration and current Controller lifecycle behavior.
+
+After that compatibility step, introduce a stable Workflow-facing orchestration protocol so later Workflow releases normally do not require Controller lifecycle-code changes.
+
+## Public orchestration protocol
+
+The protocol should be a versioned public contract, separate from both:
+
+- Workflow release version (`2.6.0`, `2.7.0`, ...);
+- the work item's governing Workflow version (`2.1`, `2.2`, ...).
+
+Initial operations:
+
+1. `describe`
+   - Workflow release;
+   - orchestration protocol version;
+   - supported governing versions;
+   - capabilities.
+
+2. `verify`
+   - repository/installation/state health;
+   - protocol readiness.
+
+3. `next-action`
+   - normalized state snapshot;
+   - semantic action id and arguments;
+   - disposition:
+     - `automatic`;
+     - `validation`;
+     - `human_gate`;
+     - `external_gate`;
+     - `blocked`;
+     - `complete`;
+   - generic worker requirements;
+   - state revision / state identity.
+
+4. `reconcile`
+   - Workflow-authoritative classification of the durable result of an action;
+   - must recognize same-phase progress such as one checkpoint completing while phase remains `IMPLEMENTING`;
+   - returns progress/result class and new state identity.
+
+5. `record-external-result`
+   - ingest typed external/manual evidence without requiring Controller to know Workflow-owned storage paths.
+
+6. `resolve-artifact`
+   - narrow semantic artifact resolver when another component genuinely needs a path.
+
+Optional convenience:
+
+- `inspect` for CLI/UI/debugging.
+
+## Protocol design constraints
+
+- public semantic action ids, not internal Python helper/function names;
+- Workflow may return a rendered command invocation, but command text is not the protocol identity;
+- artifact locations remain Workflow-owned;
+- Controller should not copy feedback/bundle/path selection rules;
+- state revision/identity must make stale decisions detectable;
+- unknown protocol major fails closed;
+- broad stable protocol error codes may accompany precise Workflow-native exceptions;
+- exact Workflow releases may be recorded as tested/validated combinations, but should not remain the fundamental compatibility mechanism.
+
+Target compatibility:
+
+```text
+Workflow 2.6.x ─┐
+Workflow 2.7.x ─┤
+Workflow 2.9.x ─┤── Orchestration Protocol v1 ── Controller
+Workflow 3.x   ─┘
+```
+
+## Gate and validation policy must be declarative
+
+Workflow must own the meaning of lifecycle gates rather than assuming today's user-gate layout forever.
+
+Future supported policies may include:
+
+- plan approval automatically satisfied by current local + independent cross-model review evidence;
+- implementation technical acceptance automatically satisfied by current review evidence;
+- functional validation satisfied automatically by configured integration/E2E/migration evidence;
+- human functional acceptance only where repository/risk policy requires it;
+- PR review/merge as the final external/human acceptance boundary.
+
+The protocol must therefore distinguish:
+
+- automation-safe action;
+- automated validation;
+- human gate;
+- external gate;
+- blocked/refused state;
+- completion.
+
+Removing a human gate must not require Controller lifecycle-code changes if the public protocol contract remains compatible.
+
+## Post-validation reopening and PR-review defects
+
+"Validation passed" is not irreversible milestone completion.
+
+The Workflow model should support an external gate result such as PR `CHANGES_REQUESTED` reopening the same work item into remediation.
+
+Required semantic shape:
+
+```text
+technical review
+  -> functional validation
+  -> PR ready
+  -> external PR review
+       -> approved/merged
+       -> or changes requested -> remediation -> re-review/re-validation -> PR ready
+```
+
+Evidence/readiness must be bound to exact implementation / PR-head identity.
+
+When the Controller's forge adapter reports facts such as:
+
+- PR head SHA changed;
+- PR review requested changes;
+- checks changed;
+- PR reopened/closed/merged;
+
+Workflow decides:
+
+- which evidence became stale;
+- whether technical review must repeat;
+- whether full or targeted functional validation is required;
+- what the next legal action is.
+
+The Controller must not encode those invalidation rules itself.
+
+## Functional validation evolution
+
+For repositories where manual functional testing is weak or repetitive, Workflow should support strong automated functional evidence.
+
+Examples:
+
+- Workflow / Workflow Manager:
+  - disposable-repository scenarios;
+  - migration suites;
+  - integration/conformance suites;
+  - real lifecycle E2E exercises.
+
+- RepFlow:
+  - Room migration tests;
+  - Compose/UI tests;
+  - emulator/device E2E flows;
+  - backup/restore and navigation/session flows.
+
+Repository policy may still require human product/visual acceptance even when automated evidence passes.
+
+The long-term principle is:
+
+> stop for a human only when policy says available automation/evidence is insufficient for the next decision.
+
+---
+
 # 2. RepFlow Migration Validation
 
-**Priority:** Immediately after milestone 1
+**Priority:** Immediately after the post-2.6 Controller integration and Orchestration Protocol foundation (1.9)
 
 Once the hardening release is complete, repeat the real migration scenario against a disposable RepFlow copy.
 
@@ -661,6 +856,9 @@ Potential future work:
 - generalized repository-global lifecycle leases;
 - reduced review convergence cost;
 - better review-history compaction;
+- versioned Workflow Orchestration Protocol for Controller integration;
+- declarative gate/validation policy;
+- semantic external-result ingestion and post-validation reopening;
 - compatibility contracts for Controller/Workflow Manager integrations;
 - deprecation policy for very old governing Workflow releases;
 - migration tooling for retiring historical compatibility branches.
@@ -670,25 +868,31 @@ Potential future work:
 # Suggested Execution Order
 
 ```text
-0. Workflow 2.5.1 baseline                              CURRENT
+0. Workflow 2.5.1 baseline                                      CURRENT INSTALLED BASELINE
    |
-1. Review artifact/publication/concurrency hardening    NEXT
+1. Review artifact/publication/concurrency hardening -> 2.6.0   COMPLETE
+   |                       \
+   |                        \ Controller trunk/PR/release milestone runs in parallel
+   |                         \
+1.9 Small Controller <-> released 2.6 integration               NEXT
    |
-2. Disposable RepFlow migration validation
+2. Workflow Orchestration Protocol foundation / decoupling
    |
-3. Real RepFlow Workflow migration
+3. Disposable RepFlow migration validation
    |
-4. Review-data/history simplification
+4. Real RepFlow Workflow migration
    |
-5. Workflow Manager migration/update ergonomics
+5. Review-data/history simplification
    |
-6. Distribution/release quality
+6. Workflow Manager migration/update ergonomics
    |
-7. Broader multi-worktree concurrency maturity
+7. Distribution/release quality
    |
-8. Operator UX/documentation
+8. Broader multi-worktree concurrency maturity
    |
-9. Longer-term Workflow evolution
+9. Operator UX/documentation
+   |
+10. Longer-term Workflow evolution
 ```
 
 ---
@@ -700,11 +904,12 @@ Potential future work:
 | `v2.3.1-001-host-history-coupled-tests`                                      | Fixed in 2.5.0                                | Regression protection only |
 | `v2.3.1-002-no-plan-amendment-edge`                                          | Fixed in 2.4.0                                | Regression protection only |
 | `v2.3.1-003-plan-approval-requires-precommitted-state-file`                  | Fixed in 2.5.0                                | Regression protection only |
-| `v2.4.0-001-workflow-manager-installation-record-unclassified-at-plan-stage` | Forward-fixed; legacy active-item gap remains | Included in milestone 1    |
-| `v2.4.0-002-amendment-claim-race-crosses-worktree-boundary`                  | Open                                          | Included in milestone 1    |
-| `v2.4.0-003-amendment-diff-anchored-at-head-is-always-empty`                 | Open                                          | Included in milestone 1    |
+| `v2.4.0-001-workflow-manager-installation-record-unclassified-at-plan-stage` | Closed in 2.6.0 (legacy active-item gap)      | Regression protection; separate update-rewrites-protected-paths hazard -> milestone 5 |
+| `v2.4.0-002-amendment-claim-race-crosses-worktree-boundary`                  | Closed, qualified, in 2.6.0                   | Mixed-release worktrees unsupported (documented residual) |
+| `v2.4.0-003-amendment-diff-anchored-at-head-is-always-empty`                 | Closed in 2.6.0                               | Regression protection only |
+| `v2.6.0-001-withdrawn-plan-content-can-rebind-after-a-detour`                | Open; partially mitigated in 2.6.0            | Mandatory follow-up in a later Workflow release |
 
-Additional open hardening items included in milestone 1:
+Additional hardening items delivered in milestone 1 (Workflow 2.6.0):
 
 - shared review-feedback ownership/contention;
 - `/apply-plan-review` publication ordering/recovery;

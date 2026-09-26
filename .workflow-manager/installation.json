@@ -13,7 +13,7 @@
     "overlay_commit": "0fa3222793173922fa1b095aaa416dcd58dba2e7"
   },
   "installed_at": "2026-09-08T19:40:56Z",
-  "updated_at": "2026-09-19T11:50:48Z",
+  "updated_at": "2026-09-24T17:40:16Z",
   "managed": {
     ".claude/commands/accept-milestone.md": {
       "sha256": "ddf2f49aacd802d831602ac89673a4bba1d65960d4acad13fdad1578d5feff0a",

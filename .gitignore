@@ -11,3 +11,6 @@ build/
 .ai-review/
 __pycache__/
 *.pyc
+
+# --- Workflow Controller-owned runtime state (never tracked) ---
+.controller/
