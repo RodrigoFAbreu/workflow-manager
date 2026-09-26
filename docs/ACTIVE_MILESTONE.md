@@ -1292,6 +1292,10 @@ this checklist was prepared. The rest of flows 4-6 state the documented
    - Expected: `updated . to workflow 2.6.0`; `verify` matches `2.6.0`.
    - Expected: `excluded` twice, then `UnclassifiedPathError` for
      `other.json`. The fallback covers exactly one path, not the directory.
+   - Print order is not part of the check. When stdout and stderr are piped
+     or captured, the traceback can appear before the two `excluded` lines.
+     Pass if you see both `excluded` results and the `UnclassifiedPathError`
+     naming `.workflow-manager/other.json`, in any order.
 4. **Work item `<A>`: plan review through approval, driven by Claude Code
    in `$T/a`** (CP3, CP4, CP5).
    0. **Seed the milestone (test data).** A fresh install has no
@@ -1320,6 +1324,17 @@ this checklist was prepared. The rest of flows 4-6 state the documented
         prints one JSON object whose `status` is exactly `"BOUND"`.
       - `python3 scripts/workflow_fingerprint.py --resolve-feedback-path <A>`
         prints `"layout": "scoped"` and `.ai-review/<A>/feedback/...` paths.
+      - `2.6.0` stages the plan author files in `plan-inputs/`. The
+        generator copies them into the bundle; it doesn't write them into
+        `current/`. Check both:
+        ```bash
+        ls .ai-review/<A>/plan-inputs/
+        for f in REVIEW_REQUEST.md TEST_RESULTS.md CONTEXT_FILES.txt; do
+          cmp .ai-review/<A>/plan-inputs/$f .ai-review/<A>/current/$f && echo "$f same"
+        done
+        ```
+        Expected: `ls` lists at least `REVIEW_REQUEST.md`, `TEST_RESULTS.md`
+        and `CONTEXT_FILES.txt`, and the loop prints `same` for all three.
    3. **Required refusal: plan review is in progress.** At that same
       `AWAITING_LOCAL_PLAN_REVIEW` phase, run both checks below. Neither may
       write anything: `git status --porcelain` and the `status` in step 2
@@ -1477,9 +1492,22 @@ this checklist was prepared. The rest of flows 4-6 state the documented
 **Known limitations and out of scope.**
 - Mixed-release worktrees remain unsupported. A `2.5.1` worktree that has
   not merged the update neither takes the lifecycle lock nor reads the
-  witness; `2.6.0` only narrows that window. This is the residual quoted
-  in `v2.4.0-002`'s `2.6.0` disposition, and the mandatory follow-up
-  `v2.6.0-001`.
+  witness; `2.6.0` only narrows that window. The authoritative record is
+  the residual quoted in the `2.6.0` disposition of
+  `docs/defects/v2.4.0-002-amendment-claim-race-crosses-worktree-boundary.md`,
+  which is "closed, qualified" there. It is not `v2.6.0-001`.
+- **Accepted follow-up, non-gating: `v2.6.0-001`** (withdrawn plan-stage
+  content can re-bind after a detour;
+  `docs/defects/v2.6.0-001-withdrawn-plan-content-can-rebind-after-a-detour.md`).
+  `2.6.0` closes the stale-approval shortcut. It doesn't close the re-bind
+  itself, which a later Workflow release must decide. **No flow in this
+  checklist exercises it.** Flow 4.3 deliberately avoids the
+  `/milestone-plan <A>` withdrawal. It stays covered by the automated
+  tests in the `2.6.0` payload's `scripts/workflow_state_test.py`:
+  `TestPlanApprovalPhaseGate` (including
+  `test_withdraw_detour_restore_never_reaches_plan_approval`) and
+  `TestConsumedPlanReviewBindingWriters`. The conformance suite runs both.
+  Don't record the residual re-bind as a functional finding.
 - Downgrading below `2.6.0` fails silently, not loudly. See `CLAUDE.md`'s
   `2.6.0` downgrade paragraph. Don't treat that as a finding.
 - `fixture.drive_synthetic_work_item_through_checkpoints` cannot drive a
