@@ -1246,11 +1246,12 @@ No feature flags. The only test data is the throwaway repositories and work
 items each flow creates.
 
 **All seven flows are required**, in order. Flows 4-6 build on each other:
-flow 4 creates work item `<A>`, flow 5 leaves `<A>` in `AMENDING_PLAN`,
-and flow 6 uses a second item `<B>`. Replace `<A>`/`<B>` with the ids
+flow 4 creates work item `<A>`, flow 5 leaves `<A>` at
+`AWAITING_LOCAL_PLAN_REVIEW` with its amendment still open, and flow 6 uses
+a second item `<B>`. Replace `<A>`/`<B>` with the ids
 `/milestone-plan` reports.
 
-Flows 1-3, flow 4.3's direct-writer refusal and flow 7 were dry-run while
+Flows 1-3, flow 4.0's seed, flow 4.3's direct-writer refusal and flow 7 were dry-run while
 this checklist was prepared. The rest of flows 4-6 state the documented
 `2.6.0` contract.
 
@@ -1292,10 +1293,21 @@ this checklist was prepared. The rest of flows 4-6 state the documented
    - Expected: `excluded` twice, then `UnclassifiedPathError` for
      `other.json`. The fallback covers exactly one path, not the directory.
 4. **Work item `<A>`: plan review through approval, driven by Claude Code
-   in `$T/a`** (CP3, CP4, CP5). Open a Claude Code session in `$T/a`.
+   in `$T/a`** (CP3, CP4, CP5).
+   0. **Seed the milestone (test data).** A fresh install has no
+      `docs/ROADMAP.md`, and its `docs/ACTIVE_MILESTONE.md` says "None".
+      `/milestone-plan` with no argument decides what to plan from those two
+      files, and its id argument only selects an *existing* item. So give it
+      a milestone before you start:
+      ```bash
+      cd $T/a
+      printf '# Roadmap\n\n## Next milestone: hello-file\n\nAdd a `hello.txt` file containing "hello". One checkpoint.\n' > docs/ROADMAP.md
+      git add docs/ROADMAP.md && git commit -qm "roadmap: hello-file"
+      ```
+      Then open a Claude Code session in `$T/a`.
    1. **Declare a new protected companion before the bundle exists.** Run
-      `/milestone-plan` for a tiny item (for example, "add a `hello.txt`
-      file") and note its id `<A>`. Create `docs/<A>-notes.md` with any
+      `/milestone-plan` with no argument. It plans `hello-file`; note the id
+      it reports as `<A>`. Create `docs/<A>-notes.md` with any
       text, and do **not** `git add` it. Before the plan bundle is
       generated, make sure `docs/ai-workflow/registry/<A>-artifacts.json`
       lists `docs/<A>-notes.md` in `plan_stage.protected_paths`. Ask Claude
@@ -1353,8 +1365,8 @@ this checklist was prepared. The rest of flows 4-6 state the documented
       - `git show --stat HEAD` lists `docs/<A>-notes.md`, the file that was
         untracked until now.
       - `git ls-tree HEAD docs/<A>-notes.md` shows it in the committed tree.
-      - `git status --porcelain` is empty, apart from anything you created
-        outside the item's declared paths.
+      - `git status --porcelain` prints nothing. `.ai-review/` is ignored by
+        the install's `.gitignore` fragment.
       - `<A>` is now at `IMPLEMENTING`.
 5. **Open amendment on `<A>` shows the uncommitted plan** (CP2). Start from
    flow 4's end state: `<A>` at `IMPLEMENTING`. Do not run
@@ -1363,7 +1375,9 @@ this checklist was prepared. The rest of flows 4-6 state the documented
    1. Run `/request-plan-amendment <A>`. `<A>` moves to `AMENDING_PLAN`.
    2. Edit `<A>`'s plan document, and do not commit the edit.
    3. Run `/milestone-plan <A>` while `<A>` is in `AMENDING_PLAN`. It
-      generates the amended plan bundle.
+      generates the amended plan bundle, then publishes and binds it, so
+      `<A>` moves to `AWAITING_LOCAL_PLAN_REVIEW`. The amendment stays open
+      (unresolved) until an approval resolves it.
    4. Expected: `.ai-review/<A>/current/AMENDMENT_DIFF.patch` is non-empty
       and contains your uncommitted edit. Its leading `#` preamble names
       `work_item_id`, `amendment_id`, `amendment_base_commit`,
@@ -1375,19 +1389,46 @@ this checklist was prepared. The rest of flows 4-6 state the documented
       git -C $T/check apply --check $T/a/.ai-review/<A>/current/AMENDMENT_DIFF.patch && echo applies
       git worktree remove $T/check
       ```
-   6. Leave `<A>` here, in `AMENDING_PLAN`. Flow 6 does not use it.
+   6. Leave `<A>` here: at `AWAITING_LOCAL_PLAN_REVIEW`, with its amendment
+      open and its plan edit uncommitted. Don't review or approve it. Flow 6
+      does not use it.
 6. **Two linked worktrees cannot race an amendment on `<B>`** (CP6,
    `v2.4.0-002`). A second item is needed because flow 5 deliberately left
-   `<A>` in `AMENDING_PLAN`, with its amendment already open. A checkpoint
-   claim is illegal there, and so is a second amendment request. Keep this
-   setup order so that the merge in step 3 really brings `<B>` into the
-   linked worktree:
+   `<A>` at `AWAITING_LOCAL_PLAN_REVIEW`, with its amendment still open. A
+   checkpoint claim is illegal there, and so is a second amendment request.
+   Keep this setup order so that the merge in step 3 really brings `<B>`
+   into the linked worktree:
    1. In `$T/a`, on `main`, create the linked worktree **before `<B>`
       exists**: `git worktree add $T/a-wt -b wt`.
-   2. Still in `$T/a` on `main`, plan and approve a second tiny item `<B>`
-      the way flow 4 does. Steps 4.1 and 4.3-4.6 can be skipped for `<B>`.
-      `<B>` must end at `IMPLEMENTING`, with `git status --porcelain`
-      clean.
+   2. Still in `$T/a` on `main`, plan and approve a second tiny item `<B>`.
+      - **Point the milestone documents at `<B>` first.** Otherwise a
+        no-argument `/milestone-plan` resolves to `<A>`, which is at a ready
+        phase, and refuses with `PlanReviewWithdrawalNeedsExplicitIdError`
+        (flow 4.3's refusal). A brand-new id can't be passed as an
+        argument. In `docs/ROADMAP.md`, mark `hello-file` as in progress
+        (not next) and add `## Next milestone: bye-file` ("Add a `bye.txt`
+        file containing "bye". One checkpoint."). In
+        `docs/ACTIVE_MILESTONE.md`, replace the `## Milestone` section's body
+        with `Next: bye-file (see docs/ROADMAP.md)`. Commit exactly those two
+        files: `git commit -m "roadmap: bye-file" -- docs/ROADMAP.md
+        docs/ACTIVE_MILESTONE.md`.
+      - Run `/milestone-plan` with no argument. Expected: it creates a
+        **new** item for `bye-file` (note its id as `<B>`) and leaves `<A>`'s
+        entry untouched. If it refuses with
+        `PlanReviewWithdrawalNeedsExplicitIdError` instead, the documents
+        still resolve to `<A>`. Fix them and re-run. Never run
+        `/milestone-plan <A>`.
+      - Take `<B>` through the same review and approval sequence as flow 4:
+        `/review-plan <B>`, a genuine manual verdict naming `<B>` via
+        `/record-manual-plan-review <B>`, then `/approve-review plan <B>`.
+        Skip only flow 4's companion document (4.1) and its refusal checks
+        (4.3, and 4.6's foreign-feedback step).
+      - Expected: `<B>` is at `IMPLEMENTING`. `git log -1 --format=%B`
+        ends with `Workflow-Plan-Approval:` and `Workflow-Work-Item: <B>`.
+        The index is clean (`git diff --cached --quiet` exits 0).
+        `git status --porcelain` still lists `<A>`'s plan document as
+        modified; that is flow 5's deliberately uncommitted edit, and it is
+        expected.
    3. Bring `<B>` into the worktree: `git -C $T/a-wt merge --ff-only main`.
       Confirm that `$T/a-wt` sees `<B>` at `IMPLEMENTING`:
       ```bash
