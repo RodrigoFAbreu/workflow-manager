@@ -2,6 +2,61 @@
 
 ## Milestone
 
+**Implementing.** `workflow-manager-adaptive-test-sharding`
+(`governing_workflow_version: "2.2"`, `process`, plan revision 7 approved
+2026-09-26, base `db4c7af`): adaptive, duration-balanced parallel execution
+of this repository's own verification suite (`tests/`), with no coverage
+change. Full plan:
+`docs/ai-workflow/WORKFLOW_MANAGER_ADAPTIVE_TEST_SHARDING_PLAN.md`.
+Measured baseline: full serial verification 2162 s (36.0 min) at `db4c7af`.
+
+## Current checkpoint
+
+CP1 complete; next is CP2 (CP3 and CP4 are also unblocked; each depends
+on CP1 only).
+
+## Checkpoint log
+
+### CP1 -- inventory, selection grammar, tree identity, shared contracts, per-unit host execution (complete)
+
+- `tests/parallel/` (new package): `inventory.py` (host discovery in a
+  subprocess through `loadTestsFromModule`, unit ids
+  `host:<module>.py::<Class>`, the five-form `--select` grammar with
+  `SelectSyntaxError`/`UnknownSelectorError`; frozen forms parse but select
+  nothing until CP2), `tree.py` (`tree_digest`, `snapshot`, `compare`; git
+  runs with `GIT_OPTIONAL_LOCKS=0` so a digest never rewrites the index),
+  `unit.py` (one host class or selected methods in its own process, result
+  record written atomically; a unit that cannot load writes no record and
+  is an infrastructure fault), `resources.json` + `resources.py`
+  (`load(repo_root, host_unit_ids)`, `GUARDED_TREES`, every 5.8 refusal),
+  `plan_schema.py` (`ChunkDescriptor`, `shard_chunks`; plan shape
+  `plan["shards"][i]["chunks"]`, a descriptor's `shard_index` must equal
+  its shard's position).
+- `tests/run_all.py`: `sys.dont_write_bytecode` before any import;
+  `--list`, `--select`, `--jobs 1` (interim direct mode, no lock or barrier,
+  not INV-6's serial reference); `run_all: error[<Name>]:` refusal tag.
+  The no-flag and `--fast` paths are unchanged apart from
+  `test_parallel_runner.py` joining the full run (not `--fast`, so the
+  eight-module `--fast` set that `D-Fast-Flag` names is unchanged).
+- Discovery at `97ca7a0`: 94 host classes, 349 host tests, matching the
+  plan's 3.2 audit.
+- Verification: `python3 tests/test_parallel_runner.py` 41/41 OK (T-INV-1,
+  -2, -4, -5 host parts; T-INV-8; tree and unit tests); seven hand
+  mutations of the new modules all killed (two initially survived and
+  their tests were tightened: stale-index write, executable bit);
+  `run_all.py --jobs 1 --select test_parallel_runner.py` 8 units green;
+  `--jobs 1` over the eight `--fast` modules 48 units green in 11.8 s;
+  `run_all.py --fast` green. INV-5:
+  `git diff db4c7af -- distribution migration scripts .claude/commands src tools .github/workflows/workflow-conformance.yml`
+  empty. No `__pycache__` appeared under `tests/parallel/`.
+
+---
+
+# Previous milestone (complete): `workflow-review-artifact-and-concurrency-hardening`
+
+
+## Milestone
+
 **Complete.** `workflow-review-artifact-and-concurrency-hardening`
 (`governing_workflow_version: "2.2"`, plan approved at revision 8): Workflow
 `2.6.0` — review-artifact, publication and concurrency hardening.

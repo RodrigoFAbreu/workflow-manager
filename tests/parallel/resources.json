@@ -1,0 +1,19 @@
+{
+  "exclusive": {
+    "host:test_amendment_update_path.py::TestMigrateDoesNotDeleteASiblingAuthoredRelease": {
+      "reason": "test_a_fresh_regeneration_leaves_authored_siblings_untouched runs tools/migrate.py without --check, which shutil.rmtree()s and rebuilds the real distribution/workflow/2.3.1/ before restoring it via git; a concurrent reader saw no 2.3.1/manifest.json (docs/ACTIVE_MILESTONE.md CP9 process note)",
+      "resources": [
+        "repo:distribution"
+      ]
+    }
+  },
+  "resources": {
+    "repo:distribution": {
+      "description": "the real repository's distribution/ tree; every unit reads it (find_release, build_release --check, migrate.py --check)",
+      "paths": [
+        "distribution/"
+      ]
+    }
+  },
+  "schema_version": 1
+}
