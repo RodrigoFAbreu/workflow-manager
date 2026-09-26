@@ -1393,7 +1393,7 @@ this checklist was prepared. The rest of flows 4-6 state the documented
       generates the amended plan bundle, then publishes and binds it, so
       `<A>` moves to `AWAITING_LOCAL_PLAN_REVIEW`. The amendment stays open
       (unresolved) until an approval resolves it.
-   4. Expected: `.ai-review/<A>/current/AMENDMENT_DIFF.patch` is non-empty
+   4. Expected: `.ai-review/<A>/AMENDMENT_DIFF.patch` is non-empty
       and contains your uncommitted edit. Its leading `#` preamble names
       `work_item_id`, `amendment_id`, `amendment_base_commit`,
       `plan_revision` and `review_content_id`.
@@ -1401,7 +1401,7 @@ this checklist was prepared. The rest of flows 4-6 state the documented
       preamble:
       ```bash
       git worktree add --detach $T/check <amendment_base_commit>
-      git -C $T/check apply --check $T/a/.ai-review/<A>/current/AMENDMENT_DIFF.patch && echo applies
+      git -C $T/check apply --check $T/a/.ai-review/<A>/AMENDMENT_DIFF.patch && echo applies
       git worktree remove $T/check
       ```
    6. Leave `<A>` here: at `AWAITING_LOCAL_PLAN_REVIEW`, with its amendment
