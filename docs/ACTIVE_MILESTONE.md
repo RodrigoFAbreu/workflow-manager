@@ -2,7 +2,7 @@
 
 ## Milestone
 
-`workflow-review-artifact-and-concurrency-hardening`
+**Complete.** `workflow-review-artifact-and-concurrency-hardening`
 (`governing_workflow_version: "2.2"`, plan approved at revision 8): Workflow
 `2.6.0` — review-artifact, publication and concurrency hardening.
 Full plan: `docs/ai-workflow/WORKFLOW_REVIEW_ARTIFACT_AND_CONCURRENCY_HARDENING_PLAN.md`.
@@ -19,6 +19,13 @@ per this repository's `CLAUDE.md` "Adding an authored Workflow release"
 process. See the plan's section 2 for non-goals.
 
 ## Current checkpoint
+
+**Milestone complete.** `workflow-review-artifact-and-concurrency-hardening`
+reached `MILESTONE_COMPLETE` via `/accept-milestone` after user-confirmed
+functional testing against the checklist below (flows 1-7, evidence commit
+`c1e2bf5`) found no product findings; `active_work_item_id` is cleared. The
+checkpoint narrative below (CP1-CP9) is this milestone's own permanent
+record and is left in place rather than deleted.
 
 **CP9 complete** (9 of 9 checkpoints). Every registry checkpoint is
 complete and technically approved. Next: the functional review (see
@@ -1529,13 +1536,17 @@ None. Important 1's residual is dispositioned as a mandatory follow-up
 
 ## Active plan
 
+None (milestone complete). The plan document stays at
 `docs/ai-workflow/WORKFLOW_REVIEW_ARTIFACT_AND_CONCURRENCY_HARDENING_PLAN.md`
-(revision 8), registry
-`docs/ai-workflow/registry/workflow-review-artifact-and-concurrency-hardening-registry.json`.
+(revision 8, plan approval `CURRENT`) rather than being archived: it is cited
+as a permanent design record by `docs/MIGRATION.md` and by the shipped
+`2.6.0` payload's `WORKFLOW_V2_PLAN.md`.
 
 ## Next action
 
-Both implementation-review stages approved revision 5, and the technical
-approval is committed (`7175de8`). The item is at
-`AWAITING_FUNCTIONAL_REVIEW`. Next is the manual functional review using
-the checklist above. Findings go to `.ai-review/feedback/FUNCTIONAL_REVIEW.md`.
+`workflow-review-artifact-and-concurrency-hardening` is complete. Next:
+`/milestone-plan` for the next incomplete milestone in `docs/ROADMAP.md`
+(the committed roadmap lists "Disposable RepFlow migration validation"
+next). `docs/ROADMAP.md` itself was deliberately not updated by this
+acceptance: an uncommitted operator revision of it is pending, and it still
+marks this milestone `CURRENT` and reorders the milestones that follow.
