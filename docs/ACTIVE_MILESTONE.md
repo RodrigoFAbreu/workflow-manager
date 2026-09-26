@@ -1243,8 +1243,16 @@ export T=$(mktemp -d)        # every flow below works under $T
 ```
 
 No feature flags. The only test data is the throwaway repositories and work
-items each flow creates. Flows 1-3 were dry-run while this checklist was
-prepared; flows 4-6 state the documented contract.
+items each flow creates.
+
+**All seven flows are required**, in order. Flows 4-6 build on each other:
+flow 4 creates work item `<A>`, flow 5 leaves `<A>` in `AMENDING_PLAN`,
+and flow 6 uses a second item `<B>`. Replace `<A>`/`<B>` with the ids
+`/milestone-plan` reports.
+
+Flows 1-3, flow 4.3's direct-writer refusal and flow 7 were dry-run while
+this checklist was prepared. The rest of flows 4-6 state the documented
+`2.6.0` contract.
 
 1. **Release is present and reproducible.**
    - `python3 -m workflow_manager --manager-root $M releases` lists `2.6.0
@@ -1283,41 +1291,147 @@ prepared; flows 4-6 state the documented contract.
    - Expected: `updated . to workflow 2.6.0`; `verify` matches `2.6.0`.
    - Expected: `excluded` twice, then `UnclassifiedPathError` for
      `other.json`. The fallback covers exactly one path, not the directory.
-4. **One real work item, driven by Claude Code in `$T/a`** (CP3, CP4, CP5).
-   Open a Claude Code session in `$T/a` and run `/milestone-plan` for a
-   tiny item (for example, "add a `hello.txt` file"). Let its plan declare a
-   second plan-stage protected document that is new and untracked.
-   - After the plan bundle is generated, `python3
-     scripts/workflow_state.py --plan-review-publication-status <id>` reports
-     the item as bound, and `--resolve-feedback-path <id>` reports `"layout":
-     "scoped"` with `.ai-review/<id>/feedback/`.
-   - `/review-plan` writes its feedback under `.ai-review/<id>/feedback/`.
-     Nothing is written to `.ai-review/feedback/`.
-   - If you give a `REVISE`, `/apply-plan-review` reaches the next round with
-     a single `plan_revision` bump. `.ai-review/<id>/current/` is only
-     replaced when generation succeeds: no `current.staging-*` directory
-     remains and there is no `REJECTED` marker.
-   - `/approve-review plan <id>` makes exactly one approval commit. It
-     contains the new companion document, and `git status --porcelain` is
-     empty afterwards.
-5. **Open amendment shows the uncommitted plan** (CP2). After flow 4's
-   approval, from `IMPLEMENTING`, run `/request-plan-amendment` and edit the
-   plan without committing. Regenerate the plan bundle.
-   - Expected: `.ai-review/<id>/current/AMENDMENT_DIFF.patch` is non-empty
-     and shows your uncommitted edit. Its `#` preamble names the
-     `amendment_base_commit`. `git apply --check` accepts it at that commit.
-6. **Two linked worktrees cannot race an amendment** (CP6,
-   `v2.4.0-002`). Use a second item planned and approved like flow 4. Run
-   `git worktree add $T/a-wt -b wt` and merge `main` into `wt`.
-   - In one worktree, `/milestone-implement` claims a checkpoint. In the
-     other, `/request-plan-amendment` for the same item refuses with
-     `AmendmentCheckpointActiveError`, naming the claimant.
-   - In the other order, the claim refuses with `AmendmentInFlightError`,
-     and nothing is published.
-7. **Optional: watch the automated end-to-end scenarios.** Run `python3
-   $M/tests/test_workflow_2_6_0_hardening_disposable_repo.py -v` (about 30s,
-   18 tests), which drives flows 3-6 plus the mixed-release and
-   crash/takeover cases in real installed repositories.
+4. **Work item `<A>`: plan review through approval, driven by Claude Code
+   in `$T/a`** (CP3, CP4, CP5). Open a Claude Code session in `$T/a`.
+   1. **Declare a new protected companion before the bundle exists.** Run
+      `/milestone-plan` for a tiny item (for example, "add a `hello.txt`
+      file") and note its id `<A>`. Create `docs/<A>-notes.md` with any
+      text, and do **not** `git add` it. Before the plan bundle is
+      generated, make sure `docs/ai-workflow/registry/<A>-artifacts.json`
+      lists `docs/<A>-notes.md` in `plan_stage.protected_paths`. Ask Claude
+      to add it while it writes the declaration, or edit the file yourself
+      before it generates. If you add it after the bundle is generated, you
+      have edited reviewed content, and that needs a new review round.
+   2. **Bound, scoped.** Once `/milestone-plan` reports the item at
+      `AWAITING_LOCAL_PLAN_REVIEW`:
+      - `python3 scripts/workflow_state.py --plan-review-publication-status <A>`
+        prints one JSON object whose `status` is exactly `"BOUND"`.
+      - `python3 scripts/workflow_fingerprint.py --resolve-feedback-path <A>`
+        prints `"layout": "scoped"` and `.ai-review/<A>/feedback/...` paths.
+   3. **Required refusal: plan review is in progress.** At that same
+      `AWAITING_LOCAL_PLAN_REVIEW` phase, run both checks below. Neither may
+      write anything: `git status --porcelain` and the `status` in step 2
+      are unchanged afterwards.
+      - The in-place writer refuses. This calls the same writer
+        `/milestone-plan` and `/apply-plan-review` use to publish a plan
+        revision, and discards the result:
+        ```bash
+        python3 -c "import sys,json; sys.path.insert(0,'scripts'); import workflow_state as ws
+        s=json.load(open('docs/ai-workflow/WORKFLOW_STATE.json')); w=s['work_items']['<A>']
+        ws.publish_plan_revision(s,'<A>',w['plan_revision']+1,'2026-01-01T00:00:00Z',review_content_id='0'*64)"
+        ```
+        Expected: `PlanReviewInProgressError`, naming `<A>`, the phase and
+        `/milestone-plan <A>` as the withdrawal exit.
+      - `/milestone-plan` with **no argument** refuses with
+        `PlanReviewWithdrawalNeedsExplicitIdError`, before any write.
+      - Do **not** run `/milestone-plan <A>` with the id here. At a ready
+        phase, that form is the sanctioned withdrawal, not a refusal. It
+        discards both review stages and would force a new round.
+   4. **Scoped feedback.** `/review-plan <A>` writes
+      `.ai-review/<A>/feedback/REVIEW_FEEDBACK.md`. Nothing new appears
+      under `.ai-review/feedback/`.
+   5. **Optional `REVISE` round.** If you give a `REVISE`, `/apply-plan-review
+      <A>` reaches the next round with a single `plan_revision` bump.
+      `.ai-review/<A>/current/` is replaced only when generation succeeds:
+      no `.ai-review/<A>/current.staging-*` directory remains, and there is
+      no `REJECTED` marker.
+   6. **Required refusal: another item's manual feedback.** Once `<A>` is at
+      `AWAITING_MANUAL_EXTERNAL_PLAN_REVIEW`, write
+      `.ai-review/<A>/feedback/REVIEW_FEEDBACK.md` with
+      `Reviewer role: MANUAL_EXTERNAL_PLAN_REVIEW`, `Status: APPROVE` and
+      `Work item: some-other-item`, then run `/record-manual-plan-review <A>`.
+      Expected: `ManualFeedbackForeignWorkItemError`, naming both
+      `some-other-item` and `<A>`. The phase is still
+      `AWAITING_MANUAL_EXTERNAL_PLAN_REVIEW`, and
+      `docs/ai-workflow/WORKFLOW_STATE.json` is unchanged. Then paste a
+      genuine manual verdict naming `<A>` and re-run the command to continue.
+      `/record-manual-implementation-review` makes the same check
+      (`assert_manual_feedback_names_work_item`); this flow exercises it
+      through the plan-stage command only.
+   7. **Approval closes over the companion.** `/approve-review plan <A>`
+      creates exactly one approval commit.
+      - `git show --stat HEAD` lists `docs/<A>-notes.md`, the file that was
+        untracked until now.
+      - `git ls-tree HEAD docs/<A>-notes.md` shows it in the committed tree.
+      - `git status --porcelain` is empty, apart from anything you created
+        outside the item's declared paths.
+      - `<A>` is now at `IMPLEMENTING`.
+5. **Open amendment on `<A>` shows the uncommitted plan** (CP2). Start from
+   flow 4's end state: `<A>` at `IMPLEMENTING`. Do not run
+   `/milestone-implement`. An amendment is only accepted from
+   `IMPLEMENTING` or `SELF_REVIEWING_IMPLEMENTATION`.
+   1. Run `/request-plan-amendment <A>`. `<A>` moves to `AMENDING_PLAN`.
+   2. Edit `<A>`'s plan document, and do not commit the edit.
+   3. Run `/milestone-plan <A>` while `<A>` is in `AMENDING_PLAN`. It
+      generates the amended plan bundle.
+   4. Expected: `.ai-review/<A>/current/AMENDMENT_DIFF.patch` is non-empty
+      and contains your uncommitted edit. Its leading `#` preamble names
+      `work_item_id`, `amendment_id`, `amendment_base_commit`,
+      `plan_revision` and `review_content_id`.
+   5. The patch applies at `amendment_base_commit`. Copy that value from the
+      preamble:
+      ```bash
+      git worktree add --detach $T/check <amendment_base_commit>
+      git -C $T/check apply --check $T/a/.ai-review/<A>/current/AMENDMENT_DIFF.patch && echo applies
+      git worktree remove $T/check
+      ```
+   6. Leave `<A>` here, in `AMENDING_PLAN`. Flow 6 does not use it.
+6. **Two linked worktrees cannot race an amendment on `<B>`** (CP6,
+   `v2.4.0-002`). A second item is needed because flow 5 deliberately left
+   `<A>` in `AMENDING_PLAN`, with its amendment already open. A checkpoint
+   claim is illegal there, and so is a second amendment request. Keep this
+   setup order so that the merge in step 3 really brings `<B>` into the
+   linked worktree:
+   1. In `$T/a`, on `main`, create the linked worktree **before `<B>`
+      exists**: `git worktree add $T/a-wt -b wt`.
+   2. Still in `$T/a` on `main`, plan and approve a second tiny item `<B>`
+      the way flow 4 does. Steps 4.1 and 4.3-4.6 can be skipped for `<B>`.
+      `<B>` must end at `IMPLEMENTING`, with `git status --porcelain`
+      clean.
+   3. Bring `<B>` into the worktree: `git -C $T/a-wt merge --ff-only main`.
+      Confirm that `$T/a-wt` sees `<B>` at `IMPLEMENTING`:
+      ```bash
+      python3 -c "import json; print(json.load(open('$T/a-wt/docs/ai-workflow/WORKFLOW_STATE.json'))['work_items']['<B>']['phase'])"
+      ```
+   4. The claim is taken and released with the same functions
+      `/milestone-implement` calls at steps 1d and 1f, so no checkpoint has
+      to be implemented. Run each of these from `$T/a-wt`. `<CP>` is
+      `<B>`'s first checkpoint id, for example `CP1`.
+      ```bash
+      # CLAIM
+      python3 -c "import sys; sys.path.insert(0,'scripts'); from pathlib import Path; import workflow_state as ws
+      print(ws.claim_checkpoint(Path.cwd(), '<B>', '<CP>', now='2026-09-26T00:00:00Z')['checkpoint_id'])"
+      # RELEASE
+      python3 -c "import sys; sys.path.insert(0,'scripts'); from pathlib import Path; import workflow_state as ws
+      ws.release_checkpoint(Path.cwd(), '<B>', '<CP>', owner_token=ws.resolve_claim(Path.cwd(), '<B>')['owner_token'], now='2026-09-26T00:00:00Z')"
+      # SHOW
+      python3 -c "import sys; sys.path.insert(0,'scripts'); from pathlib import Path; import workflow_state as ws
+      print(ws.resolve_claim(Path.cwd(), '<B>'))"
+      ```
+   5. **Order 1, the claim first.**
+      - CLAIM in `$T/a-wt` prints `<CP>`.
+      - In `$T/a`, `/request-plan-amendment <B>` refuses with
+        `AmendmentCheckpointActiveError`, naming `$T/a-wt` as the
+        claimant. `<B>` stays at `IMPLEMENTING` in `$T/a`.
+      - RELEASE in `$T/a-wt`, then SHOW prints `None`.
+   6. **Order 2, the amendment first.**
+      - In `$T/a`, `/request-plan-amendment <B>` succeeds, and `<B>` moves
+        to `AMENDING_PLAN` in `$T/a`.
+      - CLAIM in `$T/a-wt` refuses with `AmendmentInFlightError`, even
+        though `$T/a-wt`'s own state still says `IMPLEMENTING` (check it
+        with step 3's command).
+      - SHOW prints `None`: no claim was published.
+7. **Required: the automated disposable-repository suite.** This is part of
+   the functional acceptance evidence, not an optional extra. It drives the
+   cases a manual pass can't reach safely: in-flight `2.5.1` items at four
+   phases being updated, an in-flight flat-feedback item, forced
+   plan-bundle generation failures, mixed-release worktrees, and a crash
+   followed by a takeover in a new process.
+   ```bash
+   python3 $M/tests/test_workflow_2_6_0_hardening_disposable_repo.py -v
+   ```
+   Expected: `Ran 18 tests`, then `OK` (about 30s). Record the final lines
+   in your functional-review notes.
 
 **Known limitations and out of scope.**
 - Mixed-release worktrees remain unsupported. A `2.5.1` worktree that has
@@ -1329,10 +1443,12 @@ prepared; flows 4-6 state the documented contract.
   `2.6.0` downgrade paragraph. Don't treat that as a finding.
 - `fixture.drive_synthetic_work_item_through_checkpoints` cannot drive a
   `2.6.0` target (CP8 observation). Nothing uses it that way.
-- Observed while preparing this checklist and not yet triaged:
-  `scripts/workflow_state.py --plan-review-publication-status <unknown-id>`
-  exits 1 with a raw `KeyError` traceback, not a named refusal. Record it
-  as a finding if you think it matters.
+- **Known issue, non-gating:** `scripts/workflow_state.py
+  --plan-review-publication-status <unknown-id>` exits 1 with a raw
+  `KeyError` traceback, not a named refusal. It was observed while this
+  checklist was prepared, and this checklist-only change deliberately
+  leaves it unfixed. No required flow passes an unknown id. Record it as a
+  finding only if you judge it matters, or if it blocks a required flow.
 - This repository's own unrelated working-tree edits (`.gitignore`,
   `.workflow-manager/installation.json`, `docs/ROADMAP.md`) are not part
   of this milestone.
