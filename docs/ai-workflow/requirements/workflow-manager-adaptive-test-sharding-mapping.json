@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "work_item_id": "workflow-manager-adaptive-test-sharding",
+  "requirements": {
+    "REQ-1": {
+      "description": "An authoritative, deterministic inventory of atomic units (host classes and frozen classes) and a selection grammar that keeps targeted suite/class/test execution available; the full selection is the only gate selection.",
+      "checkpoint_ids": [
+        "CP1",
+        "CP2"
+      ]
+    },
+    "REQ-2": {
+      "description": "Every plan is an exact partition of its selection (union equals selection, pairwise intersections empty, no duplicates or omissions), verified at planning, at shard start and at aggregation, with property tests proving it.",
+      "checkpoint_ids": [
+        "CP3",
+        "CP5"
+      ]
+    },
+    "REQ-3": {
+      "description": "Timing history with a defined committed format, observed-history cache, explicit refresh, and defined behavior for new, orphaned, drifted and corrupt entries; timing never influences which tests are selected.",
+      "checkpoint_ids": [
+        "CP3",
+        "CP7"
+      ]
+    },
+    "REQ-4": {
+      "description": "Adaptive shard count ceil(T/target) clamped to configurable bounds and deterministic duration-balanced (LPT) assignment with chunking of oversized frozen groups; bounds tuned from measurement.",
+      "checkpoint_ids": [
+        "CP3",
+        "CP7"
+      ]
+    },
+    "REQ-5": {
+      "description": "The oversized frozen-suite matrix classes are decomposed into frozen-class chunks run in fresh disposable repositories through the unchanged frozen invocation, whose records merge into the unchanged host assertions against a merge context (planned chunks, discovered classes, tree and plan digests) built independently from the verified plan, never from the records; the merge refuses structurally incomplete or duplicated record sets, while test-count and outcome deviations fail those unchanged assertions as test failures.",
+      "checkpoint_ids": [
+        "CP2"
+      ]
+    },
+    "REQ-6": {
+      "description": "Concurrent execution is isolated (process, TMPDIR, env, repositories, worktrees, locks, bootstrap destinations); non-overlappable tests are declared with reasons, their resources naming the guarded trees they cover, and serialized by phase ordering (exclusive chunks run alone before the worker pool, so they cannot starve), auditable from recorded windows; one run_all.py run per checkout, enforced by a lock under the per-worktree git dir held until the run's last chunk process exits (descendants covered by process-group kill); undeclared writes to the real tree are guarded in stated layers -- transient or persistent create/delete/rename in the guarded trees refused by a write barrier whose recovery acts only for a dead owner, persistent changes detected by a before/after snapshot, syntactic writer patterns flagged by a static lint -- with the residual gap (transient in-place overwrite by code the lint cannot see) and the barrier's propagation into copies documented and tested.",
+      "checkpoint_ids": [
+        "CP1",
+        "CP4",
+        "CP5"
+      ]
+    },
+    "REQ-7": {
+      "description": "A configurable local parallel executor using the same inventory and planner as CI, one aggregated report with failing names, logs and single-unit reproduction commands, and an exit-code contract compatible with existing automation (0 pass, 1 test failure, 2 infrastructure fault).",
+      "checkpoint_ids": [
+        "CP5"
+      ]
+    },
+    "REQ-8": {
+      "description": "A CI pipeline whose matrix is generated from the plan (no hand-written shard allocation), runs the complete selection with the frozen upstream available, and fails closed through a single required aggregate check.",
+      "checkpoint_ids": [
+        "CP6"
+      ]
+    },
+    "REQ-9": {
+      "description": "An authoritative pre-change baseline and post-change local and CI measurements against the ~5-minute CI target, with any unreachable remainder documented quantitatively.",
+      "checkpoint_ids": [
+        "CP7"
+      ]
+    },
+    "REQ-10": {
+      "description": "No coverage or semantic change: no verification tiers, no skipped or conditional tests, frozen and authored Workflow bytes and distribution/ untouched, frozen counts and portability-exception equality still asserted.",
+      "checkpoint_ids": [
+        "CP2",
+        "CP5",
+        "CP7"
+      ]
+    }
+  }
+}

@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "work_item_id": "workflow-manager-adaptive-test-sharding",
+  "plan_revision": 7,
+  "checkpoints": [
+    {
+      "id": "CP1",
+      "name": "Deterministic inventory, selection grammar, tree identity, shared resource and plan-chunk contracts, and per-unit host execution",
+      "depends_on": [],
+      "complexity": 3,
+      "session_target": 1
+    },
+    {
+      "id": "CP2",
+      "name": "Frozen-matrix decomposition: frozen chunks, fail-closed merge, unchanged host assertions in direct and merged modes",
+      "depends_on": [
+        "CP1"
+      ],
+      "complexity": 5,
+      "session_target": 2
+    },
+    {
+      "id": "CP3",
+      "name": "Timing history, adaptive shard count and duration-balanced chunking/assignment planner",
+      "depends_on": [
+        "CP1"
+      ],
+      "complexity": 3,
+      "session_target": 1
+    },
+    {
+      "id": "CP4",
+      "name": "Isolation, declared exclusive units and repository-integrity guard",
+      "depends_on": [
+        "CP1"
+      ],
+      "complexity": 3,
+      "session_target": 1
+    },
+    {
+      "id": "CP5",
+      "name": "Local parallel executor, aggregation/reporting, exit codes and run_all.py compatibility",
+      "depends_on": [
+        "CP2",
+        "CP3",
+        "CP4"
+      ],
+      "complexity": 4,
+      "session_target": 1
+    },
+    {
+      "id": "CP6",
+      "name": "Dynamic CI pipeline generated from the plan, with aggregate as the required check",
+      "depends_on": [
+        "CP5"
+      ],
+      "complexity": 3,
+      "session_target": 1
+    },
+    {
+      "id": "CP7",
+      "name": "Performance acceptance, tuning, committed timing seed, stress runs and full regression",
+      "depends_on": [
+        "CP6"
+      ],
+      "complexity": 2,
+      "session_target": 1
+    }
+  ]
+}
