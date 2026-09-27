@@ -541,6 +541,21 @@ class Failing(unittest.TestCase):
                 self.assertEqual(i, 0)
 
 
+class SkippingSubtests(unittest.TestCase):
+    def test_skips_one(self):
+        for i in range(2):
+            with self.subTest(i=i):
+                if i:
+                    self.skipTest("odd")
+
+    def test_fails_then_skips(self):
+        for i in range(2):
+            with self.subTest(i=i):
+                if i:
+                    self.skipTest("odd")
+                self.assertEqual(i, 1)
+
+
 class BrokenFixture(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -606,6 +621,20 @@ class TestHostUnitExecution(unittest.TestCase):
                          [prefix + "test_bad", prefix + "test_boom", prefix + "test_sub"])
         self.assertEqual(run.record["outcomes"][prefix + "test_boom"], "error")
         self.assertEqual(run.record["outcomes"][prefix + "test_ok"], "ok")
+
+    def test_a_skipped_subtest_is_recorded_under_its_own_method(self):
+        """Review O4: a skipped subtest reaches `addSkip` as a `_SubTest`,
+        whose own method name is `runTest`; it belongs to its test method,
+        and never hides that method's failed subtest."""
+        run = self.launch("SkippingSubtests", index=8)
+        self.assertIsNone(run.infrastructure_fault)
+        prefix = "test_synthetic.py::SkippingSubtests::"
+        self.assertEqual(run.record["outcomes"], {prefix + "test_fails_then_skips": "fail",
+                                                  prefix + "test_skips_one": "skip"})
+        self.assertEqual(run.record["skipped"], {prefix + "test_fails_then_skips": "odd",
+                                                 prefix + "test_skips_one": "odd"})
+        self.assertEqual(run.record["failing"], [prefix + "test_fails_then_skips"])
+        self.assertEqual(sorted(run.record["ran"]), sorted(run.record["outcomes"]))
 
     def test_a_class_fixture_error_is_a_failure(self):
         run = self.launch("BrokenFixture", index=4)
