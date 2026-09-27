@@ -3038,7 +3038,7 @@
       "registry_path": "docs/ai-workflow/registry/workflow-manager-adaptive-test-sharding-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/workflow-manager-adaptive-test-sharding-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "AWAITING_FUNCTIONAL_REVIEW",
       "plan_revision": 7,
       "implementation_revision": 2,
       "functional_review_round": null,
@@ -3108,7 +3108,199 @@
         "waived_guarantees": [],
         "recorded_at": "2026-09-26T21:55:51Z"
       },
-      "technical_approval": null,
+      "technical_approval": {
+        "status": "CURRENT",
+        "basis": "EXTERNAL_APPROVE",
+        "reviewed_bundle_id": "17c8e92cbca5e704ebaefcf8b88f01c3bf56d19448aaee37a5894867639f7c81",
+        "approved_review_content_id": "891abfeafb301ade7f16135feba54cf4de935b6079efa809c7d62295d88d2df9",
+        "review_content_manifest": [
+          {
+            "path": ".github/workflows/workflow-manager-verify.yml",
+            "exists": true,
+            "mode": "100644",
+            "blob": "f5c5ecbdaa291d76641c3f9039cfdf3f9c5b304b"
+          },
+          {
+            "path": "CLAUDE.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "2d98356d1fff26be4025aa776b5d16ba09b16649"
+          },
+          {
+            "path": "README.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "3d20d16362276fbf758175047a88d380c5e54000"
+          },
+          {
+            "path": "docs/ARCHITECTURE.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "66547e3fe1fff04ff68c249cf9dd480ac4b442ad"
+          },
+          {
+            "path": "docs/ai-workflow/registry/workflow-manager-adaptive-test-sharding-artifacts.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "6771478d0207b639885a03e21e57227e5924a1ea"
+          },
+          {
+            "path": "tests/frozen_runs.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "fd699d36ff801fe1f83536e6eee7dee0ff1b8195"
+          },
+          {
+            "path": "tests/parallel/__init__.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "afefa38e3ec66636ae94527f7203166abe123bca"
+          },
+          {
+            "path": "tests/parallel/cli.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "9d72c5d4e60f6721a999e8a856a4b666976c8798"
+          },
+          {
+            "path": "tests/parallel/config.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "7bf2115ca692cde99223f88b286b00b0aad4b2b2"
+          },
+          {
+            "path": "tests/parallel/executor.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "e16ccff7e354bd6bbbc0360beef66bbd112006c7"
+          },
+          {
+            "path": "tests/parallel/frozen_chunk.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "672cb734975332072b9c16b56067887677bd3eb0"
+          },
+          {
+            "path": "tests/parallel/inventory.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "3763e29d019d1173acee6977ad61a11f70b477e1"
+          },
+          {
+            "path": "tests/parallel/isolation.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "ec61812cee71b8774f0c1d6f9aaf979eecde42f5"
+          },
+          {
+            "path": "tests/parallel/matrix.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "4e08f074c31361619800c009f13fee65eeb4db92"
+          },
+          {
+            "path": "tests/parallel/plan_schema.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "9aa121a9606ef5e2d4a80cba0b74a7a3ed920c07"
+          },
+          {
+            "path": "tests/parallel/planner.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "06f22de0a7c3b7e4058aa612cda053fda55285e6"
+          },
+          {
+            "path": "tests/parallel/report.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "ddea2535d8fe5aece5502274acc61d409760e9f2"
+          },
+          {
+            "path": "tests/parallel/resources.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "5c2c643dd0d291a2e6e7ad49d6a0fb66d36961af"
+          },
+          {
+            "path": "tests/parallel/resources.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "6a3589d951291e246d2335f362e84c66ce59520b"
+          },
+          {
+            "path": "tests/parallel/timings.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "50169eb7e7d1eaccdf2dc5152a9cde362ed89d6e"
+          },
+          {
+            "path": "tests/parallel/timings.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "0077e373b4ae9a2eb2c50c07355c0298439f3800"
+          },
+          {
+            "path": "tests/parallel/tree.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "2566a8c8edd15c6ba766f657671660956ac228a2"
+          },
+          {
+            "path": "tests/parallel/unit.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "4bbe432cf287fba3fe62578dd0be22525079adcc"
+          },
+          {
+            "path": "tests/run_all.py",
+            "exists": true,
+            "mode": "100755",
+            "blob": "fe5be08c31a971ef4c2a94c7c5e1ff8afa15e176"
+          },
+          {
+            "path": "tests/support.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "9886417f3028fa546123b3d72c0862a7ccd06553"
+          },
+          {
+            "path": "tests/test_amendment_update_path.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "16d1ec65c72f0de2394f99114589a6958da68d8e"
+          },
+          {
+            "path": "tests/test_bootstrap_e2e.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "3a593ce165b158618d8a7f73f0bb5d352799a68f"
+          },
+          {
+            "path": "tests/test_conformance_suite.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "9e766f70b13e610b57c15dea8ccce5ae7d2030a5"
+          },
+          {
+            "path": "tests/test_parallel_runner.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "a256afc8aa05ba8b596d5b3a78bc08d713e8958c"
+          },
+          {
+            "path": "tests/test_workflow_2_6_0_hardening_disposable_repo.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "afb75be112b63f47f3a8c4ecd1ccba4f2f1f96cf"
+          }
+        ],
+        "reviewed_content_commit": "de833c83f89f916e61c5f1c5f2891b5e46eef192",
+        "legacy_evidence": null,
+        "user_confirmation": "I approve the implementation for workflow-manager-adaptive-test-sharding. P-2: CONFIRM. P-5 CI: CONFIRM.",
+        "waived_guarantees": [],
+        "recorded_at": "2026-09-27T22:05:43Z"
+      },
       "technical_review_block_pins": [],
       "plan_review_stages": {
         "review_content_id": "ac009c9862c080af3718e2fbf0c5ede12b73899eef9199bcd7eab33e820f25d1",
@@ -3127,8 +3319,23 @@
       },
       "functional_acceptance_status": null,
       "blocking_decisions": [],
-      "state_revision": 41,
-      "last_transition": "2026-09-27T20:08:35Z"
+      "state_revision": 44,
+      "last_transition": "2026-09-27T22:05:43Z",
+      "implementation_review_stages": {
+        "review_content_id": "891abfeafb301ade7f16135feba54cf4de935b6079efa809c7d62295d88d2df9",
+        "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "17c8e92cbca5e704ebaefcf8b88f01c3bf56d19448aaee37a5894867639f7c81",
+          "verdict": "APPROVE",
+          "round": 2,
+          "completed_at": "2026-09-27T21:30:34Z"
+        },
+        "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": null,
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-09-27T21:43:33Z"
+        }
+      }
     }
   }
 }
