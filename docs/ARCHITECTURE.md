@@ -249,6 +249,14 @@ design record is
   matrix host classes in merged mode. They assert over the frozen chunks'
   records, merged against a context built from the plan and never from the
   records. A merge that is incomplete, duplicated or foreign is refused.
+  One implicit check does not carry over. In direct mode,
+  `test_the_fixture_state_file_is_the_clean_template` and
+  `test_the_target_carries_no_upstream_host_document` read the fixture
+  after all seven suites ran in it, so they also caught a suite writing
+  into its state file or host documents. In merged mode they read a fresh
+  repository, and per-chunk residue is measured only for `bootstrapped`.
+  The plan's E-MRG-3 measured every suite's full residue at CP2 and found
+  none unclassified, but nothing re-checks it on later runs.
 - **Resources.** `tests/parallel/resources.json` declares the units that
   must not overlap anything (today, only
   `TestMigrateDoesNotDeleteASiblingAuthoredRelease`, which rewrites
