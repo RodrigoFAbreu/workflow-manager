@@ -4619,6 +4619,11 @@ def load_workflow_yaml(text: str):
     return doc
 
 
+#: The single-shard CI reference's measured job time (CP6, run 36318597506:
+#: 110.8 minutes) with a margin.
+CI_SERIAL_SHARD_MINUTES = 150
+
+
 def ci_workflow() -> dict:
     return load_workflow_yaml(CI_WORKFLOW.read_text(encoding="utf-8"))
 
@@ -4656,6 +4661,13 @@ def ci_workflow_problems(doc: dict) -> list[str]:
     jobs = doc.get("jobs") or {}
     need(sorted(jobs) == sorted(CI_JOBS), f"jobs are {sorted(jobs)}, not {sorted(CI_JOBS)}")
     plan, shard, aggregate = ((jobs.get(name) or {}) for name in CI_JOBS)
+    for name in CI_JOBS:
+        minutes = (jobs.get(name) or {}).get("timeout-minutes")
+        need(isinstance(minutes, int) and 0 < minutes < 360,
+             f"{name}: timeout-minutes is {minutes!r}, not below GitHub's 360-minute default")
+    need((shard.get("timeout-minutes") or 0) >= CI_SERIAL_SHARD_MINUTES,
+         f"the shard timeout would kill the single-shard reference "
+         f"(about {CI_SERIAL_SHARD_MINUTES} minutes)")
     need(plan.get("outputs") == {"shards": "${{ steps.plan.outputs.shards }}"},
          "the plan job does not export its plan step's shard list")
     strategy = shard.get("strategy") or {}
@@ -4788,6 +4800,10 @@ class TestCiWorkflowStructure(unittest.TestCase):
             "a shallow checkout": ("          fetch-depth: 0\n", "          fetch-depth: 1\n"),
             "an artifact path in the workspace": ("path: ${{ runner.temp }}/out/\n",
                                                   "path: out/\n"),
+            # Review O9.
+            "no plan timeout": ("    timeout-minutes: 30\n", ""),
+            "a shard timeout too short for shards=1": ("timeout-minutes: 180",
+                                                       "timeout-minutes: 60"),
         }
         for label, (old, new) in mutants.items():
             with self.subTest(mutation=label):
@@ -4795,6 +4811,23 @@ class TestCiWorkflowStructure(unittest.TestCase):
                     else text.replace(old, new, 1)
                 self.assertNotEqual(mutated, text, "the mutation did not apply")
                 self.assertNotEqual(ci_workflow_problems(load_workflow_yaml(mutated)), [])
+
+    def test_a_shard_count_beyond_the_matrix_limit_is_refused(self):
+        """Review O9: the `shards` dispatch input is otherwise unbounded, and a
+        matrix above GitHub's limit fails without saying why."""
+        parser = cli.build_parser()
+        for shards, refused in ((cli.CI_MATRIX_LIMIT, False), (cli.CI_MATRIX_LIMIT + 1, True)):
+            with self.subTest(shards=shards):
+                args = parser.parse_args(["--plan-only", "--profile", "ci", "--shards", str(shards)])
+                stderr = io.StringIO()
+                with contextlib.redirect_stderr(stderr):
+                    if refused:
+                        with self.assertRaises(SystemExit) as ctx:
+                            cli.validate(parser, args)
+                        self.assertEqual(ctx.exception.code, 2)
+                        self.assertIn("matrix limit", stderr.getvalue())
+                    else:
+                        self.assertEqual(cli.validate(parser, args), "plan_only")
 
     def test_the_parser_refuses_what_it_does_not_understand(self):
         for text in ("a: &x 1\n", "a: *x\n", "a: {b: 1}\n", "a: 1 # c\n", "a:\n\tb: 1\n",

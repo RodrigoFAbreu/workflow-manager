@@ -163,6 +163,8 @@ ALLOWED = {
     "update_timings": {"profile", "sources"},
     "restore_barrier": set(),
 }
+#: GitHub Actions' ceiling on the jobs one matrix may generate.
+CI_MATRIX_LIMIT = 256
 _DEFAULTS = {"select": [], "sources": [], "fast": False, "whole_groups": False,
              "allow_root": False}
 
@@ -186,6 +188,9 @@ def validate(parser, args) -> str:
         parser.error("--update-timings needs --profile")
     if args.shards is not None and args.shards < 1:
         parser.error("--shards must be at least 1")
+    if args.profile == "ci" and args.shards is not None and args.shards > CI_MATRIX_LIMIT:
+        parser.error(f"--shards {args.shards} exceeds GitHub's {CI_MATRIX_LIMIT}-job matrix "
+                     f"limit; the CI shard matrix could never run")
     return mode
 
 
