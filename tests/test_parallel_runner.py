@@ -316,6 +316,10 @@ class TestResourcesContract(_RealHostInventory):
 
         cases = {
             "wrong schema_version": _resources_doc(schema_version=2),
+            # Review O8: the two cases below were accepted, or refused under the wrong tag.
+            "float schema_version": _resources_doc(schema_version=1.0),
+            "unhashable resource name": _resources_doc(exclusive={
+                "host:test_a.py::A": {"resources": [["repo:distribution"]], "reason": "x"}}),
             "undeclared resource": _resources_doc(exclusive={
                 "host:test_a.py::A": {"resources": ["repo:nope"], "reason": "x"}}),
             "empty resources list": _resources_doc(exclusive={
