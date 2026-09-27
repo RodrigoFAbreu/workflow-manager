@@ -3745,7 +3745,11 @@ class TestPathFlagsStayOutsideTheRepository(_CliCase):
                      ("--run-shard", "0", "--plan", outside, "--results", inside),
                      ("--results", inside),
                      ("--aggregate", inside, "--plan", outside),
-                     ("--aggregate", self.tmp, "--plan", scratch / "plan.json")):
+                     ("--aggregate", self.tmp, "--plan", scratch / "plan.json"),
+                     # Review O5: --from only reads, but 5.6 covers every path flag.
+                     ("--update-timings", "--profile", "local", "--from", scratch / "tests"),
+                     ("--update-timings", "--profile", "local",
+                      "--from", outside, "--from", inside)):
             with self.subTest(argv=argv):
                 proc = run_cli(scratch, *argv, env=self.env)
                 assert_refusal(self, proc.returncode, proc.stderr, "PathInsideRepositoryError")

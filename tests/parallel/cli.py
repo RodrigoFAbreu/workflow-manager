@@ -199,16 +199,20 @@ def check_paths(repo_root: Path, args) -> None:
     """Every output path, and every path a run reads results from, lies
     outside the repository root (5.6)."""
     root = repository_root(repo_root)
-    for flag in ("out", "plan", "results", "aggregate"):
-        value = getattr(args, flag)
-        if value is None:
-            continue
+
+    def outside(flag: str, value) -> Path:
         resolved = Path(value).expanduser().resolve()
         if resolved == root or root in resolved.parents:
             raise PathInsideRepositoryError(
                 f"--{flag} {value} is inside the repository ({root}); every file the tooling "
                 f"writes or reads results from lives outside the checkout")
-        setattr(args, flag, resolved)
+        return resolved
+
+    for flag in ("out", "plan", "results", "aggregate"):
+        value = getattr(args, flag)
+        if value is not None:
+            setattr(args, flag, outside(flag, value))
+    args.sources = [outside("from", value) for value in args.sources]
 
 
 def main(argv=None, *, repo_root: Path) -> int:
