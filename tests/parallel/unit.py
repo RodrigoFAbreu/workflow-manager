@@ -181,16 +181,22 @@ def unit_env() -> dict[str, str]:
     return env
 
 
+def unit_argv(unit_id: str, record_path: Path, tests=()) -> list[str]:
+    """The command that runs one host chunk (cwd `<repo_root>/tests/`)."""
+    argv = [sys.executable, "-B", "-m", "parallel.unit", "--unit", unit_id,
+            "--record", str(record_path)]
+    for test in tests or ():
+        argv += ["--test", test]
+    return argv
+
+
 def launch(repo_root: Path, unit_id: str, tests, run_dir: Path, index: int) -> UnitRun:
     """Run one host unit in its own process, cwd `<repo_root>/tests/`, and
     collect its record and log from `run_dir` (outside the checkout)."""
     stem = f"{index:04d}"
     record_path = run_dir / f"{stem}.record.json"
     log_path = run_dir / f"{stem}.log"
-    argv = [sys.executable, "-B", "-m", "parallel.unit", "--unit", unit_id,
-            "--record", str(record_path)]
-    for test in tests or ():
-        argv += ["--test", test]
+    argv = unit_argv(unit_id, record_path, tests)
     started = time.monotonic()
     with open(log_path, "w", encoding="utf-8") as log:
         proc = subprocess.run(argv, cwd=str(Path(repo_root) / "tests"), env=unit_env(),

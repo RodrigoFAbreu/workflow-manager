@@ -13,6 +13,11 @@ unchanged matrix host assertions over merged and direct views (T-MRG-3..6).
 
 Checkpoint CP3: timing history and the planner (T-PLN-1..9, T-PLN-8 at
 function level) and the selection's independence from timing (T-INV-6).
+
+Checkpoint CP4: isolation and the repository-integrity guard, function-level
+(T-ISO-1..9, T-ISO-11..14). Every test that takes the run lock or applies the
+barrier does it in a `scratch_checkout` (or a `scratch_worktree` of one),
+never in the real checkout (plan 5.9, "Tests and the lock").
 """
 
 from __future__ import annotations
@@ -20,13 +25,17 @@ from __future__ import annotations
 import contextlib
 import json
 import math
+import multiprocessing
 import os
 import re
 import shutil
+import signal
+import stat
 import subprocess
 import sys
 import tempfile
 import textwrap
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -37,8 +46,8 @@ from support import CI_SUITES, REPO_ROOT
 import frozen_runs
 import test_bootstrap_e2e as bootstrap_e2e
 import test_conformance_suite as conformance_suite
-from parallel import (canonical_json, inventory, matrix, plan_schema, planner, resources, timings,
-                      tree, unit)
+from parallel import (canonical_json, inventory, isolation, matrix, plan_schema, planner, resources,
+                      timings, tree, unit)
 
 TESTS_DIR = REPO_ROOT / "tests"
 EXCLUSIVE_UNIT = "host:test_amendment_update_path.py::TestMigrateDoesNotDeleteASiblingAuthoredRelease"
@@ -2177,6 +2186,838 @@ class TestSelectionIgnoresTiming(unittest.TestCase):
                     tree_digest=inv.tree_digest, resources=NO_RESOURCES, cpu_count=4)
                 self.assertEqual(sorted(_all_plan_units(plan)), sorted(inv.unit_ids()), name)
             self.assertEqual(len({json.dumps(v) for v in outputs.values()}), 1, outputs)
+
+
+# == CP4: isolation and the repository-integrity guard ================================
+
+# -- the scratch checkout (plan 5.9, "Tests and the lock") ----------------------------
+
+SCRATCH_EXCLUSIVE_UNIT = "host:test_scratch_exclusive.py::TestScratchExclusiveWriter"
+SCRATCH_SHARED_UNIT = "host:test_scratch_shared.py::TestScratchReader"
+SCRATCH_PAYLOAD = "distribution/workflow/0.0.1/payload"
+
+SCRATCH_EXCLUSIVE_MODULE = '''
+import shutil
+import tempfile
+import unittest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+class TestScratchExclusiveWriter(unittest.TestCase):
+    """Removes and rebuilds a directory of the scratch `distribution/` tree --
+    the shape of `TestMigrateDoesNotDeleteASiblingAuthoredRelease`."""
+
+    def test_rmtree_and_restore(self):
+        target = ROOT / "distribution" / "workflow" / "0.0.1" / "payload"
+        backup = Path(tempfile.mkdtemp()) / "payload"
+        shutil.copytree(target, backup)
+        shutil.rmtree(target)
+        shutil.copytree(backup, target)
+'''
+
+SCRATCH_SHARED_MODULE = '''
+import unittest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+class TestScratchReader(unittest.TestCase):
+    def test_reads_the_payload(self):
+        path = ROOT / "distribution" / "workflow" / "0.0.1" / "payload" / "scripts" / "tiny_test.py"
+        self.assertIn("unittest", path.read_text())
+'''
+
+SCRATCH_RESOURCES = {
+    "schema_version": 1,
+    "resources": {
+        "repo:distribution": {
+            "paths": ["distribution/"],
+            "description": "the scratch checkout's distribution/ tree, where its synthetic "
+                           "release lives",
+        },
+    },
+    "exclusive": {
+        SCRATCH_EXCLUSIVE_UNIT: {
+            "resources": ["repo:distribution"],
+            "reason": "rmtree()s and rebuilds distribution/workflow/0.0.1/payload",
+        },
+    },
+}
+
+
+def _same_checkout_as_real(root: Path) -> bool:
+    real = REPO_ROOT.resolve()
+    resolved = root.resolve()
+    return resolved == real or real in resolved.parents
+
+
+def scratch_checkout(root: Path, *, resources=SCRATCH_RESOURCES) -> Path:
+    """A throwaway git checkout at `root` with its own git dir (hence its own
+    run lock and marker): a copy of `tests/parallel/` (its `matrix.py` left out
+    and its `resources.json` replaced by `resources`), synthetic host modules
+    including the declared exclusive writer, and the four guarded trees.
+    Refuses the real checkout, anything inside it, and any root sharing its git
+    dir; refuses a `resources` declaration its own host inventory fails."""
+    root = Path(root)
+    if _same_checkout_as_real(root):
+        raise ValueError(f"scratch_checkout refuses the real checkout: {root}")
+    root.mkdir(parents=True)
+    _git_repo(root)
+    if isolation.git_dir(root) == isolation.git_dir(REPO_ROOT):
+        raise ValueError(f"scratch_checkout refuses a root sharing the real git dir: {root}")
+    shutil.copytree(TESTS_DIR / "parallel", root / "tests" / "parallel",
+                    ignore=shutil.ignore_patterns("__pycache__", "matrix.py", "resources.json"))
+    (root / "tests" / "parallel" / "resources.json").write_text(canonical_json(resources))
+    (root / "tests" / "test_scratch_exclusive.py").write_text(SCRATCH_EXCLUSIVE_MODULE)
+    (root / "tests" / "test_scratch_shared.py").write_text(SCRATCH_SHARED_MODULE)
+    scripts = root / SCRATCH_PAYLOAD / "scripts"
+    scripts.mkdir(parents=True)
+    (scripts / "tiny_test.py").write_text(TINY_SUITE)
+    (root / "migration").mkdir()
+    (root / "migration" / "classification.json").write_text("{}\n")
+    (root / "src" / "scratchpkg").mkdir(parents=True)
+    (root / "src" / "scratchpkg" / "__init__.py").write_text("")
+    (root / "tools").mkdir()
+    (root / "tools" / ".keep").write_text("")
+    (root / ".gitignore").write_text("__pycache__/\n*.pyc\n*.ignored\n")
+    _commit_all(root, "scratch")
+    # Valid by construction: loads against the scratch's own host inventory.
+    resources_module_load(root)
+    return root
+
+
+def resources_module_load(root: Path) -> resources.Resources:
+    return resources.load(root, inventory.discover_host(root))
+
+
+def scratch_worktree(scratch: Path) -> Path:
+    """A linked worktree of `scratch`, as a sibling inside the same temporary
+    directory -- its own per-worktree git dir, hence its own lock and marker."""
+    index = 0
+    while (scratch.parent / f"{scratch.name}-wt{index}").exists():
+        index += 1
+    path = scratch.parent / f"{scratch.name}-wt{index}"
+    _git(scratch, "worktree", "add", "-q", "-b", f"wt{index}", str(path))
+    return path
+
+
+def _guarded_modes(root: Path) -> dict[str, int]:
+    """`{relative dir: mode}` for every directory under the guarded trees."""
+    modes = {}
+    for guarded in resources.GUARDED_TREES:
+        for dirpath, _, _ in os.walk(root / guarded):
+            modes[os.path.relpath(dirpath, root)] = stat.S_IMODE(os.lstat(dirpath).st_mode)
+    return modes
+
+
+def _writable(mode: int) -> bool:
+    return bool(mode & stat.S_IWUSR)
+
+
+def _dead(pid: int) -> bool:
+    try:
+        with open(f"/proc/{pid}/stat") as handle:
+            return handle.read().rsplit(")", 1)[1].split()[0] == "Z"
+    except FileNotFoundError:
+        return True
+
+
+def _wait_until(predicate, timeout: float = 15.0) -> bool:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if predicate():
+            return True
+        time.sleep(0.05)
+    return predicate()
+
+
+def _script_argv(code: str, *args) -> list[str]:
+    return [sys.executable, "-B", "-c", textwrap.dedent(code), *map(str, args)]
+
+
+#: A chunk process that waits for `argv[1]` to exist -- the lock fd it was
+#: handed stays open until then.
+_WAIT_FOR_FILE = """
+import os, sys, time
+while not os.path.exists(sys.argv[1]):
+    time.sleep(0.05)
+"""
+
+
+# -- helper processes (module-level, started with the "spawn" context; 5.9) -------
+
+def _hold_lock_and_barrier(scratch_root, ready_path, stop_path):
+    """Take the scratch checkout's run lock, apply the barrier, report ready,
+    and hold both until `stop_path` exists; then restore and release."""
+    lock = isolation.acquire_run_lock(scratch_root)
+    isolation.recover_barrier(scratch_root, lock)
+    barrier = isolation.apply_barrier(scratch_root, lock)
+    Path(ready_path).write_text(json.dumps({"pid": os.getpid()}))
+    while not os.path.exists(stop_path):
+        time.sleep(0.05)
+    isolation.restore_barrier(scratch_root, barrier)
+    lock.release()
+
+
+def _hold_lock_with_child_then_hang(scratch_root, ready_path, stop_path):
+    """Take the lock, apply the barrier, hand the lock fd to a chunk-like child
+    (which lives until `stop_path` exists), report ready, and hang until
+    killed -- a SIGKILLed executor with a chunk still running."""
+    lock = isolation.acquire_run_lock(scratch_root)
+    isolation.recover_barrier(scratch_root, lock)
+    isolation.apply_barrier(scratch_root, lock)
+    child = subprocess.Popen(_script_argv(_WAIT_FOR_FILE, stop_path), start_new_session=True,
+                             pass_fds=(lock.fd,))
+    lock.add_chunk_pgid(child.pid)
+    Path(ready_path).write_text(json.dumps({"pid": os.getpid(), "child": child.pid}))
+    while True:
+        time.sleep(60)
+
+
+class _ScratchCase(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.tmp = Path(self._tmp.name)
+        self.run_dir = self.tmp / "run"
+        self.addCleanup(self._cleanup)
+
+    def _cleanup(self):
+        # A failed test may leave a barrier behind; never leave u-w residue.
+        for dirpath, dirnames, _ in os.walk(self.tmp):
+            for name in dirnames:
+                path = os.path.join(dirpath, name)
+                if not os.path.islink(path):
+                    os.chmod(path, stat.S_IMODE(os.lstat(path).st_mode) | stat.S_IRWXU)
+        self._tmp.cleanup()
+
+    def wait_ready(self, path: Path, process) -> dict:
+        self.assertTrue(_wait_until(lambda: path.exists() or not process.is_alive()),
+                        "helper process never reported ready")
+        self.assertTrue(path.exists(), f"helper process exited with {process.exitcode}")
+        return json.loads(path.read_text())
+
+
+class TestScratchCheckout(_ScratchCase):
+
+    def test_the_real_checkout_is_refused(self):
+        for root in (REPO_ROOT, REPO_ROOT / "tests" / "scratch-here"):
+            with self.subTest(root=root):
+                with self.assertRaises(ValueError):
+                    scratch_checkout(root)
+        self.assertFalse((REPO_ROOT / "tests" / "scratch-here").exists())
+
+    def test_it_has_its_own_git_dir(self):
+        scratch = scratch_checkout(self.tmp / "scratch")
+        self.assertNotEqual(isolation.git_dir(scratch), isolation.git_dir(REPO_ROOT))
+        self.assertEqual(_git(scratch, "status", "--porcelain"), "")
+
+
+# -- T-ISO-1 / -2 / -3: one chunk, its process group, its outcome, its TMPDIR -------
+
+class TestRunChunk(_ScratchCase):
+
+    def run_script(self, chunk_id, code, *args, timeout=60, extra_env=None):
+        record = isolation.chunk_paths(self.run_dir, chunk_id).record
+        return isolation.run_chunk(self.tmp, chunk_id, _script_argv(code, record, *args),
+                                   run_dir=self.run_dir, timeout=timeout, extra_env=extra_env)
+
+    def test_a_timeout_kills_the_whole_process_group(self):
+        pid_file = self.tmp / "grandchild.pid"
+        started = time.monotonic()
+        run = self.run_script("sleeper", """
+            import subprocess, sys, time
+            child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(120)"])
+            open(sys.argv[2], "w").write(str(child.pid))
+            time.sleep(120)
+        """, pid_file, timeout=1.5)
+        self.assertLess(time.monotonic() - started, 30)
+        self.assertEqual(run.outcome, isolation.TIMED_OUT)
+        self.assertIsNotNone(run.infrastructure_fault)
+        self.assertIsNone(run.record)
+        grandchild = int(pid_file.read_text())
+        self.assertTrue(_wait_until(lambda: _dead(grandchild)), "grandchild survived its chunk")
+        self.assertTrue(_dead(run.pgid))
+
+    def test_a_normal_exit_leaves_no_descendant_behind(self):
+        pid_file = self.tmp / "grandchild.pid"
+        started = time.monotonic()
+        run = self.run_script("leaver", """
+            import json, subprocess, sys
+            child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(120)"])
+            open(sys.argv[2], "w").write(str(child.pid))
+            open(sys.argv[1], "w").write(json.dumps({"passed": True}))
+        """, pid_file)
+        self.assertLess(time.monotonic() - started, 30)
+        self.assertEqual(run.outcome, isolation.PASSED)
+        self.assertIsNone(run.infrastructure_fault)
+        grandchild = int(pid_file.read_text())
+        self.assertTrue(_wait_until(lambda: _dead(grandchild)), "grandchild outlived its chunk")
+
+    def test_a_runner_that_dies_without_a_record_is_an_infrastructure_fault(self):
+        run = self.run_script("crasher", "import os; os._exit(0)")
+        self.assertEqual(run.outcome, isolation.MISSING_RECORD)
+        self.assertEqual(run.returncode, 0)
+        self.assertIn("no result record", run.infrastructure_fault)
+
+    def test_a_record_that_disagrees_with_the_exit_code_is_an_infrastructure_fault(self):
+        cases = (("passed-but-1", True, 1), ("failed-but-0", False, 0), ("exit-3", False, 3))
+        for chunk_id, passed, code in cases:
+            with self.subTest(chunk=chunk_id):
+                run = self.run_script(chunk_id, f"""
+                    import json, sys
+                    open(sys.argv[1], "w").write(json.dumps({{"passed": {passed}}}))
+                    sys.exit({code})
+                """)
+                self.assertEqual(run.outcome, isolation.RECORD_MISMATCH)
+                self.assertIsNotNone(run.infrastructure_fault)
+        run = self.run_script("garbled", "import sys; open(sys.argv[1], 'w').write('{')")
+        self.assertEqual(run.outcome, isolation.BAD_RECORD)
+
+    def test_a_failing_chunk_is_a_verdict_not_a_fault(self):
+        run = self.run_script("failing", """
+            import json, sys
+            open(sys.argv[1], "w").write(json.dumps({"passed": False}))
+            sys.exit(1)
+        """)
+        self.assertEqual(run.outcome, isolation.FAILED)
+        self.assertIsNone(run.infrastructure_fault)
+
+    def test_orphaned_tmpdir_files_are_reported_against_the_chunk_and_removed(self):
+        run = self.run_script("litterer", """
+            import json, os, sys
+            tmp = os.environ["TMPDIR"]
+            os.makedirs(os.path.join(tmp, "sub"))
+            open(os.path.join(tmp, "a.txt"), "w").write("x")
+            open(os.path.join(tmp, "sub", "b.txt"), "w").write("y")
+            open(sys.argv[1], "w").write(json.dumps({"passed": True}))
+        """)
+        self.assertEqual(run.outcome, isolation.PASSED)
+        self.assertEqual(run.tmp_residue, ("a.txt", "sub", "sub/b.txt"))
+        self.assertFalse(isolation.chunk_paths(self.run_dir, "litterer").tmp.exists())
+
+    def test_the_chunk_environment_and_session(self):
+        with mock.patch.dict(os.environ, {"PYTHONPATH": "/nowhere", "FORCE_COLOR": "1"}):
+            run = self.run_script("env", """
+                import json, os, sys
+                env = {k: os.environ.get(k) for k in
+                       ("PYTHONPATH", "FORCE_COLOR", "PYTHONDONTWRITEBYTECODE", "PYTHON_COLORS",
+                        "TMPDIR", "WM_EXTRA")}
+                env["own_session"] = os.getsid(0) == os.getpid() == os.getpgid(0)
+                open(sys.argv[1], "w").write(json.dumps({"passed": True, "env": env}))
+            """, extra_env={"WM_EXTRA": "1"})
+        env = run.record["env"]
+        self.assertIsNone(env["PYTHONPATH"])
+        self.assertIsNone(env["FORCE_COLOR"])
+        self.assertEqual((env["PYTHONDONTWRITEBYTECODE"], env["PYTHON_COLORS"], env["WM_EXTRA"]),
+                         ("1", "0", "1"))
+        self.assertEqual(env["TMPDIR"], str(isolation.chunk_paths(self.run_dir, "env").tmp))
+        self.assertTrue(env["own_session"])
+        self.assertLessEqual(run.started_at, run.ended_at)
+
+    def test_the_timeout_formula(self):
+        self.assertEqual(isolation.chunk_timeout(0), 600)
+        self.assertEqual(isolation.chunk_timeout(200), 1000)
+        self.assertEqual(isolation.chunk_timeout(10_000), 3600)
+
+
+# -- T-ISO-4: A0 ordering and the exclusive-window check ------------------------------
+
+def _descriptor(chunk_id, shard, *, exclusive=False, estimate=1.0):
+    return plan_schema.ChunkDescriptor(chunk_id, shard, (f"host:test_{chunk_id}.py::C",),
+                                       estimate, ("repo:distribution",) if exclusive else ())
+
+
+def _synthetic_plan(shards):
+    return {"shards": [{"chunks": [c.to_json() for c in chunks]} for chunks in shards]}
+
+
+class TestPhaseAOrder(unittest.TestCase):
+
+    def test_the_exclusive_chunk_runs_first_whatever_its_shard(self):
+        for exclusive_shard in (0, 7, 15):
+            for position in (0, 25, 50):
+                with self.subTest(shard=exclusive_shard, position=position):
+                    shards = [[_descriptor(f"s{i}c{j}", i) for j in range(50)] for i in range(16)]
+                    exclusive = _descriptor("excl", exclusive_shard, exclusive=True)
+                    shards[exclusive_shard].insert(position, exclusive)
+                    order = isolation.phase_a_order(_synthetic_plan(shards))
+                    self.assertEqual(order.a0, (exclusive,))
+                    self.assertEqual([list(s) for s in order.shards],
+                                     [[c for c in s if not c.exclusive] for s in shards])
+                    self.assertFalse(any(c.exclusive for s in order.shards for c in s))
+
+    def test_one_shard_puts_the_exclusive_chunk_first(self):
+        shared = [_descriptor(f"c{j}", 0) for j in range(5)]
+        exclusive = _descriptor("excl", 0, exclusive=True)
+        order = isolation.phase_a_order(_synthetic_plan([shared[:3] + [exclusive] + shared[3:]]))
+        self.assertEqual(order.a0, (exclusive,))
+        self.assertEqual(order.shards, (tuple(shared),))
+
+    def test_several_exclusive_chunks_keep_plan_order(self):
+        e1, e2, e3 = (_descriptor(n, s, exclusive=True) for n, s in (("e1", 0), ("e2", 1), ("e3", 1)))
+        plan = _synthetic_plan([[_descriptor("a", 0), e1], [e2, _descriptor("b", 1), e3]])
+        self.assertEqual(isolation.phase_a_order(plan).a0, (e1, e2, e3))
+
+    def test_a_malformed_plan_is_refused(self):
+        with self.assertRaises(plan_schema.PlanSchemaError):
+            isolation.phase_a_order({"shards": [{"chunks": [{"id": "x"}]}]})
+
+    def test_exclusive_windows(self):
+        W = isolation.Window
+        shared = [W("a", 0, 10), W("b", 5, 15), W("c", 1, 20)]
+        isolation.check_exclusive_windows(shared)
+        isolation.check_exclusive_windows(shared + [W("x", 20, 30, True), W("y", -5, 0, True)])
+        for clash in (W("x", 19, 30, True), W("x", 2, 3, True), W("x", -5, 0.5, True)):
+            with self.subTest(window=clash):
+                with self.assertRaises(isolation.ExclusiveOverlapError):
+                    isolation.check_exclusive_windows(shared + [clash])
+        with self.assertRaises(isolation.ExclusiveOverlapError):
+            isolation.check_exclusive_windows([W("x", 0, 10, True), W("y", 9, 12, True)])
+
+
+# -- T-ISO-5 / -6 / -7 / -12 / -14: the barrier and the snapshot, in a scratch -----
+
+class TestWriteBarrier(_ScratchCase):
+
+    def run_host(self, scratch_root, unit_id, lock, index):
+        chunk_id = f"{index:02d}-{unit_id}"
+        record = isolation.chunk_paths(self.run_dir, chunk_id).record
+        return isolation.run_chunk(scratch_root, chunk_id, unit.unit_argv(unit_id, record),
+                                   run_dir=self.run_dir, timeout=120,
+                                   cwd=scratch_root / "tests", lock=lock)
+
+    def test_a_transient_structural_writer_is_refused_unless_lifted(self):
+        scratch = scratch_checkout(self.tmp / "scratch")
+        declared = resources_module_load(scratch)
+        chunk = plan_schema.ChunkDescriptor("excl", 0, (SCRATCH_EXCLUSIVE_UNIT,), 1.0,
+                                            declared.resources_of(SCRATCH_EXCLUSIVE_UNIT))
+        pre_modes = _guarded_modes(scratch)
+        before = tree.snapshot(scratch)
+        with isolation.acquire_run_lock(scratch) as lock:
+            barrier = isolation.apply_barrier(scratch, lock)
+            try:
+                refused = self.run_host(scratch, SCRATCH_EXCLUSIVE_UNIT, lock, 1)
+                self.assertEqual(refused.outcome, isolation.FAILED)
+                self.assertEqual(refused.record["failing"],
+                                 ["test_scratch_exclusive.py::TestScratchExclusiveWriter"
+                                  "::test_rmtree_and_restore"])
+                self.assertIn("PermissionError", refused.record["output_tail"])
+                self.assertEqual(lock.holder["chunk_pgids"], [])
+
+                barrier.lift(isolation.lift_trees(declared, chunk))
+                lifted = self.run_host(scratch, SCRATCH_EXCLUSIVE_UNIT, lock, 2)
+                barrier.relock()
+                self.assertEqual(lifted.outcome, isolation.PASSED, lifted.record)
+                self.assertFalse(any(_writable(m) for m in _guarded_modes(scratch).values()))
+            finally:
+                isolation.restore_barrier(scratch, barrier)
+        self.assertEqual(tree.compare(before, tree.snapshot(scratch)), [])
+        self.assertEqual(_guarded_modes(scratch), pre_modes)
+
+    def test_a_transient_in_place_overwrite_is_the_documented_gap(self):
+        scratch = scratch_checkout(self.tmp / "scratch")
+        target = scratch / SCRATCH_PAYLOAD / "scripts" / "tiny_test.py"
+        before = tree.snapshot(scratch)
+        with isolation.acquire_run_lock(scratch) as lock:
+            barrier = isolation.apply_barrier(scratch, lock)
+            try:
+                record = isolation.chunk_paths(self.run_dir, "overwrite").record
+                run = isolation.run_chunk(scratch, "overwrite", _script_argv("""
+                    import json, sys
+                    path = sys.argv[2]
+                    original = open(path, "rb").read()
+                    open(path, "wb").write(b"clobbered")
+                    open(path, "wb").write(original)
+                    open(sys.argv[1], "w").write(json.dumps({"passed": True}))
+                """, record, target), run_dir=self.run_dir, timeout=60, lock=lock)
+            finally:
+                isolation.restore_barrier(scratch, barrier)
+        # Not caught by the barrier (file modes are untouched) ...
+        self.assertEqual(run.outcome, isolation.PASSED)
+        # ... nor by the snapshot (the bytes were restored) ...
+        self.assertEqual(tree.compare(before, tree.snapshot(scratch)), [])
+        # ... but flagged by the static lint when the path is REPO_ROOT-rooted.
+        findings = isolation.lint_source(textwrap.dedent('''
+            import unittest
+            from support import REPO_ROOT
+
+            class TestOverwrite(unittest.TestCase):
+                def test_it(self):
+                    path = REPO_ROOT / "distribution" / "x.py"
+                    original = path.read_bytes()
+                    path.write_bytes(b"clobbered")
+                    path.write_bytes(original)
+        '''), "test_overwrite.py")
+        self.assertEqual([(f.unit, f.pattern) for f in findings],
+                         [("host:test_overwrite.py::TestOverwrite", ".write_bytes() under REPO_ROOT")] * 2)
+
+    def test_a_persistent_writer_is_reported_and_attributed(self):
+        scratch = scratch_checkout(self.tmp / "scratch")
+        leak = scratch / SCRATCH_PAYLOAD / "leak.ignored"
+        tracked = scratch / "tools" / ".keep"
+        before = tree.snapshot(scratch)
+        run_started = time.time()
+        idle = """
+            import json, sys, time
+            time.sleep(0.2)
+            open(sys.argv[1], "w").write(json.dumps({"passed": True}))
+        """
+        runs = []
+        for chunk_id, code, args in (
+                ("idle-1", idle, ()),
+                ("writer", """
+                    import json, os, sys, time
+                    time.sleep(0.2)
+                    open(sys.argv[2], "w").write("left behind")
+                    os.remove(sys.argv[3])
+                    time.sleep(0.2)
+                    open(sys.argv[1], "w").write(json.dumps({"passed": True}))
+                """, (leak, tracked)),
+                ("idle-2", idle, ())):
+            record = isolation.chunk_paths(self.run_dir, chunk_id).record
+            runs.append(isolation.run_chunk(scratch, chunk_id, _script_argv(code, record, *args),
+                                            run_dir=self.run_dir, timeout=60))
+        run_ended = time.time()
+        diffs = tree.compare(before, tree.snapshot(scratch))
+        self.assertEqual([d.path for d in diffs],
+                         [f"{SCRATCH_PAYLOAD}/leak.ignored", "tools/.keep"])
+        windows = [r.window for r in runs] + [isolation.Window("before-the-run", 0, 1)]
+        attributed = isolation.attribute_integrity_diff(
+            scratch, diffs, windows, run_started=run_started, run_ended=run_ended)
+        by_path = {a.path: a for a in attributed}
+        self.assertEqual(by_path[f"{SCRATCH_PAYLOAD}/leak.ignored"].suspects, ("writer",))
+        self.assertEqual(by_path[f"{SCRATCH_PAYLOAD}/leak.ignored"].basis, "mtime")
+        self.assertEqual(by_path["tools/.keep"].suspects, ("idle-1", "idle-2", "writer"))
+        self.assertEqual(by_path["tools/.keep"].basis, "run")
+
+    def test_the_barrier_propagates_into_copies_and_cleanup_removes_them(self):
+        scratch = scratch_checkout(self.tmp / "scratch")
+        with isolation.acquire_run_lock(scratch) as lock:
+            barrier = isolation.apply_barrier(scratch, lock)
+            try:
+                record = isolation.chunk_paths(self.run_dir, "copier").record
+                run = isolation.run_chunk(scratch, "copier", _script_argv("""
+                    import json, os, shutil, stat, sys
+                    copy = os.path.join(os.environ["TMPDIR"], "copy")
+                    shutil.copytree(os.path.join(sys.argv[2], "distribution"), copy)
+                    dirs = [d for d, _, _ in os.walk(copy)]
+                    read_only = all(not os.stat(d).st_mode & stat.S_IWUSR for d in dirs)
+                    try:
+                        open(os.path.join(copy, "new.txt"), "w").write("x")
+                        create = "created"
+                    except PermissionError:
+                        create = "PermissionError"
+                    existing = os.path.join(copy, "workflow", "0.0.1", "payload", "scripts",
+                                            "tiny_test.py")
+                    open(existing, "w").write("overwritten")
+                    result = {"passed": True, "dirs": len(dirs), "read_only": read_only,
+                              "create": create, "overwrite": open(existing).read()}
+                    open(sys.argv[1], "w").write(json.dumps(result))
+                """, record, scratch), run_dir=self.run_dir, timeout=60, lock=lock)
+            finally:
+                isolation.restore_barrier(scratch, barrier)
+        self.assertEqual(run.outcome, isolation.PASSED, run.record)
+        self.assertGreater(run.record["dirs"], 3)
+        self.assertTrue(run.record["read_only"])
+        self.assertEqual(run.record["create"], "PermissionError")
+        self.assertEqual(run.record["overwrite"], "overwritten")
+        self.assertIn("copy", run.tmp_residue)
+        self.assertIn("copy/workflow/0.0.1/payload/scripts/tiny_test.py", run.tmp_residue)
+        self.assertFalse(isolation.chunk_paths(self.run_dir, "copier").tmp.exists())
+
+    def test_scratch_declarations_are_valid_and_lifting_follows_paths(self):
+        scratch = scratch_checkout(self.tmp / "scratch")
+        declared = resources_module_load(scratch)
+        self.assertIn(SCRATCH_EXCLUSIVE_UNIT, inventory.discover_host(scratch))
+        self.assertEqual(declared.exclusive_units(), (SCRATCH_EXCLUSIVE_UNIT,))
+        stray = json.loads(json.dumps(SCRATCH_RESOURCES))
+        stray["exclusive"] = {EXCLUSIVE_UNIT: stray["exclusive"][SCRATCH_EXCLUSIVE_UNIT]}
+        with self.assertRaises(resources.ResourcesFileError):
+            scratch_checkout(self.tmp / "stray", resources=stray)
+
+        chunk = plan_schema.ChunkDescriptor("excl", 0, (SCRATCH_EXCLUSIVE_UNIT,), 1.0,
+                                            declared.resources_of(SCRATCH_EXCLUSIVE_UNIT))
+        self.assertEqual(isolation.lift_trees(declared, chunk), ("distribution/",))
+        with isolation.acquire_run_lock(scratch) as lock:
+            barrier = isolation.apply_barrier(scratch, lock)
+            try:
+                barrier.lift(isolation.lift_trees(declared, chunk))
+                for rel, mode in _guarded_modes(scratch).items():
+                    with self.subTest(dir=rel):
+                        self.assertEqual(_writable(mode), rel.startswith("distribution"))
+                barrier.relock()
+                self.assertFalse(any(_writable(m) for m in _guarded_modes(scratch).values()))
+                with self.assertRaises(isolation.BarrierError):
+                    barrier.lift(("tests/",))
+            finally:
+                isolation.restore_barrier(scratch, barrier)
+
+    def test_relock_covers_directories_the_exclusive_unit_created(self):
+        scratch = scratch_checkout(self.tmp / "scratch")
+        pre_modes = _guarded_modes(scratch)
+        with isolation.acquire_run_lock(scratch) as lock:
+            barrier = isolation.apply_barrier(scratch, lock)
+            try:
+                barrier.lift(("distribution/",))
+                (scratch / "distribution" / "new").mkdir()
+                shutil.rmtree(scratch / SCRATCH_PAYLOAD / "scripts")
+                barrier.relock()
+                self.assertFalse(_writable(os.lstat(scratch / "distribution" / "new").st_mode))
+                marker = json.loads((isolation.state_dir(scratch) / "barrier.json").read_text())
+                self.assertIn("distribution/new", marker["modes"])
+                self.assertNotIn(f"{SCRATCH_PAYLOAD}/scripts", marker["modes"])
+            finally:
+                isolation.restore_barrier(scratch, barrier)
+        self.assertTrue(_writable(os.lstat(scratch / "distribution" / "new").st_mode))
+        expected = {r: m for r, m in pre_modes.items() if not r.startswith(f"{SCRATCH_PAYLOAD}/scripts")}
+        expected["distribution/new"] = _guarded_modes(scratch)["distribution/new"]
+        self.assertEqual(_guarded_modes(scratch), expected)
+
+
+# -- T-ISO-8 / -11 / -13: the run lock, recovery and linked worktrees ---------------
+
+class TestRunLockAndRecovery(_ScratchCase):
+
+    def test_recovery_acts_only_on_a_dead_owner(self):
+        scratch = scratch_checkout(self.tmp / "scratch")
+        pre_modes = _guarded_modes(scratch)
+        ready, stop = self.tmp / "ready", self.tmp / "stop"
+        helper = multiprocessing.get_context("spawn").Process(
+            target=_hold_lock_with_child_then_hang, args=(scratch, str(ready), str(stop)))
+        helper.start()
+        try:
+            child = self.wait_ready(ready, helper)["child"]
+        finally:
+            os.kill(helper.pid, signal.SIGKILL)
+            helper.join(30)
+        self.assertEqual(helper.exitcode, -signal.SIGKILL)
+
+        with self.assertRaises(isolation.RunLockHeldError) as ctx:
+            isolation.acquire_run_lock(scratch)
+        self.assertEqual(ctx.exception.holder["chunk_pgids"], [child])
+        self.assertIn(f"kill -- -{child}", str(ctx.exception))
+        self.assertFalse(any(_writable(m) for m in _guarded_modes(scratch).values()))
+        self.assertTrue((isolation.state_dir(scratch) / "barrier.json").exists())
+
+        stop.write_text("")
+        self.assertTrue(_wait_until(lambda: _dead(child)))
+        lock = None
+        deadline = time.monotonic() + 15
+        while lock is None:
+            try:
+                lock = isolation.acquire_run_lock(scratch)
+            except isolation.RunLockHeldError:
+                self.assertLess(time.monotonic(), deadline, "the lock outlived the child")
+                time.sleep(0.05)
+        with lock:
+            restored = isolation.recover_barrier(scratch, lock)
+            self.assertEqual(sorted(restored), sorted(pre_modes))
+            self.assertEqual(_guarded_modes(scratch), pre_modes)
+            self.assertFalse((isolation.state_dir(scratch) / "barrier.json").exists())
+            self.assertEqual(isolation.recover_barrier(scratch, lock), [])
+
+    def test_a_chunk_holds_the_lock_fd_and_its_group_is_recorded_while_it_runs(self):
+        scratch = scratch_checkout(self.tmp / "scratch")
+        with isolation.acquire_run_lock(scratch) as lock:
+            record = isolation.chunk_paths(self.run_dir, "holder").record
+            run = isolation.run_chunk(scratch, "holder", _script_argv("""
+                import json, os, sys
+                inherited = os.fstat(int(sys.argv[3]))  # before anything else opens an fd
+                same_file = os.path.samestat(inherited, os.stat(sys.argv[2]))
+                result = {"passed": True, "holder": json.load(open(sys.argv[2])),
+                          "same_file": same_file}
+                open(sys.argv[1], "w").write(json.dumps(result))
+            """, record, lock.path, lock.fd), run_dir=self.run_dir, timeout=60, lock=lock)
+            self.assertEqual(run.outcome, isolation.PASSED, run.record)
+            self.assertTrue(run.record["same_file"])
+            self.assertEqual(run.record["holder"]["chunk_pgids"], [run.pgid])
+            self.assertEqual(run.record["holder"]["pid"], os.getpid())
+            self.assertEqual(json.loads(lock.path.read_text())["chunk_pgids"], [])
+
+    def test_the_barrier_is_only_touched_under_the_lock(self):
+        scratch = scratch_checkout(self.tmp / "scratch")
+        other = scratch_checkout(self.tmp / "other")
+        lock = isolation.acquire_run_lock(scratch)
+        lock.release()
+        with self.assertRaises(isolation.BarrierError):
+            isolation.apply_barrier(scratch, lock)
+        with isolation.acquire_run_lock(other) as foreign:
+            with self.assertRaises(isolation.BarrierError):
+                isolation.recover_barrier(scratch, foreign)
+        with isolation.acquire_run_lock(scratch) as held:
+            barrier = isolation.apply_barrier(scratch, held)
+            with self.assertRaises(isolation.BarrierError):
+                isolation.apply_barrier(scratch, held)  # a marker exists: recover first
+            isolation.restore_barrier(scratch, barrier)
+            isolation.restore_barrier(scratch, barrier)  # idempotent
+
+    def test_root_is_refused_unless_allowed(self):
+        scratch = scratch_checkout(self.tmp / "scratch")
+        pre_modes = _guarded_modes(scratch)
+        with isolation.acquire_run_lock(scratch) as lock, \
+                mock.patch("os.geteuid", return_value=0):
+            with self.assertRaises(isolation.RootRefusedError):
+                isolation.apply_barrier(scratch, lock)
+            self.assertEqual(_guarded_modes(scratch), pre_modes)
+            self.assertFalse((isolation.state_dir(scratch) / "barrier.json").exists())
+            barrier = isolation.apply_barrier(scratch, lock, allow_root=True)
+            isolation.restore_barrier(scratch, barrier)
+        self.assertEqual(_guarded_modes(scratch), pre_modes)
+
+    def test_a_directory_already_read_only_is_warned_about_and_kept(self):
+        scratch = scratch_checkout(self.tmp / "scratch")
+        tools = scratch / "tools"
+        os.chmod(tools, 0o555)
+        pre_modes = _guarded_modes(scratch)
+        with isolation.acquire_run_lock(scratch) as lock:
+            barrier = isolation.apply_barrier(scratch, lock)
+            isolation.restore_barrier(scratch, barrier)
+        self.assertEqual(len(barrier.warnings), 1)
+        self.assertIn("tools", barrier.warnings[0])
+        self.assertEqual(_guarded_modes(scratch), pre_modes)
+
+    def test_one_lock_per_checkout(self):
+        scratch = scratch_checkout(self.tmp / "scratch")
+        pre_modes = _guarded_modes(scratch)
+        ready, stop = self.tmp / "ready", self.tmp / "stop"
+        holder = multiprocessing.get_context("spawn").Process(
+            target=_hold_lock_and_barrier, args=(scratch, str(ready), str(stop)))
+        holder.start()
+        try:
+            holder_pid = self.wait_ready(ready, holder)["pid"]
+            applied = _guarded_modes(scratch)
+            self.assertFalse(any(_writable(m) for m in applied.values()))
+            started = time.monotonic()
+            with self.assertRaises(isolation.RunLockHeldError) as ctx:
+                isolation.acquire_run_lock(scratch)
+            self.assertLess(time.monotonic() - started, 2.0)
+            self.assertEqual(ctx.exception.holder["pid"], holder_pid)
+            self.assertEqual(_guarded_modes(scratch), applied)
+        finally:
+            stop.write_text("")
+            holder.join(30)
+        self.assertEqual(holder.exitcode, 0)
+        self.assertEqual(_guarded_modes(scratch), pre_modes)
+        self.assertFalse((isolation.state_dir(scratch) / "barrier.json").exists())
+
+    def test_linked_worktrees_have_their_own_lock_and_barrier(self):
+        scratch = scratch_checkout(self.tmp / "scratch")
+        worktree = scratch_worktree(scratch)
+        main_modes, wt_modes = _guarded_modes(scratch), _guarded_modes(worktree)
+        self.assertNotEqual(isolation.state_dir(scratch), isolation.state_dir(worktree))
+        with isolation.acquire_run_lock(scratch) as main_lock, \
+                isolation.acquire_run_lock(worktree) as wt_lock:
+            main_barrier = isolation.apply_barrier(scratch, main_lock)
+            wt_barrier = isolation.apply_barrier(worktree, wt_lock)
+            try:
+                self.assertTrue((isolation.state_dir(scratch) / "barrier.json").exists())
+                self.assertTrue((isolation.state_dir(worktree) / "barrier.json").exists())
+                isolation.restore_barrier(scratch, main_barrier)
+                self.assertEqual(_guarded_modes(scratch), main_modes)
+                self.assertFalse(any(_writable(m) for m in _guarded_modes(worktree).values()))
+                self.assertEqual(isolation.recover_barrier(scratch, main_lock), [])
+                self.assertFalse(any(_writable(m) for m in _guarded_modes(worktree).values()))
+                with self.assertRaises(isolation.BarrierError):
+                    isolation.recover_barrier(worktree, main_lock)
+            finally:
+                isolation.restore_barrier(worktree, wt_barrier)
+        self.assertEqual(_guarded_modes(worktree), wt_modes)
+
+
+# -- T-ISO-9: the static writer lint ---------------------------------------------------
+
+LINT_MODULE = '''
+import os
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+import unittest
+
+import support
+from support import REPO_ROOT
+from workflow_manager import install
+
+DIST = REPO_ROOT / "distribution"
+
+
+class TestWriters(unittest.TestCase):
+    def test_all(self):
+        subprocess.run([sys.executable, str(REPO_ROOT / "tools" / "migrate.py")])       # 1
+        subprocess.run([sys.executable, "tools/build_release.py", "--overlay", "x"])     # 2
+        install.bootstrap(REPO_ROOT, release)                                             # 3
+        install.update(target=REPO_ROOT / "sub", release=release)                        # 4
+        migrate.migrate(upstream, REPO_ROOT / "distribution")                             # 5
+        self.build_release.build(REPO_ROOT / "migration" / "overlays" / "x")               # 6
+        shutil.rmtree(DIST / "workflow")                                                   # 7
+        os.remove(str(REPO_ROOT / "README.md"))                                            # 8
+        (REPO_ROOT / "a").unlink()                                                         # 9
+        (support.REPO_ROOT / "b").write_text("x")                                          # 10
+        target = DIST / "c"
+        target.write_bytes(b"x")                                                           # 11
+        open(REPO_ROOT / "d", "a")                                                         # 12
+        open(os.path.join(REPO_ROOT, "e"), mode="x")                                       # 13
+        (REPO_ROOT / "f").open("w")                                                        # 14
+        shutil.copy2(src, REPO_ROOT / "g")                                                 # 15
+        shutil.copytree(src, dst=f"{REPO_ROOT}/h")                                         # 16
+        os.replace(src, REPO_ROOT / "i")                                                   # 17
+        Path(src).rename(REPO_ROOT / "j")                                                  # 18
+
+
+class TestReaders(unittest.TestCase):
+    def test_none(self):
+        subprocess.run([sys.executable, str(REPO_ROOT / "tools" / "migrate.py"), "--check"])
+        subprocess.run([sys.executable, str(REPO_ROOT / "tools" / "build_release.py"),
+                        "--overlay", "x", "--check"])
+        install.bootstrap(Path(tmp) / "target", release)
+        shutil.copytree(REPO_ROOT / "distribution" / "workflow", dest)   # damaged_copy's shape
+        shutil.copy(DIST / "x", Path(tmp) / "x")
+        (REPO_ROOT / "README.md").read_text()
+        open(REPO_ROOT / "README.md")
+        open(REPO_ROOT / "README.md", "rb")
+        Path(tmp).joinpath("x").write_text("fine")
+        shutil.rmtree(tmp)
+        os.rename(REPO_ROOT / "x", tmp)
+
+
+def helper():
+    shutil.rmtree(REPO_ROOT / "k")                                                         # 19
+'''
+
+
+class TestStaticLint(unittest.TestCase):
+
+    def test_every_pattern_is_flagged_and_reads_are_not(self):
+        findings = isolation.lint_source(LINT_MODULE, "test_lint.py")
+        lines = LINT_MODULE.splitlines()
+        numbered = {int(line.rsplit("# ", 1)[1]): index + 1 for index, line in enumerate(lines)
+                    if re.search(r"# \d+$", line)}
+        self.assertEqual(sorted(f.line for f in findings), sorted(numbered.values()), findings)
+        self.assertEqual({f.unit for f in findings},
+                         {"host:test_lint.py::TestWriters", None})
+
+    def test_a_declared_unit_is_exempt(self):
+        declared = resources.parse({
+            "schema_version": 1,
+            "resources": {"r": {"paths": ["distribution/"], "description": "d"}},
+            "exclusive": {"host:test_lint.py::TestWriters": {"resources": ["r"], "reason": "x"}},
+        }, ["host:test_lint.py::TestWriters"])
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "tests").mkdir()
+            (Path(tmp) / "tests" / "test_lint.py").write_text(LINT_MODULE)
+            findings = isolation.lint_tests(Path(tmp), declared)
+        self.assertEqual([f.unit for f in findings], [None])
+
+    def test_todays_tests_are_clean_apart_from_the_declared_unit(self):
+        declared = resources.load(REPO_ROOT, inventory.discover_host(REPO_ROOT))
+        self.assertEqual([str(f) for f in isolation.lint_tests(REPO_ROOT, declared)], [])
+        raw = isolation.lint_source(
+            (TESTS_DIR / "test_amendment_update_path.py").read_text(), "test_amendment_update_path.py")
+        self.assertEqual({f.unit for f in raw}, {EXCLUSIVE_UNIT})
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=1)

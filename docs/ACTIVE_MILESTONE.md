@@ -12,7 +12,8 @@ Measured baseline: full serial verification 2162 s (36.0 min) at `db4c7af`.
 
 ## Current checkpoint
 
-CP1, CP2 and CP3 complete; next is CP4 (CP5 needs CP2, CP3 and CP4).
+CP1, CP2, CP3 and CP4 complete; next is CP5 (the executor, which composes
+CP2, CP3 and CP4).
 
 ## Checkpoint log
 
@@ -195,6 +196,146 @@ CP1, CP2 and CP3 complete; next is CP4 (CP5 needs CP2, CP3 and CP4).
   units green, exit 0. INV-5:
   `git diff db4c7af -- distribution migration scripts .claude/commands src tools .github/workflows/workflow-conformance.yml`
   empty. No `__pycache__` appeared under `tests/parallel/`.
+
+### CP4 -- isolation, declared exclusive units and integrity guard (complete)
+
+- `tests/parallel/isolation.py` (new, 5.7-5.9). Every function takes
+  `repo_root`:
+  - `run_chunk` runs one chunk in its own session (`start_new_session`)
+    with `chunk_env` (today's environment minus `PYTHONPATH`/`FORCE_COLOR`,
+    plus `PYTHONDONTWRITEBYTECODE=1`, `PYTHON_COLORS=0` and a private
+    `TMPDIR` at `<run>/tmp/<chunk>/`). The log goes to `<run>/logs/`. It
+    polls for exit with `waitid(WNOWAIT)`, so the group leader stays
+    unreaped (and its pgid cannot be recycled) until `killpg(SIGKILL)` has
+    hit the whole group. That kill happens on timeout (`timed_out`) and
+    again after every exit, so no descendant outlives its chunk.
+  - Outcome classification: `passed`/`failed` are the chunk's own verdict.
+    `timed_out`, `missing_record`, `bad_record` and `record_mismatch` (an
+    exit code outside 0/1, or one that contradicts the record's `passed`)
+    are infrastructure faults.
+  - `clean_tmpdir` adds `u+rwx` to every directory first, reports the
+    residue against the chunk and removes it. `chunk_timeout` implements
+    `max(600, 5 x estimate)` capped at 3600 s.
+  - `phase_a_order(plan)` reads the plan only through
+    `plan_schema.shard_chunks`. A0 holds every exclusive chunk in plan
+    order (shard index, then position); each shard keeps its shared chunks
+    in stored order. `check_exclusive_windows` raises
+    `ExclusiveOverlapError` when an exclusive window overlaps any other
+    window, using half-open intervals, so windows that only touch do not
+    overlap.
+  - `acquire_run_lock` takes `flock(LOCK_EX|LOCK_NB)` on
+    `<git rev-parse --absolute-git-dir>/wm-verify/run.lock` and never
+    waits. The lock file records the holder: pid, start time and the
+    process groups of its live chunks. `run_chunk(lock=...)` passes the
+    fd to the chunk (`pass_fds`) and records the chunk's pgid while it
+    runs. `RunLockHeldError` carries the holder and prints
+    `kill -- -<pgid>` for each live chunk.
+  - `apply_barrier` requires a held lock for that checkout and refuses
+    `RootRefusedError` when `os.geteuid() == 0` unless `allow_root`. It
+    also refuses when a marker already exists (recover first). It writes
+    `<git dir>/wm-verify/barrier.json` (the original mode of every
+    guarded directory, pid and start time; temp name, `fsync`, rename,
+    directory `fsync`) before the first `chmod u-w`. Directories already
+    lacking `u+w` produce a warning and are restored to that same mode.
+  - `Barrier.lift(trees)` restores the recorded modes under exactly the
+    given trees, which must be `GUARDED_TREES` members. `lift_trees`
+    derives them from the chunk's resources' `paths`, never from a
+    name. `Barrier.relock()` re-walks the lifted trees: it records the
+    original mode of any directory the exclusive unit created, forgets
+    removed ones, rewrites the marker, then re-applies `u-w`.
+  - `restore_barrier` is idempotent. `recover_barrier` requires the held
+    lock, validates the marker's shape and paths, restores and deletes
+    it, and is a no-op without a marker.
+  - `attribute_integrity_diff`: for each `tree.compare` difference it
+    names the chunks whose windows overlapped the run. When the path
+    still exists and its mtime falls inside some windows, it narrows to
+    those chunks (`basis: "mtime"`); otherwise it names every chunk in the
+    run (`basis: "run"`).
+  - `lint_source`/`lint_tests` is 5.9's static lint over `tests/*.py`, done
+    with the AST. It flags a list or tuple argv naming
+    `migrate.py`/`build_release.py` without `--check`;
+    `install.bootstrap`/`update` with a `REPO_ROOT`-rooted target; the
+    `tools` writers (`migrate.migrate`/`write_file`/`main`,
+    `build_release.build`/`main`) given any rooted argument; rooted
+    `rmtree`/`os.remove`/`unlink`/`write_text`/`write_bytes`/`open(...,
+    w|a|x)`; and `copy*`/`rename`/`replace` into a rooted destination (a
+    rooted *source* is a read). "Rooted" follows `/`, `+`, `str`/`Path`/
+    `os.path.join`, f-strings, path-preserving methods,
+    `support.REPO_ROOT`, and names assigned from rooted expressions,
+    flow-insensitively per scope. A finding inside a unit that
+    `resources.json` declares exclusive is exempt; a module-level helper
+    has no unit and is never exempt.
+- Two additions beyond the plan's function list, neither of which changes
+  a contract: `Barrier.lift`/`relock` are methods on the applied barrier
+  (the A0 lifting 5.9 describes needs somewhere to keep the recorded
+  modes), and `unit.unit_argv` factors out the host-chunk command that
+  `unit.launch` already built. `launch` is unchanged in behaviour. The
+  barrier's `SIGINT`/`SIGTERM` restore belongs to CP5's executor, which
+  owns the process.
+- `tests/test_parallel_runner.py`:
+  - `scratch_checkout(root, *, resources=...)` git-inits `root` with its
+    own git dir. It copies `tests/parallel/` without `matrix.py` and
+    replaces `resources.json` with a synthetic one: `repo:distribution` ->
+    `["distribution/"]`, with `TestScratchExclusiveWriter` exclusive.
+    It writes the synthetic host modules `test_scratch_exclusive.py`
+    (rmtree-and-restore of the payload) and `test_scratch_shared.py`, and
+    the four guarded trees (a `0.0.1` payload, `migration/`, `src/`,
+    `tools/`). It refuses the real root, any path inside it, and any root
+    sharing its git dir, and refuses a declaration that fails
+    `resources.load` against the scratch's own discovered host inventory.
+  - `scratch_worktree(scratch)` makes a sibling linked worktree.
+  - The helper processes `_hold_lock_and_barrier` and
+    `_hold_lock_with_child_then_hang` are module-level functions taking
+    `scratch_root`, started through `get_context("spawn").Process`. Every
+    lock-reaching call's root is a name bound to
+    `scratch_checkout(...)`/`scratch_worktree(...)`, or that parameter
+    (5.9's accepted root forms).
+  - CP5 adds the frozen-chunk parts (`run_all.py`, `frozen_runs.py`,
+    `support.py`, `src/workflow_manager/`, the full synthetic release,
+    `matrix.py`).
+- Tests (T-ISO-1..9, T-ISO-11..14, function-level, 31 new):
+  - `TestRunChunk` covers T-ISO-1 (a timeout kills a grandchild; a normal
+    exit leaves no descendant), T-ISO-2 (`os._exit` gives
+    `missing_record`), the mismatch and garbled-record faults, T-ISO-3
+    (residue reported and removed), the chunk environment and session,
+    and the timeout formula.
+  - `TestPhaseAOrder` covers T-ISO-4: 1 exclusive among 16 shards x 50,
+    at three shard indices and three positions; one shard; several
+    exclusive chunks; the window checks.
+  - `TestWriteBarrier` covers T-ISO-5 (the undeclared writer fails with
+    `PermissionError` under the barrier and passes lifted; snapshot and
+    modes are unchanged), T-ISO-6 (an in-place overwrite escapes the
+    barrier and the snapshot, asserted, and the lint flags the rooted
+    form), T-ISO-7 (an ignored file is attributed by mtime, a deleted
+    tracked file to the whole run), T-ISO-12 (copies arrive `u-w`,
+    creating in them raises `PermissionError`, overwriting works, and
+    cleanup removes the copy) and T-ISO-14, plus relock over
+    created and removed directories.
+  - `TestRunLockAndRecovery` covers T-ISO-8 (the helper is SIGKILLed with
+    its child alive; the refusal names the child's pgid, the directories
+    stay `u-w`, and once the child exits the lock is acquired and recovery
+    restores every pre-run mode; no-marker recovery is a no-op; the root
+    refusal is tested with `os.geteuid` patched), T-ISO-11, T-ISO-13, lock
+    fd inheritance and pgid recording, and lock-required refusals.
+  - `TestStaticLint` covers T-ISO-9: 19 numbered writer lines flagged
+    exactly, reads not flagged, a declared unit exempt, and today's
+    `tests/` clean. The only raw finding in the real tree is line 453 of
+    `test_amendment_update_path.py`, inside the declared unit.
+- Verification:
+  - `python3 tests/test_parallel_runner.py`: 141/141 OK (21.7 s).
+  - 20 hand mutations of `isolation.py` were all killed. Two survived at
+    first: the chunk's pgid was never recorded in the lock file, and
+    `pass_fds` was dropped. Both came from the same gap: nothing checked
+    what a chunk sees of the lock. The new test covers it. Its first
+    version compared the fd with a reused fd number; it now `fstat`s the
+    inherited fd before opening anything.
+  - `python3 tests/run_all.py --jobs 1 --select test_parallel_runner.py`:
+    34 units green, exit 0.
+  - INV-5:
+    `git diff db4c7af -- distribution migration scripts .claude/commands src tools .github/workflows/workflow-conformance.yml`
+    is empty. No `__pycache__` appeared under `tests/parallel/`.
+  - No `[evidence]` run. The phase-A-under-barrier evidence is CP5's
+    E-EXE-2.
 
 ---
 
