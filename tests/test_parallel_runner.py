@@ -3534,6 +3534,33 @@ class TestExitCodeContract(_CliCase):
                 self.assertIn("TestGamma.test_four", proc.stdout)
                 self.assertNotIn("error[", proc.stderr)
 
+    def test_an_unwritable_timing_history_keeps_the_report_and_the_verdict(self):
+        # A regular file where the cache directory should be: the history
+        # append fails with an `OSError` whoever runs the test.
+        blocker = self.tmp / "not-a-directory"
+        blocker.write_text("")
+        env = dict(self.env, XDG_CACHE_HOME=str(blocker))
+        cases = {"green": ({}, 0, "passed"),
+                 "failing": ({"test_scratch_failing.py": FAILING_HOST_MODULE}, 1, "failed")}
+        for name, (modules, code, outcome) in cases.items():
+            with self.subTest(case=name):
+                scratch = scratch_checkout(self.tmp / name, modules=modules)
+                argv = ("--select", "test_scratch_failing.py") if modules else ()
+                proc = run_cli(scratch, *argv, "--results", self.tmp / f"r-{name}", env=env)
+                self.assertEqual(proc.returncode, code, proc.stdout + proc.stderr)
+                self.assertNotIn("error[", proc.stderr)
+                self.assertIn("warning: could not write the timing history", proc.stderr)
+                self.assertIn("the verdict is unchanged", proc.stderr)
+                self.assertIn("evidence: ", proc.stdout)
+                self.assertIn(f"verdict: exit {code}", proc.stdout)
+                units = _results(self.tmp / f"r-{name}")
+                self.assertIn(outcome, {u["outcome"] for u in units.values()})
+                self.assertTrue((self.tmp / f"r-{name}" / "timings.jsonl").exists())
+                if modules:
+                    self.assertIn(
+                        "failing: test_scratch_failing.py::TestScratchFailing::test_bad",
+                        proc.stdout)
+
     def test_setupclass_errors_import_crashes_and_builder_failures_are_1_not_2(self):
         cases = {"setupclass_error": {"suite": SCRATCH_SUITE_VARIANTS["setupclass_error"]},
                  "import_crash": {"suite": SCRATCH_SUITE_VARIANTS["import_crash"]},
@@ -3990,6 +4017,13 @@ class TestRunShardProvenance(_CliCase):
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
         self.assertIn("verdict: exit 0", summary.read_text())
         self.assertIn("B  host:test_scratch_matrix.py::TestScratchMatrix", proc.stdout)
+
+        # An unwritable step summary is a warning after the report, never exit 2.
+        blocked = run_cli(scratch, "--aggregate", out, "--plan", plan,
+                          env=dict(self.env, GITHUB_STEP_SUMMARY=str(self.tmp / "no" / "s.md")))
+        self.assertEqual(blocked.returncode, 0, blocked.stdout + blocked.stderr)
+        self.assertIn("verdict: exit 0", blocked.stdout)
+        self.assertIn("warning: could not write the step summary", blocked.stderr)
 
         shutil.move(str(out / "shard-1"), str(self.tmp / "held-back"))
         missing = run_cli(scratch, "--aggregate", out, "--plan", plan, env=self.env)

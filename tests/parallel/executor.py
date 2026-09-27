@@ -525,6 +525,16 @@ def write_observations(obs, path: Path, *, append: bool) -> None:
             handle.write(o.to_json_line())
 
 
+def append_side_effect(write, what: str, path, err) -> None:
+    """Run one write the verdict does not depend on, after the report: an
+    `OSError` becomes a warning, never an exit code."""
+    try:
+        write()
+    except OSError as exc:
+        err(f"warning: could not write the {what} to {path}: "
+            f"{exc.strerror or exc}; the verdict is unchanged")
+
+
 def drifted_chunks(results) -> list[str]:
     estimates = {r.chunk.id: r.chunk.estimate for r in results
                  if r.outcome in (isolation.PASSED, isolation.FAILED)}
@@ -651,17 +661,22 @@ def local_run(repo_root: Path, lock: isolation.RunLock, *, specs, jobs, shuffle_
     verdict = verdict_of(results_list, judged, extra_faults=extra)
 
     obs = observations(results_list, "local")
-    write_observations(obs, run_dir / "timings.jsonl", append=False)
-    write_observations(obs, timings_mod.history_path(environ), append=True)
     identity = run_identity(repo_root, plan, inv, results_list,
                             f"local, {plan['n']} worker(s)")
     (run_dir / "results.json").write_text(
         report.results_doc(results_list, verdict.code,
                            inv.frozen.classes if inv.frozen else {}, identity), encoding="utf-8")
+    write_observations(obs, run_dir / "timings.jsonl", append=False)
     keep = not (temporary and verdict.code == 0)
     emit_report(out, plan=plan, inv=inv, results=results_list, verdict=verdict, wall=wall,
                 run_dir=run_dir if keep else None, judged=judged, identity=identity,
                 extra_summary=guard.summary_warnings())
+    # Last, and never part of the verdict: the user-level history is an
+    # incidental cache (5.2), so an unwritable one costs future estimates a
+    # line, not this run its report or its exit code.
+    append_side_effect(lambda: write_observations(obs, timings_mod.history_path(environ),
+                                                  append=True),
+                       "timing history", timings_mod.history_path(environ), err)
     if not keep:
         isolation.clean_tmpdir(run_dir)
     return finish_verdict(verdict, err)
@@ -883,8 +898,10 @@ def aggregate(repo_root: Path, lock, *, results_root: Path, plan_path: Path, all
                        extra_summary=guard.summary_warnings())
     summary = environ.get("GITHUB_STEP_SUMMARY")
     if summary:
-        with open(summary, "a", encoding="utf-8") as handle:
-            handle.write("```\n" + text + "\n```\n")
+        def append_summary():
+            with open(summary, "a", encoding="utf-8") as handle:
+                handle.write("```\n" + text + "\n```\n")
+        append_side_effect(append_summary, "step summary", summary, err)
     return finish_verdict(verdict, err)
 
 
