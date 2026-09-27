@@ -1,0 +1,11 @@
+{
+  "ci_account_concurrent_job_limit": 20,
+  "ci_max_shards": 16,
+  "default_group_overhead_seconds": 0.5,
+  "default_unit_seconds": 30,
+  "local_max_shards": 8,
+  "min_shards": 2,
+  "schema_version": 1,
+  "split_threshold_ratio": 0.5,
+  "target_shard_seconds": 240
+}

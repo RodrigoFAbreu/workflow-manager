@@ -12,8 +12,7 @@ Measured baseline: full serial verification 2162 s (36.0 min) at `db4c7af`.
 
 ## Current checkpoint
 
-CP1 and CP2 complete; next is CP3 (CP4 is also unblocked; CP5 needs CP2,
-CP3 and CP4).
+CP1, CP2 and CP3 complete; next is CP4 (CP5 needs CP2, CP3 and CP4).
 
 ## Checkpoint log
 
@@ -117,6 +116,85 @@ CP3 and CP4).
 - INV-5:
   `git diff db4c7af -- distribution migration scripts .claude/commands src tools .github/workflows/workflow-conformance.yml`
   empty.
+
+### CP3 -- timing history and planner (complete)
+
+- `tests/parallel/timings.py` (new, 5.2): the `timings.json` format
+  (`Timings`, `load`/`parse`: a missing, corrupt or wrong-schema file gives
+  empty estimates plus one warning; each invalid value -- negative, NaN,
+  over 24 h, a bool or string, `samples` outside 1..5 -- is dropped with a
+  warning), `estimate_units` (5.2's new-unit order: measured, other profile
+  x median profile ratio, median of the same module or
+  `version/fixture/suite`, `default_unit_seconds`; orphaned entries inform
+  nothing), `orphaned`, `drifted`, `Observation` (the history-line format;
+  a `fixture` line is a group-overhead observation),
+  `observations_from_record` (host `parallel.unit` records; frozen records
+  give the group overhead as wall minus unittest's own `Ran ... in Xs`,
+  and a one-class chunk also gives its class's time), `read_observations`,
+  `update`, and `python3 -m parallel.timings --from ... --profile ...`,
+  the fold CP5's `--update-timings` will wrap.
+- `tests/parallel/planner.py` (new, 5.3/5.4/INV-1..3): `load_config`
+  (`ConfigError`), `max_shards`/`shard_count`, `lpt`, `make_chunks` (a host
+  class is one chunk; a frozen `(version, fixture, suite)` group over
+  `split_threshold_ratio x target_shard_seconds` splits into
+  `min(classes, k)` LPT chunks, each paying the group overhead once;
+  `whole_groups` splits nothing), `build_plan` (phase A over `n` shards,
+  exclusive chunks first in their shard; phase B -- selected matrix host
+  classes -- over `n` workers locally or `phase_b_workers` in CI; the
+  predicted makespan terms of 5.4 step 5 and their total; the
+  critical-path warning; defaulted/orphaned/warning lists; `plan_digest`),
+  `verify_partition` (`PartitionError`), `load_plan`
+  (`PlanDigestMismatchError`, `TreeDigestMismatchError`, INV-1 re-check),
+  and `plan_checkout` (the same over a checkout's own config, timings and
+  resources). Chunks are written only through
+  `plan_schema.ChunkDescriptor`; exclusivity comes only from a
+  `resources.load` result.
+- Three refinements the plan text does not spell out, none of which
+  changes a contract: (1) LPT picks the smallest `(load, chunk count,
+  index)` -- the count only breaks exact load ties, so zero-estimate
+  chunks never leave a shard empty (the 4/3 bound holds for any
+  tie-break); (2) only the median and sample count are stored, so `update`
+  lets the stored estimate stand in for its own samples as the oldest
+  values when fewer than 5 new ones exist, and a fixture's group overhead
+  is the median of all new overhead observations (0.01 s); (3) `drifted`
+  ignores differences under 1 s, so sub-second classes do not drift on
+  every run (drift stays advisory).
+- `tests/parallel/config.json`: the initial 5.3 bounds (target 240 s,
+  min 2, local max 8, CI max 16, default unit 30 s, default group overhead
+  0.5 s, split ratio 0.5, CI account job limit 20).
+- `tests/parallel/timings.json`, seeded by the committed tooling:
+  `python3 -m parallel.timings --profile local --from <CP2 E-MRG-2
+  one-class records> --from <host run>`. 3890 frozen classes (the four
+  documented portability-exception classes fail and fall back to their
+  suite median) from CP2's E-MRG-2 records, and 105 non-matrix host classes
+  from one serial `parallel.unit` pass over `ac9e7b6` plus CP3's tree (the
+  two CP3 test classes that needed this file failed in that pass and use
+  their module median). Group overhead: conformance 0.28 s, target
+  0.36 s, bootstrapped 0.38 s. **Not tuned:** E-MRG-2 ran up to five
+  chunk processes concurrently, so the frozen values are inflated. They
+  sum to 3744 s against the 2162 s serial baseline, and the largest class
+  is 64.8 s where section 3 measured 22.5 s serially. It does not change
+  the local `n`, which clamps to 8 either way. The `ci` profile and
+  `ci_job_setup_seconds` are empty until CP6; matrix host classes (phase
+  B) use the new-unit rule until CP5 measures them. CP7 refreshes both
+  profiles (the profile's `source` text says so).
+- Real full selection with the committed files, `cpu_count` 16: local
+  `n` 8, 229 phase-A chunks, shard loads 473.2 s each (max/mean 1.00), the
+  critical path 117.3 s (under the 240 s target, no warning), A0 0.7 s;
+  21 units on the new-unit rule, none orphaned. The CI profile plans
+  (`n` 16), but it uses 30 s defaults until CP6 seeds it.
+- Tests: `python3 tests/test_parallel_runner.py` 110/110 OK: T-PLN-1 (60
+  seeded random scenarios), T-PLN-2..7, T-PLN-8 (function level), T-PLN-9,
+  T-INV-6 (seven timing-file variants, byte-identical inventory and
+  selections), config refusals, and the real checkout planning the full
+  selection. 17 hand mutations of `planner.py`/`timings.py` were all killed. One
+  survived at first (keeping the first five samples instead of the last
+  five), because the fixture's two windows happened to share a median;
+  the fixture was changed and the mutant is now killed.
+- `python3 tests/run_all.py --jobs 1 --select test_parallel_runner.py`: 28
+  units green, exit 0. INV-5:
+  `git diff db4c7af -- distribution migration scripts .claude/commands src tools .github/workflows/workflow-conformance.yml`
+  empty. No `__pycache__` appeared under `tests/parallel/`.
 
 ---
 
