@@ -2,7 +2,7 @@
 
 ## Milestone
 
-**Implementing.** `workflow-manager-adaptive-test-sharding`
+**Functional review.** `workflow-manager-adaptive-test-sharding`
 (`governing_workflow_version: "2.2"`, `process`, plan revision 7 approved
 2026-09-26, base `db4c7af`): adaptive, duration-balanced parallel execution
 of this repository's own verification suite (`tests/`), with no coverage
@@ -12,13 +12,16 @@ Measured baseline: full serial verification 2162 s (36.0 min) at `db4c7af`.
 
 ## Current checkpoint
 
-CP1-CP7 complete, the self-review is done, and implementation review round 1
-(`LOCAL_MODEL_IMPLEMENTATION_REVIEW`, `REVISE`: 0 blocking, 3 important, 11
-optional) is applied ("Implementation review round 1" below). Next: the
-post-fix bundle and a second local review round. CP7 is complete **pending
-the user's confirmation of its accepted deviations** (P-2 and P-5 CI) at
-`/approve-review implementation`; P-3 is documented-unreachable under its
-own clause.
+CP1-CP7 are complete, and the implementation is technically approved.
+- The approval is commit `ff7a936`, on basis `EXTERNAL_APPROVE`, for
+  bundle `17c8e92c...`.
+- Both review stages approved it: the local review in its round 2 and the
+  manual external review in its round 1.
+- The user confirmed CP7's accepted deviations, P-2 and P-5 CI, at
+  `/approve-review implementation`. P-3 is documented-unreachable under its
+  own clause.
+
+Next: the user tests against the "Functional review checklist" below.
 
 ## Checkpoint log
 
@@ -1042,6 +1045,122 @@ the pre-fix source and failed there.
 INV-5 at `2b4c0fd`:
 `git diff db4c7af -- distribution migration scripts .claude/commands src tools .github/workflows/workflow-conformance.yml pyproject.toml docs/MIGRATION.md`
 is empty.
+
+## Functional review checklist
+
+You are testing `python3 tests/run_all.py` as an operator uses it.
+- **Technical approval:** commit `ff7a936`, implementation revision 2.
+- **Where findings go:** `.ai-review/feedback/FUNCTIONAL_REVIEW.md`.
+- **Automated verification:** already current. The full gate passed at
+  `35e8717` (4042/4042 units, 25,436 tests, `tests_digest f55cbcd9...`).
+  Only state commits have landed since.
+
+**Setup.**
+- Python 3.12 or later, and a Linux or macOS shell.
+- Nothing needs installing, and there are no feature flags.
+- Run flows 1-3 in this checkout, with a clean working tree. Run flows 4-6
+  in a throwaway clone, so that no scratch test touches this repository:
+
+```bash
+export M=~/Workspace/workflow-manager
+export T=$(mktemp -d) && git clone -q "$M" "$T/c"
+```
+
+**Test data.** None beyond the scratch test modules that flows 4-6 add to
+the clone.
+
+**Flows.**
+
+1. **Full gate.** In `$M`, run `python3 tests/run_all.py; echo "rc=$?"`.
+   Expected:
+   - progress lines `[n/259] ok ...`;
+   - one `ok` line for each of the 13 host modules;
+   - a block listing exactly four frozen chunks with a non-zero exit. They
+     are the documented `2.3.1`/`2.4.0` `bootstrapped`/`target`
+     `TestRetiredScopedRemediationLeavesNoLiveSurface` exceptions;
+   - a shard summary with 8 workers;
+   - an `evidence:` line with `4042/4042 units`, `25436 tests` and
+     `tests_digest f55cbcd9...`;
+   - `verdict: exit 0` and `rc=0`, in about 6.5-7 minutes. The serial
+     baseline was 36 minutes.
+   - While it runs, `test -w distribution || echo read-only` prints
+     `read-only`. Once it ends, `distribution/` is writable again and
+     `git status` is clean.
+2. **Targeted selection, and not a gate.**
+   - `python3 tests/run_all.py --list --select test_templates.py` lists
+     `host:test_templates.py::<Class>` units only.
+   - `python3 tests/run_all.py --select test_templates.py` passes in
+     seconds, and its `evidence:` line says `targeted selection`.
+   - `python3 tests/run_all.py --select nope.py; echo $?` prints
+     `run_all: error[SelectSyntaxError]` naming the five accepted forms,
+     then `2`.
+   - `python3 tests/run_all.py --fast` prints the deprecation note, which
+     says it is a targeted `--select` of eight modules.
+3. **CI plan and its guards.**
+   - `python3 tests/run_all.py --plan-only --profile ci --out $T/plan.json`
+     prints `plan written to ...` and `n=16 shards, ... plan_digest ...`.
+   - `--profile ci --shards 300` is refused: it exceeds the 256-job matrix
+     limit, exit 2.
+   - `--out docs/x.json` is refused with `error[PathInsideRepositoryError]`,
+     exit 2, and nothing is written.
+4. **A failing test is exit 1, with a reproduction command.** In `$T/c`,
+   create `tests/test_zz_scratch.py` holding a class `TestScratchFails`
+   whose test does `self.assertEqual(1, 2)`. Then run
+   `python3 tests/run_all.py --select test_zz_scratch.py; echo $?`.
+   Expected:
+   - a `FAIL test_zz_scratch.py` module line;
+   - a failure block naming
+     `host:test_zz_scratch.py::TestScratchFails`, with `failing:`, `log:`
+     and `reproduce: python3 tests/run_all.py --jobs 1 --select ...`;
+   - the traceback;
+   - `verdict: exit 1`, and `1`.
+5. **Undeclared writes are caught.** In the same clone:
+   - A test that writes `distribution/zz_probe.txt` fails with a
+     permission error, because the write barrier holds. That is exit 1.
+   - A test that writes `docs/zz_probe.txt` passes itself, but the run
+     reports `fault [IntegrityError]: docs/zz_probe.txt changed during the
+     run`, naming the chunk. That is exit 2.
+6. **Concurrency and interruption.** In the clone, add a test that sleeps
+   30 s.
+   - Start `python3 tests/run_all.py --select <it>`.
+   - While it runs, start a second run in another terminal. It is refused
+     at once with `error[RunLockHeldError]`, which names the holder and
+     its chunk process groups. Exit 2.
+   - Press Ctrl-C in the first terminal. It ends with
+     `error[InterruptedRunError]`, exit 2.
+   - Afterwards, `distribution/` is writable again, and
+     `ps -eo args | grep parallel.unit` shows no leftover chunk.
+7. **Optional: CI.** Look at run
+   [36344165589](https://github.com/RodrigoFAbreu/workflow-manager/actions/runs/36344165589)
+   (`workflow-manager-verify`):
+   - a `plan` job, 16 `shard` jobs and an `aggregate` job;
+   - `aggregate` is the verdict, exit 0, with the same `tests_digest`.
+
+   A fresh CI run needs a push. That is your call, and it is not required
+   for this review.
+
+**Known limitations and out of scope.**
+- Accepted deviations, already confirmed:
+  - P-2: serial `--jobs 1` runs at 1.098-1.120x the baseline.
+  - P-5 CI: prediction and balance vary with GitHub queueing and runner
+    speed.
+- P-3 (CI under 5.5 min) cannot be reached under the 20-job cap. CI takes
+  about 7-10 min.
+- The frozen `2.6.0` `workflow_state_test.py` leaves `wf-lifecycle-worker-*`
+  residue in `TMPDIR`. The runner reports it and removes it. It is frozen
+  content, so it is not fixable here.
+- The first full gate on a machine without a timing history is estimated
+  from the committed `tests/parallel/timings.json`. `timing drifted` or
+  `timing defaulted` lines are informational.
+- A `--jobs 1` serial run (about 40 min) is exceptional evidence, not a
+  flow to test (see `docs/ARCHITECTURE.md`).
+- Optional review findings left open:
+  - A post-report cleanup failure can exit 2 after printing exit 0.
+  - An interrupt inside `Popen`'s few-millisecond fork-to-exec window is
+    not covered.
+  - The per-commit `main` CI concurrency group is a follow-up.
+- This repository's own unrelated working-tree edits are not part of this
+  milestone.
 
 ---
 
