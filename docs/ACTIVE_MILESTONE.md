@@ -12,10 +12,11 @@ Measured baseline: full serial verification 2162 s (36.0 min) at `db4c7af`.
 
 ## Current checkpoint
 
-CP1-CP7 complete: every registry checkpoint is done, so the next step is
-`SELF_REVIEWING_IMPLEMENTATION`. CP7 ends with two measured misses flagged for
-the implementation review (P-2 raw, and P-3 plus P-5's CI terms), recorded
-under CP7 below.
+CP1-CP7 complete, and the self-review of the whole milestone diff is done
+(`SELF_REVIEWING_IMPLEMENTATION`, "Self-review" below). Next: the
+implementation-stage review bundle. CP7 ends with two measured misses flagged
+for the implementation review (P-2 raw, and P-3 plus P-5's CI terms),
+recorded under CP7 below.
 
 ## Checkpoint log
 
@@ -785,6 +786,99 @@ under the policy above those runs stand as this checkpoint's evidence.
 INV-5:
 `git diff db4c7af -- distribution migration scripts .claude/commands src tools .github/workflows/workflow-conformance.yml`
 empty.
+
+### Self-review of the milestone diff (`SELF_REVIEWING_IMPLEMENTATION`)
+
+The whole `db4c7af..5c8f7ef` diff was reviewed in three parts: the
+executor, isolation and CLI; the inventory, planner and timings; and the
+frozen merge, the edits to existing tests, the CI workflow and the docs.
+No finding was blocking. Four were important, all confirmed against the code
+and fixed:
+
+- **A barrier that failed part-way through was never undone in-process.**
+  `apply_barrier` writes the marker first, and the guard only receives the
+  `Barrier` once it returns. A `chmod` error, or a SIGINT/SIGTERM while the
+  directories were being locked, left some of them `u-w`, and only the next
+  run or `--restore-barrier` fixed that. `apply_barrier` now restores and
+  deletes the marker on any exception before re-raising (5.9).
+- **An unexpected error exited 1**, the test-failure code, because Python
+  exits 1 on an uncaught exception. Examples: a failed `Popen`, `chmod` or
+  git call, a full disk, or an unwritable timing cache after a green run.
+  `cli.main` now maps every error the tool does not name itself to a tagged
+  exit 2, followed by the traceback (5.11).
+- **`read_observations` overwrote every history line's own profile.** As a
+  result, `--update-timings --profile ci` fed from the local cache would
+  fold local durations into the committed `ci` estimates. A line now keeps
+  its own profile, and `profile` applies only to records and to lines that
+  have none.
+- **A signal-killed frozen chunk could be hidden by a zero.**
+  `MergedResult.returncode` was `max(...)`, so a chunk that printed its
+  summary and then crashed (`-11`) merged to 0 and read as green, where
+  direct mode fails. A negative code now wins. 5.5 says "max". This is a
+  deliberate, strictly fail-closed deviation from it.
+
+Minor findings, also fixed:
+- **`RunLock.release` unlocked for everyone.** It called `LOCK_UN` on the
+  open file description every chunk had inherited. It now only closes its
+  fd, so a live chunk keeps the lock.
+- **An `--allow-root` run was not flagged in the report.** 5.9 requires it.
+  The barrier now carries a warning, and every mode's shard summary prints it.
+- **`--aggregate` counted an unknown chunk outcome as a pass.** An unknown
+  outcome is now `IncompleteResultsError`.
+- **A matrix host class declared exclusive would have been accepted.**
+  Phase B has no A0 step and never lifts the barrier, so the planner now
+  refuses it (`ExclusiveMatrixUnitError`). No such declaration exists today.
+- **An adversarial timing file could reach the planner as `inf`/`nan`.**
+  Non-finite profile ratios are now dropped, and an estimate that is not a
+  valid duration falls through to the next rule.
+- **A truncated line in the shared history cache crashed
+  `--update-timings`.** It is now skipped with a warning.
+- **Timing warnings named the checkout's absolute path.** Those warnings
+  enter the plan, so two checkouts of one tree digested differently
+  (INV-3). They now name the file relative to the checkout.
+- **`results.json` dropped a frozen `setUpClass` error.** It is rendered
+  `module.Class`, and the per-unit `failing` filter missed it. It is now
+  attributed to its class.
+- **The rewritten bootstrapped cleanliness check no longer saw what the
+  class's own generation-script method left in the target.** Before
+  sharding, the live `git status` ran after that method. A new method,
+  `test_the_target_is_still_git_clean_after_this_class_ran`, restores that
+  coverage. It sorts after both methods and is not a view-reading predicate.
+  This adds one test to each of the five bootstrapped matrix classes.
+- **`docs/ARCHITECTURE.md`'s reuse rule never required the cited run's
+  verdict**, and the `tests_digest` docstring claimed "tests that actually
+  ran". The rule now requires the cited run's verdict and records it, and
+  the docstring says what the digest actually covers.
+
+Not changed, recorded for the reviewer:
+- `plan_schema` raises `TypeError` instead of `PlanSchemaError` on a
+  hand-edited plan with mixed-type `units`. That only happens with a
+  hand-made plan.
+- A PR run cancelled by `cancel-in-progress` still runs its `aggregate` to
+  a red result. `if: always()` is kept: `!cancelled()` would let the
+  required check be skipped, and a skipped check counts as passing.
+- `CLAUDE.md` does not repeat `docs/ARCHITECTURE.md`'s note that
+  `--shards 1` takes effect only with `--plan-only`.
+
+Tests: 14 new, in `tests/test_parallel_runner.py` (206 OK directly). Each
+names the fix it covers, including the first SIGTERM and SIGINT tests of
+the executor. Reverting each fix while its test runs was caught in all 15
+cases. `test_bootstrap_e2e.py` has its new method.
+
+Gate, `python3 tests/run_all.py` (8 workers, 16 CPUs):
+- **Before the fixes, at `5c8f7ef`:** exit 0, 404.1 s wall, 25,411 tests,
+  `tests_digest 6bb22c22...`.
+- **On the fixed tree:** exit 0, 409.8 s wall (predicted 424.7 s), 4042/4042
+  units, 25,430 tests (+19: the 14 new runner tests plus one method in each
+  of the five bootstrapped classes), `selection_digest 787699b6...`,
+  `tests_digest d227f2ef...`, `tree_digest 1f2fa583...`. The only frozen
+  failures were the four documented `TestRetiredScopedRemediationLeavesNoLiveSurface`
+  exceptions, judged by their host classes.
+
+That second run includes `tools/migrate.py --check` and every authored
+release's `build_release.py --check`, which run inside the suite. INV-5:
+`git diff db4c7af -- distribution migration scripts .claude/commands src tools .github/workflows/workflow-conformance.yml`
+is empty.
 
 ---
 

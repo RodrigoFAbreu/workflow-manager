@@ -114,13 +114,17 @@ def load(repo_root: Path) -> Timings:
     invalid values (negative, NaN, absurdly large, wrong type) are dropped with
     a warning each; everything valid is kept."""
     path = timings_path(repo_root)
+    # Warnings name the file relative to the checkout: they enter the plan, and
+    # two checkouts of one tree must plan identically (INV-3).
+    label = path.relative_to(Path(repo_root)).as_posix()
     if not path.exists():
-        return Timings(warnings=(f"{path}: no timing file; every estimate is a default",))
+        return Timings(warnings=(f"{label}: no timing file; every estimate is a default",))
     try:
         raw = strict_json_loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:
-        return Timings(warnings=(f"{path}: unreadable ({exc}); every estimate is a default",))
-    return parse(raw, source=str(path))
+        detail = exc.strerror if isinstance(exc, OSError) else exc
+        return Timings(warnings=(f"{label}: unreadable ({detail}); every estimate is a default",))
+    return parse(raw, source=label)
 
 
 def parse(raw, *, source: str = "timings.json") -> Timings:
@@ -210,6 +214,7 @@ def profile_ratio(timings: Timings, profile: str, known_units) -> float | None:
     other = timings.profile_units(other_profile(profile))
     ratios = [active[u].seconds / other[u].seconds for u in sorted(known_units)
               if u in active and u in other and other[u].seconds > 0]
+    ratios = [r for r in ratios if math.isfinite(r)]
     return statistics.median(ratios) if ratios else None
 
 
@@ -231,10 +236,14 @@ def estimate_units(timings: Timings, profile: str, unit_ids, inventory_unit_ids,
 
     out = {}
     for unit in sorted(unit_ids):
+        # A ratio estimate that is not a valid duration (an adversarial file
+        # can make it overflow) falls through to the next rule.
+        scaled = round(other[unit].seconds * ratio, 3) \
+            if unit in other and ratio is not None else None
         if unit in active:
             out[unit] = Estimate(active[unit].seconds, MEASURED)
-        elif unit in other and ratio is not None:
-            out[unit] = Estimate(round(other[unit].seconds * ratio, 3), OTHER_PROFILE)
+        elif scaled is not None and _valid_seconds(scaled):
+            out[unit] = Estimate(scaled, OTHER_PROFILE)
         elif estimate_group(unit) in by_group:
             out[unit] = Estimate(statistics.median(by_group[estimate_group(unit)]), GROUP_MEDIAN)
         else:
@@ -295,7 +304,7 @@ def _from_json_line(obj, profile: str | None) -> Observation | None:
         return None
     if (obj.get("unit") is None) == (obj.get("fixture") is None):
         return None
-    return Observation(profile=obj.get("profile") if profile is None else profile,
+    return Observation(profile=obj.get("profile") or profile,
                        seconds=float(obj["seconds"]), outcome=str(obj.get("outcome")),
                        utc=str(obj.get("utc", "")), unit=obj.get("unit"),
                        fixture=obj.get("fixture"), tree_digest=obj.get("tree_digest"))
@@ -334,23 +343,35 @@ def observations_from_record(obj, profile: str) -> list[Observation]:
     return []
 
 
-def read_observations(paths, profile: str | None = None) -> list[Observation]:
+def read_observations(paths, profile: str | None = None, *,
+                      warnings: list[str] | None = None) -> list[Observation]:
     """Observations from history files (`*.jsonl`) and result directories
     (every `*.record.json` and `*.jsonl` below them), in a deterministic
-    order. `profile` overrides a history line's own profile and is required
-    for records, which carry none. An observation read twice -- a run's
-    results directory holds both a frozen record and the history line made
-    from it -- counts once."""
+    order. A history line keeps its own profile, so `update` never folds one
+    profile's durations into the other; `profile` applies only to records
+    (which carry none, so it is required for them) and to a line without one.
+    A history line that does not parse -- the shared cache can hold a
+    truncated one -- is skipped, and named in `warnings` when given. An
+    observation read twice -- a run's results directory holds both a frozen
+    record and the history line made from it -- counts once."""
     out: list[Observation] = []
     for path in map(Path, paths):
         files = sorted(p for p in path.rglob("*") if p.is_file()) if path.is_dir() else [path]
         for file in files:
             if file.name.endswith(".jsonl"):
-                for line in file.read_text(encoding="utf-8").splitlines():
-                    if line.strip():
-                        obs = _from_json_line(strict_json_loads(line), profile)
-                        if obs is not None:
-                            out.append(obs)
+                lines = file.read_text(encoding="utf-8").splitlines()
+                for number, line in enumerate(lines, 1):
+                    if not line.strip():
+                        continue
+                    try:
+                        obj = strict_json_loads(line)
+                    except ValueError:
+                        if warnings is not None:
+                            warnings.append(f"{file}:{number}: unreadable history line skipped")
+                        continue
+                    obs = _from_json_line(obj, profile)
+                    if obs is not None:
+                        out.append(obs)
             elif file.name.endswith(".record.json"):
                 if profile is None:
                     raise ValueError(f"{file}: a result record needs an explicit profile")
@@ -428,8 +449,12 @@ def main(argv=None, repo_root: Path | None = None) -> int:
     before = load(root)
     for warning in before.warnings:
         print(f"warning: {warning}", file=sys.stderr)
-    after = update(before, read_observations(args.sources, args.profile), args.profile,
-                   inventory_unit_ids=inv.unit_ids(), source=args.source)
+    skipped: list[str] = []
+    obs = read_observations(args.sources, args.profile, warnings=skipped)
+    for warning in skipped:
+        print(f"warning: {warning}", file=sys.stderr)
+    after = update(before, obs, args.profile, inventory_unit_ids=inv.unit_ids(),
+                   source=args.source)
     print(write(after, root))
     return 0
 

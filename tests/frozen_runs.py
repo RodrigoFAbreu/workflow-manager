@@ -390,6 +390,14 @@ def _unique(items) -> tuple[str, ...]:
     return tuple(dict.fromkeys(items))
 
 
+def _merged_returncode(codes) -> int:
+    """The max of the chunks' exit codes, but a negative one (a chunk killed
+    by a signal) wins: `max(0, -11)` would read a crashed chunk as green,
+    where direct mode's single process reports the crash."""
+    codes = list(codes)
+    return min(codes) if min(codes) < 0 else max(codes)
+
+
 @dataclass(frozen=True)
 class MergedResult:
     """One suite's view for the host assertions, whether it came from one
@@ -406,6 +414,8 @@ class MergedResult:
 
     @classmethod
     def combine(cls, records) -> "MergedResult":
+        """`returncode` is the max, except that a chunk killed by a signal
+        (a negative code) is never hidden by a zero: see `_merged_returncode`."""
         records = tuple(sorted(records, key=lambda r: r.chunk_id))
         if not records or len({r.suite for r in records}) != 1:
             raise FrozenMergeError("a merged result needs records of exactly one suite")
@@ -418,7 +428,7 @@ class MergedResult:
                 for r in records)
         return cls(
             suite=records[0].suite,
-            returncode=max(r.returncode for r in records),
+            returncode=_merged_returncode(r.returncode for r in records),
             ran=ran,
             failing=frozenset().union(*(r.failing for r in records)),
             output=output,

@@ -325,6 +325,9 @@ run. The two are equivalent when all of these hold:
 
 - both runs are `evidence: full selection` with the same `selection_digest`
   and `tests_digest`;
+- the cited run's own `verdict:` line was the one the gate needs (`exit 0`
+  for a green gate). Neither digest records a verdict: a red run and a
+  green run of the same selection carry identical digests;
 - nothing that affects what the suite tests or how it runs has changed
   between the two `head` commits. That means `src/`, `tools/`,
   `distribution/`, `migration/`, `scripts/`, the test modules, and the
@@ -345,9 +348,9 @@ is required, when any of the following changes:
 - anything else that concretely makes the old run no longer equivalent.
 
 When you reuse a run, record the original run's identifier (its results
-directory, or its CI run URL) and its `head`. Record its `selection_digest`,
-`tests_digest` and test count, taken from the report's `evidence:` line or
-`results.json`'s `identity`. Also record why it is still equivalent for the
+directory, or its CI run URL), its `head` and its verdict. Record its
+`selection_digest`, `tests_digest` and test count, taken from the report's
+`evidence:` line or `results.json`'s `identity`. Also record why it is still equivalent for the
 current gate: the diff between the two heads and why it does not matter.
 Every run prints that `evidence:` line and stores the same fields in
 `results.json` (a CI shard stores them in its `shard-<k>.json`), so a later

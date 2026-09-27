@@ -66,6 +66,11 @@ class TreeDigestMismatchError(PlanError):
     """A plan was made for a different tree than this checkout's."""
 
 
+class ExclusiveMatrixUnitError(PlanError):
+    """A matrix host class holds a resource: phase B has no A0 and never lifts
+    the barrier, so it could not run exclusively."""
+
+
 # -- config --------------------------------------------------------------------------
 
 def config_path(repo_root: Path) -> Path:
@@ -284,6 +289,11 @@ def build_plan(selection: Selection, *, inventory_unit_ids, matrix_units, timing
 
     b_chunks = [_Chunk(u, (u,), _round(seconds[u]), resources.resources_of(u))
                 for u in phase_b_units]
+    exclusive_b = sorted(c.id for c in b_chunks if c.resources)
+    if exclusive_b:
+        raise ExclusiveMatrixUnitError(
+            f"matrix host classes cannot be declared exclusive (phase B runs them "
+            f"concurrently, under the barrier): {exclusive_b}")
     workers = n if profile == "local" else (phase_b_workers or cpu_count)
     workers = max(1, min(workers, len(b_chunks))) if b_chunks else 0
     phase_b = _assign(b_chunks, workers) if b_chunks else []

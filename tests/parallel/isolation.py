@@ -159,9 +159,11 @@ class RunLock:
             return list(self.holder["chunk_pgids"])
 
     def release(self) -> None:
+        # Close only, never `LOCK_UN`: the lock belongs to the open file
+        # description every chunk inherited, and unlocking it here would drop
+        # it for a chunk that is still alive.
         if self.fd < 0:
             return
-        fcntl.flock(self.fd, fcntl.LOCK_UN)
         os.close(self.fd)
         self.fd = -1
 
@@ -551,11 +553,21 @@ def apply_barrier(repo_root: Path, lock: RunLock, *, allow_root: bool = False,
     modes = {rel: stat.S_IMODE(os.lstat(Path(repo_root) / rel).st_mode) for rel in rels}
     warnings = [f"{rel} already lacks u+w before the barrier; it is restored to that mode"
                 for rel, mode in modes.items() if not mode & stat.S_IWUSR]
+    if os.geteuid() == 0:
+        # Allowed only by `allow_root`; the report flags it (5.9).
+        warnings.insert(0, "running as root (--allow-root): the write barrier does not stop "
+                           "root's writes, so this run's barrier guarantees nothing")
     meta = {"pid": os.getpid(), "started_at": time.time() if now is None else now,
             "repo_root": str(Path(repo_root).resolve())}
     barrier = Barrier(repo_root, marker, modes, meta, warnings)
-    barrier._write_marker()
-    barrier._lock_dirs(rels)
+    try:
+        barrier._write_marker()
+        barrier._lock_dirs(rels)
+    except BaseException:
+        # A failure or signal part-way through leaves some directories `u-w`
+        # and the caller no `Barrier` to restore: undo it here (5.9).
+        restore_barrier(repo_root, barrier)
+        raise
     return barrier
 
 

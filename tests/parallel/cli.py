@@ -35,6 +35,7 @@ from __future__ import annotations
 import argparse
 import subprocess
 import sys
+import traceback
 from pathlib import Path
 
 from . import executor, inventory, isolation, planner, report
@@ -212,8 +213,21 @@ def check_paths(repo_root: Path, args) -> None:
 
 def main(argv=None, *, repo_root: Path) -> int:
     """The whole command, against the checkout at `repo_root` -- the only root
-    anything here ever reads; no flag or environment variable changes it."""
-    repo_root = Path(repo_root)
+    anything here ever reads; no flag or environment variable changes it.
+
+    Any error the tool does not name itself (a failed `Popen`, `chmod` or git
+    call, a full disk) is still an infrastructure fault: exit 2, tagged, with
+    the traceback -- never the uncaught-exception exit 1 that means a test
+    failed (5.11)."""
+    try:
+        return _main(argv, repo_root=Path(repo_root))
+    except Exception as exc:  # noqa: BLE001 -- the exit-code contract
+        code = refuse(exc)
+        traceback.print_exc()
+        return code
+
+
+def _main(argv, *, repo_root: Path) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     mode = validate(parser, args)

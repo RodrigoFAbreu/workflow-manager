@@ -114,6 +114,18 @@ class _BootstrappedRepositorySatisfiesTheFrozenSuiteAssertions:
         ]
         self.assertEqual(ignorable, [])
 
+    def test_the_target_is_still_git_clean_after_this_class_ran(self):
+        # The pre-sharding check read the target's live status after every
+        # method sorted before it, so it also saw what the generation script
+        # run above leaves behind. The suites' residue is measured separately
+        # now (above); this keeps the class's own methods covered. Named to
+        # sort after both.
+        ignorable = [
+            line for line in _git(self.target, "status", "--porcelain").splitlines()
+            if "__pycache__" not in line and not line.endswith(".pyc")
+        ]
+        self.assertEqual(ignorable, [])
+
 
 class TestBootstrappedRepositorySatisfiesTheFrozenSuite231(
     _BootstrappedRepositorySatisfiesTheFrozenSuiteAssertions, unittest.TestCase,
