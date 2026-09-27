@@ -39,6 +39,12 @@ present," not "never per-version."
 
 Slow (~2 minutes per release): the acceptance matrix drives real `git` and
 the real `prepare-ai-review.sh` across 146 rows, twice per release.
+
+The matrix classes' frozen-suite results come from `tests/frozen_runs.py`:
+run here in `setUpClass`, one repository, every suite in order (direct mode,
+whenever `WM_FROZEN_RECORDS` is unset), or merged from independently run
+chunk records against a merge context (merged mode, set up by the parallel
+executor). The assertions read the same per-suite fields either way.
 """
 
 from __future__ import annotations
@@ -57,43 +63,41 @@ from support import (
     CI_SUITES,
     REPO_ROOT,
     expected_portability_exceptions,
-    failing_tests,
-    run_suite,
 )
 
-from workflow_manager.fixture import build_conformance_repo, build_target_repo
+from frozen_runs import open_matrix_run
 from workflow_manager.release import find_release
 
-RAN_RE = re.compile(r"^Ran (\d+) tests? in ", re.MULTILINE)
 
-
-def _ran(output: str) -> int:
-    match = RAN_RE.search(output)
-    if match is None:
-        raise AssertionError(f"no unittest summary in output:\n{output[-2000:]}")
-    return int(match.group(1))
+def _ran(result) -> int:
+    if result.ran is None:
+        raise AssertionError(f"no unittest summary in output:\n{result.output[-2000:]}")
+    return result.ran
 
 
 class _SuiteRun:
-    """One build of a disposable repository, with every frozen suite run once."""
+    """One build of a disposable repository, with every frozen suite's result
+    -- run once in that repository (direct mode), or merged from chunk
+    records (merged mode; `tests/frozen_runs.py`). `results` maps each suite
+    to a `frozen_runs.MergedResult` either way."""
 
     results: dict = {}
     root: Path | None = None
     workflow_version: str | None = None
-    _tmp = None
+    _run = None
 
     @classmethod
-    def build(cls, builder, workflow_version: str):
-        cls._tmp = tempfile.TemporaryDirectory()
+    def build(cls, fixture: str, workflow_version: str):
         cls.workflow_version = workflow_version
-        cls.root = builder(find_release(REPO_ROOT, workflow_version), Path(cls._tmp.name) / "repo")
-        cls.results = {suite: run_suite(cls.root, suite) for suite in CI_SUITES[workflow_version]}
+        cls._run = open_matrix_run(workflow_version, fixture)
+        cls.root = cls._run.root
+        cls.results = cls._run.results
 
     @classmethod
     def teardown(cls):
-        if cls._tmp is not None:
-            cls._tmp.cleanup()
-            cls._tmp = None
+        if cls._run is not None:
+            cls._run.cleanup()
+            cls._run = None
 
 
 class _ConformanceFixtureAssertions:
@@ -107,7 +111,7 @@ class _ConformanceFixtureAssertions:
 
     @classmethod
     def setUpClass(cls):
-        cls.Run.build(build_conformance_repo, workflow_version=cls.WORKFLOW_VERSION)
+        cls.Run.build("conformance", workflow_version=cls.WORKFLOW_VERSION)
 
     @classmethod
     def tearDownClass(cls):
@@ -115,15 +119,15 @@ class _ConformanceFixtureAssertions:
 
     def test_every_frozen_suite_passes(self):
         failed = {
-            suite: proc.stdout + proc.stderr
-            for suite, proc in self.Run.results.items() if proc.returncode != 0
+            suite: result.output
+            for suite, result in self.Run.results.items() if result.returncode != 0
         }
         self.assertEqual(sorted(failed), [], "\n\n".join(failed.values())[-4000:])
 
     def test_every_suite_runs_the_frozen_number_of_tests(self):
         counts = {
-            suite: _ran(proc.stdout + proc.stderr)
-            for suite, proc in self.Run.results.items()
+            suite: _ran(result)
+            for suite, result in self.Run.results.items()
         }
         self.assertEqual(counts, dict(CI_SUITES[self.WORKFLOW_VERSION]))
 
@@ -207,7 +211,7 @@ class _BootstrappedTargetAssertions:
 
     @classmethod
     def setUpClass(cls):
-        cls.Run.build(build_target_repo, workflow_version=cls.WORKFLOW_VERSION)
+        cls.Run.build("target", workflow_version=cls.WORKFLOW_VERSION)
 
     @classmethod
     def tearDownClass(cls):
@@ -216,8 +220,8 @@ class _BootstrappedTargetAssertions:
     def test_failures_are_exactly_the_documented_portability_exceptions(self):
         expected = expected_portability_exceptions(self.WORKFLOW_VERSION)
         actual = {}
-        for suite, proc in self.Run.results.items():
-            names = failing_tests(proc.stdout + proc.stderr)
+        for suite, result in self.Run.results.items():
+            names = set(result.failing)
             if names:
                 actual[suite] = names
         self.assertEqual(actual, expected)
@@ -225,18 +229,18 @@ class _BootstrappedTargetAssertions:
     def test_every_suite_still_runs_the_frozen_number_of_tests(self):
         """A target must not lose tests -- only fail the documented ones."""
         counts = {
-            suite: _ran(proc.stdout + proc.stderr)
-            for suite, proc in self.Run.results.items()
+            suite: _ran(result)
+            for suite, result in self.Run.results.items()
         }
         self.assertEqual(counts, dict(CI_SUITES[self.WORKFLOW_VERSION]))
 
     def test_suites_with_no_exception_pass_outright(self):
         expected = expected_portability_exceptions(self.WORKFLOW_VERSION)
-        for suite, proc in self.Run.results.items():
+        for suite, result in self.Run.results.items():
             if suite in expected:
                 continue
-            self.assertEqual(proc.returncode, 0,
-                             f"{suite} failed:\n{(proc.stdout + proc.stderr)[-3000:]}")
+            self.assertEqual(result.returncode, 0,
+                             f"{suite} failed:\n{result.output[-3000:]}")
 
     def test_the_target_carries_no_upstream_host_document(self):
         text = (self.Run.root / "docs/ACTIVE_MILESTONE.md").read_text()
@@ -248,8 +252,7 @@ class _BootstrappedTargetAssertions:
         one must be a test that really does fail in a clean target."""
         expected = expected_portability_exceptions(self.WORKFLOW_VERSION)
         for suite, tests in expected.items():
-            proc = self.Run.results[suite]
-            observed = failing_tests(proc.stdout + proc.stderr)
+            observed = set(self.Run.results[suite].failing)
             self.assertEqual(tests & observed, tests, f"{suite}: stale exception entry")
 
 

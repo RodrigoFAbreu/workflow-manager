@@ -56,9 +56,15 @@ def frozen_bytes(path: str) -> bytes:
     ).stdout
 
 
-def run_suite(repo: Path, suite: str, timeout: int = 1800) -> subprocess.CompletedProcess:
+def run_suite(repo: Path, suite: str, timeout: int = 1800,
+              classes=()) -> subprocess.CompletedProcess:
     """One frozen conformance suite, run the way the frozen CI runs it:
     from `scripts/`, with no PYTHONPATH help.
+
+    `classes` names test classes of the suite to run instead of all of them;
+    they are appended to argv, where the suite's own bare `unittest.main()`
+    resolves them against `__main__` -- the same code path as a whole-suite
+    run.
 
     `PYTHON_COLORS=0` pins Python 3.13+'s traceback colorizer off regardless
     of the invoking shell's own `FORCE_COLOR`/`NO_COLOR` -- `failing_tests`
@@ -73,7 +79,7 @@ def run_suite(repo: Path, suite: str, timeout: int = 1800) -> subprocess.Complet
     env["GIT_CONFIG_GLOBAL"] = "/dev/null"
     env["GIT_CONFIG_SYSTEM"] = "/dev/null"
     return subprocess.run(
-        [sys.executable, suite], cwd=str(repo / "scripts"),
+        [sys.executable, suite, *classes], cwd=str(repo / "scripts"),
         capture_output=True, text=True, timeout=timeout, env=env,
     )
 

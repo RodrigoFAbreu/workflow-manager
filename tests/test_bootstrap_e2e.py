@@ -9,40 +9,35 @@ repository through an update cycle with live work-item state in it.
 Slow (~2 minutes per release): `TestBootstrappedRepositorySatisfiesTheFrozen
 Suite231`/`240` (CP6) each drive the frozen acceptance matrix once, against a
 repository bootstrapped from `2.3.1` and from `2.4.0` respectively.
+
+The matrix classes' frozen-suite results come from `tests/frozen_runs.py`:
+run here in `setUpClass`, one repository, every suite in order (direct mode,
+whenever `WM_FROZEN_RECORDS` is unset), or merged from independently run
+chunk records against a merge context (merged mode, set up by the parallel
+executor). The assertions read the same per-suite fields either way.
 """
 
 from __future__ import annotations
 
 import json
-import re
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
 
-from support import CI_SUITES, REPO_ROOT, expected_portability_exceptions, failing_tests, run_suite
+from support import CI_SUITES, REPO_ROOT, expected_portability_exceptions
 
-from workflow_manager.install import bootstrap, drift, update, verify
+from frozen_runs import FIXED_NOW, open_matrix_run
+from frozen_runs import empty_repo as _empty_repo
+from workflow_manager.install import bootstrap, update, verify
 from workflow_manager.installation import Installation
 from workflow_manager.release import find_release, sha256
-
-FIXED_NOW = "2026-01-01T00:00:00Z"
-RAN_RE = re.compile(r"^Ran (\d+) tests? in ", re.MULTILINE)
 
 
 def _git(repo: Path, *args: str) -> str:
     return subprocess.run(["git", "-C", str(repo), *args],
                           check=True, capture_output=True, text=True).stdout
-
-
-def _empty_repo(root: Path) -> Path:
-    root.mkdir(parents=True, exist_ok=True)
-    _git(root, "init", "-q", "-b", "main")
-    _git(root, "config", "user.email", "e2e@example.invalid")
-    _git(root, "config", "user.name", "E2E")
-    _git(root, "config", "commit.gpgsign", "false")
-    return root
 
 
 class _BootstrappedRepositorySatisfiesTheFrozenSuiteAssertions:
@@ -56,40 +51,41 @@ class _BootstrappedRepositorySatisfiesTheFrozenSuiteAssertions:
 
     @classmethod
     def setUpClass(cls):
-        cls._tmp = tempfile.TemporaryDirectory()
-        cls.release = find_release(REPO_ROOT, cls.WORKFLOW_VERSION)
-        cls.target = _empty_repo(Path(cls._tmp.name) / "consumer")
-        cls.installation = bootstrap(cls.target, cls.release, now=FIXED_NOW)
-        _git(cls.target, "add", "-A")
-        _git(cls.target, "commit", "-q", "-m", "bootstrap workflow")
-        cls.results = {suite: run_suite(cls.target, suite) for suite in CI_SUITES[cls.WORKFLOW_VERSION]}
+        # `frozen_runs.build_bootstrapped_repo` is the bootstrap-and-commit
+        # this class always did; `results` maps each suite to a
+        # `frozen_runs.MergedResult`, run here (direct mode) or merged from
+        # chunk records (merged mode), and the post-run residue and drift
+        # travel with each suite's result.
+        cls.matrix_run = open_matrix_run(cls.WORKFLOW_VERSION, "bootstrapped")
+        cls.release = cls.matrix_run.release
+        cls.target = cls.matrix_run.root
+        cls.results = cls.matrix_run.results
 
     @classmethod
     def tearDownClass(cls):
-        cls._tmp.cleanup()
+        cls.matrix_run.cleanup()
 
     def test_failures_are_exactly_the_documented_exceptions(self):
         actual = {}
-        for suite, proc in self.results.items():
-            names = failing_tests(proc.stdout + proc.stderr)
+        for suite, result in self.results.items():
+            names = set(result.failing)
             if names:
                 actual[suite] = names
         self.assertEqual(actual, expected_portability_exceptions(self.WORKFLOW_VERSION))
 
     def test_every_suite_runs_the_frozen_number_of_tests(self):
         counts = {}
-        for suite, proc in self.results.items():
-            match = RAN_RE.search(proc.stdout + proc.stderr)
-            self.assertIsNotNone(match, f"{suite} produced no summary")
-            counts[suite] = int(match.group(1))
+        for suite, result in self.results.items():
+            self.assertIsNotNone(result.ran, f"{suite} produced no summary")
+            counts[suite] = result.ran
         self.assertEqual(counts, dict(CI_SUITES[self.WORKFLOW_VERSION]))
 
     def test_the_acceptance_matrix_passes_outright(self):
         """The strongest single row: every documented lifecycle behaviour,
         driven through the real `prepare-ai-review.sh`, for a process and a
         product work item, inside a bootstrapped repository."""
-        proc = self.results["workflow_acceptance_matrix_test.py"]
-        self.assertEqual(proc.returncode, 0, (proc.stdout + proc.stderr)[-3000:])
+        result = self.results["workflow_acceptance_matrix_test.py"]
+        self.assertEqual(result.returncode, 0, result.output[-3000:])
 
     def test_the_real_generation_script_runs_in_the_bootstrapped_repository(self):
         """A smoke test at the shell boundary: the installed script is
@@ -104,13 +100,16 @@ class _BootstrappedRepositorySatisfiesTheFrozenSuiteAssertions:
 
     def test_the_installation_verifies_clean_after_the_suite_ran(self):
         """The suites write scratch repositories in `/tmp`, never into the
-        repository under test."""
-        self.assertEqual(drift(self.target, self.release), [])
+        repository under test. `drift` is measured after every suite
+        invocation (one per suite in direct mode, one per chunk in merged
+        mode) and unioned."""
+        self.assertEqual(self.matrix_run.drift, [])
 
     def test_the_suite_left_the_repository_git_clean(self):
-        untracked = _git(self.target, "status", "--porcelain")
+        # `git status --porcelain` lines, measured and unioned like `drift`.
+        untracked = self.matrix_run.residue
         ignorable = [
-            line for line in untracked.splitlines()
+            line for line in untracked
             if "__pycache__" not in line and not line.endswith(".pyc")
         ]
         self.assertEqual(ignorable, [])

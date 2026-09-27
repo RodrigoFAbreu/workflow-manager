@@ -12,8 +12,8 @@ Measured baseline: full serial verification 2162 s (36.0 min) at `db4c7af`.
 
 ## Current checkpoint
 
-CP1 complete; next is CP2 (CP3 and CP4 are also unblocked; each depends
-on CP1 only).
+CP1 and CP2 complete; next is CP3 (CP4 is also unblocked; CP5 needs CP2,
+CP3 and CP4).
 
 ## Checkpoint log
 
@@ -49,6 +49,74 @@ on CP1 only).
   `run_all.py --fast` green. INV-5:
   `git diff db4c7af -- distribution migration scripts .claude/commands src tools .github/workflows/workflow-conformance.yml`
   empty. No `__pycache__` appeared under `tests/parallel/`.
+
+### CP2 -- frozen-matrix decomposition (complete)
+
+- `tests/support.py`: `run_suite(..., classes=())` appends class names to
+  argv; nothing else changes.
+- `tests/parallel/matrix.py` (new, data only): `FROZEN_MATRIX` (the 15
+  matrix host classes -> `(version, fixture)`), `FIXTURES`, and a
+  `CI_SUITES` view imported from `support`.
+- `tests/parallel/inventory.py`: frozen discovery (`discover_frozen`, read
+  inside its own subprocess from the pointed-at checkout; one child per
+  release, cwd that release's `payload/scripts/`; `InventoryCountError`
+  when a suite's total differs from its pin), frozen unit ids
+  `frozen:<version>/<fixture>/<suite>.py::<Class>`, the two frozen
+  `--select` forms, a matrix host class pulling in all of its frozen
+  classes, and the "partial frozen selection" flag.
+- `tests/frozen_runs.py` (new): `FrozenChunk`, `FrozenRecord`, `execute`
+  (fresh repository per chunk; a raising builder yields a build-error
+  record; a timeout yields a `timed_out` record), `MergeContext` (canonical
+  `to_json`/`from_json`, validated partition), `merge` (structural checks
+  only, every expected value from the context and the release manifest),
+  `MergedResult` (`combine`/`from_single`, per-chunk attribution),
+  `open_matrix_run` (direct mode when `WM_FROZEN_RECORDS` is unset; merged
+  mode refuses a missing `WM_FROZEN_CONTEXT`, a missing context file, and
+  a context for another tree), the full-state snapshot
+  (`full_state`/`state_delta`/`classify_delta`, `FLOCK_TARGETS` with their
+  2.6.0 source lines), and the `--evidence
+  {merged,one-class,residue,compare}` driver.
+- `tests/test_conformance_suite.py`, `tests/test_bootstrap_e2e.py`: the 15
+  matrix classes' `setUpClass` goes through `open_matrix_run`; assertions
+  read `MergedResult` fields. No assertion removed, no expected value
+  changed. `bootstrapped` residue and drift are now measured after every
+  suite invocation and unioned (5.5, "strictly more attribution").
+- `tests/run_all.py`: `--jobs 1` runs frozen classes selected without their
+  host class as one chunk per suite, without host assertions.
+- Tests: `python3 tests/test_parallel_runner.py` 74/74 OK (T-INV-1..5 frozen
+  parts, T-INV-3, T-INV-7, T-MRG-1..7).
+- Evidence (`python3 tests/frozen_runs.py --evidence ... --out <scratch>`,
+  one process per release x mode, then `--evidence compare`, exit 0):
+  - **E-MRG-1** direct == merged over the fixed two-chunk chunking, for all
+    15 release x fixture rows: identical per-suite `ran`, `failing` and
+    pass/fail, and every host assertion passes in both modes.
+  - **E-MRG-2** one class per chunk (223 / 233 / 265 / 266 / 311 chunks per
+    fixture for 2.3.1 / 2.4.0 / 2.5.0 / 2.5.1 / 2.6.0): equal to direct for
+    all 15 rows.
+  - **E-MRG-3** full repository and git-dir state delta per suite, in
+    today's sequential order, all 15 rows, run without
+    `PYTHONDONTWRITEBYTECODE` (as direct mode runs): **no unclassified
+    delta**. The only deltas are pre-classified bytecode caches:
+    `scripts/__pycache__/workflow_state.cpython-314.pyc` (after
+    `workflow_state_test.py`),
+    `scripts/__pycache__/workflow_fingerprint.cpython-314.pyc` (after
+    `workflow_fingerprint_test.py`) and, in 2.6.0 only,
+    `scripts/__pycache__/workflow_acceptance_matrix_test.cpython-314.pyc`.
+    No `flock` target, ref, config, worktree, hook or git-dir artifact
+    delta appeared. Per 5.5's decision rule, the fresh-repository model
+    (`D-Frozen-Run-Fresh-Repo`) loses nothing observable, and no
+    `sequential-canary` is needed. A first E-MRG-3 pass run with
+    `PYTHONDONTWRITEBYTECODE=1` saw zero deltas; it was re-run in the real
+    environment for fidelity. E-MRG-1's direct leg also ran with bytecode
+    writing off (the benign difference 5.5 notes).
+  - The tree's status and `tree_digest` were identical before and after all
+    evidence runs.
+- `python3 tests/run_all.py` (direct mode, full selection): every module
+  OK, exit 0 (`test_conformance_suite.py` 1444 s, `test_bootstrap_e2e.py`
+  707 s, run concurrently with the E-MRG-3 re-run).
+- INV-5:
+  `git diff db4c7af -- distribution migration scripts .claude/commands src tools .github/workflows/workflow-conformance.yml`
+  empty.
 
 ---
 

@@ -7,11 +7,15 @@
     python3 tests/run_all.py --jobs 1 [--select SPEC ...]
 
 `--select` is repeatable (the union of its matches) and takes
-`test_x.py`, `test_x.py::Class` or `test_x.py::Class::test_y`. It is
-targeted selection for debugging -- never a verification gate. `--jobs 1`
-runs each selected host class in its own process, one at a time, in direct
-mode (the matrix classes run their frozen suites in `setUpClass`, as
-today); it takes no run lock and no write barrier.
+`test_x.py`, `test_x.py::Class`, `test_x.py::Class::test_y`,
+`frozen:<version>/<fixture>/<suite>.py` or
+`frozen:<version>/<fixture>/<suite>.py::Class`. It is targeted selection for
+debugging -- never a verification gate. `--jobs 1` runs each selected host
+class in its own process, one at a time, in direct mode (the matrix classes
+run their frozen suites in `setUpClass`, as today); frozen classes selected
+without their matrix host class run as one chunk per suite in a fresh
+repository, with no host assertions. It takes no run lock and no write
+barrier.
 """
 
 from __future__ import annotations
@@ -33,7 +37,7 @@ TESTS_DIR = Path(__file__).resolve().parent
 REPO_ROOT = TESTS_DIR.parent
 sys.path.insert(0, str(TESTS_DIR))
 
-from parallel import inventory, unit  # noqa: E402
+from parallel import inventory, tree, unit  # noqa: E402
 
 FAST_SUITES = (
     "test_migration_inventory.py",
@@ -97,11 +101,53 @@ def reproduce(unit_id: str, tests) -> str:
     return "python3 tests/run_all.py --jobs 1 " + " ".join(f"--select '{s}'" for s in specs)
 
 
-def run_units_serially(repo_root: Path, selection: inventory.Selection) -> int:
+def reproduce_frozen(unit_ids) -> str:
+    return "python3 tests/run_all.py --jobs 1 " + " ".join(f"--select '{u}'" for u in unit_ids)
+
+
+def run_frozen_chunks(repo_root: Path, selection: inventory.Selection,
+                      frozen: inventory.FrozenInventory) -> tuple[int, int]:
+    """Frozen units selected without their matrix host class, one chunk per
+    `(version, fixture, suite)`, each in a fresh repository. Returns
+    `(chunks, failed chunks)`."""
+    import frozen_runs
+
+    host_units = set(selection.host_unit_ids())
+    groups: dict[tuple[str, str, str], list[str]] = {}
+    for unit_id in selection.frozen_unit_ids():
+        version, fixture, suite, cls = inventory.split_frozen_unit_id(unit_id)
+        if frozen.host_of(version, fixture) not in host_units:  # else its host class runs it
+            groups.setdefault((version, fixture, suite), []).append(cls)
+    if not groups:
+        return 0, 0
+    digest = tree.tree_digest(repo_root)
+    failed = 0
+    for (version, fixture, suite), classes in sorted(groups.items()):
+        chunk = frozen_runs.FrozenChunk(f"{version}/{fixture}/{suite}", version, fixture, suite,
+                                        tuple(sorted(classes)))
+        record = frozen_runs.execute(chunk, tree_digest=digest, plan_digest=None,
+                                     repo_root=repo_root)
+        ok = record.returncode == 0 and not record.timed_out
+        failed += not ok
+        label = f"frozen:{chunk.id} [{len(classes)} classes]"
+        summary = f"Ran {record.ran} tests  " + ("OK" if ok else f"FAILED (rc {record.returncode})")
+        print(f"{'ok  ' if ok else 'FAIL'} {label:<78} {record.duration:6.1f}s  {summary}",
+              flush=True)
+        if not ok:
+            for name in record.failing:
+                print(f"  failing: {name}")
+            units = [inventory.frozen_unit_id(version, fixture, suite, c) for c in sorted(classes)]
+            print(f"  reproduce: {reproduce_frozen(units)}")
+            print(record.output[-6000:])
+    return len(groups), failed
+
+
+def run_units_serially(repo_root: Path, selection: inventory.Selection,
+                       frozen: inventory.FrozenInventory) -> int:
     run_dir = Path(tempfile.mkdtemp(prefix="wm-run-"))
     runs = []
     started = time.monotonic()
-    for index, unit_id in enumerate(selection.unit_ids()):
+    for index, unit_id in enumerate(selection.host_unit_ids()):
         tests = selection.units[unit_id]
         run = unit.launch(repo_root, unit_id, tests, run_dir, index)
         runs.append((run, tests))
@@ -112,6 +158,7 @@ def run_units_serially(repo_root: Path, selection: inventory.Selection) -> int:
             status = "ok  " if run.record["passed"] else "FAIL"
             summary = _summary(run.record)
         print(f"{status} {unit_id:<78} {run.wall:6.1f}s  {summary}", flush=True)
+    chunks, failed_chunks = run_frozen_chunks(repo_root, selection, frozen)
     wall = time.monotonic() - started
 
     faults = [(r, t) for r, t in runs if r.infrastructure_fault]
@@ -126,8 +173,11 @@ def run_units_serially(repo_root: Path, selection: inventory.Selection) -> int:
         print(f"  log: {run.log_path}")
         print(f"  reproduce: {reproduce(run.unit, tests)}")
         print(run.log_path.read_text(encoding="utf-8", errors="replace")[-6000:])
-    print(f"\n{len(runs)} units, {wall:.1f}s wall", end="")
-    if faults or failures:
+    print(f"\n{len(runs)} units{f', {chunks} frozen chunks' if chunks else ''}, "
+          f"{wall:.1f}s wall", end="")
+    if selection.partial_frozen:
+        print(f"; {inventory.PARTIAL_FROZEN_NOTE}", end="")
+    if faults or failures or failed_chunks:
         print(f"; results kept in {run_dir}")
         return 2 if faults else 1
     print()
@@ -159,7 +209,7 @@ def main(argv=None, repo_root: Path = REPO_ROOT) -> int:
     try:
         specs = [inventory.parse_spec(s) for s in args.select]
         inv = inventory.discover(repo_root)
-        selection = inventory.select(inv.host, specs)
+        selection = inventory.select(inv.host, specs, inv.frozen)
     except (inventory.SelectSyntaxError, inventory.UnknownSelectorError,
             inventory.InventoryError) as exc:
         return refuse(exc)
@@ -168,8 +218,10 @@ def main(argv=None, repo_root: Path = REPO_ROOT) -> int:
         for unit_id in selection.unit_ids():
             tests = selection.units[unit_id]
             print(unit_id if tests is None else f"{unit_id}  [{', '.join(tests)}]")
+        if selection.partial_frozen:
+            print(inventory.PARTIAL_FROZEN_NOTE)
         return 0
-    return run_units_serially(repo_root, selection)
+    return run_units_serially(repo_root, selection, inv.frozen)
 
 
 if __name__ == "__main__":
