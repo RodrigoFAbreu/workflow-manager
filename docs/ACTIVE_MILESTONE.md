@@ -12,10 +12,9 @@ Measured baseline: full serial verification 2162 s (36.0 min) at `db4c7af`.
 
 ## Current checkpoint
 
-CP1-CP6 complete; next is CP7 (performance acceptance, tuning, committed
-timing seed, stress runs and full regression). CP6's `[evidence]` item (the
-real CI runs) is outstanding: it needs the user to push, and CP7 records it
-first, before its own work (see CP6 below).
+CP1-CP6 complete, CP6's CI evidence included (recorded 2026-09-27); next is
+CP7 (performance acceptance, tuning, committed timing seed, stress runs and
+full regression).
 
 ## Checkpoint log
 
@@ -464,7 +463,7 @@ first, before its own work (see CP6 below).
   `git diff db4c7af -- distribution migration scripts .claude/commands src tools .github/workflows/workflow-conformance.yml`
   empty.
 
-### CP6 -- dynamic CI pipeline generated from the plan (complete; CI evidence outstanding)
+### CP6 -- dynamic CI pipeline generated from the plan (complete)
 
 - **`D-CI-Cost` resolved by the user (2026-09-27), proposal column:**
   triggers `pull_request` + `push` to `main` + `workflow_dispatch`, with
@@ -539,20 +538,62 @@ first, before its own work (see CP6 below).
   exit 0, 185 tests OK, `TMPDIR` residue none (under the real run lock and
   barrier, so T-CI-4's `verify` ran there too). `python3.12 tests/run_all.py
   --plan-only --profile ci` on the real checkout planned `n=16`.
-- **Outstanding `[evidence]` (needs the user):** this repository forbids
-  Claude from pushing. Once the CP6 commit is pushed:
-  1. the push to `main` runs the pipeline at the default
-     `ci_max_shards` (16): record the run URL, the verdict, per-job wall
-     and setup times (they seed `ci_job_setup_seconds`), and confirm that
-     the shard running `TestCliDrivesTheSameOperations` is green with no
-     integrity failure (O2);
-  2. `gh workflow run workflow-manager-verify.yml -f shards=1`: the
-     `--shards 1` CI reference (P-0's CI counterpart).
+- **`[evidence]`, CI (recorded 2026-09-27).** The user authorized Claude to
+  push `main` and run the workflow for this evidence.
+  1. Push run 1, at `51a1193` (16 shards):
+     <https://github.com/RodrigoFAbreu/workflow-manager/actions/runs/36317161829>.
+     **Failed, and exposed a CP6 defect.** Shard 9 failed
+     `test_conformance_suite.py::TestAuthoredReleaseOverlayCommitIsReachable`
+     for all four authored releases (`2.4.0`, `2.5.0`, `2.5.1`, `2.6.0`):
+     each release's recorded `overlay_commit` "is not an ancestor of HEAD",
+     because `actions/checkout`'s default is a depth-1 clone. Every other
+     test was green. The aggregate reported the failure as exit 1 (a test
+     failure), not as an infrastructure fault, which is the 5.11 contract.
+     **Fix, commit `a20ca3d`:** every job checks out with `fetch-depth: 0`.
+     T-CI-1 requires it, and the mutation list gained "a shallow checkout".
+     That commit carries only a `Workflow-Work-Item` trailer, not a
+     second `Workflow-Checkpoint: CP6`, which would make
+     `discover_checkpoint_commits` ambiguous. `51a1193` is still CP6's
+     checkpoint commit, and discovery was re-checked after the fix.
+  2. Push run 2, at `a20ca3d` (16 shards):
+     <https://github.com/RodrigoFAbreu/workflow-manager/actions/runs/36317866360>.
+     **Green: 18/18 jobs, aggregate verdict exit 0.** Wall time from the plan
+     job's start to the aggregate's end was 12 min 36 s (12:06:05-12:18:41
+     UTC).
+     - Setup, from job start to the `run_all.py` step: plan 5 s (compute
+       6 s), shards 5-8 s, aggregate 8 s (compute 13 s).
+     - Shard compute ran from 4 min 13 s (shard 13) to 11 min 42 s
+       (shard 4). The `ci` timing profile is still empty, so every unit
+       was estimated at `default_unit_seconds`, and the plan predicted
+       121,246 s of total work against about 6,570 s observed. CP7 folds
+       these results in.
+     - All 13 host modules were OK. The only frozen chunk failures are the
+       four documented `TestRetiredScopedRemediationLeavesNoLiveSurface`
+       exceptions (`2.3.1` and `2.4.0`, `bootstrapped` and `target`), judged
+       by their host classes.
+     - The `TMPDIR` residue is the nine `2.6.0` `workflow_state_test.py`
+       chunks' `wf-lifecycle-worker-*` directories, as recorded locally at
+       CP5.
+     - **O2:** `host:test_bootstrap_e2e.py::TestCliDrivesTheSameOperations`
+       ran in **shard 12**, green (0.9 s). That shard applied the write
+       barrier, reported no `IntegrityError`, had `TMPDIR` residue none, and
+       ended with `verdict: exit 0`.
+  3. The `--shards 1` CI reference (P-0's CI counterpart),
+     `gh workflow run workflow-manager-verify.yml -f shards=1` at `a20ca3d`:
+     <https://github.com/RodrigoFAbreu/workflow-manager/actions/runs/36318597506>.
+     **Green: aggregate verdict exit 0.** Wall time was 1 h 50 min 50 s
+     (12:19:28-14:10:18 UTC). Its single shard took 6,572.6 s of compute
+     (1 h 49 min 59 s as a job). It shows the same four documented frozen
+     exceptions, `TestCliDrivesTheSameOperations` green, and the same
+     residue.
 
-  CP7 records both before its own work. A CI-only defect found there is
-  fixed before CP7 proceeds. The `ci` timing profile is empty until then,
-  so the first CI plan predicts from defaults (7622 s total work at
-  `n=16`); CP7 folds the real shard results in.
+     Sharding at 16 therefore cut CI wall time **from 110.8 min to 12.6
+     min (8.8x)** before any CI timing data existed. The account's
+     concurrent-job limit is 20 (Free plan, `D-CI-Cost`). In run 1, two
+     of the 16 shards queued briefly behind it, since the managed
+     conformance job runs on the same push.
+  - CP7 uses the downloaded results artifacts of run 2 and of the
+    reference run to seed the `ci` profile and `ci_job_setup_seconds`.
 - **Note for the user:** making `aggregate` a *required* status check is a
   branch-protection setting. GitHub does not offer branch protection for
   private repositories on the Free plan, so until the plan or visibility
