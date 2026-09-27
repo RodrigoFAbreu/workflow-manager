@@ -12,11 +12,13 @@ Measured baseline: full serial verification 2162 s (36.0 min) at `db4c7af`.
 
 ## Current checkpoint
 
-CP1-CP7 complete, and the self-review of the whole milestone diff is done
-(`SELF_REVIEWING_IMPLEMENTATION`, "Self-review" below). Next: the
-implementation-stage review bundle. CP7 ends with two measured misses flagged
-for the implementation review (P-2 raw, and P-3 plus P-5's CI terms),
-recorded under CP7 below.
+CP1-CP7 complete, the self-review is done, and implementation review round 1
+(`LOCAL_MODEL_IMPLEMENTATION_REVIEW`, `REVISE`: 0 blocking, 3 important, 11
+optional) is applied ("Implementation review round 1" below). Next: the
+post-fix bundle and a second local review round. CP7 is complete **pending
+the user's confirmation of its accepted deviations** (P-2 and P-5 CI) at
+`/approve-review implementation`; P-3 is documented-unreachable under its
+own clause.
 
 ## Checkpoint log
 
@@ -606,7 +608,7 @@ recorded under CP7 below.
   `git diff db4c7af -- distribution migration scripts .claude/commands src tools .github/workflows/workflow-conformance.yml`
   empty.
 
-### CP7 -- performance acceptance, tuning, committed timing seed, stress runs and full regression (complete; two measured misses flagged)
+### CP7 -- performance acceptance, tuning, committed timing seed, stress runs and full regression (complete, pending user confirmation of two accepted deviations)
 
 Commits: `11e996e` (the code, tuned timings and docs the measurements ran
 against), `6cd0f97` (direct CI per-class timings), and this checkpoint's
@@ -645,11 +647,11 @@ commit (records only). Hardware: the section 3 workstation, 16 CPUs, Python
 | P-0 | local 2162 s (section 3.1, at `db4c7af`); CI `--shards 1` reference: run 36318597506, 6572.6 s shard compute, 110.8 min wall (CP6) | reference only | recorded |
 | P-1 | `--jobs auto` (8 workers) at `11e996e`: 425.8 / 410.8 / 406.1 s, all exit 0 | median <= 420 s | **met** (median 410.8 s) |
 | P-1 at `--jobs 16` | 10 runs, from P-4: 299.4-319.1 s, median 308 s | reported, no threshold | recorded |
-| P-2 | `--jobs 1` at `11e996e`: 2421.2 s, exit 0; per-unit outcomes, executed test ids (`tests_digest 6bb22c22...`, 25,411 tests) and verdict identical to all three P-1 runs | <= 1.10 x P-0 (2378.2 s) | **missed as measured: 1.120 x**. See below |
-| P-3 | see the CI table below | median at the higher shard count <= 5.5 min | **not met**. Floor quantified below |
+| P-2 | `--jobs 1` at `11e996e`: 2421.2 s, exit 0; per-unit outcomes, executed test ids (`tests_digest 6bb22c22...`, 25,411 tests) and verdict identical to all three P-1 runs | <= 1.10 x P-0 (2378.2 s) | **missed as measured: 1.120 x**; at the post-review head 1.098 x. Accepted deviation, pending user confirmation (below) |
+| P-3 | see the CI table below | median at the higher shard count <= 5.5 min | **not met; documented-unreachable** under its own "if unreachable" clause (review ruling, round 1). Floor quantified below |
 | P-4 | `--jobs 16`, 10 consecutive runs: 10/10 exit 0, zero retries | 10/10 green | **met** |
 | P-5 local | from P-1: predicted 424.7 s against actual 406-426 s (within 5 %); shard max/mean 1.025-1.026; discovery + planning 1.1-1.2 s; barrier apply 0.004 s and restore 0.001 s (141 directories) | +/-25 %; <= 1.15; <= 20 s; <= 5 s | **met** |
-| P-5 CI | see below | +/-25 %; <= 1.15 | **partly met** |
+| P-5 CI | see below | +/-25 %; <= 1.15 | **partly met**. Accepted deviation, pending user confirmation (below) |
 
 **P-2, the miss and its like-for-like figure.** P-0 was measured at
 `db4c7af`, before `tests/test_parallel_runner.py` existed. That module is
@@ -709,6 +711,54 @@ shard's start.
   hosted-runner variance. Flagged for review. A fix would need dynamic
   work distribution across CI jobs, or more shards than the account
   allows. Neither is in this milestone's scope.
+
+**Accepted deviations (pending user confirmation).** Section 7 gives P-3 an
+"if unreachable, the remainder is documented quantitatively" clause, and the
+round-1 review accepted P-3 under it. P-2 and P-5 CI have no such clause, so
+they are recorded here as explicit deviations from section 7 for the user to
+confirm or reject at `/approve-review implementation`. They are **not**
+recorded as met. The post-review evidence is in "Implementation review round
+1" below.
+- **P-2** (`--jobs 1` <= 1.10 x P-0 = 2378.2 s).
+  - Raw: 2421.2 s = **1.120 x** at `11e996e` (missed); 2374.0 s =
+    **1.098 x** at the post-review head `2b4c0fd`. The second is inside the
+    threshold by only 4.2 s, well within run-to-run variance, so this record
+    does not rely on it.
+  - Like-for-like, excluding `tests/test_parallel_runner.py` (new serial
+    work that did not exist at P-0): **1.086 x** at `11e996e`, **1.063 x**
+    at `2b4c0fd` (that module ran 76.8 s serially there).
+  - The review's ruling: like-for-like is the correct reading of the
+    threshold's purpose ("fresh repository per chunk must not cost more
+    than 10 %"), but the plan does not define that comparison.
+- **P-5 CI prediction** (+/-25 %). As P-5 specifies, queueing included: 2
+  of 5 runs within (the four CP7 runs at +11.5/+48/+52/+72 %, and run
+  36344165589 at `2b4c0fd`, +16 %). Excluding GitHub's queueing, which 5.4
+  step 5's model does not cover: 5 of 5, +7 % to +16 %.
+- **P-5 CI balance** (shard max/mean <= 1.15). 3 of 5 runs within (1.083,
+  1.091, and 1.081 at `2b4c0fd`); the misses are 1.177 and 1.230. This is a
+  genuine miss: hosted-runner speed varies 0.73-1.12x between shards of
+  equal predicted load, and a static plan cannot absorb that.
+
+**`D-CI-Cost`: billed runner-minutes per full run.** GitHub's billing API
+(`actions/runs/<id>/timing`) reports **0 billable ms** for every run above:
+standard hosted runners are free on public repositories, and the repository
+has been public since 2026-09-27. The private-repository equivalent, which is
+what `D-CI-Cost` budgets, is each job's duration rounded up to whole minutes,
+summed over the run's jobs (from the runs' job pages):
+
+| run | shards | jobs | job time | billed-minute equivalent |
+| --- | --- | --- | --- | --- |
+| 36318597506 (reference) | 1 | 3 | 6,646 s | 112 |
+| 36333123741 | 16 | 18 | 6,175 s | 113 |
+| 36334507166 | 16 | 18 | 6,382 s | 114 |
+| 36344165589 (post-review) | 16 | 18 | 6,533 s | 118 |
+| 36333799173 | 19 | 21 | 6,523 s | 121 |
+| 36334988012 | 19 | 21 | 6,476 s | 118 |
+
+So a full run costs about **113-121 billed minutes** at 16-19 shards, against
+112 for the single-shard reference: sharding adds only per-job setup and
+rounding. At 2,000 free private minutes a month, that is about 16-17 full
+runs.
 
 **`D-Fixture-Reuse` (5.14): closed, no follow-up.** Measured in isolation
 (median of 5), the `bootstrapped` fixture builds in 0.057 s (`2.3.1`) and
@@ -878,6 +928,119 @@ Gate, `python3 tests/run_all.py` (8 workers, 16 CPUs):
 That second run includes `tools/migrate.py --check` and every authored
 release's `build_release.py --check`, which run inside the suite. INV-5:
 `git diff db4c7af -- distribution migration scripts .claude/commands src tools .github/workflows/workflow-conformance.yml`
+is empty.
+
+### Implementation review round 1 (`LOCAL_MODEL_IMPLEMENTATION_REVIEW`, `REVISE`)
+
+Bundle `f5352210...`, `review_content_id 0d83e66b...`, reviewed head
+`1704c5d`. 0 blocking, 3 important, 11 optional. Every finding was reproduced
+against the code before it was fixed. Each fix's test was checked against
+the pre-fix source and failed there.
+
+**Important.**
+- **I1, fixed (`a5d4909`).** `local_run` appended to the user-level timing
+  history before `results.json` and the report, so an unwritable cache
+  turned a green run into a report-less exit 2. It now writes
+  `results.json`, emits the report, and appends last. A failed append is a
+  **warning, never a fault**: 5.2 treats the history as an incidental,
+  never-committed cache, so a lost line costs future estimates, not this
+  run's verdict. Also checked:
+  - `aggregate`'s `GITHUB_STEP_SUMMARY` append already came after the
+    report, but could still flip exit 0 to 2. It gets the same treatment.
+  - `run_shard` writes only its own results directory, the artifact the
+    aggregate needs, so a failure there stays a fault.
+
+  Tests: a green run and a failing run with an unwritable history path, and
+  an aggregate with an unwritable step summary.
+- **I2, done: fresh evidence at the post-fix head `2b4c0fd`**, one run
+  each, taken after every code fix had landed. Per the serial-evidence
+  policy's clause 1, the approved plan requires this evidence, so none of
+  it is a confidence rerun.
+  - *Local parallel gate:* `python3 tests/run_all.py`, 8 workers. **Exit
+    0**, 388.7 s wall (predicted 424.7 s), 4042/4042 units, 25,436 tests,
+    `selection_digest 787699b6...`, `tests_digest f55cbcd9...`,
+    `tree_digest 103b9cc5...`.
+  - *Local serial:* `python3 tests/run_all.py --jobs 1`. **Exit 0**,
+    2374.0 s wall, with the same `selection_digest`, `tests_digest` and
+    test count. **INV-6 holds.** Every one of the 4042 units has identical
+    `outcome`, `failing`, `ran` and `tests` in both runs' `results.json`
+    (3892 passed and 150 failed in each; the 150 are the frozen units of the
+    four documented portability-exception chunks, judged by their host
+    classes).
+  - *CI:* run
+    [36344165589](https://github.com/RodrigoFAbreu/workflow-manager/actions/runs/36344165589)
+    (`workflow_dispatch`, the planner's default 16 shards). The user
+    authorized it on 2026-09-27: `2b4c0fd` was pushed to a throwaway branch,
+    `apply-review-i2-ci-evidence`, the branch was deleted afterwards, and
+    `main` was not pushed. **Green: 18/18 jobs, aggregate verdict exit 0.**
+    It has the same `selection_digest`, `tests_digest` and 25,436 tests;
+    its `tree_digest 454bd145...` differs from the local runs' only because
+    the local tree held the uncommitted round-1 `WORKFLOW_STATE.json` phase
+    write. Wall 491 s, with 38 s of queueing; predicted 423.4 s (+16 %,
+    +7 % without the queueing). Shard max/mean 1.081. Critical path
+    `host:test_parallel_runner.py::TestExclusiveWaitUnderLoad`, 197.3 s.
+    The four documented frozen exceptions and the `2.6.0`
+    `wf-lifecycle-worker-*` residue are as before.
+  - All three include `tools/migrate.py --check` and every authored
+    release's `build_release.py --check`.
+- **I3, done.** CP7 above now carries "Accepted deviations (pending user
+  confirmation)", for P-2 raw and like-for-like and for P-5 CI prediction
+  and balance, and marks P-3 documented-unreachable under its clause. It
+  records `D-CI-Cost`'s billed runner-minutes per full run, qualifies CP7's
+  status, and uses the numbers from the I2 reruns. `docs/ARCHITECTURE.md`'s
+  summary says the same.
+
+**Optional.**
+- **O1, fixed (`9393294`).** `docs/ARCHITECTURE.md`'s equivalence rule now
+  states the exact carve-out CP7 relied on: a `timings.json`-only change
+  counts when the evidence run's plan (`n`, chunk ids and members, shards)
+  is unchanged at both heads, checked with `--plan-only`. It also adds
+  `workflow-manager-verify.yml` to what CI evidence watches, and
+  `CLAUDE.md`'s summary gains the verdict condition.
+- **O2, fixed (`5c144f5`).** `strict_json_loads` reports a `RecursionError`
+  as a `ValueError`. That covers every caller's corrupt-file path at once:
+  timings, history, records, plans, shard summaries and resources.
+- **O3, fixed (`5c144f5`).** A history line with a non-string `unit`,
+  `fixture`, `profile` or `tree_digest` is skipped with a warning.
+- **O4, fixed (`e3a5169`).** A skipped subtest is recorded under its own
+  test method, and never overwrites that method's failed subtest.
+- **O5, fixed (`fdf6515`).** `--from` is refused inside the repository.
+- **O6, fixed (`622a32d`).** The spawn is inside `run_chunk`'s `try`, so an
+  interrupt landing right after it still kills the chunk's group.
+- **O7, fixed (`9f71901`).** The lock-refusal hint lists groups that are
+  gone separately, offers `kill` only for groups that still exist, says to
+  verify first, and notes that an unrecorded chunk is not listed.
+- **O8, fixed (`3798aaa`).** An unhashable resource name and
+  `schema_version: 1.0` are `ResourcesFileError`.
+- **O9, partly fixed (`d0efbab`).** Every CI job sets `timeout-minutes`:
+  plan 30, shard 180 (the single-shard reference needs about 111), and
+  aggregate 60. `--plan-only --profile ci` refuses `--shards` above 256,
+  GitHub's matrix limit.
+  - **Not applied:** a per-commit concurrency group for pushes to `main`.
+    Plan 5.10 prescribes "a `concurrency` group per ref" (`D-CI-Cost`), so
+    changing it is a plan decision for the user, not an optional fix.
+  - The residual it leaves: an intermediate `main` push whose run is still
+    *pending* when a newer one queues is cancelled by GitHub, and that
+    commit gets no verdict.
+- **O10, not changed.** The reviewer agrees that the tautological clause
+  matches 5.12's own wording, so it is not a deviation. Rewriting 5.12's
+  declared replacement assertion is outside an optional fix.
+- **O11, recorded (`2b4c0fd`).** `docs/ARCHITECTURE.md` states that merged
+  mode does not repeat direct mode's implicit check that no suite writes
+  into the fixture's state file or host documents. Only E-MRG-3 (CP2)
+  covers it.
+
+**Concerns noted, not changed.**
+- The committed `timings.json` seed will dominate future diffs.
+  `docs/ARCHITECTURE.md` now says when to refresh it.
+- The CI critical-path chunk is this milestone's own
+  `TestExclusiveWaitUnderLoad`: 197.3 s, against the roughly 62 s section
+  3.5 expected. It does not bind at 16-19 shards, but it would near the 24
+  shards the 5-minute target needs. That is a follow-up if the job limit
+  ever rises.
+
+INV-5 at `2b4c0fd`:
+`git diff db4c7af -- distribution migration scripts .claude/commands src tools .github/workflows/workflow-conformance.yml pyproject.toml docs/MIGRATION.md`
 is empty.
 
 ---

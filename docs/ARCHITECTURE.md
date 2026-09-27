@@ -286,16 +286,16 @@ dispatch input `shards` overrides the count, so `shards=1` is the
 single-shard reference, which the policy below restricts. The managed
 `workflow-conformance.yml` is a separate, installed file.
 
-**Measured (CP7, 2026-09-27).** 16 CPUs locally, `ubuntu-latest` with
-Python 3.12 in CI.
+**Measured (CP7, and at the post-review head `2b4c0fd`, 2026-09-27).** 16
+CPUs locally, `ubuntu-latest` with Python 3.12 in CI.
 
 | run | wall |
 | --- | --- |
-| local serial (`--jobs 1`) | 2421 s |
-| local default (8 workers) | median 411 s |
+| local serial (`--jobs 1`) | 2421 s (CP7); 2374 s (`2b4c0fd`) |
+| local default (8 workers) | median 411 s (CP7); 389 s (`2b4c0fd`) |
 | local `--jobs 16` (10/10 green in a row) | median 308 s |
 | CI single shard | 110.8 min |
-| CI 16 shards | 8.0 min median without GitHub's queueing, 9.3 min with it |
+| CI 16 shards | 8.0 min median without GitHub's queueing, 9.3 min with it (CP7); 7.6 / 8.2 min (`2b4c0fd`) |
 | CI 19 shards | 6.9 min median without GitHub's queueing, 9.7 min with it |
 
 Plans balance perfectly on paper, so wall time is bound by total work (about
@@ -304,9 +304,28 @@ bound by hosted-runner speed variance of about 0.7-1.1x between shards of
 equal predicted load. The 5-minute CI target needs about 24 shards, above
 the Free plan's 20 concurrent jobs, which cap this account at 19. The
 timing sources are recorded in `tests/parallel/timings.json`. Refresh them
-from new runs with `--update-timings`. A multi-class chunk yields only its
+from new runs with `--update-timings` when reports keep listing `timing
+drifted` or `timing defaulted` units, or after adding or reshaping tests
+enough to move the plan. A refresh is a large, reviewable diff, so fold one
+batch of runs at a time, not every run. A multi-class chunk yields only its
 group overhead, so per-class numbers come from a run planned one class per
 chunk.
+
+Against the plan's section 7, P-3 (CI under 5.5 min) is documented as
+unreachable under the 20-job cap, per its own clause. Two misses are
+recorded as **accepted deviations, pending the user's confirmation**:
+- P-2: serial 1.120x the pre-sharding baseline at CP7, and 1.098x at
+  `2b4c0fd`. Like-for-like, excluding the runner's own new test module, it
+  is 1.086x and 1.063x.
+- P-5 CI: prediction is within +/-25 % in 2 of 5 runs, or 5 of 5 excluding
+  GitHub's queueing. Shard balance is within 1.15 in 3 of 5 runs.
+
+`docs/ACTIVE_MILESTONE.md`'s CP7 has the numbers.
+
+**CI cost (`D-CI-Cost`).** GitHub bills nothing for these runs, because the
+repository is public. On a private repository, a full run would bill about
+113-121 runner-minutes at 16-19 shards (each job rounded up to whole
+minutes), against 112 for the single-shard reference.
 
 **Serial and single-shard runs are exceptional evidence.** Normal
 full-suite verification, every gate included, uses the default sharded path:
