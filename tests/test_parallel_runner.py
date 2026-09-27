@@ -2354,6 +2354,16 @@ class TestScratchMatrix(unittest.TestCase):
         self.assertTrue((self.run_.root / "docs/ai-workflow/WORKFLOW_STATE.json").is_file())
 '''
 
+#: The scratch checkout's own planner configuration -- never the real
+#: `tests/parallel/config.json`, which CP7 tunes, so a scratch test's chunking
+#: does not move with it.
+SCRATCH_CONFIG = {
+    "ci_account_concurrent_job_limit": 20, "ci_max_shards": 16,
+    "default_group_overhead_seconds": 0.5, "default_unit_seconds": 30, "local_max_shards": 8,
+    "min_shards": 2, "schema_version": 1, "split_threshold_ratio": 0.5,
+    "target_shard_seconds": 240,
+}
+
 #: Templates the fixture builders place (`build_conformance_repo`,
 #: `build_target_repo`).
 SCRATCH_TEMPLATES = {
@@ -2409,7 +2419,8 @@ def scratch_checkout(root: Path, *, resources=SCRATCH_RESOURCES, modules=None,
     - verbatim copies of `tests/run_all.py`, `tests/frozen_runs.py`,
       `tests/support.py`, `tests/parallel/` and `src/workflow_manager/`;
     - `tests/parallel/matrix.py` replaced by a literal naming only the
-      synthetic matrix host class, `resources.json` by `resources`, and
+      synthetic matrix host class, `resources.json` by `resources`,
+      `config.json` by `SCRATCH_CONFIG`, and
       `timings.json` by one holding only `timings_units` (local profile);
     - a synthetic release `0.0.1` whose payload is `suite`, pinned at
       `pinned` tests, with a generated manifest (`damage_payload` changes the
@@ -2432,12 +2443,13 @@ def scratch_checkout(root: Path, *, resources=SCRATCH_RESOURCES, modules=None,
     tests = root / "tests"
     _writable_copy(TESTS_DIR / "parallel", tests / "parallel",
                    ignore=shutil.ignore_patterns("__pycache__", "matrix.py", "resources.json",
-                                                 "timings.json"))
+                                                 "timings.json", "config.json"))
     for name in ("run_all.py", "frozen_runs.py", "support.py"):
         shutil.copy2(TESTS_DIR / name, tests / name)
     _writable_copy(REPO_ROOT / "src" / "workflow_manager", root / "src" / "workflow_manager",
                    ignore=shutil.ignore_patterns("__pycache__"))
     (tests / "parallel" / "resources.json").write_text(canonical_json(resources))
+    (tests / "parallel" / "config.json").write_text(canonical_json(SCRATCH_CONFIG))
     (tests / "parallel" / "matrix.py").write_text(SCRATCH_MATRIX_PY.replace("PINNED", str(pinned)))
     (tests / "parallel" / "timings.json").write_text(timings.Timings(
         units={"local": {u: timings.UnitTiming(s, 1) for u, s in (timings_units or {}).items()}},
@@ -2514,7 +2526,8 @@ def _dead(pid: int) -> bool:
     try:
         with open(f"/proc/{pid}/stat") as handle:
             return handle.read().rsplit(")", 1)[1].split()[0] == "Z"
-    except FileNotFoundError:
+    except (FileNotFoundError, ProcessLookupError):
+        # Gone before the open, or reaped between the open and the read (ESRCH).
         return True
 
 
@@ -2594,6 +2607,13 @@ class _ScratchCase(unittest.TestCase):
 
 
 class TestScratchCheckout(_ScratchCase):
+
+    def test_it_carries_its_own_planner_config_never_the_real_one(self):
+        scratch = scratch_checkout(self.tmp / "scratch")
+        self.assertEqual(json.loads((scratch / "tests" / "parallel" / "config.json").read_text()),
+                         SCRATCH_CONFIG)
+        self.assertEqual(planner.load_config(scratch)["target_shard_seconds"],
+                         SCRATCH_CONFIG["target_shard_seconds"])
 
     def test_the_real_checkout_is_refused(self):
         for root in (REPO_ROOT, REPO_ROOT / "tests" / "scratch-here"):
@@ -4676,6 +4696,128 @@ class TestCiGuardsInAFreshCheckout(_CliCase):
                                              "--plan", plan)
         assert_refusal(self, code, err, "IntegrityError")
         self.assertEqual(self._pycache(job), ["src/scratchpkg/__pycache__"])
+
+
+# == Serial/single-shard evidence policy: the evidence identity ==========================
+#
+# User-directed during CP7: a full-suite serial or single-shard run is exceptional
+# evidence, and an equivalent earlier run is cited rather than repeated
+# (`docs/ARCHITECTURE.md`'s "Verification execution"). Citing needs an identity
+# every run records.
+
+POLICY_DOCS = ("CLAUDE.md", "README.md")
+IDENTITY_FIELDS = ("head", "selection_digest", "tests_digest")
+
+
+def _host_result(unit_id, tests):
+    chunk = plan_schema.ChunkDescriptor(unit_id, 0, (unit_id,), 1.0)
+    return executor.ChunkResult(chunk, "A", 0, "host", "passed", 1.0, 2.0, 0,
+                                {"ran": list(tests), "failing": []})
+
+
+def _identity_plan(selection):
+    return {"selection": selection, "selection_digest": "S", "tree_digest": "T",
+            "profile": "local", "n": 1}
+
+
+class TestEvidenceIdentity(unittest.TestCase):
+    UNITS = ("host:test_a.py::A", "host:test_b.py::B")
+
+    def _identity(self, selection, results):
+        return report.evidence_identity(_identity_plan(selection), results, {}, head="H",
+                                        inventory_unit_ids=self.UNITS, scope="local, 1 worker(s)")
+
+    def test_only_every_inventory_unit_whole_is_a_full_selection(self):
+        results = [_host_result(u, [f"{u}::test_x"]) for u in self.UNITS]
+        whole = dict.fromkeys(self.UNITS)
+        self.assertEqual(self._identity(whole, results)["selection"], "full")
+        for label, selection in (("one unit", {self.UNITS[0]: None}),
+                                 ("a method subset", dict(whole, **{self.UNITS[1]: ["test_x"]}))):
+            with self.subTest(label):
+                self.assertEqual(self._identity(selection, results)["selection"], "targeted")
+
+    def test_a_test_added_to_an_existing_class_moves_tests_digest_only(self):
+        whole = dict.fromkeys(self.UNITS)
+        before = self._identity(whole, [_host_result(u, [f"{u}::test_x"]) for u in self.UNITS])
+        after = self._identity(whole, [_host_result(u, [f"{u}::test_x", f"{u}::test_y"])
+                                       for u in self.UNITS])
+        self.assertEqual(before["selection_digest"], after["selection_digest"])
+        self.assertNotEqual(before["tests_digest"], after["tests_digest"])
+        self.assertEqual((before["tests"], after["tests"]), (2, 4))
+        reordered = self._identity(whole, [_host_result(u, [f"{u}::test_x"])
+                                           for u in reversed(self.UNITS)])
+        self.assertEqual(reordered["tests_digest"], before["tests_digest"])
+
+    def test_the_line_names_every_field_a_reuse_record_cites(self):
+        identity = self._identity(dict.fromkeys(self.UNITS),
+                                  [_host_result(u, [f"{u}::t"]) for u in self.UNITS])
+        line = report.identity_line(identity)
+        self.assertTrue(line.startswith("evidence: full selection, local, 1 worker(s), head H,"))
+        for field in IDENTITY_FIELDS[1:] + ("tree_digest",):
+            self.assertIn(f"{field} {identity[field]}", line)
+
+
+class TestEvidenceIdentityThroughTheCli(_CliCase):
+
+    def test_every_executing_mode_records_its_identity(self):
+        scratch = scratch_checkout(self.tmp / "scratch")
+        head = _git(scratch, "rev-parse", "HEAD").strip()
+        proc = run_cli(scratch, "--results", self.tmp / "full", env=self.env)
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        doc = json.loads((self.tmp / "full" / "results.json").read_text())
+        plan = json.loads((self.tmp / "full" / "plan.json").read_text())
+        identity = doc["identity"]
+        self.assertEqual((identity["selection"], identity["head"]), ("full", head))
+        self.assertEqual(identity["selection_digest"], plan["selection_digest"])
+        self.assertEqual(identity["tree_digest"], plan["tree_digest"])
+        self.assertEqual(identity["tests"], len({t for u in doc["units"].values()
+                                                 for t in u["tests"]}))
+        self.assertIn(report.identity_line(identity), proc.stdout)
+
+        targeted = run_cli(scratch, "--jobs", "1", "--select", "test_scratch_shared.py",
+                           "--results", self.tmp / "targeted", env=self.env)
+        self.assertEqual(targeted.returncode, 0, targeted.stdout + targeted.stderr)
+        self.assertIn("evidence: targeted selection, local, 1 worker(s)", targeted.stdout)
+
+        ci_plan = _plan_only(self, scratch, "--profile", "ci", "--shards", "1")
+        out = self.tmp / "ci"
+        shard = run_cli(scratch, "--run-shard", "0", "--plan", ci_plan, "--results", out / "s0",
+                        env=self.env)
+        self.assertEqual(shard.returncode, 0, shard.stdout + shard.stderr)
+        self.assertEqual(json.loads((out / "s0" / "shard-0.json").read_text())
+                         ["identity"]["scope"], "shard 0 of 1")
+        aggregate = run_cli(scratch, "--aggregate", out, "--plan", ci_plan, env=self.env)
+        self.assertEqual(aggregate.returncode, 0, aggregate.stdout + aggregate.stderr)
+        self.assertIn("evidence: full selection, aggregate of 1 shard(s)", aggregate.stdout)
+        self.assertIn(f"tests_digest {identity['tests_digest']}", aggregate.stdout,
+                      "the sharded and the local full run executed different test sets")
+
+
+class TestSerialEvidencePolicyIsDocumented(unittest.TestCase):
+
+    def test_every_serial_reference_command_is_marked_exceptional(self):
+        for name in POLICY_DOCS:
+            lines = [line for line in (REPO_ROOT / name).read_text().splitlines()
+                     if re.match(r"python3 tests/run_all\.py --jobs 1\s", line)]
+            with self.subTest(doc=name):
+                self.assertTrue(lines)
+                for line in lines:
+                    self.assertIn("exceptional evidence", line)
+
+    def test_the_policy_names_the_fields_the_runner_records(self):
+        text = (REPO_ROOT / "docs" / "ARCHITECTURE.md").read_text()
+        section = text.split("## Verification execution", 1)[1].split("\n## ", 1)[0]
+        self.assertIn("**Serial and single-shard runs are exceptional evidence.**", section)
+        self.assertIn("**Reuse equivalent evidence rather than re-running it.**", section)
+        identity = TestEvidenceIdentity()._identity(
+            dict.fromkeys(TestEvidenceIdentity.UNITS),
+            [_host_result(u, [f"{u}::t"]) for u in TestEvidenceIdentity.UNITS])
+        for field in IDENTITY_FIELDS + ("tree_digest",):
+            with self.subTest(field=field):
+                self.assertIn(f"`{field}`", section)
+                self.assertIn(field, identity)
+        for name in POLICY_DOCS:
+            self.assertIn("Verification execution", (REPO_ROOT / name).read_text())
 
 
 if __name__ == "__main__":

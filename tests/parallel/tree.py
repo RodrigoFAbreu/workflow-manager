@@ -45,6 +45,11 @@ def _head(repo_root: Path) -> str:
     return proc.stdout.strip()  # empty on an unborn branch
 
 
+def head_commit(repo_root: Path) -> str:
+    """`HEAD`'s commit id, or `""` on an unborn branch; writes nothing."""
+    return _head(repo_root)
+
+
 def describe(path: Path) -> str:
     """Content-level description of one path: kind, executable bit and the
     sha256 of its bytes (or of its link target)."""

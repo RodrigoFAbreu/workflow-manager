@@ -9,6 +9,7 @@ one-line reproduction command -- then the shard summary.
 
 from __future__ import annotations
 
+import hashlib
 import shlex
 
 from . import canonical_json
@@ -136,8 +137,17 @@ def failure_block(result, selection: dict, *, log_label: str | None = None) -> s
     return "\n".join(lines)
 
 
-def results_doc(results, verdict: int, frozen_classes: dict) -> str:
-    """`results.json`: per-unit outcome, duration, test ids and failing ids."""
+def results_doc(results, verdict: int, frozen_classes: dict, identity: dict | None = None) -> str:
+    """`results.json`: per-unit outcome, duration, test ids and failing ids,
+    plus the run's evidence identity."""
+    doc = {"schema_version": 1, "verdict": verdict,
+           "units": unit_entries(results, frozen_classes)}
+    if identity is not None:
+        doc["identity"] = identity
+    return canonical_json(doc)
+
+
+def unit_entries(results, frozen_classes: dict) -> dict:
     units = {}
     for result in results:
         record = result.record or {}
@@ -160,8 +170,44 @@ def results_doc(results, verdict: int, frozen_classes: dict) -> str:
                            "tests": [f"{unit}::{m}" for m in methods],
                            "failing": [f for f in failing if f.split(".", 1)[0] == cls],
                            "tmp_residue": list(result.tmp_residue)}
-    return canonical_json({"schema_version": 1, "verdict": verdict,
-                           "units": dict(sorted(units.items()))})
+    return dict(sorted(units.items()))
+
+
+def evidence_identity(plan: dict, results, frozen_classes: dict, *, head: str,
+                      inventory_unit_ids, scope: str) -> dict:
+    """What a run's evidence is evidence *of*, so a later gate can cite it
+    instead of re-running it (the serial/single-shard evidence policy,
+    `docs/ARCHITECTURE.md`'s "Verification execution"):
+
+    - `selection`: `full` when the plan selects every inventory unit whole,
+      else `targeted` -- a targeted run is never full-suite evidence;
+    - `scope`: the mode and its shape (`local --jobs N`, `shard K of N`,
+      `aggregate of N shards`);
+    - `head`, `tree_digest`: the revision, and the exact tree (which a
+      documentation-only change also moves);
+    - `selection_digest`: the selected unit set;
+    - `tests`, `tests_digest`: the test ids that actually ran, sorted --
+      which also moves when a test method is added to an existing class,
+      where `selection_digest` does not."""
+    units = unit_entries(results, frozen_classes)
+    tests = sorted({t for entry in units.values() for t in entry["tests"]})
+    selection = plan["selection"]
+    full = set(selection) == set(inventory_unit_ids) and \
+        all(v is None for v in selection.values())
+    return {"selection": "full" if full else "targeted", "scope": scope, "head": head,
+            "tree_digest": plan["tree_digest"], "selection_digest": plan["selection_digest"],
+            "selected_units": len(selection), "reported_units": len(units),
+            "tests": len(tests),
+            "tests_digest": hashlib.sha256("\n".join(tests).encode("utf-8")).hexdigest(),
+            "profile": plan["profile"], "n": plan["n"]}
+
+
+def identity_line(identity: dict) -> str:
+    return (f"evidence: {identity['selection']} selection, {identity['scope']}, "
+            f"head {identity['head'] or '(unborn)'}, {identity['reported_units']}/"
+            f"{identity['selected_units']} units, {identity['tests']} tests, "
+            f"selection_digest {identity['selection_digest']}, "
+            f"tests_digest {identity['tests_digest']}, tree_digest {identity['tree_digest']}")
 
 
 def shard_summary(plan: dict, results, *, wall: float, drifted, extra=()) -> list[str]:

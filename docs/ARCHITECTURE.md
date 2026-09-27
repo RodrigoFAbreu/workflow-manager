@@ -266,6 +266,68 @@ design record is
   run has both, `2` wins, and every observed failure is still listed. Each
   failure in the report carries a one-line reproduction command.
 
+**Serial and single-shard runs are exceptional evidence.** Normal
+full-suite verification, every gate included, uses the default sharded path:
+`python3 tests/run_all.py` locally, and the `workflow-manager-verify.yml`
+pipeline at its configured shard count in CI. Forcing one worker or one
+shard for the full suite, with `--jobs 1`, `--plan-only --shards 1`, the CI
+dispatch input `shards=1` or anything equivalent, adds no coverage. It runs
+the same selection under the same exit contract, only slower (about 40 min
+locally and 110 min in CI). It is therefore never a routine confidence
+rerun, and never a quiet substitute for the sharded path. Run it only when:
+
+1. the active approved plan or an acceptance criterion explicitly requires
+   serial or reference evidence (the sharding milestone's P-0/P-2, for
+   instance); or
+2. there is a concrete debugging need to compare serial and sharded
+   behaviour, such as a failure that appears in only one of them.
+
+A targeted `--jobs 1 --select ...` run for a narrow check is ordinary
+development and is not covered by this rule.
+
+**Reuse equivalent evidence rather than re-running it.** When a plan asks
+for serial evidence and an equivalent serial run already exists, cite that
+run. The two are equivalent when all of these hold:
+
+- both runs are `evidence: full selection` with the same `selection_digest`
+  and `tests_digest`;
+- nothing that affects what the suite tests or how it runs has changed
+  between the two `head` commits. That means `src/`, `tools/`,
+  `distribution/`, `migration/`, `scripts/`, the test modules, and the
+  runner itself (`tests/run_all.py`, `tests/parallel/`, `tests/support.py`,
+  `tests/frozen_runs.py`). Check with `git diff --stat <evidence head>..HEAD`;
+- the criterion does not explicitly demand a fresh measurement.
+
+`tree_digest` is deliberately *not* on that list. It moves with any change
+to the tree, so workflow-state bookkeeping, review records, documentation
+or unrelated metadata would invalidate it, and by themselves those changes
+never force another serial run. The evidence becomes stale, and a fresh run
+is required, when any of the following changes:
+
+- implementation code that affects tested behaviour;
+- the inventory or the selection (a digest moves);
+- the test execution semantics, or the serial runner itself;
+- the criterion, which now demands a fresh number;
+- anything else that concretely makes the old run no longer equivalent.
+
+When you reuse a run, record the original run's identifier (its results
+directory, or its CI run URL) and its `head`. Record its `selection_digest`,
+`tests_digest` and test count, taken from the report's `evidence:` line or
+`results.json`'s `identity`. Also record why it is still equivalent for the
+current gate: the diff between the two heads and why it does not matter.
+Every run prints that `evidence:` line and stores the same fields in
+`results.json` (a CI shard stores them in its `shard-<k>.json`), so a later
+gate can cite a run instead of repeating it.
+
+This policy only removes redundant execution. It never weakens an explicit
+acceptance criterion. It never hides a discrepancy between serial and
+sharded results, which is itself a finding to investigate. It never reuses
+evidence across materially different implementation or test states. A
+required fresh serial run that exceeds a controller's drain or detach limit
+is declared as an explicitly long-running operation, under the
+Controller/Workflow protocol. It is never silently swapped for the sharded
+path, nor the sharded path for it.
+
 **The guarded trees are read-only while a run is live.** Every mode takes a
 per-worktree run lock (`<git dir>/wm-verify/run.lock`). A run that
 executes tests also removes write permission from every directory under

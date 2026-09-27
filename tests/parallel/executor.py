@@ -521,8 +521,15 @@ def drifted_chunks(results) -> list[str]:
 
 # -- the report -------------------------------------------------------------------------------
 
+def run_identity(repo_root: Path, plan: dict, inv: Inventory, results, scope: str) -> dict:
+    return report.evidence_identity(plan, results, inv.frozen.classes if inv.frozen else {},
+                                    head=tree_mod.head_commit(repo_root),
+                                    inventory_unit_ids=inv.unit_ids(), scope=scope)
+
+
 def emit_report(out, *, plan: dict, inv: Inventory, results, verdict: Verdict, wall: float,
-                run_dir: Path | None, judged, log_label=None, extra_summary=()) -> str:
+                run_dir: Path | None, judged, identity: dict, log_label=None,
+                extra_summary=()) -> str:
     matrix = inv.frozen.matrix if inv.frozen else {}
     lines = [""] + report.module_lines(results, matrix, judged)
     selection = plan["selection"]
@@ -545,6 +552,7 @@ def emit_report(out, *, plan: dict, inv: Inventory, results, verdict: Verdict, w
         lines.append(f"  {report_partial_note()}")
     for name, message in verdict.faults:
         lines.append(f"  fault [{name}]: {message}")
+    lines.append(report.identity_line(identity))
     lines.append(f"verdict: exit {verdict.code}"
                  + (f"; results kept in {run_dir}" if run_dir is not None else ""))
     text = "\n".join(lines)
@@ -632,12 +640,14 @@ def local_run(repo_root: Path, lock: isolation.RunLock, *, specs, jobs, shuffle_
     obs = observations(results_list, "local")
     write_observations(obs, run_dir / "timings.jsonl", append=False)
     write_observations(obs, timings_mod.history_path(environ), append=True)
+    identity = run_identity(repo_root, plan, inv, results_list,
+                            f"local, {plan['n']} worker(s)")
     (run_dir / "results.json").write_text(
         report.results_doc(results_list, verdict.code,
-                           inv.frozen.classes if inv.frozen else {}), encoding="utf-8")
+                           inv.frozen.classes if inv.frozen else {}, identity), encoding="utf-8")
     keep = not (temporary and verdict.code == 0)
     emit_report(out, plan=plan, inv=inv, results=results_list, verdict=verdict, wall=wall,
-                run_dir=run_dir if keep else None, judged=judged,
+                run_dir=run_dir if keep else None, judged=judged, identity=identity,
                 extra_summary=[f"  {w}" for w in guard.barrier.warnings] if guard.barrier else ())
     if not keep:
         isolation.clean_tmpdir(run_dir)
@@ -729,6 +739,8 @@ def run_shard(repo_root: Path, lock, *, index: int, plan_path: Path, results: Pa
         "integrity": [message for _, message in integrity_faults(Path(repo_root), guard,
                                                                   engine.results)],
         "interrupted": interrupted, "wall": round(wall, 3),
+        "identity": run_identity(repo_root, plan, inv, engine.results,
+                                 f"shard {index} of {plan['n']}"),
     }
     (run_dir / SHARD_SUMMARY.format(index=index)).write_text(canonical_json(summary),
                                                              encoding="utf-8")
@@ -744,7 +756,7 @@ def run_shard(repo_root: Path, lock, *, index: int, plan_path: Path, results: Pa
         if result.log:
             result.log = str(run_dir / result.log)
     emit_report(out, plan=plan, inv=inv, results=engine.results, verdict=verdict, wall=wall,
-                run_dir=run_dir, judged=judged)
+                run_dir=run_dir, judged=judged, identity=summary["identity"])
     return finish_verdict(verdict, err)
 
 
@@ -847,11 +859,13 @@ def aggregate(repo_root: Path, lock, *, results_root: Path, plan_path: Path, all
     if interrupted:
         extra.append(("InterruptedRunError", "the aggregate was interrupted"))
     verdict = verdict_of(results_list, judged, extra_faults=extra)
+    identity = run_identity(repo_root, plan, inv, results_list,
+                            f"aggregate of {plan['n']} shard(s)")
     (run_dir / "results.json").write_text(
         report.results_doc(results_list, verdict.code,
-                           inv.frozen.classes if inv.frozen else {}), encoding="utf-8")
+                           inv.frozen.classes if inv.frozen else {}, identity), encoding="utf-8")
     text = emit_report(out, plan=plan, inv=inv, results=results_list, verdict=verdict,
-                       wall=wall, run_dir=run_dir, judged=judged)
+                       wall=wall, run_dir=run_dir, judged=judged, identity=identity)
     summary = environ.get("GITHUB_STEP_SUMMARY")
     if summary:
         with open(summary, "a", encoding="utf-8") as handle:
