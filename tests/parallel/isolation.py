@@ -370,27 +370,35 @@ def run_chunk(repo_root: Path, chunk_id: str, argv, *, run_dir: Path, timeout: f
     timed_out = False
     started_at = time.time()
     started = time.monotonic()
-    with open(paths.log, "wb") as log:
+    proc = None
+    log = open(paths.log, "wb")
+    # The spawn is inside the `try`, so an interrupt landing at any point
+    # once the chunk exists -- before its group is registered, too -- still
+    # reaches the `finally` that kills that group.
+    try:
         proc = subprocess.Popen([str(a) for a in argv], cwd=str(cwd or repo_root), env=env,
                                 stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT,
                                 start_new_session=True, pass_fds=pass_fds)
-    pgid = proc.pid  # a new session makes the child its own group leader
-    try:
+        log.close()
         if lock is not None:
-            lock.add_chunk_pgid(pgid)
+            lock.add_chunk_pgid(proc.pid)
         while not _exited(proc.pid):
             if time.monotonic() - started >= timeout:
                 timed_out = True
                 break
             time.sleep(POLL_SECONDS)
     finally:
-        # The leader is still unreaped here (a zombie, or alive on timeout),
-        # so `pgid` cannot have been recycled.
-        _kill_group(pgid)
-        returncode = proc.wait()
-        ended_at = time.time()
-        if lock is not None and lock.held:
-            lock.remove_chunk_pgid(pgid)
+        log.close()
+        if proc is not None:
+            # A new session makes the child its own group leader, and the
+            # leader is still unreaped here (a zombie, or alive on timeout),
+            # so its group id cannot have been recycled.
+            _kill_group(proc.pid)
+            returncode = proc.wait()
+            ended_at = time.time()
+            if lock is not None and lock.held:
+                lock.remove_chunk_pgid(proc.pid)
+    pgid = proc.pid
 
     residue = clean_tmpdir(paths.tmp)
     if timed_out:

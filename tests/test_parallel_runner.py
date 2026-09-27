@@ -2788,6 +2788,51 @@ class TestRunChunk(_ScratchCase):
         self.assertTrue(_wait_until(lambda: _dead(grandchild)), "grandchild survived its chunk")
         self.assertTrue(_dead(run.pgid))
 
+    def test_an_interrupt_right_after_the_spawn_still_kills_the_chunk_group(self):
+        """Review O6: an interrupt landing after `Popen` returns but before the
+        chunk's cleanup is armed -- here, while its log is being closed --
+        must not leave the chunk running."""
+        spawned: list[subprocess.Popen] = []
+        real_popen, real_open = subprocess.Popen, open
+
+        def popen(*args, **kwargs):
+            proc = real_popen(*args, **kwargs)
+            spawned.append(proc)
+            self.addCleanup(proc.wait)
+            self.addCleanup(isolation._kill_group, proc.pid)
+            return proc
+
+        class InterruptOnFirstClose:
+            def __init__(self, handle):
+                self.handle, self.fired = handle, False
+
+            def fileno(self):
+                return self.handle.fileno()
+
+            def close(self):
+                self.handle.close()
+                if not self.fired:
+                    self.fired = True
+                    raise KeyboardInterrupt
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                self.close()
+
+        def log_open(path, mode="r", *args, **kwargs):
+            handle = real_open(path, mode, *args, **kwargs)
+            return InterruptOnFirstClose(handle) if mode == "wb" else handle
+
+        with mock.patch.object(subprocess, "Popen", popen), \
+                mock.patch.object(isolation, "open", log_open, create=True), \
+                self.assertRaises(KeyboardInterrupt):
+            self.run_script("interrupted", "import time; time.sleep(120)")
+        self.assertEqual(len(spawned), 1)
+        self.assertTrue(_wait_until(lambda: _dead(spawned[0].pid)),
+                        "the chunk outlived the interrupt")
+
     def test_a_normal_exit_leaves_no_descendant_behind(self):
         pid_file = self.tmp / "grandchild.pid"
         started = time.monotonic()
