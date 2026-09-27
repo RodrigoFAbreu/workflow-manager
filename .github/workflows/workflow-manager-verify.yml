@@ -47,7 +47,11 @@ jobs:
     outputs:
       shards: ${{ steps.plan.outputs.shards }}
     steps:
+      # Full history: TestAuthoredReleaseOverlayCommitIsReachable checks that
+      # each authored release's overlay commit is an ancestor of HEAD.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -81,7 +85,11 @@ jobs:
       matrix:
         shard: ${{ fromJSON(needs.plan.outputs.shards) }}
     steps:
+      # Full history: TestAuthoredReleaseOverlayCommitIsReachable checks that
+      # each authored release's overlay commit is an ancestor of HEAD.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -118,7 +126,11 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     steps:
+      # Full history: TestAuthoredReleaseOverlayCommitIsReachable checks that
+      # each authored release's overlay commit is an ancestor of HEAD.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"

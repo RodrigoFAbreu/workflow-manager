@@ -4305,6 +4305,9 @@ def ci_workflow_problems(doc: dict) -> list[str]:
              f"{name}: does not start with checkout and setup-python")
         need(len(steps) > 1 and steps[1].get("with") == {"python-version": "3.12"},
              f"{name}: python is not 3.12")
+        need(bool(steps) and steps[0].get("with") == {"fetch-depth": 0},
+             f"{name}: the checkout is shallow (TestAuthoredReleaseOverlayCommitIsReachable "
+             f"needs history)")
         runs = [s.get("run") or "" for s in steps]
         invocations = [line for run in runs for line in run.splitlines()
                        if "tests/run_all.py" in line]
@@ -4413,6 +4416,7 @@ class TestCiWorkflowStructure(unittest.TestCase):
                                         "UPSTREAM_COMMIT: " + "0" * 40),
             "no commit check": (re.compile(r'^ *test "\$\(git .*\n', re.M), ""),
             "a push to any branch": ("    branches: [main]\n", ""),
+            "a shallow checkout": ("          fetch-depth: 0\n", "          fetch-depth: 1\n"),
             "an artifact path in the workspace": ("path: ${{ runner.temp }}/out/\n",
                                                   "path: out/\n"),
         }
