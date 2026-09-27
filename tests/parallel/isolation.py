@@ -181,6 +181,35 @@ def _read_holder(path: Path) -> dict | None:
         return None
 
 
+def _group_exists(pgid) -> bool:
+    if type(pgid) is not int or pgid <= 1:  # 0 would probe our own group
+        return False
+    try:
+        os.killpg(pgid, 0)
+    except PermissionError:
+        return True
+    except (ProcessLookupError, OverflowError):
+        return False
+    return True
+
+
+def _kill_hint(pgids) -> str:
+    """How to free the lock by hand. The recorded groups are as of the
+    holder's last update: after a SIGKILLed executor some may be gone and
+    their ids reused, and a chunk started but not yet registered is missing,
+    so the hint names only groups that still exist and says to verify first."""
+    live = [p for p in pgids if _group_exists(p)]
+    gone = [p for p in pgids if p not in live]
+    hint = ""
+    if gone:
+        hint += f"; no longer running: {gone}"
+    if live:
+        hint += ("; verify each group still belongs to that run (ids can be reused) "
+                 "before killing it: " + "; ".join(f"kill -- -{p}" for p in live))
+    return hint + ("; a chunk not yet recorded is not listed -- any process holding "
+                   "the lock file open keeps it held")
+
+
 def acquire_run_lock(repo_root: Path, *, now: float | None = None) -> RunLock:
     """Take this checkout's run lock, or refuse at once (`RunLockHeldError`,
     naming the recorded holder and its chunk process groups). Never waits and
@@ -197,10 +226,9 @@ def acquire_run_lock(repo_root: Path, *, now: float | None = None) -> RunLock:
             raise
         holder = _read_holder(path)
         pgids = (holder or {}).get("chunk_pgids") or []
-        hint = "".join(f"; kill -- -{pgid}" for pgid in pgids)
         raise RunLockHeldError(
             f"{path} is held by another run: {holder!r} (its chunk process groups: "
-            f"{pgids}{hint})", holder) from None
+            f"{pgids}{_kill_hint(pgids)})", holder) from None
     holder = {"pid": os.getpid(), "started_at": time.time() if now is None else now,
               "repo_root": str(Path(repo_root).resolve()), "chunk_pgids": []}
     lock = RunLock(repo_root, path, fd, holder)

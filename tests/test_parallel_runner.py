@@ -3208,6 +3208,29 @@ class TestWriteBarrier(_ScratchCase):
 
 class TestRunLockAndRecovery(_ScratchCase):
 
+    def test_the_refusal_hint_names_only_groups_that_still_exist(self):
+        """Review O7: after a SIGKILLed executor the recorded groups are
+        frozen; a group that is gone (and whose id may be reused) is never
+        offered as a `kill` target, and the hint says to verify first."""
+        scratch = scratch_checkout(self.tmp / "scratch")
+        live = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(120)"],
+                                start_new_session=True)
+        self.addCleanup(live.wait)
+        self.addCleanup(isolation._kill_group, live.pid)
+        gone = subprocess.Popen([sys.executable, "-c", "pass"], start_new_session=True)
+        gone.wait()
+        with isolation.acquire_run_lock(scratch) as held:
+            for pgid in (live.pid, gone.pid):
+                held.add_chunk_pgid(pgid)
+            with self.assertRaises(isolation.RunLockHeldError) as ctx:
+                isolation.acquire_run_lock(scratch)
+        message = str(ctx.exception)
+        self.assertIn(f"kill -- -{live.pid}", message)
+        self.assertNotIn(f"kill -- -{gone.pid}", message)
+        self.assertIn(f"no longer running: [{gone.pid}]", message)
+        self.assertIn("verify each group still belongs to that run", message)
+        self.assertIn("a chunk not yet recorded is not listed", message)
+
     def test_recovery_acts_only_on_a_dead_owner(self):
         scratch = scratch_checkout(self.tmp / "scratch")
         pre_modes = _guarded_modes(scratch)
