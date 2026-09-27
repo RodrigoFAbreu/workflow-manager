@@ -266,6 +266,40 @@ design record is
   run has both, `2` wins, and every observed failure is still listed. Each
   failure in the report carries a one-line reproduction command.
 
+**CI.** `.github/workflows/workflow-manager-verify.yml` runs the same
+selection on every pull request, every push to `main` and on dispatch. Its
+`plan` job writes the plan, and the plan's shard list becomes the `shard`
+matrix; nothing in the file names a shard. Each shard job runs one shard
+(`--run-shard`) and uploads its results. The `aggregate` job verifies every
+result against the plan, runs phase B and reports. Its exit code is the
+verdict, and it is the one check to require. Every file the tooling writes
+lives under `$RUNNER_TEMP`, and every job checks out full history. The
+dispatch input `shards` overrides the count, so `shards=1` is the
+single-shard reference, which the policy below restricts. The managed
+`workflow-conformance.yml` is a separate, installed file.
+
+**Measured (CP7, 2026-09-27).** 16 CPUs locally, `ubuntu-latest` with
+Python 3.12 in CI.
+
+| run | wall |
+| --- | --- |
+| local serial (`--jobs 1`) | 2421 s |
+| local default (8 workers) | median 411 s |
+| local `--jobs 16` (10/10 green in a row) | median 308 s |
+| CI single shard | 110.8 min |
+| CI 16 shards | 8.0 min median without GitHub's queueing, 9.3 min with it |
+| CI 19 shards | 6.9 min median without GitHub's queueing, 9.7 min with it |
+
+Plans balance perfectly on paper, so wall time is bound by total work (about
+3,400 s locally at 8-way contention, about 6,200 s in CI). In CI it is also
+bound by hosted-runner speed variance of about 0.7-1.1x between shards of
+equal predicted load. The 5-minute CI target needs about 24 shards, above
+the Free plan's 20 concurrent jobs, which cap this account at 19. The
+timing sources are recorded in `tests/parallel/timings.json`. Refresh them
+from new runs with `--update-timings`. A multi-class chunk yields only its
+group overhead, so per-class numbers come from a run planned one class per
+chunk.
+
 **Serial and single-shard runs are exceptional evidence.** Normal
 full-suite verification, every gate included, uses the default sharded path:
 `python3 tests/run_all.py` locally, and the `workflow-manager-verify.yml`

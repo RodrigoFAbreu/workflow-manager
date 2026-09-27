@@ -100,7 +100,7 @@ release that widens closed state vocabulary creates.
 ## Tests
 
 ```bash
-python3 tests/run_all.py                      # the gate: everything, in parallel (~8 minutes)
+python3 tests/run_all.py                      # the gate: everything, in parallel (~7 minutes)
 python3 tests/run_all.py --select test_x.py   # run what you touched -- never a gate
 python3 tests/run_all.py --jobs 1             # serial reference (~40 minutes) -- exceptional evidence only
 python3 tests/run_all.py --help               # every mode, flag and exit code

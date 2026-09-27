@@ -12,9 +12,10 @@ Measured baseline: full serial verification 2162 s (36.0 min) at `db4c7af`.
 
 ## Current checkpoint
 
-CP1-CP6 complete, CP6's CI evidence included (recorded 2026-09-27); next is
-CP7 (performance acceptance, tuning, committed timing seed, stress runs and
-full regression).
+CP1-CP7 complete: every registry checkpoint is done, so the next step is
+`SELF_REVIEWING_IMPLEMENTATION`. CP7 ends with two measured misses flagged for
+the implementation review (P-2 raw, and P-3 plus P-5's CI terms), recorded
+under CP7 below.
 
 ## Checkpoint log
 
@@ -594,13 +595,196 @@ full regression).
      conformance job runs on the same push.
   - CP7 uses the downloaded results artifacts of run 2 and of the
     reference run to seed the `ci` profile and `ci_job_setup_seconds`.
-- **Note for the user:** making `aggregate` a *required* status check is a
-  branch-protection setting. GitHub does not offer branch protection for
-  private repositories on the Free plan, so until the plan or visibility
-  changes the check runs and reports but cannot be enforced.
+- **Required check.** Making `aggregate` the one required status check is a
+  branch-protection (or ruleset) setting on `main`, done by the user in the
+  repository settings. CP6 first noted that the Free plan offers no branch
+  protection for private repositories. The user has since made the
+  repositories public (2026-09-27), and on public repositories the Free plan
+  does offer it, so the check can now be enforced.
 - INV-5:
   `git diff db4c7af -- distribution migration scripts .claude/commands src tools .github/workflows/workflow-conformance.yml`
   empty.
+
+### CP7 -- performance acceptance, tuning, committed timing seed, stress runs and full regression (complete; two measured misses flagged)
+
+Commits: `11e996e` (the code, tuned timings and docs the measurements ran
+against), `6cd0f97` (direct CI per-class timings), and this checkpoint's
+commit (records only). Hardware: the section 3 workstation, 16 CPUs, Python
+3.14.7; CI is `ubuntu-latest` with Python 3.12.
+
+**Timing seed and tuning.**
+- *Local profile.* Rebuilt from CP7 measurements only, replacing CP3's
+  inflated seed (3744 s summed against a 2162 s serial run). The source is
+  one full run at 8 workers (the P-1 condition) with
+  `target_shard_seconds` temporarily 0.01, so every frozen class ran as
+  its own chunk and got its own time. That covers 4035 of the 4042 units.
+  The other 7 are the classes that failed in that run and use the new-unit
+  rule; see "Found and fixed" below.
+- *CI profile.* A first fold of push run 36317866360 and the reference
+  run measured only 130 units: host classes and phase B. A multi-class
+  chunk yields only its group overhead (5.2), so every frozen class was a
+  ratio estimate. That left CI shard balance at 1.14-1.18. So, as the user
+  directed (2026-09-27), one CI run was taken with one class per chunk:
+  run 36330161250, on a throwaway branch `cp7-ci-timing-measurement`
+  (`11e996e` plus `target_shard_seconds` 0.01), deleted afterwards.
+  Folding it gives **4023 directly measured CI units** (`6cd0f97`). The
+  local plan's chunk assignment is byte-identical before and after that
+  fold, so the local runs at `11e996e` stay equivalent evidence.
+- `ci_job_setup_seconds` is plan 9 s, shard 11 s, aggregate 15 s. Each is
+  the job's wall time minus its `run_all.py` step (median, run
+  36317866360), plus the 2 s scheduling gap before a dependent job.
+- `config.json` is unchanged. Every tuned plan already balances to a
+  predicted max/mean of 1.000, so the makespan is bound by total work, not
+  by chunking. No bound was changed.
+
+**Results against section 7.**
+
+| id | measured | threshold | result |
+| --- | --- | --- | --- |
+| P-0 | local 2162 s (section 3.1, at `db4c7af`); CI `--shards 1` reference: run 36318597506, 6572.6 s shard compute, 110.8 min wall (CP6) | reference only | recorded |
+| P-1 | `--jobs auto` (8 workers) at `11e996e`: 425.8 / 410.8 / 406.1 s, all exit 0 | median <= 420 s | **met** (median 410.8 s) |
+| P-1 at `--jobs 16` | 10 runs, from P-4: 299.4-319.1 s, median 308 s | reported, no threshold | recorded |
+| P-2 | `--jobs 1` at `11e996e`: 2421.2 s, exit 0; per-unit outcomes, executed test ids (`tests_digest 6bb22c22...`, 25,411 tests) and verdict identical to all three P-1 runs | <= 1.10 x P-0 (2378.2 s) | **missed as measured: 1.120 x**. See below |
+| P-3 | see the CI table below | median at the higher shard count <= 5.5 min | **not met**. Floor quantified below |
+| P-4 | `--jobs 16`, 10 consecutive runs: 10/10 exit 0, zero retries | 10/10 green | **met** |
+| P-5 local | from P-1: predicted 424.7 s against actual 406-426 s (within 5 %); shard max/mean 1.025-1.026; discovery + planning 1.1-1.2 s; barrier apply 0.004 s and restore 0.001 s (141 directories) | +/-25 %; <= 1.15; <= 20 s; <= 5 s | **met** |
+| P-5 CI | see below | +/-25 %; <= 1.15 | **partly met** |
+
+**P-2, the miss and its like-for-like figure.** P-0 was measured at
+`db4c7af`, before `tests/test_parallel_runner.py` existed. That module is
+73.4 s of new serial test work in P-2, not per-chunk repository overhead,
+which is what the threshold protects ("fresh repository per chunk must not
+cost more than 10 %"). Without it, P-2 is 2347.8 s, **1.086 x P-0**.
+Both figures are recorded. Whether to judge the criterion on the
+like-for-like figure is left to the implementation review, and this ledger
+does not claim it was met. The run is fresh evidence, not reused: the
+serial-evidence policy (below) makes CP5's `--jobs 1` run at `534174c`
+stale, since both the runner and the inventory changed after it.
+
+**P-3 and P-5 CI.** All runs are at `6cd0f97` (direct CI timings), exit 0,
+`tests_digest 6bb22c22...`. Wall runs from the plan job's start to the
+aggregate's end. "Queue" is the time from the plan job's end to the last
+shard's start.
+
+| run | shards | wall | queue | wall - queue | predicted | shard max/mean |
+| --- | --- | --- | --- | --- | --- | --- |
+| [36333123741](https://github.com/RodrigoFAbreu/workflow-manager/actions/runs/36333123741) (push) | 16 | 644 s | 163 s | 483 s | 423 s | 1.177 |
+| [36334507166](https://github.com/RodrigoFAbreu/workflow-manager/actions/runs/36334507166) | 16 | 472 s | 4 s | 470 s | 423 s | 1.091 |
+| [36333799173](https://github.com/RodrigoFAbreu/workflow-manager/actions/runs/36333799173) | 19 | 623 s | 206 s | 419 s | 362 s | 1.083 |
+| [36334988012](https://github.com/RodrigoFAbreu/workflow-manager/actions/runs/36334988012) | 19 | 536 s | 132 s | 406 s | 362 s | 1.230 |
+
+- **Sampling.** Per the user's 2026-09-27 direction, one 16/19 pair was
+  run first. It came out contradictory (balance 1.177 against 1.083), so
+  one second sample of each was taken. That restores section 7's two runs
+  per shard count. The four earlier runs at `11e996e` (ratio-estimated CI
+  timings: 36326202990, 36326698697, 36327254254, 36328046906) are kept as
+  the "before" measurement. They were all exit 0, with walls of
+  483/521/749/451 s and balance 1.141/1.180/1.160/1.171.
+- **P-3: not met.** The median wall at 19 shards is 580 s (9.7 min), and
+  at 16 it is 558 s. Without GitHub's queueing, the medians are 413 s
+  (6.9 min) and 477 s. The remainder, quantified:
+  - critical-path chunk 197.3 s
+    (`host:test_parallel_runner.py::TestExclusiveWaitUnderLoad`);
+  - per-job setup: plan 9 s, shard 11 s, aggregate 15 s;
+  - plan compute 5-6 s, aggregate compute 9-13 s (phase B 2.7-4.3 s);
+  - per-shard compute about 325 s mean at 19 shards (CI total work about
+    6,200 s);
+  - queueing of 4-206 s before the last shard started, although every run
+    stayed under the 20-job cap.
+
+  Perfectly balanced on equal-speed runners, 19 shards is still about
+  6.0 min. Reaching 5 min needs about 24 shards, and the Free plan's
+  20-job cap forbids that (`D-CI-Cost`: limit 20, so at most 19 shards).
+  Coverage was not reduced to close the gap.
+- **P-5 CI prediction.** Measured as P-5 specifies, with queueing
+  included, 1 of 4 runs is within +/-25 % (+11.5 %, +48 %, +52 %, +72 %).
+  Queueing is GitHub's scheduling, which 5.4 step 5's model (setup plus
+  compute) does not cover. Without it, all four are within +11 % to +16 %.
+- **P-5 CI balance.** 2 of 4 runs are within 1.15 (1.083, 1.091), and the
+  median is 1.134 (it was 1.166 before the direct timings). The rest is
+  runner-to-runner speed variance: shards with identical predicted loads
+  ran at 0.73-1.12x of prediction, with a per-run median of 0.98-1.05. So
+  the estimates are now centred correctly, but a static plan cannot absorb
+  hosted-runner variance. Flagged for review. A fix would need dynamic
+  work distribution across CI jobs, or more shards than the account
+  allows. Neither is in this milestone's scope.
+
+**`D-Fixture-Reuse` (5.14): closed, no follow-up.** Measured in isolation
+(median of 5), the `bootstrapped` fixture builds in 0.057 s (`2.3.1`) and
+0.066 s (`2.6.0`), the same as `conformance` and `target`. Per-chunk group
+overhead (build, interpreter start and suite import) is 0.26-0.32 s locally
+and 0.53-0.56 s on CI. That is about 0.3 % of the local critical path
+(119.2 s), far under the 10 % trigger.
+
+**User-directed addition: the serial and single-shard evidence policy
+(2026-09-27).**
+- `docs/ARCHITECTURE.md`'s "Verification execution" now states the
+  policy. Full-suite serial or single-shard runs are exceptional evidence,
+  run only when a plan or criterion requires them or to debug a
+  serial/sharded discrepancy. An equivalent earlier run is cited, not
+  repeated. The section defines when evidence is equivalent (same
+  `selection_digest` and `tests_digest`, and no change to code, tests or
+  runner between the two heads; `tree_digest` and documentation or state
+  commits do not count) and when it is stale. It says what a reuse record
+  cites. It keeps the guarantees: never weaken a criterion, never hide a
+  discrepancy, and never silently swap a required long run for the sharded
+  path. `CLAUDE.md` and `README.md` point to it, and mark the `--jobs 1`
+  command "exceptional evidence only".
+- Every run now prints an `evidence:` line and records the same fields in
+  `results.json` (as `identity`) or `shard-<k>.json`: `full` or `targeted`
+  selection, scope, `head`, `tree_digest`, `selection_digest`, unit counts,
+  test count and `tests_digest` (`report.evidence_identity`).
+- Applied in this checkpoint: P-2 was run fresh because the equivalence
+  failed, and the `6cd0f97` fold was shown not to change the local plan,
+  so P-1, P-2 and P-4 were reused rather than re-run.
+- The Workflow's own commands (`.claude/commands/milestone-implement.md`
+  step 3, for instance) are frozen, managed release content, so they were
+  not edited. Carrying the policy into the Workflow itself would be a
+  Workflow release's job.
+- Tests: `TestEvidenceIdentity`, `TestEvidenceIdentityThroughTheCli` (every
+  executing mode; a local full run and a 1-shard CI run share one
+  `tests_digest`), and `TestSerialEvidencePolicyIsDocumented` (the docs
+  mark every serial command and name the fields the runner records).
+
+**Found and fixed** (by the first local measurement run, where 3 tests
+failed):
+- `scratch_checkout` copied the real `tests/parallel/config.json` into every
+  scratch checkout, so tuning the real config changed scratch tests'
+  chunking. Two tests failed that way
+  (`TestCiAggregateRefusals`' partition test and `TestReport`'s multi-class
+  reproduction). Scratch checkouts now write their own `SCRATCH_CONFIG`,
+  guarded by `TestScratchCheckout.test_it_carries_its_own_planner_config_never_the_real_one`.
+  Both tests were re-verified with a deliberately skewed real config.
+- `_dead()` (CP4's helper) raised `ProcessLookupError` when a process was
+  reaped between its `open` and `read` of `/proc/<pid>/stat`. It now
+  treats that ESRCH as dead. That was the root cause of the one
+  `TestRunChunk.test_a_timeout_kills_the_whole_process_group` error, and
+  P-4's ten runs were clean after the fix.
+
+**Observations, not changed.**
+- `TMPDIR` residue in every full run is 3-4 chunks, the frozen `2.6.0`
+  `wf-lifecycle-worker-*` directories already recorded at CP5. It is
+  reported and removed.
+- The P-4 runs at `--jobs 16` took about 50 % longer than predicted
+  (213 s), because the local profile was measured at the 8-worker default.
+  P-5 scores only the P-1 and P-3 runs.
+- GitHub now force-runs the Node 20 actions (`checkout@v4`,
+  `setup-python@v5`, `upload-artifact@v4`, `download-artifact@v4`) on
+  Node 24 and warns about it. That is harmless today, and bumping the
+  action majors is a follow-up.
+
+**Final regression.** The full selection is green:
+- locally in parallel (P-1 and P-4) and at `--jobs 1` (P-2), at `11e996e`;
+- in CI, all eight P-3 runs, at `11e996e` and `6cd0f97`.
+
+That includes `tools/migrate.py --check` and every authored release's
+`build_release.py --check`, which run inside the suite. After `11e996e`,
+the tree changed only in `tests/parallel/timings.json`'s `ci` profile (the
+local plan is proven identical) and in documentation or workflow state, so
+under the policy above those runs stand as this checkpoint's evidence.
+INV-5:
+`git diff db4c7af -- distribution migration scripts .claude/commands src tools .github/workflows/workflow-conformance.yml`
+empty.
 
 ---
 

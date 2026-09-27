@@ -68,7 +68,7 @@ It is *not* RepFlow, and no RepFlow product work belongs here.
 ## Before changing anything
 
 ```bash
-python3 tests/run_all.py                          # the gate: full selection, in parallel (~8min)
+python3 tests/run_all.py                          # the gate: full selection, in parallel (~7min)
 python3 tests/run_all.py --select test_x.py       # run what you touched -- never a gate
 python3 tests/run_all.py --jobs 1                 # serial reference (~40min) -- exceptional evidence only
 ```
