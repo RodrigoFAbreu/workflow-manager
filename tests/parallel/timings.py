@@ -304,6 +304,9 @@ def _from_json_line(obj, profile: str | None) -> Observation | None:
         return None
     if (obj.get("unit") is None) == (obj.get("fixture") is None):
         return None
+    if any(obj.get(key) is not None and not isinstance(obj[key], str)
+           for key in ("unit", "fixture", "profile", "tree_digest")):
+        return None
     return Observation(profile=obj.get("profile") or profile,
                        seconds=float(obj["seconds"]), outcome=str(obj.get("outcome")),
                        utc=str(obj.get("utc", "")), unit=obj.get("unit"),
@@ -364,14 +367,14 @@ def read_observations(paths, profile: str | None = None, *,
                     if not line.strip():
                         continue
                     try:
-                        obj = strict_json_loads(line)
+                        obs = _from_json_line(strict_json_loads(line), profile)
                     except ValueError:
+                        obs = None
+                    if obs is None:
                         if warnings is not None:
                             warnings.append(f"{file}:{number}: unreadable history line skipped")
                         continue
-                    obs = _from_json_line(obj, profile)
-                    if obs is not None:
-                        out.append(obs)
+                    out.append(obs)
             elif file.name.endswith(".record.json"):
                 if profile is None:
                     raise ValueError(f"{file}: a result record needs an explicit profile")

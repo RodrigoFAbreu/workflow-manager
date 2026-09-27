@@ -1939,9 +1939,11 @@ class TestTimingLifecycle(unittest.TestCase):
             (root / "tests" / "parallel").mkdir(parents=True)
             path = timings.timings_path(root)
             self.assertTrue(timings.load(root).warnings)          # missing
+            # The last one is review O2: nesting too deep for `json` to parse.
             for text in ("{not json", "[]", '{"schema_version": 2, "profiles": {}}',
-                         '{"schema_version": 1, "profiles": []}'):
-                with self.subTest(text=text):
+                         '{"schema_version": 1, "profiles": []}',
+                         "[" * 200_000 + "]" * 200_000):
+                with self.subTest(text=text[:40]):
                     path.write_text(text)
                     loaded = timings.load(root)
                     self.assertEqual(loaded.units, {})
@@ -2009,6 +2011,24 @@ class TestTimingLifecycle(unittest.TestCase):
             self.assertEqual([o.unit for o in got], [self.A, self.C])
             self.assertEqual(warnings, [f"{history}:2: unreadable history line skipped"])
             self.assertEqual(len(timings.read_observations([history])), 2)
+
+    def test_a_history_line_with_non_string_fields_is_skipped_with_a_warning(self):
+        """Review O3: a line that parses but whose identifying fields are not
+        strings is skipped like an unparsable one, never a `TypeError`."""
+        bad = [{"unit": ["x"], "seconds": 1}, {"fixture": {"a": 1}, "seconds": 1},
+               {"unit": self.B, "seconds": 1, "profile": 3},
+               {"unit": self.B, "seconds": 1, "tree_digest": []}]
+        with tempfile.TemporaryDirectory() as tmp:
+            history = Path(tmp) / "h.jsonl"
+            history.write_text(self.obs(self.A, 5.0, "t1").to_json_line()
+                               + "".join(json.dumps(obj) + "\n" for obj in bad))
+            warnings: list[str] = []
+            got = timings.read_observations([history], "local", warnings=warnings)
+        self.assertEqual([o.unit for o in got], [self.A])
+        self.assertEqual(warnings, [f"{history}:{n}: unreadable history line skipped"
+                                    for n in range(2, 6)])
+        after = timings.update(timings.Timings(), got, "local")
+        self.assertEqual(set(after.units["local"]), {self.A})
 
     def test_a_ratio_that_is_not_a_valid_duration_falls_through(self):
         """Self-review: an adversarial file could make the profile ratio
