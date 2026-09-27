@@ -338,7 +338,9 @@ def read_observations(paths, profile: str | None = None) -> list[Observation]:
     """Observations from history files (`*.jsonl`) and result directories
     (every `*.record.json` and `*.jsonl` below them), in a deterministic
     order. `profile` overrides a history line's own profile and is required
-    for records, which carry none."""
+    for records, which carry none. An observation read twice -- a run's
+    results directory holds both a frozen record and the history line made
+    from it -- counts once."""
     out: list[Observation] = []
     for path in map(Path, paths):
         files = sorted(p for p in path.rglob("*") if p.is_file()) if path.is_dir() else [path]
@@ -354,7 +356,7 @@ def read_observations(paths, profile: str | None = None) -> list[Observation]:
                     raise ValueError(f"{file}: a result record needs an explicit profile")
                 out.extend(observations_from_record(
                     strict_json_loads(file.read_text(encoding="utf-8")), profile))
-    return out
+    return list(dict.fromkeys(out))
 
 
 def update(timings: Timings, observations, profile: str, *, inventory_unit_ids=None,

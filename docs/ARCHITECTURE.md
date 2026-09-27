@@ -223,6 +223,76 @@ The dependency closure itself was derived by ablation rather than by reading:
 each candidate file was removed from a disposable repository and the frozen
 suites re-run. `docs/MIGRATION.md` records what that found.
 
+## Verification execution
+
+`python3 tests/run_all.py` is a thin shim over `tests/parallel/cli.py`. It
+runs the full selection in parallel and is the one gate command. `--select`
+narrows a run for development, but a targeted run is never a gate. The
+design record is
+`docs/ai-workflow/WORKFLOW_MANAGER_ADAPTIVE_TEST_SHARDING_PLAN.md`.
+
+- **Inventory.** The atomic units are host test classes
+  (`test_x.py::Class`) and, for the frozen conformance matrix, frozen
+  classes (`frozen:<version>/<fixture>/<suite>.py::Class`). Discovery is
+  deterministic and imports without running anything. A frozen suite whose
+  class total differs from its pin is a hard error, so a vanished test
+  cannot shrink the inventory quietly.
+- **Plan.** The planner assigns units to `n` shards by longest processing
+  time first, using `tests/parallel/timings.json`. It chunks an oversized
+  frozen suite at class granularity, and never splits one class. Every
+  chunk of a frozen suite builds its own fresh fixture repository. The
+  plan must partition the selection exactly (no unit missing, none twice),
+  and the partition is checked when the plan is written, when a shard
+  runs, and when results are aggregated.
+- **Phases.** Phase A runs every shard's chunks. It starts with A0: each
+  declared exclusive unit alone, one at a time. Phase B then runs the 15
+  matrix host classes in merged mode. They assert over the frozen chunks'
+  records, merged against a context built from the plan and never from the
+  records. A merge that is incomplete, duplicated or foreign is refused.
+- **Resources.** `tests/parallel/resources.json` declares the units that
+  must not overlap anything (today, only
+  `TestMigrateDoesNotDeleteASiblingAuthoredRelease`, which rewrites
+  `distribution/workflow/2.3.1/`) and the guarded trees each one may
+  write.
+- **Timing data is not Workflow state.** `timings.json` only orders and
+  balances work. It never selects, adds or drops a test. Observed timings
+  go to a per-user cache outside the checkout.
+  `--update-timings --profile local|ci` folds them into the committed
+  file, which is the only working-tree file the tooling writes.
+- **Exit codes.** `0` is all green. `1` means a test failed. `2` is an
+  infrastructure fault: incomplete or foreign results, a digest mismatch, a
+  refused merge, a killed or recordless chunk, a repository-integrity
+  violation, a held run lock, a refused root run, or a usage error. When a
+  run has both, `2` wins, and every observed failure is still listed. Each
+  failure in the report carries a one-line reproduction command.
+
+**The guarded trees are read-only while a run is live.** Every mode takes a
+per-worktree run lock (`<git dir>/wm-verify/run.lock`). A run that
+executes tests also removes write permission from every directory under
+`distribution/`, `migration/`, `src/` and `tools/`. File modes are never
+touched. This makes an undeclared test that creates, deletes or renames
+something there fail by name. It also makes those trees read-only to you
+until the run ends. Saving a new file there fails with `EACCES`, and so
+does an editor's atomic-rename save, or a `git checkout`/`switch`/`stash`/
+`pull` that touches them. A branch switch can be left half-applied. The
+run restores the original modes when it ends, including on `SIGINT` and
+`SIGTERM`. After a `SIGKILL`, the next run restores them first. Or run
+`python3 tests/run_all.py --restore-barrier`, which refuses while any
+process of the killed run is still alive.
+
+A before/after snapshot of the tree, ignored files under the guarded trees
+and `tests/` included, catches persistent changes. A static lint over
+`tests/*.py` catches the writer patterns that neither the barrier nor the
+snapshot sees. One gap remains: a transient in-place overwrite by code the
+lint cannot see.
+
+**Limitation: the barrier propagates into copies.** `shutil.copytree`
+copies directory modes. So a copy of a guarded tree made during a run
+arrives with read-only directories. Overwriting an existing file in the
+copy works. Creating, deleting or renaming inside it fails with `EACCES`,
+which is a false failure caused by the barrier. No test does this today. A
+future test that needs to must restore `u+w` on its own copy first.
+
 ## Extension points
 
 The bootstrapper is deliberately small. These are the seams later Workflow

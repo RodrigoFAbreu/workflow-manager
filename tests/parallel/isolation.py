@@ -29,6 +29,7 @@ import shutil
 import signal
 import stat
 import subprocess
+import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -122,13 +123,15 @@ class RunLock:
 
     The file records the holder: executor pid, start time, and the process
     groups of its live chunks. Pass `fd` to every chunk process (`pass_fds`) so
-    the lock stays held until the last chunk process has exited."""
+    the lock stays held until the last chunk process has exited. The holder
+    record is updated under a mutex, so worker threads may share one lock."""
 
     def __init__(self, repo_root: Path, path: Path, fd: int, holder: dict):
         self.repo_root = Path(repo_root)
         self.path = path
         self.fd = fd
         self.holder = holder
+        self._mutex = threading.Lock()
 
     @property
     def held(self) -> bool:
@@ -141,12 +144,19 @@ class RunLock:
         os.fsync(self.fd)
 
     def add_chunk_pgid(self, pgid: int) -> None:
-        self.holder["chunk_pgids"] = sorted(set(self.holder["chunk_pgids"]) | {pgid})
-        self._publish()
+        with self._mutex:
+            self.holder["chunk_pgids"] = sorted(set(self.holder["chunk_pgids"]) | {pgid})
+            self._publish()
 
     def remove_chunk_pgid(self, pgid: int) -> None:
-        self.holder["chunk_pgids"] = sorted(set(self.holder["chunk_pgids"]) - {pgid})
-        self._publish()
+        with self._mutex:
+            if self.fd >= 0:
+                self.holder["chunk_pgids"] = sorted(set(self.holder["chunk_pgids"]) - {pgid})
+                self._publish()
+
+    def live_chunk_pgids(self) -> list[int]:
+        with self._mutex:
+            return list(self.holder["chunk_pgids"])
 
     def release(self) -> None:
         if self.fd < 0:

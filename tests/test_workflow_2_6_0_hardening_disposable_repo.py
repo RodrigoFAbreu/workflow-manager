@@ -1420,10 +1420,19 @@ class TestClosedDefectCensus(_InstalledRepoCase):
                                     .read_text())["by_version"]["2.6.0"], {"exceptions": []})
         self.assertIn("TestBootstrappedTarget260",
                       _defined_names(REPO_ROOT / "tests" / "test_conformance_suite.py"))
-        # v2.3.1-002: the disposable update-path suite still runs on every
-        # fast run.
-        runner = (REPO_ROOT / "tests" / "run_all.py").read_text()
-        self.assertIn('"test_amendment_update_path.py"', runner)
+        # v2.3.1-002: this suite is in the full inventory, so every gate run
+        # executes it, and in `parallel.cli.FAST_ALIAS_SELECTION`, so the
+        # deprecated `--fast` alias runs it too.
+        from parallel import cli, inventory
+        found = inventory.discover(REPO_ROOT)
+        update_path = {unit for unit in found.host
+                       if inventory.split_host_unit_id(unit)[0] == "test_amendment_update_path.py"}
+        self.assertTrue(update_path, "test_amendment_update_path.py has no host class")
+        full = set(inventory.select(found.host, [], found.frozen).unit_ids())
+        self.assertLessEqual(update_path, full)
+        alias = set(inventory.select(found.host, list(cli.FAST_ALIAS_SELECTION),
+                                     found.frozen).unit_ids())
+        self.assertLessEqual(update_path, alias)
 
     def test_v2_3_1_003_first_approval_with_no_state_at_head_through_the_new_verifier(self):
         _git(self.root, "rm", "-q", "--cached", STATE_PATH)

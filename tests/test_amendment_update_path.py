@@ -441,13 +441,14 @@ class TestMigrateDoesNotDeleteASiblingAuthoredRelease(unittest.TestCase):
         # `classification.json` mid-edit) must never leave the real
         # `2.3.1/` deleted or partial with no restore at all -- which is
         # exactly what happened when the `returncode` assertion sat ahead
-        # of this `try:` rather than inside it. This suite is in
-        # `run_all.py`'s `FAST_SUITES`, so it runs on `python3
-        # tests/run_all.py --fast` -- the very command `CLAUDE.md` tells
-        # every contributor to run *before changing anything*, i.e.
-        # precisely when `tools/migrate.py`/`migration/classification.json`
-        # are most likely to be mid-edit and this failure mode most likely
-        # to fire.
+        # of this `try:` rather than inside it. This suite is in the full
+        # inventory, so every gate run executes it -- `python3
+        # tests/run_all.py`, the very command `CLAUDE.md` tells every
+        # contributor to run *before changing anything* -- and in
+        # `parallel.cli.FAST_ALIAS_SELECTION`, so the deprecated `--fast`
+        # alias runs it too, i.e. precisely when
+        # `tools/migrate.py`/`migration/classification.json` are most likely
+        # to be mid-edit and this failure mode most likely to fire.
         try:
             proc = subprocess.run(
                 [sys.executable, str(REPO_ROOT / "tools" / "migrate.py")],

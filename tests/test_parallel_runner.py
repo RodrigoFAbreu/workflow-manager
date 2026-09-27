@@ -22,12 +22,15 @@ never in the real checkout (plan 5.9, "Tests and the lock").
 
 from __future__ import annotations
 
+import ast
 import contextlib
+import io
 import json
 import math
 import multiprocessing
 import os
 import re
+import shlex
 import shutil
 import signal
 import stat
@@ -46,8 +49,10 @@ from support import CI_SUITES, REPO_ROOT
 import frozen_runs
 import test_bootstrap_e2e as bootstrap_e2e
 import test_conformance_suite as conformance_suite
-from parallel import (canonical_json, inventory, isolation, matrix, plan_schema, planner, resources,
-                      timings, tree, unit)
+from parallel import (canonical_json, cli, executor, inventory, isolation, matrix, plan_schema,
+                      planner, report, resources, timings, tree, unit)
+from workflow_manager.fixture import build_conformance_repo
+from workflow_manager.release import find_release
 
 TESTS_DIR = REPO_ROOT / "tests"
 EXCLUSIVE_UNIT = "host:test_amendment_update_path.py::TestMigrateDoesNotDeleteASiblingAuthoredRelease"
@@ -2254,13 +2259,164 @@ def _same_checkout_as_real(root: Path) -> bool:
     return resolved == real or real in resolved.parents
 
 
-def scratch_checkout(root: Path, *, resources=SCRATCH_RESOURCES) -> Path:
+#: The scratch release's frozen suite: three classes, so a split group can hold
+#: a multi-class chunk.
+SCRATCH_SUITE = '''
+import unittest
+
+
+class TestAlpha(unittest.TestCase):
+    def test_one(self):
+        self.assertTrue(True)
+
+    def test_two(self):
+        self.assertTrue(True)
+
+
+class TestBeta(unittest.TestCase):
+    def test_three(self):
+        self.assertTrue(True)
+
+
+class TestGamma(unittest.TestCase):
+    def test_four(self):
+        self.assertTrue(FOUR)
+
+
+FOUR = True
+
+if __name__ == "__main__":
+    unittest.main()
+'''
+SCRATCH_SUITE_TESTS = 4
+SCRATCH_MATRIX_UNIT = "host:test_scratch_matrix.py::TestScratchMatrix"
+SCRATCH_FROZEN_SUITE = "frozen:0.0.1/conformance/tiny_test.py"
+
+#: Variants of the scratch suite for the executor-level verdicts of T-MRG-3/-4
+#: (T-EXE-1): a failing test, a class whose `setUpClass` errors, and a suite
+#: that crashes on import -- only inside a fixture repository (one with a
+#: `.git`), so discovery, which imports the payload copy, still sees it whole.
+SCRATCH_SUITE_VARIANTS = {
+    "failing": SCRATCH_SUITE.replace("FOUR = True", "FOUR = False"),
+    "setupclass_error": SCRATCH_SUITE.replace(
+        "class TestBeta(unittest.TestCase):\n",
+        "class TestBeta(unittest.TestCase):\n    @classmethod\n    def setUpClass(cls):\n"
+        "        raise RuntimeError(\"setUpClass boom\")\n\n"),
+    "import_crash": "import pathlib\n" + SCRATCH_SUITE.replace(
+        "import unittest\n",
+        "import unittest\nif (pathlib.Path(__file__).resolve().parents[1] / \".git\").exists():\n"
+        "    raise RuntimeError(\"import boom\")\n", 1),
+}
+
+SCRATCH_MATRIX_PY = '''"""The scratch checkout's matrix: one matrix host class over one synthetic
+release, with a literal CI_SUITES -- never a view of `support`'s."""
+
+FIXTURES = ("conformance", "target", "bootstrapped")
+FROZEN_MATRIX = {
+    "host:test_scratch_matrix.py::TestScratchMatrix": ("0.0.1", "conformance"),
+}
+CI_SUITES = {"0.0.1": {"tiny_test.py": PINNED}}
+'''
+
+SCRATCH_MATRIX_MODULE = '''
+import unittest
+
+from frozen_runs import open_matrix_run
+from parallel.matrix import CI_SUITES
+
+
+class TestScratchMatrix(unittest.TestCase):
+    """The shape of the 15 real matrix host classes, over the scratch release:
+    direct/merged `setUpClass` through `open_matrix_run`, unchanged assertions
+    over the per-suite view."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.run_ = open_matrix_run("0.0.1", "conformance")
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.run_.cleanup()
+
+    def test_every_frozen_suite_passes(self):
+        failed = {s: r.output for s, r in self.run_.results.items() if r.returncode != 0}
+        self.assertEqual(sorted(failed), [], "\\n".join(failed.values())[-4000:])
+
+    def test_every_suite_runs_the_frozen_number_of_tests(self):
+        self.assertEqual({s: r.ran for s, r in self.run_.results.items()}, CI_SUITES["0.0.1"])
+
+    def test_the_fixture_state_file_is_the_clean_template(self):
+        self.assertTrue((self.run_.root / "docs/ai-workflow/WORKFLOW_STATE.json").is_file())
+'''
+
+#: Templates the fixture builders place (`build_conformance_repo`,
+#: `build_target_repo`).
+SCRATCH_TEMPLATES = {
+    ".gitignore.workflow-fragment": "__pycache__/\n",
+    "docs/ai-workflow/WORKFLOW_STATE.json": '{"work_items": {}}\n',
+    "docs/ai-workflow/WORKFLOW_CONFIG.json": "{}\n",
+    "docs/ACTIVE_MILESTONE.md": "# Active Milestone\n",
+}
+
+
+def _sha256(data: bytes) -> str:
+    import hashlib
+    return hashlib.sha256(data).hexdigest()
+
+
+def _write_scratch_release(root: Path, suite: str) -> None:
+    """`distribution/workflow/0.0.1/` with a manifest generated from the files
+    just written, so every digest matches by construction."""
+    release = root / "distribution" / "workflow" / "0.0.1"
+    files = {"payload/scripts/tiny_test.py": suite.encode()}
+    files.update({f"templates/{t}": body.encode() for t, body in SCRATCH_TEMPLATES.items()})
+    for rel, data in files.items():
+        (release / rel).parent.mkdir(parents=True, exist_ok=True)
+        (release / rel).write_bytes(data)
+    suite_bytes = files["payload/scripts/tiny_test.py"]
+    manifest = {
+        "schema_version": 1, "workflow_version": "0.0.1",
+        "upstream": {"repository": "scratch", "tag": "scratch", "commit": "0" * 40},
+        "artifacts": [{"target_path": "scripts/tiny_test.py",
+                       "location": "payload/scripts/tiny_test.py",
+                       "sha256": _sha256(suite_bytes), "size": len(suite_bytes),
+                       "executable": False, "category": "conformance"}],
+        "templates": [{"target_path": t, "location": f"templates/{t}",
+                       "sha256": _sha256(body.encode()), "size": len(body.encode())}
+                      for t, body in SCRATCH_TEMPLATES.items()],
+    }
+    (release / "manifest.json").write_text(canonical_json(manifest))
+
+
+def _writable_copy(src: Path, dst: Path, **kwargs) -> None:
+    """`copytree`, then `u+rwx` on every copied directory: a copy made while
+    the real checkout's barrier is applied arrives `u-w` (5.9)."""
+    shutil.copytree(src, dst, **kwargs)
+    isolation._make_removable(dst)  # noqa: SLF001
+
+
+def scratch_checkout(root: Path, *, resources=SCRATCH_RESOURCES, modules=None,
+                     suite: str = SCRATCH_SUITE, pinned: int = SCRATCH_SUITE_TESTS,
+                     timings_units=None, damage_payload: bool = False) -> Path:
     """A throwaway git checkout at `root` with its own git dir (hence its own
-    run lock and marker): a copy of `tests/parallel/` (its `matrix.py` left out
-    and its `resources.json` replaced by `resources`), synthetic host modules
-    including the declared exclusive writer, and the four guarded trees.
-    Refuses the real checkout, anything inside it, and any root sharing its git
-    dir; refuses a `resources` declaration its own host inventory fails."""
+    run lock and marker), complete enough for `run_all.py` to run for real:
+
+    - verbatim copies of `tests/run_all.py`, `tests/frozen_runs.py`,
+      `tests/support.py`, `tests/parallel/` and `src/workflow_manager/`;
+    - `tests/parallel/matrix.py` replaced by a literal naming only the
+      synthetic matrix host class, `resources.json` by `resources`, and
+      `timings.json` by one holding only `timings_units` (local profile);
+    - a synthetic release `0.0.1` whose payload is `suite`, pinned at
+      `pinned` tests, with a generated manifest (`damage_payload` changes the
+      payload bytes afterwards, so a fixture build fails its digest check);
+    - `migration/classification.json` and `portability_exceptions.json` in
+      the shape `support` reads, an empty `tools/`, and synthetic host
+      modules: the declared exclusive writer, a shared reader, the matrix
+      host class, and `modules` (`{file name: source}`).
+
+    Refuses the real checkout, anything inside it, and any root sharing its
+    git dir; refuses a `resources` declaration its own host inventory
+    fails."""
     root = Path(root)
     if _same_checkout_as_real(root):
         raise ValueError(f"scratch_checkout refuses the real checkout: {root}")
@@ -2268,16 +2424,33 @@ def scratch_checkout(root: Path, *, resources=SCRATCH_RESOURCES) -> Path:
     _git_repo(root)
     if isolation.git_dir(root) == isolation.git_dir(REPO_ROOT):
         raise ValueError(f"scratch_checkout refuses a root sharing the real git dir: {root}")
-    shutil.copytree(TESTS_DIR / "parallel", root / "tests" / "parallel",
-                    ignore=shutil.ignore_patterns("__pycache__", "matrix.py", "resources.json"))
-    (root / "tests" / "parallel" / "resources.json").write_text(canonical_json(resources))
-    (root / "tests" / "test_scratch_exclusive.py").write_text(SCRATCH_EXCLUSIVE_MODULE)
-    (root / "tests" / "test_scratch_shared.py").write_text(SCRATCH_SHARED_MODULE)
-    scripts = root / SCRATCH_PAYLOAD / "scripts"
-    scripts.mkdir(parents=True)
-    (scripts / "tiny_test.py").write_text(TINY_SUITE)
+    tests = root / "tests"
+    _writable_copy(TESTS_DIR / "parallel", tests / "parallel",
+                   ignore=shutil.ignore_patterns("__pycache__", "matrix.py", "resources.json",
+                                                 "timings.json"))
+    for name in ("run_all.py", "frozen_runs.py", "support.py"):
+        shutil.copy2(TESTS_DIR / name, tests / name)
+    _writable_copy(REPO_ROOT / "src" / "workflow_manager", root / "src" / "workflow_manager",
+                   ignore=shutil.ignore_patterns("__pycache__"))
+    (tests / "parallel" / "resources.json").write_text(canonical_json(resources))
+    (tests / "parallel" / "matrix.py").write_text(SCRATCH_MATRIX_PY.replace("PINNED", str(pinned)))
+    (tests / "parallel" / "timings.json").write_text(timings.Timings(
+        units={"local": {u: timings.UnitTiming(s, 1) for u, s in (timings_units or {}).items()}},
+        sources={"local": "scratch"}).to_json())
+    (tests / "test_scratch_exclusive.py").write_text(SCRATCH_EXCLUSIVE_MODULE)
+    (tests / "test_scratch_shared.py").write_text(SCRATCH_SHARED_MODULE)
+    (tests / "test_scratch_matrix.py").write_text(SCRATCH_MATRIX_MODULE)
+    for name, source in (modules or {}).items():
+        (tests / name).write_text(textwrap.dedent(source))
+    _write_scratch_release(root, suite)
+    if damage_payload:
+        with open(root / SCRATCH_PAYLOAD / "scripts" / "tiny_test.py", "a") as handle:
+            handle.write("# damaged after the manifest was written\n")
     (root / "migration").mkdir()
-    (root / "migration" / "classification.json").write_text("{}\n")
+    (root / "migration" / "classification.json").write_text(canonical_json(
+        {"upstream": {"repository": "scratch", "tag": "scratch", "commit": "0" * 40}}))
+    (root / "migration" / "portability_exceptions.json").write_text(canonical_json(
+        {"by_version": {"0.0.1": {"exceptions": []}}}))
     (root / "src" / "scratchpkg").mkdir(parents=True)
     (root / "src" / "scratchpkg" / "__init__.py").write_text("")
     (root / "tools").mkdir()
@@ -3017,6 +3190,904 @@ class TestStaticLint(unittest.TestCase):
         raw = isolation.lint_source(
             (TESTS_DIR / "test_amendment_update_path.py").read_text(), "test_amendment_update_path.py")
         self.assertEqual({f.unit for f in raw}, {EXCLUSIVE_UNIT})
+
+
+
+# == CP5: the executor, the CLI and the report (T-EXE-1..11) ==========================
+
+def run_cli(scratch_root, *argv, env, timeout=600) -> subprocess.CompletedProcess:
+    """`python3 <scratch>/tests/run_all.py ARGV` -- always a scratch checkout's own
+    runner, never the real one (5.9, "Tests and the lock")."""
+    return subprocess.run([sys.executable, str(scratch_root / "tests" / "run_all.py"),
+                           *map(str, argv)], cwd=str(scratch_root), capture_output=True,
+                          text=True, env=env, timeout=timeout)
+
+
+def start_cli(scratch_root, *argv, env) -> subprocess.Popen:
+    return subprocess.Popen([sys.executable, str(scratch_root / "tests" / "run_all.py"),
+                             *map(str, argv)], cwd=str(scratch_root), stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE, text=True, env=env)
+
+
+def run_reproduction(scratch_root, command: str, *, env) -> subprocess.CompletedProcess:
+    """Run a report's `python3 tests/run_all.py ...` reproduction line in the
+    scratch checkout it came from."""
+    words = shlex.split(command)
+    assert words[:2] == ["python3", "tests/run_all.py"], command
+    return subprocess.run([sys.executable, str(scratch_root / "tests" / "run_all.py"),
+                           *words[2:]], cwd=str(scratch_root), capture_output=True, text=True,
+                          env=env, timeout=600)
+
+
+def main_in_process(scratch_root, *argv) -> tuple[int, str, str]:
+    """`cli.main` in this process, against a scratch checkout."""
+    out, err = io.StringIO(), io.StringIO()
+    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+        code = cli.main([str(a) for a in argv], repo_root=scratch_root)
+    return code, out.getvalue(), err.getvalue()
+
+
+def assert_refusal(case: unittest.TestCase, code: int, stderr: str, name: str) -> None:
+    """The shared refusal assertion (T-EXE-6): exit 2 and the error tag of
+    exactly `name` on the first stderr line."""
+    case.assertEqual(code, 2, stderr)
+    first = stderr.splitlines()[0] if stderr else ""
+    case.assertTrue(first.startswith(f"run_all: error[{name}]: "), stderr[-3000:])
+
+
+def _results(results_dir: Path) -> dict:
+    return json.loads((Path(results_dir) / "results.json").read_text())["units"]
+
+
+def _lock_holder(scratch_root) -> dict:
+    try:
+        return json.loads((isolation.state_dir(scratch_root) / "run.lock").read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+FAILING_HOST_MODULE = """
+import unittest
+
+
+class TestScratchFailing(unittest.TestCase):
+    def test_ok(self):
+        self.assertTrue(True)
+
+    def test_bad(self):
+        self.assertEqual(1, 2)
+"""
+
+CRASH_MODULE = """
+import os
+import unittest
+
+
+class TestScratchCrash(unittest.TestCase):
+    def test_dies_before_any_record(self):
+        os._exit(0)
+"""
+
+SLEEP_MODULE = """
+import time
+import unittest
+
+
+class TestScratchSleep(unittest.TestCase):
+    def test_sleeps_past_its_timeout(self):
+        time.sleep(120)
+"""
+
+WRITER_MODULE = """
+import unittest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+class TestScratchWriter(unittest.TestCase):
+    def test_overwrites_a_tracked_file_in_place(self):
+        (ROOT / "tools" / ".keep").write_text("written during the run")
+"""
+
+WAIT_MODULE = """
+import os
+import time
+import unittest
+
+
+class TestScratchWait(unittest.TestCase):
+    def test_waits_for_the_stop_file(self):
+        deadline = time.monotonic() + 120
+        while not os.path.exists(os.environ["WM_SCRATCH_STOP"]):
+            self.assertLess(time.monotonic(), deadline)
+            time.sleep(0.05)
+"""
+
+
+def _trivial_module(prefix: str, classes: int = 2) -> str:
+    return "import unittest\n\n" + "".join(
+        f"\nclass Test{prefix}{i:03d}(unittest.TestCase):\n    def test_it(self):\n"
+        f"        self.assertTrue(True)\n" for i in range(classes))
+
+
+class _CliCase(_ScratchCase):
+    """Every run writes its timing history under this test's own cache, and its
+    run directory (kept on purpose after a failing run) under this test's own
+    temporary directory, so both go when the test does."""
+
+    def setUp(self):
+        super().setUp()
+        temp = self.tmp / "tmp"
+        temp.mkdir()
+        for patcher in (mock.patch.dict(os.environ, {"XDG_CACHE_HOME": str(self.tmp / "cache"),
+                                                     "TMPDIR": str(temp)}),
+                        mock.patch.object(tempfile, "tempdir", str(temp))):
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        self.env = dict(os.environ)
+
+
+# -- T-EXE-1: the exit-code contract ----------------------------------------------------
+
+class TestExitCodeContract(_CliCase):
+
+    def test_everything_passing_is_0(self):
+        scratch = scratch_checkout(self.tmp / "scratch")
+        proc = run_cli(scratch, "--results", self.tmp / "r", env=self.env)
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        units = _results(self.tmp / "r")
+        self.assertEqual({u["outcome"] for u in units.values()}, {"passed"})
+        self.assertIn(SCRATCH_MATRIX_UNIT, units)
+        self.assertEqual(units[SCRATCH_MATRIX_UNIT]["phase"], "B")
+        self.assertTrue((self.tmp / "cache" / "workflow-manager" / "test-timings.jsonl").exists())
+
+    def test_one_failing_host_test_is_1(self):
+        scratch = scratch_checkout(self.tmp / "scratch",
+                                   modules={"test_scratch_failing.py": FAILING_HOST_MODULE})
+        proc = run_cli(scratch, "--select", "test_scratch_failing.py", env=self.env)
+        self.assertEqual(proc.returncode, 1, proc.stdout + proc.stderr)
+        self.assertIn("failing: test_scratch_failing.py::TestScratchFailing::test_bad", proc.stdout)
+        self.assertNotIn("error[", proc.stderr)
+
+    def test_one_frozen_chunk_with_a_failing_test_is_1(self):
+        scratch = scratch_checkout(self.tmp / "scratch", suite=SCRATCH_SUITE_VARIANTS["failing"])
+        for argv in ((), ("--select", SCRATCH_FROZEN_SUITE)):
+            with self.subTest(argv=argv):
+                proc = run_cli(scratch, *argv, env=self.env)
+                self.assertEqual(proc.returncode, 1, proc.stdout + proc.stderr)
+                self.assertIn("TestGamma.test_four", proc.stdout)
+                self.assertNotIn("error[", proc.stderr)
+
+    def test_setupclass_errors_import_crashes_and_builder_failures_are_1_not_2(self):
+        cases = {"setupclass_error": {"suite": SCRATCH_SUITE_VARIANTS["setupclass_error"]},
+                 "import_crash": {"suite": SCRATCH_SUITE_VARIANTS["import_crash"]},
+                 "builder_raises": {"damage_payload": True}}
+        for name, options in cases.items():
+            with self.subTest(case=name):
+                scratch = scratch_checkout(self.tmp / name, **options)
+                proc = run_cli(scratch, "--results", self.tmp / f"r-{name}", env=self.env)
+                self.assertEqual(proc.returncode, 1, proc.stdout + proc.stderr)
+                self.assertNotIn("error[", proc.stderr)
+                units = _results(self.tmp / f"r-{name}")
+                self.assertEqual(units[SCRATCH_MATRIX_UNIT]["outcome"], "failed")
+
+    def test_a_chunk_killed_before_writing_its_record_is_2(self):
+        scratch = scratch_checkout(self.tmp / "scratch", modules={"test_scratch_crash.py": CRASH_MODULE})
+        proc = run_cli(scratch, "--select", "test_scratch_crash.py", env=self.env)
+        assert_refusal(self, proc.returncode, proc.stderr, "InfrastructureFaultError")
+        self.assertIn("host:test_scratch_crash.py::TestScratchCrash", proc.stderr)
+        self.assertIn("missing_record", proc.stdout)
+
+    def test_a_failure_plus_an_infrastructure_fault_is_2_and_the_failure_is_listed(self):
+        scratch = scratch_checkout(self.tmp / "scratch", modules={
+            "test_scratch_crash.py": CRASH_MODULE, "test_scratch_failing.py": FAILING_HOST_MODULE})
+        proc = run_cli(scratch, "--select", "test_scratch_crash.py",
+                       "--select", "test_scratch_failing.py", env=self.env)
+        assert_refusal(self, proc.returncode, proc.stderr, "InfrastructureFaultError")
+        self.assertIn("failing: test_scratch_failing.py::TestScratchFailing::test_bad", proc.stdout)
+
+
+# -- T-EXE-2: the report ------------------------------------------------------------------
+
+MODULE_LINE_RE = re.compile(r"^(ok  |FAIL) (test_\w+\.py)\s+\d+\.\ds  Ran \d+ tests  (OK|FAILED)",
+                            re.MULTILINE)
+
+
+class TestReport(_CliCase):
+
+    def test_module_lines_failure_blocks_and_a_reproduction_that_reproduces(self):
+        scratch = scratch_checkout(self.tmp / "scratch",
+                                   modules={"test_scratch_failing.py": FAILING_HOST_MODULE})
+        proc = run_cli(scratch, "--results", self.tmp / "r", env=self.env)
+        self.assertEqual(proc.returncode, 1, proc.stdout + proc.stderr)
+        lines = dict((m.group(2), m.group(1)) for m in MODULE_LINE_RE.finditer(proc.stdout))
+        self.assertEqual(lines, {"test_scratch_exclusive.py": "ok  ",
+                                 "test_scratch_failing.py": "FAIL",
+                                 "test_scratch_matrix.py": "ok  ",
+                                 "test_scratch_shared.py": "ok  "})
+        block = proc.stdout.split("host:test_scratch_failing.py::TestScratchFailing  (A,", 1)[1]
+        self.assertIn("failing: test_scratch_failing.py::TestScratchFailing::test_bad", block)
+        log = re.search(r"  log: (\S+)", block).group(1)
+        self.assertTrue(Path(log).is_file())
+        self.assertIn("AssertionError", block)
+        command = re.search(r"  reproduce: (.+)", block).group(1)
+        self.assertEqual(command, "python3 tests/run_all.py --jobs 1 "
+                                  "--select test_scratch_failing.py::TestScratchFailing")
+        again = run_reproduction(scratch, command, env=self.env)
+        self.assertEqual(again.returncode, 1, again.stdout + again.stderr)
+        self.assertEqual(re.findall(r"failing: (\S+)", again.stdout),
+                         re.findall(r"failing: (\S+)", block))
+
+    def test_a_failing_multi_class_frozen_chunk_reproduces_as_one_invocation(self):
+        suite = SCRATCH_FROZEN_SUITE
+        scratch = scratch_checkout(
+            self.tmp / "scratch", suite=SCRATCH_SUITE_VARIANTS["failing"],
+            timings_units={f"{suite}::TestAlpha": 100.0, f"{suite}::TestBeta": 10.0,
+                           f"{suite}::TestGamma": 10.0})
+        proc = run_cli(scratch, "--select", suite, "--results", self.tmp / "r", env=self.env)
+        self.assertEqual(proc.returncode, 1, proc.stdout + proc.stderr)
+        units = _results(self.tmp / "r")
+        self.assertEqual(units[f"{suite}::TestBeta"]["chunk"], units[f"{suite}::TestGamma"]["chunk"])
+        self.assertNotEqual(units[f"{suite}::TestAlpha"]["chunk"],
+                            units[f"{suite}::TestGamma"]["chunk"])
+        command = re.search(r"  reproduce: (.+--whole-groups.+)", proc.stdout).group(1)
+        self.assertEqual(command, "python3 tests/run_all.py --jobs 1 --whole-groups "
+                                  f"--select {suite}::TestBeta --select {suite}::TestGamma")
+        again = run_reproduction(scratch, command + f" --results {self.tmp / 'again'}",
+                                 env=self.env)
+        self.assertEqual(again.returncode, 1, again.stdout + again.stderr)
+        rerun = _results(self.tmp / "again")
+        self.assertEqual(sorted(rerun), [f"{suite}::TestBeta", f"{suite}::TestGamma"])
+        self.assertEqual(len({u["chunk"] for u in rerun.values()}), 1)
+        self.assertEqual(rerun[f"{suite}::TestGamma"]["failing"],
+                         units[f"{suite}::TestGamma"]["failing"])
+        self.assertEqual(rerun[f"{suite}::TestGamma"]["failing"], ["TestGamma.test_four"])
+        self.assertIn(inventory.PARTIAL_FROZEN_NOTE, again.stdout)
+
+
+# -- T-EXE-3: serial and parallel runs agree; shuffling permutes only the order ----------
+
+class TestSerialAndParallelAgree(_CliCase):
+
+    def test_jobs_1_and_jobs_4_and_shuffled_runs_execute_the_same_units(self):
+        scratch = scratch_checkout(self.tmp / "scratch", modules={
+            f"test_scratch_bulk{i}.py": _trivial_module(f"Bulk{i}_", 3) for i in range(4)})
+        runs = {}
+        for label, argv in (("jobs1", ("--jobs", "1")), ("jobs4", ("--jobs", "4")),
+                            ("seed1", ("--jobs", "1", "--shuffle-seed", "1")),
+                            ("seed2", ("--jobs", "1", "--shuffle-seed", "2")),
+                            ("seed3", ("--jobs", "1", "--shuffle-seed", "3"))):
+            proc = run_cli(scratch, *argv, "--results", self.tmp / label, env=self.env)
+            self.assertEqual(proc.returncode, 0, f"{label}: {proc.stdout}{proc.stderr}")
+            runs[label] = _results(self.tmp / label)
+        reference = runs["jobs1"]
+        for label, units in runs.items():
+            with self.subTest(run=label):
+                self.assertEqual(sorted(units), sorted(reference))
+                self.assertEqual({u: v["outcome"] for u, v in units.items()},
+                                 {u: v["outcome"] for u, v in reference.items()})
+                self.assertEqual({u: v["tests"] for u, v in units.items()},
+                                 {u: v["tests"] for u, v in reference.items()})
+
+        def order(units):
+            shared = [(v["window"][0], u) for u, v in units.items() if v["phase"] == "A"]
+            return [u for _, u in sorted(shared)]
+        orders = {label: tuple(order(runs[label])) for label in ("seed1", "seed2", "seed3")}
+        self.assertGreater(len(set(orders.values())), 1, "shuffling never changed the order")
+
+
+# -- T-EXE-4: path flags never point inside the repository --------------------------------
+
+class TestPathFlagsStayOutsideTheRepository(_CliCase):
+
+    def test_every_path_flag_refuses_a_path_inside_the_repository(self):
+        scratch = scratch_checkout(self.tmp / "scratch")
+        inside = scratch / "tests" / "out"
+        outside = self.tmp / "plan.json"
+        for argv in (("--plan-only", "--out", inside),
+                     ("--run-shard", "0", "--plan", inside, "--results", self.tmp / "r"),
+                     ("--run-shard", "0", "--plan", outside, "--results", inside),
+                     ("--results", inside),
+                     ("--aggregate", inside, "--plan", outside),
+                     ("--aggregate", self.tmp, "--plan", scratch / "plan.json")):
+            with self.subTest(argv=argv):
+                proc = run_cli(scratch, *argv, env=self.env)
+                assert_refusal(self, proc.returncode, proc.stderr, "PathInsideRepositoryError")
+        self.assertFalse(inside.exists())
+        self.assertFalse(isolation.state_dir(scratch).exists(), "a pre-lock refusal took the lock")
+
+
+# -- T-EXE-5: `--fast` (D-Fast-Flag) and the unchanged direct entry points ----------------
+
+class TestFastAliasAndDirectEntryPoints(_CliCase):
+
+    def test_fast_is_a_deprecated_alias_for_a_targeted_selection(self):
+        modules = {name: _trivial_module(name[5:-3].title().replace("_", ""), 1)
+                   for name in cli.FAST_ALIAS_SELECTION}
+        modules["test_scratch_extra.py"] = _trivial_module("Extra", 1)
+        scratch = scratch_checkout(self.tmp / "scratch", modules=modules)
+        proc = run_cli(scratch, "--fast", "--results", self.tmp / "r", env=self.env)
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        self.assertIn(report.FAST_NOTE, proc.stderr)
+        ran_modules = {u.split("::")[0][len("host:"):] for u in _results(self.tmp / "r")}
+        self.assertEqual(ran_modules, set(cli.FAST_ALIAS_SELECTION))
+        both = run_cli(scratch, "--fast", "--select", "test_scratch_extra.py", env=self.env)
+        self.assertEqual(both.returncode, 2)
+        self.assertIn("usage:", both.stderr)
+
+    def test_the_alias_resolves_through_the_selector_over_the_real_inventory(self):
+        host = inventory.discover_host(REPO_ROOT)
+        selection = inventory.select(host, list(cli.FAST_ALIAS_SELECTION))
+        modules = {inventory.split_host_unit_id(u)[0] for u in selection.unit_ids()}
+        self.assertEqual(modules, set(cli.FAST_ALIAS_SELECTION))
+
+    def test_direct_module_runs_still_work(self):
+        for argv in ([sys.executable, "test_templates.py"],
+                     [sys.executable, "-m", "unittest", "test_templates.TestGitignoreFragment"]):
+            with self.subTest(argv=argv):
+                proc = subprocess.run(argv, cwd=str(TESTS_DIR), capture_output=True, text=True,
+                                      env=dict(self.env, PYTHONDONTWRITEBYTECODE="1"))
+                self.assertEqual(proc.returncode, 0, proc.stderr[-3000:])
+                self.assertRegex(proc.stderr, r"\nOK\n")
+
+
+# -- T-EXE-6: refusals are distinguishable --------------------------------------------------
+
+def _plan_only(case, scratch_root, *argv) -> Path:
+    plan = case.tmp / f"plan-{len(list(case.tmp.glob('plan-*')))}.json"
+    proc = run_cli(scratch_root, "--plan-only", "--out", plan, *argv, env=case.env)
+    case.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+    return plan
+
+
+def _tampered(plan: Path) -> Path:
+    doc = json.loads(plan.read_text())
+    doc["predicted"]["total_work"] += 1
+    out = plan.with_name("tampered-" + plan.name)
+    out.write_text(canonical_json(doc))
+    return out
+
+
+class TestRefusalsAreDistinguishable(_CliCase):
+
+    def test_a_held_lock_is_reported_as_itself(self):
+        scratch = scratch_checkout(self.tmp / "scratch")
+        tampered = _tampered(_plan_only(self, scratch))
+        ready, stop = self.tmp / "ready", self.tmp / "stop"
+        holder = multiprocessing.get_context("spawn").Process(
+            target=_hold_lock_and_barrier, args=(scratch, str(ready), str(stop)))
+        holder.start()
+        try:
+            self.wait_ready(ready, holder)
+            # (a) aimed at a plan-digest mismatch, it gets the lock refusal ...
+            proc = run_cli(scratch, "--run-shard", "0", "--plan", tampered,
+                           "--results", self.tmp / "r", env=self.env)
+            assert_refusal(self, proc.returncode, proc.stderr, "RunLockHeldError")
+            # ... and the shared assertion, pointed at the wrong name, fails.
+            with self.assertRaises(AssertionError):
+                assert_refusal(self, proc.returncode, proc.stderr, "PlanDigestMismatchError")
+            # (b) pre-lock refusals are still reported as themselves.
+            usage = run_cli(scratch, "--jobs", "0", env=self.env)
+            self.assertEqual(usage.returncode, 2)
+            self.assertIn("usage:", usage.stderr)
+            self.assertNotIn("RunLockHeldError", usage.stderr)
+            inside = run_cli(scratch, "--results", scratch / "tests" / "r", env=self.env)
+            assert_refusal(self, inside.returncode, inside.stderr, "PathInsideRepositoryError")
+            syntax = run_cli(scratch, "--list", "--select", "not a spec", env=self.env)
+            assert_refusal(self, syntax.returncode, syntax.stderr, "SelectSyntaxError")
+        finally:
+            stop.write_text("")
+            holder.join(30)
+
+    def test_with_the_lock_free_each_refusal_reports_its_own_tag(self):
+        scratch = scratch_checkout(self.tmp / "scratch")
+        plan = _plan_only(self, scratch)
+        unknown = run_cli(scratch, "--list", "--select", "test_nope.py", env=self.env)
+        assert_refusal(self, unknown.returncode, unknown.stderr, "UnknownSelectorError")
+        unknown_frozen = run_cli(scratch, "--list", "--select",
+                                 "frozen:0.0.1/conformance/tiny_test.py::TestNope", env=self.env)
+        assert_refusal(self, unknown_frozen.returncode, unknown_frozen.stderr,
+                       "UnknownSelectorError")
+        digest = run_cli(scratch, "--run-shard", "0", "--plan", _tampered(plan),
+                         "--results", self.tmp / "r1", env=self.env)
+        assert_refusal(self, digest.returncode, digest.stderr, "PlanDigestMismatchError")
+        miscounted = scratch_checkout(self.tmp / "miscounted", pinned=99)
+        count = run_cli(miscounted, "--list", env=self.env)
+        assert_refusal(self, count.returncode, count.stderr, "InventoryCountError")
+
+
+# -- T-EXE-7: test-tree hygiene ---------------------------------------------------------------
+
+#: The functions that reach a checkout's run lock (5.9, round 5 O1).
+LOCK_FUNCS = ("acquire_run_lock", "apply_barrier", "restore_barrier", "recover_barrier")
+#: The only tests allowed to run the real checkout's `run_all.py`: pre-lock
+#: refusals, which never reach the lock.
+PRE_LOCK_TESTS = ("test_cli_reports_a_syntax_error_by_name_before_discovery",)
+CLI_ENTRY = "main"
+_SUBPROCESS_FUNCS = ("run", "Popen", "check_output", "check_call", "call")
+
+
+def lock_reach_violations(source: str) -> list[str]:
+    """T-EXE-7's AST scan: every lock-reaching call and every subprocess that
+    names `run_all.py` must be rooted at an accepted form (5.9)."""
+    module = ast.parse(source)
+    parents = {}
+    for node in ast.walk(module):
+        for child in ast.iter_child_nodes(node):
+            parents[child] = node
+    call_in_string = re.compile(r"\b(?:%s|cli\.main)\s*\(" % "|".join(LOCK_FUNCS))
+    violations = [f"line {n.lineno}: a string constant calls a lock-reaching function"
+                  for n in ast.walk(module)
+                  if isinstance(n, ast.Constant) and isinstance(n.value, str)
+                  and call_in_string.search(n.value)]
+    top_level = {n.name: n for n in module.body if isinstance(n, ast.FunctionDef)}
+
+    def enclosing_function(node):
+        while node in parents:
+            node = parents[node]
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                return node
+        return None
+
+    def bindings(function) -> dict[str, list]:
+        found: dict[str, list] = {}
+        for sub in ast.walk(function) if function is not None else ():
+            if isinstance(sub, ast.Assign):
+                for target in sub.targets:
+                    if isinstance(target, ast.Name):
+                        found.setdefault(target.id, []).append(sub.value)
+            elif isinstance(sub, ast.withitem) and isinstance(sub.optional_vars, ast.Name):
+                found.setdefault(sub.optional_vars.id, []).append(sub.context_expr)
+        return found
+
+    param_ok: dict[str, bool] = {}
+
+    def accepted(expr, function, seen=()) -> bool:
+        if isinstance(expr, ast.Call):
+            name = expr.func.id if isinstance(expr.func, ast.Name) else \
+                getattr(expr.func, "attr", None)
+            if name == "scratch_checkout":
+                return True
+            if name == "scratch_worktree":
+                return bool(expr.args) and accepted(expr.args[0], function, seen)
+            if name in ("str", "Path") and len(expr.args) == 1:
+                return accepted(expr.args[0], function, seen)
+            return False
+        if isinstance(expr, ast.BinOp) and isinstance(expr.op, ast.Div):
+            return isinstance(expr.right, ast.Constant) and accepted(expr.left, function, seen)
+        if isinstance(expr, ast.Name):
+            if expr.id == "scratch_root" and function is not None \
+                    and function.name in top_level and \
+                    "scratch_root" in [a.arg for a in function.args.args]:
+                return scratch_root_ok(function)
+            values = bindings(function).get(expr.id)
+            if not values or expr.id in seen:
+                return False
+            return all(accepted(v, function, seen + (expr.id,)) for v in values)
+        return False
+
+    def scratch_root_ok(function) -> bool:
+        if function.name in param_ok:
+            return param_ok[function.name]
+        param_ok[function.name] = False  # recursion guard
+        index = [a.arg for a in function.args.args].index("scratch_root")
+        sites = []
+        for node in ast.walk(module):
+            if not isinstance(node, ast.Call):
+                continue
+            if isinstance(node.func, ast.Name) and node.func.id == function.name:
+                keyword = [k.value for k in node.keywords if k.arg == "scratch_root"]
+                sites.append((node, keyword[0] if keyword else
+                              (node.args[index] if len(node.args) > index else None)))
+            target = [k.value for k in node.keywords if k.arg == "target"]
+            if target and isinstance(target[0], ast.Name) and target[0].id == function.name:
+                args = [k.value for k in node.keywords if k.arg == "args"]
+                value = args[0].elts[index] if args and isinstance(args[0], ast.Tuple) \
+                    and len(args[0].elts) > index else None
+                sites.append((node, value))
+        ok = bool(sites) and all(v is not None and accepted(v, enclosing_function(n))
+                                 for n, v in sites)
+        param_ok[function.name] = ok
+        return ok
+
+    def exempt(node) -> bool:
+        function = enclosing_function(node)
+        return function is not None and function.name in PRE_LOCK_TESTS
+
+    for node in ast.walk(module):
+        if not isinstance(node, ast.Call):
+            continue
+        function = enclosing_function(node)
+        func = node.func
+        root = None
+        if isinstance(func, ast.Attribute) and func.attr in LOCK_FUNCS:
+            root = node.args[0] if node.args else \
+                next((k.value for k in node.keywords if k.arg == "repo_root"), None)
+            what = func.attr
+        elif isinstance(func, ast.Attribute) and func.attr == "main" and \
+                isinstance(func.value, ast.Name) and func.value.id == "cli":
+            root = next((k.value for k in node.keywords if k.arg == "repo_root"), None)
+            what = "cli.main"
+        elif isinstance(func, ast.Attribute) and func.attr in _SUBPROCESS_FUNCS and \
+                isinstance(func.value, ast.Name) and func.value.id == "subprocess":
+            names = [n for arg in node.args for n in ast.walk(arg)
+                     if isinstance(n, ast.Constant) and n.value == "run_all.py"]
+            if not names:
+                continue
+            what = "a subprocess naming run_all.py"
+            path = names[0]
+            while isinstance(parents.get(path), ast.BinOp) and parents[path].right is path \
+                    or isinstance(parents.get(path), ast.BinOp) and parents[path].left is path:
+                path = parents[path]
+            root = path.left if isinstance(path, ast.BinOp) else None
+            while isinstance(root, ast.BinOp):
+                root = root.left
+        else:
+            continue
+        if exempt(node):
+            continue
+        if root is None or not accepted(root, function):
+            violations.append(f"line {node.lineno}: {what} is not rooted at a scratch checkout")
+    return violations
+
+
+class TestTestTreeHygiene(_CliCase):
+
+    def test_the_scratch_checkout_refuses_the_real_one_and_builds_a_release(self):
+        for root in (REPO_ROOT, REPO_ROOT / "tests" / "scratch-here"):
+            with self.subTest(root=root), self.assertRaises(ValueError):
+                scratch_checkout(root)
+        scratch = scratch_checkout(self.tmp / "scratch")
+        self.assertNotEqual(isolation.git_dir(scratch), isolation.git_dir(REPO_ROOT))
+        release = find_release(scratch, "0.0.1")
+        self.assertEqual(release.verify(), [])
+        repo = build_conformance_repo(release, self.tmp / "fixture")
+        self.assertTrue((repo / "scripts" / "tiny_test.py").is_file())
+        self.assertEqual(support.run_suite(repo, "tiny_test.py").returncode, 0)
+
+    def test_every_lock_reaching_call_in_this_module_is_rooted_at_a_scratch_checkout(self):
+        source = Path(__file__).read_text(encoding="utf-8")
+        self.assertEqual(lock_reach_violations(source), [])
+
+    def test_the_scan_catches_each_mutation(self):
+        source = Path(__file__).read_text(encoding="utf-8")
+        mutants = {
+            "a lock call on REPO_ROOT":
+                f"\n\ndef _mutant():\n    isolation.{LOCK_FUNCS[0]}(REPO_ROOT)\n",
+            "cli.main on the real root":
+                f"\n\ndef _mutant():\n    cli.{CLI_ENTRY}([], repo_root=REPO_ROOT)\n",
+            "an unbound scratch_root call site":
+                "\n\ndef _mutant():\n    run_cli(TESTS_DIR.parent, '--list', env={})\n",
+            "a -c string calling the lock":
+                "\n\n_MUTANT = " + repr(f"import parallel.isolation as i; i.{LOCK_FUNCS[0]}(r)")
+                + "\n",
+            "the real run_all.py outside a pre-lock test":
+                "\n\ndef _mutant():\n    subprocess.run([sys.executable, str(TESTS_DIR / "
+                "'run_all.py')])\n",
+        }
+        for label, text in mutants.items():
+            with self.subTest(mutation=label):
+                self.assertNotEqual(lock_reach_violations(source + text), [])
+
+
+# -- T-EXE-8: a shard refuses a plan for another plan digest or tree ----------------------
+
+class TestRunShardProvenance(_CliCase):
+
+    def test_run_shard_refuses_a_foreign_plan(self):
+        scratch = scratch_checkout(self.tmp / "scratch")
+        plan = _plan_only(self, scratch)
+        tampered = run_cli(scratch, "--run-shard", "0", "--plan", _tampered(plan),
+                           "--results", self.tmp / "r1", env=self.env)
+        assert_refusal(self, tampered.returncode, tampered.stderr, "PlanDigestMismatchError")
+        (scratch / "tests" / "untracked.txt").write_text("another tree")
+        foreign = run_cli(scratch, "--run-shard", "0", "--plan", plan,
+                          "--results", self.tmp / "r2", env=self.env)
+        assert_refusal(self, foreign.returncode, foreign.stderr, "TreeDigestMismatchError")
+
+    def test_shards_and_the_aggregate_round_trip(self):
+        scratch = scratch_checkout(self.tmp / "scratch")
+        plan = _plan_only(self, scratch, "--profile", "ci", "--shards", "2")
+        self.assertEqual(json.loads(plan.read_text())["n"], 2)
+        out = self.tmp / "out"
+        for index in (0, 1):
+            proc = run_cli(scratch, "--run-shard", index, "--plan", plan,
+                           "--results", out / f"shard-{index}", env=self.env)
+            self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        summary = self.tmp / "summary.md"
+        proc = run_cli(scratch, "--aggregate", out, "--plan", plan,
+                       env=dict(self.env, GITHUB_STEP_SUMMARY=str(summary)))
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        self.assertIn("verdict: exit 0", summary.read_text())
+        self.assertIn("B  host:test_scratch_matrix.py::TestScratchMatrix", proc.stdout)
+
+        shutil.move(str(out / "shard-1"), str(self.tmp / "held-back"))
+        missing = run_cli(scratch, "--aggregate", out, "--plan", plan, env=self.env)
+        assert_refusal(self, missing.returncode, missing.stderr, "IncompleteResultsError")
+        shutil.move(str(self.tmp / "held-back"), str(out / "shard-1"))
+        doc_path = out / "shard-1" / "shard-1.json"
+        doc = json.loads(doc_path.read_text())
+        doc["plan_digest"] = "0" * 64
+        doc_path.write_text(canonical_json(doc))
+        foreign = run_cli(scratch, "--aggregate", out, "--plan", plan, env=self.env)
+        assert_refusal(self, foreign.returncode, foreign.stderr, "ForeignResultsError")
+
+
+# -- T-EXE-9: executor-level faults -------------------------------------------------------
+
+class TestExecutorLevelFaults(_CliCase):
+
+    def test_a_chunk_past_its_timeout_is_killed_and_named(self):
+        scratch = scratch_checkout(self.tmp / "scratch", modules={"test_scratch_sleep.py": SLEEP_MODULE})
+        with mock.patch.object(isolation, "TIMEOUT_FLOOR", 2), \
+                mock.patch.object(isolation, "TIMEOUT_CAP", 2):
+            started = time.monotonic()
+            code, out, err = main_in_process(scratch, "--select", "test_scratch_sleep.py")
+        self.assertLess(time.monotonic() - started, 60)
+        assert_refusal(self, code, err, "InfrastructureFaultError")
+        self.assertIn("host:test_scratch_sleep.py::TestScratchSleep: timed_out", err)
+        self.assertFalse(any(not _writable(m) for m in _guarded_modes(scratch).values()))
+
+    def test_a_chunk_that_exits_without_a_record_is_named(self):
+        scratch = scratch_checkout(self.tmp / "scratch", modules={"test_scratch_crash.py": CRASH_MODULE})
+        code, out, err = main_in_process(scratch, "--select", "test_scratch_crash.py")
+        assert_refusal(self, code, err, "InfrastructureFaultError")
+        self.assertIn("host:test_scratch_crash.py::TestScratchCrash: missing_record", err)
+
+    def test_a_persistent_writer_fails_the_run_at_step_6_and_is_attributed(self):
+        scratch = scratch_checkout(self.tmp / "scratch",
+                                   modules={"test_scratch_writer.py": WRITER_MODULE})
+        code, out, err = main_in_process(scratch, "--select", "test_scratch_writer.py",
+                                         "--select", "test_scratch_shared.py")
+        assert_refusal(self, code, err, "IntegrityError")
+        self.assertIn("tools/.keep changed during the run", err)
+        self.assertIn("host:test_scratch_writer.py::TestScratchWriter", err)
+
+
+# -- T-EXE-10: the exclusive unit never waits, whatever the load --------------------------
+
+class TestExclusiveWaitUnderLoad(_CliCase):
+    WORKERS, PER_WORKER = 16, 50
+
+    def _load(self, exclusive_seconds: float) -> dict:
+        """`scratch_checkout` options: 16 x 50 shared units of 1.0-1.2 s and the
+        exclusive unit at `exclusive_seconds` -- placed first by LPT (shard 0)
+        when it is the largest, last (shard 15) when it is the smallest."""
+        count = self.WORKERS * self.PER_WORKER
+        units = {f"host:test_scratch_load.py::TestLoad{i:03d}": 1.0 + (i % 3) / 10
+                 for i in range(count)}
+        units[SCRATCH_EXCLUSIVE_UNIT] = exclusive_seconds
+        return {"modules": {"test_scratch_load.py": _trivial_module("Load", count)},
+                "timings_units": units}
+
+    def test_the_exclusive_unit_starts_first_and_alone_whatever_its_shard(self):
+        shards = set()
+        for exclusive_seconds in (2.0, 0.5):
+            with self.subTest(exclusive_seconds=exclusive_seconds):
+                scratch = scratch_checkout(self.tmp / f"scratch-{exclusive_seconds}",
+                                           **self._load(exclusive_seconds))
+                results_dir = self.tmp / f"r-{exclusive_seconds}"
+                proc = run_cli(scratch, "--jobs", self.WORKERS, "--select", "test_scratch_load.py",
+                               "--select", "test_scratch_exclusive.py", "--results", results_dir,
+                               env=self.env)
+                self.assertEqual(proc.returncode, 0, proc.stdout[-3000:] + proc.stderr)
+                plan = json.loads((results_dir / "plan.json").read_text())
+                self.assertEqual(plan["n"], self.WORKERS)
+                shared = [len([c for c in s["chunks"] if not c["resources"]])
+                          for s in plan["shards"]]
+                self.assertEqual(sum(shared), self.WORKERS * self.PER_WORKER)
+                self.assertTrue(all(abs(n - self.PER_WORKER) <= 1 for n in shared), shared)
+                units = _results(results_dir)
+                exclusive = units.pop(SCRATCH_EXCLUSIVE_UNIT)
+                shards.add(exclusive["shard"])
+                self.assertEqual(exclusive["phase"], "A0")
+                first_shared = min(u["window"][0] for u in units.values())
+                self.assertLessEqual(exclusive["window"][1], first_shared)
+                self.assertIn("A0 (exclusive, alone): 1 chunk(s)", proc.stdout)
+        self.assertEqual(len(shards), 2, "the exclusive unit's shard index was not varied")
+
+    def test_in_a_single_shard_the_exclusive_unit_runs_first(self):
+        scratch = scratch_checkout(self.tmp / "scratch")
+        proc = run_cli(scratch, "--jobs", "1", "--select", "test_scratch_shared.py",
+                       "--select", "test_scratch_exclusive.py", "--results", self.tmp / "r",
+                       env=self.env)
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        units = _results(self.tmp / "r")
+        self.assertLessEqual(units[SCRATCH_EXCLUSIVE_UNIT]["window"][1],
+                             units[SCRATCH_SHARED_UNIT]["window"][0])
+
+    def test_the_aggregator_refuses_a_doctored_overlapping_window(self):
+        scratch = scratch_checkout(self.tmp / "scratch")
+        plan = _plan_only(self, scratch, "--profile", "ci", "--shards", "1",
+                          "--select", "test_scratch_shared.py",
+                          "--select", "test_scratch_exclusive.py")
+        out = self.tmp / "out"
+        proc = run_cli(scratch, "--run-shard", "0", "--plan", plan, "--results", out / "s0",
+                       env=self.env)
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        honest = run_cli(scratch, "--aggregate", out, "--plan", plan, env=self.env)
+        self.assertEqual(honest.returncode, 0, honest.stdout + honest.stderr)
+        doc_path = out / "s0" / "shard-0.json"
+        doc = json.loads(doc_path.read_text())
+        by_unit = {r["chunk"]["units"][0]: r for r in doc["results"]}
+        shared = by_unit[SCRATCH_SHARED_UNIT]
+        by_unit[SCRATCH_EXCLUSIVE_UNIT]["ended_at"] = shared["started_at"] + 0.01
+        doc_path.write_text(canonical_json(doc))
+        doctored = run_cli(scratch, "--aggregate", out, "--plan", plan, env=self.env)
+        assert_refusal(self, doctored.returncode, doctored.stderr, "ExclusiveOverlapError")
+
+
+# -- T-EXE-11: the lock, recovery and linked worktrees through the CLI --------------------
+
+class TestLockAndRecoveryThroughTheCli(_CliCase):
+
+    def _wait_for_chunk(self, scratch_root, process) -> list[int]:
+        def running():
+            return bool(_lock_holder(scratch_root).get("chunk_pgids")) or process.poll() is not None
+        self.assertTrue(_wait_until(running, 60), "the chunk never started")
+        if process.poll() is not None:
+            self.fail(f"the executor exited early: {process.communicate()}")
+        return _lock_holder(scratch_root)["chunk_pgids"]
+
+    def test_a_killed_executor_keeps_the_checkout_locked_until_its_chunk_exits(self):
+        scratch = scratch_checkout(self.tmp / "scratch", modules={"test_scratch_wait.py": WAIT_MODULE})
+        pre_modes = _guarded_modes(scratch)
+        stop = self.tmp / "stop"
+        executor_proc = start_cli(scratch, "--select", "test_scratch_wait.py",
+                                  env=dict(self.env, WM_SCRATCH_STOP=str(stop)))
+        try:
+            pgid = self._wait_for_chunk(scratch, executor_proc)[0]
+            os.kill(executor_proc.pid, signal.SIGKILL)
+            executor_proc.communicate(timeout=30)
+            for argv in (("--list",), ("--restore-barrier",)):
+                with self.subTest(argv=argv):
+                    proc = run_cli(scratch, *argv, env=self.env)
+                    assert_refusal(self, proc.returncode, proc.stderr, "RunLockHeldError")
+                    self.assertIn(f"kill -- -{pgid}", proc.stderr)
+            self.assertFalse(any(_writable(m) for m in _guarded_modes(scratch).values()))
+            self.assertTrue((isolation.state_dir(scratch) / "barrier.json").exists())
+        finally:
+            stop.write_text("")
+        self.assertTrue(_wait_until(lambda: not _lock_holder(scratch).get("chunk_pgids")
+                                    or _dead(pgid), 60))
+        recovered = None
+        deadline = time.monotonic() + 30
+        while recovered is None or recovered.returncode != 0:
+            self.assertLess(time.monotonic(), deadline, recovered and recovered.stderr)
+            recovered = run_cli(scratch, "--restore-barrier", env=self.env)
+            time.sleep(0.1)
+        self.assertIn("recovered a write barrier", recovered.stdout)
+        self.assertEqual(_guarded_modes(scratch), pre_modes)
+        self.assertFalse((isolation.state_dir(scratch) / "barrier.json").exists())
+        again = run_cli(scratch, "--restore-barrier", env=self.env)
+        self.assertEqual(again.returncode, 0, again.stderr)
+        self.assertIn("no write barrier to restore", again.stdout)
+
+    def test_a_root_run_without_allow_root_is_refused(self):
+        scratch = scratch_checkout(self.tmp / "scratch")
+        pre_modes = _guarded_modes(scratch)
+        with mock.patch("os.geteuid", return_value=0):
+            code, out, err = main_in_process(scratch, "--select", "test_scratch_shared.py")
+        assert_refusal(self, code, err, "RootRefusedError")
+        self.assertEqual(_guarded_modes(scratch), pre_modes)
+
+    def test_a_second_executor_in_one_checkout_is_refused_in_every_mode(self):
+        scratch = scratch_checkout(self.tmp / "scratch", modules={"test_scratch_wait.py": WAIT_MODULE})
+        pre_modes = _guarded_modes(scratch)
+        stop = self.tmp / "stop"
+        first = start_cli(scratch, "--select", "test_scratch_wait.py",
+                          env=dict(self.env, WM_SCRATCH_STOP=str(stop)))
+        try:
+            self._wait_for_chunk(scratch, first)
+            applied = _guarded_modes(scratch)
+            marker = (isolation.state_dir(scratch) / "barrier.json").read_bytes()
+            self.assertFalse(any(_writable(m) for m in applied.values()))
+            for argv in (("--list",), ("--plan-only", "--out", self.tmp / "p.json"),
+                         ("--restore-barrier",), ("--select", "test_scratch_shared.py")):
+                with self.subTest(argv=argv):
+                    proc = run_cli(scratch, *argv, env=self.env)
+                    assert_refusal(self, proc.returncode, proc.stderr, "RunLockHeldError")
+                    self.assertEqual(proc.stdout, "")
+                    self.assertEqual(_guarded_modes(scratch), applied)
+                    self.assertEqual((isolation.state_dir(scratch) / "barrier.json").read_bytes(),
+                                     marker)
+            self.assertFalse((self.tmp / "p.json").exists())
+        finally:
+            stop.write_text("")
+        out, err = first.communicate(timeout=120)
+        self.assertEqual(first.returncode, 0, out + err)
+        self.assertEqual(_guarded_modes(scratch), pre_modes)
+        self.assertFalse((isolation.state_dir(scratch) / "barrier.json").exists())
+
+    def test_linked_worktrees_run_concurrently_and_never_touch_each_other(self):
+        scratch = scratch_checkout(self.tmp / "scratch", modules={"test_scratch_wait.py": WAIT_MODULE})
+        worktree = scratch_worktree(scratch)
+        main_modes, wt_modes = _guarded_modes(scratch), _guarded_modes(worktree)
+        stops = {"main": self.tmp / "stop-main", "wt": self.tmp / "stop-wt"}
+        main_run = start_cli(scratch, "--select", "test_scratch_wait.py",
+                             env=dict(self.env, WM_SCRATCH_STOP=str(stops["main"])))
+        wt_run = start_cli(worktree, "--select", "test_scratch_wait.py",
+                           env=dict(self.env, WM_SCRATCH_STOP=str(stops["wt"])))
+        try:
+            self._wait_for_chunk(scratch, main_run)
+            self._wait_for_chunk(worktree, wt_run)
+            self.assertFalse(any(_writable(m) for m in _guarded_modes(scratch).values()))
+            self.assertFalse(any(_writable(m) for m in _guarded_modes(worktree).values()))
+            stops["main"].write_text("")
+            out, err = main_run.communicate(timeout=120)
+            self.assertEqual(main_run.returncode, 0, out + err)
+            self.assertEqual(_guarded_modes(scratch), main_modes)
+            self.assertFalse(any(_writable(m) for m in _guarded_modes(worktree).values()))
+            self.assertTrue((isolation.state_dir(worktree) / "barrier.json").exists())
+        finally:
+            for stop in stops.values():
+                stop.write_text("")
+        out, err = wt_run.communicate(timeout=120)
+        self.assertEqual(wt_run.returncode, 0, out + err)
+        self.assertEqual(_guarded_modes(worktree), wt_modes)
+
+
+# -- CP5 unit-level pieces ------------------------------------------------------------------
+
+class TestExecutorPieces(unittest.TestCase):
+
+    def test_a_chunk_result_round_trips(self):
+        chunk = plan_schema.ChunkDescriptor("c", 1, ("host:test_a.py::A",), 2.0, ("r",))
+        result = executor.ChunkResult(chunk, "A0", 1, "host", "passed", 1.0, 2.5, 0,
+                                      {"passed": True}, "/log", "", ("x",))
+        again = executor.ChunkResult.from_json(json.loads(json.dumps(result.to_json())))
+        self.assertEqual(again, result)
+        self.assertEqual(again.window, isolation.Window("c", 1.0, 2.5, True))
+        with self.assertRaises(executor.IncompleteResultsError):
+            executor.ChunkResult.from_json({"chunk": chunk.to_json()})
+
+    def test_the_verdict_precedence(self):
+        chunk = plan_schema.ChunkDescriptor("c", 0, ("host:test_a.py::A",), 1.0)
+        frozen = plan_schema.ChunkDescriptor("f", 0, ("frozen:1.0.0/conformance/s.py::K",), 1.0)
+
+        def result(outcome, c=chunk, kind="host"):
+            return executor.ChunkResult(c, "A", 0, kind, outcome)
+        never = lambda r: False  # noqa: E731
+        always = lambda r: True  # noqa: E731
+        self.assertEqual(executor.verdict_of([result("passed")], never).code, 0)
+        self.assertEqual(executor.verdict_of([result("failed")], never).code, 1)
+        self.assertEqual(executor.verdict_of([result("failed", frozen, "frozen")], always).code, 0)
+        self.assertEqual(executor.verdict_of([result("failed", frozen, "frozen")], never).code, 1)
+        mixed = executor.verdict_of([result("failed"), result("timed_out")], never)
+        self.assertEqual((mixed.code, len(mixed.failures)), (2, 1))
+        self.assertEqual(executor.verdict_of([result("passed")], never,
+                                             extra_faults=[("IntegrityError", "x")]).code, 2)
+
+    def test_tmpdir_residue_is_reported_against_its_chunk(self):
+        plan = {"n": 1, "profile": "local", "shards": [{"load": 1.0}], "timing": {},
+                "predicted": {"total_work": 1.0, "critical_path": 1.0,
+                              "critical_path_chunk": "c", "makespan": {"total": 1.0}}}
+        chunk = plan_schema.ChunkDescriptor("c", 0, ("host:test_a.py::A",), 1.0)
+        clean = executor.ChunkResult(chunk, "A", 0, "host", "passed", 1.0, 2.0)
+        dirty = executor.ChunkResult(chunk, "A", 0, "host", "passed", 1.0, 2.0,
+                                     tmp_residue=("stray.txt",))
+        self.assertIn("  TMPDIR residue: none",
+                      report.shard_summary(plan, [clean], wall=1.0, drifted=[]))
+        lines = report.shard_summary(plan, [dirty], wall=1.0, drifted=[])
+        self.assertIn("  TMPDIR residue (removed): 1 chunk(s)", lines)
+        self.assertIn("    c: stray.txt", lines)
+        doc = json.loads(report.results_doc([dirty], 0, {}))
+        self.assertEqual(doc["units"]["host:test_a.py::A"]["tmp_residue"], ["stray.txt"])
+
+    def test_an_observation_read_twice_counts_once(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            record = {"chunk_id": "c", "version": "1.0.0", "fixture": "conformance",
+                      "suite": "s.py", "classes": ["K"], "returncode": 0,
+                      "output": "Ran 1 test in 0.5s\n", "timed_out": False, "build_error": None,
+                      "duration": 1.0, "started_at": 100.0, "tree_digest": "T"}
+            (Path(tmp) / "frozen-records").mkdir()
+            (Path(tmp) / "frozen-records" / "c.record.json").write_text(json.dumps(record))
+            with open(Path(tmp) / "timings.jsonl", "w") as handle:
+                for obs in timings.observations_from_record(record, "local"):
+                    handle.write(obs.to_json_line())
+            found = timings.read_observations([tmp], "local")
+        self.assertEqual(len(found), 2)
 
 
 if __name__ == "__main__":

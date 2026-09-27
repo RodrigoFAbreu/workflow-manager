@@ -100,9 +100,17 @@ release that widens closed state vocabulary creates.
 ## Tests
 
 ```bash
-python3 tests/run_all.py            # everything (~7 minutes)
-python3 tests/run_all.py --fast     # skip the frozen conformance matrix
+python3 tests/run_all.py                      # the gate: everything, in parallel (~8 minutes)
+python3 tests/run_all.py --select test_x.py   # run what you touched -- never a gate
+python3 tests/run_all.py --jobs 1             # the serial reference (~36 minutes)
+python3 tests/run_all.py --help               # every mode, flag and exit code
 ```
+
+Run what you touched with `--select`; gates run `python3 tests/run_all.py`.
+`--fast` is a deprecated alias for a targeted `--select` of eight modules, not
+a verification gate. While a run is live, `distribution/`, `migration/`,
+`src/` and `tools/` are read-only; see
+[`docs/ARCHITECTURE.md`'s "Verification execution"](docs/ARCHITECTURE.md#verification-execution).
 
 The upstream-comparison tests skip cleanly when the upstream repository is not
 present: a migrated release is verifiable from its own manifest alone.

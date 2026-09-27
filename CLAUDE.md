@@ -68,9 +68,16 @@ It is *not* RepFlow, and no RepFlow product work belongs here.
 ## Before changing anything
 
 ```bash
-python3 tests/run_all.py --fast     # ~10s, covers inventory/bytes/templates/bootstrap
-python3 tests/run_all.py            # ~7min, adds the frozen conformance matrix
+python3 tests/run_all.py                          # the gate: full selection, in parallel (~8min)
+python3 tests/run_all.py --select test_x.py       # run what you touched -- never a gate
+python3 tests/run_all.py --jobs 1                 # the serial reference (~36min)
 ```
+
+Run what you touched with `--select`; gates run `python3 tests/run_all.py`.
+`--fast` survives one release as a deprecated alias for a targeted
+`--select` of eight modules -- targeted selection, not a verification gate.
+A run makes `distribution/`, `migration/`, `src/` and `tools/` read-only
+until it ends; see `docs/ARCHITECTURE.md`'s "Verification execution".
 
 `tools/migrate.py --check` proves each upstream-derived
 `distribution/workflow/<version>/` (today, `2.3.1`) still reproduces from a

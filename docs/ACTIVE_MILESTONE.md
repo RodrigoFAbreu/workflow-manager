@@ -12,8 +12,8 @@ Measured baseline: full serial verification 2162 s (36.0 min) at `db4c7af`.
 
 ## Current checkpoint
 
-CP1, CP2, CP3 and CP4 complete; next is CP5 (the executor, which composes
-CP2, CP3 and CP4).
+CP1-CP5 complete; next is CP6 (the dynamic CI pipeline generated from the
+plan).
 
 ## Checkpoint log
 
@@ -336,6 +336,131 @@ CP2, CP3 and CP4).
     is empty. No `__pycache__` appeared under `tests/parallel/`.
   - No `[evidence]` run. The phase-A-under-barrier evidence is CP5's
     E-EXE-2.
+
+### CP5 -- local parallel executor, aggregation and compatibility (complete)
+
+- `tests/run_all.py` is now the thin shim of 5.9: `sys.exit(parallel.cli.main(
+  sys.argv[1:], repo_root=<derived from __file__>))`, with bytecode writing
+  off before any import.
+- `tests/parallel/cli.py` (new): the argument parser, per-mode option checks
+  and the pre-lock steps. It refuses a path flag (`--out`, `--plan`,
+  `--results`, `--aggregate`) inside the repository
+  (`PathInsideRepositoryError`) and checks `--select` syntax, before taking
+  the lock. Then it takes the run lock in every mode and recovers a dead
+  run's barrier. Every refusal after that is tagged
+  `run_all: error[<ErrorName>]: ...` with exit 2. `FAST_ALIAS_SELECTION`
+  holds the eight modules of the deprecated `--fast` alias
+  (`D-Fast-Flag`, default outcome), which prints "targeted selection --
+  not a verification gate".
+- `tests/parallel/executor.py` (new): the `Engine` (A0 with the barrier
+  lifted for exactly the unit's resource trees, one worker thread per
+  shard, phase B in merged mode against merge contexts built from the
+  verified plan, and an interrupt that kills every live chunk group).
+  Also `local_run`, `list_units`, `plan_only`, `run_shard`, `aggregate`
+  and `update_timings`, with the 5.9 guards per mode, the verdict (exit 2
+  wins over 1, and every failure is still listed), the exclusive-window
+  re-check, integrity attribution and the history append. `SIGTERM` is
+  turned into the same unwind as `SIGINT`, so the barrier is restored and
+  the lock released.
+- `tests/parallel/frozen_chunk.py` (new): the frozen side of a chunk and
+  the phase-B `prepare-merge`, run as subprocesses of the checkout being
+  verified.
+- `tests/parallel/report.py` (new, 5.11): today's per-module lines, one
+  block per failure (unit, failing tests, log, output tail, reproduction
+  command, with `--whole-groups` and one `--select` per class for a frozen
+  chunk), the shard summary, and `results.json`.
+- `isolation.RunLock`'s holder record is updated under a mutex so worker
+  threads can share it (`live_chunk_pgids` for the interrupt).
+  `timings.read_observations` counts an observation once when a results
+  directory holds both the record and the history line made from it.
+- The declared assertion change of 5.12 in
+  `test_workflow_2_6_0_hardening_disposable_repo.py`
+  (`test_the_repository_level_guards_are_still_registered`, v2.3.1-002). It
+  now asserts that every host class of `test_amendment_update_path.py` is
+  in the full inventory and in `FAST_ALIAS_SELECTION`'s resolved
+  selection. The comment-only edits of 5.12 were made to it and to
+  `test_amendment_update_path.py`.
+- Docs: `README.md` and `CLAUDE.md` "Before changing anything" now carry
+  the measured timings, `--select` for targeted runs and no tier wording.
+  `docs/ARCHITECTURE.md` has a new "Verification execution" section.
+- Found and fixed during this checkpoint's review, both surfaced by the
+  evidence runs:
+  - A local run removed each chunk's `TMPDIR` residue without reporting it
+    (5.9 requires residue to be reported against its chunk). The shard
+    summary now prints `TMPDIR residue: none`, or each chunk with its
+    paths, and `results.json` carries `tmp_residue` per unit. Covered by
+    `TestExecutorPieces.test_tmpdir_residue_is_reported_against_its_chunk`.
+  - That reporting then showed that `test_parallel_runner.py`'s own CLI
+    tests leaked the run directories a failing run keeps on purpose
+    (`wm-run-*`, into the real `$TMPDIR` when run directly). `_CliCase` now
+    points `TMPDIR` and `tempfile.tempdir` at the test's own temporary
+    directory. Verified: a direct run adds no `/tmp/wm-run-*`, and a run
+    under the lock reports no residue for the module. The 69
+    `/tmp/wm-run-*` directories left by earlier direct runs were not
+    removed.
+- Tests: section 6.5 T-EXE-1..11 (`TestExitCodeContract`, `TestReport`,
+  `TestSerialAndParallelAgree`, `TestPathFlagsStayOutsideTheRepository`,
+  `TestFastAliasAndDirectEntryPoints`, `TestRefusalsAreDistinguishable`,
+  `TestTestTreeHygiene`, `TestRunShardProvenance`,
+  `TestExecutorLevelFaults`, `TestExclusiveWaitUnderLoad`,
+  `TestLockAndRecoveryThroughTheCli`), plus `TestExecutorPieces`.
+  `scratch_checkout` now also carries the frozen-chunk parts (a synthetic
+  `0.0.1` release with manifest, `migration/` files, `matrix.py`,
+  `frozen_runs.py`, `support.py` and `src/workflow_manager/`).
+  `python3 tests/test_parallel_runner.py`: 175/175 OK (56 s).
+- Evidence (the six full runs, one after another on this tree, 16 CPUs;
+  the git status was identical before and after):
+
+  | run | wall | exit |
+  | --- | --- | --- |
+  | `--jobs 1` | 2394 s | 0 |
+  | `--jobs auto` (n=8) | 438 s | 0 |
+  | `--jobs 8` | 440 s | 0 |
+  | `--shuffle-seed 11` / `22` / `33` | 453 / 461 / 475 s | 0 |
+
+  - **E-EXE-1.** All six runs executed the identical set of 25,394 test
+    ids (4034 atomic units), with identical per-unit outcomes, per-module
+    `Ran N` counts and verdicts. For all 105 release x fixture x suite
+    combinations, the frozen per-suite totals (24,870 in all) equal the
+    `CI_SUITES` pins that direct mode asserts, and all 15 matrix host
+    classes pass their unchanged assertions in merged mode. That is CP2's
+    direct == merged comparison, over the planner's default chunking. The
+    only frozen failures are the four documented
+    `TestRetiredScopedRemediationLeavesNoLiveSurface` exceptions (2.3.1 and
+    2.4.0, `bootstrapped` and `target`), judged by their host classes.
+  - **E-EXE-2.** Phase A of the real selection ran under the write barrier
+    at `--jobs 1` and `--jobs 8`, green: no unit besides the declared one
+    writes to a guarded tree, and the integrity comparison was clean. A0
+    took 0.8 s in every run. The run directory's `tmp/` was empty after
+    cleanup in every run.
+    `TMPDIR` residue was **not** none: it was reported and removed. It
+    came from three sources:
+    - `test_parallel_runner.py`'s own `wm-run-*` leak, fixed above;
+    - the frozen `2.6.0` `workflow_state_test.py` (all three fixtures,
+      every run), which leaves 9 `wf-lifecycle-worker-*` directories;
+    - the frozen `2.4.0` `target` `workflow_integration_test.py` (the
+      `--jobs 1` run only), which left two `wf-harness-test-*` repositories
+      with in-flight git pack temporaries.
+
+    The frozen payload is not this repository's to change, and direct
+    mode leaks the same directories into `/tmp`. So these are recorded
+    here as observations, not fixed. The per-chunk `TMPDIR` is exactly
+    what contains them now.
+  - **E-EXE-3.** Two runs were green: `python3 tests/test_parallel_runner.py`
+    directly (175 OK), and `run_all.py --select test_parallel_runner.py
+    --select test_workflow_2_6_0_hardening_disposable_repo.py::TestClosedDefectCensus`
+    under the held lock (exit 0, residue none). The module was also green
+    as a chunk of all six full runs above. The rewritten
+    `test_the_repository_level_guards_are_still_registered` was green
+    directly and under the lock. Patching `inventory.discover` to drop
+    `test_amendment_update_path.py`'s classes makes it fail.
+  - The evidence runs came before the `_CliCase` `TMPDIR` fix. That fix
+    changes only where those tests' temporary run directories live, not
+    which tests exist or their verdicts. It was verified separately under
+    the lock, as above.
+- INV-5:
+  `git diff db4c7af -- distribution migration scripts .claude/commands src tools .github/workflows/workflow-conformance.yml`
+  empty.
 
 ---
 
