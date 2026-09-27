@@ -148,6 +148,36 @@ Documented residuals / follow-ups left by the accepted implementation:
 
 ---
 
+## Repository tooling: adaptive test sharding
+
+**Status:** COMPLETE. Accepted as milestone `workflow-manager-adaptive-test-sharding`, a `process` work item scoped from the user's milestone brief rather than from a section of this roadmap. It changes no Workflow release. Its plan is `docs/ai-workflow/WORKFLOW_MANAGER_ADAPTIVE_TEST_SHARDING_PLAN.md`.
+
+`python3 tests/run_all.py` still runs the complete test set, and every test it ran before. It is now faster:
+
+- locally, about 6.5-7 min instead of 36 min serial;
+- in CI, about 7-10 min at 16 shards through `.github/workflows/workflow-manager-verify.yml`. The single-shard reference takes 110.8 min.
+
+It gets there through:
+
+- a deterministic inventory;
+- duration-balanced shards;
+- isolated parallel chunks, protected by a write barrier and a run lock;
+- a CI matrix generated from the plan.
+
+`docs/ARCHITECTURE.md`'s "Verification execution" has the design. It also sets the policy that a serial or single-shard run is exceptional evidence, not a routine check.
+
+Follow-ups left open by the accepted implementation:
+
+- A per-commit CI concurrency group for `main`. Today's per-ref group can cancel an intermediate `main` run while it is still pending.
+- Two optional hardening items:
+  - A cleanup failure after the report can still turn a printed exit 0 into exit 2.
+  - An interrupt inside `Popen`'s fork-to-exec window is not covered.
+- The 5-minute CI target (P-3) needs about 24 shards, above the account's 20-job cap.
+
+This milestone does not change the order below: 1.9 stays NEXT.
+
+---
+
 # 1. Review Artifact, Publication, and Concurrency Hardening
 
 **Status:** COMPLETE — accepted as Workflow 2.6.0 (milestone `workflow-review-artifact-and-concurrency-hardening`, commit `136c417`).

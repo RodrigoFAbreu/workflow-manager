@@ -2,7 +2,7 @@
 
 ## Milestone
 
-**Functional review.** `workflow-manager-adaptive-test-sharding`
+**Complete.** `workflow-manager-adaptive-test-sharding`
 (`governing_workflow_version: "2.2"`, `process`, plan revision 7 approved
 2026-09-26, base `db4c7af`): adaptive, duration-balanced parallel execution
 of this repository's own verification suite (`tests/`), with no coverage
@@ -12,16 +12,45 @@ Measured baseline: full serial verification 2162 s (36.0 min) at `db4c7af`.
 
 ## Current checkpoint
 
-CP1-CP7 are complete, and the implementation is technically approved.
-- The approval is commit `ff7a936`, on basis `EXTERNAL_APPROVE`, for
-  bundle `17c8e92c...`.
-- Both review stages approved it: the local review in its round 2 and the
-  manual external review in its round 1.
-- The user confirmed CP7's accepted deviations, P-2 and P-5 CI, at
+**Milestone complete.** `workflow-manager-adaptive-test-sharding` reached
+`MILESTONE_COMPLETE` through `/accept-milestone` on 2026-09-27, with the
+user's confirmation, and `active_work_item_id` is cleared.
+- **Checkpoints:** CP1-CP7 are complete.
+- **Technical approval:** commit `ff7a936`, on basis `EXTERNAL_APPROVE`,
+  for bundle `17c8e92c...`. Both review stages approved: the local review
+  in its round 2, and the manual external review in its round 1.
+- **Accepted deviations:** the user confirmed P-2 and P-5 CI at
   `/approve-review implementation`. P-3 is documented-unreachable under its
   own clause.
+- **Functional review:** clean, with no findings, against the checklist
+  below (evidence commit `a16c4d2`). Claude ran all seven flows at the
+  user's request.
 
-Next: the user tests against the "Functional review checklist" below.
+The checkpoint log below is this milestone's permanent record.
+
+## Current blockers
+
+None. The open follow-ups are listed in `docs/ROADMAP.md`'s "Repository
+tooling: adaptive test sharding" entry:
+- a per-commit CI concurrency group for `main`;
+- two optional runner-hardening items;
+- the 5-minute CI target, blocked by the 20-job cap.
+
+## Active plan
+
+None, because the milestone is complete. The plan document stays at
+`docs/ai-workflow/WORKFLOW_MANAGER_ADAPTIVE_TEST_SHARDING_PLAN.md`
+(revision 7, plan approval `CURRENT`) instead of being archived.
+`docs/ARCHITECTURE.md`'s "Verification execution" cites it as the design
+record.
+
+## Next action
+
+`workflow-manager-adaptive-test-sharding` is complete. Next, run
+`/milestone-plan` for the next incomplete milestone in `docs/ROADMAP.md`.
+Its suggested execution order marks it NEXT: section 1.9, "Small
+Controller <-> released 2.6 integration", the first step toward the
+Workflow Orchestration Protocol foundation.
 
 ## Checkpoint log
 
@@ -611,7 +640,7 @@ Next: the user tests against the "Functional review checklist" below.
   `git diff db4c7af -- distribution migration scripts .claude/commands src tools .github/workflows/workflow-conformance.yml`
   empty.
 
-### CP7 -- performance acceptance, tuning, committed timing seed, stress runs and full regression (complete, pending user confirmation of two accepted deviations)
+### CP7 -- performance acceptance, tuning, committed timing seed, stress runs and full regression (complete; two accepted deviations confirmed by the user)
 
 Commits: `11e996e` (the code, tuned timings and docs the measurements ran
 against), `6cd0f97` (direct CI per-class timings), and this checkpoint's
@@ -650,11 +679,11 @@ commit (records only). Hardware: the section 3 workstation, 16 CPUs, Python
 | P-0 | local 2162 s (section 3.1, at `db4c7af`); CI `--shards 1` reference: run 36318597506, 6572.6 s shard compute, 110.8 min wall (CP6) | reference only | recorded |
 | P-1 | `--jobs auto` (8 workers) at `11e996e`: 425.8 / 410.8 / 406.1 s, all exit 0 | median <= 420 s | **met** (median 410.8 s) |
 | P-1 at `--jobs 16` | 10 runs, from P-4: 299.4-319.1 s, median 308 s | reported, no threshold | recorded |
-| P-2 | `--jobs 1` at `11e996e`: 2421.2 s, exit 0; per-unit outcomes, executed test ids (`tests_digest 6bb22c22...`, 25,411 tests) and verdict identical to all three P-1 runs | <= 1.10 x P-0 (2378.2 s) | **missed as measured: 1.120 x**; at the post-review head 1.098 x. Accepted deviation, pending user confirmation (below) |
+| P-2 | `--jobs 1` at `11e996e`: 2421.2 s, exit 0; per-unit outcomes, executed test ids (`tests_digest 6bb22c22...`, 25,411 tests) and verdict identical to all three P-1 runs | <= 1.10 x P-0 (2378.2 s) | **missed as measured: 1.120 x**; at the post-review head 1.098 x. Accepted deviation, confirmed by the user (below) |
 | P-3 | see the CI table below | median at the higher shard count <= 5.5 min | **not met; documented-unreachable** under its own "if unreachable" clause (review ruling, round 1). Floor quantified below |
 | P-4 | `--jobs 16`, 10 consecutive runs: 10/10 exit 0, zero retries | 10/10 green | **met** |
 | P-5 local | from P-1: predicted 424.7 s against actual 406-426 s (within 5 %); shard max/mean 1.025-1.026; discovery + planning 1.1-1.2 s; barrier apply 0.004 s and restore 0.001 s (141 directories) | +/-25 %; <= 1.15; <= 20 s; <= 5 s | **met** |
-| P-5 CI | see below | +/-25 %; <= 1.15 | **partly met**. Accepted deviation, pending user confirmation (below) |
+| P-5 CI | see below | +/-25 %; <= 1.15 | **partly met**. Accepted deviation, confirmed by the user (below) |
 
 **P-2, the miss and its like-for-like figure.** P-0 was measured at
 `db4c7af`, before `tests/test_parallel_runner.py` existed. That module is
@@ -715,7 +744,7 @@ shard's start.
   work distribution across CI jobs, or more shards than the account
   allows. Neither is in this milestone's scope.
 
-**Accepted deviations (pending user confirmation).** Section 7 gives P-3 an
+**Accepted deviations (confirmed by the user at `/approve-review implementation`, 2026-09-27).** Section 7 gives P-3 an
 "if unreachable, the remainder is documented quantitatively" clause, and the
 round-1 review accepted P-3 under it. P-2 and P-5 CI have no such clause, so
 they are recorded here as explicit deviations from section 7 for the user to
@@ -2696,24 +2725,13 @@ this checklist was prepared. The rest of flows 4-6 state the documented
   `.workflow-manager/installation.json`, `docs/ROADMAP.md`) are not part
   of this milestone.
 
-## Current blockers
+### Closing state at its acceptance (historical)
 
-None. Important 1's residual is dispositioned as a mandatory follow-up
-(`v2.6.0-001`), not as a blocker for this round.
-
-## Active plan
-
-None (milestone complete). The plan document stays at
-`docs/ai-workflow/WORKFLOW_REVIEW_ARTIFACT_AND_CONCURRENCY_HARDENING_PLAN.md`
-(revision 8, plan approval `CURRENT`) rather than being archived: it is cited
-as a permanent design record by `docs/MIGRATION.md` and by the shipped
-`2.6.0` payload's `WORKFLOW_V2_PLAN.md`.
-
-## Next action
-
-`workflow-review-artifact-and-concurrency-hardening` is complete. Next:
-`/milestone-plan` for the next incomplete milestone in `docs/ROADMAP.md`
-(the committed roadmap lists "Disposable RepFlow migration validation"
-next). `docs/ROADMAP.md` itself was deliberately not updated by this
-acceptance: an uncommitted operator revision of it is pending, and it still
-marks this milestone `CURRENT` and reorders the milestones that follow.
+- **Blockers:** none. Important 1's residual was dispositioned as a
+  mandatory follow-up (`v2.6.0-001`), not as a blocker.
+- **Plan:** stays at
+  `docs/ai-workflow/WORKFLOW_REVIEW_ARTIFACT_AND_CONCURRENCY_HARDENING_PLAN.md`
+  (revision 8), because `docs/MIGRATION.md` and the shipped `2.6.0`
+  payload's `WORKFLOW_V2_PLAN.md` cite it as a permanent design record.
+- **Next action at the time:** `/milestone-plan`. The roadmap was realigned
+  afterwards, in `db4c7af`.
