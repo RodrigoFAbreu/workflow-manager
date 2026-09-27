@@ -12,8 +12,10 @@ Measured baseline: full serial verification 2162 s (36.0 min) at `db4c7af`.
 
 ## Current checkpoint
 
-CP1-CP5 complete; next is CP6 (the dynamic CI pipeline generated from the
-plan).
+CP1-CP6 complete; next is CP7 (performance acceptance, tuning, committed
+timing seed, stress runs and full regression). CP6's `[evidence]` item (the
+real CI runs) is outstanding: it needs the user to push, and CP7 records it
+first, before its own work (see CP6 below).
 
 ## Checkpoint log
 
@@ -458,6 +460,103 @@ plan).
     changes only where those tests' temporary run directories live, not
     which tests exist or their verdicts. It was verified separately under
     the lock, as above.
+- INV-5:
+  `git diff db4c7af -- distribution migration scripts .claude/commands src tools .github/workflows/workflow-conformance.yml`
+  empty.
+
+### CP6 -- dynamic CI pipeline generated from the plan (complete; CI evidence outstanding)
+
+- **`D-CI-Cost` resolved by the user (2026-09-27), proposal column:**
+  triggers `pull_request` + `push` to `main` + `workflow_dispatch`, with
+  PR runs cancelled in progress per ref; the account is on the GitHub
+  **Free** plan with a concurrent-job limit of **20**, so
+  `ci_max_shards` stays **16** (the cap would be 19). Both values were
+  already what `tests/parallel/config.json` holds
+  (`ci_account_concurrent_job_limit: 20`, `ci_max_shards: 16`), so the
+  config is unchanged.
+- `.github/workflows/workflow-manager-verify.yml` (new, 5.10):
+  - `plan`: checkout, Python 3.12, fetch the frozen upstream into
+    `$HOME/Workspace/repflow-android` (shallow fetch of tag
+    `workflow-v2.3.1`, then a hard check that it resolves to
+    `1f954fbb...`), `run_all.py --plan-only --profile ci --out
+    "$RUNNER_TEMP/plan.json"` (plus `--shards` from the dispatch input,
+    for the `--shards 1` reference), and `shards=[0..n-1]` to
+    `$GITHUB_OUTPUT`; uploads `plan.json`.
+  - `shard`: matrix `${{ fromJSON(needs.plan.outputs.shards) }}`,
+    `fail-fast: false`; same setup; `--run-shard` into
+    `$RUNNER_TEMP/out/`; uploads it as `results-shard-<k>` with
+    `if: always()`.
+  - `aggregate`: `needs: [plan, shard]`, `if: always()`; no upstream
+    fetch; downloads the plan and every `results-shard-*` artifact, runs
+    `--aggregate`, writes the report to `$GITHUB_STEP_SUMMARY`; its exit
+    code is the verdict. Its own run directory is uploaded as
+    `results-aggregate` (phase-B timings for CP7's `--update-timings`).
+  - Every step that runs `run_all.py` sets `TMPDIR` under `$RUNNER_TEMP`,
+    so no tool output (the aggregate's run directory included) lands in
+    the checkout or outside `$RUNNER_TEMP`.
+  - The managed `workflow-conformance.yml` is untouched.
+- Tests (section 6.6), in `tests/test_parallel_runner.py`:
+  - T-CI-1 `TestCiWorkflowStructure`: a stdlib parser for the block-YAML
+    subset the file uses (refusing anything outside it) and
+    `ci_workflow_problems`, which checks the plan-driven matrix,
+    `fail-fast`, `aggregate`'s `needs`/`if`, every path flag and artifact
+    path under `$RUNNER_TEMP`/`runner.temp`, `TMPDIR`, the per-job modes,
+    Python 3.12, the triggers and concurrency of `D-CI-Cost`, and the
+    upstream fetch pinning `1f954fbb6c689ec690fefe5a2f27b1e4a0ca6db6`
+    (plan and shard jobs, identical; none in `aggregate`). Eleven
+    mutations of the file are each caught.
+  - T-CI-2 `TestCiTreeIdentity`: the workflow's own `run:` scripts, run
+    verbatim with `bash -eo pipefail` in `scratch_clone`s of a scratch
+    checkout (a fresh CI-like checkout per job) with a stand-in
+    `RUNNER_TEMP`. The plan's `tree_digest` equals each shard job's
+    checkout digest and shard summary, `$GITHUB_OUTPUT` gets
+    `shards=[0,1]`, the aggregate (with results laid out as the artifact
+    download does) exits 0 and writes the step summary, and no job's
+    checkout digest changes. With `RUNNER_TEMP` inside the checkout, both
+    the plan and the shard step are refused (`PathInsideRepositoryError`).
+  - T-CI-3 `TestCiAggregateRefusals`: in the artifact layout, exit 2 for a
+    missing shard (`IncompleteResultsError`), a shard from another plan
+    (`ForeignResultsError`), and a complete, self-consistent frozen record
+    set re-cut into another chunk partition, stamped for this plan and
+    tree (`FrozenMergeError`, the context being built from `plan.json`).
+  - T-CI-4 `TestManagedWorkflowUntouched`: `workflow-conformance.yml`
+    still matches its `installation.json` digest, the new file is not a
+    managed file, and `python3 -m workflow_manager verify` reports
+    "installation matches workflow 2.5.1".
+  - T-CI-5 `TestCiGuardsInAFreshCheckout`: in a clone with no untracked or
+    ignored file, a host unit and the phase-B matrix class each run a
+    subprocess with the environment replaced wholesale (no
+    `PYTHONDONTWRITEBYTECODE`) importing `src/scratchpkg`. `--run-shard`
+    and `--aggregate` are green and leave no `__pycache__` under `src/`.
+    With `Barrier._lock_dirs` patched out, each leaves
+    `src/scratchpkg/__pycache__` and fails with exit 2 (`IntegrityError`).
+  - `scratch_clone` is a new accepted root in T-EXE-7's lock-reach scan,
+    like `scratch_worktree`, and the scan's mutation list gained "a clone
+    of the real checkout".
+- Verification: the ten new tests pass under Python 3.14.7 and, with
+  T-EXE-1 and T-EXE-8, under Python 3.12.14 (the CI interpreter).
+  `python3 tests/run_all.py --jobs 1 --select test_parallel_runner.py`:
+  exit 0, 185 tests OK, `TMPDIR` residue none (under the real run lock and
+  barrier, so T-CI-4's `verify` ran there too). `python3.12 tests/run_all.py
+  --plan-only --profile ci` on the real checkout planned `n=16`.
+- **Outstanding `[evidence]` (needs the user):** this repository forbids
+  Claude from pushing. Once the CP6 commit is pushed:
+  1. the push to `main` runs the pipeline at the default
+     `ci_max_shards` (16): record the run URL, the verdict, per-job wall
+     and setup times (they seed `ci_job_setup_seconds`), and confirm that
+     the shard running `TestCliDrivesTheSameOperations` is green with no
+     integrity failure (O2);
+  2. `gh workflow run workflow-manager-verify.yml -f shards=1`: the
+     `--shards 1` CI reference (P-0's CI counterpart).
+
+  CP7 records both before its own work. A CI-only defect found there is
+  fixed before CP7 proceeds. The `ci` timing profile is empty until then,
+  so the first CI plan predicts from defaults (7622 s total work at
+  `n=16`); CP7 folds the real shard results in.
+- **Note for the user:** making `aggregate` a *required* status check is a
+  branch-protection setting. GitHub does not offer branch protection for
+  private repositories on the Free plan, so until the plan or visibility
+  changes the check runs and reports but cannot be enforced.
 - INV-5:
   `git diff db4c7af -- distribution migration scripts .claude/commands src tools .github/workflows/workflow-conformance.yml`
   empty.

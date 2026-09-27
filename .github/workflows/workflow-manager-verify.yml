@@ -1,0 +1,144 @@
+# workflow-manager's own verification: the full test selection
+# (`python3 tests/run_all.py`), split across a matrix of shards that the
+# planner computes -- there is no shard list in this file.
+#
+#   plan       discovers the inventory and writes plan.json; its shard list
+#              becomes the matrix.
+#   shard      runs one shard of the plan (phase A) and uploads its results.
+#   aggregate  verifies every shard's results against the plan, runs phase B
+#              (the frozen-matrix merge) and reports. Its exit code is the
+#              verdict: it is the one required status check.
+#
+# Every file the tooling writes lives under $RUNNER_TEMP, never in the
+# checkout, so each job's tree digest equals the plan job's. This workflow is
+# not managed by workflow-manager; workflow-conformance.yml is, and stays as
+# installed. See docs/ARCHITECTURE.md, "Verification execution".
+name: Workflow manager verification
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      shards:
+        description: "Shard count (empty: the planner's own count; 1: the serial CI reference)"
+        required: false
+        default: ""
+
+concurrency:
+  group: workflow-manager-verify-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+env:
+  # The frozen upstream the upstream-comparison tests read, at the pinned
+  # commit (tests/support.py's UPSTREAM and tools/migrate.py's
+  # DEFAULT_UPSTREAM both default to $HOME/Workspace/repflow-android).
+  UPSTREAM_URL: https://github.com/RodrigoFAbreu/repflow-android.git
+  UPSTREAM_TAG: workflow-v2.3.1
+  UPSTREAM_COMMIT: 1f954fbb6c689ec690fefe5a2f27b1e4a0ca6db6
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      shards: ${{ steps.plan.outputs.shards }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Fetch the frozen upstream
+        run: |
+          upstream="$HOME/Workspace/repflow-android"
+          git init -q "$upstream"
+          git -C "$upstream" fetch -q --depth 1 "$UPSTREAM_URL" "+refs/tags/$UPSTREAM_TAG:refs/tags/$UPSTREAM_TAG"
+          test "$(git -C "$upstream" rev-parse "$UPSTREAM_TAG^{commit}")" = "$UPSTREAM_COMMIT"
+      - name: Plan
+        id: plan
+        env:
+          SHARDS: ${{ inputs.shards }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/tmp"
+          export TMPDIR="$RUNNER_TEMP/tmp"
+          python3 tests/run_all.py --plan-only --profile ci --out "$RUNNER_TEMP/plan.json" ${SHARDS:+--shards "$SHARDS"}
+          python3 -c 'import json, sys; n = json.load(open(sys.argv[1]))["n"]; print("shards=" + json.dumps(list(range(n)), separators=(",", ":")))' "$RUNNER_TEMP/plan.json" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: plan
+          path: ${{ runner.temp }}/plan.json
+          if-no-files-found: error
+
+  shard:
+    needs: plan
+    runs-on: ubuntu-latest
+    name: shard ${{ matrix.shard }}
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(needs.plan.outputs.shards) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Fetch the frozen upstream
+        run: |
+          upstream="$HOME/Workspace/repflow-android"
+          git init -q "$upstream"
+          git -C "$upstream" fetch -q --depth 1 "$UPSTREAM_URL" "+refs/tags/$UPSTREAM_TAG:refs/tags/$UPSTREAM_TAG"
+          test "$(git -C "$upstream" rev-parse "$UPSTREAM_TAG^{commit}")" = "$UPSTREAM_COMMIT"
+      - uses: actions/download-artifact@v4
+        with:
+          name: plan
+          path: ${{ runner.temp }}
+      - name: Run shard
+        env:
+          SHARD: ${{ matrix.shard }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/tmp"
+          export TMPDIR="$RUNNER_TEMP/tmp"
+          python3 tests/run_all.py --run-shard "$SHARD" --plan "$RUNNER_TEMP/plan.json" --results "$RUNNER_TEMP/out/"
+      # Uploaded whatever the verdict; a shard that uploads nothing makes the
+      # aggregate fail as incomplete.
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: results-shard-${{ matrix.shard }}
+          path: ${{ runner.temp }}/out/
+          if-no-files-found: ignore
+
+  aggregate:
+    needs: [plan, shard]
+    # Always, so a failed, missing or cancelled shard fails this required
+    # check rather than skipping it.
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@v4
+        with:
+          name: plan
+          path: ${{ runner.temp }}
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: results-shard-*
+          path: ${{ runner.temp }}/out/
+      - name: Aggregate
+        run: |
+          mkdir -p "$RUNNER_TEMP/tmp"
+          export TMPDIR="$RUNNER_TEMP/tmp"
+          python3 tests/run_all.py --aggregate "$RUNNER_TEMP/out/" --plan "$RUNNER_TEMP/plan.json"
+      # The aggregate's own run directory (phase B records, results.json).
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: results-aggregate
+          path: ${{ runner.temp }}/tmp/wm-run-*/
+          if-no-files-found: ignore

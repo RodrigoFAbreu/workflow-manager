@@ -18,12 +18,17 @@ Checkpoint CP4: isolation and the repository-integrity guard, function-level
 (T-ISO-1..9, T-ISO-11..14). Every test that takes the run lock or applies the
 barrier does it in a `scratch_checkout` (or a `scratch_worktree` of one),
 never in the real checkout (plan 5.9, "Tests and the lock").
+
+Checkpoint CP6: the CI pipeline `.github/workflows/workflow-manager-verify.yml`
+(T-CI-1..5). Its steps' own scripts run against a `scratch_clone` of a scratch
+checkout -- a fresh CI-like checkout -- with a stand-in `RUNNER_TEMP`.
 """
 
 from __future__ import annotations
 
 import ast
 import contextlib
+import fnmatch
 import io
 import json
 import math
@@ -2477,6 +2482,21 @@ def scratch_worktree(scratch: Path) -> Path:
     return path
 
 
+def scratch_clone(scratch: Path) -> Path:
+    """A fresh `git clone` of `scratch`, as a sibling inside the same temporary
+    directory -- what a CI job's checkout is: the same commit, its own git dir,
+    no untracked or ignored file (plan 5.10)."""
+    if _same_checkout_as_real(scratch):
+        raise ValueError(f"scratch_clone refuses the real checkout: {scratch}")
+    index = 0
+    while (scratch.parent / f"{scratch.name}-clone{index}").exists():
+        index += 1
+    path = scratch.parent / f"{scratch.name}-clone{index}"
+    subprocess.run(["git", "clone", "-q", str(scratch), str(path)], check=True,
+                   capture_output=True)
+    return path
+
+
 def _guarded_modes(root: Path) -> dict[str, int]:
     """`{relative dir: mode}` for every directory under the guarded trees."""
     modes = {}
@@ -3649,7 +3669,7 @@ def lock_reach_violations(source: str) -> list[str]:
                 getattr(expr.func, "attr", None)
             if name == "scratch_checkout":
                 return True
-            if name == "scratch_worktree":
+            if name in ("scratch_worktree", "scratch_clone"):
                 return bool(expr.args) and accepted(expr.args[0], function, seen)
             if name in ("str", "Path") and len(expr.args) == 1:
                 return accepted(expr.args[0], function, seen)
@@ -3759,6 +3779,8 @@ class TestTestTreeHygiene(_CliCase):
                 f"\n\ndef _mutant():\n    cli.{CLI_ENTRY}([], repo_root=REPO_ROOT)\n",
             "an unbound scratch_root call site":
                 "\n\ndef _mutant():\n    run_cli(TESTS_DIR.parent, '--list', env={})\n",
+            "a clone of the real checkout":
+                "\n\ndef _mutant():\n    run_cli(scratch_clone(REPO_ROOT), '--list', env={})\n",
             "a -c string calling the lock":
                 "\n\n_MUTANT = " + repr(f"import parallel.isolation as i; i.{LOCK_FUNCS[0]}(r)")
                 + "\n",
@@ -4088,6 +4110,568 @@ class TestExecutorPieces(unittest.TestCase):
                     handle.write(obs.to_json_line())
             found = timings.read_observations([tmp], "local")
         self.assertEqual(len(found), 2)
+
+
+# == CP6: the CI pipeline (T-CI-1..5) =====================================================
+
+CI_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "workflow-manager-verify.yml"
+MANAGED_WORKFLOW = ".github/workflows/workflow-conformance.yml"
+CI_JOBS = ("plan", "shard", "aggregate")
+CI_MATRIX = "${{ fromJSON(needs.plan.outputs.shards) }}"
+#: The frozen upstream commit the fetch must pin (T-CI-1), spelled out.
+CI_UPSTREAM_COMMIT = "1f954fbb6c689ec690fefe5a2f27b1e4a0ca6db6"
+CI_UPSTREAM_DIR = "$HOME/Workspace/repflow-android"
+#: `run_all.py`'s path flags, each of which must name a path under `$RUNNER_TEMP`.
+CI_PATH_FLAG_RE = re.compile(r'(--(?:out|plan|results|aggregate))\s+("[^"]*"|\S+)')
+_YAML_KEY_RE = re.compile(r"([A-Za-z0-9_.-]+):(?: +(.*))?$")
+
+
+def load_workflow_yaml(text: str):
+    """The block-style YAML subset the workflow is written in -- mappings, `- `
+    sequences, `|` literal blocks, one-line `[a, b]` lists and plain or
+    quoted scalars -- with the stdlib only. Anything outside the subset (tabs,
+    anchors, aliases, tags, flow mappings, folded blocks, trailing comments,
+    duplicate keys) is refused rather than misread."""
+    lines = text.splitlines()
+    pos = 0
+
+    def refuse(message):
+        raise ValueError(f"line {pos + 1}: {message}")
+
+    def indent(line):
+        return len(line) - len(line.lstrip(" "))
+
+    def skip():
+        nonlocal pos
+        while pos < len(lines) and (not lines[pos].strip() or lines[pos].lstrip().startswith("#")):
+            pos += 1
+
+    def scalar(raw):
+        raw = raw.strip()
+        if not raw or raw in ("~", "null"):
+            return None
+        if raw[0] in "&*!{>|%@`":
+            refuse(f"unsupported YAML: {raw!r}")
+        if raw[0] in "\"'":
+            if len(raw) < 2 or raw[-1] != raw[0]:
+                refuse(f"unterminated or trailing text after a quoted scalar: {raw!r}")
+            return raw[1:-1]
+        if " #" in raw:
+            refuse(f"trailing comment: {raw!r}")
+        if raw[0] == "[":
+            if raw[-1] != "]":
+                refuse(f"unterminated list: {raw!r}")
+            return [scalar(part) for part in raw[1:-1].split(",") if part.strip()]
+        if raw in ("true", "false"):
+            return raw == "true"
+        if re.fullmatch(r"-?[0-9]+", raw):
+            return int(raw)
+        return raw
+
+    def literal(level):
+        nonlocal pos
+        body, inner = [], None
+        while pos < len(lines):
+            line = lines[pos]
+            if line.strip():
+                if indent(line) <= level:
+                    break
+                inner = indent(line) if inner is None else inner
+                if indent(line) < inner:
+                    refuse("a literal block dedents below its first line")
+                body.append(line[inner:])
+            else:
+                body.append("")
+            pos += 1
+        if inner is None:
+            refuse("empty literal block")
+        while not body[-1]:
+            body.pop()
+        return "\n".join(body) + "\n"
+
+    def value(rest, level):
+        if rest == "|":
+            return literal(level)
+        if rest:
+            return scalar(rest)
+        skip()
+        if pos < len(lines) and indent(lines[pos]) > level:
+            return block(indent(lines[pos]))
+        if pos < len(lines) and indent(lines[pos]) == level and \
+                lines[pos][level:].startswith("- "):
+            return sequence(level)
+        return None
+
+    def block(level):
+        return sequence(level) if lines[pos][level:].startswith("- ") else mapping(level)
+
+    def mapping(level):
+        nonlocal pos
+        out = {}
+        while True:
+            skip()
+            if pos >= len(lines) or indent(lines[pos]) < level:
+                return out
+            line = lines[pos]
+            if "\t" in line:
+                refuse("tab character")
+            if indent(line) != level:
+                refuse(f"unexpected indentation: {line!r}")
+            match = _YAML_KEY_RE.match(line[level:])
+            if not match:
+                refuse(f"not a mapping entry: {line.strip()!r}")
+            key = match.group(1)
+            if key in out:
+                refuse(f"duplicate key {key!r}")
+            pos += 1
+            out[key] = value(match.group(2) or "", level)
+
+    def sequence(level):
+        nonlocal pos
+        items = []
+        while True:
+            skip()
+            if pos >= len(lines) or indent(lines[pos]) != level or \
+                    not lines[pos][level:].startswith("- "):
+                return items
+            content = lines[pos][level + 2:]
+            if _YAML_KEY_RE.match(content):
+                # `- key: value` opens a mapping whose keys align with `key`.
+                lines[pos] = " " * (level + 2) + content
+                items.append(mapping(level + 2))
+            else:
+                pos += 1
+                items.append(scalar(content))
+
+    doc = mapping(0)
+    skip()
+    if pos < len(lines):
+        refuse(f"unparsed content: {lines[pos]!r}")
+    return doc
+
+
+def ci_workflow() -> dict:
+    return load_workflow_yaml(CI_WORKFLOW.read_text(encoding="utf-8"))
+
+
+def ci_run_all_step(doc: dict, job: str) -> dict:
+    """The one step of `job` that runs `tests/run_all.py`."""
+    steps = [s for s in doc["jobs"][job]["steps"] if "tests/run_all.py" in (s.get("run") or "")]
+    if len(steps) != 1:
+        raise AssertionError(f"{job}: {len(steps)} steps run tests/run_all.py, not 1")
+    return steps[0]
+
+
+def ci_workflow_problems(doc: dict) -> list[str]:
+    """T-CI-1's structural checks over the parsed workflow; `[]` when it holds."""
+    problems = []
+
+    def need(condition, message):
+        if not condition:
+            problems.append(message)
+
+    triggers = doc.get("on") or {}
+    need(sorted(triggers) == ["pull_request", "push", "workflow_dispatch"],
+         f"triggers are {sorted(triggers)} (D-CI-Cost: pull_request, push to main, dispatch)")
+    need((triggers.get("push") or {}).get("branches") == ["main"], "push is not limited to main")
+    concurrency = doc.get("concurrency") or {}
+    need("${{ github.ref }}" in str(concurrency.get("group")), "no per-ref concurrency group")
+    need(concurrency.get("cancel-in-progress") == "${{ github.event_name == 'pull_request' }}",
+         "cancel-in-progress is not limited to pull requests")
+    env = doc.get("env") or {}
+    need(env.get("UPSTREAM_COMMIT") == CI_UPSTREAM_COMMIT,
+         f"the upstream fetch pins {env.get('UPSTREAM_COMMIT')!r}, not {CI_UPSTREAM_COMMIT}")
+    need(env.get("UPSTREAM_TAG") == support.CLASSIFICATION["upstream"]["tag"],
+         f"the upstream tag is {env.get('UPSTREAM_TAG')!r}")
+
+    jobs = doc.get("jobs") or {}
+    need(sorted(jobs) == sorted(CI_JOBS), f"jobs are {sorted(jobs)}, not {sorted(CI_JOBS)}")
+    plan, shard, aggregate = ((jobs.get(name) or {}) for name in CI_JOBS)
+    need(plan.get("outputs") == {"shards": "${{ steps.plan.outputs.shards }}"},
+         "the plan job does not export its plan step's shard list")
+    strategy = shard.get("strategy") or {}
+    need(strategy.get("matrix") == {"shard": CI_MATRIX},
+         f"the shard matrix is {strategy.get('matrix')!r}, not exactly {CI_MATRIX}")
+    need(strategy.get("fail-fast") is False, "the shard matrix is not fail-fast: false")
+    need(shard.get("needs") == "plan", "the shard job does not need the plan job")
+    need(aggregate.get("needs") == ["plan", "shard"], "aggregate does not need [plan, shard]")
+    need(aggregate.get("if") == "always()", "aggregate does not run if: always()")
+
+    modes = {"plan": "--plan-only --profile ci", "shard": "--run-shard", "aggregate": "--aggregate"}
+    fetches = {}
+    for name in CI_JOBS:
+        steps = (jobs.get(name) or {}).get("steps") or []
+        need([s.get("uses") for s in steps[:2]] == ["actions/checkout@v4", "actions/setup-python@v5"],
+             f"{name}: does not start with checkout and setup-python")
+        need(len(steps) > 1 and steps[1].get("with") == {"python-version": "3.12"},
+             f"{name}: python is not 3.12")
+        runs = [s.get("run") or "" for s in steps]
+        invocations = [line for run in runs for line in run.splitlines()
+                       if "tests/run_all.py" in line]
+        need(len(invocations) == 1, f"{name}: {len(invocations)} run_all.py invocations")
+        for line in invocations:
+            need(f"python3 tests/run_all.py {modes[name]}" in line,
+                 f"{name}: run_all.py is not run with {modes[name]}")
+            for flag, path in CI_PATH_FLAG_RE.findall(line):
+                need(path.strip('"').startswith("$RUNNER_TEMP/"),
+                     f"{name}: {flag} {path} is not under $RUNNER_TEMP")
+        for run in runs:
+            if "tests/run_all.py" in run:
+                need('export TMPDIR="$RUNNER_TEMP/' in run.split("tests/run_all.py", 1)[0],
+                     f"{name}: TMPDIR is not under $RUNNER_TEMP before run_all.py")
+        for step in steps:
+            if (step.get("uses") or "").split("@")[0] in ("actions/upload-artifact",
+                                                        "actions/download-artifact"):
+                need(str((step.get("with") or {}).get("path", "")).startswith("${{ runner.temp }}"),
+                     f"{name}: artifact path {step.get('with')} is not under runner.temp")
+        fetches[name] = [run for run in runs if "UPSTREAM_URL" in run]
+
+    for name in ("plan", "shard"):
+        need(len(fetches[name]) == 1, f"{name}: does not fetch the upstream exactly once")
+    need(fetches["aggregate"] == [], "aggregate fetches the upstream (phase B never reads it)")
+    for run in fetches["plan"] + fetches["shard"]:
+        need(f'upstream="{CI_UPSTREAM_DIR}"' in run and 'git init -q "$upstream"' in run,
+             f"the upstream is not fetched into {CI_UPSTREAM_DIR}")
+        need('rev-parse "$UPSTREAM_TAG^{commit}")" = "$UPSTREAM_COMMIT"' in run,
+             "the fetched tag is not checked against the pinned commit")
+    need(len(set(fetches["plan"] + fetches["shard"])) <= 1, "plan and shard fetch differently")
+
+    plan_steps = [s for s in plan.get("steps") or [] if s.get("id") == "plan"]
+    need(len(plan_steps) == 1 and '"shards=' in plan_steps[0].get("run", "")
+         and '>> "$GITHUB_OUTPUT"' in plan_steps[0].get("run", ""),
+         "the plan step does not write shards= to $GITHUB_OUTPUT")
+    uploads = [s for s in shard.get("steps") or []
+               if (s.get("uses") or "").startswith("actions/upload-artifact@")]
+    need(len(uploads) == 1 and uploads[0].get("if") == "always()",
+         "the shard results are not uploaded if: always()")
+    return problems
+
+
+def _python3_on_path(directory: Path) -> str:
+    """A `bin` directory whose `python3` is this interpreter, for PATH."""
+    directory.mkdir(exist_ok=True)
+    if not (directory / "python3").exists():
+        (directory / "python3").symlink_to(sys.executable)
+    return str(directory)
+
+
+def run_ci_step(scratch_root, job: str, *, runner_temp: Path, env: dict, step_env: dict,
+                github_env=None) -> subprocess.CompletedProcess:
+    """Run the real workflow's `run_all.py` step of `job` verbatim, the way
+    GitHub runs a `run:` step (`bash -e` with pipefail, in the checkout), in a
+    scratch checkout with `runner_temp` standing in for `$RUNNER_TEMP`.
+    `step_env` supplies the step's own `env:` values, key for key."""
+    scratch_root = Path(scratch_root)
+    if _same_checkout_as_real(scratch_root):
+        raise ValueError(f"run_ci_step refuses the real checkout: {scratch_root}")
+    step = ci_run_all_step(ci_workflow(), job)
+    if set(step_env) != set(step.get("env") or {}):
+        raise AssertionError(f"{job}: the step's env is {sorted(step.get('env') or {})}, "
+                             f"the test supplies {sorted(step_env)}")
+    bin_dir = _python3_on_path(Path(runner_temp).parent / "bin")
+    full = dict(env, RUNNER_TEMP=str(runner_temp), PATH=bin_dir + os.pathsep + env["PATH"],
+                **step_env, **(github_env or {}))
+    return subprocess.run(["bash", "--noprofile", "--norc", "-eo", "pipefail", "-c", step["run"]],
+                          cwd=str(scratch_root), capture_output=True, text=True, env=full,
+                          timeout=600)
+
+
+def ci_artifact_dir(doc: dict, shard: int) -> str:
+    """The directory a shard's results land in under the aggregate's download
+    path: the shard job's artifact name, checked against the pattern the
+    aggregate job downloads."""
+    upload = next(s for s in doc["jobs"]["shard"]["steps"]
+                  if (s.get("uses") or "").startswith("actions/upload-artifact@"))
+    name = upload["with"]["name"].replace("${{ matrix.shard }}", str(shard))
+    patterns = [s["with"]["pattern"] for s in doc["jobs"]["aggregate"]["steps"]
+                if "pattern" in (s.get("with") or {})]
+    if len(patterns) != 1 or not fnmatch.fnmatchcase(name, patterns[0]):
+        raise AssertionError(f"artifact {name!r} is not downloaded by the aggregate ({patterns})")
+    return name
+
+
+# -- T-CI-1: the workflow's structure -----------------------------------------------------
+
+class TestCiWorkflowStructure(unittest.TestCase):
+
+    def test_the_workflow_file_holds_every_structural_rule(self):
+        self.assertEqual(ci_workflow_problems(ci_workflow()), [])
+        self.assertEqual(support.FROZEN_COMMIT, CI_UPSTREAM_COMMIT)
+
+    def test_each_mutation_is_caught(self):
+        text = CI_WORKFLOW.read_text(encoding="utf-8")
+        mutants = {
+            "a literal shard list": (CI_MATRIX, "[0, 1, 2]"),
+            "fail-fast": ("fail-fast: false", "fail-fast: true"),
+            "aggregate needs only the shards": ("needs: [plan, shard]", "needs: [shard]"),
+            "aggregate skipped on failure": (re.compile(r"^    if: always\(\)$", re.M),
+                                             "    if: success()"),
+            "a results dir in the checkout": ('--results "$RUNNER_TEMP/out/"', "--results out/"),
+            "a plan in the checkout": ('--out "$RUNNER_TEMP/plan.json"', "--out plan.json"),
+            "TMPDIR left at /tmp": (re.compile(r'^ *export TMPDIR="\$RUNNER_TEMP/tmp"\n', re.M), ""),
+            "another upstream commit": (f"UPSTREAM_COMMIT: {CI_UPSTREAM_COMMIT}",
+                                        "UPSTREAM_COMMIT: " + "0" * 40),
+            "no commit check": (re.compile(r'^ *test "\$\(git .*\n', re.M), ""),
+            "a push to any branch": ("    branches: [main]\n", ""),
+            "an artifact path in the workspace": ("path: ${{ runner.temp }}/out/\n",
+                                                  "path: out/\n"),
+        }
+        for label, (old, new) in mutants.items():
+            with self.subTest(mutation=label):
+                mutated = old.sub(new, text, count=1) if isinstance(old, re.Pattern) \
+                    else text.replace(old, new, 1)
+                self.assertNotEqual(mutated, text, "the mutation did not apply")
+                self.assertNotEqual(ci_workflow_problems(load_workflow_yaml(mutated)), [])
+
+    def test_the_parser_refuses_what_it_does_not_understand(self):
+        for text in ("a: &x 1\n", "a: *x\n", "a: {b: 1}\n", "a: 1 # c\n", "a:\n\tb: 1\n",
+                     "a: 1\na: 2\n", "a: >\n  folded\n", "a:\n  b: 1\n c: 2\n"):
+            with self.subTest(text=text), self.assertRaises(ValueError):
+                load_workflow_yaml(text)
+        self.assertEqual(load_workflow_yaml("a:\n  - x: 1\n    y: [p, q]\n  - z\nb: |\n  l1\n\n"
+                                            "    l2\nc: 'q: r'\n"),
+                         {"a": [{"x": 1, "y": ["p", "q"]}, "z"], "b": "l1\n\n  l2\n",
+                          "c": "q: r"})
+
+
+# -- T-CI-2: the plan and shard jobs agree on the tree ---------------------------------------
+
+class TestCiTreeIdentity(_CliCase):
+
+    def test_the_workflow_steps_run_end_to_end_with_one_tree_digest(self):
+        doc = ci_workflow()
+        scratch = scratch_checkout(self.tmp / "scratch")
+        plan_job = scratch_clone(scratch)
+        temp = self.tmp / "rt-plan"
+        temp.mkdir()
+        github_output = temp / "github-output"
+        proc = run_ci_step(plan_job, "plan", runner_temp=temp, env=self.env,
+                           step_env={"SHARDS": "2"}, github_env={"GITHUB_OUTPUT": str(github_output)})
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        plan = json.loads((temp / "plan.json").read_text())
+        self.assertEqual(plan["tree_digest"], tree.tree_digest(plan_job))
+        self.assertEqual(github_output.read_text(), "shards=[0,1]\n")
+
+        downloads = self.tmp / "rt-aggregate" / "out"
+        for index in json.loads(github_output.read_text().split("=", 1)[1]):
+            shard_job = scratch_clone(scratch)
+            self.assertEqual(tree.tree_digest(shard_job), plan["tree_digest"])
+            shard_temp = self.tmp / f"rt-shard-{index}"
+            shard_temp.mkdir()
+            shutil.copy2(temp / "plan.json", shard_temp / "plan.json")
+            proc = run_ci_step(shard_job, "shard", runner_temp=shard_temp, env=self.env,
+                               step_env={"SHARD": str(index)})
+            self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+            summary = json.loads((shard_temp / "out" / f"shard-{index}.json").read_text())
+            self.assertEqual(summary["tree_digest"], plan["tree_digest"])
+            self.assertEqual(tree.tree_digest(shard_job), plan["tree_digest"],
+                             "the shard wrote into its checkout")
+            shutil.copytree(shard_temp / "out", downloads / ci_artifact_dir(doc, index))
+
+        aggregate_job = scratch_clone(scratch)
+        shutil.copy2(temp / "plan.json", downloads.parent / "plan.json")
+        step_summary = self.tmp / "step-summary.md"
+        proc = run_ci_step(aggregate_job, "aggregate", runner_temp=downloads.parent, env=self.env,
+                           step_env={}, github_env={"GITHUB_STEP_SUMMARY": str(step_summary)})
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        self.assertIn("verdict: exit 0", step_summary.read_text())
+        self.assertIn("B  host:test_scratch_matrix.py::TestScratchMatrix", proc.stdout)
+        run_dirs = [p for p in (downloads.parent / "tmp").iterdir() if p.name.startswith("wm-run-")]
+        self.assertEqual(len(run_dirs), 1, "the aggregate's run directory is not under "
+                                           "$RUNNER_TEMP/tmp")
+        self.assertTrue((run_dirs[0] / "results.json").is_file())
+        for job in (plan_job, aggregate_job):
+            self.assertEqual(tree.tree_digest(job), plan["tree_digest"])
+
+    def test_outputs_placed_inside_the_checkout_are_refused(self):
+        scratch = scratch_checkout(self.tmp / "scratch")
+        job = scratch_clone(scratch)
+        inside = job / "runner-temp"
+        inside.mkdir()
+        proc = run_ci_step(job, "plan", runner_temp=inside, env=self.env, step_env={"SHARDS": ""},
+                           github_env={"GITHUB_OUTPUT": str(self.tmp / "github-output")})
+        assert_refusal(self, proc.returncode, proc.stderr, "PathInsideRepositoryError")
+        self.assertFalse((inside / "plan.json").exists())
+
+        outside = self.tmp / "rt"
+        outside.mkdir()
+        proc = run_ci_step(scratch, "plan", runner_temp=outside, env=self.env,
+                           step_env={"SHARDS": ""},
+                           github_env={"GITHUB_OUTPUT": str(self.tmp / "github-output")})
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        shutil.copy2(outside / "plan.json", inside / "plan.json")
+        proc = run_ci_step(job, "shard", runner_temp=inside, env=self.env, step_env={"SHARD": "0"})
+        assert_refusal(self, proc.returncode, proc.stderr, "PathInsideRepositoryError")
+        self.assertFalse((inside / "out").exists())
+
+
+# -- T-CI-3: the aggregate refuses incomplete and foreign results ----------------------------
+
+def _record_files(root: Path) -> dict[tuple[str, ...], Path]:
+    """`{classes: path}` for every frozen record under `root`."""
+    found = {}
+    for path in sorted(Path(root).rglob("*.record.json")):
+        found[tuple(json.loads(path.read_text())["classes"])] = path
+    return found
+
+
+def _ci_shards(case, scratch_root, plan: Path, out: Path) -> None:
+    """Every shard of `plan`, each into its artifact's directory under `out`
+    (the aggregate job's download layout)."""
+    doc = ci_workflow()
+    for index in range(json.loads(plan.read_text())["n"]):
+        proc = run_cli(scratch_root, "--run-shard", index, "--plan", plan,
+                       "--results", out / ci_artifact_dir(doc, index), env=case.env)
+        case.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+
+
+class TestCiAggregateRefusals(_CliCase):
+
+    def test_a_missing_shard_and_a_foreign_plan_digest_are_2(self):
+        scratch = scratch_checkout(self.tmp / "scratch")
+        plan = _plan_only(self, scratch, "--profile", "ci", "--shards", "2")
+        out = self.tmp / "out"
+        _ci_shards(self, scratch, plan, out)
+        honest = run_cli(scratch, "--aggregate", out, "--plan", plan, env=self.env)
+        self.assertEqual(honest.returncode, 0, honest.stdout + honest.stderr)
+
+        held_back = self.tmp / "held-back"
+        shutil.move(str(out / ci_artifact_dir(ci_workflow(), 1)), str(held_back))
+        missing = run_cli(scratch, "--aggregate", out, "--plan", plan, env=self.env)
+        assert_refusal(self, missing.returncode, missing.stderr, "IncompleteResultsError")
+        self.assertIn("missing for [1]", missing.stderr)
+        shutil.move(str(held_back), str(out / ci_artifact_dir(ci_workflow(), 1)))
+
+        other = _plan_only(self, scratch, "--profile", "ci", "--shards", "1")
+        foreign_out = self.tmp / "foreign"
+        _ci_shards(self, scratch, other, foreign_out)
+        mixed = self.tmp / "mixed"
+        shutil.copytree(out / ci_artifact_dir(ci_workflow(), 1), mixed / "results-shard-1")
+        shutil.copytree(foreign_out / ci_artifact_dir(ci_workflow(), 0), mixed / "results-shard-0")
+        foreign = run_cli(scratch, "--aggregate", mixed, "--plan", plan, env=self.env)
+        assert_refusal(self, foreign.returncode, foreign.stderr, "ForeignResultsError")
+
+    def test_a_self_consistent_record_set_for_another_frozen_partition_is_2(self):
+        suite = SCRATCH_FROZEN_SUITE
+        scratch = scratch_checkout(
+            self.tmp / "scratch",
+            timings_units={f"{suite}::TestAlpha": 100.0, f"{suite}::TestBeta": 10.0,
+                           f"{suite}::TestGamma": 10.0})
+        plan = _plan_only(self, scratch, "--shards", "2")
+        out = self.tmp / "out"
+        _ci_shards(self, scratch, plan, out)
+        honest = run_cli(scratch, "--aggregate", out, "--plan", plan, env=self.env)
+        self.assertEqual(honest.returncode, 0, honest.stdout + honest.stderr)
+
+        # Re-cut the planned (Alpha | Beta Gamma) into (Alpha Beta | Gamma): every
+        # record stays well-formed, stamped for this plan and tree, and the two
+        # together still cover the suite exactly once.
+        records = _record_files(out)
+        self.assertEqual(sorted(records), [("TestAlpha",), ("TestBeta", "TestGamma")])
+        first = json.loads(records[("TestAlpha",)].read_text())
+        second = json.loads(records[("TestBeta", "TestGamma")].read_text())
+        beta = [t for t in second["enumerated"] if t.startswith("TestBeta.")]
+        first.update(classes=["TestAlpha", "TestBeta"], ran=first["ran"] + 1,
+                     enumerated=sorted(first["enumerated"] + beta))
+        second.update(classes=["TestGamma"], ran=second["ran"] - 1,
+                      enumerated=[t for t in second["enumerated"] if t not in beta])
+        for doc in (first, second):
+            doc["output"] = re.sub(r"Ran \d+ tests?", f"Ran {doc['ran']} tests", doc["output"])
+        self.assertEqual(first["plan_digest"], json.loads(plan.read_text())["plan_digest"])
+        records[("TestAlpha",)].write_text(canonical_json(first))
+        records[("TestBeta", "TestGamma")].write_text(canonical_json(second))
+        recut = run_cli(scratch, "--aggregate", out, "--plan", plan, env=self.env)
+        assert_refusal(self, recut.returncode, recut.stderr, "FrozenMergeError")
+
+
+# -- T-CI-4: the managed workflow is untouched ------------------------------------------------
+
+class TestManagedWorkflowUntouched(unittest.TestCase):
+
+    def test_the_managed_workflow_matches_its_installation_record(self):
+        managed = json.loads((REPO_ROOT / ".workflow-manager" / "installation.json")
+                             .read_text())["managed"]
+        self.assertEqual(_sha256((REPO_ROOT / MANAGED_WORKFLOW).read_bytes()),
+                         managed[MANAGED_WORKFLOW]["sha256"])
+        self.assertNotIn(str(CI_WORKFLOW.relative_to(REPO_ROOT)), managed)
+
+    def test_workflow_manager_verify_reports_no_drift(self):
+        proc = subprocess.run([sys.executable, "-B", "-m", "workflow_manager", "verify",
+                               str(REPO_ROOT)], capture_output=True, text=True,
+                              env=dict(os.environ, PYTHONPATH=str(REPO_ROOT / "src"),
+                                       PYTHONDONTWRITEBYTECODE="1"), timeout=300)
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        self.assertIn("installation matches workflow", proc.stdout)
+
+
+# -- T-CI-5: a fresh CI checkout keeps its guards ---------------------------------------------
+
+#: A unit whose subprocess replaces the environment wholesale -- so no
+#: `PYTHONDONTWRITEBYTECODE` -- and imports a package from `src/`.
+SRC_IMPORT_TEST = '''
+    def test_a_wholesale_environment_imports_from_src(self):
+        env = {"PATH": os.environ.get("PATH", ""), "PYTHONPATH": str(ROOT / "src")}
+        proc = subprocess.run([sys.executable, "-c", "import scratchpkg"], env=env,
+                              capture_output=True, text=True)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+'''
+SRC_IMPORT_HEADER = ("import os\nimport subprocess\nimport sys\nfrom pathlib import Path\n\n"
+                     "ROOT = Path(__file__).resolve().parents[1]\n")
+SRC_IMPORT_MODULE = (SRC_IMPORT_HEADER + "import unittest\n\n\n"
+                     "class TestScratchSrcImport(unittest.TestCase):\n"
+                     + textwrap.dedent(SRC_IMPORT_TEST).replace("\n", "\n    ").rstrip() + "\n")
+#: The phase-B matrix host class with the same test added, so `--aggregate`
+#: runs one too.
+SRC_IMPORT_MATRIX_MODULE = SRC_IMPORT_HEADER + SCRATCH_MATRIX_MODULE.rstrip() + "\n" + \
+    textwrap.dedent(SRC_IMPORT_TEST).replace("\n", "\n    ").rstrip() + "\n"
+
+
+class TestCiGuardsInAFreshCheckout(_CliCase):
+
+    def _pycache(self, job: Path) -> list[str]:
+        return sorted(str(p.relative_to(job)) for p in (job / "src").rglob("__pycache__"))
+
+    def test_the_barrier_keeps_a_wholesale_environment_from_writing_bytecode(self):
+        scratch = scratch_checkout(self.tmp / "scratch",
+                                   modules={"test_scratch_src_import.py": SRC_IMPORT_MODULE,
+                                            "test_scratch_matrix.py": SRC_IMPORT_MATRIX_MODULE})
+        job = scratch_clone(scratch)
+        ignored = _git(job, "status", "--porcelain", "--ignored", "--untracked-files=all")
+        self.assertEqual(ignored.strip(), "", "the fresh checkout is not clean")
+        plan = self.tmp / "plan.json"
+        code, out, err = main_in_process(job, "--plan-only", "--profile", "ci", "--shards", "1",
+                                         "--out", plan)
+        self.assertEqual(code, 0, out + err)
+        phase_b = [c["units"] for s in json.loads(plan.read_text())["phase_b"]["shards"]
+                   for c in s["chunks"]]
+        self.assertEqual(phase_b, [[SCRATCH_MATRIX_UNIT]])
+
+        # Guarded: green, and nothing under src/.
+        code, out, err = main_in_process(job, "--run-shard", "0", "--plan", plan,
+                                         "--results", self.tmp / "guarded" / "s0")
+        self.assertEqual(code, 0, out + err)
+        summary = json.loads((self.tmp / "guarded" / "s0" / "shard-0.json").read_text())
+        self.assertIn("host:test_scratch_src_import.py::TestScratchSrcImport",
+                      [u for r in summary["results"] for u in r["chunk"]["units"]])
+        self.assertEqual(self._pycache(job), [])
+        code, out, err = main_in_process(job, "--aggregate", self.tmp / "guarded", "--plan", plan)
+        self.assertEqual(code, 0, out + err)
+        self.assertEqual(self._pycache(job), [])
+
+        # The barrier forcibly disabled: the .pyc is written and step 6 fails.
+        no_barrier = mock.patch.object(isolation.Barrier, "_lock_dirs",
+                                       lambda self, *args, **kwargs: None)
+        with no_barrier:
+            code, out, err = main_in_process(job, "--run-shard", "0", "--plan", plan,
+                                             "--results", self.tmp / "unguarded" / "s0")
+        assert_refusal(self, code, err, "IntegrityError")
+        self.assertEqual(self._pycache(job), ["src/scratchpkg/__pycache__"])
+        shutil.rmtree(job / "src" / "scratchpkg" / "__pycache__")
+        with no_barrier:
+            code, out, err = main_in_process(job, "--aggregate", self.tmp / "guarded",
+                                             "--plan", plan)
+        assert_refusal(self, code, err, "IntegrityError")
+        self.assertEqual(self._pycache(job), ["src/scratchpkg/__pycache__"])
 
 
 if __name__ == "__main__":
