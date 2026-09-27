@@ -332,7 +332,17 @@ run. The two are equivalent when all of these hold:
   between the two `head` commits. That means `src/`, `tools/`,
   `distribution/`, `migration/`, `scripts/`, the test modules, and the
   runner itself (`tests/run_all.py`, `tests/parallel/`, `tests/support.py`,
-  `tests/frozen_runs.py`). Check with `git diff --stat <evidence head>..HEAD`;
+  `tests/frozen_runs.py`), plus, for CI evidence,
+  `.github/workflows/workflow-manager-verify.yml`. Check with
+  `git diff --stat <evidence head>..HEAD`. One narrow exception: a change
+  confined to `tests/parallel/timings.json` still counts as no change when
+  the evidence run's plan is unchanged by it -- the same profile and worker
+  or shard count give the same `n` and the same chunks (ids and members) in
+  the same shards at both heads. Check it by diffing those fields of
+  `--plan-only` output at the two heads, and record that you did. Estimates
+  only order and balance work, so an unchanged plan runs the same chunks
+  the same way; a changed one does not qualify, even if only the chunking
+  moved;
 - the criterion does not explicitly demand a fresh measurement.
 
 `tree_digest` is deliberately *not* on that list. It moves with any change

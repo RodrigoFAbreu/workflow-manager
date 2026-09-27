@@ -78,9 +78,10 @@ A full-suite serial or single-shard run (`--jobs 1`, `--shards 1`, CI
 `shards=1`) is exceptional evidence, not a confidence rerun. Run one only
 when the approved plan or an acceptance criterion requires it, or to debug
 a serial/sharded discrepancy. If an equivalent run already exists, reuse and
-cite it: same `selection_digest`/`tests_digest`, and no change since its
-`head` to code, tests or the runner. Docs and workflow-state commits don't
-count as changes. See `docs/ARCHITECTURE.md`'s "Verification execution"
+cite it: same `selection_digest`/`tests_digest`, its own `verdict:` the one
+the gate needs, and no change since its `head` to code, tests or the runner
+(for CI evidence, the verify workflow too). Docs and workflow-state commits
+don't count as changes. See `docs/ARCHITECTURE.md`'s "Verification execution"
 for the equivalence and staleness rules and what to record.
 `--fast` survives one release as a deprecated alias for a targeted
 `--select` of eight modules -- targeted selection, not a verification gate.
