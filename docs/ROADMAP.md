@@ -976,6 +976,9 @@ This repository works the way the Workflow Controller does:
   - it becomes the squash commit's subject;
   - its type decides the bump (`feat` minor, `fix` patch, `!` major);
   - `docs`, `chore` and `ci` merge without a release;
+  - the Git tag is the only version authority, and nobody edits a version file: the release
+    computes the next version from the latest tag and the commit type, and sets the package's
+    version at build time (decided 2026-09-29, as in the Controller's C1);
 - auto-merge on green required checks;
 - a Workflow Manager package release published from `main`;
 - a per-commit CI concurrency group for `main`, so an intermediate `main` run is never cancelled
