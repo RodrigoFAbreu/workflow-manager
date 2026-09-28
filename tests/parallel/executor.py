@@ -100,6 +100,11 @@ class TimingSourceError(ExecutorError):
 
 # -- chunk results ----------------------------------------------------------------------
 
+NOT_RUN = "not_run"
+KNOWN_OUTCOMES = frozenset((isolation.PASSED, isolation.FAILED, NOT_RUN,
+                            *isolation.INFRASTRUCTURE_OUTCOMES))
+
+
 @dataclass
 class ChunkResult:
     chunk: ChunkDescriptor
@@ -144,12 +149,17 @@ class ChunkResult:
     @classmethod
     def from_json(cls, obj) -> "ChunkResult":
         try:
-            return cls(ChunkDescriptor.from_json(obj["chunk"]), obj["phase"], obj["shard"],
-                       obj["kind"], obj["outcome"], obj["started_at"], obj["ended_at"],
-                       obj["returncode"], obj["record"], obj["log"], obj["detail"],
-                       tuple(obj["tmp_residue"]))
+            result = cls(ChunkDescriptor.from_json(obj["chunk"]), obj["phase"], obj["shard"],
+                         obj["kind"], obj["outcome"], obj["started_at"], obj["ended_at"],
+                         obj["returncode"], obj["record"], obj["log"], obj["detail"],
+                         tuple(obj["tmp_residue"]))
         except (KeyError, TypeError, ValueError) as exc:
             raise IncompleteResultsError(f"malformed chunk result: {exc}") from exc
+        # An outcome `verdict_of` does not know would otherwise count as a pass.
+        if result.outcome not in KNOWN_OUTCOMES:
+            raise IncompleteResultsError(
+                f"chunk result {result.chunk.id}: unknown outcome {result.outcome!r}")
+        return result
 
 
 def _kind(chunk: ChunkDescriptor) -> str:
@@ -389,6 +399,9 @@ class Guard:
             say(f"warning: {warning}")
         say(report.BARRIER_NOTE)
 
+    def summary_warnings(self) -> list[str]:
+        return [f"  {w}" for w in self.barrier.warnings] if self.barrier else []
+
     def restore(self) -> None:
         if self.barrier is not None:
             isolation.restore_barrier(self.repo_root, self.barrier)
@@ -510,6 +523,16 @@ def write_observations(obs, path: Path, *, append: bool) -> None:
     with open(path, "a" if append else "w", encoding="utf-8") as handle:
         for o in obs:
             handle.write(o.to_json_line())
+
+
+def append_side_effect(write, what: str, path, err) -> None:
+    """Run one write the verdict does not depend on, after the report: an
+    `OSError` becomes a warning, never an exit code."""
+    try:
+        write()
+    except OSError as exc:
+        err(f"warning: could not write the {what} to {path}: "
+            f"{exc.strerror or exc}; the verdict is unchanged")
 
 
 def drifted_chunks(results) -> list[str]:
@@ -638,17 +661,22 @@ def local_run(repo_root: Path, lock: isolation.RunLock, *, specs, jobs, shuffle_
     verdict = verdict_of(results_list, judged, extra_faults=extra)
 
     obs = observations(results_list, "local")
-    write_observations(obs, run_dir / "timings.jsonl", append=False)
-    write_observations(obs, timings_mod.history_path(environ), append=True)
     identity = run_identity(repo_root, plan, inv, results_list,
                             f"local, {plan['n']} worker(s)")
     (run_dir / "results.json").write_text(
         report.results_doc(results_list, verdict.code,
                            inv.frozen.classes if inv.frozen else {}, identity), encoding="utf-8")
+    write_observations(obs, run_dir / "timings.jsonl", append=False)
     keep = not (temporary and verdict.code == 0)
     emit_report(out, plan=plan, inv=inv, results=results_list, verdict=verdict, wall=wall,
                 run_dir=run_dir if keep else None, judged=judged, identity=identity,
-                extra_summary=[f"  {w}" for w in guard.barrier.warnings] if guard.barrier else ())
+                extra_summary=guard.summary_warnings())
+    # Last, and never part of the verdict: the user-level history is an
+    # incidental cache (5.2), so an unwritable one costs future estimates a
+    # line, not this run its report or its exit code.
+    append_side_effect(lambda: write_observations(obs, timings_mod.history_path(environ),
+                                                  append=True),
+                       "timing history", timings_mod.history_path(environ), err)
     if not keep:
         isolation.clean_tmpdir(run_dir)
     return finish_verdict(verdict, err)
@@ -756,7 +784,8 @@ def run_shard(repo_root: Path, lock, *, index: int, plan_path: Path, results: Pa
         if result.log:
             result.log = str(run_dir / result.log)
     emit_report(out, plan=plan, inv=inv, results=engine.results, verdict=verdict, wall=wall,
-                run_dir=run_dir, judged=judged, identity=summary["identity"])
+                run_dir=run_dir, judged=judged, identity=summary["identity"],
+                extra_summary=guard.summary_warnings())
     return finish_verdict(verdict, err)
 
 
@@ -865,11 +894,14 @@ def aggregate(repo_root: Path, lock, *, results_root: Path, plan_path: Path, all
         report.results_doc(results_list, verdict.code,
                            inv.frozen.classes if inv.frozen else {}, identity), encoding="utf-8")
     text = emit_report(out, plan=plan, inv=inv, results=results_list, verdict=verdict,
-                       wall=wall, run_dir=run_dir, judged=judged, identity=identity)
+                       wall=wall, run_dir=run_dir, judged=judged, identity=identity,
+                       extra_summary=guard.summary_warnings())
     summary = environ.get("GITHUB_STEP_SUMMARY")
     if summary:
-        with open(summary, "a", encoding="utf-8") as handle:
-            handle.write("```\n" + text + "\n```\n")
+        def append_summary():
+            with open(summary, "a", encoding="utf-8") as handle:
+                handle.write("```\n" + text + "\n```\n")
+        append_side_effect(append_summary, "step summary", summary, err)
     return finish_verdict(verdict, err)
 
 
@@ -886,7 +918,10 @@ def update_timings(repo_root: Path, lock, *, profile: str, sources, out=print, e
     before = timings_mod.load(repo_root)
     for warning in before.warnings:
         err(f"warning: {warning}")
-    obs = timings_mod.read_observations(sources, profile)
+    skipped: list[str] = []
+    obs = timings_mod.read_observations(sources, profile, warnings=skipped)
+    for warning in skipped:
+        err(f"warning: {warning}")
     after = timings_mod.update(before, obs, profile, inventory_unit_ids=inv.unit_ids(),
                                source=source_text)
     path = timings_mod.write(after, repo_root)

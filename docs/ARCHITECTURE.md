@@ -249,6 +249,14 @@ design record is
   matrix host classes in merged mode. They assert over the frozen chunks'
   records, merged against a context built from the plan and never from the
   records. A merge that is incomplete, duplicated or foreign is refused.
+  One implicit check does not carry over. In direct mode,
+  `test_the_fixture_state_file_is_the_clean_template` and
+  `test_the_target_carries_no_upstream_host_document` read the fixture
+  after all seven suites ran in it, so they also caught a suite writing
+  into its state file or host documents. In merged mode they read a fresh
+  repository, and per-chunk residue is measured only for `bootstrapped`.
+  The plan's E-MRG-3 measured every suite's full residue at CP2 and found
+  none unclassified, but nothing re-checks it on later runs.
 - **Resources.** `tests/parallel/resources.json` declares the units that
   must not overlap anything (today, only
   `TestMigrateDoesNotDeleteASiblingAuthoredRelease`, which rewrites
@@ -265,6 +273,59 @@ design record is
   violation, a held run lock, a refused root run, or a usage error. When a
   run has both, `2` wins, and every observed failure is still listed. Each
   failure in the report carries a one-line reproduction command.
+
+**CI.** `.github/workflows/workflow-manager-verify.yml` runs the same
+selection on every pull request, every push to `main` and on dispatch. Its
+`plan` job writes the plan, and the plan's shard list becomes the `shard`
+matrix; nothing in the file names a shard. Each shard job runs one shard
+(`--run-shard`) and uploads its results. The `aggregate` job verifies every
+result against the plan, runs phase B and reports. Its exit code is the
+verdict, and it is the one check to require. Every file the tooling writes
+lives under `$RUNNER_TEMP`, and every job checks out full history. The
+dispatch input `shards` overrides the count, so `shards=1` is the
+single-shard reference, which the policy below restricts. The managed
+`workflow-conformance.yml` is a separate, installed file.
+
+**Measured (CP7, and at the post-review head `2b4c0fd`, 2026-09-27).** 16
+CPUs locally, `ubuntu-latest` with Python 3.12 in CI.
+
+| run | wall |
+| --- | --- |
+| local serial (`--jobs 1`) | 2421 s (CP7); 2374 s (`2b4c0fd`) |
+| local default (8 workers) | median 411 s (CP7); 389 s (`2b4c0fd`) |
+| local `--jobs 16` (10/10 green in a row) | median 308 s |
+| CI single shard | 110.8 min |
+| CI 16 shards | 8.0 min median without GitHub's queueing, 9.3 min with it (CP7); 7.6 / 8.2 min (`2b4c0fd`) |
+| CI 19 shards | 6.9 min median without GitHub's queueing, 9.7 min with it |
+
+Plans balance perfectly on paper, so wall time is bound by total work (about
+3,400 s locally at 8-way contention, about 6,200 s in CI). In CI it is also
+bound by hosted-runner speed variance of about 0.7-1.1x between shards of
+equal predicted load. The 5-minute CI target needs about 24 shards, above
+the Free plan's 20 concurrent jobs, which cap this account at 19. The
+timing sources are recorded in `tests/parallel/timings.json`. Refresh them
+from new runs with `--update-timings` when reports keep listing `timing
+drifted` or `timing defaulted` units, or after adding or reshaping tests
+enough to move the plan. A refresh is a large, reviewable diff, so fold one
+batch of runs at a time, not every run. A multi-class chunk yields only its
+group overhead, so per-class numbers come from a run planned one class per
+chunk.
+
+Against the plan's section 7, P-3 (CI under 5.5 min) is documented as
+unreachable under the 20-job cap, per its own clause. Two misses are
+recorded as **accepted deviations, pending the user's confirmation**:
+- P-2: serial 1.120x the pre-sharding baseline at CP7, and 1.098x at
+  `2b4c0fd`. Like-for-like, excluding the runner's own new test module, it
+  is 1.086x and 1.063x.
+- P-5 CI: prediction is within +/-25 % in 2 of 5 runs, or 5 of 5 excluding
+  GitHub's queueing. Shard balance is within 1.15 in 3 of 5 runs.
+
+`docs/ACTIVE_MILESTONE.md`'s CP7 has the numbers.
+
+**CI cost (`D-CI-Cost`).** GitHub bills nothing for these runs, because the
+repository is public. On a private repository, a full run would bill about
+113-121 runner-minutes at 16-19 shards (each job rounded up to whole
+minutes), against 112 for the single-shard reference.
 
 **Serial and single-shard runs are exceptional evidence.** Normal
 full-suite verification, every gate included, uses the default sharded path:
@@ -291,11 +352,24 @@ run. The two are equivalent when all of these hold:
 
 - both runs are `evidence: full selection` with the same `selection_digest`
   and `tests_digest`;
+- the cited run's own `verdict:` line was the one the gate needs (`exit 0`
+  for a green gate). Neither digest records a verdict: a red run and a
+  green run of the same selection carry identical digests;
 - nothing that affects what the suite tests or how it runs has changed
   between the two `head` commits. That means `src/`, `tools/`,
   `distribution/`, `migration/`, `scripts/`, the test modules, and the
   runner itself (`tests/run_all.py`, `tests/parallel/`, `tests/support.py`,
-  `tests/frozen_runs.py`). Check with `git diff --stat <evidence head>..HEAD`;
+  `tests/frozen_runs.py`), plus, for CI evidence,
+  `.github/workflows/workflow-manager-verify.yml`. Check with
+  `git diff --stat <evidence head>..HEAD`. One narrow exception: a change
+  confined to `tests/parallel/timings.json` still counts as no change when
+  the evidence run's plan is unchanged by it -- the same profile and worker
+  or shard count give the same `n` and the same chunks (ids and members) in
+  the same shards at both heads. Check it by diffing those fields of
+  `--plan-only` output at the two heads, and record that you did. Estimates
+  only order and balance work, so an unchanged plan runs the same chunks
+  the same way; a changed one does not qualify, even if only the chunking
+  moved;
 - the criterion does not explicitly demand a fresh measurement.
 
 `tree_digest` is deliberately *not* on that list. It moves with any change
@@ -311,9 +385,9 @@ is required, when any of the following changes:
 - anything else that concretely makes the old run no longer equivalent.
 
 When you reuse a run, record the original run's identifier (its results
-directory, or its CI run URL) and its `head`. Record its `selection_digest`,
-`tests_digest` and test count, taken from the report's `evidence:` line or
-`results.json`'s `identity`. Also record why it is still equivalent for the
+directory, or its CI run URL), its `head` and its verdict. Record its
+`selection_digest`, `tests_digest` and test count, taken from the report's
+`evidence:` line or `results.json`'s `identity`. Also record why it is still equivalent for the
 current gate: the diff between the two heads and why it does not matter.
 Every run prints that `evidence:` line and stores the same fields in
 `results.json` (a CI shard stores them in its `shard-<k>.json`), so a later

@@ -35,6 +35,7 @@ from __future__ import annotations
 import argparse
 import subprocess
 import sys
+import traceback
 from pathlib import Path
 
 from . import executor, inventory, isolation, planner, report
@@ -162,6 +163,8 @@ ALLOWED = {
     "update_timings": {"profile", "sources"},
     "restore_barrier": set(),
 }
+#: GitHub Actions' ceiling on the jobs one matrix may generate.
+CI_MATRIX_LIMIT = 256
 _DEFAULTS = {"select": [], "sources": [], "fast": False, "whole_groups": False,
              "allow_root": False}
 
@@ -185,6 +188,9 @@ def validate(parser, args) -> str:
         parser.error("--update-timings needs --profile")
     if args.shards is not None and args.shards < 1:
         parser.error("--shards must be at least 1")
+    if args.profile == "ci" and args.shards is not None and args.shards > CI_MATRIX_LIMIT:
+        parser.error(f"--shards {args.shards} exceeds GitHub's {CI_MATRIX_LIMIT}-job matrix "
+                     f"limit; the CI shard matrix could never run")
     return mode
 
 
@@ -198,22 +204,39 @@ def check_paths(repo_root: Path, args) -> None:
     """Every output path, and every path a run reads results from, lies
     outside the repository root (5.6)."""
     root = repository_root(repo_root)
-    for flag in ("out", "plan", "results", "aggregate"):
-        value = getattr(args, flag)
-        if value is None:
-            continue
+
+    def outside(flag: str, value) -> Path:
         resolved = Path(value).expanduser().resolve()
         if resolved == root or root in resolved.parents:
             raise PathInsideRepositoryError(
                 f"--{flag} {value} is inside the repository ({root}); every file the tooling "
                 f"writes or reads results from lives outside the checkout")
-        setattr(args, flag, resolved)
+        return resolved
+
+    for flag in ("out", "plan", "results", "aggregate"):
+        value = getattr(args, flag)
+        if value is not None:
+            setattr(args, flag, outside(flag, value))
+    args.sources = [outside("from", value) for value in args.sources]
 
 
 def main(argv=None, *, repo_root: Path) -> int:
     """The whole command, against the checkout at `repo_root` -- the only root
-    anything here ever reads; no flag or environment variable changes it."""
-    repo_root = Path(repo_root)
+    anything here ever reads; no flag or environment variable changes it.
+
+    Any error the tool does not name itself (a failed `Popen`, `chmod` or git
+    call, a full disk) is still an infrastructure fault: exit 2, tagged, with
+    the traceback -- never the uncaught-exception exit 1 that means a test
+    failed (5.11)."""
+    try:
+        return _main(argv, repo_root=Path(repo_root))
+    except Exception as exc:  # noqa: BLE001 -- the exit-code contract
+        code = refuse(exc)
+        traceback.print_exc()
+        return code
+
+
+def _main(argv, *, repo_root: Path) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     mode = validate(parser, args)

@@ -159,9 +159,11 @@ class RunLock:
             return list(self.holder["chunk_pgids"])
 
     def release(self) -> None:
+        # Close only, never `LOCK_UN`: the lock belongs to the open file
+        # description every chunk inherited, and unlocking it here would drop
+        # it for a chunk that is still alive.
         if self.fd < 0:
             return
-        fcntl.flock(self.fd, fcntl.LOCK_UN)
         os.close(self.fd)
         self.fd = -1
 
@@ -177,6 +179,35 @@ def _read_holder(path: Path) -> dict | None:
         return strict_json_loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
+
+
+def _group_exists(pgid) -> bool:
+    if type(pgid) is not int or pgid <= 1:  # 0 would probe our own group
+        return False
+    try:
+        os.killpg(pgid, 0)
+    except PermissionError:
+        return True
+    except (ProcessLookupError, OverflowError):
+        return False
+    return True
+
+
+def _kill_hint(pgids) -> str:
+    """How to free the lock by hand. The recorded groups are as of the
+    holder's last update: after a SIGKILLed executor some may be gone and
+    their ids reused, and a chunk started but not yet registered is missing,
+    so the hint names only groups that still exist and says to verify first."""
+    live = [p for p in pgids if _group_exists(p)]
+    gone = [p for p in pgids if p not in live]
+    hint = ""
+    if gone:
+        hint += f"; no longer running: {gone}"
+    if live:
+        hint += ("; verify each group still belongs to that run (ids can be reused) "
+                 "before killing it: " + "; ".join(f"kill -- -{p}" for p in live))
+    return hint + ("; a chunk not yet recorded is not listed -- any process holding "
+                   "the lock file open keeps it held")
 
 
 def acquire_run_lock(repo_root: Path, *, now: float | None = None) -> RunLock:
@@ -195,10 +226,9 @@ def acquire_run_lock(repo_root: Path, *, now: float | None = None) -> RunLock:
             raise
         holder = _read_holder(path)
         pgids = (holder or {}).get("chunk_pgids") or []
-        hint = "".join(f"; kill -- -{pgid}" for pgid in pgids)
         raise RunLockHeldError(
             f"{path} is held by another run: {holder!r} (its chunk process groups: "
-            f"{pgids}{hint})", holder) from None
+            f"{pgids}{_kill_hint(pgids)})", holder) from None
     holder = {"pid": os.getpid(), "started_at": time.time() if now is None else now,
               "repo_root": str(Path(repo_root).resolve()), "chunk_pgids": []}
     lock = RunLock(repo_root, path, fd, holder)
@@ -368,27 +398,35 @@ def run_chunk(repo_root: Path, chunk_id: str, argv, *, run_dir: Path, timeout: f
     timed_out = False
     started_at = time.time()
     started = time.monotonic()
-    with open(paths.log, "wb") as log:
+    proc = None
+    log = open(paths.log, "wb")
+    # The spawn is inside the `try`, so an interrupt landing at any point
+    # once the chunk exists -- before its group is registered, too -- still
+    # reaches the `finally` that kills that group.
+    try:
         proc = subprocess.Popen([str(a) for a in argv], cwd=str(cwd or repo_root), env=env,
                                 stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT,
                                 start_new_session=True, pass_fds=pass_fds)
-    pgid = proc.pid  # a new session makes the child its own group leader
-    try:
+        log.close()
         if lock is not None:
-            lock.add_chunk_pgid(pgid)
+            lock.add_chunk_pgid(proc.pid)
         while not _exited(proc.pid):
             if time.monotonic() - started >= timeout:
                 timed_out = True
                 break
             time.sleep(POLL_SECONDS)
     finally:
-        # The leader is still unreaped here (a zombie, or alive on timeout),
-        # so `pgid` cannot have been recycled.
-        _kill_group(pgid)
-        returncode = proc.wait()
-        ended_at = time.time()
-        if lock is not None and lock.held:
-            lock.remove_chunk_pgid(pgid)
+        log.close()
+        if proc is not None:
+            # A new session makes the child its own group leader, and the
+            # leader is still unreaped here (a zombie, or alive on timeout),
+            # so its group id cannot have been recycled.
+            _kill_group(proc.pid)
+            returncode = proc.wait()
+            ended_at = time.time()
+            if lock is not None and lock.held:
+                lock.remove_chunk_pgid(proc.pid)
+    pgid = proc.pid
 
     residue = clean_tmpdir(paths.tmp)
     if timed_out:
@@ -551,11 +589,21 @@ def apply_barrier(repo_root: Path, lock: RunLock, *, allow_root: bool = False,
     modes = {rel: stat.S_IMODE(os.lstat(Path(repo_root) / rel).st_mode) for rel in rels}
     warnings = [f"{rel} already lacks u+w before the barrier; it is restored to that mode"
                 for rel, mode in modes.items() if not mode & stat.S_IWUSR]
+    if os.geteuid() == 0:
+        # Allowed only by `allow_root`; the report flags it (5.9).
+        warnings.insert(0, "running as root (--allow-root): the write barrier does not stop "
+                           "root's writes, so this run's barrier guarantees nothing")
     meta = {"pid": os.getpid(), "started_at": time.time() if now is None else now,
             "repo_root": str(Path(repo_root).resolve())}
     barrier = Barrier(repo_root, marker, modes, meta, warnings)
-    barrier._write_marker()
-    barrier._lock_dirs(rels)
+    try:
+        barrier._write_marker()
+        barrier._lock_dirs(rels)
+    except BaseException:
+        # A failure or signal part-way through leaves some directories `u-w`
+        # and the caller no `Barrier` to restore: undo it here (5.9).
+        restore_barrier(repo_root, barrier)
+        raise
     return barrier
 
 

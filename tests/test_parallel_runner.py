@@ -316,6 +316,10 @@ class TestResourcesContract(_RealHostInventory):
 
         cases = {
             "wrong schema_version": _resources_doc(schema_version=2),
+            # Review O8: the two cases below were accepted, or refused under the wrong tag.
+            "float schema_version": _resources_doc(schema_version=1.0),
+            "unhashable resource name": _resources_doc(exclusive={
+                "host:test_a.py::A": {"resources": [["repo:distribution"]], "reason": "x"}}),
             "undeclared resource": _resources_doc(exclusive={
                 "host:test_a.py::A": {"resources": ["repo:nope"], "reason": "x"}}),
             "empty resources list": _resources_doc(exclusive={
@@ -541,6 +545,21 @@ class Failing(unittest.TestCase):
                 self.assertEqual(i, 0)
 
 
+class SkippingSubtests(unittest.TestCase):
+    def test_skips_one(self):
+        for i in range(2):
+            with self.subTest(i=i):
+                if i:
+                    self.skipTest("odd")
+
+    def test_fails_then_skips(self):
+        for i in range(2):
+            with self.subTest(i=i):
+                if i:
+                    self.skipTest("odd")
+                self.assertEqual(i, 1)
+
+
 class BrokenFixture(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -606,6 +625,20 @@ class TestHostUnitExecution(unittest.TestCase):
                          [prefix + "test_bad", prefix + "test_boom", prefix + "test_sub"])
         self.assertEqual(run.record["outcomes"][prefix + "test_boom"], "error")
         self.assertEqual(run.record["outcomes"][prefix + "test_ok"], "ok")
+
+    def test_a_skipped_subtest_is_recorded_under_its_own_method(self):
+        """Review O4: a skipped subtest reaches `addSkip` as a `_SubTest`,
+        whose own method name is `runTest`; it belongs to its test method,
+        and never hides that method's failed subtest."""
+        run = self.launch("SkippingSubtests", index=8)
+        self.assertIsNone(run.infrastructure_fault)
+        prefix = "test_synthetic.py::SkippingSubtests::"
+        self.assertEqual(run.record["outcomes"], {prefix + "test_fails_then_skips": "fail",
+                                                  prefix + "test_skips_one": "skip"})
+        self.assertEqual(run.record["skipped"], {prefix + "test_fails_then_skips": "odd",
+                                                 prefix + "test_skips_one": "odd"})
+        self.assertEqual(run.record["failing"], [prefix + "test_fails_then_skips"])
+        self.assertEqual(sorted(run.record["ran"]), sorted(run.record["outcomes"]))
 
     def test_a_class_fixture_error_is_a_failure(self):
         run = self.launch("BrokenFixture", index=4)
@@ -895,6 +928,18 @@ class TestFrozenMerge(unittest.TestCase):
         records = _records()
         records[1] = _record("a#1", "a_test.py", ("A3",), None, returncode=1)
         self.assertIsNone(frozen_runs.merge(records, _context())["a_test.py"].ran)
+
+    def test_a_chunk_killed_by_a_signal_is_never_hidden_by_a_zero(self):
+        """Self-review: `max(0, -11)` would read a segfaulted chunk that had
+        already printed its summary as green; direct mode reports the crash."""
+        records = _records()
+        records[0] = _record("a#0", "a_test.py", ("A1", "A2"), 5, returncode=-11)
+        records[1] = _record("a#1", "a_test.py", ("A3",), 2)
+        self.assertEqual(frozen_runs.merge(records, _context())["a_test.py"].returncode, -11)
+        records[1] = _record("a#1", "a_test.py", ("A3",), 2, failing=("A3.test_x",),
+                             returncode=1)
+        self.assertEqual(frozen_runs.merge(records, _context())["a_test.py"].returncode, -11)
+        self.assertEqual(frozen_runs.merge(_records(), _context())["a_test.py"].returncode, 1)
 
     def test_structural_refusals(self):
         def replaced(index, record):
@@ -1927,9 +1972,11 @@ class TestTimingLifecycle(unittest.TestCase):
             (root / "tests" / "parallel").mkdir(parents=True)
             path = timings.timings_path(root)
             self.assertTrue(timings.load(root).warnings)          # missing
+            # The last one is review O2: nesting too deep for `json` to parse.
             for text in ("{not json", "[]", '{"schema_version": 2, "profiles": {}}',
-                         '{"schema_version": 1, "profiles": []}'):
-                with self.subTest(text=text):
+                         '{"schema_version": 1, "profiles": []}',
+                         "[" * 200_000 + "]" * 200_000):
+                with self.subTest(text=text[:40]):
                     path.write_text(text)
                     loaded = timings.load(root)
                     self.assertEqual(loaded.units, {})
@@ -1972,6 +2019,83 @@ class TestTimingLifecycle(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             (Path(tmp) / "h.jsonl").write_text(line + "\n" + got[0].to_json_line())
             self.assertEqual(timings.read_observations([Path(tmp) / "h.jsonl"]), got[::-1])
+
+    def test_a_history_line_keeps_its_own_profile(self):
+        """Self-review: `--update-timings --profile ci` over the local history
+        cache must fold nothing into `ci`."""
+        lines = [self.obs(self.A, 5.0, "t1").to_json_line(),
+                 self.obs(self.B, 7.0, "t1", profile="ci").to_json_line()]
+        with tempfile.TemporaryDirectory() as tmp:
+            history = Path(tmp) / "h.jsonl"
+            history.write_text("\n".join(lines) + "\n")
+            got = timings.read_observations([history], "ci")
+        self.assertEqual({(o.unit, o.profile) for o in got}, {(self.A, "local"), (self.B, "ci")})
+        after = timings.update(timings.Timings(), got, "ci")
+        self.assertEqual(set(after.units["ci"]), {self.B})
+
+    def test_an_unreadable_history_line_is_skipped_with_a_warning(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            history = Path(tmp) / "h.jsonl"
+            history.write_text(self.obs(self.A, 5.0, "t1").to_json_line().rstrip("\n") + "\n"
+                               + '{"unit": "host:test_a.py::B", "seco' + "\n"
+                               + self.obs(self.C, 6.0, "t2").to_json_line())
+            warnings: list[str] = []
+            got = timings.read_observations([history], warnings=warnings)
+            self.assertEqual([o.unit for o in got], [self.A, self.C])
+            self.assertEqual(warnings, [f"{history}:2: unreadable history line skipped"])
+            self.assertEqual(len(timings.read_observations([history])), 2)
+
+    def test_a_history_line_with_non_string_fields_is_skipped_with_a_warning(self):
+        """Review O3: a line that parses but whose identifying fields are not
+        strings is skipped like an unparsable one, never a `TypeError`."""
+        bad = [{"unit": ["x"], "seconds": 1}, {"fixture": {"a": 1}, "seconds": 1},
+               {"unit": self.B, "seconds": 1, "profile": 3},
+               {"unit": self.B, "seconds": 1, "tree_digest": []}]
+        with tempfile.TemporaryDirectory() as tmp:
+            history = Path(tmp) / "h.jsonl"
+            history.write_text(self.obs(self.A, 5.0, "t1").to_json_line()
+                               + "".join(json.dumps(obj) + "\n" for obj in bad))
+            warnings: list[str] = []
+            got = timings.read_observations([history], "local", warnings=warnings)
+        self.assertEqual([o.unit for o in got], [self.A])
+        self.assertEqual(warnings, [f"{history}:{n}: unreadable history line skipped"
+                                    for n in range(2, 6)])
+        after = timings.update(timings.Timings(), got, "local")
+        self.assertEqual(set(after.units["local"]), {self.A})
+
+    def test_a_ratio_that_is_not_a_valid_duration_falls_through(self):
+        """Self-review: an adversarial file could make the profile ratio
+        overflow to `inf` (or `inf x 0` give `nan`), and a finite ratio can
+        still scale past a valid duration; neither may reach the planner."""
+        # Non-finite per-unit ratios are left out of the median.
+        timing = _timings(local={self.A: 1.0, self.D: 1.0, self.E: 4.0},
+                          ci={self.A: 1e-320, self.D: 1e-320, self.E: 2.0, self.B: 3.0})
+        ids = [self.A, self.B, self.D, self.E]
+        got = timings.estimate_units(timing, "local", ids, ids, 30.0)
+        self.assertEqual(got[self.B], timings.Estimate(6.0, timings.OTHER_PROFILE))
+        # A finite ratio whose product is not a valid duration falls through.
+        timing = _timings(local={self.A: 86400.0, self.D: 8.0},
+                          ci={self.A: 1e-300, self.B: 1.0, self.C: 0.0})
+        ids = [self.A, self.B, self.C, self.D]
+        got = timings.estimate_units(timing, "local", ids, ids, 30.0)
+        self.assertEqual(got[self.B], timings.Estimate(43204.0, timings.GROUP_MEDIAN))
+        self.assertEqual(got[self.C], timings.Estimate(0.0, timings.OTHER_PROFILE))
+        plan = _plan(ids, timing=timing)
+        self.assertEqual(sorted(_all_plan_units(plan)), sorted(ids))
+
+    def test_timing_warnings_do_not_name_the_checkout_path(self):
+        """Warnings enter the plan: two checkouts of one tree plan identically
+        (INV-3), with or without a timing file."""
+        with tempfile.TemporaryDirectory() as one, tempfile.TemporaryDirectory() as two:
+            loaded = [timings.load(Path(root)) for root in (one, two)]
+            self.assertEqual(loaded[0].warnings, loaded[1].warnings)
+            self.assertTrue(loaded[0].warnings[0].startswith("tests/parallel/timings.json: "))
+            for root in (one, two):
+                (Path(root) / "tests" / "parallel").mkdir(parents=True)
+                timings.timings_path(Path(root)).write_text("{not json")
+            loaded = [timings.load(Path(root)) for root in (one, two)]
+            self.assertEqual(loaded[0].warnings, loaded[1].warnings)
+            self.assertNotIn(one, loaded[0].warnings[0])
 
     def test_the_committed_files_load_cleanly(self):
         loaded = timings.load(REPO_ROOT)
@@ -2067,6 +2191,16 @@ class TestExclusivePlacement(unittest.TestCase):
                else {}}
         resources.resources_path(root).write_text(json.dumps(doc))
         return resources.load(root, [self.EXCL, *self.SHARED])
+
+    def test_a_matrix_host_class_declared_exclusive_is_refused(self):
+        """Self-review: phase B has no A0 and never lifts the barrier, so an
+        exclusive matrix class would run concurrently -- refuse it."""
+        with tempfile.TemporaryDirectory() as tmp:
+            res = self.load_resources(Path(tmp))
+            with self.assertRaises(planner.ExclusiveMatrixUnitError) as ctx:
+                _plan([self.EXCL, *self.SHARED], matrix=(self.EXCL,), res=res)
+            self.assertIn(self.EXCL, str(ctx.exception))
+            _plan([self.EXCL, *self.SHARED], matrix=(self.SHARED[0],), res=res)
 
     def test_the_exclusive_chunk_is_first_in_its_shard_whatever_the_shard(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -2654,6 +2788,51 @@ class TestRunChunk(_ScratchCase):
         self.assertTrue(_wait_until(lambda: _dead(grandchild)), "grandchild survived its chunk")
         self.assertTrue(_dead(run.pgid))
 
+    def test_an_interrupt_right_after_the_spawn_still_kills_the_chunk_group(self):
+        """Review O6: an interrupt landing after `Popen` returns but before the
+        chunk's cleanup is armed -- here, while its log is being closed --
+        must not leave the chunk running."""
+        spawned: list[subprocess.Popen] = []
+        real_popen, real_open = subprocess.Popen, open
+
+        def popen(*args, **kwargs):
+            proc = real_popen(*args, **kwargs)
+            spawned.append(proc)
+            self.addCleanup(proc.wait)
+            self.addCleanup(isolation._kill_group, proc.pid)
+            return proc
+
+        class InterruptOnFirstClose:
+            def __init__(self, handle):
+                self.handle, self.fired = handle, False
+
+            def fileno(self):
+                return self.handle.fileno()
+
+            def close(self):
+                self.handle.close()
+                if not self.fired:
+                    self.fired = True
+                    raise KeyboardInterrupt
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                self.close()
+
+        def log_open(path, mode="r", *args, **kwargs):
+            handle = real_open(path, mode, *args, **kwargs)
+            return InterruptOnFirstClose(handle) if mode == "wb" else handle
+
+        with mock.patch.object(subprocess, "Popen", popen), \
+                mock.patch.object(isolation, "open", log_open, create=True), \
+                self.assertRaises(KeyboardInterrupt):
+            self.run_script("interrupted", "import time; time.sleep(120)")
+        self.assertEqual(len(spawned), 1)
+        self.assertTrue(_wait_until(lambda: _dead(spawned[0].pid)),
+                        "the chunk outlived the interrupt")
+
     def test_a_normal_exit_leaves_no_descendant_behind(self):
         pid_file = self.tmp / "grandchild.pid"
         started = time.monotonic()
@@ -2801,6 +2980,41 @@ class TestWriteBarrier(_ScratchCase):
         return isolation.run_chunk(scratch_root, chunk_id, unit.unit_argv(unit_id, record),
                                    run_dir=self.run_dir, timeout=120,
                                    cwd=scratch_root / "tests", lock=lock)
+
+    def test_a_barrier_that_fails_part_way_is_undone_before_the_error_propagates(self):
+        """Self-review: a `chmod` error or a signal while the barrier is being
+        applied left directories `u-w` with nothing in-process to restore
+        them (5.9)."""
+        scratch = scratch_checkout(self.tmp / "scratch")
+        pre_modes = _guarded_modes(scratch)
+        real = isolation.Barrier._lock_dirs
+        for error in (PermissionError(1, "chmod refused"), KeyboardInterrupt("signal 15")):
+            locked = []
+
+            def part_way(barrier, rels, error=error, locked=locked):
+                rels = list(rels)
+                real(barrier, rels[: len(rels) // 2])
+                locked.append(sum(not _writable(m) for m in _guarded_modes(scratch).values()))
+                raise error
+            with self.subTest(error=type(error).__name__):
+                with isolation.acquire_run_lock(scratch) as lock, \
+                        mock.patch.object(isolation.Barrier, "_lock_dirs", part_way):
+                    with self.assertRaises(type(error)):
+                        isolation.apply_barrier(scratch, lock)
+                self.assertGreater(locked[0], 0)
+                self.assertEqual(_guarded_modes(scratch), pre_modes)
+                self.assertFalse((isolation.state_dir(scratch) / "barrier.json").exists())
+
+    def test_a_root_barrier_allowed_by_allow_root_is_flagged(self):
+        scratch = scratch_checkout(self.tmp / "scratch")
+        with isolation.acquire_run_lock(scratch) as lock:
+            with mock.patch("os.geteuid", return_value=0):
+                barrier = isolation.apply_barrier(scratch, lock, allow_root=True)
+            isolation.restore_barrier(scratch, barrier)
+            self.assertIn("running as root (--allow-root)", barrier.warnings[0])
+            plain = isolation.apply_barrier(scratch, lock)
+            isolation.restore_barrier(scratch, plain)
+            self.assertFalse(any("root" in w for w in plain.warnings))
 
     def test_a_transient_structural_writer_is_refused_unless_lifted(self):
         scratch = scratch_checkout(self.tmp / "scratch")
@@ -2994,6 +3208,29 @@ class TestWriteBarrier(_ScratchCase):
 
 class TestRunLockAndRecovery(_ScratchCase):
 
+    def test_the_refusal_hint_names_only_groups_that_still_exist(self):
+        """Review O7: after a SIGKILLed executor the recorded groups are
+        frozen; a group that is gone (and whose id may be reused) is never
+        offered as a `kill` target, and the hint says to verify first."""
+        scratch = scratch_checkout(self.tmp / "scratch")
+        live = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(120)"],
+                                start_new_session=True)
+        self.addCleanup(live.wait)
+        self.addCleanup(isolation._kill_group, live.pid)
+        gone = subprocess.Popen([sys.executable, "-c", "pass"], start_new_session=True)
+        gone.wait()
+        with isolation.acquire_run_lock(scratch) as held:
+            for pgid in (live.pid, gone.pid):
+                held.add_chunk_pgid(pgid)
+            with self.assertRaises(isolation.RunLockHeldError) as ctx:
+                isolation.acquire_run_lock(scratch)
+        message = str(ctx.exception)
+        self.assertIn(f"kill -- -{live.pid}", message)
+        self.assertNotIn(f"kill -- -{gone.pid}", message)
+        self.assertIn(f"no longer running: [{gone.pid}]", message)
+        self.assertIn("verify each group still belongs to that run", message)
+        self.assertIn("a chunk not yet recorded is not listed", message)
+
     def test_recovery_acts_only_on_a_dead_owner(self):
         scratch = scratch_checkout(self.tmp / "scratch")
         pre_modes = _guarded_modes(scratch)
@@ -3031,6 +3268,25 @@ class TestRunLockAndRecovery(_ScratchCase):
             self.assertEqual(_guarded_modes(scratch), pre_modes)
             self.assertFalse((isolation.state_dir(scratch) / "barrier.json").exists())
             self.assertEqual(isolation.recover_barrier(scratch, lock), [])
+
+    def test_releasing_the_lock_leaves_it_to_a_chunk_still_holding_the_fd(self):
+        """Self-review: `LOCK_UN` on the shared open file description dropped
+        the lock for a still-running chunk; `release` now only closes."""
+        scratch = scratch_checkout(self.tmp / "scratch")
+        stop = self.tmp / "stop"
+        lock = isolation.acquire_run_lock(scratch)
+        child = subprocess.Popen(_script_argv(_WAIT_FOR_FILE, stop), start_new_session=True,
+                                 pass_fds=(lock.fd,))
+        try:
+            lock.release()
+            self.assertFalse(lock.held)
+            with self.assertRaises(isolation.RunLockHeldError):
+                isolation.acquire_run_lock(scratch)
+        finally:
+            stop.write_text("")
+            child.wait(30)
+        with isolation.acquire_run_lock(scratch) as again:
+            self.assertTrue(again.held)
 
     def test_a_chunk_holds_the_lock_fd_and_its_group_is_recorded_while_it_runs(self):
         scratch = scratch_checkout(self.tmp / "scratch")
@@ -3399,6 +3655,33 @@ class TestExitCodeContract(_CliCase):
                 self.assertIn("TestGamma.test_four", proc.stdout)
                 self.assertNotIn("error[", proc.stderr)
 
+    def test_an_unwritable_timing_history_keeps_the_report_and_the_verdict(self):
+        # A regular file where the cache directory should be: the history
+        # append fails with an `OSError` whoever runs the test.
+        blocker = self.tmp / "not-a-directory"
+        blocker.write_text("")
+        env = dict(self.env, XDG_CACHE_HOME=str(blocker))
+        cases = {"green": ({}, 0, "passed"),
+                 "failing": ({"test_scratch_failing.py": FAILING_HOST_MODULE}, 1, "failed")}
+        for name, (modules, code, outcome) in cases.items():
+            with self.subTest(case=name):
+                scratch = scratch_checkout(self.tmp / name, modules=modules)
+                argv = ("--select", "test_scratch_failing.py") if modules else ()
+                proc = run_cli(scratch, *argv, "--results", self.tmp / f"r-{name}", env=env)
+                self.assertEqual(proc.returncode, code, proc.stdout + proc.stderr)
+                self.assertNotIn("error[", proc.stderr)
+                self.assertIn("warning: could not write the timing history", proc.stderr)
+                self.assertIn("the verdict is unchanged", proc.stderr)
+                self.assertIn("evidence: ", proc.stdout)
+                self.assertIn(f"verdict: exit {code}", proc.stdout)
+                units = _results(self.tmp / f"r-{name}")
+                self.assertIn(outcome, {u["outcome"] for u in units.values()})
+                self.assertTrue((self.tmp / f"r-{name}" / "timings.jsonl").exists())
+                if modules:
+                    self.assertIn(
+                        "failing: test_scratch_failing.py::TestScratchFailing::test_bad",
+                        proc.stdout)
+
     def test_setupclass_errors_import_crashes_and_builder_failures_are_1_not_2(self):
         cases = {"setupclass_error": {"suite": SCRATCH_SUITE_VARIANTS["setupclass_error"]},
                  "import_crash": {"suite": SCRATCH_SUITE_VARIANTS["import_crash"]},
@@ -3530,7 +3813,11 @@ class TestPathFlagsStayOutsideTheRepository(_CliCase):
                      ("--run-shard", "0", "--plan", outside, "--results", inside),
                      ("--results", inside),
                      ("--aggregate", inside, "--plan", outside),
-                     ("--aggregate", self.tmp, "--plan", scratch / "plan.json")):
+                     ("--aggregate", self.tmp, "--plan", scratch / "plan.json"),
+                     # Review O5: --from only reads, but 5.6 covers every path flag.
+                     ("--update-timings", "--profile", "local", "--from", scratch / "tests"),
+                     ("--update-timings", "--profile", "local",
+                      "--from", outside, "--from", inside)):
             with self.subTest(argv=argv):
                 proc = run_cli(scratch, *argv, env=self.env)
                 assert_refusal(self, proc.returncode, proc.stderr, "PathInsideRepositoryError")
@@ -3619,6 +3906,18 @@ class TestRefusalsAreDistinguishable(_CliCase):
         finally:
             stop.write_text("")
             holder.join(30)
+
+    def test_an_unexpected_error_is_an_infrastructure_fault_never_exit_1(self):
+        """Self-review: an error the tool does not name (a failed `Popen`,
+        `chmod` or git call, a full disk) exited 1 -- a test failure (5.11)."""
+        scratch = scratch_checkout(self.tmp / "scratch")
+        failure = OSError(24, "Too many open files")
+        with mock.patch.object(executor, "list_units", side_effect=failure):
+            code, _, err = main_in_process(scratch, "--list")
+        assert_refusal(self, code, err, "OSError")
+        self.assertIn("Traceback", err)
+        with isolation.acquire_run_lock(scratch) as lock:   # released on the way out
+            self.assertTrue(lock.held)
 
     def test_with_the_lock_free_each_refusal_reports_its_own_tag(self):
         scratch = scratch_checkout(self.tmp / "scratch")
@@ -3844,6 +4143,13 @@ class TestRunShardProvenance(_CliCase):
         self.assertIn("verdict: exit 0", summary.read_text())
         self.assertIn("B  host:test_scratch_matrix.py::TestScratchMatrix", proc.stdout)
 
+        # An unwritable step summary is a warning after the report, never exit 2.
+        blocked = run_cli(scratch, "--aggregate", out, "--plan", plan,
+                          env=dict(self.env, GITHUB_STEP_SUMMARY=str(self.tmp / "no" / "s.md")))
+        self.assertEqual(blocked.returncode, 0, blocked.stdout + blocked.stderr)
+        self.assertIn("verdict: exit 0", blocked.stdout)
+        self.assertIn("warning: could not write the step summary", blocked.stderr)
+
         shutil.move(str(out / "shard-1"), str(self.tmp / "held-back"))
         missing = run_cli(scratch, "--aggregate", out, "--plan", plan, env=self.env)
         assert_refusal(self, missing.returncode, missing.stderr, "IncompleteResultsError")
@@ -4006,6 +4312,40 @@ class TestLockAndRecoveryThroughTheCli(_CliCase):
         self.assertEqual(again.returncode, 0, again.stderr)
         self.assertIn("no write barrier to restore", again.stdout)
 
+    def test_sigterm_and_sigint_kill_the_chunk_restore_the_barrier_and_exit_2(self):
+        """Self-review: `_install_signal_handlers`/`Engine.interrupt` had no
+        test; only SIGKILL did."""
+        for signum in (signal.SIGTERM, signal.SIGINT):
+            with self.subTest(signal=signum.name):
+                scratch = scratch_checkout(self.tmp / signum.name,
+                                           modules={"test_scratch_wait.py": WAIT_MODULE})
+                pre_modes = _guarded_modes(scratch)
+                stop = self.tmp / f"stop-{signum.name}"   # only the signal ends the chunk
+                proc = start_cli(scratch, "--select", "test_scratch_wait.py",
+                                 env=dict(self.env, WM_SCRATCH_STOP=str(stop)))
+                try:
+                    pgid = self._wait_for_chunk(scratch, proc)[0]
+                    self.assertFalse(any(_writable(m) for m in _guarded_modes(scratch).values()))
+                    os.kill(proc.pid, signum)
+                    out, err = proc.communicate(timeout=60)
+                finally:
+                    stop.write_text("")
+                assert_refusal(self, proc.returncode, err, "InterruptedRunError")
+                self.assertTrue(_dead(pgid))
+                self.assertEqual(_guarded_modes(scratch), pre_modes)
+                self.assertFalse((isolation.state_dir(scratch) / "barrier.json").exists())
+                again = run_cli(scratch, "--restore-barrier", env=self.env)
+                self.assertEqual(again.returncode, 0, again.stderr)
+                self.assertIn("no write barrier to restore", again.stdout)
+
+    def test_a_root_run_with_allow_root_is_flagged_in_the_report(self):
+        scratch = scratch_checkout(self.tmp / "scratch")
+        with mock.patch("os.geteuid", return_value=0):
+            code, out, err = main_in_process(scratch, "--allow-root",
+                                             "--select", "test_scratch_shared.py")
+        self.assertEqual(code, 0, out + err)
+        self.assertIn("running as root (--allow-root)", out.split("\nshards: ", 1)[1])
+
     def test_a_root_run_without_allow_root_is_refused(self):
         scratch = scratch_checkout(self.tmp / "scratch")
         pre_modes = _guarded_modes(scratch)
@@ -4083,6 +4423,15 @@ class TestExecutorPieces(unittest.TestCase):
         self.assertEqual(again.window, isolation.Window("c", 1.0, 2.5, True))
         with self.assertRaises(executor.IncompleteResultsError):
             executor.ChunkResult.from_json({"chunk": chunk.to_json()})
+
+    def test_an_unknown_outcome_in_received_results_is_refused(self):
+        """Self-review: `verdict_of` counted an outcome it does not know as a
+        pass, so an edited shard artifact could turn the aggregate green."""
+        chunk = plan_schema.ChunkDescriptor("c", 0, ("host:test_a.py::A",), 1.0)
+        doc = executor.ChunkResult(chunk, "A", 0, "host", "failed").to_json()
+        self.assertEqual(executor.ChunkResult.from_json(doc).outcome, "failed")
+        with self.assertRaises(executor.IncompleteResultsError):
+            executor.ChunkResult.from_json({**doc, "outcome": "skipped"})
 
     def test_the_verdict_precedence(self):
         chunk = plan_schema.ChunkDescriptor("c", 0, ("host:test_a.py::A",), 1.0)
@@ -4270,6 +4619,11 @@ def load_workflow_yaml(text: str):
     return doc
 
 
+#: The single-shard CI reference's measured job time (CP6, run 36318597506:
+#: 110.8 minutes) with a margin.
+CI_SERIAL_SHARD_MINUTES = 150
+
+
 def ci_workflow() -> dict:
     return load_workflow_yaml(CI_WORKFLOW.read_text(encoding="utf-8"))
 
@@ -4307,6 +4661,13 @@ def ci_workflow_problems(doc: dict) -> list[str]:
     jobs = doc.get("jobs") or {}
     need(sorted(jobs) == sorted(CI_JOBS), f"jobs are {sorted(jobs)}, not {sorted(CI_JOBS)}")
     plan, shard, aggregate = ((jobs.get(name) or {}) for name in CI_JOBS)
+    for name in CI_JOBS:
+        minutes = (jobs.get(name) or {}).get("timeout-minutes")
+        need(isinstance(minutes, int) and 0 < minutes < 360,
+             f"{name}: timeout-minutes is {minutes!r}, not below GitHub's 360-minute default")
+    need((shard.get("timeout-minutes") or 0) >= CI_SERIAL_SHARD_MINUTES,
+         f"the shard timeout would kill the single-shard reference "
+         f"(about {CI_SERIAL_SHARD_MINUTES} minutes)")
     need(plan.get("outputs") == {"shards": "${{ steps.plan.outputs.shards }}"},
          "the plan job does not export its plan step's shard list")
     strategy = shard.get("strategy") or {}
@@ -4439,6 +4800,10 @@ class TestCiWorkflowStructure(unittest.TestCase):
             "a shallow checkout": ("          fetch-depth: 0\n", "          fetch-depth: 1\n"),
             "an artifact path in the workspace": ("path: ${{ runner.temp }}/out/\n",
                                                   "path: out/\n"),
+            # Review O9.
+            "no plan timeout": ("    timeout-minutes: 30\n", ""),
+            "a shard timeout too short for shards=1": ("timeout-minutes: 180",
+                                                       "timeout-minutes: 60"),
         }
         for label, (old, new) in mutants.items():
             with self.subTest(mutation=label):
@@ -4446,6 +4811,23 @@ class TestCiWorkflowStructure(unittest.TestCase):
                     else text.replace(old, new, 1)
                 self.assertNotEqual(mutated, text, "the mutation did not apply")
                 self.assertNotEqual(ci_workflow_problems(load_workflow_yaml(mutated)), [])
+
+    def test_a_shard_count_beyond_the_matrix_limit_is_refused(self):
+        """Review O9: the `shards` dispatch input is otherwise unbounded, and a
+        matrix above GitHub's limit fails without saying why."""
+        parser = cli.build_parser()
+        for shards, refused in ((cli.CI_MATRIX_LIMIT, False), (cli.CI_MATRIX_LIMIT + 1, True)):
+            with self.subTest(shards=shards):
+                args = parser.parse_args(["--plan-only", "--profile", "ci", "--shards", str(shards)])
+                stderr = io.StringIO()
+                with contextlib.redirect_stderr(stderr):
+                    if refused:
+                        with self.assertRaises(SystemExit) as ctx:
+                            cli.validate(parser, args)
+                        self.assertEqual(ctx.exception.code, 2)
+                        self.assertIn("matrix limit", stderr.getvalue())
+                    else:
+                        self.assertEqual(cli.validate(parser, args), "plan_only")
 
     def test_the_parser_refuses_what_it_does_not_understand(self):
         for text in ("a: &x 1\n", "a: *x\n", "a: {b: 1}\n", "a: 1 # c\n", "a:\n\tb: 1\n",
@@ -4747,6 +5129,17 @@ class TestEvidenceIdentity(unittest.TestCase):
         reordered = self._identity(whole, [_host_result(u, [f"{u}::test_x"])
                                            for u in reversed(self.UNITS)])
         self.assertEqual(reordered["tests_digest"], before["tests_digest"])
+
+    def test_a_frozen_setupclass_error_is_attributed_to_its_class(self):
+        unit = "frozen:1.0.0/conformance/s.py::K"
+        chunk = plan_schema.ChunkDescriptor("f", 0, (unit, "frozen:1.0.0/conformance/s.py::L"),
+                                            1.0)
+        result = executor.ChunkResult(chunk, "A", 0, "frozen", "failed", 1.0, 2.0, 1,
+                                      {"ran": 3, "failing": ["__main__.K", "K.test_a",
+                                                             "L.test_b"]})
+        entries = report.unit_entries([result], {})
+        self.assertEqual(entries[unit]["failing"], ["__main__.K", "K.test_a"])
+        self.assertEqual(entries["frozen:1.0.0/conformance/s.py::L"]["failing"], ["L.test_b"])
 
     def test_the_line_names_every_field_a_reuse_record_cites(self):
         identity = self._identity(dict.fromkeys(self.UNITS),

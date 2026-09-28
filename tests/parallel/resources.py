@@ -88,7 +88,7 @@ def parse(raw, host_unit_ids, *, source: str = "resources.json") -> Resources:
 
     if not isinstance(raw, dict) or set(raw) != {"schema_version", "resources", "exclusive"}:
         fail("top level must be an object with exactly schema_version, resources, exclusive")
-    if raw["schema_version"] != SCHEMA_VERSION or isinstance(raw["schema_version"], bool):
+    if type(raw["schema_version"]) is not int or raw["schema_version"] != SCHEMA_VERSION:
         fail(f"schema_version must be {SCHEMA_VERSION}, got {raw['schema_version']!r}")
     if not isinstance(raw["resources"], dict) or not isinstance(raw["exclusive"], dict):
         fail("resources and exclusive must be objects")
@@ -132,6 +132,9 @@ def parse(raw, host_unit_ids, *, source: str = "resources.json") -> Resources:
         held = spec["resources"]
         if not isinstance(held, list) or not held:
             fail(f"exclusive {unit!r}: resources must be a non-empty list")
+        for name in held:
+            if not isinstance(name, str):
+                fail(f"exclusive {unit!r}: resource {name!r} is not a string")
         if len(set(map(str, held))) != len(held):
             fail(f"exclusive {unit!r}: a resource is listed twice")
         for name in held:

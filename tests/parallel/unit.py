@@ -42,6 +42,8 @@ class _RecordingResult(unittest.TextTestResult):
         self.failing_ids: list[str] = []
 
     def _id(self, test) -> str:
+        if isinstance(test, unittest.case._SubTest):  # a skipped subtest reaches addSkip
+            test = test.test_case
         method = getattr(test, "_testMethodName", None)
         if method is None:  # a class/module fixture error holder
             return host_test_id(self._module, self._cls, str(test))
@@ -71,8 +73,10 @@ class _RecordingResult(unittest.TextTestResult):
 
     def addSkip(self, test, reason):
         super().addSkip(test, reason)
-        self.outcomes[self._id(test)] = "skip"
-        self.skip_reasons[self._id(test)] = reason
+        tid = self._id(test)
+        if tid not in self.failing_ids:  # a failed subtest outranks a skipped one
+            self.outcomes[tid] = "skip"
+        self.skip_reasons.setdefault(tid, reason)
 
     def addExpectedFailure(self, test, err):
         super().addExpectedFailure(test, err)

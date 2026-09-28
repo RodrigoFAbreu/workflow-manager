@@ -168,7 +168,9 @@ def unit_entries(results, frozen_classes: dict) -> dict:
                            "phase": result.phase, "chunk": result.chunk.id,
                            "shard": result.shard, "window": window, "ran": record.get("ran"),
                            "tests": [f"{unit}::{m}" for m in methods],
-                           "failing": [f for f in failing if f.split(".", 1)[0] == cls],
+                           # `Class.test`, or `module.Class` for a setUpClass error.
+                           "failing": [f for f in failing
+                                       if cls in (f.split(".", 1)[0], f.rsplit(".", 1)[-1])],
                            "tmp_residue": list(result.tmp_residue)}
     return dict(sorted(units.items()))
 
@@ -186,9 +188,11 @@ def evidence_identity(plan: dict, results, frozen_classes: dict, *, head: str,
     - `head`, `tree_digest`: the revision, and the exact tree (which a
       documentation-only change also moves);
     - `selection_digest`: the selected unit set;
-    - `tests`, `tests_digest`: the test ids that actually ran, sorted --
-      which also moves when a test method is added to an existing class,
-      where `selection_digest` does not."""
+    - `tests`, `tests_digest`: the test ids the reported units hold, sorted
+      (a host unit's from its record, a frozen unit's from the inventory
+      whatever its outcome) -- which also moves when a test method is added
+      to an existing class, where `selection_digest` does not. Neither digest
+      says the run was green: evidence cites the verdict separately."""
     units = unit_entries(results, frozen_classes)
     tests = sorted({t for entry in units.values() for t in entry["tests"]})
     selection = plan["selection"]

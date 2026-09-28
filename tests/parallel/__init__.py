@@ -22,7 +22,8 @@ def canonical_json(obj) -> str:
 
 def strict_json_loads(text: str):
     """`json.loads` that refuses duplicate object keys instead of silently
-    keeping the last one."""
+    keeping the last one. Nesting too deep to parse is a `ValueError` too, so
+    every caller's corrupt-file path covers it."""
     def pairs(items):
         out = {}
         for key, value in items:
@@ -30,4 +31,7 @@ def strict_json_loads(text: str):
                 raise ValueError(f"duplicate key {key!r}")
             out[key] = value
         return out
-    return json.loads(text, object_pairs_hook=pairs)
+    try:
+        return json.loads(text, object_pairs_hook=pairs)
+    except RecursionError as exc:
+        raise ValueError("JSON nested too deeply to parse") from exc
