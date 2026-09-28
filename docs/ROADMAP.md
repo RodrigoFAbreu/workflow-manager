@@ -50,16 +50,17 @@ Workflow 2.7 (W1) and 2.8 (W2).
 | M3 | This repository and `workflow` driven by the Controller's loop | both | [10.3](#103-m3-driven-by-the-controllers-loop) |
 
 **The Controller lane** (its roadmap owns it):
-1. squash merges and PR-title versions;
+1. squash merges and Conventional-Commit PR-title versions;
 2. CI reliability;
 3. settings file, cleanup and telemetry;
 4. auto-merge and release wait;
-5. automated lifecycle scenarios;
-6. a Codex review seam;
-7. a usage budget;
-8. the Controller on the protocol (needs W1);
-9. gate policy and automatic acceptance (needs W2);
-10. the kanban runner.
+5. SignalHub notifications;
+6. automated lifecycle scenarios;
+7. a Codex review seam;
+8. a usage budget;
+9. the Controller on the protocol (needs W1);
+10. gate policy and automatic acceptance (needs W2);
+11. the kanban runner.
 
 **Deferred** because they do not unlock that operating model:
 - RepFlow migration (2, 3);
@@ -968,7 +969,13 @@ This repository works the way the Workflow Controller does:
 
 - a protected `main`, changed only through pull requests, with required checks;
 - one short-lived branch per milestone;
-- squash merges, with the release version derived from the pull request title;
+- squash merges, with the release version derived from the pull request title, as in SignalHub
+  and the Controller:
+  - the title must be a Conventional Commit (`feat: …`, `fix: …`, `feat!: …`), checked by a
+    required check;
+  - it becomes the squash commit's subject;
+  - its type decides the bump (`feat` minor, `fix` patch, `!` major);
+  - `docs`, `chore` and `ci` merge without a release;
 - auto-merge on green required checks;
 - a Workflow Manager package release published from `main`;
 - a per-commit CI concurrency group for `main`, so an intermediate `main` run is never cancelled
