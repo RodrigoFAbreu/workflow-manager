@@ -15,6 +15,65 @@ The guiding rule is additive evolution:
 
 ---
 
+## At a glance
+
+**Where things stand (2026-09-29).**
+- This repository and the Workflow Controller both run Workflow 2.6.0.
+- The Controller admits 2.5.1 and 2.6.0 since its release 1.3.0, which completes the integration
+  half of 1.9.
+- Adaptive test sharding is on `main`.
+
+**Where this is heading: a kanban loop.** The Workflow Controller takes the next open roadmap
+item, plans it, implements it, reviews it, tests it, merges it and releases it, then starts the
+next one, until the roadmap is empty. In the end no human gate is left:
+- approvals pass on local plus automated cross-model review evidence;
+- acceptance passes when the automated functional review finds nothing;
+- pull requests merge themselves on green required checks.
+
+This repository's part is to:
+- work the same trunk-based way the Controller does;
+- ship Workflow as downloadable packages;
+- deliver the protocol and the gate policy the Controller needs.
+
+**Two lanes run in parallel**, one milestone at a time in each: the Workflow Controller, and this
+repository together with the new `workflow` repository. They meet where the Controller consumes
+Workflow 2.7 (W1) and 2.8 (W2).
+
+**Manager and Workflow lane, in order:**
+
+| # | Step | Repository | Section |
+|---|---|---|---|
+| M1 | Trunk model, plus the stopgap test profile until M2 | Workflow Manager | [10.1](#101-m1-trunk-model-and-the-stopgap-test-profile) |
+| M2 | Distribution rework: Workflow in its own repository, released as downloadable packages | Workflow Manager, `workflow` | [10.2](#102-m2-distribution-rework-packaged-workflow-releases) |
+| W1 | Workflow 2.7, the first packaged release: Orchestration Protocol v1 and the `v2.6.0-001` follow-up | `workflow` | [1.9](#19-post-26-controller-integration-and-workflow-orchestration-protocol-foundation) |
+| W2 | Workflow 2.8: declarative gate policy, and a red or changes-requested pull request reopening the same work item | `workflow` | [1.9](#19-post-26-controller-integration-and-workflow-orchestration-protocol-foundation) |
+| M3 | This repository and `workflow` driven by the Controller's loop | both | [10.3](#103-m3-driven-by-the-controllers-loop) |
+
+**The Controller lane** (its roadmap owns it):
+1. squash merges and PR-title versions;
+2. CI reliability;
+3. settings file, cleanup and telemetry;
+4. auto-merge and release wait;
+5. automated lifecycle scenarios;
+6. a Codex review seam;
+7. a usage budget;
+8. the Controller on the protocol (needs W1);
+9. gate policy and automatic acceptance (needs W2);
+10. the kanban runner.
+
+**Deferred** because they do not unlock that operating model:
+- RepFlow migration (2, 3);
+- review-data simplification (4);
+- update ergonomics (5);
+- multi-worktree maturity (7);
+- operator UX (8).
+
+Section 6 is replaced by M2.
+
+The numbered sections below keep their historical numbers; this table is the current order.
+
+---
+
 # 0. Current Baseline
 
 ## Workflow 2.3.1
@@ -116,13 +175,13 @@ Important fixes carried here:
 
 ## Workflow 2.5.1
 
-**Status:** Current installed baseline for this repository.
+**Status:** Complete authored release. It was this repository's installed baseline until 2026-09-28.
 
 Primary purpose:
 
 - compatibility/correctness follow-up for checkpoint identifiers and surrounding Workflow machinery.
 
-This is the base release the 2.6.0 hardening overlay was built from. This repository intentionally remains installed on 2.5.1 until the post-2.6 Controller integration step (1.9) moves consumers to the released 2.6.x.
+This is the base release the 2.6.0 hardening overlay was built from. This repository stayed on 2.5.1 until the Controller's integration (1.9) admitted 2.6.0. Both repositories moved to 2.6.0 on 2026-09-28.
 
 ---
 
@@ -174,7 +233,7 @@ Follow-ups left open by the accepted implementation:
   - An interrupt inside `Popen`'s fork-to-exec window is not covered.
 - The 5-minute CI target (P-3) needs about 24 shards, above the account's 20-job cap.
 
-This milestone does not change the order below: 1.9 stays NEXT.
+It is on `main` since 2026-09-28. The per-commit `main` concurrency group is folded into M1.
 
 ---
 
@@ -543,7 +602,9 @@ The milestone should include disposable-repository exercises covering:
 
 # 1.9 Post-2.6 Controller integration and Workflow Orchestration Protocol foundation
 
-**Priority:** NEXT — the 2.6 hardening release has been accepted as Workflow 2.6.0.
+**Status:** The integration half is complete. The Workflow Controller admits 2.6.0 since its release 1.3.0 (milestone `workflow-controller-workflow-2-6-integration`), and both repositories run 2.6.0.
+
+**Priority:** The protocol is W1 (Workflow 2.7), and the declarative gate policy and PR reopening are W2 (Workflow 2.8). Both follow M1 and M2 ([At a glance](#at-a-glance)).
 
 The 2.6 hardening milestone (now complete) and the Controller trunk/branch/PR/release milestone run independently in parallel.
 
@@ -811,7 +872,9 @@ workflow-manager update --dry-run
 
 # 6. Distribution and Release Quality
 
-**Priority:** Medium
+**Status:** Replaced by M2 ([10.2](#102-m2-distribution-rework-packaged-workflow-releases)), which delivers these goals through packaged releases.
+
+**Priority:** Medium (historical)
 
 Improve release production and verification.
 
@@ -895,7 +958,76 @@ Potential future work:
 
 ---
 
+# 10. Trunk-based delivery and packaged distribution
+
+## 10.1 M1: trunk model and the stopgap test profile
+
+**Priority:** NEXT in this lane.
+
+This repository works the way the Workflow Controller does:
+
+- a protected `main`, changed only through pull requests, with required checks;
+- one short-lived branch per milestone;
+- squash merges, with the release version derived from the pull request title;
+- auto-merge on green required checks;
+- a Workflow Manager package release published from `main`;
+- a per-commit CI concurrency group for `main`, so an intermediate `main` run is never cancelled
+  (the sharding milestone's open follow-up).
+
+M1 releases the Manager only. It creates no Workflow release.
+
+**Stopgap test profile, until M2.** About 96% of today's roughly 25,000 tests re-run the frozen
+suites of all five Workflow releases, in three fixtures each. A pull request runs the host tests and
+the newest release only. `main` and a nightly run keep the full matrix. The stopgap comes with these
+rules, which must be implemented together with it and not dropped:
+
+1. A pull request that touches the installer, the fixture builder, the shared test infrastructure
+   or `distribution/` runs the **full** matrix.
+2. The Manager release waits for `main`'s full run, so a red `main` publishes nothing and is fixed
+   forward.
+3. One aggregate summary check is the required check, so the required checks stay stable whatever
+   the shard count.
+4. `docs/ARCHITECTURE.md`'s policy that a targeted run is never a gate is updated, as a reviewed
+   decision.
+5. A nightly failure is loud (a badge or a notification), and the next pull request runs the full
+   matrix.
+6. The second CI profile is removed when M2 lands.
+
+## 10.2 M2: distribution rework, packaged Workflow releases
+
+**Priority:** after M1.
+
+- **Workflow moves to its own repository** (`workflow`). It holds only the release in development,
+  with its own version and release stream: one product per repository.
+- **A Workflow release is a package.** A versioned archive is published as a release asset with
+  `SHA256SUMS` and a manifest, and it is immutable once published.
+- **Every earlier release is published as a package too**, 2.3.1 through 2.6.0, as a record, even if
+  nothing installs it. Each is checked byte for byte against today's `distribution/` tree before
+  that tree is removed.
+- **The Manager downloads, verifies and installs.** `bootstrap` and `update --release-version X`
+  fetch the package and check it against the published checksums, and refuse on any mismatch.
+  Downloaded packages are cached locally, so an offline machine or CI can still install a version
+  it already has.
+- **`distribution/` leaves this repository.** The Manager tests its own code, plus the release in
+  development in its three fixtures, plus the upgrade path from the latest published release. Old
+  releases are tested once, when they are built, and never again.
+- **The stopgap test profile (10.1) is removed.**
+
+M2 publishes the existing releases as packages; it creates no new Workflow version. The first new
+one is W1, Workflow 2.7.
+
+## 10.3 M3: driven by the Controller's loop
+
+**Priority:** after the Controller's kanban runner.
+
+This repository and `workflow` run the same loop the Controller runs on its own repository: the
+next roadmap item, one run, merge, release, next.
+
+---
+
 # Suggested Execution Order
+
+The current order is the table in [At a glance](#at-a-glance). The diagram below is the earlier order, kept as a record.
 
 ```text
 0. Workflow 2.5.1 baseline                                      CURRENT INSTALLED BASELINE
