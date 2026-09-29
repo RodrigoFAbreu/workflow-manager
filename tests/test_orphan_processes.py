@@ -810,7 +810,10 @@ class TestReaperDirect(_ReaperCase):
 
     def test_a_double_forked_setsid_sleeper_is_one_killed_orphan(self):
         pid_file = self.tmp / "daemon.pid"
-        proc, doc, _ = self._double(pid_file, "exec", 'os.execvp("sleep", ["sleep", "300"])')
+        # The daemon execs 0.2 s after the middle process's fork: adopted before
+        # the exec, it would be labelled by its Python command line.
+        proc, doc, _ = self._double(pid_file, "exec", 'import time; time.sleep(0.2); '
+                                    'os.execvp("sleep", ["sleep", "300"])')
         daemon = int(pid_file.read_text())
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertEqual(doc["orphans"], [{"pid": daemon, "cmdline": "sleep 300",
