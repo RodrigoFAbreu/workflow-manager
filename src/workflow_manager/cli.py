@@ -6,6 +6,7 @@
     python3 -m workflow_manager verify    <target>
     python3 -m workflow_manager uninstall <target>
     python3 -m workflow_manager releases
+    python3 -m workflow_manager --version
 
 Every command takes `--release-version` to pick among the releases in
 `distribution/`. Without it, the two commands that *change* which release a
@@ -18,7 +19,10 @@ against something it was never installed from.
 from __future__ import annotations
 
 import argparse
+import re
+import subprocess
 import sys
+from importlib import metadata
 from pathlib import Path
 
 from .install import (
@@ -40,13 +44,115 @@ from .release import (
     ReleaseIntegrityError,
     available_versions,
     find_release,
+    release_root,
 )
 
 MANAGER_ROOT = Path(__file__).resolve().parent.parent.parent
 
+DISTRIBUTION_NAME = "workflow-manager"
+#: Only strict `vX.Y.Z` tags name a release (`tools/release/release.py`'s `TAG_RE`).
+_STRICT_TAG_RE = re.compile(r"^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$")
+_GIT_TIMEOUT_SECONDS = 10
+
+
+def _installed_version() -> str | None:
+    try:
+        return metadata.version(DISTRIBUTION_NAME)
+    except metadata.PackageNotFoundError:
+        return None
+
+
+def _git(root: Path, *args: str) -> str | None:
+    """`git -C root ...`'s stripped stdout, or None on any failure: `--version`
+    is never an error, so every Git problem falls through to the next line."""
+    try:
+        proc = subprocess.run(["git", "-C", str(root), *args], capture_output=True, text=True,
+                              timeout=_GIT_TIMEOUT_SECONDS)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if proc.returncode != 0:
+        return None
+    return proc.stdout.strip()
+
+
+def _is_work_tree_top(root: Path) -> bool:
+    """True only when `root` is itself the top of a Git work tree. A wheel
+    installed into a `.venv` inside some *other* repository resolves
+    MANAGER_ROOT below that repository's top, whose tags are not ours."""
+    top = _git(root, "rev-parse", "--show-toplevel")
+    if not top:
+        return False
+    try:
+        return Path(top).resolve() == Path(root).resolve()
+    except OSError:
+        return False
+
+
+def _exact_release_tag(root: Path) -> str | None:
+    """The highest strict tag on HEAD, when the tracked tree is clean."""
+    tags = _git(root, "tag", "--points-at", "HEAD", "--list", "v[0-9]*")
+    if tags is None:
+        return None
+    strict = [t for t in tags.splitlines() if _STRICT_TAG_RE.match(t)]
+    if not strict:
+        return None
+    if _git(root, "status", "--porcelain", "--untracked-files=no") != "":
+        return None
+    return max(strict, key=lambda t: tuple(int(n) for n in _STRICT_TAG_RE.match(t).groups()))
+
+
+def version_text(root: Path = MANAGER_ROOT, installed_version=_installed_version) -> str:
+    """`--version`'s output (`D-Version-Report`), the first that applies:
+
+    1. the installed distribution's metadata version, when it is a release
+       version (not `.dev`, not missing);
+    2. a clean checkout whose HEAD is a strict release tag is that release;
+    3. a development build, described by `git describe` when `root` is the
+       top of a Git work tree.
+    """
+    version = installed_version()
+    if version and ".dev" not in version:
+        return f"{DISTRIBUTION_NAME} {version}"
+    if not _is_work_tree_top(root):
+        return f"{DISTRIBUTION_NAME} development build"
+    tag = _exact_release_tag(root)
+    if tag is not None:
+        return f"{DISTRIBUTION_NAME} {tag[1:]} (checkout at {tag})"
+    described = _git(root, "describe", "--tags", "--always", "--dirty")
+    if described:
+        return f"{DISTRIBUTION_NAME} development build ({described})"
+    return f"{DISTRIBUTION_NAME} development build"
+
+
+class _VersionAction(argparse.Action):
+    """`action="version"`, computed only when asked for: no Git call runs on
+    an ordinary command."""
+
+    def __init__(self, option_strings, dest=argparse.SUPPRESS, default=argparse.SUPPRESS,
+                 help="print the Manager's own version and exit"):
+        super().__init__(option_strings, dest=dest, default=default, nargs=0, help=help)
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        print(version_text())
+        parser.exit()
+
+
+def missing_distribution_message(manager_root: Path) -> str:
+    return (
+        f"no Workflow releases at {release_root(manager_root)}: this Manager is "
+        f"probably installed from a wheel, not run from a checkout. Until M2, pass "
+        f"--manager-root <workflow-manager checkout at the matching tag>."
+    )
+
+
+def _require_distribution(manager_root: Path) -> None:
+    if not release_root(manager_root).is_dir():
+        raise InstallError(missing_distribution_message(manager_root))
+
 
 def _release(args):
     """The newest migrated release, or the pinned one."""
+    _require_distribution(args.manager_root)
     return find_release(args.manager_root, args.release_version)
 
 
@@ -58,9 +164,11 @@ def _release_for_target(args):
     broken the moment a new release landed in `distribution/`.
     """
     if args.release_version is not None:
+        _require_distribution(args.manager_root)
         return find_release(args.manager_root, args.release_version)
     if not is_managed(args.target):
         return None
+    _require_distribution(args.manager_root)
     version = Installation.read(args.target).workflow_version
     available = available_versions(args.manager_root)
     if version not in available:
@@ -74,9 +182,8 @@ def _release_for_target(args):
 
 
 def cmd_releases(args) -> int:
-    base = Path(args.manager_root) / "distribution" / "workflow"
-    if not base.exists():
-        print("no distribution/ — run tools/migrate.py first", file=sys.stderr)
+    if not release_root(args.manager_root).is_dir():
+        print(f"error: {missing_distribution_message(args.manager_root)}", file=sys.stderr)
         return 1
     for version in available_versions(args.manager_root):
         release = find_release(args.manager_root, version)
@@ -155,6 +262,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--manager-root", type=Path, default=MANAGER_ROOT,
                         help="the workflow-manager checkout holding distribution/")
+    parser.add_argument("--version", action=_VersionAction)
     parser.add_argument("--release-version", default=None)
     sub = parser.add_subparsers(dest="command", required=True)
 

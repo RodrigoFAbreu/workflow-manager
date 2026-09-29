@@ -1,0 +1,3 @@
+# The build frontend for tools/release/package.py, pinned (SignalHub's pin).
+# CI jobs install it; no test does (INV-5).
+build==1.6.1

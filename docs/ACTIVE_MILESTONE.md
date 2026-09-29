@@ -11,8 +11,7 @@ Full plan: `docs/ai-workflow/WORKFLOW_MANAGER_TRUNK_MODEL_PLAN.md`.
 
 ## Current checkpoint
 
-`IMPLEMENTING`. CP1 is complete; CP2 and CP3 are ready (CP3 has no
-dependency).
+`IMPLEMENTING`. CP1 and CP2 are complete; CP3 is ready (no dependency).
 
 ## Current blockers
 
@@ -49,6 +48,52 @@ checkpoint.
   temporary repositories). INV-1 and INV-3:
   `git diff b856a97 -- distribution migration scripts .claude/commands src .github/workflows/workflow-conformance.yml`
   empty. The new module's PR-profile rule is CP4's (plan 6.2).
+
+### CP2 -- Manager version reporting and release packaging (complete)
+
+- `src/workflow_manager/cli.py`: `--version` needs no subcommand and
+  prints the first of plan 5.3's answers: the installed metadata version
+  when it is a release (not `.dev`, not missing); `X.Y.Z (checkout at
+  vX.Y.Z)` when `MANAGER_ROOT` is itself the top of a Git work tree, its
+  tracked tree is clean and `HEAD` carries a strict tag; otherwise
+  `development build (<git describe --tags --always --dirty>)`, or plain
+  `development build` outside a work tree (so a `.venv` inside an
+  unrelated repository never reports that repository's tag). Every Git
+  call is bounded (10 s) and fails soft to the next answer. Two
+  implementation choices, same behaviour as the plan's wording: the version
+  is computed by a lazy `argparse.Action` (no Git call on ordinary
+  commands) rather than a precomputed `action="version"` string, and the
+  exact tag comes from `git tag --points-at HEAD` filtered to strict tags,
+  highest first, rather than `git describe --exact-match`, which picks
+  arbitrarily between several tags on one commit and can return a
+  non-strict one.
+- The missing-distribution hint: `releases`, `bootstrap`, `update`, and
+  `status`/`verify` of a managed target (or with `--release-version`) now
+  say the Manager is probably installed from a wheel and name
+  `--manager-root <workflow-manager checkout at the matching tag>`,
+  replacing "run tools/migrate.py first". `status` of an unmanaged target
+  and `uninstall` still need no release.
+- `tools/release/package.py` (new): copies `pyproject.toml`, `README.md`
+  and `src/` (no caches or `egg-info`) to a temporary directory,
+  `set_version`s it, runs `python -m build --outdir DIR`, installs the
+  wheel into a fresh venv and requires `--version` to print exactly
+  `workflow-manager V`, `--manager-root R releases` to list exactly `R`'s
+  releases and `--manager-root R verify R` to exit 0; then writes a
+  sorted, `sha256sum`-compatible `SHA256SUMS`. It refuses a non-empty
+  `--out` so the sums cover only this build.
+- `.github/tools/requirements.txt` (new): `build==1.6.1`. `README.md`:
+  `--version`, the `pipx reinstall workflow-manager` note (finding 6) and
+  `--manager-root` for a wheel install.
+- Verification: `run_all.py --select test_manager_version.py --select
+  test_bootstrap.py --select test_release_versioning.py` 36/36 units, 192
+  tests OK (`test_manager_version.py`: 43 tests covering every item of the
+  plan's CP2 list). Smoke evidence, outside the test suite (INV-5): with
+  `build==1.6.1` in a throwaway venv, `package.py --version 1.1.0
+  --manager-root .` built both assets, passed all three installed-wheel
+  checks, and `sha256sum -c SHA256SUMS` accepted the result. INV-1/INV-3:
+  the diff against `b856a97` over `distribution migration scripts
+  .claude/commands .github/workflows/workflow-conformance.yml` is empty and
+  `workflow-manager verify .` matches workflow 2.6.0.
 
 ## Previous milestone
 

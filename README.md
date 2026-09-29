@@ -42,7 +42,17 @@ python3 -m workflow_manager status    /path/to/repo   # is it managed, is it cle
 python3 -m workflow_manager bootstrap /path/to/repo   # install into a fresh repo
 python3 -m workflow_manager verify    /path/to/repo   # drift against canonical
 python3 -m workflow_manager update    /path/to/repo   # move to another release
+python3 -m workflow_manager --version                 # the Manager's own version
 ```
+
+The Git tag is the Manager's only version authority; `pyproject.toml` holds a
+placeholder. `--version` reports the installed release, a clean checkout at a
+release tag as that release, and anything else as a development build. An
+existing `pipx install --editable` keeps the metadata it was installed with
+(`1.0.0`), so run `pipx reinstall workflow-manager` once after updating past
+this change. A Manager installed from a release wheel has no `distribution/`
+of its own: pass `--manager-root <workflow-manager checkout at the matching
+tag>`.
 
 `bootstrap` installs everything the release owns, writes clean state from
 templates, merges its section into `.gitignore` and `CLAUDE.md`, and records
