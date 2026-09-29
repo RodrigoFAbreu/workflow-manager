@@ -3673,7 +3673,7 @@
       "registry_path": "docs/ai-workflow/registry/workflow-manager-test-cleanup-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/workflow-manager-test-cleanup-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "AWAITING_FUNCTIONAL_REVIEW",
       "plan_revision": 5,
       "implementation_revision": 3,
       "functional_review_round": null,
@@ -3727,7 +3727,157 @@
         "waived_guarantees": [],
         "recorded_at": "2026-09-29T14:58:47Z"
       },
-      "technical_approval": null,
+      "technical_approval": {
+        "status": "CURRENT",
+        "basis": "EXTERNAL_APPROVE",
+        "reviewed_bundle_id": "aa4f8d003295acd45c0a9e792a0601798622cac75f6cd46fa0469df76334b384",
+        "approved_review_content_id": "fa3cceefe290250871e328040c0c096042d9c5e0ab767c7b28e702b3bc9d36c7",
+        "review_content_manifest": [
+          {
+            "path": "CLAUDE.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "5e1ab6757a1f399c2636ed6684db65c0ee20b6ab"
+          },
+          {
+            "path": "docs/ARCHITECTURE.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "8db9f100aa08d2abedeae93e5a30cc6f9cfd5a52"
+          },
+          {
+            "path": "docs/ai-workflow/registry/workflow-manager-test-cleanup-artifacts.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "e65c3147ef7c41dfcf5aa856b1b7c96455d6106f"
+          },
+          {
+            "path": "src/workflow_manager/fixture.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "1cf83aaa4850d4dbdf81daedce71fa2818c47879"
+          },
+          {
+            "path": "tests/frozen_runs.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "23ac70a31a77326dcb62540c9aedf6c763c7d46e"
+          },
+          {
+            "path": "tests/parallel/cli.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "bcad00099ff00f6c8a4a6dd9ca569b364fea1f89"
+          },
+          {
+            "path": "tests/parallel/executor.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "790b01e7146d08c0a4a76a23a5ed01b0f70d508c"
+          },
+          {
+            "path": "tests/parallel/isolation.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "8c1c2b74a5cd85d6a001e4657a21643def35b53d"
+          },
+          {
+            "path": "tests/parallel/planner.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "c8569305efb958a8e661f0a9c24fbb5ad6f92f83"
+          },
+          {
+            "path": "tests/parallel/reaper.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "f8153fa367a9c875488df3fbd67ddf7dfba86999"
+          },
+          {
+            "path": "tests/parallel/report.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "0fcbd2c95963adcfe09655f9ec41b606b97c4eb7"
+          },
+          {
+            "path": "tests/parallel/resources.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "1a3e502b11e57cb678bd536039ec3832061d3599"
+          },
+          {
+            "path": "tests/parallel/resources.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "dad93f0dbc2656616f01fdd1f1d68fa4b060f3a3"
+          },
+          {
+            "path": "tests/test_amendment_update_path.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "b9ce6a28d01f7a3125f679024904296a3e5d50f9"
+          },
+          {
+            "path": "tests/test_bootstrap.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "48fed7197959364b2092a24496c94729dbcd108a"
+          },
+          {
+            "path": "tests/test_implementation_review_two_stage_disposable_repo.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "0d5dbfd57b59aea8d84f49573eda566c773d334d"
+          },
+          {
+            "path": "tests/test_manager_version.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "4f2096a4e082549e077c9b5e9156eb9a6d0033f7"
+          },
+          {
+            "path": "tests/test_orphan_processes.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "b3621729af0ebdda506f2766ef97741b14b85e9e"
+          },
+          {
+            "path": "tests/test_parallel_runner.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "d85d3c8f6b13f1d2ffa51dbaa4246690ec2bfc8c"
+          },
+          {
+            "path": "tests/test_release_versioning.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "177e7b49f14025b805159d4a4947e78f904dcf9b"
+          },
+          {
+            "path": "tests/test_squash_merge_compat.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "9b3af61f8f71aba9f5d7b309649465c565f7d63e"
+          },
+          {
+            "path": "tests/test_workflow_2_6_0_hardening_disposable_repo.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "c4d3c77936b4a877a5d25c6bb36051e594c4efb0"
+          },
+          {
+            "path": "tools/ci/pr_profile_paths.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "cdb007a35cd07dc918f700ebcd7d1e63e3bfedbc"
+          }
+        ],
+        "reviewed_content_commit": "d6efce4eabc1bd3554d1b418a4743369db07235e",
+        "legacy_evidence": null,
+        "user_confirmation": "implementation workflow-manager-test-cleanup",
+        "waived_guarantees": [],
+        "recorded_at": "2026-09-29T21:06:56Z"
+      },
       "technical_review_block_pins": [],
       "plan_review_stages": {
         "review_content_id": "5bc7bfa315abc491a6ccc6465f92a04dca7ea1d2fdbf2e049c7df0367cf418ae",
@@ -3746,8 +3896,8 @@
       },
       "functional_acceptance_status": null,
       "blocking_decisions": [],
-      "state_revision": 31,
-      "last_transition": "2026-09-29T18:46:48Z",
+      "state_revision": 34,
+      "last_transition": "2026-09-29T21:06:56Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -3768,14 +3918,19 @@
         }
       },
       "implementation_review_stages": {
-        "review_content_id": "1b81a24b33267f87d460c7058444eb9512ee978e1963b73f3d425345e4b79340",
+        "review_content_id": "fa3cceefe290250871e328040c0c096042d9c5e0ab767c7b28e702b3bc9d36c7",
         "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {
-          "bundle_id": "b09bf814bf3ff727390ef7820f9f32c908c7d2005e34b15a499c8457bb3872dc",
+          "bundle_id": "aa4f8d003295acd45c0a9e792a0601798622cac75f6cd46fa0469df76334b384",
           "verdict": "APPROVE",
-          "round": 1,
-          "completed_at": "2026-09-29T18:16:25Z"
+          "round": 3,
+          "completed_at": "2026-09-29T18:49:28Z"
         },
-        "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": null
+        "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "aa4f8d003295acd45c0a9e792a0601798622cac75f6cd46fa0469df76334b384",
+          "verdict": "APPROVE",
+          "round": 3,
+          "completed_at": "2026-09-29T18:56:35Z"
+        }
       }
     }
   }
