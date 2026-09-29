@@ -306,8 +306,8 @@ _TEMPLATE_BUILD_DROPPED = ("GIT_TEMPLATE_DIR", "GIT_CONFIG_PARAMETERS", "GIT_CON
 class GitConfigEnvError(IsolationError):
     """The inherited environment's Git config entries cannot be extended
     safely: a malformed `GIT_CONFIG_COUNT` series, or a
-    `GIT_CONFIG_PARAMETERS` that sets one of the quiet keys (it outranks
-    every `GIT_CONFIG_COUNT` entry) or cannot be parsed."""
+    `GIT_CONFIG_PARAMETERS` that sets one of the quiet keys or includes a
+    file (it outranks every `GIT_CONFIG_COUNT` entry) or cannot be parsed."""
 
 
 def _load_throwaway_git_config() -> dict[str, str]:
@@ -391,6 +391,16 @@ def _git_config_count(env: dict) -> int:
     return count
 
 
+def _is_include(key: str) -> bool:
+    """Whether a config key includes a file: `include.path` or
+    `includeIf.<condition>.path`. Section and variable names compare
+    case-insensitively, as Git does; any `path` under either section counts,
+    which is stricter than Git needs."""
+    parts = key.split(".")
+    return len(parts) >= 2 and parts[0].lower() in ("include", "includeif") \
+        and parts[-1].lower() == "path"
+
+
 def quiet_git_config(env: dict) -> dict:
     """Append `THROWAWAY_GIT_CONFIG` to `env`'s `GIT_CONFIG_COUNT` series, in
     place, and return `env` (plan 5.2).
@@ -400,8 +410,11 @@ def quiet_git_config(env: dict) -> dict:
     case-insensitively, as Git does) is already ours, as the same string --
     Git uses a single-valued key's last value -- so a nested call appends
     nothing. A `GIT_CONFIG_PARAMETERS` that sets one of the keys would
-    outrank anything appended here, so it is refused, as is one that cannot
-    be parsed or a malformed `GIT_CONFIG_COUNT` series (`GitConfigEnvError`)."""
+    outrank anything appended here, so it is refused. So is one that
+    includes a file, whose contents cannot be checked here and would outrank
+    ours the same way; an include in the `GIT_CONFIG_COUNT` series is kept,
+    because ours come after it and win. One that cannot be parsed, or a
+    malformed `GIT_CONFIG_COUNT` series, is refused too (`GitConfigEnvError`)."""
     wanted = {key.lower() for key in THROWAWAY_GIT_CONFIG}
     parameters = env.get("GIT_CONFIG_PARAMETERS")
     if parameters is not None:
@@ -415,6 +428,12 @@ def quiet_git_config(env: dict) -> dict:
             raise GitConfigEnvError(
                 f"GIT_CONFIG_PARAMETERS sets {', '.join(clashes)}, which outranks the "
                 "runner's quiet-Git settings; unset it (or drop those keys) and re-run")
+        includes = sorted({key for key, _ in entries if _is_include(key)})
+        if includes:
+            raise GitConfigEnvError(
+                f"GIT_CONFIG_PARAMETERS sets {', '.join(includes)}, and an included file "
+                "outranks the runner's quiet-Git settings; unset it (or drop the include) "
+                "and re-run")
     count = _git_config_count(env)
     last: dict[str, str] = {}
     for index in range(count):

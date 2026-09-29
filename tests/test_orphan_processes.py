@@ -180,6 +180,35 @@ class TestChunkEnvGitConfig(_Tmp):
                     self.assertRaises(isolation.GitConfigEnvError):
                 self.chunk_env(stripped_env(GIT_CONFIG_PARAMETERS=parameters))
 
+    def _active_include(self) -> Path:
+        included = self.tmp / "active.cfg"
+        included.write_text("[gc]\n\tauto = 1\n\tautoDetach = true\n"
+                            "[maintenance]\n\tauto = true\n\tautoDetach = true\n")
+        return included
+
+    def test_parameters_including_a_file_are_refused(self):
+        # The included file would outrank the appended series (external
+        # implementation review, round 1).
+        included = self._active_include()
+        for key in ("include.path", "Include.Path", "includeIf.gitdir:/.path",
+                    "includeif.onbranch:main.PATH"):
+            parameters = f"'a.b'='c' '{key}'='{included}'"
+            with self.subTest(key=key):
+                with self.assertRaises(isolation.GitConfigEnvError):
+                    self.chunk_env(stripped_env(GIT_CONFIG_PARAMETERS=parameters))
+                with self.assertRaises(isolation.GitConfigEnvError):
+                    isolation.check_git_env(stripped_env(GIT_CONFIG_PARAMETERS=parameters))
+
+    def test_an_include_in_the_series_is_kept_and_ours_win(self):
+        included = self._active_include()
+        env = self.chunk_env(with_series([("include.path", str(included))]))
+        self.assertEqual(series(env), [("include.path", str(included))] + OURS)
+        repo = self.plain_repo()
+        for key, value in THROWAWAY_GIT_CONFIG.items():
+            with self.subTest(key=key):
+                self.assertEqual(git(repo, "config", "--get", key, env=env).stdout.strip(),
+                                 value)
+
     def test_unparsable_parameters_are_refused(self):
         for parameters in ("garbage", "'unterminated", "'a.b'='c'x", "'a.b'x"):
             with self.subTest(parameters=parameters), \

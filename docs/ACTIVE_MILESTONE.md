@@ -44,8 +44,10 @@ the implementation review, on the implementation bundle (revision 1).
   (`quiet_git_config`). It keeps the parent's entries, decides by each
   key's last inherited value (case-insensitive), and is idempotent when
   nested. It refuses (`GitConfigEnvError`, a tagged exit 2) a malformed
-  series, and a `GIT_CONFIG_PARAMETERS` that sets one of the keys or cannot
-  be parsed. The parser reads Git's own `-c` encoding, checked against Git
+  series, and a `GIT_CONFIG_PARAMETERS` that sets one of the keys, includes
+  a file (`include.path`, `includeIf.<condition>.path`; added for the
+  external implementation review's round-1 finding) or cannot be parsed.
+  The parser reads Git's own `-c` encoding, checked against Git
   2.55.0's output. `chunk_env`/`run_chunk` take an optional
   `git_template`: `GIT_TEMPLATE_DIR` is set to it, or removed when it is
   omitted. `build_git_template(run_dir)` builds `<run_dir>/git-template/`
