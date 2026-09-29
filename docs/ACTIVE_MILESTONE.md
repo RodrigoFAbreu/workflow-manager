@@ -46,10 +46,9 @@ cite it as the design record.
 
 `workflow-manager-trunk-model` is complete. Next, after the cutover
 merges it, run `/milestone-plan` for the next incomplete milestone in
-`docs/ROADMAP.md`. Today that is M2, "Distribution rework, packaged
-Workflow releases" (section 10.2). The agreed lane order (2026-09-29)
-puts a small test-cleanup milestone first; it is added to the roadmap
-once M1 has merged.
+`docs/ROADMAP.md`. That is M1b, "Test cleanup, no orphaned Git
+processes" (section 10.1b), the small milestone the agreed lane order
+(2026-09-29) puts before M2.
 
 ## Checkpoint log
 
