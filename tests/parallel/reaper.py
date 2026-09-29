@@ -31,7 +31,9 @@ passes `--pass-fd` (the run lock) on to it.
    reason. The runner decides what that means.
 
 `--force-unsupported` and `--platform` are test seams (the runner's
-`isolation.REAPER_TEST_ARGS`); the runner itself never passes them.
+`isolation.REAPER_TEST_ARGS`); the runner itself never passes them. So is
+`--grace-seconds`, which replaces the 5 s grace period so a test can tell an
+end on `ECHILD` from an expired grace period without timing the run.
 """
 
 from __future__ import annotations
@@ -118,8 +120,9 @@ class Reaper:
     """Records and reaps everything re-parented to this process while one
     chunk (`chunk_pid`, its only direct child) runs."""
 
-    def __init__(self, chunk_pid: int):
+    def __init__(self, chunk_pid: int, grace: float = GRACE_SECONDS):
         self.chunk_pid = chunk_pid
+        self.grace = grace
         self.chunk_status: int | None = None
         #: pid -> `[label, from the command line]`, for listed, unreaped orphans
         self.live: dict[int, list] = {}
@@ -184,7 +187,7 @@ class Reaper:
             if self.drain() or self.chunk_status is not None:
                 break
             time.sleep(POLL_SECONDS)
-        deadline = time.monotonic() + GRACE_SECONDS
+        deadline = time.monotonic() + self.grace
         while True:
             self.list_children()
             if self.drain():
@@ -235,6 +238,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--pass-fd", type=int, action="append", default=[])
     parser.add_argument("--force-unsupported", choices=UNSUPPORTED_REASONS)
     parser.add_argument("--platform", default=sys.platform)
+    parser.add_argument("--grace-seconds", type=float, default=GRACE_SECONDS)
     parser.add_argument("command", nargs=argparse.REMAINDER)
     args = parser.parse_args(argv)
     if args.command[:1] == ["--"]:
@@ -252,7 +256,7 @@ def main(argv: list[str]) -> None:
             os.fstat(fd)  # a closed fd is the wrapper's own fault
         reason = become_subreaper(args.force_unsupported)
         proc = subprocess.Popen(args.command, pass_fds=tuple(args.pass_fd))
-        reaper = Reaper(proc.pid)
+        reaper = Reaper(proc.pid, args.grace_seconds)
         if reason is None:
             reaper.supervise()
         else:

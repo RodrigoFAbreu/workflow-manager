@@ -715,9 +715,12 @@ class _ReaperCase(_Tmp):
 
 #: A chunk that double-forks a daemon (`setsid`) running `DAEMON`, waits
 #: until the daemon is in the state `READY` names, and exits. The daemon's
-#: pid goes to `argv[1]`. For `READY == "zombie"` the middle process waits,
-#: without reaping, until the daemon is a zombie before it exits, so the
-#: daemon is re-parented only once its command line reads empty.
+#: pid goes to `argv[1]`. For `READY == "exec"` and `"zombie"` the middle
+#: process waits, without reaping, until the daemon has exec'd `sleep` or is
+#: a zombie before it exits, so the daemon is re-parented only once its
+#: label is fixed: its `sleep` command line, or its `comm`. For
+#: `READY == "forked"` the chunk exits only once the daemon has recorded
+#: more than 20 forked pids in `argv[2]`.
 _DOUBLE_FORK = """
 import os, sys, time
 
@@ -734,9 +737,11 @@ if middle == 0:
         exec(DAEMON)
         os._exit(0)
     os.write(w, str(daemon).encode())
-    while READY == "zombie":
+    while READY in ("exec", "zombie"):
         stat = open(f"/proc/{{daemon}}/stat").read()
-        if stat.rsplit(")", 1)[1].split()[0] == "Z":
+        if READY == "zombie" and stat.rsplit(")", 1)[1].split()[0] == "Z":
+            break
+        if READY == "exec" and open(f"/proc/{{daemon}}/cmdline", "rb").read().startswith(b"sleep"):
             break
         time.sleep(0.01)
     os._exit(0)
@@ -744,7 +749,7 @@ os.close(w)
 daemon = int(os.read(r, 64))
 os.waitpid(middle, 0)
 open(sys.argv[1], "w").write(str(daemon))
-deadline = time.monotonic() + 30
+deadline = time.monotonic() + 60
 while time.monotonic() < deadline:
     try:
         stat = open(f"/proc/{{daemon}}/stat").read()
@@ -758,12 +763,21 @@ while time.monotonic() < deadline:
         break
     if READY == "none":
         break
+    if READY == "forked" and os.path.exists(sys.argv[2]) and \
+            len(open(sys.argv[2]).read().split()) > 20:
+        break
     time.sleep(0.01)
 """
 
 
 def double_fork(daemon: str, ready: str) -> str:
     return _DOUBLE_FORK.format(daemon=daemon, ready=ready)
+
+
+#: A grace period no run reaches: `reap`'s 120 s timeout ends the run first.
+#: A wrapper given it returns only by ending on `ECHILD`, and an orphan that
+#: exits on its own is never `killed`, however slowly the runner schedules it.
+UNREACHABLE_GRACE = ("--grace-seconds", "3600")
 
 
 class TestReaperDirect(_ReaperCase):
@@ -775,13 +789,13 @@ class TestReaperDirect(_ReaperCase):
                              ("import os, signal; os.kill(os.getpid(), signal.SIGTERM)",
                               -signal.SIGTERM)):
             with self.subTest(status=status):
-                proc, doc, elapsed = self.reap(code)
+                # Returning at all, under `UNREACHABLE_GRACE`, is ending on ECHILD.
+                proc, doc, _ = self.reap(code, *UNREACHABLE_GRACE)
                 self.assertEqual(proc.returncode, status, proc.stderr)
                 self.assertEqual(doc["chunk_status"], status)
                 self.assertEqual(doc["orphans"], [])
                 self.assertEqual((doc["supported"], doc["unsupported_reason"], doc["platform"]),
                                  (True, None, sys.platform))
-                self.assertLess(elapsed, 2.5, "a clean chunk must end on ECHILD, not the grace")
 
     def test_a_chunk_killed_by_sigpipe_or_sigint_kills_the_wrapper_the_same_way(self):
         for signum in (signal.SIGPIPE, signal.SIGINT):
@@ -803,27 +817,28 @@ class TestReaperDirect(_ReaperCase):
                                            "fate": "killed"}])
         self.assertTrue(_dead(daemon), "the orphan was left behind, or left as a zombie")
 
-    def _double(self, pid_file: Path, ready: str, daemon: str):
-        return self.reap(argv=[sys.executable, "-B", "-c", double_fork(daemon, ready), pid_file])
+    def _double(self, pid_file: Path, ready: str, daemon: str, *args: str, extra=()):
+        return self.reap(None, *args, argv=[sys.executable, "-B", "-c", double_fork(daemon, ready),
+                                            pid_file, *extra])
 
     def test_an_orphan_whose_cmdline_reads_empty_is_labelled_by_its_comm(self):
         pid_file = self.tmp / "daemon.pid"
         # The daemon outlives the middle process by 0.2 s: re-parented alive,
         # it would be labelled by its command line on the wrapper's first poll.
-        proc, doc, elapsed = self._double(pid_file, "zombie",
-                                          "import time; time.sleep(0.2); os._exit(0)")
+        proc, doc, _ = self._double(pid_file, "zombie",
+                                    "import time; time.sleep(0.2); os._exit(0)",
+                                    *UNREACHABLE_GRACE)
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertEqual(doc["orphans"], [{"pid": int(pid_file.read_text()), "cmdline": PY_COMM,
                                            "fate": "exited"}])
-        self.assertLess(elapsed, 4)
 
     def test_a_short_lived_daemon_is_one_exited_orphan(self):
         pid_file = self.tmp / "daemon.pid"
-        proc, doc, elapsed = self._double(pid_file, "none", "import time; time.sleep(0.5)")
+        proc, doc, _ = self._double(pid_file, "none", "import time; time.sleep(0.5)",
+                                    *UNREACHABLE_GRACE)
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertEqual([(o["pid"], o["fate"]) for o in doc["orphans"]],
                          [(int(pid_file.read_text()), "exited")])
-        self.assertLess(elapsed, 4.5, "the grace period must end on ECHILD")
 
     def test_many_short_lived_daemons_are_each_counted(self):
         count = 60
@@ -837,7 +852,7 @@ class TestReaperDirect(_ReaperCase):
                         os._exit(0)
                     os._exit(0)
                 os.waitpid(middle, 0)
-        """)
+        """, *UNREACHABLE_GRACE)
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertEqual(len(doc["orphans"]), count, doc["orphans"])
         self.assertEqual(len({o["pid"] for o in doc["orphans"]}), count)
@@ -858,7 +873,8 @@ for _ in range(400):
 time.sleep(300)
 """
         pid_file = self.tmp / "daemon.pid"
-        proc, doc, _ = self._double(pid_file, "none", spawner)
+        # The chunk exits, starting the grace period, only after 21 forks.
+        proc, doc, _ = self._double(pid_file, "forked", spawner, extra=(pids,))
         self.assertEqual(proc.returncode, 0, proc.stderr)
         forked = {int(p) for p in pids.read_text().split()}
         recorded = {o["pid"] for o in doc["orphans"]}
