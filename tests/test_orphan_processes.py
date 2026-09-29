@@ -918,6 +918,34 @@ def _default_config_repo(root: Path, env: dict) -> Path:
     return root
 
 
+def is_git_label(label: str) -> bool:
+    """Whether an orphan's recorded label names Git. The wrapper records a
+    live orphan's command line, and `[<comm>]` only once the command line is
+    empty (plan 5.4 step 2), so which form a detached `git maintenance` gets
+    depends on timing: `[git]` locally, `/usr/lib/git-core/git maintenance
+    run --auto --quiet --detach` on a faster CI runner. Both are Git."""
+    if label == "[git]":
+        return True
+    program = Path(label.split()[0]).name if label.split() else ""
+    return program == "git" or program.startswith("git-")
+
+
+class TestIsGitLabel(unittest.TestCase):
+    """Functional review F1: the control's Git orphan is recognised under
+    either label form, whichever one the timing produced."""
+
+    def test_both_label_forms_are_git(self):
+        self.assertTrue(is_git_label("[git]"))
+        self.assertTrue(is_git_label("/usr/lib/git-core/git maintenance run --auto --quiet --detach"))
+        self.assertTrue(is_git_label("git gc --auto"))
+        self.assertTrue(is_git_label("/usr/lib/git-core/git-maintenance run"))
+
+    def test_other_processes_are_not_git(self):
+        for label in ("[python3]", "sleep 1", "/usr/bin/python3 -c import os", "[gitk-like]", ""):
+            with self.subTest(label=label):
+                self.assertFalse(is_git_label(label))
+
+
 _COMMIT = """
 import pathlib, subprocess, sys
 root = pathlib.Path(sys.argv[1])
@@ -946,7 +974,7 @@ class TestEnvironmentLayerUnderTheWrapper(_ReaperCase):
         self.assertGreaterEqual(len(doc["orphans"]), 1,
                                 "the control saw no orphan, so the test could not see one")
         labels = {o["cmdline"] for o in doc["orphans"]}
-        self.assertIn("[git]", labels)
+        self.assertTrue(any(is_git_label(label) for label in labels), labels)
 
         treated = _default_config_repo(self.tmp / "treated", base)
         env = isolation.chunk_env(self.tmp / "chunk-tmp", base=base)
