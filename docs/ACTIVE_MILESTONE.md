@@ -11,7 +11,9 @@ Full plan: `docs/ai-workflow/WORKFLOW_MANAGER_TRUNK_MODEL_PLAN.md`.
 
 ## Current checkpoint
 
-`SELF_REVIEWING_IMPLEMENTATION`. CP1-CP7 are complete.
+`AWAITING_LOCAL_IMPLEMENTATION_REVIEW` (implementation revision 1).
+CP1-CP7 are complete, the self-review found nothing to fix, and the first
+full gate of this milestone is green.
 
 ## Current blockers
 
@@ -19,10 +21,9 @@ None.
 
 ## Next action
 
-`/milestone-implement workflow-manager-trunk-model` again, for the wrap-up:
-the full-milestone self-review, the full gate (`python3
-tests/run_all.py`, not yet run in this milestone because of the
-Controller's git-zombie leak) and the implementation bundle.
+`/review-implementation workflow-manager-trunk-model`: the local
+implementation review of the bundle in
+`.ai-review/workflow-manager-trunk-model/current/`.
 
 ## Checkpoint log
 
@@ -440,6 +441,48 @@ fails once a completed item's commits are unreachable.
   this checkpoint: the draft pull request's runs (C0) are the user's and
   belong to the functional review. As for CP1-CP6, the full gate was not
   run at this checkpoint; it runs at the wrap-up.
+
+### Self-review of the milestone diff and the full gate (`SELF_REVIEWING_IMPLEMENTATION`)
+
+- `enter_self_reviewing_implementation` was a no-op. CP7's
+  `complete_checkpoint` had already written the phase.
+- The whole `b856a97..cbbbffa` diff was reviewed:
+  - `tools/release/`: the title grammar, `next-version`,
+    `resolve-target`, `assert-full-plan`, `set-version` and `package.py`;
+  - `tools/ci/`: the chooser, the path rules and the alarm;
+  - the runner's `--newest-release-only` and `selection_kind`;
+  - `cli.py`'s `--version` and the missing-`distribution/` hint;
+  - the three workflows and the settings data;
+  - the new test modules, and the docs.
+- No finding was blocking or important, and nothing was changed.
+- The review checked each fail-safe path against INV-4: an API, git or
+  parse failure is `full` in the chooser, and a fallback or a refusal in
+  the release. It also checked that the release never trusts the plan's
+  own inventory, and that the workflows pass the title, SHAs and results
+  through `env`, never through script interpolation.
+- INV-1/INV-3: `git diff --stat b856a97 HEAD -- distribution migration
+  scripts .claude .github/workflows/workflow-conformance.yml` is empty.
+  `CLAUDE.md` changes only below the managed marker. `workflow-manager
+  verify .` prints `installation matches workflow 2.6.0`.
+- **The full gate**, the first of this milestone (none ran at CP1-CP7,
+  because of the Controller's git-zombie leak), was `python3
+  tests/run_all.py` at `cbbbffa`, 2026-09-29 11:38-11:45 (439 s wall, 8
+  workers):
+  - `evidence: full selection, local, 8 worker(s), head cbbbffad4b76f7c3f22ecfc6db8c559ec8ff5b94,
+    4086/4086 units, 25620 tests, selection_digest
+    1f9d81d3b17fa1a1726a3205cb784f2ae2fb9664dd9b0263a2b2ef4bbe178469,
+    tests_digest 66af7ecc9edd2d726e0665fee05f18d940496e697836ae85a9415e990bbc58ba,
+    tree_digest 61123d7437d37c3c735dd192ba5439e1fc0ac8ceda1520109b0ef7c095f5d8a8`,
+    `verdict: exit 0`;
+  - every host module was OK;
+  - the only non-zero frozen chunks were the four documented `2.3.1`/`2.4.0`
+    `workflow_integration_test.py` portability exceptions
+    (`TestRetiredScopedRemediationLeavesNoLiveSurface`), which phase B
+    judged as expected.
+- The base had 4042 units. The 44 more are this milestone's new host
+  classes (INV-2).
+- The run was under this lane's Controller, with the one-step workaround.
+  Afterwards the Controller held 49 zombies.
 
 ## Previous milestone
 
