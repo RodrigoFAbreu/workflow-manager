@@ -6,18 +6,27 @@ layer (T-QG-1), the per-repository layer and the run's Git template
 (T-QG-2), the frozen isolated-test path the template covers (T-QG-5), and
 the static routing check that keeps every `git init`/`git clone` site of
 this repository on the shared setup (T-QG-4).
+
+Checkpoint CP2 (`D-Orphan-Check`, plan 5.4-5.5): the environment layer
+winning under the wrapper (T-QG-3), the wrapper driven directly (T-OC-1),
+through the executor's three modes (T-OC-2), the `orphan_sources` schema
+and chunking (T-OC-3), and the timeout and interrupt paths (T-OC-4).
 """
 
 from __future__ import annotations
 
 import ast
 import filecmp
+import json
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
 import textwrap
+import threading
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -25,7 +34,8 @@ from unittest import mock
 import support  # noqa: F401 -- puts src/ on sys.path, bytecode off
 from support import REPO_ROOT
 
-from parallel import cli, isolation
+import test_parallel_runner as tpr
+from parallel import cli, executor, inventory, isolation, plan_schema, planner, resources
 from workflow_manager.fixture import (
     THROWAWAY_GIT_CONFIG,
     configure_throwaway_repo,
@@ -288,7 +298,7 @@ _MATERIALIZE = textwrap.dedent("""
 """)
 
 
-class TestFrozenEvidenceClone(_Tmp):
+class _FrozenCloneCase(_Tmp):
     """The frozen `2.6.0` engine's `_materialize_pinned_worktree_at_commit`
     clones with `env=None`, and `_run_named_test_in_scratch` then runs Git
     in that clone with an environment of `PATH` alone: only the template
@@ -333,6 +343,11 @@ class TestFrozenEvidenceClone(_Tmp):
             proc = git(clone, "config", "--show-scope", "--get", key, env=path_only, check=False)
             found[key] = proc.stdout.strip() if proc.returncode == 0 else None
         return found
+
+
+
+class TestFrozenEvidenceClone(_FrozenCloneCase):
+    """T-QG-5."""
 
     def test_the_template_puts_the_keys_in_the_clones_local_config(self):
         with_template = self.scopes(self.materialize(self.template))
@@ -614,6 +629,669 @@ class TestRoutingCheck(unittest.TestCase):
                 _git(root, "worktree", "add", "-q", "-b", "wt", str(path))
                 run(["git", "worktree", "add", str(path)])
         """), [])
+
+
+
+# == CP2: the leak check (D-Orphan-Check, plan 5.4) ====================================
+
+REAPER = REPO_ROOT / "tests" / "parallel" / "reaper.py"
+#: `comm` of a process forked (not exec'd) from a chunk started as `sys.executable`.
+PY_COMM = f"[{Path(sys.executable).name[:15]}]"
+
+
+def _dead(pid: int) -> bool:
+    """Gone, or at least not a live process (a zombie counts as not reaped)."""
+    return not Path(f"/proc/{pid}").exists()
+
+
+def _state(pid: int) -> str | None:
+    try:
+        return Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[0]
+    except (OSError, IndexError):
+        return None
+
+
+class _ReaperCase(_Tmp):
+    """Drives `reaper.py` directly (T-OC-1): each call gets its own report."""
+
+    def reap(self, code: str | None = None, *args: str, argv=None, pass_fds=(), env=None,
+             timeout: float = 120):
+        self._n = getattr(self, "_n", 0) + 1
+        report = self.tmp / f"report-{self._n}.json"
+        chunk = argv if argv is not None else [sys.executable, "-B", "-c", textwrap.dedent(code)]
+        wrapper = [sys.executable, "-I", "-S", "-B", str(REAPER), "--report", str(report),
+                   "--chunk-id", f"chunk-{self._n}", *args, "--", *map(str, chunk)]
+        started = time.monotonic()
+        proc = subprocess.run(wrapper, capture_output=True, text=True, env=env, timeout=timeout,
+                              pass_fds=pass_fds)
+        elapsed = time.monotonic() - started
+        doc = json.loads(report.read_text()) if report.exists() else None
+        return proc, doc, elapsed
+
+
+#: A chunk that double-forks a daemon (`setsid`) running `DAEMON`, waits
+#: until the daemon is in the state `READY` names, and exits. The daemon's
+#: pid goes to `argv[1]`.
+_DOUBLE_FORK = """
+import os, sys, time
+
+DAEMON = {daemon!r}
+READY = {ready!r}
+
+r, w = os.pipe()
+middle = os.fork()
+if middle == 0:
+    os.setsid()
+    daemon = os.fork()
+    if daemon == 0:
+        os.close(r)
+        exec(DAEMON)
+        os._exit(0)
+    os.write(w, str(daemon).encode())
+    os._exit(0)
+os.close(w)
+daemon = int(os.read(r, 64))
+os.waitpid(middle, 0)
+open(sys.argv[1], "w").write(str(daemon))
+deadline = time.monotonic() + 30
+while time.monotonic() < deadline:
+    try:
+        stat = open(f"/proc/{{daemon}}/stat").read()
+        state = stat.rsplit(")", 1)[1].split()[0]
+        cmdline = open(f"/proc/{{daemon}}/cmdline", "rb").read()
+    except OSError:
+        state, cmdline = "gone", b""
+    if READY == "exec" and cmdline.startswith(b"sleep"):
+        break
+    if READY == "zombie" and state in ("Z", "gone"):
+        break
+    if READY == "none":
+        break
+    time.sleep(0.01)
+"""
+
+
+def double_fork(daemon: str, ready: str) -> str:
+    return _DOUBLE_FORK.format(daemon=daemon, ready=ready)
+
+
+class TestReaperDirect(_ReaperCase):
+    """T-OC-1: the wrapper, driven directly."""
+
+    def test_a_clean_chunk_passes_its_status_through_without_a_grace_period(self):
+        for code, status in (("import sys; sys.exit(0)", 0), ("import sys; sys.exit(1)", 1),
+                             ("import sys; sys.exit(3)", 3),
+                             ("import os, signal; os.kill(os.getpid(), signal.SIGTERM)",
+                              -signal.SIGTERM)):
+            with self.subTest(status=status):
+                proc, doc, elapsed = self.reap(code)
+                self.assertEqual(proc.returncode, status, proc.stderr)
+                self.assertEqual(doc["chunk_status"], status)
+                self.assertEqual(doc["orphans"], [])
+                self.assertEqual((doc["supported"], doc["unsupported_reason"], doc["platform"]),
+                                 (True, None, sys.platform))
+                self.assertLess(elapsed, 2.5, "a clean chunk must end on ECHILD, not the grace")
+
+    def test_a_chunk_killed_by_sigpipe_or_sigint_kills_the_wrapper_the_same_way(self):
+        for signum in (signal.SIGPIPE, signal.SIGINT):
+            with self.subTest(signal=signum.name):
+                proc, doc, _ = self.reap(f"""
+                    import os, signal
+                    signal.signal({int(signum)}, signal.SIG_DFL)
+                    os.kill(os.getpid(), {int(signum)})
+                """)
+                self.assertEqual(proc.returncode, -signum, proc.stderr)
+                self.assertEqual(doc["chunk_status"], -signum)
+
+    def test_a_double_forked_setsid_sleeper_is_one_killed_orphan(self):
+        pid_file = self.tmp / "daemon.pid"
+        proc, doc, _ = self._double(pid_file, "exec", 'os.execvp("sleep", ["sleep", "300"])')
+        daemon = int(pid_file.read_text())
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertEqual(doc["orphans"], [{"pid": daemon, "cmdline": "sleep 300",
+                                           "fate": "killed"}])
+        self.assertTrue(_dead(daemon), "the orphan was left behind, or left as a zombie")
+
+    def _double(self, pid_file: Path, ready: str, daemon: str):
+        return self.reap(argv=[sys.executable, "-B", "-c", double_fork(daemon, ready), pid_file])
+
+    def test_an_orphan_whose_cmdline_reads_empty_is_labelled_by_its_comm(self):
+        pid_file = self.tmp / "daemon.pid"
+        proc, doc, elapsed = self._double(pid_file, "zombie", "os._exit(0)")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertEqual(doc["orphans"], [{"pid": int(pid_file.read_text()), "cmdline": PY_COMM,
+                                           "fate": "exited"}])
+        self.assertLess(elapsed, 4)
+
+    def test_a_short_lived_daemon_is_one_exited_orphan(self):
+        pid_file = self.tmp / "daemon.pid"
+        proc, doc, elapsed = self._double(pid_file, "none", "import time; time.sleep(0.5)")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertEqual([(o["pid"], o["fate"]) for o in doc["orphans"]],
+                         [(int(pid_file.read_text()), "exited")])
+        self.assertLess(elapsed, 4.5, "the grace period must end on ECHILD")
+
+    def test_many_short_lived_daemons_are_each_counted(self):
+        count = 60
+        proc, doc, _ = self.reap(f"""
+            import os
+            for _ in range({count}):
+                middle = os.fork()
+                if middle == 0:
+                    os.setsid()
+                    if os.fork() == 0:
+                        os._exit(0)
+                    os._exit(0)
+                os.waitpid(middle, 0)
+        """)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertEqual(len(doc["orphans"]), count, doc["orphans"])
+        self.assertEqual(len({o["pid"] for o in doc["orphans"]}), count)
+        self.assertTrue(all(o["cmdline"] and o["fate"] == "exited" for o in doc["orphans"]))
+
+    def test_an_orphan_forking_right_up_to_its_kill_leaves_nothing_behind(self):
+        pids = self.tmp / "forked.pids"
+        spawner = f"""
+import os, time
+for _ in range(400):
+    child = os.fork()
+    if child == 0:
+        time.sleep(300)
+        os._exit(0)
+    with open({str(pids)!r}, "a") as handle:
+        handle.write(f"{{child}}\\n")
+    time.sleep(0.02)
+time.sleep(300)
+"""
+        pid_file = self.tmp / "daemon.pid"
+        proc, doc, _ = self._double(pid_file, "none", spawner)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        forked = {int(p) for p in pids.read_text().split()}
+        recorded = {o["pid"] for o in doc["orphans"]}
+        self.assertGreater(len(forked), 20)
+        self.assertIn(int(pid_file.read_text()), recorded)
+        self.assertLessEqual(forked, recorded, "a forked child escaped the wrapper")
+        self.assertEqual([p for p in recorded if not _dead(p)], [])
+        self.assertTrue(all(o["fate"] == "killed" for o in doc["orphans"]))
+
+    def test_the_wrapper_leaves_no_zombie_child_behind(self):
+        proc, doc, _ = self.reap("""
+            import os
+            for _ in range(5):
+                if os.fork() == 0:
+                    os._exit(0)
+            os._exit(0)
+        """)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertEqual(len(doc["orphans"]), 5)
+        self.assertEqual([o["pid"] for o in doc["orphans"] if _state(o["pid"]) is not None], [])
+
+    def test_the_passed_lock_fd_is_open_in_the_chunk(self):
+        lock = os.open(self.tmp / "lock", os.O_RDWR | os.O_CREAT | os.O_CLOEXEC)
+        self.addCleanup(os.close, lock)
+        out = self.tmp / "fd.txt"
+        proc, doc, _ = self.reap(f"""
+            import os
+            os.fstat({lock})
+            open({str(out)!r}, "w").write("open")
+        """, "--pass-fd", str(lock), pass_fds=(lock,))
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertEqual(out.read_text(), "open")
+
+    def test_an_unavailable_check_runs_the_chunk_and_says_why(self):
+        for reason in ("no-prctl", "prctl-failed", "no-children-file"):
+            with self.subTest(reason=reason):
+                proc, doc, _ = self.reap("import sys; sys.exit(3)", "--force-unsupported", reason)
+                self.assertEqual(proc.returncode, 3, proc.stderr)
+                self.assertEqual(doc, {"schema_version": 1, "chunk_id": doc["chunk_id"],
+                                       "platform": sys.platform, "supported": False,
+                                       "unsupported_reason": reason, "chunk_status": 3,
+                                       "orphans": []})
+
+    def test_its_own_fault_is_exit_125_with_no_report(self):
+        proc, doc, _ = self.reap("pass", "--pass-fd", "987")
+        self.assertEqual(proc.returncode, 125)
+        self.assertIsNone(doc)
+        self.assertIn("Traceback", proc.stderr)
+
+
+# -- T-QG-3: the environment layer wins where it must, under the wrapper ------------------
+
+def _default_config_repo(root: Path, env: dict) -> Path:
+    """A repository from `init_git_repo` with the four keys unset, two packs
+    and `gc.autoPackLimit=1`, so that its next commit starts Git's detached
+    maintenance on any Git; prepared with maintenance forced off."""
+    init_git_repo(root)
+    for key in THROWAWAY_GIT_CONFIG:
+        git(root, "config", "--local", "--unset-all", key, env=env, check=False)
+    git(root, "config", "--local", "gc.autoPackLimit", "1", env=env)
+    quiet = ("-c", "maintenance.auto=false", "-c", "gc.auto=0")
+    for index in range(2):
+        (root / f"f{index}").write_text(str(index))
+        git(root, *quiet, "add", "-A", env=env)
+        git(root, *quiet, "commit", "-q", "-m", f"c{index}", env=env)
+        git(root, *quiet, "repack", "-q", env=env)
+    return root
+
+
+_COMMIT = """
+import pathlib, subprocess, sys
+root = pathlib.Path(sys.argv[1])
+(root / "measured").write_text("m")
+subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+subprocess.run(["git", *sys.argv[2:], "commit", "-q", "-m", "measured"], cwd=root, check=True)
+"""
+
+
+class TestEnvironmentLayerUnderTheWrapper(_ReaperCase):
+    """T-QG-3."""
+
+    @classmethod
+    def setUpClass(cls):
+        version = subprocess.run(["git", "--version"], capture_output=True, text=True).stdout
+        print(f"\nT-QG-3 on {version.strip()}", file=sys.stderr)
+
+    def commit_under_wrapper(self, repo: Path, env: dict, *config: str):
+        return self.reap(argv=[sys.executable, "-B", "-c", _COMMIT, repo, *config], env=env)
+
+    def test_the_control_orphans_and_the_chunk_environment_does_not(self):
+        base = stripped_env()
+        control = _default_config_repo(self.tmp / "control", base)
+        proc, doc, _ = self.commit_under_wrapper(control, base)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertGreaterEqual(len(doc["orphans"]), 1,
+                                "the control saw no orphan, so the test could not see one")
+        labels = {o["cmdline"] for o in doc["orphans"]}
+        self.assertIn("[git]", labels)
+
+        treated = _default_config_repo(self.tmp / "treated", base)
+        env = isolation.chunk_env(self.tmp / "chunk-tmp", base=base)
+        proc, doc, _ = self.commit_under_wrapper(treated, env)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertEqual(doc["orphans"], [])
+        self.assertFalse((treated / ".git" / "gc.pid").exists())
+        self.assertFalse((treated / ".git" / "gc.log").exists())
+        scope = git(treated, "config", "--show-scope", "--get", "maintenance.auto", env=env)
+        self.assertEqual(scope.stdout.split(), ["command", "false"])
+
+
+
+class TestFrozenCloneUnderTheWrapper(_FrozenCloneCase, _ReaperCase):
+    """T-QG-3, the frozen path: T-QG-5's clone under the wrapper."""
+
+    def commit_under_wrapper(self, repo: Path, env: dict, *config: str):
+        return self.reap(argv=[sys.executable, "-B", "-c", _COMMIT, repo, *config], env=env)
+
+    def test_the_frozen_evidence_clone_path(self):
+        """The frozen engine's scratch clone, committed to by a `PATH`-only Git:
+        no orphan with the template, at least one without it (this path's own
+        control, its clone made in T-QG-5's "without" environment)."""
+        identity = ("-c", "user.email=t@example.invalid", "-c", "user.name=t")
+        path_only = {"PATH": os.environ["PATH"]}
+        for arm, expect_orphans in (("with", False), ("without", True)):
+            with self.subTest(arm=arm):
+                clone = self.materialize(self.template if arm == "with" else None)
+                git(clone, "config", "--local", "gc.autoPackLimit", "1", env=path_only)
+                quiet = ("-c", "maintenance.auto=false", "-c", "gc.auto=0", *identity)
+                for index in range(2):
+                    (clone / f"f{index}").write_text(str(index))
+                    git(clone, *quiet, "add", "-A", env=path_only)
+                    git(clone, *quiet, "commit", "-q", "-m", f"c{index}", env=path_only)
+                    git(clone, *quiet, "repack", "-q", env=path_only)
+                proc, doc, _ = self.commit_under_wrapper(clone, path_only, *identity)
+                self.assertEqual(proc.returncode, 0, proc.stderr)
+                if expect_orphans:
+                    self.assertGreaterEqual(len(doc["orphans"]), 1)
+                else:
+                    self.assertEqual(doc["orphans"], [])
+
+
+# -- T-OC-2: through `run_chunk`, `verdict_of` and the executor's three modes ---------------
+
+#: A scratch host module whose test leaves one daemon behind: a double-forked
+#: `setsid` process that outlives its chunk by about a second.
+ORPHANING_MODULE = """
+import os
+import time
+import unittest
+
+
+class TestScratchOrphan(unittest.TestCase):
+    def test_leaves_a_daemon(self):
+        middle = os.fork()
+        if middle == 0:
+            os.setsid()
+            if os.fork() == 0:
+                time.sleep(1)
+                os._exit(0)
+            os._exit(0)
+        os.waitpid(middle, 0)
+"""
+ORPHAN_UNIT = "host:test_scratch_orphan.py::TestScratchOrphan"
+DECLARED_MODULE = ORPHANING_MODULE.replace("TestScratchOrphan", "TestScratchDeclared")
+DECLARED_UNIT = "host:test_scratch_declared.py::TestScratchDeclared"
+
+
+def _scratch_resources(**orphan_sources) -> dict:
+    doc = json.loads(json.dumps(tpr.SCRATCH_RESOURCES))
+    if orphan_sources:
+        doc["orphan_sources"] = {u: {"reason": r} for u, r in orphan_sources.items()}
+    return doc
+
+
+class _ModesCase(tpr._CliCase):
+    """A scratch checkout run in local mode, and as one CI shard followed by
+    the aggregate, both in this process (`main_in_process`)."""
+
+    def local(self, scratch: Path, *select: str) -> tuple[int, str, str]:
+        return tpr.main_in_process(scratch, *(a for s in select for a in ("--select", s)))
+
+    def shard_then_aggregate(self, scratch: Path, *select: str):
+        specs = [a for s in select for a in ("--select", s)]
+        self._round = getattr(self, "_round", 0) + 1
+        plan = self.tmp / f"plan-{self._round}.json"
+        results = self.tmp / f"results-{self._round}"
+        code, out, err = tpr.main_in_process(scratch, "--plan-only", "--profile", "ci",
+                                             "--shards", "1", "--out", plan, *specs)
+        self.assertEqual(code, 0, out + err)
+        shard = tpr.main_in_process(scratch, "--run-shard", "0", "--plan", plan,
+                                    "--results", results / "s0")
+        aggregate = tpr.main_in_process(scratch, "--aggregate", results, "--plan", plan)
+        return shard, aggregate
+
+
+class TestOrphansThroughTheExecutor(_ModesCase):
+    """T-OC-2."""
+
+    def test_an_undeclared_orphan_fails_every_mode(self):
+        scratch = tpr.scratch_checkout(self.tmp / "scratch",
+                                       modules={"test_scratch_orphan.py": ORPHANING_MODULE})
+        runs = {"local": self.local(scratch, "test_scratch_orphan.py")}
+        runs["shard"], runs["aggregate"] = self.shard_then_aggregate(scratch,
+                                                                     "test_scratch_orphan.py")
+        for mode, (code, out, err) in runs.items():
+            with self.subTest(mode=mode):
+                tpr.assert_refusal(self, code, err, "OrphanProcessError")
+                self.assertIn(f"{ORPHAN_UNIT}: 1 orphaned process(es): 1 x ", err)
+                self.assertIn("orphan check: on", out)
+
+    def test_a_declared_orphan_is_tolerated_and_listed(self):
+        scratch = tpr.scratch_checkout(
+            self.tmp / "scratch",
+            modules={"test_scratch_orphan.py": ORPHANING_MODULE,
+                     "test_scratch_declared.py": DECLARED_MODULE},
+            resources=_scratch_resources(**{DECLARED_UNIT: "leaves a daemon on purpose",
+                                            tpr.SCRATCH_SHARED_UNIT: "declared, never used"}))
+        code, out, err = self.local(scratch, "test_scratch_declared.py", "test_scratch_shared.py")
+        self.assertEqual(code, 0, out + err)
+        self.assertIn("tolerated orphans (declared in resources.json's orphan_sources): "
+                      "1 chunk(s)", out)
+        self.assertIn(f"    {DECLARED_UNIT}: 1 x ", out)
+        self.assertIn(f"orphan_sources unused in this run: {tpr.SCRATCH_SHARED_UNIT}", out)
+        # ... and an undeclared one in the same run is not.
+        code, out, err = self.local(scratch, "test_scratch_declared.py", "test_scratch_orphan.py")
+        tpr.assert_refusal(self, code, err, "OrphanProcessError")
+        self.assertIn(ORPHAN_UNIT, err)
+        self.assertNotIn(f"{DECLARED_UNIT}: 1 orphaned", out + err)
+
+    def test_a_linux_chunk_without_the_check_fails_every_mode(self):
+        scratch = tpr.scratch_checkout(self.tmp / "scratch")
+        with mock.patch.object(isolation, "REAPER_TEST_ARGS", ("--force-unsupported", "no-prctl")):
+            runs = {"local": self.local(scratch, "test_scratch_shared.py")}
+            runs["shard"], runs["aggregate"] = self.shard_then_aggregate(
+                scratch, "test_scratch_shared.py")
+        for mode, (code, out, err) in runs.items():
+            with self.subTest(mode=mode):
+                tpr.assert_refusal(self, code, err, "OrphanCheckUnavailableError")
+                self.assertIn(f"{tpr.SCRATCH_SHARED_UNIT}: orphan check unavailable on "
+                              f"{sys.platform}: no-prctl", err)
+                self.assertNotIn("orphan check: on", out)
+
+    def test_a_non_linux_chunk_without_the_check_is_a_notice(self):
+        scratch = tpr.scratch_checkout(self.tmp / "scratch")
+        with mock.patch.object(isolation, "REAPER_TEST_ARGS",
+                               ("--force-unsupported", "no-prctl", "--platform", "darwin")):
+            code, out, err = self.local(scratch, "test_scratch_shared.py")
+        self.assertEqual(code, 0, out + err)
+        self.assertIn("orphan check: unavailable on this platform", out)
+
+
+#: A fake wrapper for `bad_orphan_report`: it runs the chunk, then does what
+#: its `--mode` says to the report.
+_FAKE_REAPER = """
+import argparse, json, os, subprocess, sys
+parser = argparse.ArgumentParser()
+parser.add_argument("--report")
+parser.add_argument("--chunk-id")
+parser.add_argument("--pass-fd", action="append", default=[])
+parser.add_argument("--mode")
+parser.add_argument("command", nargs=argparse.REMAINDER)
+args = parser.parse_args()
+command = args.command[1:] if args.command[:1] == ["--"] else args.command
+status = subprocess.run(command).returncode
+doc = {"schema_version": 1, "chunk_id": args.chunk_id, "platform": sys.platform,
+       "supported": True, "unsupported_reason": None, "chunk_status": status, "orphans": []}
+if args.mode == "malformed":
+    open(args.report, "w").write("{")
+elif args.mode == "foreign":
+    open(args.report, "w").write(json.dumps({**doc, "chunk_id": "another"}))
+elif args.mode == "exit125":
+    open(args.report, "w").write(json.dumps(doc))
+    sys.exit(125)
+sys.exit(status)
+"""
+
+
+class TestBadOrphanReports(_ReaperCase):
+    """T-OC-2: a report that is missing, stale, malformed or another chunk's,
+    and a wrapper exit 125, are each `bad_orphan_report`."""
+
+    def run_mode(self, mode: str | None, chunk_id: str, *, stale: bool = False):
+        run_dir = self.tmp / "run"
+        record = isolation.chunk_paths(run_dir, chunk_id).record
+        report = isolation.chunk_paths(run_dir, chunk_id).orphans
+        if stale:
+            report.parent.mkdir(parents=True, exist_ok=True)
+            report.write_text(json.dumps({
+                "schema_version": 1, "chunk_id": chunk_id, "platform": sys.platform,
+                "supported": True, "unsupported_reason": None, "chunk_status": 0,
+                "orphans": []}))
+        fake = self.tmp / "fake_reaper.py"
+        fake.write_text(_FAKE_REAPER)
+        args = ("--mode", mode) if mode else ()
+        code = f"import json; open({str(record)!r}, 'w').write(json.dumps({{'passed': True}}))"
+        with mock.patch.object(isolation, "REAPER", fake), \
+                mock.patch.object(isolation, "REAPER_TEST_ARGS", args):
+            return isolation.run_chunk(self.tmp, chunk_id, [sys.executable, "-c", code],
+                                       run_dir=run_dir, timeout=60), report
+
+    def test_each_bad_report_is_an_infrastructure_fault_naming_the_chunk_and_path(self):
+        for mode, stale in ((None, False), (None, True), ("malformed", False),
+                            ("foreign", False), ("exit125", False)):
+            chunk_id = f"host:test_x.py::{mode or 'missing'}{'-stale' if stale else ''}"
+            with self.subTest(mode=mode, stale=stale):
+                run, report = self.run_mode(mode, chunk_id, stale=stale)
+                self.assertEqual(run.outcome, isolation.BAD_ORPHAN_REPORT, run.detail)
+                self.assertIn(str(report), run.infrastructure_fault)
+                chunk = plan_schema.ChunkDescriptor(chunk_id, 0, (chunk_id,), 1.0)
+                result = executor.ChunkResult(chunk, "A", 0, "host", run.outcome,
+                                              detail=run.detail)
+                verdict = executor.verdict_of([result], lambda r: False)
+                self.assertEqual(verdict.code, 2)
+                self.assertEqual([n for n, _ in verdict.faults], ["InfrastructureFaultError"])
+                self.assertIn(chunk_id, verdict.faults[0][1])
+                self.assertIn(str(report), verdict.faults[0][1])
+
+    def test_the_real_wrappers_own_fault_is_a_bad_report(self):
+        run_dir = self.tmp / "run"
+        record = isolation.chunk_paths(run_dir, "c").record
+        code = f"import json; open({str(record)!r}, 'w').write(json.dumps({{'passed': True}}))"
+        with mock.patch.object(isolation, "REAPER_TEST_ARGS", ("--pass-fd", "987")):
+            run = isolation.run_chunk(self.tmp, "c", [sys.executable, "-c", code],
+                                      run_dir=run_dir, timeout=60)
+        self.assertEqual((run.outcome, run.returncode), (isolation.BAD_ORPHAN_REPORT, 125))
+
+
+class TestVerdictOfOrphans(unittest.TestCase):
+    """T-OC-2, `verdict_of` alone."""
+
+    ORPHAN = ({"pid": 1, "cmdline": "[git]", "fate": "exited"},)
+
+    def result(self, *units, orphans=(), supported=True, platform="linux"):
+        chunk = plan_schema.ChunkDescriptor("c", 0, tuple(units), 1.0)
+        return executor.ChunkResult(chunk, "A", 0, "host", "passed", orphans=orphans,
+                                    platform=platform, supported=supported)
+
+    def test_a_declared_frozen_unit_sharing_a_chunk_is_an_orphan_declaration_error(self):
+        frozen = ("frozen:1.0.0/conformance/s.py::A", "frozen:1.0.0/conformance/s.py::B")
+        declared = {frozen[0]: resources.OrphanSource(frozen[0], "r")}
+        verdict = executor.verdict_of([self.result(*frozen)], lambda r: False,
+                                      orphan_sources=declared)
+        self.assertEqual([n for n, _ in verdict.faults], ["OrphanDeclarationError"])
+        alone = executor.verdict_of([self.result(frozen[0], orphans=self.ORPHAN)],
+                                    lambda r: False, orphan_sources=declared)
+        self.assertEqual((alone.code, alone.faults), (0, []))
+
+    def test_undeclared_orphans_are_counted_most_frequent_first(self):
+        orphans = tuple({"pid": i, "cmdline": label, "fate": "exited"}
+                        for i, label in enumerate(["[git]", "sleep 1", "[git]"]))
+        verdict = executor.verdict_of([self.result("host:test_a.py::A", orphans=orphans)],
+                                      lambda r: False)
+        self.assertEqual(verdict.faults, [("OrphanProcessError",
+                                           "c: 3 orphaned process(es): 2 x [git], 1 x sleep 1")])
+
+
+# -- T-OC-3: the `orphan_sources` schema, and chunking -----------------------------------------
+
+HOST = "host:test_a.py::A"
+FROZEN_A = "frozen:1.0.0/conformance/s.py::TestA"
+FROZEN_B = "frozen:1.0.0/conformance/s.py::TestB"
+FROZEN_C = "frozen:1.0.0/conformance/s.py::TestC"
+
+
+def _doc(orphan_sources=None, **extra) -> dict:
+    doc = {"schema_version": 1, "resources": {}, "exclusive": {}, **extra}
+    if orphan_sources is not None:
+        doc["orphan_sources"] = orphan_sources
+    return doc
+
+
+class TestOrphanSourcesSchema(unittest.TestCase):
+    """T-OC-3."""
+
+    def test_the_declaration_is_validated(self):
+        every = [HOST, FROZEN_A]
+        ok = resources.parse(_doc({FROZEN_A: {"reason": "r"}, HOST: {"reason": "s"}}), [HOST],
+                             orphan_unit_ids=every)
+        self.assertEqual(sorted(ok.orphan_sources), [FROZEN_A, HOST])
+        self.assertEqual(resources.parse(_doc(), [HOST]).orphan_sources, {})
+        refused = {
+            "an unknown unit": _doc({"host:test_z.py::Z": {"reason": "r"}}),
+            "an empty reason": _doc({HOST: {"reason": " "}}),
+            "another key": _doc({HOST: {"reason": "r", "count": 3}}),
+            "an unknown top-level key": _doc(extra_key={}),
+            "a frozen exclusive unit": _doc(
+                resources={"r": {"paths": ["src/"], "description": "d"}},
+                exclusive={FROZEN_A: {"resources": ["r"], "reason": "r"}}),
+        }
+        for what, doc in refused.items():
+            with self.subTest(what=what), self.assertRaises(resources.ResourcesFileError):
+                resources.parse(doc, [HOST], orphan_unit_ids=every)
+        with self.assertRaises(resources.ResourcesFileError):
+            resources.parse(_doc({FROZEN_A: {"reason": "r"}}), [HOST])  # no orphan_unit_ids
+
+    def chunks(self, res, whole_groups=False):
+        units = [FROZEN_A, FROZEN_B, FROZEN_C, HOST]
+        return [(c.id, c.units) for c in planner.make_chunks(
+            units, {u: 100.0 for u in units}, profile="local", config=dict(tpr.PLAN_CONFIG),
+            timings=tpr._timings(local={}), resources=res, whole_groups=whole_groups)]
+
+    def test_a_declared_frozen_class_gets_a_chunk_of_its_own(self):
+        none = resources.parse(_doc(), [HOST])
+        declared = resources.parse(_doc({FROZEN_B: {"reason": "r"}}), [HOST],
+                                   orphan_unit_ids=[HOST, FROZEN_A, FROZEN_B, FROZEN_C])
+        without_b = [HOST, FROZEN_A, FROZEN_C]
+        for whole_groups in (False, True):
+            with self.subTest(whole_groups=whole_groups):
+                got = self.chunks(declared, whole_groups)
+                self.assertIn(("frozen:1.0.0/conformance/s.py#TestB", (FROZEN_B,)), got)
+                rest = [c for c in got if FROZEN_B not in c[1]]
+                expected = [(c.id, c.units) for c in planner.make_chunks(
+                    without_b, {u: 100.0 for u in without_b}, profile="local",
+                    config=dict(tpr.PLAN_CONFIG), timings=tpr._timings(local={}),
+                    resources=none, whole_groups=whole_groups)]
+                self.assertEqual(rest, expected)
+
+    def test_without_a_frozen_declaration_the_chunks_are_unchanged(self):
+        host_only = resources.parse(_doc({HOST: {"reason": "r"}}), [HOST])
+        self.assertEqual(self.chunks(host_only), self.chunks(resources.parse(_doc(), [HOST])))
+        self.assertEqual(self.chunks(host_only, True),
+                         self.chunks(resources.parse(_doc(), [HOST]), True))
+
+
+class TestFrozenDeclarationThroughTheModes(_ModesCase):
+    """T-OC-3: a frozen `orphan_sources` key loads through
+    `planner.plan_checkout` and the executor's three `resources.load` calls."""
+
+    def test_a_frozen_declaration_loads_in_every_mode(self):
+        unit = f"{tpr.SCRATCH_FROZEN_SUITE}::TestBeta"
+        scratch = tpr.scratch_checkout(self.tmp / "scratch",
+                                       resources=_scratch_resources(**{unit: "r"}))
+        inv = inventory.discover(scratch)
+        self.assertIn(unit, inv.unit_ids())
+        plan = planner.plan_checkout(scratch, inv, inventory.select(inv.host, [unit], inv.frozen),
+                                     profile="local")
+        self.assertIn([unit], [c["units"] for s in plan["shards"] for c in s["chunks"]])
+        code, out, err = self.local(scratch, unit)
+        self.assertEqual(code, 0, out + err)
+        (s_code, s_out, s_err), (a_code, a_out, a_err) = self.shard_then_aggregate(scratch, unit)
+        self.assertEqual((s_code, a_code), (0, 0), s_out + s_err + a_out + a_err)
+
+
+# -- T-OC-4: the timeout and interrupt paths ---------------------------------------------------
+
+class TestKilledChunks(_ModesCase):
+    """T-OC-4: the wrapper and the chunk die together, and the run fails for
+    the existing reason only -- on timeout, and on an interrupt through the
+    executor (exit 2 for being interrupted, never for an orphan or a bad
+    report). Killing a wrapper hands the chunk it had not yet reaped to the
+    next subreaper up (plan 5.6), so this class is a declared orphan source."""
+
+    def test_a_timeout_kills_the_wrapper_and_the_chunk_together(self):
+        pid_file = self.tmp / "chunk.pid"
+        code = f"import os, time; open({str(pid_file)!r}, 'w').write(str(os.getpid())); " \
+               "time.sleep(120)"
+        run = isolation.run_chunk(self.tmp, "c", [sys.executable, "-c", code],
+                                  run_dir=self.tmp / "run", timeout=1.5)
+        self.assertEqual(run.outcome, isolation.TIMED_OUT)
+        self.assertTrue(tpr._wait_until(lambda: tpr._dead(int(pid_file.read_text()))))
+        self.assertTrue(tpr._dead(run.pgid))
+        self.assertEqual((run.orphans, run.supported), ((), None))
+        chunk = plan_schema.ChunkDescriptor("c", 0, (HOST,), 1.0)
+        result = executor.ChunkResult(chunk, "A", 0, "host", run.outcome, detail=run.detail)
+        verdict = executor.verdict_of([result], lambda r: False)
+        self.assertEqual([n for n, _ in verdict.faults], ["InfrastructureFaultError"])
+        self.assertIn("timed_out", verdict.faults[0][1])
+
+    def test_an_interrupt_is_not_an_orphan_or_a_bad_report(self):
+        scratch = tpr.scratch_checkout(self.tmp / "scratch",
+                                       modules={"test_scratch_wait.py": tpr.WAIT_MODULE})
+        stop = self.tmp / "stop"
+        self.addCleanup(stop.write_text, "")
+
+        def interrupt_once_the_chunk_runs():
+            # The run's SIGTERM handler is installed before any chunk starts.
+            if tpr._wait_until(lambda: tpr._lock_holder(scratch).get("chunk_pgids"), 60):
+                os.kill(os.getpid(), signal.SIGTERM)
+
+        interrupter = threading.Thread(target=interrupt_once_the_chunk_runs)
+        with mock.patch.dict(os.environ, {"WM_SCRATCH_STOP": str(stop)}):
+            interrupter.start()
+            code, out, err = self.local(scratch, "test_scratch_wait.py")
+        interrupter.join()
+        tpr.assert_refusal(self, code, err, "InterruptedRunError")
+        self.assertNotIn("OrphanProcessError", out + err)
+        self.assertNotIn(isolation.BAD_ORPHAN_REPORT, out + err)
 
 
 if __name__ == "__main__":

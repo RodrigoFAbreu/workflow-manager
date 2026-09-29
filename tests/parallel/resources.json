@@ -7,6 +7,68 @@
       ]
     }
   },
+  "orphan_sources": {
+    "frozen:2.3.1/bootstrapped/workflow_state_completion_obligations_test.py::TestStateLock": {
+      "reason": "frozen code (unchangeable): TestStateLock starts multiprocessing workers with the default context, which on Python 3.14 is forkserver; the forkserver and resource tracker it starts exit only after the chunk does, re-parented to its wrapper"
+    },
+    "frozen:2.3.1/conformance/workflow_state_completion_obligations_test.py::TestStateLock": {
+      "reason": "frozen code (unchangeable): TestStateLock starts multiprocessing workers with the default context, which on Python 3.14 is forkserver; the forkserver and resource tracker it starts exit only after the chunk does, re-parented to its wrapper"
+    },
+    "frozen:2.3.1/target/workflow_state_completion_obligations_test.py::TestStateLock": {
+      "reason": "frozen code (unchangeable): TestStateLock starts multiprocessing workers with the default context, which on Python 3.14 is forkserver; the forkserver and resource tracker it starts exit only after the chunk does, re-parented to its wrapper"
+    },
+    "frozen:2.4.0/bootstrapped/workflow_state_completion_obligations_test.py::TestStateLock": {
+      "reason": "frozen code (unchangeable): TestStateLock starts multiprocessing workers with the default context, which on Python 3.14 is forkserver; the forkserver and resource tracker it starts exit only after the chunk does, re-parented to its wrapper"
+    },
+    "frozen:2.4.0/conformance/workflow_state_completion_obligations_test.py::TestStateLock": {
+      "reason": "frozen code (unchangeable): TestStateLock starts multiprocessing workers with the default context, which on Python 3.14 is forkserver; the forkserver and resource tracker it starts exit only after the chunk does, re-parented to its wrapper"
+    },
+    "frozen:2.4.0/target/workflow_state_completion_obligations_test.py::TestStateLock": {
+      "reason": "frozen code (unchangeable): TestStateLock starts multiprocessing workers with the default context, which on Python 3.14 is forkserver; the forkserver and resource tracker it starts exit only after the chunk does, re-parented to its wrapper"
+    },
+    "frozen:2.5.0/bootstrapped/workflow_state_completion_obligations_test.py::TestStateLock": {
+      "reason": "frozen code (unchangeable): TestStateLock starts multiprocessing workers with the default context, which on Python 3.14 is forkserver; the forkserver and resource tracker it starts exit only after the chunk does, re-parented to its wrapper"
+    },
+    "frozen:2.5.0/conformance/workflow_state_completion_obligations_test.py::TestStateLock": {
+      "reason": "frozen code (unchangeable): TestStateLock starts multiprocessing workers with the default context, which on Python 3.14 is forkserver; the forkserver and resource tracker it starts exit only after the chunk does, re-parented to its wrapper"
+    },
+    "frozen:2.5.0/target/workflow_state_completion_obligations_test.py::TestStateLock": {
+      "reason": "frozen code (unchangeable): TestStateLock starts multiprocessing workers with the default context, which on Python 3.14 is forkserver; the forkserver and resource tracker it starts exit only after the chunk does, re-parented to its wrapper"
+    },
+    "frozen:2.5.1/bootstrapped/workflow_state_completion_obligations_test.py::TestStateLock": {
+      "reason": "frozen code (unchangeable): TestStateLock starts multiprocessing workers with the default context, which on Python 3.14 is forkserver; the forkserver and resource tracker it starts exit only after the chunk does, re-parented to its wrapper"
+    },
+    "frozen:2.5.1/conformance/workflow_state_completion_obligations_test.py::TestStateLock": {
+      "reason": "frozen code (unchangeable): TestStateLock starts multiprocessing workers with the default context, which on Python 3.14 is forkserver; the forkserver and resource tracker it starts exit only after the chunk does, re-parented to its wrapper"
+    },
+    "frozen:2.5.1/target/workflow_state_completion_obligations_test.py::TestStateLock": {
+      "reason": "frozen code (unchangeable): TestStateLock starts multiprocessing workers with the default context, which on Python 3.14 is forkserver; the forkserver and resource tracker it starts exit only after the chunk does, re-parented to its wrapper"
+    },
+    "frozen:2.6.0/bootstrapped/workflow_state_completion_obligations_test.py::TestStateLock": {
+      "reason": "frozen code (unchangeable): TestStateLock starts multiprocessing workers with the default context, which on Python 3.14 is forkserver; the forkserver and resource tracker it starts exit only after the chunk does, re-parented to its wrapper"
+    },
+    "frozen:2.6.0/conformance/workflow_state_completion_obligations_test.py::TestStateLock": {
+      "reason": "frozen code (unchangeable): TestStateLock starts multiprocessing workers with the default context, which on Python 3.14 is forkserver; the forkserver and resource tracker it starts exit only after the chunk does, re-parented to its wrapper"
+    },
+    "frozen:2.6.0/target/workflow_state_completion_obligations_test.py::TestStateLock": {
+      "reason": "frozen code (unchangeable): TestStateLock starts multiprocessing workers with the default context, which on Python 3.14 is forkserver; the forkserver and resource tracker it starts exit only after the chunk does, re-parented to its wrapper"
+    },
+    "host:test_orphan_processes.py::TestKilledChunks": {
+      "reason": "T-OC-4 times out and interrupts chunks on purpose; a killed wrapper dies before it reaps the chunk, which is re-parented to this unit's wrapper (test-cleanup plan 5.6, a killed run's orphans)"
+    },
+    "host:test_parallel_runner.py::TestExecutorLevelFaults": {
+      "reason": "test_a_chunk_past_its_timeout_is_killed_and_named kills a chunk's process group, its leak-check wrapper included, on purpose: the wrapper dies before it reaps the chunk, which is re-parented to this unit's wrapper (test-cleanup plan 5.6, a killed run's orphans)"
+    },
+    "host:test_parallel_runner.py::TestLockAndRecoveryThroughTheCli": {
+      "reason": "SIGKILLs a scratch executor while its chunk runs (that the chunk keeps the lock is the subject), and interrupts runs with SIGTERM and SIGINT, which kill their chunk groups: the running chunk, or a chunk its killed wrapper had not yet reaped, is re-parented to this unit's wrapper"
+    },
+    "host:test_parallel_runner.py::TestRunChunk": {
+      "reason": "its timeout and interrupt tests kill a chunk's process group, its leak-check wrapper included, on purpose: the wrapper dies before it reaps the chunk, which is re-parented to this unit's wrapper (test-cleanup plan 5.6, a killed run's orphans)"
+    },
+    "host:test_parallel_runner.py::TestRunLockAndRecovery": {
+      "reason": "SIGKILLs a helper executor while its chunk-like child holds the run lock (the subject of the test); the child is re-parented to this unit's wrapper and exits on the stop file"
+    }
+  },
   "resources": {
     "repo:distribution": {
       "description": "the real repository's distribution/ tree; every unit reads it (find_release, build_release --check, migrate.py --check)",

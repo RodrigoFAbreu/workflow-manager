@@ -12,7 +12,8 @@ plan: `docs/ai-workflow/WORKFLOW_MANAGER_TEST_CLEANUP_PLAN.md`.
 
 ## Current checkpoint
 
-CP1 is complete. CP2 (the leak check) is next.
+CP1 and CP2 are complete. CP3 (measurement, documentation and the
+milestone's evidence) is next.
 
 ## Current blockers
 
@@ -25,7 +26,7 @@ None.
 
 ## Next action
 
-`/milestone-implement workflow-manager-test-cleanup` for CP2.
+`/milestone-implement workflow-manager-test-cleanup` for CP3.
 
 ## Checkpoint log
 
@@ -113,6 +114,111 @@ None.
     `selection_digest 6e7a9c1b...`, `tests_digest 10276e31...`. Its only
     failed chunks are the documented `2.3.1`/`2.4.0`
     `workflow_integration_test.py` portability exceptions.
+
+### CP2 -- the leak check, and every orphan source fixed or declared (complete)
+
+- **The wrapper** (`tests/parallel/reaper.py`, new, stdlib-only, run as
+  `python3 -I -S -B`): plan 5.4 steps 1-6. It makes itself a child
+  subreaper, runs the chunk as its only child, and passes the lock fd on
+  (`--pass-fd`). Every 10 ms it lists `/proc/self/task/*/children` and
+  drains exited children (`waitid(P_ALL, WNOWAIT)`, record, then
+  `waitpid`). Labels are the command line, else `[<comm>]`, else
+  `[unknown]`, and a weak label is upgraded at reap time. After the chunk
+  exits, a grace period of at most 5 s ends at once on `ECHILD`, followed
+  by a kill-and-drain loop until `ECHILD`. The report is written
+  atomically. Exit is the chunk's status, with a signal death re-raised
+  (`SIG_DFL`, unblocked, `RLIMIT_CORE` 0, fallback `os._exit(128+n)`).
+  Its own fault is exit 125, with no report, after a best-effort kill
+  loop. An unsupported host reports `supported: false` with the reason.
+  The test seams `--force-unsupported`/`--platform` are reached only
+  through `isolation.REAPER_TEST_ARGS`, never through the environment, so
+  an operator cannot forge a non-Linux platform.
+- **The runner** (`isolation.py`): `run_chunk` launches the wrapper,
+  located from `isolation.py`'s own path. It deletes a stale report first
+  and, after an ordinary exit, validates the report: its schema, its
+  `chunk_id`, and a `chunk_status` equal to the wrapper's exit. A failure
+  there is the new infrastructure outcome `bad_orphan_report`, naming the
+  report path. `ChunkRun`/`ChunkResult` carry `orphans`, `platform`,
+  `supported` and `unsupported_reason` through the JSON round trip.
+- **The verdict** (`executor.py`): `verdict_of(orphan_sources=)` adds
+  `OrphanProcessError`, `OrphanCheckUnavailableError` (Linux, decided on
+  the report's `platform`) and `OrphanDeclarationError`, in local,
+  `--run-shard` and `--aggregate` modes. The three `resources.load`
+  callers and `planner.plan_checkout` pass `orphan_unit_ids`.
+- **The report** (`report.py`): one `orphan check:` line, a `tolerated
+  orphans` section by chunk, and `orphan_sources unused in this run`.
+  `cli.py`'s docstring names the three new exit-2 faults.
+- **Declarations** (`resources.py`, `resources.json`): an optional
+  `orphan_sources` key, with a non-empty `reason`, validated against the
+  full inventory (or against the host ids when `orphan_unit_ids` is
+  omitted). `planner.make_chunks` gives a declared frozen class its own
+  chunk (`<group>#<Class>`). With no frozen declaration, the chunks are
+  unchanged.
+- **Tests** (`tests/test_orphan_processes.py`):
+  - T-QG-3: `TestEnvironmentLayerUnderTheWrapper` and
+    `TestFrozenCloneUnderTheWrapper`;
+  - T-OC-1: `TestReaperDirect`, 11 tests;
+  - T-OC-2: `TestOrphansThroughTheExecutor`, `TestBadOrphanReports` and
+    `TestVerdictOfOrphans`;
+  - T-OC-3: `TestOrphanSourcesSchema` and
+    `TestFrozenDeclarationThroughTheModes`;
+  - T-OC-4: `TestKilledChunks`.
+
+  T-QG-5's setup moved into `_FrozenCloneCase`, which T-QG-3 reuses.
+  T-QG-3 runs on Git 2.55.0, which it prints. The `ubuntu-latest` image
+  (Ubuntu 24.04, image version `20260920.314.1`) documents Git 2.55.0 as
+  well, so no extra verification on an older Git was needed.
+- **Adapted, not weakened** (`test_parallel_runner.py`):
+  - the chunk-session test now asserts that the chunk's session and group
+    are its parent wrapper's;
+  - the two `ChunkResult` round-trip tests carry an orphan check;
+  - the real-file `resources.load` calls pass `orphan_unit_ids`;
+  - `scratch_checkout`'s own validation load does full discovery only when
+    the scratch declares `orphan_sources`.
+- **Deviations, disclosed:**
+  - `ChunkResult.from_json` also refuses a `passed`/`failed` result with no
+    orphan check. That is fail-closed for `--aggregate`, and not in the
+    plan's wording.
+  - `run_chunk` takes an `interrupted` event, which the executor passes as
+    `Engine.stop`. On the interrupt path the executor kills the group from
+    outside, so the report is not read, exactly as on timeout (plan 5.4:
+    "not the timeout or interrupt paths"). Without it, an interrupted run
+    also reported a spurious `bad_orphan_report`.
+
+**Orphan inventory** (full selection with the check on,
+`/tmp/cp2-full1`, before any declaration). Each source is listed by chunk
+and label, with its disposition:
+
+| source | label | disposition |
+| --- | --- | --- |
+| `host:test_parallel_runner.py` classes using the spawn-context helpers (seen in `TestRefusalsAreDistinguishable`, `TestRunLockAndRecovery`) | `python3 -B -c from multiprocessing.resource_tracker import main;main(4)` / `[python3]` | **fixed at the source**: `tearDownModule` stops `multiprocessing`'s resource tracker, waiting for it |
+| `host:test_parallel_runner.py::TestRunChunk` | 2 x `[python3]` | **declared**: the timeout and interrupt tests kill a chunk's group, wrapper included, and the chunk the wrapper had not reaped is re-parented (5.6) |
+| `host:test_parallel_runner.py::TestExecutorLevelFaults` | 1 x `[python3]` | **declared**: the same, from its timeout test |
+| `host:test_parallel_runner.py::TestLockAndRecoveryThroughTheCli` | the scratch run's `reaper.py` / chunk | **declared**: it SIGKILLs an executor while its chunk runs, and interrupts runs |
+| `host:test_parallel_runner.py::TestRunLockAndRecovery` | the `_WAIT_FOR_FILE` child | **declared**: it SIGKILLs a helper executor whose chunk-like child holds the lock |
+| `host:test_orphan_processes.py::TestKilledChunks` | 1-2 x `[python3]` | **declared**: T-OC-4 times out and interrupts chunks on purpose |
+| `frozen:<2.3.1..2.6.0>/<conformance,target,bootstrapped>/workflow_state_completion_obligations_test.py::TestStateLock` (15 units) | `multiprocessing.forkserver` main, `resource_tracker` main, `[python3]` | **declared, frozen**: the default `multiprocessing` context (forkserver on Python 3.14) outlives the chunk; each declared class runs in its own chunk |
+
+No Git process appeared among the orphans in any run (no `[git]` or
+`git` label). An earlier run with the SIGINT test hanging was an artefact
+of launching it from a shell `&` job, which ignores SIGINT; background runs
+launched through the tool keep SIGINT's default.
+
+- **Verification:**
+  - `python3 -m unittest test_orphan_processes`: 58 tests, OK;
+  - `run_all.py --select test_parallel_runner.py --select
+    test_orphan_processes.py` exposed the sources above;
+  - **full gate, run 1** (`/tmp/cp2-full2`): 4101/4101 units, 25,682
+    tests, exit 0, `orphan check: on`, zero undeclared orphans, 20 chunks
+    tolerated, no unused declaration;
+  - **full gate, run 2** (`/tmp/cp2-full3`, the same tree): the same
+    totals, exit 0, zero undeclared orphans;
+  - both runs have `selection_digest b8ca6c1f...`, `tests_digest
+    47b3b636...` and `tree_digest 3c65e8a3...`. The only failed chunks are
+    the documented `2.3.1`/`2.4.0` `workflow_integration_test.py`
+    portability exceptions;
+  - INV-1's `git diff 7dabd2e` is empty, `workflow-manager verify .` is
+    clean, and `CLAUDE.md` is unchanged.
 
 ## Previous milestone
 

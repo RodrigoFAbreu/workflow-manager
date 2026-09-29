@@ -287,7 +287,8 @@ class TestResourcesContract(_RealHostInventory):
     """T-INV-8, `resources.load`."""
 
     def test_the_committed_declaration_loads_against_the_real_inventory(self):
-        loaded = resources.load(REPO_ROOT, self.host)
+        loaded = resources.load(REPO_ROOT, self.host,
+                                orphan_unit_ids=inventory.discover(REPO_ROOT).unit_ids())
         self.assertEqual(loaded.exclusive_units(), (EXCLUSIVE_UNIT,))
         self.assertIn(EXCLUSIVE_UNIT, self.host)
         self.assertEqual(loaded.resources["repo:distribution"].paths, ("distribution/",))
@@ -2619,7 +2620,11 @@ def scratch_checkout(root: Path, *, resources=SCRATCH_RESOURCES, modules=None,
 
 
 def resources_module_load(root: Path) -> resources.Resources:
-    return resources.load(root, inventory.discover_host(root))
+    # Frozen discovery only when there is an `orphan_sources` key to check
+    # against it: some scratch releases are miscounted on purpose.
+    declared = json.loads(resources.resources_path(root).read_text()).get("orphan_sources")
+    every = inventory.discover(root).unit_ids() if declared else None
+    return resources.load(root, inventory.discover_host(root), orphan_unit_ids=every)
 
 
 def scratch_worktree(scratch: Path) -> Path:
@@ -2721,6 +2726,14 @@ def _hold_lock_with_child_then_hang(scratch_root, ready_path, stop_path):
     Path(ready_path).write_text(json.dumps({"pid": os.getpid(), "child": child.pid}))
     while True:
         time.sleep(60)
+
+
+def tearDownModule():
+    """The spawn context's helpers start `multiprocessing`'s resource tracker,
+    which would otherwise exit only after this module's chunk has, orphaned
+    (test-cleanup plan 5.4's policy: wait for what the test started)."""
+    from multiprocessing import resource_tracker
+    resource_tracker._resource_tracker._stop()  # noqa: SLF001
 
 
 class _ScratchCase(unittest.TestCase):
@@ -2908,7 +2921,9 @@ class TestRunChunk(_ScratchCase):
                     env = {k: os.environ.get(k) for k in
                            ("PYTHONPATH", "FORCE_COLOR", "PYTHONDONTWRITEBYTECODE",
                             "PYTHON_COLORS", "TMPDIR", "WM_EXTRA", "GIT_TEMPLATE_DIR")}
-                    env["own_session"] = os.getsid(0) == os.getpid() == os.getpgid(0)
+                    # The leak check's wrapper leads the session and group
+                    # and is the chunk's parent (test-cleanup plan 5.4).
+                    env["own_session"] = os.getsid(0) == os.getpgid(0) == os.getppid()
                     last = {}
                     for i in range(int(os.environ.get("GIT_CONFIG_COUNT", "0"))):
                         last[os.environ[f"GIT_CONFIG_KEY_{i}"].lower()] = \
@@ -3502,7 +3517,8 @@ class TestStaticLint(unittest.TestCase):
         self.assertEqual([f.unit for f in findings], [None])
 
     def test_todays_tests_are_clean_apart_from_the_declared_unit(self):
-        declared = resources.load(REPO_ROOT, inventory.discover_host(REPO_ROOT))
+        inv = inventory.discover(REPO_ROOT)
+        declared = resources.load(REPO_ROOT, list(inv.host), orphan_unit_ids=inv.unit_ids())
         self.assertEqual([str(f) for f in isolation.lint_tests(REPO_ROOT, declared)], [])
         raw = isolation.lint_source(
             (TESTS_DIR / "test_amendment_update_path.py").read_text(), "test_amendment_update_path.py")
@@ -4438,7 +4454,9 @@ class TestExecutorPieces(unittest.TestCase):
     def test_a_chunk_result_round_trips(self):
         chunk = plan_schema.ChunkDescriptor("c", 1, ("host:test_a.py::A",), 2.0, ("r",))
         result = executor.ChunkResult(chunk, "A0", 1, "host", "passed", 1.0, 2.5, 0,
-                                      {"passed": True}, "/log", "", ("x",))
+                                      {"passed": True}, "/log", "", ("x",),
+                                      ({"pid": 7, "cmdline": "[git]", "fate": "exited"},),
+                                      "linux", True, None)
         again = executor.ChunkResult.from_json(json.loads(json.dumps(result.to_json())))
         self.assertEqual(again, result)
         self.assertEqual(again.window, isolation.Window("c", 1.0, 2.5, True))
@@ -4449,7 +4467,8 @@ class TestExecutorPieces(unittest.TestCase):
         """Self-review: `verdict_of` counted an outcome it does not know as a
         pass, so an edited shard artifact could turn the aggregate green."""
         chunk = plan_schema.ChunkDescriptor("c", 0, ("host:test_a.py::A",), 1.0)
-        doc = executor.ChunkResult(chunk, "A", 0, "host", "failed").to_json()
+        doc = executor.ChunkResult(chunk, "A", 0, "host", "failed", platform="linux",
+                                   supported=True).to_json()
         self.assertEqual(executor.ChunkResult.from_json(doc).outcome, "failed")
         with self.assertRaises(executor.IncompleteResultsError):
             executor.ChunkResult.from_json({**doc, "outcome": "skipped"})

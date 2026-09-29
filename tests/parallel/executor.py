@@ -40,7 +40,7 @@ from . import resources as resources_mod
 from . import timings as timings_mod
 from . import tree as tree_mod
 from .frozen_chunk import MERGE_REFUSED, is_frozen, spec_json
-from .inventory import Inventory, discover, split_frozen_unit_id
+from .inventory import FROZEN_PREFIX, Inventory, discover, split_frozen_unit_id
 from .plan_schema import ChunkDescriptor, shard_chunks
 from .unit import unit_argv
 
@@ -119,6 +119,13 @@ class ChunkResult:
     log: str | None = None
     detail: str = ""
     tmp_residue: tuple[str, ...] = ()
+    #: The leak check's findings (`isolation.ChunkRun`'s fields of the same
+    #: names); `supported` is `None` only for a chunk whose report was never
+    #: read (not run, timed out, or `bad_orphan_report`).
+    orphans: tuple[dict, ...] = ()
+    platform: str | None = None
+    supported: bool | None = None
+    unsupported_reason: str | None = None
 
     @property
     def fault(self) -> str | None:
@@ -144,7 +151,9 @@ class ChunkResult:
         return {"chunk": self.chunk.to_json(), "phase": self.phase, "shard": self.shard,
                 "kind": self.kind, "outcome": self.outcome, "started_at": self.started_at,
                 "ended_at": self.ended_at, "returncode": self.returncode, "record": record,
-                "log": self.log, "detail": self.detail, "tmp_residue": list(self.tmp_residue)}
+                "log": self.log, "detail": self.detail, "tmp_residue": list(self.tmp_residue),
+                "orphans": [dict(o) for o in self.orphans], "platform": self.platform,
+                "supported": self.supported, "unsupported_reason": self.unsupported_reason}
 
     @classmethod
     def from_json(cls, obj) -> "ChunkResult":
@@ -152,13 +161,23 @@ class ChunkResult:
             result = cls(ChunkDescriptor.from_json(obj["chunk"]), obj["phase"], obj["shard"],
                          obj["kind"], obj["outcome"], obj["started_at"], obj["ended_at"],
                          obj["returncode"], obj["record"], obj["log"], obj["detail"],
-                         tuple(obj["tmp_residue"]))
+                         tuple(obj["tmp_residue"]), tuple(obj["orphans"]), obj["platform"],
+                         obj["supported"], obj["unsupported_reason"])
         except (KeyError, TypeError, ValueError) as exc:
             raise IncompleteResultsError(f"malformed chunk result: {exc}") from exc
         # An outcome `verdict_of` does not know would otherwise count as a pass.
         if result.outcome not in KNOWN_OUTCOMES:
             raise IncompleteResultsError(
                 f"chunk result {result.chunk.id}: unknown outcome {result.outcome!r}")
+        # Nor may a chunk that ran pass without its orphan check (5.4).
+        if result.outcome in (isolation.PASSED, isolation.FAILED) and (
+                type(result.supported) is not bool or not isinstance(result.platform, str)):
+            raise IncompleteResultsError(
+                f"chunk result {result.chunk.id}: {result.outcome} with no orphan check")
+        if not all(isinstance(o, dict) and isinstance(o.get("cmdline"), str)
+                   for o in result.orphans):
+            raise IncompleteResultsError(
+                f"chunk result {result.chunk.id}: malformed orphans {result.orphans!r}")
         return result
 
 
@@ -221,10 +240,12 @@ class Engine:
         run = isolation.run_chunk(self.repo_root, chunk.id, self._argv(chunk, record, timeout),
                                   run_dir=self.run_dir, timeout=timeout,
                                   cwd=self.repo_root / "tests", extra_env=extra_env,
-                                  lock=self.lock, git_template=self.git_template)
+                                  lock=self.lock, git_template=self.git_template,
+                                  interrupted=self.stop)
         result = ChunkResult(chunk, phase, shard, _kind(chunk), run.outcome, run.started_at,
                              run.ended_at, run.returncode, run.record, str(run.log_path),
-                             run.detail, run.tmp_residue)
+                             run.detail, run.tmp_residue, run.orphans, run.platform,
+                             run.supported, run.unsupported_reason)
         if result.kind == "frozen" and result.record is not None:
             if result.record.get("timed_out"):
                 result.outcome = isolation.TIMED_OUT
@@ -468,9 +489,23 @@ def make_judged(plan: dict, inv: Inventory):
     return judged
 
 
-def verdict_of(results, judged, *, extra_faults=()) -> Verdict:
+def tolerated(result: ChunkResult, orphan_sources) -> bool:
+    """Whether `result`'s orphans are declared: its chunk holds a unit with an
+    `orphan_sources` entry (a host chunk is one unit, and a declared frozen
+    class runs in a chunk of its own)."""
+    return any(unit in orphan_sources for unit in result.chunk.units)
+
+
+def verdict_of(results, judged, *, extra_faults=(), orphan_sources=None) -> Verdict:
+    """The run's exit code and faults. Besides the chunks' own outcomes, the
+    leak check (test-cleanup plan 5.4) adds an exit-2 fault per chunk with
+    undeclared orphans (`OrphanProcessError`), per Linux chunk whose check was
+    unavailable (`OrphanCheckUnavailableError`), and per chunk holding a
+    declared frozen unit alongside any other unit (`OrphanDeclarationError`).
+    `orphan_sources` is the loaded declarations (`Resources.orphan_sources`)."""
     faults = list(extra_faults)
     failures = []
+    declared = orphan_sources or {}
     for result in results:
         if result.fault:
             faults.append(("InfrastructureFaultError", f"{result.chunk.id}: {result.fault}"))
@@ -479,6 +514,21 @@ def verdict_of(results, judged, *, extra_faults=()) -> Verdict:
                                                        f"({result.detail})"))
         elif result.outcome == isolation.FAILED and not judged(result):
             failures.append(result)
+        if result.orphans and not tolerated(result, declared):
+            faults.append(("OrphanProcessError",
+                           f"{result.chunk.id}: {len(result.orphans)} orphaned process(es): "
+                           f"{report.orphan_summary(result.orphans)}"))
+        if result.supported is False and (result.platform or "").startswith("linux"):
+            faults.append(("OrphanCheckUnavailableError",
+                           f"{result.chunk.id}: orphan check unavailable on {result.platform}: "
+                           f"{result.unsupported_reason}"))
+        frozen_declared = [u for u in result.chunk.units
+                           if u in declared and u.startswith(FROZEN_PREFIX)]
+        if frozen_declared and len(result.chunk.units) > 1:
+            faults.append(("OrphanDeclarationError",
+                           f"{result.chunk.id}: holds the declared orphan source(s) "
+                           f"{', '.join(frozen_declared)} alongside other units, so the "
+                           f"declaration would cover them too"))
     return Verdict(2 if faults else (1 if failures else 0), faults, failures)
 
 
@@ -555,7 +605,7 @@ def run_identity(repo_root: Path, plan: dict, inv: Inventory, results, scope: st
 
 def emit_report(out, *, plan: dict, inv: Inventory, results, verdict: Verdict, wall: float,
                 run_dir: Path | None, judged, identity: dict, log_label=None,
-                extra_summary=()) -> str:
+                extra_summary=(), orphan_sources=None) -> str:
     matrix = inv.frozen.matrix if inv.frozen else {}
     lines = [""] + report.module_lines(results, matrix, judged)
     selection = plan["selection"]
@@ -574,6 +624,7 @@ def emit_report(out, *, plan: dict, inv: Inventory, results, verdict: Verdict, w
             lines.append(f"  {result.chunk.id}: {failing}")
     lines += [""] + report.shard_summary(plan, results, wall=wall,
                                          drifted=drifted_chunks(results), extra=extra_summary)
+    lines += report.orphan_lines(results, orphan_sources or {})
     if plan.get("partial_frozen"):
         lines.append(f"  {report_partial_note()}")
     for name, message in verdict.faults:
@@ -619,7 +670,7 @@ def local_run(repo_root: Path, lock: isolation.RunLock, *, specs, jobs, shuffle_
     if results is not None:
         check_results_dir(results)
     inv, selection = discover_and_select(repo_root, specs)
-    res = resources_mod.load(repo_root, list(inv.host))
+    res = resources_mod.load(repo_root, list(inv.host), orphan_unit_ids=inv.unit_ids())
     plan = planner.plan_checkout(repo_root, inv, selection, profile="local",
                                  shards=None if jobs in (None, "auto") else jobs,
                                  whole_groups=whole_groups, cpu_count=cpu_count)
@@ -662,7 +713,8 @@ def local_run(repo_root: Path, lock: isolation.RunLock, *, specs, jobs, shuffle_
     extra += integrity_faults(Path(repo_root), guard, results_list)
     if interrupted:
         extra.append(("InterruptedRunError", "the run was interrupted"))
-    verdict = verdict_of(results_list, judged, extra_faults=extra)
+    verdict = verdict_of(results_list, judged, extra_faults=extra,
+                         orphan_sources=res.orphan_sources)
 
     obs = observations(results_list, "local")
     identity = run_identity(repo_root, plan, inv, results_list,
@@ -674,7 +726,7 @@ def local_run(repo_root: Path, lock: isolation.RunLock, *, specs, jobs, shuffle_
     keep = not (temporary and verdict.code == 0)
     emit_report(out, plan=plan, inv=inv, results=results_list, verdict=verdict, wall=wall,
                 run_dir=run_dir if keep else None, judged=judged, identity=identity,
-                extra_summary=guard.summary_warnings())
+                extra_summary=guard.summary_warnings(), orphan_sources=res.orphan_sources)
     # Last, and never part of the verdict: the user-level history is an
     # incidental cache (5.2), so an unwritable one costs future estimates a
     # line, not this run its report or its exit code.
@@ -738,7 +790,7 @@ def run_shard(repo_root: Path, lock, *, index: int, plan_path: Path, results: Pa
         raise IncompleteResultsError(f"--run-shard {index}: the plan has shards 0..{plan['n'] - 1}")
     run_dir, _ = make_run_dir(results)
     inv = discover(repo_root)
-    res = resources_mod.load(repo_root, list(inv.host))
+    res = resources_mod.load(repo_root, list(inv.host), orphan_unit_ids=inv.unit_ids())
     write_inputs(run_dir, inv, plan)
     shard = shard_chunks(plan)[index]
     engine = Engine(repo_root, run_dir, lock=lock, plan=plan, inv=inv, resources=res,
@@ -784,13 +836,14 @@ def run_shard(repo_root: Path, lock, *, index: int, plan_path: Path, results: Pa
     extra += [("IntegrityError", m) for m in summary["integrity"]]
     if interrupted:
         extra.append(("InterruptedRunError", "the shard was interrupted"))
-    verdict = verdict_of(engine.results, judged, extra_faults=extra)
+    verdict = verdict_of(engine.results, judged, extra_faults=extra,
+                         orphan_sources=res.orphan_sources)
     for result in engine.results:
         if result.log:
             result.log = str(run_dir / result.log)
     emit_report(out, plan=plan, inv=inv, results=engine.results, verdict=verdict, wall=wall,
                 run_dir=run_dir, judged=judged, identity=summary["identity"],
-                extra_summary=guard.summary_warnings())
+                extra_summary=guard.summary_warnings(), orphan_sources=res.orphan_sources)
     return finish_verdict(verdict, err)
 
 
@@ -843,7 +896,7 @@ def aggregate(repo_root: Path, lock, *, results_root: Path, plan_path: Path, all
     plan = planner.load_plan(plan_path, repo_root)
     shards = _load_shards(results_root, plan)
     inv = discover(repo_root)
-    res = resources_mod.load(repo_root, list(inv.host))
+    res = resources_mod.load(repo_root, list(inv.host), orphan_unit_ids=inv.unit_ids())
     run_dir, _ = make_run_dir(None)
     write_inputs(run_dir, inv, plan)
     engine = Engine(repo_root, run_dir, lock=lock, plan=plan, inv=inv, resources=res,
@@ -893,7 +946,8 @@ def aggregate(repo_root: Path, lock, *, results_root: Path, plan_path: Path, all
     extra += integrity_faults(Path(repo_root), guard, engine.results)
     if interrupted:
         extra.append(("InterruptedRunError", "the aggregate was interrupted"))
-    verdict = verdict_of(results_list, judged, extra_faults=extra)
+    verdict = verdict_of(results_list, judged, extra_faults=extra,
+                         orphan_sources=res.orphan_sources)
     identity = run_identity(repo_root, plan, inv, results_list,
                             f"aggregate of {plan['n']} shard(s)")
     (run_dir / "results.json").write_text(
@@ -901,7 +955,7 @@ def aggregate(repo_root: Path, lock, *, results_root: Path, plan_path: Path, all
                            inv.frozen.classes if inv.frozen else {}, identity), encoding="utf-8")
     text = emit_report(out, plan=plan, inv=inv, results=results_list, verdict=verdict,
                        wall=wall, run_dir=run_dir, judged=judged, identity=identity,
-                       extra_summary=guard.summary_warnings())
+                       extra_summary=guard.summary_warnings(), orphan_sources=res.orphan_sources)
     summary = environ.get("GITHUB_STEP_SUMMARY")
     if summary:
         def append_summary():

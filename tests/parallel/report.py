@@ -4,13 +4,15 @@ First today's per-module lines (`ok  test_x.py   123.4s  Ran N tests  OK`,
 the seconds summed over the module's chunks, frozen chunks counted under the
 matrix module that judges them), then one block per failure or fault -- the
 unit, the failing tests, the log, the last 6000 characters of output and a
-one-line reproduction command -- then the shard summary.
+one-line reproduction command -- then the shard summary, and the leak
+check's lines (test-cleanup plan 5.4).
 """
 
 from __future__ import annotations
 
 import hashlib
 import shlex
+from collections import Counter
 
 from . import canonical_json
 from .inventory import FROZEN_PREFIX, split_frozen_unit_id, split_host_unit_id
@@ -271,4 +273,51 @@ def shard_summary(plan: dict, results, *, wall: float, drifted, extra=()) -> lis
     for warning in timing.get("warnings", []):
         lines.append(f"  timing warning: {warning}")
     lines.extend(extra)
+    return lines
+
+
+# -- the leak check (test-cleanup plan 5.4) -------------------------------------------------
+
+#: How much of one orphan's label a summary shows.
+ORPHAN_LABEL_MAX = 160
+#: How many distinct labels a summary names before it counts the rest.
+ORPHAN_LABELS_SHOWN = 8
+
+
+def orphan_summary(orphans) -> str:
+    """`<count> x <label>` per distinct label, most frequent first."""
+    counts = Counter(o["cmdline"] for o in orphans)
+    ranked = sorted(counts.items(), key=lambda item: (-item[1], item[0]))
+    shown = [f"{n} x {label[:ORPHAN_LABEL_MAX]}" for label, n in ranked[:ORPHAN_LABELS_SHOWN]]
+    if len(ranked) > ORPHAN_LABELS_SHOWN:
+        shown.append(f"... ({len(ranked)} distinct labels in all)")
+    return ", ".join(shown)
+
+
+def orphan_lines(results, orphan_sources: dict) -> list[str]:
+    """The check line, then every tolerated orphan by chunk, then each
+    declaration whose unit ran here and tolerated nothing (`unused`)."""
+    reported = [r for r in results if r.supported is not None]
+    unchecked = [r for r in reported if not r.supported]
+    if unchecked:
+        linux = [r for r in unchecked if (r.platform or "").startswith("linux")]
+        line = (f"  orphan check: unavailable on {len(linux)} Linux chunk(s) (a fault)" if linux
+                else "  orphan check: unavailable on this platform")
+    elif reported:
+        line = "  orphan check: on"
+    else:
+        line = "  orphan check: no chunk reported"
+    lines = [line]
+    tolerated = sorted(((r.chunk.id, r.orphans) for r in results
+                        if r.orphans and any(u in orphan_sources for u in r.chunk.units)),
+                       key=lambda item: item[0])
+    if tolerated:
+        lines.append(f"  tolerated orphans (declared in resources.json's orphan_sources): "
+                     f"{len(tolerated)} chunk(s)")
+        lines += [f"    {chunk}: {orphan_summary(orphans)}" for chunk, orphans in tolerated]
+    ran = {u for r in reported for u in r.chunk.units}
+    used = {u for r in results if r.orphans for u in r.chunk.units}
+    unused = sorted(u for u in orphan_sources if u in ran and u not in used)
+    if unused:
+        lines.append(f"  orphan_sources unused in this run: {', '.join(unused)}")
     return lines

@@ -1,9 +1,10 @@
 """Isolation and the repository-integrity guard (plan sections 5.7-5.9).
 
 - `run_chunk` runs one chunk in its own process, in a new session, with the
-  per-chunk environment and a private `TMPDIR`; it kills the chunk's whole
-  process group on timeout and again once the chunk has exited, and
-  classifies the outcome (a timeout or a missing record is an
+  per-chunk environment and a private `TMPDIR`, under the leak check's
+  wrapper (`reaper.py`); it kills the chunk's whole process group on timeout
+  and again once the chunk has exited, and classifies the outcome (a
+  timeout, a missing record or a missing orphan report is an
   infrastructure fault, never a pass).
 - `phase_a_order` puts every exclusive chunk into pre-phase A0, ahead of
   every shared chunk; `check_exclusive_windows` re-checks from recorded
@@ -29,6 +30,7 @@ import shutil
 import signal
 import stat
 import subprocess
+import sys
 import threading
 import time
 from dataclasses import dataclass
@@ -59,7 +61,20 @@ TIMED_OUT = "timed_out"
 MISSING_RECORD = "missing_record"
 BAD_RECORD = "bad_record"
 RECORD_MISMATCH = "record_mismatch"
-INFRASTRUCTURE_OUTCOMES = (TIMED_OUT, MISSING_RECORD, BAD_RECORD, RECORD_MISMATCH)
+BAD_ORPHAN_REPORT = "bad_orphan_report"
+INFRASTRUCTURE_OUTCOMES = (TIMED_OUT, MISSING_RECORD, BAD_RECORD, RECORD_MISMATCH,
+                           BAD_ORPHAN_REPORT)
+
+#: The leak check's wrapper (test-cleanup plan 5.4), located from this file,
+#: never from a `repo_root` argument: nested runners run from scratch
+#: checkouts, and direct callers pass any directory.
+REAPER = Path(__file__).resolve().with_name("reaper.py")
+ORPHAN_REPORT_SCHEMA_VERSION = 1
+ORPHAN_FATES = ("exited", "killed")
+
+#: Test seam only: extra wrapper arguments (`--force-unsupported REASON`,
+#: `--platform NAME`). The runner itself never sets it.
+REAPER_TEST_ARGS: tuple[str, ...] = ()
 
 
 class IsolationError(Exception):
@@ -258,15 +273,17 @@ class ChunkPaths:
     record: Path
     log: Path
     tmp: Path
+    orphans: Path
 
 
 def chunk_paths(run_dir: Path, chunk_id: str) -> ChunkPaths:
-    """Where `run_chunk` expects a chunk's record and puts its log and
-    `TMPDIR` -- all inside `run_dir`, which lives outside the checkout (5.6)."""
+    """Where `run_chunk` expects a chunk's record and orphan report and puts
+    its log and `TMPDIR` -- all inside `run_dir`, which lives outside the
+    checkout (5.6)."""
     name = _safe_name(chunk_id)
     run_dir = Path(run_dir)
     return ChunkPaths(run_dir / "records" / f"{name}.json", run_dir / "logs" / f"{name}.log",
-                      run_dir / "tmp" / name)
+                      run_dir / "tmp" / name, run_dir / "orphans" / f"{name}.json")
 
 
 # -- quiet Git: the chunk environment's layer (D-Quiet-Git-Env) ---------------------------
@@ -526,6 +543,13 @@ class ChunkRun:
     pgid: int
     tmp_residue: tuple[str, ...] = ()
     detail: str = ""
+    #: The leak check's findings: every orphan the wrapper recorded, and
+    #: whether the check ran (`None` when no report was read: a timeout, or a
+    #: report that failed its checks).
+    orphans: tuple[dict, ...] = ()
+    platform: str | None = None
+    supported: bool | None = None
+    unsupported_reason: str | None = None
 
     @property
     def infrastructure_fault(self) -> str | None:
@@ -570,23 +594,87 @@ def _classify(returncode: int, record_path: Path) -> tuple[str, dict | None, str
     return (PASSED if returncode == 0 else FAILED), record, ""
 
 
+def _orphan_report_error(doc, chunk_id: str, returncode: int) -> str | None:
+    if not isinstance(doc, dict) or set(doc) != {
+            "schema_version", "chunk_id", "platform", "supported", "unsupported_reason",
+            "chunk_status", "orphans"}:
+        return "the orphan report is not an object with exactly the schema's keys"
+    if doc["schema_version"] != ORPHAN_REPORT_SCHEMA_VERSION:
+        return f"orphan report schema_version {doc['schema_version']!r}"
+    if doc["chunk_id"] != chunk_id:
+        return f"the orphan report is for chunk {doc['chunk_id']!r}"
+    if not isinstance(doc["platform"], str) or type(doc["supported"]) is not bool:
+        return "the orphan report's platform or supported field is malformed"
+    reason = doc["unsupported_reason"]
+    if (reason is None) != doc["supported"] or (reason is not None and not isinstance(reason, str)):
+        return "the orphan report's unsupported_reason disagrees with supported"
+    status = doc["chunk_status"]
+    if type(status) is not int:
+        return f"the orphan report's chunk_status {status!r} is not an integer"
+    if status != returncode:
+        return f"the orphan report's chunk_status {status} disagrees with the wrapper's exit " \
+               f"{returncode}"
+    orphans = doc["orphans"]
+    if not isinstance(orphans, list) or (orphans and not doc["supported"]):
+        return "the orphan report's orphans field is malformed"
+    for entry in orphans:
+        if not isinstance(entry, dict) or set(entry) != {"pid", "cmdline", "fate"} \
+                or type(entry["pid"]) is not int or not isinstance(entry["cmdline"], str) \
+                or entry["fate"] not in ORPHAN_FATES:
+            return f"the orphan report has a malformed entry {entry!r}"
+    return None
+
+
+def read_orphan_report(path: Path, chunk_id: str, returncode: int) -> tuple[dict | None, str]:
+    """`(report, "")` for a report that exists, parses, carries `chunk_id`
+    and the wrapper's own exit as the chunk's status; else `(None, why)`.
+    Never read as "no orphans"."""
+    if not path.exists():
+        return None, f"no orphan report (wrapper exit {returncode}) at {path}"
+    try:
+        doc = strict_json_loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        return None, f"unreadable orphan report {path}: {exc}"
+    error = _orphan_report_error(doc, chunk_id, returncode)
+    if error:
+        return None, f"{error} ({path})"
+    return doc, ""
+
+
+def reaper_argv(argv, *, report: Path, chunk_id: str, pass_fds=()) -> list[str]:
+    """`argv` under the leak check's wrapper (5.4)."""
+    wrapper = [sys.executable, "-I", "-S", "-B", str(REAPER), "--report", str(report),
+               "--chunk-id", chunk_id]
+    for fd in pass_fds:
+        wrapper += ["--pass-fd", str(fd)]
+    return wrapper + list(REAPER_TEST_ARGS) + ["--", *(str(a) for a in argv)]
+
+
 def run_chunk(repo_root: Path, chunk_id: str, argv, *, run_dir: Path, timeout: float,
               cwd: Path | None = None, extra_env: dict | None = None,
-              lock: RunLock | None = None, git_template: Path | None = None) -> ChunkRun:
-    """Run one chunk in its own process and session.
+              lock: RunLock | None = None, git_template: Path | None = None,
+              interrupted: threading.Event | None = None) -> ChunkRun:
+    """Run one chunk in its own process and session, under the leak check's
+    wrapper (`reaper.py`, test-cleanup plan 5.4).
 
     `argv` must make the chunk write its record to
     `chunk_paths(run_dir, chunk_id).record`. The chunk's stdout and stderr go
-    to its log. With `lock`, the lock fd is passed to the chunk process and its
-    process group is recorded in the lock file while it runs. On timeout the
-    whole group is killed (`timed_out`); once the chunk process has exited, for
-    any reason, its group is killed again so no descendant outlives it. The
-    private `TMPDIR` is emptied afterwards and what was in it is reported.
+    to its log. The wrapper leads the chunk's session and group, adopts and
+    reaps every orphan the chunk leaves, and writes the orphan report. With
+    `lock`, the lock fd is passed through the wrapper to the chunk process and
+    the group is recorded in the lock file while it runs. On timeout the whole
+    group is killed (`timed_out`); once the wrapper has exited, for any
+    reason, the group is killed again so no descendant outlives it. After an
+    ordinary exit a missing or failing orphan report is `bad_orphan_report`;
+    once `interrupted` is set (the executor's interrupt kills the group from
+    outside), the report is not read, as on timeout.
+    The private `TMPDIR` is emptied afterwards and what was in it is reported.
     `git_template` is the run's Git template (`chunk_env`)."""
     paths = chunk_paths(run_dir, chunk_id)
-    for directory in (paths.record.parent, paths.log.parent):
+    for directory in (paths.record.parent, paths.log.parent, paths.orphans.parent):
         directory.mkdir(parents=True, exist_ok=True)
     paths.record.unlink(missing_ok=True)
+    paths.orphans.unlink(missing_ok=True)
     if paths.tmp.exists():
         clean_tmpdir(paths.tmp)
     paths.tmp.mkdir(parents=True)
@@ -602,7 +690,9 @@ def run_chunk(repo_root: Path, chunk_id: str, argv, *, run_dir: Path, timeout: f
     # once the chunk exists -- before its group is registered, too -- still
     # reaches the `finally` that kills that group.
     try:
-        proc = subprocess.Popen([str(a) for a in argv], cwd=str(cwd or repo_root), env=env,
+        proc = subprocess.Popen(reaper_argv(argv, report=paths.orphans, chunk_id=chunk_id,
+                                            pass_fds=pass_fds),
+                                cwd=str(cwd or repo_root), env=env,
                                 stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT,
                                 start_new_session=True, pass_fds=pass_fds)
         log.close()
@@ -627,12 +717,20 @@ def run_chunk(repo_root: Path, chunk_id: str, argv, *, run_dir: Path, timeout: f
     pgid = proc.pid
 
     residue = clean_tmpdir(paths.tmp)
+    report = None
     if timed_out:
         outcome, record, detail = TIMED_OUT, None, f"killed after {timeout:g}s"
     else:
         outcome, record, detail = _classify(returncode, paths.record)
+        if interrupted is None or not interrupted.is_set():
+            report, why = read_orphan_report(paths.orphans, chunk_id, returncode)
+            if report is None:
+                outcome, detail = BAD_ORPHAN_REPORT, why
+    check = {} if report is None else {
+        "orphans": tuple(report["orphans"]), "platform": report["platform"],
+        "supported": report["supported"], "unsupported_reason": report["unsupported_reason"]}
     return ChunkRun(chunk_id, outcome, returncode, record, paths.log, started_at, ended_at,
-                    pgid, residue, detail)
+                    pgid, residue, detail, **check)
 
 
 # -- serialization of exclusive chunks (5.8) ---------------------------------------------
