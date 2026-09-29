@@ -12,9 +12,11 @@ plan: `docs/ai-workflow/WORKFLOW_MANAGER_TEST_CLEANUP_PLAN.md`.
 
 ## Current checkpoint
 
-`AWAITING_FUNCTIONAL_REVIEW` (implementation revision 3, technical
-approval `0263fa9`). CP1-CP3 are complete, both implementation-review
-stages approved, and the full gate at the final code (`d6efce4`) is green.
+`AWAITING_LOCAL_IMPLEMENTATION_REVIEW` (implementation revision 5,
+post-fix). CP1-CP3 are complete. The functional review's F1 was fixed in
+`944920a`; revision 4's local review returned `REVISE` with one test-only
+finding (I1), fixed in `906e884`, and the full gate at `9ba3b4d` is
+green. Technical approval `0263fa9` is `STALE`.
 
 ## Current blockers
 
@@ -27,10 +29,9 @@ None.
 
 ## Next action
 
-The user's functional review: the "Functional review checklist" below.
-Findings go to
-`.ai-review/workflow-manager-test-cleanup/feedback/FUNCTIONAL_REVIEW.md`
-(`/apply-functional-review`); a clean review goes to `/accept-milestone`.
+Both implementation-review stages for revision 5 (`/review-implementation`,
+then the manual external stage), then `/approve-review implementation`
+and the functional review again.
 
 ## Checkpoint log
 
@@ -338,6 +339,33 @@ launched through the tool keep SIGINT's default.
 - The whole-run outer-probe measurement (0 orphans reaching it) is CP3's,
   at `2c0a926` plus CP3's docs. Nothing in the code or tests changed since,
   so it was not repeated.
+
+### Implementation review round 4 (`LOCAL_MODEL_IMPLEMENTATION_REVIEW`, `REVISE`)
+
+Revision 4 (the functional-review fix F1, `944920a`) was reviewed
+locally. F1 was judged correct. The one finding was test-only:
+
+- **I1, important:**
+  `TestReaperDirect::test_an_orphan_whose_cmdline_reads_empty_is_labelled_by_its_comm`
+  had a race like F1's. The middle process exited while the daemon was
+  still alive, so the wrapper could see it alive and label it by its
+  inherited command line rather than `[python3]`. It failed once in the
+  review's runner rerun. Fixed in `906e884`: in `zombie` mode the middle
+  process waits, without reaping, until the daemon is a zombie, and only
+  then exits. The test's daemon now sleeps 0.2 s before it exits, so the
+  old ordering fails every time (negative control: 5 of 5 failures with
+  the wait removed). Loop: 200 runs under 16 CPU-bound load processes, 0
+  failures.
+- **O-a, applied** (`9ba3b4d`): `is_git_label` applies the `git`/`git-*`
+  rule to a bracketed `[<comm>]` too (`[git-remote-htt]` is Git,
+  `[gitk-like]` is not).
+- **O-b, applied:** the bundle now names `676a164` as F1's gate commit.
+- **The full gate** at `9ba3b4d`: `evidence: full selection, local, 8
+  worker(s), head 9ba3b4d6e47e10bef3f11de2ce565036bc43f4b7, 4102/4102
+  units, 25687 tests, selection_digest 43d1394e..., tests_digest
+  2ac5212b..., tree_digest 8c066271...`, `verdict: exit 0`, 389.2 s wall.
+  `orphan check: on`, only the 20 declared `orphan_sources` chunks
+  tolerated, no Git orphan.
 
 ## Functional review checklist
 
