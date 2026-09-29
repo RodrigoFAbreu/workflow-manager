@@ -484,6 +484,40 @@ fails once a completed item's commits are unreachable.
 - The run was under this lane's Controller, with the one-step workaround.
   Afterwards the Controller held 49 zombies.
 
+### Implementation review round 1 and its application (`APPLYING_REVIEW_FEEDBACK`)
+
+- `LOCAL_MODEL_IMPLEMENTATION_REVIEW` round 1: `APPROVE`. The
+  `MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW` round 1: `REVISE`, for bundle
+  `7841f8e3...`, with no blocking finding and one important finding.
+  `b9e0e0f` commits that review's phase write alone.
+- **I1, accepted and fixed in `ed39920`.** M2's documented removal broke
+  the runner. Reproduced: `report.py` imported `NEWEST_RELEASE_KIND`
+  outside a marked block, and `cli.py`'s `ALLOWED`/`_DEFAULTS` named
+  `newest_release_only` unmarked. Every dependent reference now sits in a
+  marked block, including the help text and the comments naming the
+  selection kind, so `tests/parallel/planner.py` joins the marked-file
+  list. `TestTheRemovalRecordIsComplete` carries the removal out on a
+  scratch checkout. No file under `tests/parallel/` may still name a
+  stopgap identifier, and `--help`, `--list`, `--plan-only` and a real run
+  must succeed. It failed before the fix, naming the leftovers in
+  `cli.py`, `inventory.py`, `planner.py` and `report.py`.
+- **Optional, applied.** The reference scan now also covers
+  `newest-release`, `NEWEST_RELEASE` and `nightly-red`.
+- **Optional, not applied (apparatus).** CP1-CP7 each cited targeted runs
+  only. That is recorded above and cannot be repaired after the fact. The
+  full gates at `cbbbffa` and `ed39920` cover the final code.
+- **The full gate at the fix:** `python3 tests/run_all.py` at `ed39920`
+  (388 s wall, 8 workers):
+  - `evidence: full selection, local, 8 worker(s), head ed39920907a494eb2e63d39ffe2607d19327e0b1,
+    4088/4088 units, 25624 tests, selection_digest
+    f34791a5163c3e3093ba2f3259d8814bacafe7139831397a8c63df03aed01d34,
+    tests_digest 35bbf0a847683b7d550fe41f26021509e3dab0b7e9323aa9adced0c10cc9a09e,
+    tree_digest 64a850b3ea1d64f1e98f24946c576b7ca974ff2e48a19efab4e69f70e9cb450f`,
+    `verdict: exit 0`;
+  - the only non-zero frozen chunks were the same four documented
+    `2.3.1`/`2.4.0` `workflow_integration_test.py` portability exceptions;
+  - the two more units are the two new host classes.
+
 ## Previous milestone
 
 **Complete.** `workflow-manager-adaptive-test-sharding`
