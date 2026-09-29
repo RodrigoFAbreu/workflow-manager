@@ -191,6 +191,9 @@ class Engine:
         self.total = 0
         for directory in (FROZEN_RECORDS, MERGE_CONTEXT, "specs"):
             (self.run_dir / directory).mkdir(parents=True, exist_ok=True)
+        # Once per run, before any chunk: every repository a chunk creates
+        # starts with Git's automatic maintenance off (D-Quiet-Git-Env).
+        self.git_template = isolation.build_git_template(self.run_dir)
 
     # -- one chunk --------------------------------------------------------------------
 
@@ -218,7 +221,7 @@ class Engine:
         run = isolation.run_chunk(self.repo_root, chunk.id, self._argv(chunk, record, timeout),
                                   run_dir=self.run_dir, timeout=timeout,
                                   cwd=self.repo_root / "tests", extra_env=extra_env,
-                                  lock=self.lock)
+                                  lock=self.lock, git_template=self.git_template)
         result = ChunkResult(chunk, phase, shard, _kind(chunk), run.outcome, run.started_at,
                              run.ended_at, run.returncode, run.record, str(run.log_path),
                              run.detail, run.tmp_residue)
@@ -315,7 +318,7 @@ class Engine:
              "--records", str(self.run_dir / FROZEN_RECORDS),
              "--contexts", str(self.run_dir / MERGE_CONTEXT)],
             cwd=str(self.repo_root / "tests"), capture_output=True, text=True,
-            env=isolation.chunk_env(self.run_dir / "tmp"))
+            env=isolation.chunk_env(self.run_dir / "tmp", git_template=self.git_template))
         if proc.returncode == 0:
             return []
         if proc.returncode == MERGE_REFUSED:
@@ -609,6 +612,7 @@ def local_run(repo_root: Path, lock: isolation.RunLock, *, specs, jobs, shuffle_
     """Steps 1-7 of 5.9 for one selection on this machine."""
     environ = os.environ if environ is None else environ
     refuse_root(allow_root)
+    isolation.check_git_env()
     guard = Guard(Path(repo_root), lock, allow_root)
     guard.snapshot()
     started = time.monotonic()
@@ -725,6 +729,7 @@ def run_shard(repo_root: Path, lock, *, index: int, plan_path: Path, results: Pa
     """One CI shard: the plan's shard `index`, exclusive chunks first, under the
     lock, the snapshot and the barrier (5.9 "Guards per mode", 5.10)."""
     refuse_root(allow_root)
+    isolation.check_git_env()
     guard = Guard(Path(repo_root), lock, allow_root)
     guard.snapshot()
     started = time.monotonic()
@@ -831,6 +836,7 @@ def aggregate(repo_root: Path, lock, *, results_root: Path, plan_path: Path, all
     build the merge contexts from the plan, run phase B, report (5.10)."""
     environ = os.environ if environ is None else environ
     refuse_root(allow_root)
+    isolation.check_git_env()
     guard = Guard(Path(repo_root), lock, allow_root)
     guard.snapshot()
     started = time.monotonic()

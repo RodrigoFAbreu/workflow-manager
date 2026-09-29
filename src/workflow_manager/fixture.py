@@ -58,12 +58,35 @@ def _git(repo: Path, *args: str) -> str:
     ).stdout
 
 
+#: Git's automatic maintenance, off in every throwaway repository a test
+#: creates (`D-Quiet-Git`): no `git maintenance run --auto` and no `git gc
+#: --auto` after a commit, and the two `autoDetach` keys keep any run that
+#: still happens in the foreground, so nothing a test starts is orphaned.
+#: The one definition: `tests/parallel/isolation.py` reads this literal from
+#: this file's source (the executor process never imports this package).
+THROWAWAY_GIT_CONFIG = {
+    "maintenance.auto": "false",
+    "gc.auto": "0",
+    "maintenance.autoDetach": "false",
+    "gc.autoDetach": "false",
+}
+
+
+def configure_throwaway_repo(root: Path) -> None:
+    """Write `THROWAWAY_GIT_CONFIG` into `root`'s local config -- the
+    per-repository layer, for a repository made outside `init_git_repo` (a
+    `git clone`, which does not inherit its source's config)."""
+    for key, value in THROWAWAY_GIT_CONFIG.items():
+        _git(root, "config", key, value)
+
+
 def init_git_repo(root: Path) -> None:
     root.mkdir(parents=True, exist_ok=True)
     _git(root, "init", "-q", "-b", "main")
     _git(root, "config", "user.email", "fixture@example.invalid")
     _git(root, "config", "user.name", "Workflow Fixture")
     _git(root, "config", "commit.gpgsign", "false")
+    configure_throwaway_repo(root)
 
 
 def write_artifact(release: Release, artifact, dest_root: Path) -> Path:

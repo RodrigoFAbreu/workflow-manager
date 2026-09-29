@@ -53,6 +53,7 @@ from pathlib import Path
 from support import REPO_ROOT
 
 sys.path.insert(0, str(REPO_ROOT / "src"))
+from workflow_manager.fixture import init_git_repo
 from workflow_manager.install import bootstrap, update
 from workflow_manager.release import find_release
 
@@ -74,8 +75,7 @@ import workflow_state_test as wst  # noqa: E402  (assert_declaration_coverage li
 
 
 def _empty_repo(root: Path) -> Path:
-    root.mkdir(parents=True, exist_ok=True)
-    subprocess.run(["git", "init", "-q", "-b", "main"], cwd=root, check=True)
+    init_git_repo(root)
     subprocess.run(["git", "config", "user.email", "cp12@example.invalid"], cwd=root, check=True)
     subprocess.run(["git", "config", "user.name", "CP12"], cwd=root, check=True)
     subprocess.run(["git", "config", "commit.gpgsign", "false"], cwd=root, check=True)

@@ -61,7 +61,7 @@ import test_bootstrap_e2e as bootstrap_e2e
 import test_conformance_suite as conformance_suite
 from parallel import (canonical_json, cli, executor, inventory, isolation, matrix, plan_schema,
                       planner, report, resources, timings, tree, unit)
-from workflow_manager.fixture import build_conformance_repo
+from workflow_manager.fixture import build_conformance_repo, configure_throwaway_repo, init_git_repo
 from workflow_manager.release import find_release
 
 TESTS_DIR = REPO_ROOT / "tests"
@@ -74,7 +74,7 @@ def _git(repo: Path, *args: str) -> str:
 
 
 def _git_repo(root: Path) -> Path:
-    _git(root, "init", "-q", "-b", "main")
+    init_git_repo(root)
     _git(root, "config", "user.email", "t@example.invalid")
     _git(root, "config", "user.name", "t")
     return root
@@ -2645,6 +2645,7 @@ def scratch_clone(scratch: Path) -> Path:
     path = scratch.parent / f"{scratch.name}-clone{index}"
     subprocess.run(["git", "clone", "-q", str(scratch), str(path)], check=True,
                    capture_output=True)
+    configure_throwaway_repo(path)
     return path
 
 
@@ -2771,10 +2772,11 @@ class TestScratchCheckout(_ScratchCase):
 
 class TestRunChunk(_ScratchCase):
 
-    def run_script(self, chunk_id, code, *args, timeout=60, extra_env=None):
+    def run_script(self, chunk_id, code, *args, timeout=60, extra_env=None, git_template=None):
         record = isolation.chunk_paths(self.run_dir, chunk_id).record
         return isolation.run_chunk(self.tmp, chunk_id, _script_argv(code, record, *args),
-                                   run_dir=self.run_dir, timeout=timeout, extra_env=extra_env)
+                                   run_dir=self.run_dir, timeout=timeout, extra_env=extra_env,
+                                   git_template=git_template)
 
     def test_a_timeout_kills_the_whole_process_group(self):
         pid_file = self.tmp / "grandchild.pid"
@@ -2896,23 +2898,37 @@ class TestRunChunk(_ScratchCase):
         self.assertFalse(isolation.chunk_paths(self.run_dir, "litterer").tmp.exists())
 
     def test_the_chunk_environment_and_session(self):
-        with mock.patch.dict(os.environ, {"PYTHONPATH": "/nowhere", "FORCE_COLOR": "1"}):
-            run = self.run_script("env", """
-                import json, os, sys
-                env = {k: os.environ.get(k) for k in
-                       ("PYTHONPATH", "FORCE_COLOR", "PYTHONDONTWRITEBYTECODE", "PYTHON_COLORS",
-                        "TMPDIR", "WM_EXTRA")}
-                env["own_session"] = os.getsid(0) == os.getpid() == os.getpgid(0)
-                open(sys.argv[1], "w").write(json.dumps({"passed": True, "env": env}))
-            """, extra_env={"WM_EXTRA": "1"})
-        env = run.record["env"]
-        self.assertIsNone(env["PYTHONPATH"])
-        self.assertIsNone(env["FORCE_COLOR"])
-        self.assertEqual((env["PYTHONDONTWRITEBYTECODE"], env["PYTHON_COLORS"], env["WM_EXTRA"]),
-                         ("1", "0", "1"))
-        self.assertEqual(env["TMPDIR"], str(isolation.chunk_paths(self.run_dir, "env").tmp))
-        self.assertTrue(env["own_session"])
-        self.assertLessEqual(run.started_at, run.ended_at)
+        template = self.tmp / "git-template"
+        for git_template in (None, template):
+            with self.subTest(git_template=git_template), \
+                    mock.patch.dict(os.environ, {"PYTHONPATH": "/nowhere", "FORCE_COLOR": "1",
+                                                 "GIT_TEMPLATE_DIR": "/elsewhere"}):
+                run = self.run_script("env", """
+                    import json, os, sys
+                    env = {k: os.environ.get(k) for k in
+                           ("PYTHONPATH", "FORCE_COLOR", "PYTHONDONTWRITEBYTECODE",
+                            "PYTHON_COLORS", "TMPDIR", "WM_EXTRA", "GIT_TEMPLATE_DIR")}
+                    env["own_session"] = os.getsid(0) == os.getpid() == os.getpgid(0)
+                    last = {}
+                    for i in range(int(os.environ.get("GIT_CONFIG_COUNT", "0"))):
+                        last[os.environ[f"GIT_CONFIG_KEY_{i}"].lower()] = \
+                            os.environ[f"GIT_CONFIG_VALUE_{i}"]
+                    env["git_config"] = last
+                    open(sys.argv[1], "w").write(json.dumps({"passed": True, "env": env}))
+                """, extra_env={"WM_EXTRA": "1"}, git_template=git_template)
+                env = run.record["env"]
+                self.assertIsNone(env["PYTHONPATH"])
+                self.assertIsNone(env["FORCE_COLOR"])
+                self.assertEqual((env["PYTHONDONTWRITEBYTECODE"], env["PYTHON_COLORS"],
+                                  env["WM_EXTRA"]), ("1", "0", "1"))
+                self.assertEqual(env["TMPDIR"],
+                                 str(isolation.chunk_paths(self.run_dir, "env").tmp))
+                self.assertEqual(env["GIT_TEMPLATE_DIR"],
+                                 None if git_template is None else str(git_template))
+                for key, value in isolation.THROWAWAY_GIT_CONFIG.items():
+                    self.assertEqual(env["git_config"].get(key.lower()), value, key)
+                self.assertTrue(env["own_session"])
+                self.assertLessEqual(run.started_at, run.ended_at)
 
     def test_the_timeout_formula(self):
         self.assertEqual(isolation.chunk_timeout(0), 600)

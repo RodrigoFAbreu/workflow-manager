@@ -269,9 +269,202 @@ def chunk_paths(run_dir: Path, chunk_id: str) -> ChunkPaths:
                       run_dir / "tmp" / name)
 
 
-def chunk_env(tmpdir: Path, extra: dict | None = None, base: dict | None = None) -> dict:
+# -- quiet Git: the chunk environment's layer (D-Quiet-Git-Env) ---------------------------
+
+#: `src/workflow_manager/fixture.py`, located from this file, never from a
+#: `repo_root` argument: its `THROWAWAY_GIT_CONFIG` literal is the one
+#: definition of the settings, read as data because the executor process never
+#: imports `workflow_manager` (frozen_chunk.py's docstring).
+FIXTURE_SOURCE = Path(__file__).resolve().parents[2] / "src" / "workflow_manager" / "fixture.py"
+
+#: Where the executor builds the run's Git template, under its run directory.
+GIT_TEMPLATE_DIR_NAME = "git-template"
+
+#: What Git's own default template is read without: a user or system
+#: `init.templateDir`, and any inherited config entries (an operator's
+#: `-c init.templateDir=...` reaches a child through these).
+_TEMPLATE_BUILD_DROPPED = ("GIT_TEMPLATE_DIR", "GIT_CONFIG_PARAMETERS", "GIT_CONFIG_COUNT")
+
+
+class GitConfigEnvError(IsolationError):
+    """The inherited environment's Git config entries cannot be extended
+    safely: a malformed `GIT_CONFIG_COUNT` series, or a
+    `GIT_CONFIG_PARAMETERS` that sets one of the quiet keys (it outranks
+    every `GIT_CONFIG_COUNT` entry) or cannot be parsed."""
+
+
+def _load_throwaway_git_config() -> dict[str, str]:
+    tree = ast.parse(FIXTURE_SOURCE.read_text(encoding="utf-8"), filename=str(FIXTURE_SOURCE))
+    for node in tree.body:
+        target = node.target if isinstance(node, ast.AnnAssign) else (
+            node.targets[0] if isinstance(node, ast.Assign) and len(node.targets) == 1 else None)
+        if isinstance(target, ast.Name) and target.id == "THROWAWAY_GIT_CONFIG":
+            value = ast.literal_eval(node.value)
+            if (isinstance(value, dict) and value
+                    and all(isinstance(k, str) and isinstance(v, str) for k, v in value.items())):
+                return dict(value)
+            break
+    raise IsolationError(f"{FIXTURE_SOURCE}: no THROWAWAY_GIT_CONFIG string mapping")
+
+
+THROWAWAY_GIT_CONFIG = _load_throwaway_git_config()
+
+
+def _sq_token(text: str, i: int) -> tuple[str, int]:
+    """One `sq_quote`d token of `GIT_CONFIG_PARAMETERS` starting at `text[i]`:
+    `'...'`, where `'\\''` and `'\\!'` continue it with a literal `'` or `!`."""
+    if i >= len(text) or text[i] != "'":
+        raise ValueError(f"expected a quote at offset {i}")
+    out = []
+    i += 1
+    while True:
+        end = text.find("'", i)
+        if end < 0:
+            raise ValueError("unterminated quote")
+        out.append(text[i:end])
+        i = end + 1
+        if text[i:i + 1] == "\\" and text[i + 1:i + 2] in ("'", "!") and text[i + 2:i + 3] == "'":
+            out.append(text[i + 1])
+            i += 3
+            continue
+        return "".join(out), i
+
+
+def parse_git_config_parameters(text: str) -> list[tuple[str, str | None]]:
+    """`GIT_CONFIG_PARAMETERS` as Git writes it (`git -c`): space-separated
+    entries, each `'key'='value'`, `'key'=` (no value) or the older
+    `'key=value'`. Raises `ValueError` on anything else."""
+    entries = []
+    i = 0
+    while i < len(text):
+        if text[i].isspace():
+            i += 1
+            continue
+        token, i = _sq_token(text, i)
+        if text[i:i + 1] == "=":
+            i += 1
+            if text[i:i + 1] == "'":
+                value, i = _sq_token(text, i)
+                entries.append((token, value))
+            else:
+                entries.append((token, None))
+        else:
+            key, sep, value = token.partition("=")
+            entries.append((key, value if sep else None))
+        if i < len(text) and not text[i].isspace():
+            raise ValueError(f"unexpected {text[i]!r} at offset {i}")
+    return entries
+
+
+def _git_config_count(env: dict) -> int:
+    raw = env.get("GIT_CONFIG_COUNT")
+    if raw is None:
+        return 0
+    if not (raw.isascii() and raw.isdigit()):
+        raise GitConfigEnvError(
+            f"GIT_CONFIG_COUNT={raw!r} is not a non-negative integer; Git would refuse "
+            "every command under it")
+    count = int(raw)
+    for index in range(count):
+        for name in (f"GIT_CONFIG_KEY_{index}", f"GIT_CONFIG_VALUE_{index}"):
+            if name not in env:
+                raise GitConfigEnvError(
+                    f"GIT_CONFIG_COUNT={count} but {name} is not set; Git would refuse "
+                    "every command under it")
+    return count
+
+
+def quiet_git_config(env: dict) -> dict:
+    """Append `THROWAWAY_GIT_CONFIG` to `env`'s `GIT_CONFIG_COUNT` series, in
+    place, and return `env` (plan 5.2).
+
+    The parent's entries are kept and ours are numbered after them. A key is
+    appended unless the *last* inherited value for it (matched
+    case-insensitively, as Git does) is already ours, as the same string --
+    Git uses a single-valued key's last value -- so a nested call appends
+    nothing. A `GIT_CONFIG_PARAMETERS` that sets one of the keys would
+    outrank anything appended here, so it is refused, as is one that cannot
+    be parsed or a malformed `GIT_CONFIG_COUNT` series (`GitConfigEnvError`)."""
+    wanted = {key.lower() for key in THROWAWAY_GIT_CONFIG}
+    parameters = env.get("GIT_CONFIG_PARAMETERS")
+    if parameters is not None:
+        try:
+            entries = parse_git_config_parameters(parameters)
+        except ValueError as exc:
+            raise GitConfigEnvError(
+                f"GIT_CONFIG_PARAMETERS cannot be parsed ({exc}): {parameters!r}") from None
+        clashes = sorted({key for key, _ in entries if key.lower() in wanted})
+        if clashes:
+            raise GitConfigEnvError(
+                f"GIT_CONFIG_PARAMETERS sets {', '.join(clashes)}, which outranks the "
+                "runner's quiet-Git settings; unset it (or drop those keys) and re-run")
+    count = _git_config_count(env)
+    last: dict[str, str] = {}
+    for index in range(count):
+        last[env[f"GIT_CONFIG_KEY_{index}"].lower()] = env[f"GIT_CONFIG_VALUE_{index}"]
+    for key, value in THROWAWAY_GIT_CONFIG.items():
+        if last.get(key.lower()) == value:
+            continue
+        env[f"GIT_CONFIG_KEY_{count}"] = key
+        env[f"GIT_CONFIG_VALUE_{count}"] = value
+        count += 1
+    if count or "GIT_CONFIG_COUNT" in env:
+        env["GIT_CONFIG_COUNT"] = str(count)
+    return env
+
+
+def check_git_env(environ: dict | None = None) -> None:
+    """Refuse (`GitConfigEnvError`) an inherited environment `chunk_env` could
+    not extend -- called by every mode that runs chunks, before any starts."""
+    quiet_git_config(dict(os.environ if environ is None else environ))
+
+
+def build_git_template(run_dir: Path) -> Path:
+    """`<run_dir>/git-template/`: Git's own default template plus a `config`
+    holding `THROWAWAY_GIT_CONFIG`, which Git copies into every repository
+    `git init` or `git clone` creates (plan 5.2). Built once per run, before
+    any chunk starts; returns its path."""
+    run_dir = Path(run_dir)
+    template = run_dir / GIT_TEMPLATE_DIR_NAME
+    scratch = run_dir / "git-template-scratch"
+    for path in (template, scratch):
+        if path.exists():
+            shutil.rmtree(path)
+    env = {name: value for name, value in os.environ.items()
+           if name not in _TEMPLATE_BUILD_DROPPED
+           and not name.startswith(("GIT_CONFIG_KEY_", "GIT_CONFIG_VALUE_"))}
+    env["GIT_CONFIG_GLOBAL"] = "/dev/null"
+    env["GIT_CONFIG_NOSYSTEM"] = "1"
+    env.pop("GIT_CONFIG_SYSTEM", None)
+    try:
+        subprocess.run(["git", "init", "-q", str(scratch)], check=True, capture_output=True,
+                       env=env)
+        template.mkdir(parents=True)
+        for entry in sorted((scratch / ".git").iterdir()):
+            if entry.name in ("HEAD", "config", "objects", "refs"):
+                continue
+            if entry.is_dir() and not entry.is_symlink():
+                shutil.copytree(entry, template / entry.name, symlinks=True)
+            else:
+                shutil.copy2(entry, template / entry.name, follow_symlinks=False)
+        for key, value in THROWAWAY_GIT_CONFIG.items():
+            subprocess.run(["git", "config", "--file", str(template / "config"), key, value],
+                           check=True, capture_output=True, env=env)
+    finally:
+        if scratch.exists():
+            shutil.rmtree(scratch)
+    return template
+
+
+def chunk_env(tmpdir: Path, extra: dict | None = None, base: dict | None = None, *,
+              git_template: Path | None = None) -> dict:
     """Today's environment minus `PYTHONPATH`/`FORCE_COLOR`, plus bytecode and
-    colour off and the chunk's private `TMPDIR` (5.7)."""
+    colour off and the chunk's private `TMPDIR` (5.7), plus quiet Git (5.2 of
+    the test-cleanup plan): `THROWAWAY_GIT_CONFIG` appended to the
+    `GIT_CONFIG_*` series, and `GIT_TEMPLATE_DIR` set to `git_template` --
+    or, when none is given, removed, so an inherited template never reaches
+    a chunk. Raises `GitConfigEnvError` on an inherited series it cannot
+    extend."""
     env = dict(os.environ if base is None else base)
     env.pop("PYTHONPATH", None)
     env.pop("FORCE_COLOR", None)
@@ -279,7 +472,11 @@ def chunk_env(tmpdir: Path, extra: dict | None = None, base: dict | None = None)
     env["PYTHON_COLORS"] = "0"
     env["TMPDIR"] = str(tmpdir)
     env.update(extra or {})
-    return env
+    if git_template is None:
+        env.pop("GIT_TEMPLATE_DIR", None)
+    else:
+        env["GIT_TEMPLATE_DIR"] = str(git_template)
+    return quiet_git_config(env)
 
 
 def _make_removable(root: Path) -> None:
@@ -375,7 +572,7 @@ def _classify(returncode: int, record_path: Path) -> tuple[str, dict | None, str
 
 def run_chunk(repo_root: Path, chunk_id: str, argv, *, run_dir: Path, timeout: float,
               cwd: Path | None = None, extra_env: dict | None = None,
-              lock: RunLock | None = None) -> ChunkRun:
+              lock: RunLock | None = None, git_template: Path | None = None) -> ChunkRun:
     """Run one chunk in its own process and session.
 
     `argv` must make the chunk write its record to
@@ -384,7 +581,8 @@ def run_chunk(repo_root: Path, chunk_id: str, argv, *, run_dir: Path, timeout: f
     process group is recorded in the lock file while it runs. On timeout the
     whole group is killed (`timed_out`); once the chunk process has exited, for
     any reason, its group is killed again so no descendant outlives it. The
-    private `TMPDIR` is emptied afterwards and what was in it is reported."""
+    private `TMPDIR` is emptied afterwards and what was in it is reported.
+    `git_template` is the run's Git template (`chunk_env`)."""
     paths = chunk_paths(run_dir, chunk_id)
     for directory in (paths.record.parent, paths.log.parent):
         directory.mkdir(parents=True, exist_ok=True)
@@ -392,7 +590,7 @@ def run_chunk(repo_root: Path, chunk_id: str, argv, *, run_dir: Path, timeout: f
     if paths.tmp.exists():
         clean_tmpdir(paths.tmp)
     paths.tmp.mkdir(parents=True)
-    env = chunk_env(paths.tmp, extra_env)
+    env = chunk_env(paths.tmp, extra_env, git_template=git_template)
     pass_fds = (lock.fd,) if lock is not None else ()
 
     timed_out = False

@@ -21,6 +21,8 @@ from pathlib import Path
 
 from support import REPO_ROOT
 
+from workflow_manager.fixture import init_git_repo
+
 RELEASE_PY = REPO_ROOT / "tools" / "release" / "release.py"
 
 
@@ -53,7 +55,7 @@ class _Repo(unittest.TestCase):
         self.addCleanup(self._tmp.cleanup)
         self.repo = Path(self._tmp.name) / "repo"
         self.repo.mkdir()
-        _git(self.repo, "init", "-q", "-b", "main")
+        init_git_repo(self.repo)
         _git(self.repo, "config", "user.email", "t@example.invalid")
         _git(self.repo, "config", "user.name", "t")
         _git(self.repo, "config", "commit.gpgsign", "false")

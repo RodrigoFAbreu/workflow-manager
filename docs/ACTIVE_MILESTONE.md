@@ -2,6 +2,120 @@
 
 ## Milestone
 
+`workflow-manager-test-cleanup` (M1b; `governing_workflow_version: "2.2"`,
+`process`, plan revision 5 approved in `5446584` on basis
+`EXTERNAL_APPROVE`, base `7dabd2e`, branch
+`milestone/workflow-manager-test-cleanup`): this repository's tests stop
+orphaning Git's detached background maintenance at the source, and the
+runner fails any run whose tests leave orphaned processes behind. Full
+plan: `docs/ai-workflow/WORKFLOW_MANAGER_TEST_CLEANUP_PLAN.md`.
+
+## Current checkpoint
+
+CP1 is complete. CP2 (the leak check) is next.
+
+## Current blockers
+
+None.
+
+## Active plan
+
+`docs/ai-workflow/WORKFLOW_MANAGER_TEST_CLEANUP_PLAN.md`, revision 5
+(CP1-CP3).
+
+## Next action
+
+`/milestone-implement workflow-manager-test-cleanup` for CP2.
+
+## Checkpoint log
+
+### CP1 -- Git maintenance off at the source (complete)
+
+- **`D-Quiet-Git`** (`src/workflow_manager/fixture.py`):
+  `THROWAWAY_GIT_CONFIG` (`maintenance.auto=false`, `gc.auto=0`,
+  `maintenance.autoDetach=false`, `gc.autoDetach=false`), plus
+  `configure_throwaway_repo(root)`, which writes them into a repository's
+  local config. `init_git_repo` calls it.
+- **`D-Quiet-Git-Env`** (`tests/parallel/isolation.py`): `chunk_env`
+  appends the four pairs to the `GIT_CONFIG_COUNT` series
+  (`quiet_git_config`). It keeps the parent's entries, decides by each
+  key's last inherited value (case-insensitive), and is idempotent when
+  nested. It refuses (`GitConfigEnvError`, a tagged exit 2) a malformed
+  series, and a `GIT_CONFIG_PARAMETERS` that sets one of the keys or cannot
+  be parsed. The parser reads Git's own `-c` encoding, checked against Git
+  2.55.0's output. `chunk_env`/`run_chunk` take an optional
+  `git_template`: `GIT_TEMPLATE_DIR` is set to it, or removed when it is
+  omitted. `build_git_template(run_dir)` builds `<run_dir>/git-template/`
+  from Git's default template (read with the user and system config off and
+  every inherited `GIT_TEMPLATE_DIR`/`GIT_CONFIG_*`/`GIT_CONFIG_PARAMETERS`
+  removed, which disposes of the plan review's three optional findings)
+  plus a `config` holding the four keys.
+- **Executor** (`tests/parallel/executor.py`): `local_run`, `run_shard`
+  and `aggregate` call `isolation.check_git_env()` before anything runs.
+  `Engine` builds the template once per run and passes it to every
+  `run_chunk` and to `prepare_merge`'s `chunk_env`. `cli.py`'s docstring
+  names the new refusal. It needed no code change, since
+  `GitConfigEnvError` is an `IsolationError`, which is already in
+  `REFUSALS`.
+- **Routing** (`D-Quiet-Git-Repo`): the ten host `init` sites of plan 3.2
+  are `init_git_repo` calls. `frozen_runs.empty_repo` and
+  `test_bootstrap.empty_repo` are now just that call, and the rest keep
+  their own identity and extra keys after it. The two clones
+  (`test_squash_merge_compat._build`, `test_parallel_runner.scratch_clone`)
+  are followed by `configure_throwaway_repo` on their destinations.
+- **Tests** (`tests/test_orphan_processes.py`, new; an exact `full` rule in
+  `tools/ci/pr_profile_paths.json`):
+  - T-QG-1, `TestChunkEnvGitConfig`, 13 tests;
+  - T-QG-2, `TestThrowawayRepositories`, 4 tests. They cover the helper,
+    a configured clone, and a plain init and a plain clone under the
+    template, whose `hooks/` and `info/` equal a default repository's.
+    They also cover a direct `run_chunk` that drops an inherited
+    `GIT_TEMPLATE_DIR`;
+  - T-QG-5, `TestFrozenEvidenceClone`, 2 tests. The frozen `2.6.0`
+    `_materialize_pinned_worktree_at_commit` runs unmodified from the
+    payload, in a `-B` interpreter, under `patch.dict(os.environ)`. With
+    the template, a `PATH`-only Git reports `local` for all four keys.
+    Without it, it reports none of them. The payload's files are unchanged;
+  - T-QG-4, `TestRoutingCheck`, 12 tests: the real tree, plus the rule's
+    synthetic cases.
+
+  `test_parallel_runner.py`'s `test_the_chunk_environment_and_session` now
+  asserts the four pairs, and `GIT_TEMPLATE_DIR` both with and without a
+  template.
+- **Deviations from the plan's wording, both disclosed here:**
+  - The executor process never imports `workflow_manager`
+    (`frozen_chunk.py`'s docstring). So `isolation.py` reads
+    `THROWAWAY_GIT_CONFIG` as a literal from `fixture.py`'s source with
+    `ast`, located from its own `__file__`, instead of importing it. The
+    definition stays single, and a T-QG-1 test asserts that the two values
+    are equal.
+  - T-QG-4's exemption list is no longer empty. It holds four entries,
+    each with its reason:
+    - `isolation.build_git_template`'s scratch `git init`, which reads
+      Git's default template and never commits;
+    - three deliberate plain sites in `test_orphan_processes.py`: the
+      default-config baseline repository, and T-QG-2's plain `init` and
+      plain `clone` under the template.
+
+    A test keeps every exemption matched to a live site. Two of the
+    module's own tuples looked like shape 3. They were rewritten, which
+    changed no rule.
+- **Verification:**
+  - `run_all.py --select test_orphan_processes.py`: 4/4 units, 31 tests,
+    exit 0;
+  - every touched host module plus `test_bootstrap_e2e.py` and
+    `test_disposable_repo_fixtures.py`: 1448/1448 units, 8901 tests, exit
+    0;
+  - INV-1's `git diff 7dabd2e` is empty, `workflow-manager verify .` is
+    clean, and `CLAUDE.md` is unchanged;
+  - the full gate, `python3 tests/run_all.py` over this checkpoint's tree
+    (`tree_digest 60386226...`): 4092/4092 units, 25,655 tests, exit 0,
+    `selection_digest 6e7a9c1b...`, `tests_digest 10276e31...`. Its only
+    failed chunks are the documented `2.3.1`/`2.4.0`
+    `workflow_integration_test.py` portability exceptions.
+
+## Previous milestone
+
 `workflow-manager-trunk-model` (`governing_workflow_version: "2.2"`,
 `process`, plan revision 3 approved in `aede0df`, base `b856a97`): the
 trunk model for this repository -- a protected, squash-only `main`,
