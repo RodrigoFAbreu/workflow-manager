@@ -12,9 +12,9 @@ plan: `docs/ai-workflow/WORKFLOW_MANAGER_TEST_CLEANUP_PLAN.md`.
 
 ## Current checkpoint
 
-CP1, CP2 and CP3 are complete, and so are the self-review and the full
-gate. Next is the local implementation review
-(`AWAITING_LOCAL_IMPLEMENTATION_REVIEW`).
+`AWAITING_FUNCTIONAL_REVIEW` (implementation revision 3, technical
+approval `0263fa9`). CP1-CP3 are complete, both implementation-review
+stages approved, and the full gate at the final code (`d6efce4`) is green.
 
 ## Current blockers
 
@@ -27,8 +27,10 @@ None.
 
 ## Next action
 
-`/review-implementation workflow-manager-test-cleanup`, the local stage of
-the implementation review, on the implementation bundle (revision 1).
+The user's functional review: the "Functional review checklist" below.
+Findings go to
+`.ai-review/workflow-manager-test-cleanup/feedback/FUNCTIONAL_REVIEW.md`
+(`/apply-functional-review`); a clean review goes to `/accept-milestone`.
 
 ## Checkpoint log
 
@@ -336,6 +338,112 @@ launched through the tool keep SIGINT's default.
 - The whole-run outer-probe measurement (0 orphans reaching it) is CP3's,
   at `2c0a926` plus CP3's docs. Nothing in the code or tests changed since,
   so it was not repeated.
+
+## Functional review checklist
+
+You are testing the runner as an operator uses it: no orphaned Git
+processes, and a run that fails when its tests leave a process behind.
+- **Technical approval:** commit `0263fa9`, implementation revision 3.
+- **Where findings go:**
+  `.ai-review/workflow-manager-test-cleanup/feedback/FUNCTIONAL_REVIEW.md`.
+- **Automated verification:** already current. The full gate passed at
+  `d6efce4`, the final code (4101/4101 units, 25,685 tests, verdict 0,
+  orphan check on). Only state commits have landed since.
+
+**Setup.**
+- Linux, Python 3.12 or later, Git 2.55 or later, and an authenticated `gh`
+  (flow 5 only).
+- Unset your own Git environment layers first, so that only this
+  milestone's layers apply: `env -u GIT_CONFIG_COUNT -u GIT_CONFIG_KEY_0
+  -u GIT_CONFIG_VALUE_0 -u GIT_CONFIG_KEY_1 -u GIT_CONFIG_VALUE_1 ...`.
+- Run flow 1 in this checkout, with a clean working tree. Run flows 2-4 in
+  a throwaway clone, so that no scratch test touches this repository:
+
+```bash
+export M=~/Workspace/workflow-manager
+export T=$(mktemp -d) && git clone -q "$M" "$T/c"
+git -C "$T/c" checkout -q milestone/workflow-manager-test-cleanup
+```
+
+**Test data.** None. Flow 2 adds one scratch test module to the clone.
+
+**Flows.**
+
+1. **The full gate under an outer probe (the milestone's point).** In `$M`:
+
+   ```bash
+   env -u GIT_CONFIG_COUNT -u GIT_CONFIG_KEY_0 -u GIT_CONFIG_VALUE_0 \
+       -u GIT_CONFIG_KEY_1 -u GIT_CONFIG_VALUE_1 \
+     python3 -I -S -B tests/parallel/reaper.py --report "$T/outer.json" \
+       --chunk-id whole-run -- python3 tests/run_all.py --results "$T/results"
+   ```
+
+   Expected, in about 6.5 minutes:
+   - `orphan check: on`, and a list of tolerated orphans by chunk: only the
+     20 declared `orphan_sources` units (the frozen `TestStateLock`
+     classes and five host kill tests);
+   - `4101/4101 units`, `verdict: exit 0`. The only non-zero frozen chunks
+     are the four documented `2.3.1`/`2.4.0` `workflow_integration_test.py`
+     portability exceptions;
+   - `$T/outer.json` has `"supported": true`, `"chunk_status": 0` and
+     `"orphans": []`: nothing escaped the run. Before this milestone the
+     same probe received 42,158 orphans, 31,731 of them Git.
+   - While it runs, `ps -eo stat= | grep -c '^Z'` stays near zero.
+2. **A leaked process fails the run.** In the clone, add a test that leaves
+   a detached process behind:
+
+   ```bash
+   cd "$T/c" && cat > tests/test_zz_orphan_probe.py <<'PY'
+   import subprocess, sys, unittest
+   class TestLeavesADaemon(unittest.TestCase):
+       def test_daemon(self):
+           subprocess.run([sys.executable, "-c",
+               "import os,time\nif os.fork()==0:\n    os.setsid()\n    time.sleep(20)\n"], check=True)
+   PY
+   python3 tests/run_all.py --select test_zz_orphan_probe.py; echo "rc=$?"
+   ```
+
+   Expected: the test itself prints `OK`, then `orphan check: on`,
+   `verdict: exit 2`, and `run_all: error[OrphanProcessError]:
+   host:test_zz_orphan_probe.py::TestLeavesADaemon: 1 orphaned process(es):
+   1 x /usr/bin/python3 -c import os,time ...`, and `rc=2`. Remove the file
+   afterwards.
+3. **An inherited include is refused.** In the clone:
+
+   ```bash
+   printf '[maintenance]\n\tauto = true\n' > "$T/inc.cfg"
+   GIT_CONFIG_PARAMETERS="'include.path'='$T/inc.cfg'" \
+     python3 tests/run_all.py --select test_templates.py; echo "rc=$?"
+   ```
+
+   Expected: `run_all: error[GitConfigEnvError]: GIT_CONFIG_PARAMETERS sets
+   include.path, and an included file outranks the runner's quiet-Git
+   settings; unset it (or drop the include) and re-run`, and `rc=2`.
+4. **Ordinary targeted runs still pass.** In the clone:
+   `python3 tests/run_all.py --select test_orphan_processes.py` passes,
+   with `orphan check: on` and `verdict: exit 0`.
+5. **The pull request (your action).** Push the branch and open the pull
+   request titled `test: throwaway test repositories leave no orphaned Git
+   processes` (`OD-1`). Expected on `gh pr checks <n>`:
+   - `Conventional Commit title` green, with release impact `none`;
+   - the verification `plan` job chooses `full` (the pull request touches
+     `src/` and `tests/parallel/`, M1's stopgap rule 1);
+   - all shards, `package` and `aggregate` green, and the shard logs say
+     `orphan check: on`.
+
+   Record the run URLs in this file.
+
+**Known limitations (out of scope here).**
+- Non-Linux runs print a notice instead of checking (`OD-4`); CI enforces
+  the check on Linux.
+- The Workflow Controller's own zombie leak is the Controller lane's fix
+  (C1b). This milestone removes this suite's orphans at the source; the
+  Manager lane keeps running the Controller one step at a time until that
+  fix is installed.
+- Dynamic Git arguments are outside the static routing check (plan 5.6).
+- The bundle's `TEST_RESULTS.md` still describes revision 2; the revision-3
+  gate at `d6efce4` is recorded in the implementation-review round above
+  and was independently confirmed by the external reviewer.
 
 ## Previous milestone
 
