@@ -43,7 +43,7 @@ Workflow 2.7 (W1) and 2.8 (W2).
 
 | # | Step | Repository | Section |
 |---|---|---|---|
-| M1 | Trunk model, plus the stopgap test profile until M2 | Workflow Manager | [10.1](#101-m1-trunk-model-and-the-stopgap-test-profile) |
+| M1 | Trunk model, plus the stopgap test profile until M2 (COMPLETE) | Workflow Manager | [10.1](#101-m1-trunk-model-and-the-stopgap-test-profile) |
 | M2 | Distribution rework: Workflow in its own repository, released as downloadable packages | Workflow Manager, `workflow` | [10.2](#102-m2-distribution-rework-packaged-workflow-releases) |
 | W1 | Workflow 2.7, the first packaged release: Orchestration Protocol v1 and the `v2.6.0-001` follow-up | `workflow` | [1.9](#19-post-26-controller-integration-and-workflow-orchestration-protocol-foundation) |
 | W2 | Workflow 2.8: declarative gate policy, and a red or changes-requested pull request reopening the same work item | `workflow` | [1.9](#19-post-26-controller-integration-and-workflow-orchestration-protocol-foundation) |
@@ -963,11 +963,12 @@ Potential future work:
 
 ## 10.1 M1: trunk model and the stopgap test profile
 
-**Priority:** IN PROGRESS. Work item `workflow-manager-trunk-model`, on
-`milestone/workflow-manager-trunk-model`: all seven checkpoints are
-implemented (2026-09-29); implementation review, functional review and the
-cutover (`docs/RELEASING.md`, "Cutover") follow. Design:
-`docs/ai-workflow/WORKFLOW_MANAGER_TRUNK_MODEL_PLAN.md`.
+**Status:** COMPLETE. Accepted as milestone `workflow-manager-trunk-model`
+on 2026-09-29, from `milestone/workflow-manager-trunk-model` (pull request
+#4). The rest of the cutover (`docs/RELEASING.md`, "Cutover", C2-C5)
+follows acceptance and is the repository owner's: the ruleset, the merge
+settings, the squash merge and the first tag-derived Manager release.
+Design: `docs/ai-workflow/WORKFLOW_MANAGER_TRUNK_MODEL_PLAN.md`.
 
 This repository works the way the Workflow Controller does:
 

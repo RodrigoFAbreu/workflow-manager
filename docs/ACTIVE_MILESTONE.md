@@ -11,20 +11,45 @@ Full plan: `docs/ai-workflow/WORKFLOW_MANAGER_TRUNK_MODEL_PLAN.md`.
 
 ## Current checkpoint
 
-`AWAITING_FUNCTIONAL_REVIEW` (implementation revision 2, technical
-approval `7995695`). CP1-CP7 are complete, both implementation-review
-stages approved, and the full gate at the fix is green.
+**Milestone complete.** `workflow-manager-trunk-model` reached
+`MILESTONE_COMPLETE` through `/accept-milestone` on 2026-09-29, with the
+user's confirmation, and `active_work_item_id` is cleared.
+- **Checkpoints:** CP1-CP7 are complete.
+- **Technical approval:** commit `7995695`, implementation revision 2.
+  Both implementation-review stages approved.
+- **Automated verification:** the full gate passed at `ed39920` (4088/4088
+  units, 25,624 tests). Only docs and state commits have landed since.
+- **Functional review:** accepted by the user against the checklist below,
+  with no findings filed. Cutover steps C0-C1 ran; their evidence is
+  recorded under flows 7 and 8.
+
+The checkpoint log below is this milestone's permanent record.
 
 ## Current blockers
 
-None.
+None. What remains is the cutover after acceptance (`docs/RELEASING.md`,
+"Cutover", C2-C5), which is the repository owner's:
+- apply the ruleset and the merge settings;
+- mark pull request #4 ready and squash-merge it under its title
+  `feat: trunk model, Manager releases and the stopgap PR test profile`;
+- let `main`'s full run and the release workflow publish the first
+  tag-derived Manager release (C5), and record it here.
+
+## Active plan
+
+None, because the milestone is complete. The plan document stays at
+`docs/ai-workflow/WORKFLOW_MANAGER_TRUNK_MODEL_PLAN.md` (revision 3)
+instead of being archived: `docs/ARCHITECTURE.md` and `docs/RELEASING.md`
+cite it as the design record.
 
 ## Next action
 
-The user's functional review: the "Functional review checklist" below.
-Findings go to
-`.ai-review/workflow-manager-trunk-model/feedback/FUNCTIONAL_REVIEW.md`
-(`/apply-functional-review`); a clean review goes to `/accept-milestone`.
+`workflow-manager-trunk-model` is complete. Next, after the cutover
+merges it, run `/milestone-plan` for the next incomplete milestone in
+`docs/ROADMAP.md`. Today that is M2, "Distribution rework, packaged
+Workflow releases" (section 10.2). The agreed lane order (2026-09-29)
+puts a small test-cleanup milestone first; it is added to the roadmap
+once M1 has merged.
 
 ## Checkpoint log
 
@@ -610,12 +635,39 @@ the clone only.
    - `package` and `aggregate` green.
 
    Record the run URLs in this file.
+
+   **Recorded (2026-09-29).** Draft pull request
+   [#4](https://github.com/RodrigoFAbreu/workflow-manager/pull/4) at
+   `6ca29d4`:
+   - `Conventional Commit title` green
+     ([run 36566238193](https://github.com/RodrigoFAbreu/workflow-manager/actions/runs/36566238193));
+   - verification
+     ([run 36566238056](https://github.com/RodrigoFAbreu/workflow-manager/actions/runs/36566238056),
+     `success`): `plan` chose `full` (16 shards, 309 phase-A chunks, 15
+     phase-B units), and `package` and `aggregate` are green.
 8. **C1: probes (your action).** Throwaway draft pull requests against
    `milestone/workflow-manager-trunk-model`, closed unmerged:
    - a docs-only change chooses `newest-release`;
    - a change under `src/` chooses `full`;
    - the title `Update things` fails the title check;
    - a `docs: ...` title passes it with impact `none`.
+
+   **Recorded (2026-09-29).** Probes #5-#8, opened 12:13 and closed
+   unmerged at 12:18 UTC. Closing them cancelled their remaining
+   verification jobs, so those jobs show as failed without having failed a
+   test.
+   - #5 `docs: probe the newest-release profile`: `plan` chose
+     `newest-release`
+     ([run 36566708849](https://github.com/RodrigoFAbreu/workflow-manager/actions/runs/36566708849)).
+   - #6 `chore: probe the full profile`: `plan` chose `full`
+     ([run 36566717357](https://github.com/RodrigoFAbreu/workflow-manager/actions/runs/36566717357)).
+     Its inventory and `package` then failed on the probe's own edit, an
+     HTML comment written into a `.py` file under `src/`. That breakage is
+     the probe's, not the profile's.
+   - #7 `Update things`: the title check failed
+     ([run 36566723520](https://github.com/RodrigoFAbreu/workflow-manager/actions/runs/36566723520)).
+   - #8 `docs: probe the title check`: the title check passed
+     ([run 36566731686](https://github.com/RodrigoFAbreu/workflow-manager/actions/runs/36566731686)).
 
 **Known limitations (out of scope here).**
 - The ruleset, the merge settings, the squash merge and the first real
