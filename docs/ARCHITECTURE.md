@@ -529,6 +529,7 @@ The marked files are exactly:
 - `.github/workflows/workflow-manager-verify.yml`
 - `tests/parallel/cli.py`
 - `tests/parallel/inventory.py`
+- `tests/parallel/planner.py`
 - `tests/parallel/report.py`
 - `tests/test_stopgap_profile.py`
 - `tools/ci/choose_profile.py`
@@ -539,16 +540,25 @@ The marked files are exactly:
 M2 deletes `tools/ci/choose_profile.py`, `tools/ci/nightly_alarm.py`,
 `tools/ci/pr_profile_paths.json` and `tests/test_stopgap_profile.py` whole,
 and in the other files removes each block that opens with the marker (in
-`tests/parallel/`, down to its `End of the STOPGAP(M2) block.` line). That
-restores the single CI profile: the `choose_profile` step and the `NEWEST`
-wiring leave the `plan` job, the `nightly-alarm` job leaves the workflow
-(the nightly run itself may stay), and `plan`'s `profile` output and
-`actions: read` go with them. M2 also deletes the exception "One reduced
-selection is a gate, in one place" above and this subsection. `tests/test_stopgap_profile.py`
-proves the list above equals the marked files, and that every file that
-names a stopgap identifier (`newest-release-only`, `newest_release`,
-`choose_profile`, `nightly_alarm`, `nightly-alarm`, `pr_profile_paths`) is
-marked, so a stopgap block left in an unlisted file fails the suite.
+`tests/parallel/`, down to its `End of the STOPGAP(M2) block.` line). Every
+reference the runner's stopgap depends on sits inside such a block,
+including the `NEWEST_RELEASE_KIND` import, the `newest_release_only`
+entries of the mode tables, the `--newest-release-only` help text and the
+comments that name its selection kind, so that removal alone leaves a
+working runner. That restores the single CI profile: the `choose_profile`
+step and the `NEWEST` wiring leave the `plan` job, the `nightly-alarm` job
+leaves the workflow (the nightly run itself may stay), and `plan`'s
+`profile` output and `actions: read` go with them. M2 also deletes the
+exception "One reduced selection is a gate, in one place" above and this
+subsection. `tests/test_stopgap_profile.py` proves the list above equals the
+marked files, and that every file that names a stopgap identifier
+(`newest-release`, `newest_release`, `NEWEST_RELEASE`, `choose_profile`,
+`nightly_alarm`, `nightly-alarm`, `nightly-red`, `pr_profile_paths`) is
+marked, so a stopgap block left in an unlisted file fails the suite. It also
+carries the removal out on a scratch checkout: after deleting every marked
+block under `tests/parallel/`, no file there names a stopgap identifier, and
+the runner's `--help`, `--list`, `--plan-only` and a real run succeed while
+`--newest-release-only` is an unknown argument.
 `selection_kind` in `tests/parallel/planner.py` and `release.py
 assert-full-plan` are permanent and stay.
 

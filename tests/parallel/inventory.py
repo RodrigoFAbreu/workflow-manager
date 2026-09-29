@@ -21,8 +21,7 @@ copies -- one child process per release, and refuses a per-suite total that
 differs from the pinned count (`InventoryCountError`).
 
 The selection is a pure function of the inventory and the `--select`
-specs (or `--newest-release-only`); no timing data, shard count or profile
-is an input to it.
+specs; no timing data, shard count or profile is an input to it.
 """
 
 from __future__ import annotations
@@ -355,7 +354,11 @@ PARTIAL_FROZEN_NOTE = "partial frozen selection: host matrix assertions not eval
 @dataclass(frozen=True)
 class Spec:
     text: str
-    kind: str  # "host", "frozen" or `NEWEST_RELEASE_KIND`
+    kind: str  # "host" or "frozen"
+    # STOPGAP(M2): the newest-release selection; see docs/ARCHITECTURE.md's
+    # "Stopgap test profile". Or `NEWEST_RELEASE_KIND`, for
+    # `--newest-release-only`, which selects in place of the specs.
+    # End of the STOPGAP(M2) block.
     module: str | None = None
     cls: str | None = None
     test: str | None = None
@@ -434,10 +437,13 @@ class Selection:
     #: matrix assertions over them are not evaluated -- a debugging aid,
     #: never a gate (`PARTIAL_FROZEN_NOTE`).
     partial_frozen: bool = False
-    #: Which flags made it: `full` (none), `targeted` (`--select`/`--fast`)
-    #: or `newest-release`. Derived from the flags, never from the unit set,
-    #: and outside `to_json`, so `selection_digest` covers the units alone.
-    #: A selection built by hand claims the least: `targeted`.
+    #: Which flags made it: `full` (none) or `targeted` (`--select`/`--fast`).
+    #: Derived from the flags, never from the unit set, and outside
+    #: `to_json`, so `selection_digest` covers the units alone. A selection
+    #: built by hand claims the least: `targeted`.
+    # STOPGAP(M2): the newest-release selection; see docs/ARCHITECTURE.md's
+    # "Stopgap test profile". Or `newest-release`, for `--newest-release-only`.
+    # End of the STOPGAP(M2) block.
     kind: str = TARGETED_KIND
 
     def unit_ids(self) -> list[str]:

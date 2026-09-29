@@ -873,11 +873,15 @@ class TestAssertFullPlanRefusesTheStopgap(runner_tests._CliCase):  # noqa: SLF00
 # -- CP7: where M2 finds the stopgap (plan 6.7) ---------------------------------------
 
 MARKER = "STOPGAP(M2)"
-STOPGAP_IDENTIFIERS = ("newest-release-only", "newest_release", "choose_profile",
-                       "nightly_alarm", "nightly-alarm", "pr_profile_paths")
+STOPGAP_IDENTIFIERS = ("newest-release", "newest_release", "NEWEST_RELEASE", "choose_profile",
+                       "nightly_alarm", "nightly-alarm", "nightly-red", "pr_profile_paths")
 YAML_MARKER = re.compile(r"^\s*# STOPGAP\(M2\)", re.MULTILINE)
 LIST_BEGIN = "<!-- stopgap-marked-files:begin -->"
 LIST_END = "<!-- stopgap-marked-files:end -->"
+BLOCK_END = "# End of the STOPGAP(M2) block."
+#: The files M2 deletes whole; it removes the marked blocks of every other.
+REMOVED_WHOLE = ("tests/test_stopgap_profile.py", "tools/ci/choose_profile.py",
+                 "tools/ci/nightly_alarm.py", "tools/ci/pr_profile_paths.json")
 
 
 def _is_documentation(rel: str) -> bool:
@@ -1024,6 +1028,101 @@ class TestWhatCountsAsAMarker(_TempDir):
             - `after.py`
             """)
         self.assertEqual(documented_marked_files(text), ["a/b.py", "c.json"])
+
+
+def remove_marked_blocks(text: str) -> str:
+    """M2's removal of a Python file's stopgap: each block from its marker
+    comment down to its `End of the STOPGAP(M2) block.` line, both included.
+    An unterminated or nested block is an error, never a guess."""
+    starts, ends = set(), set()
+    for tok in tokenize.generate_tokens(io.StringIO(text).readline):
+        if tok.type != tokenize.COMMENT or tok.line[:tok.start[1]].strip():
+            continue
+        if tok.string.startswith(f"# {MARKER}"):
+            starts.add(tok.start[0])
+        elif tok.string == BLOCK_END:
+            ends.add(tok.start[0])
+    kept, inside = [], False
+    for number, line in enumerate(text.splitlines(keepends=True), start=1):
+        if number in starts:
+            if inside:
+                raise ValueError(f"line {number}: a block opens inside another")
+            inside = True
+        elif number in ends:
+            if not inside:
+                raise ValueError(f"line {number}: a block ends that never opened")
+            inside = False
+        elif not inside:
+            kept.append(line)
+    if inside:
+        raise ValueError("a block never ends")
+    return "".join(kept)
+
+
+class TestTheRemovalRecordIsComplete(runner_tests._CliCase):  # noqa: SLF001
+    """Rule 6 carried out: M2's documented removal, applied to a scratch
+    checkout's runner, leaves a runner that works and names no stopgap."""
+
+    def test_the_marked_python_files_outside_the_deleted_ones_are_the_runners(self):
+        documented = documented_marked_files(
+            (REPO_ROOT / "docs" / "ARCHITECTURE.md").read_text())
+        self.assertLessEqual(set(REMOVED_WHOLE), set(documented))
+        edited = [rel for rel in documented if rel not in REMOVED_WHOLE and rel.endswith(".py")]
+        self.assertTrue(edited)
+        self.assertEqual([rel for rel in edited if not rel.startswith("tests/parallel/")], [])
+
+    def test_the_runner_without_its_marked_blocks_runs_and_names_no_stopgap(self):
+        documented = documented_marked_files(
+            (REPO_ROOT / "docs" / "ARCHITECTURE.md").read_text())
+        scratch = runner_tests.scratch_checkout(self.tmp / "scratch")
+        for rel in documented:
+            if rel.startswith("tests/parallel/"):
+                path = scratch / rel
+                path.write_text(remove_marked_blocks(path.read_text()))
+        leftovers = {}
+        for path in sorted((scratch / "tests" / "parallel").glob("*.py")):
+            text = path.read_text()
+            named = [n for n in (*STOPGAP_IDENTIFIERS, "STOPGAP") if n in text]
+            if named:
+                leftovers[path.name] = named
+        self.assertEqual(leftovers, {})
+        runner_tests._commit_all(scratch, "M2's removal")  # noqa: SLF001
+        for argv in (("--help",), ("--list",), ("--plan-only", "--profile", "ci", "--out",
+                                                self.tmp / "plan.json")):
+            with self.subTest(argv=argv[0]):
+                proc = runner_tests.run_cli(scratch, *argv, env=self.env)
+                self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        run = runner_tests.run_cli(scratch, "--results", self.tmp / "r", env=self.env)
+        self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
+        self.assertIn("evidence: full selection,", run.stdout + run.stderr)
+        gone = runner_tests.run_cli(scratch, "--list", "--newest-release-only", env=self.env)
+        self.assertEqual(gone.returncode, 2, gone.stdout + gone.stderr)
+        self.assertIn("unrecognized arguments: --newest-release-only", gone.stderr)
+
+
+class TestRemovingMarkedBlocks(unittest.TestCase):
+
+    def test_blocks_go_with_their_marker_and_end_lines(self):
+        text = textwrap.dedent(f"""\
+            a = 1
+            # {MARKER}: gone
+            b = 2
+            {BLOCK_END}
+            def f():
+                # {MARKER}: gone too
+                return 3
+                {BLOCK_END}
+            x = "# {MARKER}: a string, kept"
+            """)
+        self.assertEqual(remove_marked_blocks(text),
+                         'a = 1\ndef f():\nx = "# ' + MARKER + ': a string, kept"\n')
+
+    def test_malformed_blocks_are_refused(self):
+        for name, text in {"unterminated": f"# {MARKER}\nx = 1\n",
+                           "stray end": f"x = 1\n{BLOCK_END}\n",
+                           "nested": f"# {MARKER}\n# {MARKER}\n{BLOCK_END}\n"}.items():
+            with self.subTest(case=name), self.assertRaises(ValueError):
+                remove_marked_blocks(text)
 
 
 if __name__ == "__main__":

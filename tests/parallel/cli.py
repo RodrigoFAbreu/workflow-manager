@@ -4,8 +4,7 @@
     python3 tests/run_all.py                       # the full selection, in parallel
     python3 tests/run_all.py --jobs 1              # the serial reference (INV-6)
     python3 tests/run_all.py --select SPEC ...     # targeted selection -- never a gate
-    python3 tests/run_all.py --newest-release-only # host plus the newest release (stopgap)
-    python3 tests/run_all.py --list [--select SPEC ... | --newest-release-only]
+    python3 tests/run_all.py --list [--select SPEC ...]
     python3 tests/run_all.py --plan-only --profile ci --out PLAN [--shards N]
     python3 tests/run_all.py --run-shard K --plan PLAN --results DIR
     python3 tests/run_all.py --aggregate DIR --plan PLAN
@@ -16,12 +15,6 @@
 `test_x.py::Class`, `test_x.py::Class::test_y`,
 `frozen:<version>/<fixture>/<suite>.py` or
 `frozen:<version>/<fixture>/<suite>.py::Class`.
-
-`--newest-release-only` (the pull-request profile's stopgap, removed by M2)
-selects every host class except the other releases' frozen-matrix classes,
-plus every frozen unit of the newest release in `CI_SUITES`. It excludes
-`--select` and `--fast`. Its evidence line says `newest-release selection`,
-never full-suite evidence.
 
 Exit 0: every planned unit reported and every test passed. Exit 1: a test
 failed or errored. Exit 2: an infrastructure fault (incomplete or foreign
@@ -131,6 +124,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--newest-release-only", action="store_true",
                         help="host classes plus the newest release's frozen suites only "
                              "(the pull-request stopgap profile); not full-suite evidence")
+    parser.epilog = (
+        "--newest-release-only (the pull-request profile's stopgap, removed by M2) selects "
+        "every host class except the other releases' frozen-matrix classes, plus every "
+        "frozen unit of the newest release in CI_SUITES. It excludes --select and --fast, "
+        "and also takes --list and --plan-only. Its evidence line says `newest-release "
+        "selection`, never full-suite evidence.")
     # End of the STOPGAP(M2) block.
     parser.add_argument("--fast", action="store_true",
                         help="deprecated alias for a targeted --select of eight modules; "
@@ -168,10 +167,9 @@ def _mode(args) -> str:
 
 #: Which options each mode accepts, beyond the mode flag itself.
 ALLOWED = {
-    "run": {"select", "fast", "newest_release_only", "jobs", "results", "whole_groups",
-            "shuffle_seed", "allow_root"},
-    "list": {"select", "newest_release_only"},
-    "plan_only": {"select", "newest_release_only", "profile", "shards", "out", "whole_groups"},
+    "run": {"select", "fast", "jobs", "results", "whole_groups", "shuffle_seed", "allow_root"},
+    "list": {"select"},
+    "plan_only": {"select", "profile", "shards", "out", "whole_groups"},
     "run_shard": {"plan", "results", "allow_root"},
     "aggregate": {"plan", "allow_root"},
     "update_timings": {"profile", "sources"},
@@ -179,8 +177,14 @@ ALLOWED = {
 }
 #: GitHub Actions' ceiling on the jobs one matrix may generate.
 CI_MATRIX_LIMIT = 256
-_DEFAULTS = {"select": [], "sources": [], "fast": False, "newest_release_only": False,
-             "whole_groups": False, "allow_root": False}
+_DEFAULTS = {"select": [], "sources": [], "fast": False, "whole_groups": False,
+             "allow_root": False}
+# STOPGAP(M2): the newest-release selection; see docs/ARCHITECTURE.md's
+# "Stopgap test profile".
+for _mode_name in ("run", "list", "plan_only"):
+    ALLOWED[_mode_name].add("newest_release_only")
+_DEFAULTS["newest_release_only"] = False
+# End of the STOPGAP(M2) block.
 
 
 def validate(parser, args) -> str:

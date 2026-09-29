@@ -13,8 +13,11 @@ import hashlib
 import shlex
 
 from . import canonical_json
-from .inventory import (FROZEN_PREFIX, NEWEST_RELEASE_KIND, split_frozen_unit_id,
-                        split_host_unit_id)
+from .inventory import FROZEN_PREFIX, split_frozen_unit_id, split_host_unit_id
+# STOPGAP(M2): the newest-release selection; see docs/ARCHITECTURE.md's
+# "Stopgap test profile".
+from .inventory import NEWEST_RELEASE_KIND
+# End of the STOPGAP(M2) block.
 
 OUTPUT_TAIL = 6000
 RUN_ALL = "python3 tests/run_all.py"
@@ -184,8 +187,7 @@ def evidence_identity(plan: dict, results, frozen_classes: dict, *, head: str,
 
     - `selection`: `full` when the plan selects every inventory unit whole
       (set equality, whatever flags made it: it describes the units that
-      ran), else `newest-release` for a `--newest-release-only` plan, else
-      `targeted` -- neither is ever full-suite evidence;
+      ran), else `targeted` -- never full-suite evidence;
     - `scope`: the mode and its shape (`local --jobs N`, `shard K of N`,
       `aggregate of N shards`);
     - `head`, `tree_digest`: the revision, and the exact tree (which a
@@ -203,7 +205,8 @@ def evidence_identity(plan: dict, results, frozen_classes: dict, *, head: str,
         all(v is None for v in selection.values())
     kind = "full" if full else "targeted"
     # STOPGAP(M2): the newest-release evidence label; see docs/ARCHITECTURE.md's
-    # "Stopgap test profile".
+    # "Stopgap test profile". A `--newest-release-only` plan that is not full
+    # says `newest-release`, never full-suite evidence either.
     if not full and plan.get("selection_kind") == NEWEST_RELEASE_KIND:
         kind = NEWEST_RELEASE_KIND
     # End of the STOPGAP(M2) block.
