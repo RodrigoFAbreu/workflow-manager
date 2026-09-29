@@ -11,8 +11,8 @@ Full plan: `docs/ai-workflow/WORKFLOW_MANAGER_TRUNK_MODEL_PLAN.md`.
 
 ## Current checkpoint
 
-`IMPLEMENTING`. CP1, CP2 and CP3 are complete; CP4 is ready (it depends
-on CP3).
+`IMPLEMENTING`. CP1-CP4 are complete; CP5 (depends on CP2 and CP4) and
+CP6 (depends on CP4) are ready.
 
 ## Current blockers
 
@@ -133,6 +133,48 @@ checkpoint.
   `test_stopgap_profile.py`, passed with 79/79 units and 323 tests OK. INV-1/INV-3: the diff against `b856a97`
   over `distribution migration scripts .claude/commands
   .github/workflows/workflow-conformance.yml` is empty.
+
+### CP4 -- pull-request profile chooser (complete)
+
+- `tools/ci/choose_profile.py` (new, stdlib): writes `profile=full` or
+  `profile=newest-release` to `$GITHUB_OUTPUT` and a reasons table to
+  `$GITHUB_STEP_SUMMARY` (stdout when unset). Any event but `pull_request`
+  is `full` and reads nothing. Rule 1: the paths of `git diff --name-only
+  --no-renames -z HEAD^1 HEAD` (both sides of a rename, deletions too),
+  where `HEAD` must be a two-parent merge; each is classified by the
+  longest matching rule, and an unmatched path is `full`. Rule 5, read
+  only when no path already needs `full`: the newest (highest run id)
+  `push` or `schedule` run in the `gh api` run list of
+  `workflow-manager-verify.yml` on `main` must be `completed`/`success`.
+  A git, API, parse or rule-file failure is `full` (INV-4). The table
+  lists every path that chose `full` and caps the rest at 300 rows.
+- `tools/ci/pr_profile_paths.json` (new): the plan 6.2 table as exact
+  paths and `/`-ending prefixes, including an exact rule for each of the 14
+  host test modules (CP1-CP3's three among them); its `"_comment"` starts
+  with `STOPGAP(M2)`. The rule file is validated on load (known profile, a
+  reason, relative path, no duplicates).
+- `tools/ci/nightly_alarm.py` (new): `decide(event, result, open_issues,
+  run_url)` is pure. A red `schedule` run ensures the `nightly-red` label
+  (`gh label create --force`), then comments on the oldest open issue or
+  opens "Nightly full verification failed". A green one closes every open
+  `nightly-red` issue with a comment. Any other event does nothing. An
+  unreadable issue list counts as none, so a red nightly still opens an
+  issue. A failed `gh` action exits 1.
+- `tools/ci/__init__.py` (new): a one-line docstring; it names no stopgap
+  identifier. The three other files open with the `STOPGAP(M2)` marker.
+- Verification: `run_all.py --select test_stopgap_profile.py`: 13/13
+  units, 45 tests OK (31 new, covering every item of the plan's CP4 test
+  list: completeness over the live tree, tracked and untracked, plus a
+  scratch repository where a new untracked test module is unclassified and
+  an ignored file is not listed; real merges for the rename, deletion,
+  non-merge and git-failure cases; `main` health from injected JSON; the
+  output format; the alarm's decision table and its `gh` shell with `_gh`
+  patched). INV-1/INV-3: the diff against `b856a97` over `distribution
+  migration scripts .claude/commands
+  .github/workflows/workflow-conformance.yml` is empty, and
+  `workflow-manager verify .` matches workflow 2.6.0. As for CP1-CP3, the
+  full gate was not run at this checkpoint: under the Controller it leaks
+  git zombies (about 1200 already held by this lane's Controller).
 
 ## Previous milestone
 

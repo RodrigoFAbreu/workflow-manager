@@ -7,6 +7,11 @@ exclusivity with `--select`/`--fast`, the plan's `selection_kind`, the
 evidence label for all three kinds, the full selection unchanged by this
 milestone's runner changes (INV-2), and a real `--list` subprocess run in a
 scratch checkout of three releases.
+
+Checkpoint CP4 (`D-PR-Profile`): `tools/ci/choose_profile.py`'s path rules
+and their completeness over the tree, the merge-ref diff, `main`'s health,
+the non-PR events and the output format; and `tools/ci/nightly_alarm.py`'s
+decision table.
 """
 
 # STOPGAP(M2): this whole module tests the stopgap profile; see
@@ -16,14 +21,17 @@ from __future__ import annotations
 
 import contextlib
 import hashlib
+import importlib.util
 import io
 import json
+import os
 import shutil
 import subprocess
 import sys
 import tempfile
 import textwrap
 import unittest
+import unittest.mock
 from pathlib import Path
 
 from support import CI_SUITES, REPO_ROOT
@@ -324,6 +332,395 @@ class TestARealListRun(runner_tests._CliCase):  # noqa: SLF001
         plan = json.loads(out.read_text())
         self.assertEqual(plan["selection_kind"], "newest-release")
         self.assertEqual(sorted(plan["selection"]), sorted(expected))
+
+
+# -- CP4: the pull-request profile chooser ----------------------------------------
+
+
+def _load_tool(name: str):
+    path = REPO_ROOT / "tools" / "ci" / f"{name}.py"
+    spec = importlib.util.spec_from_file_location(f"workflow_manager_ci_{name}", path)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+choose_profile = _load_tool("choose_profile")
+nightly_alarm = _load_tool("nightly_alarm")
+
+LIVE_RULES = choose_profile.load_rules()
+GREEN_RUNS = [{"id": 7, "event": "push", "status": "completed", "conclusion": "success"}]
+
+
+def _no_call():
+    raise AssertionError("must not be consulted")
+
+
+def _git_repo(root: Path) -> Path:
+    root.mkdir(parents=True)
+    runner_tests._git_repo(root)  # noqa: SLF001
+    runner_tests._git(root, "config", "commit.gpgsign", "false")  # noqa: SLF001
+    return root
+
+
+def _write(repo: Path, rel: str, text: str = "x\n") -> None:
+    path = repo / rel
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text)
+
+
+class _TempDir(unittest.TestCase):
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.tmp = Path(tmp.name)
+
+
+class TestPathRulesAreComplete(_TempDir):
+    """Every path of the tree matches an explicit rule, never the
+    "unclassified" fallback (plan 6.2, `OD-7`)."""
+
+    def test_every_tree_path_matches_a_rule(self):
+        paths = choose_profile.tree_paths(REPO_ROOT)
+        self.assertIn("tests/test_stopgap_profile.py", paths)
+        unmatched = [p for p in paths if choose_profile.match_rule(p, LIVE_RULES) is None]
+        self.assertEqual(unmatched, [], "classify these in tools/ci/pr_profile_paths.json")
+
+    def test_every_test_module_has_its_own_exact_rule(self):
+        modules = [p for p in choose_profile.tree_paths(REPO_ROOT)
+                   if p.startswith("tests/test_") and p.endswith(".py") and "/" not in p[6:]]
+        self.assertIn("tests/test_release_versioning.py", modules)
+        for module in modules:
+            with self.subTest(module=module):
+                self.assertEqual(choose_profile.match_rule(module, LIVE_RULES).path, module)
+
+    def test_this_milestones_modules_are_classified(self):
+        for module in ("tests/test_release_versioning.py", "tests/test_manager_version.py",
+                       "tests/test_stopgap_profile.py"):
+            with self.subTest(module=module):
+                rule = choose_profile.match_rule(module, LIVE_RULES)
+                self.assertEqual((rule.path, rule.profile), (module, "newest-release"))
+
+    def test_a_new_untracked_test_module_fails_it(self):
+        repo = _git_repo(self.tmp / "repo")
+        _write(repo, ".gitignore", "__pycache__/\n")
+        _write(repo, "docs/a.md")
+        runner_tests._commit_all(repo)  # noqa: SLF001
+        _write(repo, "tests/test_brand_new.py")
+        _write(repo, "tests/__pycache__/ignored.pyc")
+        paths = choose_profile.tree_paths(repo)
+        self.assertEqual(paths, [".gitignore", "docs/a.md", "tests/test_brand_new.py"])
+        unmatched = [p for p in paths if choose_profile.match_rule(p, LIVE_RULES) is None]
+        self.assertEqual(unmatched, ["tests/test_brand_new.py"])
+
+    def test_the_rule_file_is_a_marked_stopgap(self):
+        doc = json.loads(choose_profile.RULES_PATH.read_text())
+        self.assertTrue(doc["_comment"].startswith("STOPGAP(M2)"))
+
+
+class TestPathClassification(unittest.TestCase):
+
+    def profile(self, path, rules=LIVE_RULES):
+        return choose_profile.classify(path, rules)[0]
+
+    def test_unknown_paths_are_full(self):
+        for path in ("new_top_level.txt", "newdir/x.py", "tests/test_unknown.py",
+                     "tests/fixtures/data.json", "docs", "docsx/a.md", "READM.md"):
+            with self.subTest(path=path):
+                profile, reason = choose_profile.classify(path, LIVE_RULES)
+                self.assertEqual(profile, "full")
+                self.assertIn("unclassified", reason)
+
+    def test_every_rule_1_area_is_full(self):
+        for path in ("distribution/workflow/2.6.0/manifest.json", "migration/classification.json",
+                     "tools/migrate.py", "tools/ci/pr_profile_paths.json",
+                     "src/workflow_manager/install.py", "src/workflow_manager/cli.py",
+                     "tests/support.py", "tests/frozen_runs.py", "tests/run_all.py",
+                     "tests/parallel/planner.py", "tests/test_conformance_suite.py",
+                     "tests/test_bootstrap_e2e.py", ".github/workflows/workflow-manager-verify.yml",
+                     ".github/tools/requirements.txt", "pyproject.toml"):
+            with self.subTest(path=path):
+                self.assertEqual(self.profile(path), "full")
+
+    def test_documentation_and_the_installed_copy_are_newest_release(self):
+        for path in ("docs/ROADMAP.md", "docs/ai-workflow/WORKFLOW_STATE.json", "README.md",
+                     "CLAUDE.md", ".gitignore", ".claude/commands/milestone-plan.md",
+                     "scripts/workflow_state.py", ".workflow-manager/installation.json",
+                     "tests/test_bootstrap.py"):
+            with self.subTest(path=path):
+                self.assertEqual(self.profile(path), "newest-release")
+
+    def test_the_longest_match_wins(self):
+        rules = [choose_profile.Rule("a/", "full", "outer"),
+                 choose_profile.Rule("a/b/", "newest-release", "inner"),
+                 choose_profile.Rule("a/b/c.py", "full", "exact")]
+        self.assertEqual(choose_profile.classify("a/b/d.py", rules), ("newest-release", "`a/b/`: inner"))
+        self.assertEqual(self.profile("a/x.py", rules), "full")
+        self.assertEqual(self.profile("a/b/c.py", rules), "full")
+        self.assertEqual(self.profile("a/b/c.pyc", rules), "newest-release")
+        # An exact rule is not a prefix, and a prefix needs its slash.
+        self.assertIsNone(choose_profile.match_rule("a/b/c.py/x", rules[2:]))
+        self.assertIsNone(choose_profile.match_rule("ab/x", rules))
+
+    def test_a_malformed_rule_file_is_refused(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "rules.json"
+            bad = ({"rules": []}, {"rules": [{"path": "a/", "profile": "fast", "reason": "r"}]},
+                   {"rules": [{"path": "a/", "profile": "full"}]},
+                   {"rules": [{"path": "/a", "profile": "full", "reason": "r"}]},
+                   {"rules": [{"path": "a", "profile": "full", "reason": " "}]},
+                   {"rules": [{"path": "a", "profile": "full", "reason": "r"}] * 2}, [])
+            for doc in bad:
+                with self.subTest(doc=doc):
+                    path.write_text(json.dumps(doc))
+                    with self.assertRaises(choose_profile.ProfileError):
+                        choose_profile.load_rules(path)
+            path.write_text("{not json")
+            with self.assertRaises(choose_profile.ProfileError):
+                choose_profile.load_rules(path)
+
+
+class TestTheMergeRefDiff(_TempDir):
+    """`git diff --name-only --no-renames HEAD^1 HEAD` over a real merge."""
+
+    def merge_repo(self) -> Path:
+        repo = _git_repo(self.tmp / "repo")
+        _write(repo, "src/mod.py", "a\n" * 20)
+        _write(repo, "docs/gone.md")
+        _write(repo, "docs/kept.md")
+        runner_tests._commit_all(repo, "base")  # noqa: SLF001
+        runner_tests._git(repo, "checkout", "-q", "-b", "topic")  # noqa: SLF001
+        runner_tests._git(repo, "mv", "src/mod.py", "docs/moved.py")  # noqa: SLF001
+        runner_tests._git(repo, "rm", "-q", "docs/gone.md")  # noqa: SLF001
+        runner_tests._commit_all(repo, "rename and delete")  # noqa: SLF001
+        runner_tests._git(repo, "checkout", "-q", "main")  # noqa: SLF001
+        _write(repo, "docs/main-only.md")
+        runner_tests._commit_all(repo, "main moves on")  # noqa: SLF001
+        runner_tests._git(repo, "merge", "-q", "--no-ff", "-m", "merge", "topic")  # noqa: SLF001
+        return repo
+
+    def test_both_sides_of_a_rename_and_deletions_are_listed(self):
+        repo = self.merge_repo()
+        paths = choose_profile.changed_paths(repo)
+        self.assertEqual(paths, ["docs/gone.md", "docs/moved.py", "src/mod.py"])
+        decision = choose_profile.decide("pull_request", LIVE_RULES, lambda: paths, _no_call)
+        self.assertEqual(decision.profile, "full")
+        self.assertIn(("`src/mod.py`", "full"), [row[:2] for row in decision.reasons])
+
+    def test_a_non_merge_head_is_full(self):
+        repo = _git_repo(self.tmp / "repo")
+        _write(repo, "docs/a.md")
+        runner_tests._commit_all(repo)  # noqa: SLF001
+        _write(repo, "docs/b.md")
+        runner_tests._commit_all(repo)  # noqa: SLF001
+        with self.assertRaisesRegex(choose_profile.ProfileError, "not a two-parent merge"):
+            choose_profile.changed_paths(repo)
+        decision = choose_profile.decide(
+            "pull_request", LIVE_RULES, lambda: choose_profile.changed_paths(repo), _no_call)
+        self.assertEqual(decision.profile, "full")
+
+    def test_a_git_failure_is_full(self):
+        not_a_repo = self.tmp / "plain"
+        not_a_repo.mkdir()
+        decision = choose_profile.decide(
+            "pull_request", LIVE_RULES, lambda: choose_profile.changed_paths(not_a_repo),
+            _no_call)
+        self.assertEqual(decision.profile, "full")
+        self.assertIn("undecidable", decision.reasons[-1][2])
+
+
+class TestMainHealth(unittest.TestCase):
+    """Rule 5, from injected API JSON."""
+
+    @staticmethod
+    def run_(id_, event="push", conclusion="success"):
+        return {"id": id_, "event": event, "status": "completed", "conclusion": conclusion}
+
+    def profile(self, runs):
+        def get_runs():
+            if isinstance(runs, Exception):
+                raise runs
+            return runs
+        return choose_profile.decide("pull_request", LIVE_RULES, lambda: ["docs/a.md"],
+                                     get_runs).profile
+
+    def test_green_main_allows_the_newest_release_profile(self):
+        self.assertEqual(self.profile([self.run_(3)]), "newest-release")
+        self.assertEqual(self.profile([self.run_(3, "schedule")]), "newest-release")
+
+    def test_the_newest_push_or_schedule_run_decides(self):
+        self.assertEqual(self.profile([self.run_(5, "schedule", "failure"), self.run_(4)]), "full")
+        self.assertEqual(self.profile([self.run_(4, "push", "failure"), self.run_(5, "schedule")]),
+                         "newest-release")
+        self.assertEqual(self.profile([self.run_(6), self.run_(5, "push", "failure")]),
+                         "newest-release")
+
+    def test_red_cancelled_or_timed_out_is_full(self):
+        for conclusion in ("failure", "cancelled", "timed_out", None):
+            with self.subTest(conclusion=conclusion):
+                self.assertEqual(self.profile([self.run_(3, conclusion=conclusion)]), "full")
+
+    def test_pull_request_and_dispatch_runs_are_ignored(self):
+        runs = [self.run_(9, "pull_request"), self.run_(8, "workflow_dispatch"),
+                self.run_(2, "push", "failure")]
+        self.assertEqual(self.profile(runs), "full")
+        runs = [self.run_(9, "pull_request", "failure"), self.run_(8, "workflow_dispatch", "failure"),
+                self.run_(2)]
+        self.assertEqual(self.profile(runs), "newest-release")
+
+    def test_empty_malformed_or_an_api_error_is_full(self):
+        for runs in ([], [self.run_(9, "pull_request")], None, {"workflow_runs": []}, ["run"],
+                     [{"id": "9", "event": "push", "status": "completed", "conclusion": "success"}],
+                     [{"id": True, "event": "push", "status": "completed", "conclusion": "success"}],
+                     choose_profile.ProfileError("gh api failed: HTTP 403")):
+            with self.subTest(runs=runs):
+                self.assertEqual(self.profile(runs), "full")
+
+
+class TestTheDecision(unittest.TestCase):
+
+    def test_non_pull_request_events_are_full_without_reading_anything(self):
+        for event in ("push", "schedule", "workflow_dispatch", "merge_group"):
+            with self.subTest(event=event):
+                decision = choose_profile.decide(event, LIVE_RULES, _no_call, _no_call)
+                self.assertEqual(decision.profile, "full")
+
+    def test_docs_only_with_green_main_is_newest_release(self):
+        decision = choose_profile.decide("pull_request", LIVE_RULES,
+                                         lambda: ["docs/ROADMAP.md", "README.md"],
+                                         lambda: GREEN_RUNS)
+        self.assertEqual(decision.profile, "newest-release")
+        self.assertEqual([row[1] for row in decision.reasons], ["newest-release"] * 4)
+
+    def test_one_full_path_decides_and_main_is_not_consulted(self):
+        decision = choose_profile.decide("pull_request", LIVE_RULES,
+                                         lambda: ["docs/a.md", "src/workflow_manager/cli.py"],
+                                         _no_call)
+        self.assertEqual(decision.profile, "full")
+        self.assertEqual(decision.reasons[-1][0], "main's health")
+
+
+class TestTheOutput(_TempDir):
+    """`profile=...` to `$GITHUB_OUTPUT`, the reasons table to the summary."""
+
+    def run_main(self, *argv, env=None):
+        out, summary = self.tmp / "output", self.tmp / "summary"
+        env = {"GITHUB_OUTPUT": str(out), "GITHUB_STEP_SUMMARY": str(summary), **(env or {})}
+        err = io.StringIO()
+        with unittest.mock.patch.dict(os.environ, env), contextlib.redirect_stderr(err):
+            code = choose_profile.main(list(argv))
+        return code, out.read_text() if out.exists() else "", \
+            summary.read_text() if summary.exists() else "", err.getvalue()
+
+    def test_a_push_run(self):
+        code, output, summary, _ = self.run_main("--event", "push")
+        self.assertEqual((code, output), (0, "profile=full\n"))
+        self.assertEqual(summary, "### Test profile: `full`\n\n| input | profile | reason |\n"
+                                  "| --- | --- | --- |\n| event `push` | full | only a pull "
+                                  "request runs a reduced profile |\n")
+
+    def test_a_pull_request_that_touches_src(self):
+        repo = _git_repo(self.tmp / "repo")
+        _write(repo, "docs/a.md")
+        runner_tests._commit_all(repo)  # noqa: SLF001
+        runner_tests._git(repo, "checkout", "-q", "-b", "topic")  # noqa: SLF001
+        _write(repo, "src/x.py")
+        runner_tests._commit_all(repo)  # noqa: SLF001
+        runner_tests._git(repo, "checkout", "-q", "main")  # noqa: SLF001
+        runner_tests._git(repo, "merge", "-q", "--no-ff", "-m", "m", "topic")  # noqa: SLF001
+        code, output, summary, _ = self.run_main("--event", "pull_request", "--repo", "o/n",
+                                                 "--repo-dir", str(repo))
+        self.assertEqual((code, output), (0, "profile=full\n"))
+        self.assertIn("| `src/x.py` | full | `src/`: rule 1:", summary)
+
+    def test_a_broken_rule_file_is_full(self):
+        rules = self.tmp / "rules.json"
+        rules.write_text("[]")
+        code, output, summary, _ = self.run_main("--event", "push", "--rules", str(rules))
+        self.assertEqual((code, output), (0, "profile=full\n"))
+        self.assertIn("| path rules | full | undecidable:", summary)
+
+    def test_usage_errors(self):
+        for argv in ((), ("--event", "pull_request")):
+            with self.subTest(argv=argv):
+                code, output, _, err = self.run_main(*argv)
+                self.assertEqual((code, output), (2, ""))
+                self.assertIn("usage error", err)
+
+    def test_the_table_escapes_cells_and_bounds_its_rows(self):
+        decision = choose_profile.Decision("full", [("`a|b.md`", "newest-release", "x|y")])
+        self.assertIn("| `a\\|b.md` | newest-release | x\\|y |",
+                      choose_profile.summary_markdown(decision))
+        many = [(f"`docs/{i}.md`", "newest-release", "r") for i in range(400)]
+        many.insert(350, ("`src/late.py`", "full", "r"))
+        table = choose_profile.summary_markdown(choose_profile.Decision("full", many))
+        self.assertIn("`src/late.py`", table)
+        self.assertEqual(sum(1 for line in table.splitlines() if line.startswith("| `")),
+                         choose_profile.MAX_SUMMARY_PATHS)
+        self.assertIn(f"| {401 - choose_profile.MAX_SUMMARY_PATHS} more paths |", table)
+
+
+class TestNightlyAlarmDecision(unittest.TestCase):
+    URL = "https://github.com/o/n/actions/runs/1"
+
+    def kinds(self, event, result, open_issues):
+        return [(a.kind, a.issue) for a in nightly_alarm.decide(event, result, open_issues, self.URL)]
+
+    def test_the_decision_table(self):
+        self.assertEqual(self.kinds("schedule", "failure", []),
+                         [("ensure-label", None), ("open", None)])
+        self.assertEqual(self.kinds("schedule", "cancelled", [12]),
+                         [("ensure-label", None), ("comment", 12)])
+        self.assertEqual(self.kinds("schedule", "failure", [15, 12]),
+                         [("ensure-label", None), ("comment", 12)])
+        self.assertEqual(self.kinds("schedule", "success", [12]), [("close", 12)])
+        self.assertEqual(self.kinds("schedule", "success", [15, 12]), [("close", 12), ("close", 15)])
+        self.assertEqual(self.kinds("schedule", "success", []), [])
+        for event in ("push", "pull_request", "workflow_dispatch"):
+            for result in ("success", "failure"):
+                self.assertEqual(self.kinds(event, result, [12]), [])
+
+    def test_every_red_case_ensures_the_label_first(self):
+        for result in ("failure", "cancelled", "skipped", "timed_out"):
+            for open_issues in ([], [3]):
+                actions = nightly_alarm.decide("schedule", result, open_issues, self.URL)
+                self.assertEqual(actions[0].kind, "ensure-label")
+                self.assertIn(self.URL, actions[1].body)
+
+    def test_the_gh_calls(self):
+        label = nightly_alarm.gh_args(nightly_alarm.Action("ensure-label"), "o/n")
+        self.assertEqual(label[:3], ["label", "create", "nightly-red"])
+        self.assertIn("--force", label)
+        opened = nightly_alarm.gh_args(nightly_alarm.Action("open", body="b"), "o/n")
+        self.assertEqual(opened[:2], ["issue", "create"])
+        self.assertEqual(opened[opened.index("--title") + 1], "Nightly full verification failed")
+        self.assertEqual(opened[opened.index("--label") + 1], "nightly-red")
+        self.assertEqual(nightly_alarm.gh_args(nightly_alarm.Action("close", 4, "b"), "o/n")[:3],
+                         ["issue", "close", "4"])
+
+    def test_a_non_schedule_run_calls_nothing(self):
+        with unittest.mock.patch.object(nightly_alarm, "_gh", side_effect=AssertionError), \
+                contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(nightly_alarm.main(["--event", "push", "--result", "failure",
+                                                 "--repo", "o/n", "--run-url", self.URL]), 0)
+
+    def test_an_unreadable_issue_list_still_opens_an_issue(self):
+        calls = []
+
+        def fake_gh(*args):
+            calls.append(args[:2])
+            if args[:2] == ("issue", "list"):
+                return subprocess.CompletedProcess(args, 1, "", "HTTP 502")
+            return subprocess.CompletedProcess(args, 0, "", "")
+
+        with unittest.mock.patch.object(nightly_alarm, "_gh", side_effect=fake_gh), \
+                contextlib.redirect_stderr(io.StringIO()):
+            code = nightly_alarm.main(["--event", "schedule", "--result", "failure",
+                                       "--repo", "o/n", "--run-url", self.URL])
+        self.assertEqual(code, 0)
+        self.assertEqual(calls, [("issue", "list"), ("label", "create"), ("issue", "create")])
 
 
 if __name__ == "__main__":
