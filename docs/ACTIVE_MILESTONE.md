@@ -11,7 +11,8 @@ Full plan: `docs/ai-workflow/WORKFLOW_MANAGER_TRUNK_MODEL_PLAN.md`.
 
 ## Current checkpoint
 
-`IMPLEMENTING`. CP1 and CP2 are complete; CP3 is ready (no dependency).
+`IMPLEMENTING`. CP1, CP2 and CP3 are complete; CP4 is ready (it depends
+on CP3).
 
 ## Current blockers
 
@@ -94,6 +95,44 @@ checkpoint.
   the diff against `b856a97` over `distribution migration scripts
   .claude/commands .github/workflows/workflow-conformance.yml` is empty and
   `workflow-manager verify .` matches workflow 2.6.0.
+
+### CP3 -- newest-release selection in the runner (complete)
+
+- `tests/parallel/cli.py`: `--newest-release-only` for the run, `--list`
+  and `--plan-only` modes; with `--select` or `--fast` it is a usage error,
+  exit 2, refused from argv before the run lock. Every other mode refuses
+  it through the existing per-mode option check.
+- `tests/parallel/inventory.py`: `newest_release` (the highest `CI_SUITES`
+  version by numeric order), the `NEWEST_RELEASE` spec, and
+  `Selection.kind` (`full`, `targeted` or `newest-release`, derived from
+  the flags and kept outside `to_json`, so `selection_digest` is unchanged).
+  The selection is every host unit except the other releases' matrix host
+  classes, plus the newest release's frozen units. `partial_frozen` is
+  false, and phase B is the newest release's three matrix classes. A
+  hand-built `Selection` defaults to `targeted`, the least it can claim
+  (INV-4). The executor passes the spec through unchanged, so
+  `executor.py` did not change.
+- `tests/parallel/planner.py`: the plan's new `selection_kind`.
+  `tests/parallel/report.py`: the evidence label keeps set equality, and
+  adds `newest-release` for a newest-release plan that is not full by it.
+- Every stopgap block opens with a line-leading `# STOPGAP(M2)` comment
+  that points to `docs/ARCHITECTURE.md`'s "Stopgap test profile" (CP7
+  writes that subsection).
+- Live `--list --newest-release-only` at this checkpoint: 1088 units (155
+  host + 3 x 311 frozen `2.6.0`), the plan's 1069 at the base plus the 19
+  host classes CP1 and CP2 added. The full `--list` is 4061.
+- Verification: `run_all.py --select test_stopgap_profile.py`: 6/6 units,
+  14 tests OK, covering every item of the plan's CP3 test list. INV-2 is
+  proved against the base runner itself: the base commit's
+  `tests/parallel/` (`git archive b856a97`) selects byte-identical
+  `to_json`, and the same `selection_digest`, over the live and a
+  synthetic inventory. The real subprocess run uses a scratch checkout of
+  releases `0.0.1`, `0.0.9` and `0.0.10`, where `0.0.10` must win. The
+  regression run, `--select` of `test_parallel_runner.py`,
+  `test_release_versioning.py`, `test_manager_version.py` and
+  `test_stopgap_profile.py`, passed with 79/79 units and 323 tests OK. INV-1/INV-3: the diff against `b856a97`
+  over `distribution migration scripts .claude/commands
+  .github/workflows/workflow-conformance.yml` is empty.
 
 ## Previous milestone
 

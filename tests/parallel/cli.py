@@ -4,7 +4,8 @@
     python3 tests/run_all.py                       # the full selection, in parallel
     python3 tests/run_all.py --jobs 1              # the serial reference (INV-6)
     python3 tests/run_all.py --select SPEC ...     # targeted selection -- never a gate
-    python3 tests/run_all.py --list [--select SPEC ...]
+    python3 tests/run_all.py --newest-release-only # host plus the newest release (stopgap)
+    python3 tests/run_all.py --list [--select SPEC ... | --newest-release-only]
     python3 tests/run_all.py --plan-only --profile ci --out PLAN [--shards N]
     python3 tests/run_all.py --run-shard K --plan PLAN --results DIR
     python3 tests/run_all.py --aggregate DIR --plan PLAN
@@ -15,6 +16,12 @@
 `test_x.py::Class`, `test_x.py::Class::test_y`,
 `frozen:<version>/<fixture>/<suite>.py` or
 `frozen:<version>/<fixture>/<suite>.py::Class`.
+
+`--newest-release-only` (the pull-request profile's stopgap, removed by M2)
+selects every host class except the other releases' frozen-matrix classes,
+plus every frozen unit of the newest release in `CI_SUITES`. It excludes
+`--select` and `--fast`. Its evidence line says `newest-release selection`,
+never full-suite evidence.
 
 Exit 0: every planned unit reported and every test passed. Exit 1: a test
 failed or errored. Exit 2: an infrastructure fault (incomplete or foreign
@@ -119,6 +126,12 @@ def build_parser() -> argparse.ArgumentParser:
                        help="restore a write barrier a killed run left behind, and exit")
     parser.add_argument("--select", action="append", default=[], metavar="SPEC",
                         help="targeted selection (repeatable); not a verification gate")
+    # STOPGAP(M2): the newest-release selection; see docs/ARCHITECTURE.md's
+    # "Stopgap test profile".
+    parser.add_argument("--newest-release-only", action="store_true",
+                        help="host classes plus the newest release's frozen suites only "
+                             "(the pull-request stopgap profile); not full-suite evidence")
+    # End of the STOPGAP(M2) block.
     parser.add_argument("--fast", action="store_true",
                         help="deprecated alias for a targeted --select of eight modules; "
                              "not a verification gate")
@@ -155,9 +168,10 @@ def _mode(args) -> str:
 
 #: Which options each mode accepts, beyond the mode flag itself.
 ALLOWED = {
-    "run": {"select", "fast", "jobs", "results", "whole_groups", "shuffle_seed", "allow_root"},
-    "list": {"select"},
-    "plan_only": {"select", "profile", "shards", "out", "whole_groups"},
+    "run": {"select", "fast", "newest_release_only", "jobs", "results", "whole_groups",
+            "shuffle_seed", "allow_root"},
+    "list": {"select", "newest_release_only"},
+    "plan_only": {"select", "newest_release_only", "profile", "shards", "out", "whole_groups"},
     "run_shard": {"plan", "results", "allow_root"},
     "aggregate": {"plan", "allow_root"},
     "update_timings": {"profile", "sources"},
@@ -165,8 +179,8 @@ ALLOWED = {
 }
 #: GitHub Actions' ceiling on the jobs one matrix may generate.
 CI_MATRIX_LIMIT = 256
-_DEFAULTS = {"select": [], "sources": [], "fast": False, "whole_groups": False,
-             "allow_root": False}
+_DEFAULTS = {"select": [], "sources": [], "fast": False, "newest_release_only": False,
+             "whole_groups": False, "allow_root": False}
 
 
 def validate(parser, args) -> str:
@@ -180,6 +194,12 @@ def validate(parser, args) -> str:
                      f"{'a local run' if mode == 'run' else '--' + mode.replace('_', '-')}")
     if args.fast and args.select:
         parser.error("--fast cannot be combined with --select (it is one)")
+    # STOPGAP(M2): the newest-release selection; see docs/ARCHITECTURE.md's
+    # "Stopgap test profile".
+    if args.newest_release_only and (args.select or args.fast):
+        parser.error("--newest-release-only cannot be combined with --select or --fast "
+                     "(each is a selection)")
+    # End of the STOPGAP(M2) block.
     if mode in ("run_shard", "aggregate") and args.plan is None:
         parser.error(f"--{mode.replace('_', '-')} needs --plan")
     if mode == "run_shard" and args.results is None:
@@ -244,6 +264,11 @@ def _main(argv, *, repo_root: Path) -> int:
     try:
         check_paths(repo_root, args)
         parsed = [inventory.parse_spec(s) for s in specs]
+        # STOPGAP(M2): the newest-release selection; see docs/ARCHITECTURE.md's
+        # "Stopgap test profile".
+        if args.newest_release_only:
+            parsed = [inventory.NEWEST_RELEASE]
+        # End of the STOPGAP(M2) block.
     except (PathInsideRepositoryError, inventory.SelectSyntaxError) as exc:
         return refuse(exc)
     if args.fast:
