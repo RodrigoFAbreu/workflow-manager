@@ -12,8 +12,8 @@ plan: `docs/ai-workflow/WORKFLOW_MANAGER_TEST_CLEANUP_PLAN.md`.
 
 ## Current checkpoint
 
-CP1 and CP2 are complete. CP3 (measurement, documentation and the
-milestone's evidence) is next.
+CP1, CP2 and CP3 are complete. Every checkpoint is done; next is the
+milestone's self-review (`SELF_REVIEWING_IMPLEMENTATION`).
 
 ## Current blockers
 
@@ -26,7 +26,9 @@ None.
 
 ## Next action
 
-`/milestone-implement workflow-manager-test-cleanup` for CP3.
+`/milestone-implement workflow-manager-test-cleanup`, which enters step 2
+(self-review of the milestone diff, the full gate and the implementation
+bundle).
 
 ## Checkpoint log
 
@@ -219,6 +221,66 @@ launched through the tool keep SIGINT's default.
     portability exceptions;
   - INV-1's `git diff 7dabd2e` is empty, `workflow-manager verify .` is
     clean, and `CLAUDE.md` is unchanged.
+
+### CP3 -- measurement, documentation and the milestone's evidence (complete)
+
+- **Measurement** (plan 3.4 repeated under the wrapper's whole-run use,
+  5.4). The command, run with the operator's `GIT_CONFIG_*` exports removed
+  so that only this milestone's layers apply:
+
+  ```bash
+  env -u GIT_CONFIG_COUNT -u GIT_CONFIG_KEY_0 -u GIT_CONFIG_VALUE_0 \
+      -u GIT_CONFIG_KEY_1 -u GIT_CONFIG_VALUE_1 \
+    python3 -I -S -B tests/parallel/reaper.py --report /tmp/cp3-whole/outer.json \
+      --chunk-id whole-run -- python3 tests/run_all.py --results /tmp/cp3-whole/results
+  ```
+
+  | run | verdict | orphans reaching the outer probe | Git among them | wall |
+  | --- | --- | --- | --- | --- |
+  | base `7dabd2e`, default Git config (plan 3.4) | exit 2 (the author's own edit, 3.4) | 42,158 | 31,731 seen as Git, plus 10,391 unread | 380 s |
+  | base `7dabd2e`, the four keys exported (plan 3.4) | exit 0 | 36 | 0 | 370 s |
+  | CP3 (head `2c0a926` plus this checkpoint's docs), nothing exported | exit 0 | **0** | **0** | 384 s |
+
+  - The outer report (`outer.json`): `supported: true`, `platform: linux`,
+    `chunk_status: 0` and `orphans: []`. Nothing escaped the per-chunk
+    wrappers, and nothing ran outside a wrapper orphaned anything (plan
+    5.6's "processes outside chunks").
+  - The per-chunk reports: 333 of them, one per chunk, all `supported:
+    true`. They recorded 37 orphans in 20 chunks, exactly the 20 declared
+    `orphan_sources` (no undeclared orphan, no unused declaration). **No
+    entry is Git**: no label is `[git]` or a `git` command line. The
+    orphans are the declared frozen `TestStateLock` forkserver and
+    resource-tracker processes, and the declared host kill tests'
+    `[python3]`, scratch `reaper.py` and `_WAIT_FOR_FILE` children.
+  - The wall time is one run, for information, not a target. It is within
+    the noise of 3.4's rows.
+- **Documentation:**
+  - `docs/ARCHITECTURE.md`, "Verification execution": the exit-`2` list
+    gains `OrphanProcessError`, `OrphanCheckUnavailableError`,
+    `OrphanDeclarationError`, `bad_orphan_report` and `GitConfigEnvError`;
+  - a new "Orphaned processes" paragraph gives the cause, the settings, the
+    environment layer and its template, the per-repository layer and its
+    routing check, the leak check, the verdict, `orphan_sources` and its
+    policy, the whole-run use with this measurement, and plan 5.6's
+    residuals;
+  - `CLAUDE.md`, non-managed part: one paragraph saying that a run fails on
+    an orphaned process, and that deliberate sources are declared in
+    `orphan_sources`.
+- **Verification:**
+  - the full gate is the measured run above: 4101/4101 units, 25,682
+    tests, exit 0, `orphan check: on`, `selection_digest b8ca6c1f...`,
+    `tests_digest 47b3b636...`, `tree_digest c7db107f...`. Its only failed
+    chunks are the documented `2.3.1`/`2.4.0`
+    `workflow_integration_test.py` portability exceptions. The two digests
+    equal CP2's two gates, since CP3 changes no code or test;
+  - INV-1: `git diff 7dabd2e -- distribution migration scripts
+    .claude/commands .github/workflows/workflow-conformance.yml` is empty,
+    and `workflow-manager verify .` reports that the installation matches
+    workflow 2.6.0;
+  - INV-2: no test was removed or skipped, and no frozen pin or portability
+    exception changed;
+  - INV-3: `CLAUDE.md` up to `<!-- workflow-manager:end -->` is
+    byte-identical to the base.
 
 ## Previous milestone
 

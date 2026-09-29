@@ -95,6 +95,10 @@ for the equivalence and staleness rules and what to record.
 `--select` of eight modules -- targeted selection, not a verification gate.
 A run makes `distribution/`, `migration/`, `src/` and `tools/` read-only
 until it ends; see `docs/ARCHITECTURE.md`'s "Verification execution".
+A run fails (exit 2, `OrphanProcessError`) when a test leaves an orphaned
+process behind. A test that orphans on purpose is declared, with a reason,
+in `tests/parallel/resources.json`'s `orphan_sources`; see
+`docs/ARCHITECTURE.md`'s "Orphaned processes".
 
 `tools/migrate.py --check` proves each upstream-derived
 `distribution/workflow/<version>/` (today, `2.3.1`) still reproduces from a
