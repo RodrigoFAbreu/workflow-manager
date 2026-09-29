@@ -46,7 +46,7 @@ Workflow 2.7 (W1) and 2.8 (W2).
 | M1 | Trunk model, plus the stopgap test profile until M2 (COMPLETE) | Workflow Manager | [10.1](#101-m1-trunk-model-and-the-stopgap-test-profile) |
 | M1b | Test cleanup: throwaway test repositories leave no orphaned Git processes, and a leak check | Workflow Manager | [10.1b](#101b-m1b-test-cleanup-no-orphaned-git-processes) |
 | M2 | Distribution rework: Workflow in its own repository, released as downloadable packages | Workflow Manager, `workflow` | [10.2](#102-m2-distribution-rework-packaged-workflow-releases) |
-| W1 | Workflow 2.7, the first packaged release: Orchestration Protocol v1 and the `v2.6.0-001` follow-up | `workflow` | [1.9](#19-post-26-controller-integration-and-workflow-orchestration-protocol-foundation) |
+| W1 | Workflow 2.7, the first packaged release: Orchestration Protocol v1, and the `v2.6.0-001` and `v2.6.0-002` follow-ups | `workflow` | [1.9](#19-post-26-controller-integration-and-workflow-orchestration-protocol-foundation) |
 | W2 | Workflow 2.8: declarative gate policy, and a red or changes-requested pull request reopening the same work item | `workflow` | [1.9](#19-post-26-controller-integration-and-workflow-orchestration-protocol-foundation) |
 | M3 | This repository and `workflow` driven by the Controller's loop | both | [10.3](#103-m3-driven-by-the-controllers-loop) |
 
@@ -664,6 +664,8 @@ Initial operations:
 
 5. `record-external-result`
    - ingest typed external/manual evidence without requiring Controller to know Workflow-owned storage paths.
+   - it also owns parsing a manual verdict's header, so the Controller stops reading labels itself
+     (`docs/defects/v2.6.0-002-review-content-id-label-not-pinned.md`).
 
 6. `resolve-artifact`
    - narrow semantic artifact resolver when another component genuinely needs a path.
@@ -971,10 +973,10 @@ Potential future work:
 
 **Status:** COMPLETE. Accepted as milestone `workflow-manager-trunk-model`
 on 2026-09-29, from `milestone/workflow-manager-trunk-model` (pull request
-#4). The rest of the cutover (`docs/RELEASING.md`, "Cutover", C2-C5)
-follows acceptance and is the repository owner's: the ruleset, the merge
-settings, the squash merge and the first tag-derived Manager release.
-Design: `docs/ai-workflow/WORKFLOW_MANAGER_TRUNK_MODEL_PLAN.md`.
+#4). The cutover (`docs/RELEASING.md`, "Cutover") is complete: `main` is
+protected by the ruleset, merges are squash-only, pull request #4 merged as
+`59158c6`, and the first tag-derived Manager release, `v1.1.0`, is
+published. Design: `docs/ai-workflow/WORKFLOW_MANAGER_TRUNK_MODEL_PLAN.md`.
 
 This repository works the way the Workflow Controller does:
 
