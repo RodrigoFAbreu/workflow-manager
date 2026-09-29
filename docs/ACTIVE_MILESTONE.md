@@ -2,6 +2,56 @@
 
 ## Milestone
 
+`workflow-manager-trunk-model` (`governing_workflow_version: "2.2"`,
+`process`, plan revision 3 approved in `aede0df`, base `b856a97`): the
+trunk model for this repository -- a protected, squash-only `main`,
+Conventional Commit pull-request titles, tag-derived Manager versions and
+releases, and a reduced newest-release pull-request profile as a stopgap.
+Full plan: `docs/ai-workflow/WORKFLOW_MANAGER_TRUNK_MODEL_PLAN.md`.
+
+## Current checkpoint
+
+`IMPLEMENTING`. CP1 is complete; CP2 and CP3 are ready (CP3 has no
+dependency).
+
+## Current blockers
+
+None.
+
+## Next action
+
+`/milestone-implement workflow-manager-trunk-model` for the next
+checkpoint.
+
+## Checkpoint log
+
+### CP1 -- Conventional Commit titles and tag-derived versions (complete)
+
+- `tools/release/release.py` (new, stdlib): `check-title` (SignalHub's
+  title regex on the stripped subject; the 5.1 impact table, `!` major on
+  any type; each rejection names its failure and prints the accepted form),
+  `next-version` (highest strict `vX.Y.Z` in `git tag --merged HEAD`, else
+  the baseline `1.0.0` at `b856a97`, which must be an ancestor of `HEAD`;
+  the bump is the highest impact over `git log --first-parent`; `none`-only
+  or empty prints nothing; a non-Conventional subject is a patch with a
+  `::warning::`), `assert-not-superseded` (exit 3 when a strict tag sits on
+  a non-ancestor of `HEAD`), `resolve-target` (the newest completed green
+  `push` run on `main`'s first parent, via `gh api`; a pick that is neither
+  the trigger nor its descendant refuses; an API, parse or git failure, or
+  no candidate, falls back to the trigger with a warning; `select_target`
+  is pure), `set-version DIR VERSION` (rewrites the single placeholder
+  line in a copy, never the checkout; `X.Y.Z` or `X.Y.Z+local` only).
+  Exit codes 0/1/2/3.
+- `pyproject.toml`: `version = "0.0.0.dev0"`, the placeholder, with a
+  comment naming the Git tag as the only version authority (INV-6).
+- Verification: `run_all.py --select test_release_versioning.py` 10/10
+  units, 54 tests OK (every item of the plan's CP1 test list, on real
+  temporary repositories). INV-1 and INV-3:
+  `git diff b856a97 -- distribution migration scripts .claude/commands src .github/workflows/workflow-conformance.yml`
+  empty. The new module's PR-profile rule is CP4's (plan 6.2).
+
+## Previous milestone
+
 **Complete.** `workflow-manager-adaptive-test-sharding`
 (`governing_workflow_version: "2.2"`, `process`, plan revision 7 approved
 2026-09-26, base `db4c7af`): adaptive, duration-balanced parallel execution
