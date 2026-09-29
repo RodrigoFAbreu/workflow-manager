@@ -27,13 +27,26 @@ The checkpoint log below is this milestone's permanent record.
 
 ## Current blockers
 
-None. What remains is the cutover after acceptance (`docs/RELEASING.md`,
-"Cutover", C2-C5), which is the repository owner's:
-- apply the ruleset and the merge settings;
-- mark pull request #4 ready and squash-merge it under its title
-  `feat: trunk model, Manager releases and the stopgap PR test profile`;
-- let `main`'s full run and the release workflow publish the first
-  tag-derived Manager release (C5), and record it here.
+None. The cutover after acceptance (`docs/RELEASING.md`, "Cutover",
+C2-C5) is complete (2026-09-29):
+- **C2:** `merge-settings.json` applied: squash only, `PR_TITLE`/`BLANK`,
+  auto-merge allowed, branches deleted on merge.
+- **C3:** both required checks reported green, under their exact names, at
+  pull request #4's final head `7dca707`
+  ([aggregate](https://github.com/RodrigoFAbreu/workflow-manager/actions/runs/36568676727),
+  [Conventional Commit title](https://github.com/RodrigoFAbreu/workflow-manager/actions/runs/36568676757)).
+  Then ruleset `main` (id 24179602) was created from `ruleset-main.json`.
+- **C4:** pull request #4 marked ready and squash-merged as `59158c6`
+  (`feat: trunk model, Manager releases and the stopgap PR test profile
+  (#4)`).
+- **C5:** `main`'s push run was full and green
+  ([run 36569800136](https://github.com/RodrigoFAbreu/workflow-manager/actions/runs/36569800136)).
+  The release workflow
+  ([run 36570855470](https://github.com/RodrigoFAbreu/workflow-manager/actions/runs/36570855470))
+  published [`v1.1.0`](https://github.com/RodrigoFAbreu/workflow-manager/releases/tag/v1.1.0)
+  on `59158c6`, with the wheel, the sdist and `SHA256SUMS`. `sha256sum -c`
+  passes on the downloaded assets, and the wheel, installed into a fresh
+  venv, prints `workflow-manager 1.1.0`.
 
 ## Active plan
 
@@ -44,8 +57,8 @@ cite it as the design record.
 
 ## Next action
 
-`workflow-manager-trunk-model` is complete. Next, after the cutover
-merges it, run `/milestone-plan` for the next incomplete milestone in
+`workflow-manager-trunk-model` is complete and merged. Next, run
+`/milestone-plan` for the next incomplete milestone in
 `docs/ROADMAP.md`. That is M1b, "Test cleanup, no orphaned Git
 processes" (section 10.1b), the small milestone the agreed lane order
 (2026-09-29) puts before M2.
