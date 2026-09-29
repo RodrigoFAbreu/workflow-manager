@@ -715,7 +715,9 @@ class _ReaperCase(_Tmp):
 
 #: A chunk that double-forks a daemon (`setsid`) running `DAEMON`, waits
 #: until the daemon is in the state `READY` names, and exits. The daemon's
-#: pid goes to `argv[1]`.
+#: pid goes to `argv[1]`. For `READY == "zombie"` the middle process waits,
+#: without reaping, until the daemon is a zombie before it exits, so the
+#: daemon is re-parented only once its command line reads empty.
 _DOUBLE_FORK = """
 import os, sys, time
 
@@ -732,6 +734,11 @@ if middle == 0:
         exec(DAEMON)
         os._exit(0)
     os.write(w, str(daemon).encode())
+    while READY == "zombie":
+        stat = open(f"/proc/{{daemon}}/stat").read()
+        if stat.rsplit(")", 1)[1].split()[0] == "Z":
+            break
+        time.sleep(0.01)
     os._exit(0)
 os.close(w)
 daemon = int(os.read(r, 64))
@@ -801,7 +808,10 @@ class TestReaperDirect(_ReaperCase):
 
     def test_an_orphan_whose_cmdline_reads_empty_is_labelled_by_its_comm(self):
         pid_file = self.tmp / "daemon.pid"
-        proc, doc, elapsed = self._double(pid_file, "zombie", "os._exit(0)")
+        # The daemon outlives the middle process by 0.2 s: re-parented alive,
+        # it would be labelled by its command line on the wrapper's first poll.
+        proc, doc, elapsed = self._double(pid_file, "zombie",
+                                          "import time; time.sleep(0.2); os._exit(0)")
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertEqual(doc["orphans"], [{"pid": int(pid_file.read_text()), "cmdline": PY_COMM,
                                            "fate": "exited"}])
