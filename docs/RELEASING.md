@@ -210,3 +210,4 @@ back read-only.
    forward.
 7. **C6:** from the next milestone on, one branch per milestone, merged by
    squash under a Conventional Commit title.
+<!-- functional-review probe, closed unmerged -->
