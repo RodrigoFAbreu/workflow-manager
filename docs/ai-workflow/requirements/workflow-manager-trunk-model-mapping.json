@@ -1,0 +1,106 @@
+{
+  "schema_version": 1,
+  "work_item_id": "workflow-manager-trunk-model",
+  "requirements": {
+    "REQ-1": {
+      "description": "Trunk model: a protected main changed only through pull requests (ruleset), required checks, no direct/force push and no deletion, 'branches up to date' not required, one short-lived branch per milestone.",
+      "checkpoint_ids": [
+        "CP5",
+        "CP7"
+      ]
+    },
+    "REQ-2": {
+      "description": "Squash-only merges with auto-merge enabled; the PR title becomes the squash commit subject (blank body); squash merging is proven safe for the installed Workflow's git-history readers.",
+      "checkpoint_ids": [
+        "CP5",
+        "CP6",
+        "CP7"
+      ]
+    },
+    "REQ-3": {
+      "description": "A required Conventional Commit PR-title check, using the same code as the release, with the release-impact table (feat minor, fix patch, ! major, docs/chore/ci none).",
+      "checkpoint_ids": [
+        "CP1",
+        "CP5"
+      ]
+    },
+    "REQ-4": {
+      "description": "The Git tag is the only version authority: next version derived from the latest strict tag and the commit types, a decided first release, the package version set at build time, a placeholder-only pyproject.toml, and workflow-manager --version.",
+      "checkpoint_ids": [
+        "CP1",
+        "CP2"
+      ]
+    },
+    "REQ-5": {
+      "description": "A serialized Workflow Manager package release published from main: built, verified, tagged, a GitHub release with wheel, sdist and SHA256SUMS; it contains no Workflow release.",
+      "checkpoint_ids": [
+        "CP2",
+        "CP5"
+      ]
+    },
+    "REQ-6": {
+      "description": "A per-commit CI concurrency group for main (and every non-PR run), so an intermediate main run is never cancelled.",
+      "checkpoint_ids": [
+        "CP5"
+      ]
+    },
+    "REQ-7": {
+      "description": "The stopgap test profile: a pull request runs the host tests plus the newest Workflow release only; main pushes and a nightly run keep the full matrix.",
+      "checkpoint_ids": [
+        "CP3",
+        "CP4",
+        "CP5"
+      ]
+    },
+    "REQ-8": {
+      "description": "Stopgap rule 1: a PR touching the installer, the fixture builder, shared test infrastructure or distribution/ runs the full matrix; the path classification is fail-safe (unknown means full) and proven complete over every tracked path.",
+      "checkpoint_ids": [
+        "CP4"
+      ]
+    },
+    "REQ-9": {
+      "description": "Stopgap rule 2: the Manager release waits for main's full run of the released commit, so a red main publishes nothing and is fixed forward.",
+      "checkpoint_ids": [
+        "CP1",
+        "CP5"
+      ]
+    },
+    "REQ-10": {
+      "description": "Stopgap rule 3: one aggregate summary check is the required check, stable whatever the shard count and profile.",
+      "checkpoint_ids": [
+        "CP5"
+      ]
+    },
+    "REQ-11": {
+      "description": "Stopgap rule 4: docs/ARCHITECTURE.md's policy that a targeted run is never a gate is updated as a reviewed decision.",
+      "checkpoint_ids": [
+        "CP7"
+      ]
+    },
+    "REQ-12": {
+      "description": "Stopgap rule 5: a nightly failure is loud (badge and issue), and pull requests run the full matrix while main's latest full run is not green.",
+      "checkpoint_ids": [
+        "CP4",
+        "CP5"
+      ]
+    },
+    "REQ-13": {
+      "description": "Stopgap rule 6: the second CI profile's removal by M2 is written down where M2 will find it, and a test keeps that record in step with the code.",
+      "checkpoint_ids": [
+        "CP7"
+      ]
+    },
+    "REQ-14": {
+      "description": "No Workflow release: distribution/ and migration/ byte-identical to the base, managed content untouched, workflow-manager verify . clean, the full local gate unchanged.",
+      "checkpoint_ids": [
+        "CP7"
+      ]
+    },
+    "REQ-15": {
+      "description": "The Controller repository-policy decision and the cutover plan (settings order without locking out this milestone's own PR) are recorded, with CLAUDE.md, ARCHITECTURE, README and release documentation updated.",
+      "checkpoint_ids": [
+        "CP7"
+      ]
+    }
+  }
+}
