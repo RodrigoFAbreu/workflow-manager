@@ -934,9 +934,10 @@ def is_git_label(label: str) -> bool:
     empty (plan 5.4 step 2), so which form a detached `git maintenance` gets
     depends on timing: `[git]` locally, `/usr/lib/git-core/git maintenance
     run --auto --quiet --detach` on a faster CI runner. Both are Git."""
-    if label == "[git]":
-        return True
-    program = Path(label.split()[0]).name if label.split() else ""
+    if label.startswith("[") and label.endswith("]"):
+        program = label[1:-1]
+    else:
+        program = Path(label.split()[0]).name if label.split() else ""
     return program == "git" or program.startswith("git-")
 
 
@@ -949,6 +950,7 @@ class TestIsGitLabel(unittest.TestCase):
         self.assertTrue(is_git_label("/usr/lib/git-core/git maintenance run --auto --quiet --detach"))
         self.assertTrue(is_git_label("git gc --auto"))
         self.assertTrue(is_git_label("/usr/lib/git-core/git-maintenance run"))
+        self.assertTrue(is_git_label("[git-remote-htt]"))
 
     def test_other_processes_are_not_git(self):
         for label in ("[python3]", "sleep 1", "/usr/bin/python3 -c import os", "[gitk-like]", ""):
