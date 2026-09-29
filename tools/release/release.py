@@ -14,6 +14,7 @@ Subcommands:
     next-version               print the next release version, or nothing
     assert-not-superseded      refuse when a strict tag is not an ancestor of HEAD
     resolve-target ...         pick the newest green push run on main's first parent
+    assert-full-plan PLAN      refuse a verification plan that is not the full selection
     set-version DIR VERSION    rewrite DIR/pyproject.toml's single placeholder
 
 Exit codes: 0 success; 1 invalid title, refusal or failure; 2 usage error;
@@ -358,6 +359,62 @@ def resolve_target(
     return sha, run_id
 
 
+# -- assert-full-plan ------------------------------------------------------------
+
+
+def check_full_plan(plan: dict, *, tree_digest: str, unit_ids: Iterable[str]) -> None:
+    """Refuse unless `plan` is the full selection of exactly the inventory
+    `unit_ids` of the tree `tree_digest` (plan 5.4, 6.1). Both derivations of
+    "full" must hold: `selection_kind == "full"` (no selection flag made it)
+    and set equality with that inventory, every unit whole. A selection that
+    merely covers everything, or a label that claims more than its selection,
+    is refused."""
+    kind = plan.get("selection_kind")
+    if kind != "full":
+        raise ReleaseError(f"the plan's selection_kind is {kind!r}, not 'full'")
+    if plan.get("tree_digest") != tree_digest:
+        raise ReleaseError(f"the plan is for tree {plan.get('tree_digest')!r}, "
+                           f"the released tree is {tree_digest}")
+    selection = plan.get("selection")
+    if not isinstance(selection, dict):
+        raise ReleaseError("the plan has no selection")
+    inventory = set(unit_ids)
+    missing, extra = sorted(inventory - set(selection)), sorted(set(selection) - inventory)
+    if missing or extra:
+        raise ReleaseError(f"the plan's selection is not the inventory: {len(missing)} "
+                           f"unit(s) missing {missing[:5]}, {len(extra)} unknown {extra[:5]}")
+    partial = sorted(unit for unit, tests in selection.items() if tests is not None)
+    if partial:
+        raise ReleaseError(f"the plan selects {len(partial)} class(es) partially: {partial[:5]}")
+
+
+def assert_full_plan(plan_path: Path, repo: Path) -> None:
+    """`check_full_plan` against the inventory rediscovered from `repo`, the
+    released checkout, with that checkout's own runner (`tests/parallel/`).
+
+    The plan must also load as a runnable plan there: its `plan_digest`
+    matches its content, its `tree_digest` is this checkout's, and it
+    partitions its own selection. The inventory is never taken from the plan
+    or its artifact, which would only prove the plan agrees with itself."""
+    tests_dir = str(Path(repo).resolve() / "tests")
+    sys.dont_write_bytecode = True
+    if tests_dir not in sys.path:
+        sys.path.insert(0, tests_dir)
+    try:
+        from parallel import inventory, planner
+    except ImportError as exc:
+        raise ReleaseError(f"cannot import the runner from {tests_dir}: {exc}") from exc
+    try:
+        plan = planner.load_plan(Path(plan_path), Path(repo))
+    except (planner.PlanError, subprocess.CalledProcessError, OSError) as exc:
+        raise ReleaseError(f"the plan is not runnable here: {exc}") from exc
+    try:
+        found = inventory.discover(Path(repo))
+    except (inventory.InventoryError, subprocess.CalledProcessError, OSError) as exc:
+        raise ReleaseError(f"cannot rediscover the inventory: {exc}") from exc
+    check_full_plan(plan, tree_digest=found.tree_digest, unit_ids=found.unit_ids())
+
+
 # -- set-version -----------------------------------------------------------------
 
 
@@ -410,6 +467,10 @@ def _build_parser() -> argparse.ArgumentParser:
     target.add_argument("--trigger-run", required=True, type=int)
     target.add_argument("--ref", default="origin/main")
 
+    full_plan = sub.add_parser("assert-full-plan")
+    full_plan.add_argument("--repo-dir", type=Path, default=Path.cwd())
+    full_plan.add_argument("plan", type=Path)
+
     version = sub.add_parser("set-version")
     version.add_argument("directory", type=Path)
     version.add_argument("version")
@@ -447,6 +508,9 @@ def main(argv: list[str] | None = None) -> int:
             )
             print(f"target_sha={sha}")
             print(f"target_run={run_id}")
+        elif args.command == "assert-full-plan":
+            assert_full_plan(args.plan, args.repo_dir)
+            print("the plan is the full selection of this tree")
         elif args.command == "set-version":
             set_version(args.directory, args.version)
     except SupersededError as exc:

@@ -11,8 +11,8 @@ Full plan: `docs/ai-workflow/WORKFLOW_MANAGER_TRUNK_MODEL_PLAN.md`.
 
 ## Current checkpoint
 
-`IMPLEMENTING`. CP1-CP4 are complete; CP5 (depends on CP2 and CP4) and
-CP6 (depends on CP4) are ready.
+`IMPLEMENTING`. CP1-CP5 are complete; CP6 (depends on CP4) is ready, and
+CP7 waits for it.
 
 ## Current blockers
 
@@ -175,6 +175,96 @@ checkpoint.
   `workflow-manager verify .` matches workflow 2.6.0. As for CP1-CP3, the
   full gate was not run at this checkpoint: under the Controller it leaks
   git zombies (about 1200 already held by this lane's Controller).
+
+### CP5 -- workflows and settings data (complete)
+
+- `.github/workflows/workflow-manager-verify.yml` (changed): a `schedule`
+  trigger (`17 3 * * *`, the nightly full run); the concurrency group
+  `workflow-manager-verify-<event>-<ref for a pull request, else sha>`,
+  cancelled for pull requests only, so no `main` push, nightly or dispatch
+  run is ever cancelled. The `plan` job holds `contents: read, actions:
+  read`, runs `choose_profile.py` (step `profile`) before planning, passes
+  `--newest-release-only` only through `NEWEST`, set from that step's
+  output, and exports `profile`. A new `package` job runs `package.py
+  --version 0.0.0+ci --manager-root $GITHUB_WORKSPACE` after installing
+  `.github/tools/requirements.txt`. `aggregate` needs `[plan, shard,
+  package]` and its first step (`id: needs`) fails naming the plan or
+  package job's non-success result. A new `nightly-alarm` job (`needs:
+  aggregate`, `if: always() && github.event_name == 'schedule'`,
+  `contents: read, issues: write`) runs `nightly_alarm.py`. The profile
+  step, the `NEWEST` wiring and the alarm job carry `# STOPGAP(M2)`.
+- `.github/workflows/pr-title.yml` (new): `name: PR title`, `pull_request`
+  types `opened, edited, reopened, synchronize`, one job `Conventional
+  Commit title` running `release.py check-title "$TITLE"` with the title in
+  `env`.
+- `.github/workflows/release.yml` (new), plan 5.4: `workflow_run` of
+  "Workflow manager verification", `completed`, `main`; the job requires a
+  `push` run concluded `success`, holds `contents: write, actions: read`
+  and the job-level group `workflow-manager-release` without cancellation.
+  Steps: checkout of `main` (full history), `resolve-target` into
+  `$GITHUB_OUTPUT`, checkout of the target (full history), Python 3.12, the
+  pinned upstream fetch, the `plan` artifact downloaded from the target's
+  run, `assert-full-plan`, `next-version` (empty: a notice, then every
+  later step is skipped), `assert-not-superseded` (exit 3: a notice and
+  `superseded=true`), `package.py --version X.Y.Z`, and `gh release create
+  vX.Y.Z --target $TARGET_SHA --generate-notes` with notes saying the
+  release holds no Workflow release and which releases `distribution/`
+  holds.
+- `.github/repository/ruleset-main.json` and `merge-settings.json` (new):
+  the ruleset API payload (`~DEFAULT_BRANCH`; `deletion`,
+  `non_fast_forward`, `required_linear_history`; `pull_request` with 0
+  approvals and squash only; required checks `aggregate` and `Conventional
+  Commit title` from app 15368, `strict: false`; no bypass actors) and the
+  repository `PATCH` payload (squash only, `PR_TITLE`/`BLANK`, auto-merge,
+  delete branch on merge). No setting was applied: that is the user's
+  cutover (plan section 9).
+- `tools/release/release.py assert-full-plan PLAN [--repo-dir DIR]`: loads
+  the plan with the checkout's own runner (`planner.load_plan`: its
+  `plan_digest`, this tree's `tree_digest`, its partition), rediscovers the
+  inventory there (`inventory.discover`), and requires `selection_kind ==
+  "full"`, the same `tree_digest`, and a selection equal to the inventory
+  with no partial class. Any refusal exits 1.
+- `tools/ci/pr_profile_paths.json`: an exact `newest-release` rule for
+  `tests/test_release_workflows.py`.
+- Tests: `tests/test_release_workflows.py` (new, 19 tests): T-REL-1
+  (structure plus 12 mutations, and the `resolve-target` output format the
+  later steps read), T-PRT-1 (structure, and the real step run with a
+  title that would inject if interpolated), T-SET-1, and the permanent
+  `assert-full-plan` cases over real scratch-checkout `--plan-only`
+  output: a full plan passes; a targeted plan, a `--select` covering the
+  whole inventory, another tree's plan and a tampered plan are refused;
+  a `full` label omitting a unit, adding one, or selecting a class
+  partially is refused. `tests/test_parallel_runner.py`: T-CI-1 updated
+  (triggers, schedule, the exact group, `package` among the jobs and
+  `aggregate`'s needs, five new mutations) and T-CI-7 (new: the `needs`
+  step run for real over every result pair, and the `package` job).
+  T-CI-2 supplies the new `NEWEST` step variable. `tests/test_stopgap_profile.py`:
+  T-CI-6 (wiring, the real profile step choosing `full` for `push`, and the
+  real plan step producing `full`/`newest-release` from `NEWEST` in a
+  scratch clone), T-CI-8, and the stopgap `assert-full-plan` cases (a
+  three-release newest-release plan is refused while the full one passes;
+  over one release the newest-release selection equals the full one and is
+  still refused). No permanent module names a stopgap identifier.
+- Fixed on the way: CP4's `tests/test_stopgap_profile.py` tripped the
+  runner's static write lint (`TestStaticLint`) in four places, all false
+  positives of its flow-insensitive rootedness (a `path` bound to
+  `REPO_ROOT` in `_load_tool` made every `path.write_text` look like a write
+  under the checkout, and a literal `tools/migrate.py` read as a tool run
+  without `--check`). Renamed the binding and used another `tools/` path in
+  the classification case; no behaviour changed. CP4's targeted run could
+  not see it, because the lint test lives in `test_parallel_runner.py`.
+- Verification: `run_all.py --select` over `test_parallel_runner.py`,
+  `test_stopgap_profile.py`, `test_release_workflows.py`,
+  `test_release_versioning.py` and `test_manager_version.py`: every module
+  green except the lint case above, which is green after the fix
+  (`TestStaticLint` 3/3 and `test_stopgap_profile.py` 53/53 re-run).
+  INV-1/INV-3: the diff against `b856a97` over `distribution migration
+  scripts .claude/commands .github/workflows/workflow-conformance.yml` is
+  empty, and `workflow-manager verify .` matches workflow 2.6.0. As for
+  CP1-CP4, the full gate was not run at this checkpoint, because of the
+  Controller's git-zombie leak (about 3500 held by this lane's Controller
+  after these runs). The workflows themselves first run on GitHub at the
+  cutover (C0).
 
 ## Previous milestone
 

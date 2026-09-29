@@ -1,13 +1,21 @@
 # workflow-manager's own verification: the full test selection
 # (`python3 tests/run_all.py`), split across a matrix of shards that the
-# planner computes -- there is no shard list in this file.
+# planner computes -- there is no shard list in this file. A pull request may
+# run the newest-release selection instead (the stopgap profile, below);
+# `main` pushes, the nightly run and dispatches always run the full one.
 #
-#   plan       discovers the inventory and writes plan.json; its shard list
-#              becomes the matrix.
+#   plan       chooses the profile, discovers the inventory and writes
+#              plan.json; its shard list becomes the matrix.
 #   shard      runs one shard of the plan (phase A) and uploads its results.
+#   package    builds and proves the Manager's release assets, as the release
+#              does (tools/release/package.py).
 #   aggregate  verifies every shard's results against the plan, runs phase B
-#              (the frozen-matrix merge) and reports. Its exit code is the
-#              verdict: it is the one required status check.
+#              (the frozen-matrix merge) and reports. It also fails when the
+#              plan or package job did not succeed. Its exit code is the
+#              verdict: it is the one required test check.
+#
+# release.yml publishes a Manager release from a green `main` push run of
+# this workflow, and requires that run's plan to be the full selection.
 #
 # Every file the tooling writes lives under $RUNNER_TEMP, never in the
 # checkout, so each job's tree digest equals the plan job's. This workflow is
@@ -19,6 +27,9 @@ on:
   pull_request:
   push:
     branches: [main]
+  # The nightly full run of the default branch.
+  schedule:
+    - cron: "17 3 * * *"
   workflow_dispatch:
     inputs:
       shards:
@@ -26,8 +37,11 @@ on:
         required: false
         default: ""
 
+# A pull request keeps its per-ref group, and a new push cancels its stale
+# run. Every other run (push, nightly, dispatch) gets its own per-event,
+# per-commit group and is never cancelled, so no `main` commit loses its run.
 concurrency:
-  group: workflow-manager-verify-${{ github.ref }}
+  group: workflow-manager-verify-${{ github.event_name }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
@@ -48,8 +62,13 @@ jobs:
   plan:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # actions: read lets the profile chooser read main's run history.
+    permissions:
+      contents: read
+      actions: read
     outputs:
       shards: ${{ steps.plan.outputs.shards }}
+      profile: ${{ steps.profile.outputs.profile }}
     steps:
       # Full history: TestAuthoredReleaseOverlayCommitIsReachable checks that
       # each authored release's overlay commit is an ancestor of HEAD.
@@ -65,14 +84,26 @@ jobs:
           git init -q "$upstream"
           git -C "$upstream" fetch -q --depth 1 "$UPSTREAM_URL" "+refs/tags/$UPSTREAM_TAG:refs/tags/$UPSTREAM_TAG"
           test "$(git -C "$upstream" rev-parse "$UPSTREAM_TAG^{commit}")" = "$UPSTREAM_COMMIT"
+      # STOPGAP(M2): the pull-request profile chooser; see docs/ARCHITECTURE.md's
+      # "Stopgap test profile". It writes profile=full or profile=newest-release
+      # and its reasons to the job summary; every undecidable input is full.
+      - name: Choose the test profile
+        id: profile
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          REPO: ${{ github.repository }}
+        run: python3 tools/ci/choose_profile.py --event "$EVENT" --repo "$REPO"
+      # STOPGAP(M2): NEWEST selects --newest-release-only from the chosen profile.
       - name: Plan
         id: plan
         env:
           SHARDS: ${{ inputs.shards }}
+          NEWEST: ${{ steps.profile.outputs.profile == 'newest-release' && '1' || '' }}
         run: |
           mkdir -p "$RUNNER_TEMP/tmp"
           export TMPDIR="$RUNNER_TEMP/tmp"
-          python3 tests/run_all.py --plan-only --profile ci --out "$RUNNER_TEMP/plan.json" ${SHARDS:+--shards "$SHARDS"}
+          python3 tests/run_all.py --plan-only --profile ci --out "$RUNNER_TEMP/plan.json" ${SHARDS:+--shards "$SHARDS"} ${NEWEST:+--newest-release-only}
           python3 -c 'import json, sys; n = json.load(open(sys.argv[1]))["n"]; print("shards=" + json.dumps(list(range(n)), separators=(",", ":")))' "$RUNNER_TEMP/plan.json" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v4
         with:
@@ -124,14 +155,40 @@ jobs:
           path: ${{ runner.temp }}/out/
           if-no-files-found: ignore
 
+  # The release's own build-and-verify path, on every run, so a packaging
+  # break is caught on the pull request and not at release time. It needs no
+  # upstream: `releases` and `verify` read only the checkout's own manifests.
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build and verify the package
+        run: |
+          python3 -m pip install -r .github/tools/requirements.txt
+          python3 tools/release/package.py --version 0.0.0+ci --out "$RUNNER_TEMP/dist" --manager-root "$GITHUB_WORKSPACE"
+
   aggregate:
-    needs: [plan, shard]
-    # Always, so a failed, missing or cancelled shard fails this required
-    # check rather than skipping it.
+    needs: [plan, shard, package]
+    # Always, so a failed, missing or cancelled shard, plan or package fails
+    # this required check rather than skipping it.
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
+      - name: Require the plan and package jobs
+        id: needs
+        env:
+          PLAN_RESULT: ${{ needs.plan.result }}
+          PACKAGE_RESULT: ${{ needs.package.result }}
+        run: |
+          status=0
+          if [ "$PLAN_RESULT" != success ]; then echo "::error::the plan job concluded $PLAN_RESULT"; status=1; fi
+          if [ "$PACKAGE_RESULT" != success ]; then echo "::error::the package job concluded $PACKAGE_RESULT"; status=1; fi
+          exit "$status"
       # Full history: TestAuthoredReleaseOverlayCommitIsReachable checks that
       # each authored release's overlay commit is an ancestor of HEAD.
       - uses: actions/checkout@v4
@@ -160,3 +217,25 @@ jobs:
           name: results-aggregate
           path: ${{ runner.temp }}/tmp/wm-run-*/
           if-no-files-found: ignore
+
+  # STOPGAP(M2): the nightly full run's alarm (rule 5, "loud"); see
+  # docs/ARCHITECTURE.md's "Stopgap test profile". A red nightly opens or
+  # comments on a nightly-red issue; a green one closes it.
+  nightly-alarm:
+    needs: aggregate
+    if: always() && github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Raise or clear the nightly alarm
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          RESULT: ${{ needs.aggregate.result }}
+          REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: python3 tools/ci/nightly_alarm.py --event "$EVENT" --result "$RESULT" --repo "$REPO" --run-url "$RUN_URL"

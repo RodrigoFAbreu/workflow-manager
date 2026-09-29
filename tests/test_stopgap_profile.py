@@ -12,6 +12,14 @@ Checkpoint CP4 (`D-PR-Profile`): `tools/ci/choose_profile.py`'s path rules
 and their completeness over the tree, the merge-ref diff, `main`'s health,
 the non-PR events and the output format; and `tools/ci/nightly_alarm.py`'s
 decision table.
+
+Checkpoint CP5 (`D-CI`, plan 6.4-6.5): the stopgap wiring of
+`workflow-manager-verify.yml` -- T-CI-6 (the `plan` job chooses the profile
+before planning and passes `--newest-release-only` only from its output) and
+T-CI-8 (the nightly alarm runs on a `schedule` only, and is the only job with
+`issues: write`) -- and `release.py assert-full-plan`'s stopgap cases: a
+newest-release plan is refused, even over a one-release inventory, where it
+is full by set equality but not by flag.
 """
 
 # STOPGAP(M2): this whole module tests the stopgap profile; see
@@ -37,6 +45,7 @@ from pathlib import Path
 from support import CI_SUITES, REPO_ROOT
 
 import test_parallel_runner as runner_tests
+import test_release_workflows as release_tests
 from parallel import canonical_json, cli, inventory, matrix, planner, report
 
 #: The commit this milestone's plan was made against: its `tests/parallel/`
@@ -338,8 +347,8 @@ class TestARealListRun(runner_tests._CliCase):  # noqa: SLF001
 
 
 def _load_tool(name: str):
-    path = REPO_ROOT / "tools" / "ci" / f"{name}.py"
-    spec = importlib.util.spec_from_file_location(f"workflow_manager_ci_{name}", path)
+    source = REPO_ROOT / "tools" / "ci" / f"{name}.py"
+    spec = importlib.util.spec_from_file_location(f"workflow_manager_ci_{name}", source)
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
@@ -398,7 +407,7 @@ class TestPathRulesAreComplete(_TempDir):
 
     def test_this_milestones_modules_are_classified(self):
         for module in ("tests/test_release_versioning.py", "tests/test_manager_version.py",
-                       "tests/test_stopgap_profile.py"):
+                       "tests/test_stopgap_profile.py", "tests/test_release_workflows.py"):
             with self.subTest(module=module):
                 rule = choose_profile.match_rule(module, LIVE_RULES)
                 self.assertEqual((rule.path, rule.profile), (module, "newest-release"))
@@ -435,7 +444,7 @@ class TestPathClassification(unittest.TestCase):
 
     def test_every_rule_1_area_is_full(self):
         for path in ("distribution/workflow/2.6.0/manifest.json", "migration/classification.json",
-                     "tools/migrate.py", "tools/ci/pr_profile_paths.json",
+                     "tools/release/release.py", "tools/ci/pr_profile_paths.json",
                      "src/workflow_manager/install.py", "src/workflow_manager/cli.py",
                      "tests/support.py", "tests/frozen_runs.py", "tests/run_all.py",
                      "tests/parallel/planner.py", "tests/test_conformance_suite.py",
@@ -721,6 +730,136 @@ class TestNightlyAlarmDecision(unittest.TestCase):
                                        "--repo", "o/n", "--run-url", self.URL])
         self.assertEqual(code, 0)
         self.assertEqual(calls, [("issue", "list"), ("label", "create"), ("issue", "create")])
+
+
+# -- CP5: the stopgap wiring of the verification workflow ----------------------------
+
+VERIFY_JOBS = ["aggregate", "nightly-alarm", "package", "plan", "shard"]
+
+
+def _plan_job_steps() -> tuple[list[dict], int, int]:
+    steps = runner_tests.ci_workflow()["jobs"]["plan"]["steps"]
+    [profile] = [i for i, s in enumerate(steps) if "tools/ci/choose_profile.py" in (s.get("run") or "")]
+    [plan] = [i for i, s in enumerate(steps) if "tests/run_all.py" in (s.get("run") or "")]
+    return steps, profile, plan
+
+
+class TestProfileWiring(runner_tests._CliCase):  # noqa: SLF001
+    """T-CI-6: the `plan` job chooses the profile, then plans with
+    `--newest-release-only` only when the chooser said so."""
+
+    def test_the_plan_job_chooses_before_it_plans(self):
+        job = runner_tests.ci_workflow()["jobs"]["plan"]
+        steps, profile, plan = _plan_job_steps()
+        self.assertLess(profile, plan)
+        self.assertEqual(steps[profile]["id"], "profile")
+        self.assertEqual(steps[profile]["env"]["EVENT"], "${{ github.event_name }}")
+        self.assertEqual(steps[profile]["env"]["GH_TOKEN"], "${{ github.token }}")
+        self.assertEqual(steps[plan]["env"]["NEWEST"],
+                         "${{ steps.profile.outputs.profile == 'newest-release' && '1' || '' }}")
+        self.assertEqual(steps[plan]["run"].count("--newest-release-only"), 1)
+        self.assertIn("${NEWEST:+--newest-release-only}", steps[plan]["run"])
+        self.assertEqual(job["permissions"], {"contents": "read", "actions": "read"})
+        self.assertEqual(job["outputs"]["profile"], "${{ steps.profile.outputs.profile }}")
+        for other, body in runner_tests.ci_workflow()["jobs"].items():
+            if other != "plan":
+                with self.subTest(job=other):
+                    self.assertNotIn("--newest-release-only", json.dumps(body))
+
+    def test_a_non_pull_request_event_chooses_full_through_the_real_step(self):
+        steps, profile, _ = _plan_job_steps()
+        output = self.tmp / "github-output"
+        summary = self.tmp / "summary.md"
+        proc = subprocess.run(
+            ["bash", "--noprofile", "--norc", "-eo", "pipefail", "-c", steps[profile]["run"]],
+            cwd=str(REPO_ROOT), capture_output=True, text=True, timeout=120,
+            env=dict(self.env, EVENT="push", REPO="o/n", GH_TOKEN="",
+                     GITHUB_OUTPUT=str(output), GITHUB_STEP_SUMMARY=str(summary)))
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        self.assertEqual(output.read_text(), "profile=full\n")
+        self.assertIn("### Test profile: `full`", summary.read_text())
+
+    def test_the_plan_step_follows_newest(self):
+        """The real `plan` step, in a scratch clone: `NEWEST=1` plans the
+        newest-release selection, empty plans the full one."""
+        scratch = runner_tests.scratch_checkout(self.tmp / "scratch")
+        for newest, kind in (("", "full"), ("1", "newest-release")):
+            with self.subTest(newest=newest):
+                job = runner_tests.scratch_clone(scratch)
+                temp = self.tmp / f"rt-{kind}"
+                temp.mkdir()
+                proc = runner_tests.run_ci_step(
+                    job, "plan", runner_temp=temp, env=self.env,
+                    step_env={"SHARDS": "", "NEWEST": newest},
+                    github_env={"GITHUB_OUTPUT": str(temp / "github-output")})
+                self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+                self.assertEqual(json.loads((temp / "plan.json").read_text())["selection_kind"],
+                                 kind)
+
+
+class TestNightlyAlarmWiring(unittest.TestCase):
+    """T-CI-8: the alarm runs after `aggregate`, on a `schedule` only, and is
+    the only job that may write issues."""
+
+    def test_the_alarm_job(self):
+        doc = runner_tests.ci_workflow()
+        self.assertEqual(sorted(doc["jobs"]), VERIFY_JOBS)
+        alarm = doc["jobs"]["nightly-alarm"]
+        self.assertEqual(alarm["needs"], "aggregate")
+        self.assertEqual(alarm["if"], "always() && github.event_name == 'schedule'")
+        self.assertEqual(alarm["permissions"], {"contents": "read", "issues": "write"})
+        [step] = [s for s in alarm["steps"] if "tools/ci/nightly_alarm.py" in (s.get("run") or "")]
+        self.assertEqual(step["env"]["RESULT"], "${{ needs.aggregate.result }}")
+        self.assertEqual(step["env"]["EVENT"], "${{ github.event_name }}")
+        for flag in ("--event", "--result", "--repo", "--run-url"):
+            self.assertIn(flag, step["run"])
+
+    def test_issues_write_is_on_that_job_only(self):
+        doc = runner_tests.ci_workflow()
+        self.assertEqual(doc["permissions"], {"contents": "read"})
+        for name, job in doc["jobs"].items():
+            if name != "nightly-alarm":
+                with self.subTest(job=name):
+                    self.assertNotIn("issues", job.get("permissions") or {})
+
+    def test_the_nightly_runs_the_full_selection(self):
+        """A `schedule` event is never a pull request, so the chooser says full."""
+        self.assertEqual(runner_tests.ci_workflow()["on"]["schedule"], [{"cron": "17 3 * * *"}])
+        decision = choose_profile.decide("schedule", LIVE_RULES, _no_call, _no_call)
+        self.assertEqual(decision.profile, "full")
+
+
+# -- CP5: assert-full-plan refuses the newest-release selection ----------------------
+
+
+class TestAssertFullPlanRefusesTheStopgap(runner_tests._CliCase):  # noqa: SLF001
+    """`release.py assert-full-plan` against real `--newest-release-only`
+    plans: the release never rests on the pull-request profile."""
+
+    VERSIONS = TestARealListRun.VERSIONS
+    make_scratch = TestARealListRun.make_scratch
+
+    def assert_refused(self, scratch: Path, plan: Path) -> None:
+        proc = release_tests.run_assert_full_plan(scratch, plan, self.env)
+        self.assertEqual(proc.returncode, 1, proc.stdout + proc.stderr)
+        self.assertIn("selection_kind is 'newest-release'", proc.stderr)
+
+    def test_a_newest_release_plan_is_refused(self):
+        scratch = self.make_scratch()
+        plan = runner_tests._plan_only(self, scratch, "--profile", "ci",  # noqa: SLF001
+                                       "--newest-release-only")
+        self.assert_refused(scratch, plan)
+        full = runner_tests._plan_only(self, scratch, "--profile", "ci")  # noqa: SLF001
+        proc = release_tests.run_assert_full_plan(scratch, full, self.env)
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+
+    def test_over_one_release_it_is_full_by_set_equality_but_still_refused(self):
+        scratch = runner_tests.scratch_checkout(self.tmp / "scratch")
+        newest = runner_tests._plan_only(self, scratch, "--newest-release-only")  # noqa: SLF001
+        full = runner_tests._plan_only(self, scratch)  # noqa: SLF001
+        self.assertEqual(json.loads(newest.read_text())["selection"],
+                         json.loads(full.read_text())["selection"])
+        self.assert_refused(scratch, newest)
 
 
 if __name__ == "__main__":

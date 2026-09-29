@@ -152,6 +152,11 @@
       "reason": "host test module, which runs in every profile"
     },
     {
+      "path": "tests/test_release_workflows.py",
+      "profile": "newest-release",
+      "reason": "host test module, which runs in every profile"
+    },
+    {
       "path": "tests/test_stopgap_profile.py",
       "profile": "newest-release",
       "reason": "host test module, which runs in every profile"

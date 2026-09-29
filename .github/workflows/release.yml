@@ -1,0 +1,120 @@
+# The Workflow Manager's package release (docs/RELEASING.md). It starts only
+# from a completed, successful verification run of a push to `main`, and
+# publishes the newest such commit on main's first-parent history
+# (`release.py resolve-target`), never merely its own trigger: a pending
+# release job replaced by an older commit's still releases the newer one.
+#
+# Before publishing, the target's own verification plan must be the full
+# selection of exactly that tree, against the inventory rediscovered here
+# (`assert-full-plan`); a range of `none`-only commits releases nothing; and
+# a commit a newer release already covers is never tagged
+# (`assert-not-superseded`, exit 3). `gh release create` creates the tag and
+# the release in one call, so a failure before it leaves no tag. Releases are
+# serialized by the job's own concurrency group. The release contains no
+# Workflow release.
+name: Release
+
+on:
+  workflow_run:
+    workflows: ["Workflow manager verification"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  # The frozen upstream, as the verification workflow's plan job fetches it:
+  # the inventory rediscovery reads it.
+  UPSTREAM_URL: https://github.com/RodrigoFAbreu/repflow-android.git
+  UPSTREAM_TAG: workflow-v2.3.1
+  UPSTREAM_COMMIT: 1f954fbb6c689ec690fefe5a2f27b1e4a0ca6db6
+
+jobs:
+  release:
+    if: github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    # On the job, not the workflow, so a skipped run never takes a slot.
+    concurrency:
+      group: workflow-manager-release
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Resolve the release target
+        id: target
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          TRIGGER_SHA: ${{ github.event.workflow_run.head_sha }}
+          TRIGGER_RUN: ${{ github.event.workflow_run.id }}
+        run: python3 tools/release/release.py resolve-target --repo "$REPO" --trigger-sha "$TRIGGER_SHA" --trigger-run "$TRIGGER_RUN" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.target.outputs.target_sha }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Fetch the frozen upstream
+        run: |
+          upstream="$HOME/Workspace/repflow-android"
+          git init -q "$upstream"
+          git -C "$upstream" fetch -q --depth 1 "$UPSTREAM_URL" "+refs/tags/$UPSTREAM_TAG:refs/tags/$UPSTREAM_TAG"
+          test "$(git -C "$upstream" rev-parse "$UPSTREAM_TAG^{commit}")" = "$UPSTREAM_COMMIT"
+      - uses: actions/download-artifact@v4
+        with:
+          name: plan
+          path: ${{ runner.temp }}/plan
+          run-id: ${{ steps.target.outputs.target_run }}
+          github-token: ${{ github.token }}
+      - name: Require the full plan
+        run: |
+          mkdir -p "$RUNNER_TEMP/tmp"
+          export TMPDIR="$RUNNER_TEMP/tmp"
+          python3 tools/release/release.py assert-full-plan "$RUNNER_TEMP/plan/plan.json"
+      - name: Next version
+        id: version
+        run: |
+          version="$(python3 tools/release/release.py next-version)"
+          if [ -z "$version" ]; then echo "::notice::nothing to release"; fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Refuse a superseded commit
+        id: superseded
+        if: steps.version.outputs.version != ''
+        run: |
+          status=0
+          python3 tools/release/release.py assert-not-superseded || status=$?
+          if [ "$status" -eq 3 ]; then
+            echo "::notice::covered by a newer release"
+            echo "superseded=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          exit "$status"
+      - name: Build and verify the package
+        if: steps.version.outputs.version != '' && steps.superseded.outputs.superseded != 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          python3 -m pip install -r .github/tools/requirements.txt
+          python3 tools/release/package.py --version "$VERSION" --out "$RUNNER_TEMP/assets" --manager-root "$GITHUB_WORKSPACE"
+      - name: Publish the release
+        if: steps.version.outputs.version != '' && steps.superseded.outputs.superseded != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+          TARGET_SHA: ${{ steps.target.outputs.target_sha }}
+        run: |
+          releases="$(ls distribution/workflow | sort -V | paste -sd, - | sed 's/,/, /g')"
+          {
+            echo "The Workflow Manager's own package: a wheel, an sdist and SHA256SUMS."
+            echo
+            echo "This release contains no Workflow release. At this tag, distribution/workflow/ holds: $releases."
+          } > "$RUNNER_TEMP/notes.md"
+          gh release create "v$VERSION" --target "$TARGET_SHA" --title "v$VERSION" --notes-file "$RUNNER_TEMP/notes.md" --generate-notes "$RUNNER_TEMP"/assets/*
