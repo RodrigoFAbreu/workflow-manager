@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_work_item_id": null,
+  "active_work_item_id": "workflow-manager-test-cleanup",
   "work_items": {
     "plan-amendment-mechanism": {
       "work_item_type": "process",
@@ -3661,6 +3661,97 @@
           "verdict": "APPROVE",
           "round": 2,
           "completed_at": "2026-09-29T11:29:03Z"
+        }
+      }
+    },
+    "workflow-manager-test-cleanup": {
+      "work_item_type": "process",
+      "work_item_kind": "process",
+      "work_item_id": "workflow-manager-test-cleanup",
+      "parent_work_item_id": null,
+      "plan_path": "docs/ai-workflow/WORKFLOW_MANAGER_TEST_CLEANUP_PLAN.md",
+      "registry_path": "docs/ai-workflow/registry/workflow-manager-test-cleanup-registry.json",
+      "mapping_path": "docs/ai-workflow/requirements/workflow-manager-test-cleanup-mapping.json",
+      "governing_workflow_version": "2.2",
+      "phase": "IMPLEMENTING",
+      "plan_revision": 5,
+      "implementation_revision": null,
+      "functional_review_round": null,
+      "base_commit": "7dabd2e99b69f59a776bfe81831a06f2c508d5fc",
+      "reviewed_implementation_head": null,
+      "current_checkpoint_id": null,
+      "last_completed_checkpoint_id": null,
+      "checkpoints": {},
+      "current_bundle_id": "7929435d6b0d5e444b59dbade1bcaccd178f3ab47b0c551fe608de41de346709",
+      "plan_approval": {
+        "status": "CURRENT",
+        "basis": "EXTERNAL_APPROVE",
+        "reviewed_bundle_id": "7929435d6b0d5e444b59dbade1bcaccd178f3ab47b0c551fe608de41de346709",
+        "approved_review_content_id": "5bc7bfa315abc491a6ccc6465f92a04dca7ea1d2fdbf2e049c7df0367cf418ae",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/WORKFLOW_MANAGER_TEST_CLEANUP_PLAN.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "eb86f3a25751c49722ed77e88358358660702d66"
+          },
+          {
+            "path": "docs/ai-workflow/registry/workflow-manager-test-cleanup-registry.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "cc6b74944a62effaab6ea510a95267aeb162e915"
+          },
+          {
+            "path": "docs/ai-workflow/requirements/workflow-manager-test-cleanup-mapping.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "731c3e05c0849597c8682b42d9a507d0475a1478"
+          }
+        ],
+        "reviewed_content_commit": null,
+        "legacy_evidence": null,
+        "user_confirmation": "plan workflow-manager-test-cleanup",
+        "waived_guarantees": [],
+        "recorded_at": "2026-09-29T14:58:47Z"
+      },
+      "technical_approval": null,
+      "technical_review_block_pins": [],
+      "plan_review_stages": {
+        "review_content_id": "5bc7bfa315abc491a6ccc6465f92a04dca7ea1d2fdbf2e049c7df0367cf418ae",
+        "LOCAL_MODEL_PLAN_REVIEW": {
+          "bundle_id": "7929435d6b0d5e444b59dbade1bcaccd178f3ab47b0c551fe608de41de346709",
+          "verdict": "APPROVE",
+          "round": 5,
+          "completed_at": "2026-09-29T14:51:56Z"
+        },
+        "MANUAL_EXTERNAL_PLAN_REVIEW": {
+          "bundle_id": "7929435d6b0d5e444b59dbade1bcaccd178f3ab47b0c551fe608de41de346709",
+          "verdict": "APPROVE",
+          "round": 5,
+          "completed_at": "2026-09-29T14:55:33Z"
+        }
+      },
+      "functional_acceptance_status": null,
+      "blocking_decisions": [],
+      "state_revision": 19,
+      "last_transition": "2026-09-29T14:58:47Z",
+      "feedback_layout": "scoped",
+      "plan_review_binding": {
+        "status": "BOUND",
+        "at": "2026-09-29T14:49:06Z",
+        "consumed": {
+          "review_content_id": "78db7a2c4c0216738a7203b35a962aaaf28f706b7fd0fb8c6a03abfb15c1e375",
+          "plan_revision": 4,
+          "legacy": false
+        },
+        "published": {
+          "review_content_id": "5bc7bfa315abc491a6ccc6465f92a04dca7ea1d2fdbf2e049c7df0367cf418ae",
+          "plan_revision": 5
+        },
+        "bound": {
+          "review_content_id": "5bc7bfa315abc491a6ccc6465f92a04dca7ea1d2fdbf2e049c7df0367cf418ae",
+          "bundle_id": "7929435d6b0d5e444b59dbade1bcaccd178f3ab47b0c551fe608de41de346709",
+          "plan_revision": 5
         }
       }
     }

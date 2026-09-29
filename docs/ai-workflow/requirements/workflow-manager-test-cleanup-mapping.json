@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "work_item_id": "workflow-manager-test-cleanup",
+  "requirements": {
+    "REQ-1": {
+      "description": "throwaway repositories created by this repository's test setup set maintenance.auto=false and gc.auto=0 (plus the two autoDetach keys), through one shared helper",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "REQ-2": {
+      "description": "the runner's chunk environment carries the same settings, preserving the parent's GIT_CONFIG_* entries and deciding by each key's last value, plus a template directory that writes them into every repository a chunk creates, so the frozen suites' own repositories and the frozen evidence clone are covered; proved to outrank local config under the wrapper",
+      "checkpoint_ids": [
+        "CP1",
+        "CP2"
+      ]
+    },
+    "REQ-3": {
+      "description": "a static check keeps every new git init/clone site on the shared setup, bound to the repository the site creates",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "REQ-4": {
+      "description": "the leak check: a per-chunk subreaper wrapper adopts, records and reaps orphans, and an undeclared orphan, or an unavailable check on Linux, fails the run (exit 2) in local, shard and aggregate modes",
+      "checkpoint_ids": [
+        "CP2"
+      ]
+    },
+    "REQ-5": {
+      "description": "declared orphan sources are reviewed data with a reason, validated against the inventory, exact to one unit (a declared frozen class runs in its own chunk), and always reported",
+      "checkpoint_ids": [
+        "CP2"
+      ]
+    },
+    "REQ-6": {
+      "description": "every orphan the full selection produces is attributed, then fixed at the source or declared; zero undeclared orphans in two consecutive full gates",
+      "checkpoint_ids": [
+        "CP2"
+      ]
+    },
+    "REQ-7": {
+      "description": "before and after measurements with an outer subreaper: zero orphans escape the run, and no Git orphan at all",
+      "checkpoint_ids": [
+        "CP3"
+      ]
+    },
+    "REQ-8": {
+      "description": "no Workflow release; distribution/, migration/, scripts/, .claude/commands/ and managed content unchanged; no test removed or weakened",
+      "checkpoint_ids": [
+        "CP3"
+      ]
+    },
+    "REQ-9": {
+      "description": "the design recorded in docs/ARCHITECTURE.md and the non-managed CLAUDE.md",
+      "checkpoint_ids": [
+        "CP3"
+      ]
+    }
+  }
+}
