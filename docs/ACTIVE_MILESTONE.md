@@ -12,8 +12,9 @@ plan: `docs/ai-workflow/WORKFLOW_MANAGER_TEST_CLEANUP_PLAN.md`.
 
 ## Current checkpoint
 
-CP1, CP2 and CP3 are complete. Every checkpoint is done; next is the
-milestone's self-review (`SELF_REVIEWING_IMPLEMENTATION`).
+CP1, CP2 and CP3 are complete, and so are the self-review and the full
+gate. Next is the local implementation review
+(`AWAITING_LOCAL_IMPLEMENTATION_REVIEW`).
 
 ## Current blockers
 
@@ -26,9 +27,8 @@ None.
 
 ## Next action
 
-`/milestone-implement workflow-manager-test-cleanup`, which enters step 2
-(self-review of the milestone diff, the full gate and the implementation
-bundle).
+`/review-implementation workflow-manager-test-cleanup`, the local stage of
+the implementation review, on the implementation bundle (revision 1).
 
 ## Checkpoint log
 
@@ -281,6 +281,57 @@ launched through the tool keep SIGINT's default.
     exception changed;
   - INV-3: `CLAUDE.md` up to `<!-- workflow-manager:end -->` is
     byte-identical to the base.
+
+### Self-review of the milestone diff and the full gate (`SELF_REVIEWING_IMPLEMENTATION`)
+
+- `enter_self_reviewing_implementation` was a no-op. CP3's
+  `complete_checkpoint` had already written the phase.
+- The whole `7dabd2e..3988c5c` diff was reviewed:
+  - `tests/parallel/reaper.py`: recording, the drain order (record before
+    reap), the grace period, the kill loop until `ECHILD`, the exit status
+    pass-through and the own-fault path;
+  - `tests/parallel/isolation.py`: `quiet_git_config` and its
+    `GIT_CONFIG_PARAMETERS` parser, `build_git_template` (the plan
+    review's `GIT_CONFIG_*` strip is in `_TEMPLATE_BUILD_DROPPED` plus the
+    `KEY_`/`VALUE_` prefixes), `chunk_env`'s template handling, and
+    `run_chunk`'s report validation;
+  - `executor.py`, `planner.py`, `report.py` and `resources.py`: the
+    three new verdict faults in all three modes, the `ChunkResult`
+    round trip, the own chunk for a declared frozen class, and the
+    `orphan_sources` schema;
+  - `fixture.py`, the routed `init`/clone sites, `resources.json`, the new
+    test module, and the docs.
+- No finding was blocking or important, and nothing was changed. One
+  reachable-in-theory case was checked and left as it is: a wrapper that
+  survives re-raising the chunk's death signal exits `128+n`, which
+  disagrees with the report's `chunk_status` and is therefore a
+  `bad_orphan_report` fault. That fails closed, and only a signal whose
+  default action is not to terminate can reach it.
+- INV-1/INV-3: `git diff --stat 7dabd2e HEAD -- distribution migration
+  scripts .claude/commands .github/workflows/workflow-conformance.yml` is
+  empty. `CLAUDE.md` up to `<!-- workflow-manager:end -->` is
+  byte-identical to the base.
+- **The full gate**, `python3 tests/run_all.py --results /tmp/m1b-gate` at
+  `3988c5c`, 2026-09-29 17:15-17:21 (380.5 s wall, 8 workers):
+  - `evidence: full selection, local, 8 worker(s), head 3988c5c06b050cd59ceb01459aa8574eb3d330a6,
+    4101/4101 units, 25682 tests, selection_digest
+    b8ca6c1f6133fa0cdf10e9ac86d3a3d1f4dcdc290c641e5627f7b4911d6cb194,
+    tests_digest 47b3b6364ed38a35b82fed9f354437ca0a6da96f4e189d0da0a712eb08364c14,
+    tree_digest 1c2f4dafdf44691f9aee26609c43871d5e66fc55afc92cc6ff7845241b9bf6c2`,
+    `verdict: exit 0`;
+  - `orphan check: on`. The 333 per-chunk reports are all `supported:
+    true`. They record 36 orphans in 20 chunks, exactly the 20 declared
+    `orphan_sources`, with no undeclared orphan, no unused declaration,
+    and **no Git process**;
+  - every host module was OK. The only non-zero frozen chunks were the four
+    documented `2.3.1`/`2.4.0` `workflow_integration_test.py` portability
+    exceptions (`TestRetiredScopedRemediationLeavesNoLiveSurface`), which
+    phase B judged as expected;
+  - the selection and tests digests equal CP2's and CP3's, since no code
+    or test changed after CP2.
+- The whole-run outer-probe measurement (0 orphans reaching it) is CP3's,
+  at `2c0a926` plus CP3's docs. Nothing in the code or tests changed since,
+  so it was not repeated.
 
 ## Previous milestone
 
