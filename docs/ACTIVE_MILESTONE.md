@@ -42,7 +42,9 @@ the implementation review, on the implementation bundle (revision 1).
 - **`D-Quiet-Git-Env`** (`tests/parallel/isolation.py`): `chunk_env`
   appends the four pairs to the `GIT_CONFIG_COUNT` series
   (`quiet_git_config`). It keeps the parent's entries, decides by each
-  key's last inherited value (case-insensitive), and is idempotent when
+  key's last inherited value (case-insensitive), re-appends all four after
+  an include in the series (Git expands it where it stands; added for the
+  local implementation review's round-2 finding), and is idempotent when
   nested. It refuses (`GitConfigEnvError`, a tagged exit 2) a malformed
   series, and a `GIT_CONFIG_PARAMETERS` that sets one of the keys, includes
   a file (`include.path`, `includeIf.<condition>.path`; added for the

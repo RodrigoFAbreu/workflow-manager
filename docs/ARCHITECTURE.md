@@ -511,12 +511,14 @@ orphans something.
 - **The environment layer** (`isolation.chunk_env`). Every chunk's
   environment appends the four pairs to the `GIT_CONFIG_COUNT` series. The
   parent's entries are kept, and a pair is appended only when the key's last
-  inherited value differs (keys compare case-insensitively). A malformed
+  inherited value differs (keys compare case-insensitively) or an include
+  in the series comes after it. A malformed
   series, or a `GIT_CONFIG_PARAMETERS` that sets one of the keys, includes
   a file (`include.path`, `includeIf.<condition>.path`) or cannot be
   parsed, is refused as `GitConfigEnvError` (exit `2`), because
   `GIT_CONFIG_PARAMETERS` outranks the series. An include in the series
-  itself is kept: the four pairs come after it and win. The executor also builds
+  itself is kept. Git expands it where it stands, so all four pairs are
+  appended after the last one and win. The executor also builds
   `<run_dir>/git-template/` once per run, from Git's default template plus
   a `config` holding the four keys, and sets `GIT_TEMPLATE_DIR` to it, so
   every repository a chunk initialises or clones carries them in its own

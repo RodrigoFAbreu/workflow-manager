@@ -209,6 +209,21 @@ class TestChunkEnvGitConfig(_Tmp):
                 self.assertEqual(git(repo, "config", "--get", key, env=env).stdout.strip(),
                                  value)
 
+    def test_an_include_after_the_quiet_keys_in_the_series_is_overridden(self):
+        # The four quiet pairs followed by an include of the active file: Git
+        # expands the include where it stands, so ours are re-appended after
+        # it (local implementation review, round 2).
+        included = self._active_include()
+        inherited = with_series(OURS + [("include.path", str(included))])
+        env = self.chunk_env(inherited)
+        self.assertEqual(series(env), OURS + [("include.path", str(included))] + OURS)
+        repo = self.plain_repo()
+        for key, value in THROWAWAY_GIT_CONFIG.items():
+            with self.subTest(key=key):
+                self.assertEqual(git(repo, "config", "--get", key, env=env).stdout.strip(),
+                                 value)
+        self.assertEqual(series(self.chunk_env(env)), series(env))
+
     def test_unparsable_parameters_are_refused(self):
         for parameters in ("garbage", "'unterminated", "'a.b'='c'x", "'a.b'x"):
             with self.subTest(parameters=parameters), \

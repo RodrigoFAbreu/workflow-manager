@@ -412,9 +412,11 @@ def quiet_git_config(env: dict) -> dict:
     nothing. A `GIT_CONFIG_PARAMETERS` that sets one of the keys would
     outrank anything appended here, so it is refused. So is one that
     includes a file, whose contents cannot be checked here and would outrank
-    ours the same way; an include in the `GIT_CONFIG_COUNT` series is kept,
-    because ours come after it and win. One that cannot be parsed, or a
-    malformed `GIT_CONFIG_COUNT` series, is refused too (`GitConfigEnvError`)."""
+    ours the same way. An include in the `GIT_CONFIG_COUNT` series is kept:
+    Git expands it where it stands, so it discards every value before it and
+    all four keys are appended after the last one, where ours win. One that
+    cannot be parsed, or a malformed `GIT_CONFIG_COUNT` series, is refused
+    too (`GitConfigEnvError`)."""
     wanted = {key.lower() for key in THROWAWAY_GIT_CONFIG}
     parameters = env.get("GIT_CONFIG_PARAMETERS")
     if parameters is not None:
@@ -437,7 +439,11 @@ def quiet_git_config(env: dict) -> dict:
     count = _git_config_count(env)
     last: dict[str, str] = {}
     for index in range(count):
-        last[env[f"GIT_CONFIG_KEY_{index}"].lower()] = env[f"GIT_CONFIG_VALUE_{index}"]
+        key = env[f"GIT_CONFIG_KEY_{index}"]
+        if _is_include(key):
+            last.clear()
+            continue
+        last[key.lower()] = env[f"GIT_CONFIG_VALUE_{index}"]
     for key, value in THROWAWAY_GIT_CONFIG.items():
         if last.get(key.lower()) == value:
             continue
