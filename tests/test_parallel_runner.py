@@ -22,6 +22,11 @@ never in the real checkout (plan 5.9, "Tests and the lock").
 Checkpoint CP6: the CI pipeline `.github/workflows/workflow-manager-verify.yml`
 (T-CI-1..5). Its steps' own scripts run against a `scratch_clone` of a scratch
 checkout -- a fresh CI-like checkout -- with a stand-in `RUNNER_TEMP`.
+
+`workflow-manager-trunk-model`'s CP5 updates T-CI-1 (the nightly trigger and
+the per-commit concurrency group of `main`) and adds T-CI-7 (the one required
+check also needs the new `package` job). The stopgap wiring's own tests,
+T-CI-6 and T-CI-8, live in `tests/test_stopgap_profile.py`.
 """
 
 from __future__ import annotations
@@ -4486,6 +4491,16 @@ class TestExecutorPieces(unittest.TestCase):
 CI_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "workflow-manager-verify.yml"
 MANAGED_WORKFLOW = ".github/workflows/workflow-conformance.yml"
 CI_JOBS = ("plan", "shard", "aggregate")
+#: The job every run holds besides `CI_JOBS`: the release's build-and-verify path.
+CI_PACKAGE_JOB = "package"
+#: The nightly full run of the default branch (plan 6.4).
+CI_SCHEDULE = [{"cron": "17 3 * * *"}]
+#: The concurrency group: per ref for a pull request, per event and commit for
+#: every other run, so no `main` commit's run is ever cancelled (plan 6.4).
+CI_CONCURRENCY_GROUP = ("workflow-manager-verify-${{ github.event_name }}-${{ github.event_name "
+                        "== 'pull_request' && github.ref || github.sha }}")
+#: The aggregate's first step, which fails it when `plan` or `package` did not succeed.
+CI_NEEDS_STEP = "needs"
 CI_MATRIX = "${{ fromJSON(needs.plan.outputs.shards) }}"
 #: The frozen upstream commit the fetch must pin (T-CI-1), spelled out.
 CI_UPSTREAM_COMMIT = "1f954fbb6c689ec690fefe5a2f27b1e4a0ca6db6"
@@ -4636,6 +4651,12 @@ def ci_run_all_step(doc: dict, job: str) -> dict:
     return steps[0]
 
 
+def ci_job_steps(job: dict) -> list[dict]:
+    """A job's steps after the aggregate's leading `needs` check, if any."""
+    steps = job.get("steps") or []
+    return steps[1:] if steps and steps[0].get("id") == CI_NEEDS_STEP else steps
+
+
 def ci_workflow_problems(doc: dict) -> list[str]:
     """T-CI-1's structural checks over the parsed workflow; `[]` when it holds."""
     problems = []
@@ -4645,11 +4666,15 @@ def ci_workflow_problems(doc: dict) -> list[str]:
             problems.append(message)
 
     triggers = doc.get("on") or {}
-    need(sorted(triggers) == ["pull_request", "push", "workflow_dispatch"],
-         f"triggers are {sorted(triggers)} (D-CI-Cost: pull_request, push to main, dispatch)")
+    need(sorted(triggers) == ["pull_request", "push", "schedule", "workflow_dispatch"],
+         f"triggers are {sorted(triggers)} (pull_request, push to main, the nightly schedule, "
+         f"dispatch)")
     need((triggers.get("push") or {}).get("branches") == ["main"], "push is not limited to main")
+    need(triggers.get("schedule") == CI_SCHEDULE,
+         f"the schedule is {triggers.get('schedule')!r}, not {CI_SCHEDULE}")
     concurrency = doc.get("concurrency") or {}
-    need("${{ github.ref }}" in str(concurrency.get("group")), "no per-ref concurrency group")
+    need(concurrency.get("group") == CI_CONCURRENCY_GROUP,
+         f"the concurrency group is {concurrency.get('group')!r}, not the per-commit one of main")
     need(concurrency.get("cancel-in-progress") == "${{ github.event_name == 'pull_request' }}",
          "cancel-in-progress is not limited to pull requests")
     env = doc.get("env") or {}
@@ -4659,7 +4684,8 @@ def ci_workflow_problems(doc: dict) -> list[str]:
          f"the upstream tag is {env.get('UPSTREAM_TAG')!r}")
 
     jobs = doc.get("jobs") or {}
-    need(sorted(jobs) == sorted(CI_JOBS), f"jobs are {sorted(jobs)}, not {sorted(CI_JOBS)}")
+    need(set(CI_JOBS) | {CI_PACKAGE_JOB} <= set(jobs),
+         f"jobs are {sorted(jobs)}, missing {sorted(set(CI_JOBS) | {CI_PACKAGE_JOB} - set(jobs))}")
     plan, shard, aggregate = ((jobs.get(name) or {}) for name in CI_JOBS)
     for name in CI_JOBS:
         minutes = (jobs.get(name) or {}).get("timeout-minutes")
@@ -4668,20 +4694,21 @@ def ci_workflow_problems(doc: dict) -> list[str]:
     need((shard.get("timeout-minutes") or 0) >= CI_SERIAL_SHARD_MINUTES,
          f"the shard timeout would kill the single-shard reference "
          f"(about {CI_SERIAL_SHARD_MINUTES} minutes)")
-    need(plan.get("outputs") == {"shards": "${{ steps.plan.outputs.shards }}"},
+    need((plan.get("outputs") or {}).get("shards") == "${{ steps.plan.outputs.shards }}",
          "the plan job does not export its plan step's shard list")
     strategy = shard.get("strategy") or {}
     need(strategy.get("matrix") == {"shard": CI_MATRIX},
          f"the shard matrix is {strategy.get('matrix')!r}, not exactly {CI_MATRIX}")
     need(strategy.get("fail-fast") is False, "the shard matrix is not fail-fast: false")
     need(shard.get("needs") == "plan", "the shard job does not need the plan job")
-    need(aggregate.get("needs") == ["plan", "shard"], "aggregate does not need [plan, shard]")
+    need(aggregate.get("needs") == ["plan", "shard", CI_PACKAGE_JOB],
+         "aggregate does not need [plan, shard, package]")
     need(aggregate.get("if") == "always()", "aggregate does not run if: always()")
 
     modes = {"plan": "--plan-only --profile ci", "shard": "--run-shard", "aggregate": "--aggregate"}
     fetches = {}
     for name in CI_JOBS:
-        steps = (jobs.get(name) or {}).get("steps") or []
+        steps = ci_job_steps(jobs.get(name) or {})
         need([s.get("uses") for s in steps[:2]] == ["actions/checkout@v4", "actions/setup-python@v5"],
              f"{name}: does not start with checkout and setup-python")
         need(len(steps) > 1 and steps[1].get("with") == {"python-version": "3.12"},
@@ -4787,7 +4814,13 @@ class TestCiWorkflowStructure(unittest.TestCase):
         mutants = {
             "a literal shard list": (CI_MATRIX, "[0, 1, 2]"),
             "fail-fast": ("fail-fast: false", "fail-fast: true"),
-            "aggregate needs only the shards": ("needs: [plan, shard]", "needs: [shard]"),
+            "aggregate needs only the shards": ("needs: [plan, shard, package]", "needs: [shard]"),
+            "aggregate skips the package": ("needs: [plan, shard, package]",
+                                            "needs: [plan, shard]"),
+            "no nightly run": (re.compile(r"^  schedule:\n    - cron: .*\n", re.M), ""),
+            "a per-ref group for main": ("&& github.ref || github.sha }}", "}}-${{ github.ref }}"),
+            "main's runs cancelled": ("cancel-in-progress: ${{ github.event_name == 'pull_request' }}",
+                                      "cancel-in-progress: true"),
             "aggregate skipped on failure": (re.compile(r"^    if: always\(\)$", re.M),
                                              "    if: success()"),
             "a results dir in the checkout": ('--results "$RUNNER_TEMP/out/"', "--results out/"),
@@ -4840,6 +4873,65 @@ class TestCiWorkflowStructure(unittest.TestCase):
                           "c": "q: r"})
 
 
+# -- T-CI-7: one required check, which also needs the package ---------------------------------
+
+def run_needs_step(plan_result: str, package_result: str) -> subprocess.CompletedProcess:
+    """The aggregate's `needs` step, verbatim, as GitHub runs a `run:` step."""
+    step = ci_workflow()["jobs"]["aggregate"]["steps"][0]
+    env = dict(os.environ, PLAN_RESULT=plan_result, PACKAGE_RESULT=package_result)
+    return subprocess.run(["bash", "--noprofile", "--norc", "-eo", "pipefail", "-c", step["run"]],
+                          capture_output=True, text=True, env=env, timeout=60)
+
+
+class TestOneRequiredCheck(unittest.TestCase):
+
+    def test_aggregate_needs_plan_shard_and_package_always(self):
+        jobs = ci_workflow()["jobs"]
+        aggregate = jobs["aggregate"]
+        self.assertEqual(aggregate["needs"], ["plan", "shard", CI_PACKAGE_JOB])
+        self.assertEqual(aggregate["if"], "always()")
+        first = aggregate["steps"][0]
+        self.assertEqual(first.get("id"), CI_NEEDS_STEP)
+        self.assertEqual(first["env"], {"PLAN_RESULT": "${{ needs.plan.result }}",
+                                        "PACKAGE_RESULT": "${{ needs.package.result }}"})
+        # The shard jobs are never required by name: aggregate verifies their results.
+        self.assertNotIn("name", aggregate)
+
+    def test_a_non_success_plan_or_package_fails_it_naming_the_cause(self):
+        self.assertEqual(run_needs_step("success", "success").returncode, 0)
+        for plan_result, package_result, named in (
+                ("failure", "success", "the plan job concluded failure"),
+                ("success", "failure", "the package job concluded failure"),
+                ("success", "cancelled", "the package job concluded cancelled"),
+                ("skipped", "success", "the plan job concluded skipped")):
+            with self.subTest(plan=plan_result, package=package_result):
+                proc = run_needs_step(plan_result, package_result)
+                self.assertEqual(proc.returncode, 1, proc.stdout + proc.stderr)
+                self.assertIn(f"::error::{named}", proc.stdout)
+
+    def test_the_package_job_is_the_releases_own_build_and_verify_path(self):
+        package = ci_workflow()["jobs"][CI_PACKAGE_JOB]
+        self.assertIsInstance(package.get("timeout-minutes"), int)
+        self.assertLess(package["timeout-minutes"], 360)
+        self.assertNotIn("needs", package)
+        steps = package["steps"]
+        self.assertEqual([s.get("uses") for s in steps[:2]],
+                         ["actions/checkout@v4", "actions/setup-python@v5"])
+        self.assertEqual(steps[1]["with"], {"python-version": "3.12"})
+        run = "\n".join(s.get("run") or "" for s in steps)
+        self.assertIn("python3 -m pip install -r .github/tools/requirements.txt", run)
+        self.assertIn('python3 tools/release/package.py --version 0.0.0+ci '
+                      '--out "$RUNNER_TEMP/dist" --manager-root "$GITHUB_WORKSPACE"', run)
+        self.assertNotIn("UPSTREAM_URL", run, "the package job needs no upstream")
+        self.assertLess(run.index("pip install"), run.index("package.py"))
+
+    def test_only_a_pull_request_run_is_cancelled(self):
+        concurrency = ci_workflow()["concurrency"]
+        self.assertEqual(concurrency["group"], CI_CONCURRENCY_GROUP)
+        self.assertEqual(concurrency["cancel-in-progress"],
+                         "${{ github.event_name == 'pull_request' }}")
+
+
 # -- T-CI-2: the plan and shard jobs agree on the tree ---------------------------------------
 
 class TestCiTreeIdentity(_CliCase):
@@ -4852,7 +4944,7 @@ class TestCiTreeIdentity(_CliCase):
         temp.mkdir()
         github_output = temp / "github-output"
         proc = run_ci_step(plan_job, "plan", runner_temp=temp, env=self.env,
-                           step_env={"SHARDS": "2"}, github_env={"GITHUB_OUTPUT": str(github_output)})
+                           step_env={"SHARDS": "2", "NEWEST": ""}, github_env={"GITHUB_OUTPUT": str(github_output)})
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
         plan = json.loads((temp / "plan.json").read_text())
         self.assertEqual(plan["tree_digest"], tree.tree_digest(plan_job))
@@ -4894,7 +4986,7 @@ class TestCiTreeIdentity(_CliCase):
         job = scratch_clone(scratch)
         inside = job / "runner-temp"
         inside.mkdir()
-        proc = run_ci_step(job, "plan", runner_temp=inside, env=self.env, step_env={"SHARDS": ""},
+        proc = run_ci_step(job, "plan", runner_temp=inside, env=self.env, step_env={"SHARDS": "", "NEWEST": ""},
                            github_env={"GITHUB_OUTPUT": str(self.tmp / "github-output")})
         assert_refusal(self, proc.returncode, proc.stderr, "PathInsideRepositoryError")
         self.assertFalse((inside / "plan.json").exists())
@@ -4902,7 +4994,7 @@ class TestCiTreeIdentity(_CliCase):
         outside = self.tmp / "rt"
         outside.mkdir()
         proc = run_ci_step(scratch, "plan", runner_temp=outside, env=self.env,
-                           step_env={"SHARDS": ""},
+                           step_env={"SHARDS": "", "NEWEST": ""},
                            github_env={"GITHUB_OUTPUT": str(self.tmp / "github-output")})
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
         shutil.copy2(outside / "plan.json", inside / "plan.json")

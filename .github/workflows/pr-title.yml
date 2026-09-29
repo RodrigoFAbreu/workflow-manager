@@ -1,0 +1,27 @@
+# The pull request's title is the squash commit's subject, and its
+# Conventional-Commit type decides the Manager release (docs/RELEASING.md):
+# `feat` a minor, `fix`/`perf`/`refactor`/`build`/`revert` a patch, `!` a
+# major; `docs`/`chore`/`ci`/`test`/`style` release nothing. The job name,
+# "Conventional Commit title", is a required status check on `main`
+# (.github/repository/ruleset-main.json). The title reaches the script
+# through `env`, never interpolated into it.
+name: PR title
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  title:
+    name: Conventional Commit title
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check the title
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: python3 tools/release/release.py check-title "$TITLE"

@@ -14,6 +14,10 @@ import shlex
 
 from . import canonical_json
 from .inventory import FROZEN_PREFIX, split_frozen_unit_id, split_host_unit_id
+# STOPGAP(M2): the newest-release selection; see docs/ARCHITECTURE.md's
+# "Stopgap test profile".
+from .inventory import NEWEST_RELEASE_KIND
+# End of the STOPGAP(M2) block.
 
 OUTPUT_TAIL = 6000
 RUN_ALL = "python3 tests/run_all.py"
@@ -181,8 +185,9 @@ def evidence_identity(plan: dict, results, frozen_classes: dict, *, head: str,
     instead of re-running it (the serial/single-shard evidence policy,
     `docs/ARCHITECTURE.md`'s "Verification execution"):
 
-    - `selection`: `full` when the plan selects every inventory unit whole,
-      else `targeted` -- a targeted run is never full-suite evidence;
+    - `selection`: `full` when the plan selects every inventory unit whole
+      (set equality, whatever flags made it: it describes the units that
+      ran), else `targeted` -- never full-suite evidence;
     - `scope`: the mode and its shape (`local --jobs N`, `shard K of N`,
       `aggregate of N shards`);
     - `head`, `tree_digest`: the revision, and the exact tree (which a
@@ -198,7 +203,14 @@ def evidence_identity(plan: dict, results, frozen_classes: dict, *, head: str,
     selection = plan["selection"]
     full = set(selection) == set(inventory_unit_ids) and \
         all(v is None for v in selection.values())
-    return {"selection": "full" if full else "targeted", "scope": scope, "head": head,
+    kind = "full" if full else "targeted"
+    # STOPGAP(M2): the newest-release evidence label; see docs/ARCHITECTURE.md's
+    # "Stopgap test profile". A `--newest-release-only` plan that is not full
+    # says `newest-release`, never full-suite evidence either.
+    if not full and plan.get("selection_kind") == NEWEST_RELEASE_KIND:
+        kind = NEWEST_RELEASE_KIND
+    # End of the STOPGAP(M2) block.
+    return {"selection": kind, "scope": scope, "head": head,
             "tree_digest": plan["tree_digest"], "selection_digest": plan["selection_digest"],
             "selected_units": len(selection), "reported_units": len(units),
             "tests": len(tests),

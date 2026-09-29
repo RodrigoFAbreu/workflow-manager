@@ -119,6 +119,18 @@ def build_parser() -> argparse.ArgumentParser:
                        help="restore a write barrier a killed run left behind, and exit")
     parser.add_argument("--select", action="append", default=[], metavar="SPEC",
                         help="targeted selection (repeatable); not a verification gate")
+    # STOPGAP(M2): the newest-release selection; see docs/ARCHITECTURE.md's
+    # "Stopgap test profile".
+    parser.add_argument("--newest-release-only", action="store_true",
+                        help="host classes plus the newest release's frozen suites only "
+                             "(the pull-request stopgap profile); not full-suite evidence")
+    parser.epilog = (
+        "--newest-release-only (the pull-request profile's stopgap, removed by M2) selects "
+        "every host class except the other releases' frozen-matrix classes, plus every "
+        "frozen unit of the newest release in CI_SUITES. It excludes --select and --fast, "
+        "and also takes --list and --plan-only. Its evidence line says `newest-release "
+        "selection`, never full-suite evidence.")
+    # End of the STOPGAP(M2) block.
     parser.add_argument("--fast", action="store_true",
                         help="deprecated alias for a targeted --select of eight modules; "
                              "not a verification gate")
@@ -167,6 +179,12 @@ ALLOWED = {
 CI_MATRIX_LIMIT = 256
 _DEFAULTS = {"select": [], "sources": [], "fast": False, "whole_groups": False,
              "allow_root": False}
+# STOPGAP(M2): the newest-release selection; see docs/ARCHITECTURE.md's
+# "Stopgap test profile".
+for _mode_name in ("run", "list", "plan_only"):
+    ALLOWED[_mode_name].add("newest_release_only")
+_DEFAULTS["newest_release_only"] = False
+# End of the STOPGAP(M2) block.
 
 
 def validate(parser, args) -> str:
@@ -180,6 +198,12 @@ def validate(parser, args) -> str:
                      f"{'a local run' if mode == 'run' else '--' + mode.replace('_', '-')}")
     if args.fast and args.select:
         parser.error("--fast cannot be combined with --select (it is one)")
+    # STOPGAP(M2): the newest-release selection; see docs/ARCHITECTURE.md's
+    # "Stopgap test profile".
+    if args.newest_release_only and (args.select or args.fast):
+        parser.error("--newest-release-only cannot be combined with --select or --fast "
+                     "(each is a selection)")
+    # End of the STOPGAP(M2) block.
     if mode in ("run_shard", "aggregate") and args.plan is None:
         parser.error(f"--{mode.replace('_', '-')} needs --plan")
     if mode == "run_shard" and args.results is None:
@@ -244,6 +268,11 @@ def _main(argv, *, repo_root: Path) -> int:
     try:
         check_paths(repo_root, args)
         parsed = [inventory.parse_spec(s) for s in specs]
+        # STOPGAP(M2): the newest-release selection; see docs/ARCHITECTURE.md's
+        # "Stopgap test profile".
+        if args.newest_release_only:
+            parsed = [inventory.NEWEST_RELEASE]
+        # End of the STOPGAP(M2) block.
     except (PathInsideRepositoryError, inventory.SelectSyntaxError) as exc:
         return refuse(exc)
     if args.fast:

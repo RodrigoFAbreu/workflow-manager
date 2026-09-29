@@ -26,6 +26,8 @@ migration/
 tools/
   migrate.py                   frozen upstream -> distribution/  (Phase A)
   build_release.py             base release + overlay -> distribution/  (an authored release)
+  release/                     the Manager's own releases: titles, versions, packaging
+  ci/                          the stopgap pull-request profile and nightly alarm (M2 removes it)
 distribution/
   workflow/<version>/
     manifest.json              every upstream path's disposition, with digests
@@ -48,6 +50,10 @@ docs/
                                authored release's own provenance record
   ARCHITECTURE.md              this file
   defects/                     upstream defects found, documented, not repaired
+  RELEASING.md                 how the Manager is released
+.github/
+  workflows/                   verification, PR title, release, and the managed conformance check
+  repository/                  merge settings and the `main` ruleset, as reviewed data
 ```
 
 ## Why payload paths are target-relative
@@ -227,9 +233,12 @@ suites re-run. `docs/MIGRATION.md` records what that found.
 
 `python3 tests/run_all.py` is a thin shim over `tests/parallel/cli.py`. It
 runs the full selection in parallel and is the one gate command. `--select`
-narrows a run for development, but a targeted run is never a gate. The
-design record is
-`docs/ai-workflow/WORKFLOW_MANAGER_ADAPTIVE_TEST_SHARDING_PLAN.md`.
+narrows a run for development, but a targeted run is never a gate. One
+reduced selection is a gate, in one place only: see "One reduced selection
+is a gate, in one place" below. The design record is
+`docs/ai-workflow/WORKFLOW_MANAGER_ADAPTIVE_TEST_SHARDING_PLAN.md`; the
+trunk model's changes are recorded in
+`docs/ai-workflow/WORKFLOW_MANAGER_TRUNK_MODEL_PLAN.md`.
 
 - **Inventory.** The atomic units are host test classes
   (`test_x.py::Class`) and, for the frozen conformance matrix, frozen
@@ -274,17 +283,64 @@ design record is
   run has both, `2` wins, and every observed failure is still listed. Each
   failure in the report carries a one-line reproduction command.
 
-**CI.** `.github/workflows/workflow-manager-verify.yml` runs the same
-selection on every pull request, every push to `main` and on dispatch. Its
-`plan` job writes the plan, and the plan's shard list becomes the `shard`
-matrix; nothing in the file names a shard. Each shard job runs one shard
-(`--run-shard`) and uploads its results. The `aggregate` job verifies every
-result against the plan, runs phase B and reports. Its exit code is the
-verdict, and it is the one check to require. Every file the tooling writes
-lives under `$RUNNER_TEMP`, and every job checks out full history. The
-dispatch input `shards` overrides the count, so `shards=1` is the
-single-shard reference, which the policy below restricts. The managed
-`workflow-conformance.yml` is a separate, installed file.
+**CI.** `.github/workflows/workflow-manager-verify.yml` runs on every pull
+request, every push to `main`, a nightly `schedule` (`17 3 * * *`, the
+default branch) and on dispatch. Its `plan` job writes the plan, and the
+plan's shard list becomes the `shard` matrix; nothing in the file names a
+shard. Each shard job runs one shard (`--run-shard`) and uploads its
+results. The `aggregate` job verifies every result against the plan, runs
+phase B and reports. Every file the tooling writes lives under
+`$RUNNER_TEMP`, and every job checks out full history. The dispatch input
+`shards` overrides the count, so `shards=1` is the single-shard reference,
+which the policy below restricts. The managed `workflow-conformance.yml` is
+a separate, installed file, and it is not a required check: `workflow-manager
+update` owns it and may rename its job.
+
+- **Profiles.** `push`, `schedule` and `workflow_dispatch` runs always plan
+  the full selection. A pull request's `plan` job first runs
+  `tools/ci/choose_profile.py`, which picks `full` or `newest-release`
+  (`--newest-release-only`) and writes its reasons to the job summary; see
+  "Stopgap test profile" below.
+- **One required test check.** `aggregate` keeps its name whatever the shard
+  count and whatever the profile. It needs `plan`, every `shard` and the
+  `package` job, runs `if: always()`, and its first step fails, naming the
+  job, when `plan` or `package` did not succeed. Its exit code is the
+  verdict. The repository's required checks are `aggregate` and `PR title`'s
+  `Conventional Commit title`, both from the GitHub Actions app
+  (`.github/repository/ruleset-main.json`).
+- **Packaging on every run.** The `package` job builds and verifies the
+  wheel and sdist exactly as a release does (`tools/release/package.py
+  --version 0.0.0+ci`), so a packaging break fails the pull request, not the
+  release.
+- **Concurrency.** The group is
+  `workflow-manager-verify-<event>-<ref for a pull request, else sha>`, and
+  only pull requests cancel in progress. A newer push to a pull request
+  cancels its stale run; a `main` push, a nightly or a dispatch run gets its
+  own per-commit group and is never cancelled.
+- **Nightly.** The `schedule` run is the full selection of the default
+  branch. Its `nightly-alarm` job opens (or comments on) a `nightly-red`
+  issue when `aggregate` did not succeed, and closes it on the next green
+  nightly.
+- **Release.** `.github/workflows/release.yml` publishes the Manager package
+  from `main` after `main`'s full run is green; see `docs/RELEASING.md`.
+
+**One reduced selection is a gate, in one place.** The newest-release
+selection (`--newest-release-only`) is the pull-request profile of
+`workflow-manager-verify.yml`. There it is the required `aggregate` check, a
+merge gate for pull requests, and nothing else.
+
+- It applies only when `choose_profile.py` finds no full-matrix path and a
+  green `main`. Otherwise the pull request runs the full selection.
+- `main` pushes and the nightly run always run the full selection.
+- The Manager release requires `main`'s full run for the released commit.
+- Every Workflow gate in this repository (checkpoint verification,
+  implementation review, acceptance) still runs `python3 tests/run_all.py`,
+  the full selection.
+- A newest-release run is never cited as full-suite evidence; its evidence
+  line says `newest-release selection`.
+- `--select` and `--fast` remain targeted runs, which are never a gate.
+
+This exception is a stopgap: M2 removes it (see "Stopgap test profile").
 
 **Measured (CP7, and at the post-review head `2b4c0fd`, 2026-09-27).** 16
 CPUs locally, `ubuntu-latest` with Python 3.12 in CI.
@@ -330,7 +386,8 @@ minutes), against 112 for the single-shard reference.
 **Serial and single-shard runs are exceptional evidence.** Normal
 full-suite verification, every gate included, uses the default sharded path:
 `python3 tests/run_all.py` locally, and the `workflow-manager-verify.yml`
-pipeline at its configured shard count in CI. Forcing one worker or one
+pipeline at its configured shard count in CI (for a pull request, at the
+profile `choose_profile.py` picks, under the exception above). Forcing one worker or one
 shard for the full suite, with `--jobs 1`, `--plan-only --shards 1`, the CI
 dispatch input `shards=1` or anything equivalent, adds no coverage. It runs
 the same selection under the same exit contract, only slower (about 40 min
@@ -428,6 +485,117 @@ arrives with read-only directories. Overwriting an existing file in the
 copy works. Creating, deleting or renaming inside it fails with `EACCES`,
 which is a false failure caused by the barrier. No test does this today. A
 future test that needs to must restore `u+w` on its own copy first.
+
+### Stopgap test profile
+
+About 96% of the full selection re-runs the frozen suites of every
+Workflow release in `distribution/`, in three fixtures each. Until M2 moves
+the releases out of this repository (`docs/ROADMAP.md` 10.2), a pull request
+may run a reduced selection instead: every host unit plus the newest
+release's frozen units (`--newest-release-only`). It is a gate only as the
+exception above states.
+
+`tools/ci/choose_profile.py` decides, and any doubt means `full`:
+
+- any event but `pull_request` is `full`;
+- **rule 1:** every path of the merge ref's diff against its base (both
+  sides of a rename, deletions too) is classified by the longest matching
+  rule in `tools/ci/pr_profile_paths.json`. `distribution/`, `migration/`,
+  `tools/`, `src/`, the shared test infrastructure, the matrix host modules,
+  `.github/` and `pyproject.toml` are `full`; documentation, the installed
+  Workflow copy and each other host test module (by exact path) are
+  `newest-release`. An unmatched path is `full`, and a test proves every
+  path of the tree, tracked and untracked, matches an explicit rule, so a
+  new top-level path or test module must be classified in its own pull
+  request, which then runs `full` because it edits `tools/`;
+- **rule 5:** otherwise the newest completed `push` or `schedule` run of
+  the verification workflow on `main` must be green; a red, cancelled or
+  missing run, or an API failure, is `full`;
+- a git failure, or a head that is not a two-parent merge, is `full`.
+
+The other rules are enforced elsewhere: the release waits for `main`'s full
+run (`release.py assert-full-plan`, rule 2), `aggregate` is the one required
+test check (rule 3), the gate policy is the exception above (rule 4), and a
+red nightly opens an issue (rule 5).
+
+**Where M2 finds it (rule 6).** Stopgap code and data carry the marker
+`STOPGAP(M2)` in one of two forms only: a line-leading comment (`#
+STOPGAP(M2)`, the first token on its line in Python, or a line matching
+`^\s*# STOPGAP\(M2\)` in YAML), or a JSON `"_comment"` value that starts with
+`STOPGAP(M2)`. Documentation (`docs/` and every `*.md`) is never scanned.
+The marked files are exactly:
+
+<!-- stopgap-marked-files:begin -->
+- `.github/workflows/workflow-manager-verify.yml`
+- `tests/parallel/cli.py`
+- `tests/parallel/inventory.py`
+- `tests/parallel/planner.py`
+- `tests/parallel/report.py`
+- `tests/test_stopgap_profile.py`
+- `tools/ci/choose_profile.py`
+- `tools/ci/nightly_alarm.py`
+- `tools/ci/pr_profile_paths.json`
+<!-- stopgap-marked-files:end -->
+
+M2 deletes `tools/ci/choose_profile.py`, `tools/ci/nightly_alarm.py`,
+`tools/ci/pr_profile_paths.json` and `tests/test_stopgap_profile.py` whole,
+and in the other files removes each block that opens with the marker (in
+`tests/parallel/`, down to its `End of the STOPGAP(M2) block.` line). Every
+reference the runner's stopgap depends on sits inside such a block,
+including the `NEWEST_RELEASE_KIND` import, the `newest_release_only`
+entries of the mode tables, the `--newest-release-only` help text and the
+comments that name its selection kind, so that removal alone leaves a
+working runner. That restores the single CI profile: the `choose_profile`
+step and the `NEWEST` wiring leave the `plan` job, the `nightly-alarm` job
+leaves the workflow (the nightly run itself may stay), and `plan`'s
+`profile` output and `actions: read` go with them. M2 also deletes the
+exception "One reduced selection is a gate, in one place" above and this
+subsection. `tests/test_stopgap_profile.py` proves the list above equals the
+marked files, and that every file that names a stopgap identifier
+(`newest-release`, `newest_release`, `NEWEST_RELEASE`, `choose_profile`,
+`nightly_alarm`, `nightly-alarm`, `nightly-red`, `pr_profile_paths`) is
+marked, so a stopgap block left in an unlisted file fails the suite. It also
+carries the removal out on a scratch checkout: after deleting every marked
+block under `tests/parallel/`, no file there names a stopgap identifier, and
+the runner's `--help`, `--list`, `--plan-only` and a real run succeed while
+`--newest-release-only` is an unknown argument.
+`selection_kind` in `tests/parallel/planner.py` and `release.py
+assert-full-plan` are permanent and stay.
+
+## Squash merges and the installed Workflow
+
+`main` takes only squash merges, so once a milestone's pull request merges,
+its branch commits (plan approval, checkpoints, bundle-generation records,
+technical approval) become unreachable after the branch is deleted and
+garbage-collected. That is safe for the installed Workflow `2.6.0`,
+established by `workflow-manager-trunk-model`'s CP6 (its record is in
+`docs/ACTIVE_MILESTONE.md`):
+
+- **Static audit.** Every git history or object read in
+  `scripts/workflow_state.py` and `scripts/workflow_fingerprint.py` is
+  branch-local (it runs on the active item's own branch, before the merge),
+  reads state *content* (reachable commits only, never a recorded SHA), or
+  is legacy/cross-worktree only. None resolves a SHA a completed item
+  records. The one loop over every work item that touches git
+  (`validate_state(repo_root=)`) reads each item's registry in the working
+  tree, which the squash keeps. `workflow-manager verify` reads no history.
+- **Tested.** `tests/test_squash_merge_compat.py` drives an item to
+  `MILESTONE_COMPLETE` in a disposable repository, squashes its branch onto
+  `main` with a blank body, deletes the branch, expires the reflog and
+  prunes, then, in the repository and in a fresh clone, requires the state
+  to validate, the item's id to be refused for reuse, a new item to be
+  planned, approved and implemented, and `workflow-manager verify` to be
+  clean.
+- **Checked once on this repository.** A scratch clone with
+  `workflow-manager-adaptive-test-sharding`'s branch squashed and pruned
+  passed the same assertions under `2.5.1` and after an update to `2.6.0`.
+
+Two limits, neither a problem today. Calling `implementing_entry_reachable`
+or `complete_work_item` on an already-completed item fails closed; no
+command does. And the dormant `D-Legacy` import path
+(`verify_legacy_branch_reconciliation`) needs a `LEGACY_READY` item's
+reviewed commit to be an ancestor of `HEAD`, so a legacy branch integrated
+by squash could never be promoted; this repository has no such item.
 
 ## Extension points
 

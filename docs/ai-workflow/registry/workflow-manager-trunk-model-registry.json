@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "work_item_id": "workflow-manager-trunk-model",
+  "plan_revision": 3,
+  "checkpoints": [
+    {
+      "id": "CP1",
+      "name": "Conventional Commit titles and tag-derived versions: tools/release/release.py (check-title, next-version, assert-not-superseded, set-version) and the pyproject placeholder",
+      "depends_on": [],
+      "complexity": 3,
+      "session_target": 1
+    },
+    {
+      "id": "CP2",
+      "name": "Manager version reporting and release packaging: --version, the missing-distribution hint, tools/release/package.py and SHA256SUMS",
+      "depends_on": [
+        "CP1"
+      ],
+      "complexity": 3,
+      "session_target": 1
+    },
+    {
+      "id": "CP3",
+      "name": "Newest-release selection in the runner: --newest-release-only, selection_kind and the evidence label",
+      "depends_on": [],
+      "complexity": 3,
+      "session_target": 1
+    },
+    {
+      "id": "CP4",
+      "name": "Pull-request profile chooser: path rules with a completeness proof, main-health escalation, and the nightly alarm decision",
+      "depends_on": [
+        "CP3"
+      ],
+      "complexity": 3,
+      "session_target": 1
+    },
+    {
+      "id": "CP5",
+      "name": "CI, title and release workflows, per-commit main concurrency, nightly run, and repository settings as reviewed data",
+      "depends_on": [
+        "CP2",
+        "CP4"
+      ],
+      "complexity": 4,
+      "session_target": 1
+    },
+    {
+      "id": "CP6",
+      "name": "Squash-merge compatibility: static audit, disposable-repository test and scratch-clone check",
+      "depends_on": [
+        "CP4"
+      ],
+      "complexity": 3,
+      "session_target": 1
+    },
+    {
+      "id": "CP7",
+      "name": "Documentation, the reviewed gate-policy change, the stopgap's M2 removal record and the cutover runbook",
+      "depends_on": [
+        "CP1",
+        "CP2",
+        "CP3",
+        "CP4",
+        "CP5",
+        "CP6"
+      ],
+      "complexity": 3,
+      "session_target": 1
+    }
+  ]
+}

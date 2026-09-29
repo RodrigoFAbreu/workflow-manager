@@ -2,6 +2,687 @@
 
 ## Milestone
 
+`workflow-manager-trunk-model` (`governing_workflow_version: "2.2"`,
+`process`, plan revision 3 approved in `aede0df`, base `b856a97`): the
+trunk model for this repository -- a protected, squash-only `main`,
+Conventional Commit pull-request titles, tag-derived Manager versions and
+releases, and a reduced newest-release pull-request profile as a stopgap.
+Full plan: `docs/ai-workflow/WORKFLOW_MANAGER_TRUNK_MODEL_PLAN.md`.
+
+## Current checkpoint
+
+**Milestone complete.** `workflow-manager-trunk-model` reached
+`MILESTONE_COMPLETE` through `/accept-milestone` on 2026-09-29, with the
+user's confirmation, and `active_work_item_id` is cleared.
+- **Checkpoints:** CP1-CP7 are complete.
+- **Technical approval:** commit `7995695`, implementation revision 2.
+  Both implementation-review stages approved.
+- **Automated verification:** the full gate passed at `ed39920` (4088/4088
+  units, 25,624 tests). Only docs and state commits have landed since.
+- **Functional review:** accepted by the user against the checklist below,
+  with no findings filed. Cutover steps C0-C1 ran; their evidence is
+  recorded under flows 7 and 8.
+
+The checkpoint log below is this milestone's permanent record.
+
+## Current blockers
+
+None. What remains is the cutover after acceptance (`docs/RELEASING.md`,
+"Cutover", C2-C5), which is the repository owner's:
+- apply the ruleset and the merge settings;
+- mark pull request #4 ready and squash-merge it under its title
+  `feat: trunk model, Manager releases and the stopgap PR test profile`;
+- let `main`'s full run and the release workflow publish the first
+  tag-derived Manager release (C5), and record it here.
+
+## Active plan
+
+None, because the milestone is complete. The plan document stays at
+`docs/ai-workflow/WORKFLOW_MANAGER_TRUNK_MODEL_PLAN.md` (revision 3)
+instead of being archived: `docs/ARCHITECTURE.md` and `docs/RELEASING.md`
+cite it as the design record.
+
+## Next action
+
+`workflow-manager-trunk-model` is complete. Next, after the cutover
+merges it, run `/milestone-plan` for the next incomplete milestone in
+`docs/ROADMAP.md`. That is M1b, "Test cleanup, no orphaned Git
+processes" (section 10.1b), the small milestone the agreed lane order
+(2026-09-29) puts before M2.
+
+## Checkpoint log
+
+### CP1 -- Conventional Commit titles and tag-derived versions (complete)
+
+- `tools/release/release.py` (new, stdlib): `check-title` (SignalHub's
+  title regex on the stripped subject; the 5.1 impact table, `!` major on
+  any type; each rejection names its failure and prints the accepted form),
+  `next-version` (highest strict `vX.Y.Z` in `git tag --merged HEAD`, else
+  the baseline `1.0.0` at `b856a97`, which must be an ancestor of `HEAD`;
+  the bump is the highest impact over `git log --first-parent`; `none`-only
+  or empty prints nothing; a non-Conventional subject is a patch with a
+  `::warning::`), `assert-not-superseded` (exit 3 when a strict tag sits on
+  a non-ancestor of `HEAD`), `resolve-target` (the newest completed green
+  `push` run on `main`'s first parent, via `gh api`; a pick that is neither
+  the trigger nor its descendant refuses; an API, parse or git failure, or
+  no candidate, falls back to the trigger with a warning; `select_target`
+  is pure), `set-version DIR VERSION` (rewrites the single placeholder
+  line in a copy, never the checkout; `X.Y.Z` or `X.Y.Z+local` only).
+  Exit codes 0/1/2/3.
+- `pyproject.toml`: `version = "0.0.0.dev0"`, the placeholder, with a
+  comment naming the Git tag as the only version authority (INV-6).
+- Verification: `run_all.py --select test_release_versioning.py` 10/10
+  units, 54 tests OK (every item of the plan's CP1 test list, on real
+  temporary repositories). INV-1 and INV-3:
+  `git diff b856a97 -- distribution migration scripts .claude/commands src .github/workflows/workflow-conformance.yml`
+  empty. The new module's PR-profile rule is CP4's (plan 6.2).
+
+### CP2 -- Manager version reporting and release packaging (complete)
+
+- `src/workflow_manager/cli.py`: `--version` needs no subcommand and
+  prints the first of plan 5.3's answers: the installed metadata version
+  when it is a release (not `.dev`, not missing); `X.Y.Z (checkout at
+  vX.Y.Z)` when `MANAGER_ROOT` is itself the top of a Git work tree, its
+  tracked tree is clean and `HEAD` carries a strict tag; otherwise
+  `development build (<git describe --tags --always --dirty>)`, or plain
+  `development build` outside a work tree (so a `.venv` inside an
+  unrelated repository never reports that repository's tag). Every Git
+  call is bounded (10 s) and fails soft to the next answer. Two
+  implementation choices, same behaviour as the plan's wording: the version
+  is computed by a lazy `argparse.Action` (no Git call on ordinary
+  commands) rather than a precomputed `action="version"` string, and the
+  exact tag comes from `git tag --points-at HEAD` filtered to strict tags,
+  highest first, rather than `git describe --exact-match`, which picks
+  arbitrarily between several tags on one commit and can return a
+  non-strict one.
+- The missing-distribution hint: `releases`, `bootstrap`, `update`, and
+  `status`/`verify` of a managed target (or with `--release-version`) now
+  say the Manager is probably installed from a wheel and name
+  `--manager-root <workflow-manager checkout at the matching tag>`,
+  replacing "run tools/migrate.py first". `status` of an unmanaged target
+  and `uninstall` still need no release.
+- `tools/release/package.py` (new): copies `pyproject.toml`, `README.md`
+  and `src/` (no caches or `egg-info`) to a temporary directory,
+  `set_version`s it, runs `python -m build --outdir DIR`, installs the
+  wheel into a fresh venv and requires `--version` to print exactly
+  `workflow-manager V`, `--manager-root R releases` to list exactly `R`'s
+  releases and `--manager-root R verify R` to exit 0; then writes a
+  sorted, `sha256sum`-compatible `SHA256SUMS`. It refuses a non-empty
+  `--out` so the sums cover only this build.
+- `.github/tools/requirements.txt` (new): `build==1.6.1`. `README.md`:
+  `--version`, the `pipx reinstall workflow-manager` note (finding 6) and
+  `--manager-root` for a wheel install.
+- Verification: `run_all.py --select test_manager_version.py --select
+  test_bootstrap.py --select test_release_versioning.py` 36/36 units, 192
+  tests OK (`test_manager_version.py`: 43 tests covering every item of the
+  plan's CP2 list). Smoke evidence, outside the test suite (INV-5): with
+  `build==1.6.1` in a throwaway venv, `package.py --version 1.1.0
+  --manager-root .` built both assets, passed all three installed-wheel
+  checks, and `sha256sum -c SHA256SUMS` accepted the result. INV-1/INV-3:
+  the diff against `b856a97` over `distribution migration scripts
+  .claude/commands .github/workflows/workflow-conformance.yml` is empty and
+  `workflow-manager verify .` matches workflow 2.6.0.
+
+### CP3 -- newest-release selection in the runner (complete)
+
+- `tests/parallel/cli.py`: `--newest-release-only` for the run, `--list`
+  and `--plan-only` modes; with `--select` or `--fast` it is a usage error,
+  exit 2, refused from argv before the run lock. Every other mode refuses
+  it through the existing per-mode option check.
+- `tests/parallel/inventory.py`: `newest_release` (the highest `CI_SUITES`
+  version by numeric order), the `NEWEST_RELEASE` spec, and
+  `Selection.kind` (`full`, `targeted` or `newest-release`, derived from
+  the flags and kept outside `to_json`, so `selection_digest` is unchanged).
+  The selection is every host unit except the other releases' matrix host
+  classes, plus the newest release's frozen units. `partial_frozen` is
+  false, and phase B is the newest release's three matrix classes. A
+  hand-built `Selection` defaults to `targeted`, the least it can claim
+  (INV-4). The executor passes the spec through unchanged, so
+  `executor.py` did not change.
+- `tests/parallel/planner.py`: the plan's new `selection_kind`.
+  `tests/parallel/report.py`: the evidence label keeps set equality, and
+  adds `newest-release` for a newest-release plan that is not full by it.
+- Every stopgap block opens with a line-leading `# STOPGAP(M2)` comment
+  that points to `docs/ARCHITECTURE.md`'s "Stopgap test profile" (CP7
+  writes that subsection).
+- Live `--list --newest-release-only` at this checkpoint: 1088 units (155
+  host + 3 x 311 frozen `2.6.0`), the plan's 1069 at the base plus the 19
+  host classes CP1 and CP2 added. The full `--list` is 4061.
+- Verification: `run_all.py --select test_stopgap_profile.py`: 6/6 units,
+  14 tests OK, covering every item of the plan's CP3 test list. INV-2 is
+  proved against the base runner itself: the base commit's
+  `tests/parallel/` (`git archive b856a97`) selects byte-identical
+  `to_json`, and the same `selection_digest`, over the live and a
+  synthetic inventory. The real subprocess run uses a scratch checkout of
+  releases `0.0.1`, `0.0.9` and `0.0.10`, where `0.0.10` must win. The
+  regression run, `--select` of `test_parallel_runner.py`,
+  `test_release_versioning.py`, `test_manager_version.py` and
+  `test_stopgap_profile.py`, passed with 79/79 units and 323 tests OK. INV-1/INV-3: the diff against `b856a97`
+  over `distribution migration scripts .claude/commands
+  .github/workflows/workflow-conformance.yml` is empty.
+
+### CP4 -- pull-request profile chooser (complete)
+
+- `tools/ci/choose_profile.py` (new, stdlib): writes `profile=full` or
+  `profile=newest-release` to `$GITHUB_OUTPUT` and a reasons table to
+  `$GITHUB_STEP_SUMMARY` (stdout when unset). Any event but `pull_request`
+  is `full` and reads nothing. Rule 1: the paths of `git diff --name-only
+  --no-renames -z HEAD^1 HEAD` (both sides of a rename, deletions too),
+  where `HEAD` must be a two-parent merge; each is classified by the
+  longest matching rule, and an unmatched path is `full`. Rule 5, read
+  only when no path already needs `full`: the newest (highest run id)
+  `push` or `schedule` run in the `gh api` run list of
+  `workflow-manager-verify.yml` on `main` must be `completed`/`success`.
+  A git, API, parse or rule-file failure is `full` (INV-4). The table
+  lists every path that chose `full` and caps the rest at 300 rows.
+- `tools/ci/pr_profile_paths.json` (new): the plan 6.2 table as exact
+  paths and `/`-ending prefixes, including an exact rule for each of the 14
+  host test modules (CP1-CP3's three among them); its `"_comment"` starts
+  with `STOPGAP(M2)`. The rule file is validated on load (known profile, a
+  reason, relative path, no duplicates).
+- `tools/ci/nightly_alarm.py` (new): `decide(event, result, open_issues,
+  run_url)` is pure. A red `schedule` run ensures the `nightly-red` label
+  (`gh label create --force`), then comments on the oldest open issue or
+  opens "Nightly full verification failed". A green one closes every open
+  `nightly-red` issue with a comment. Any other event does nothing. An
+  unreadable issue list counts as none, so a red nightly still opens an
+  issue. A failed `gh` action exits 1.
+- `tools/ci/__init__.py` (new): a one-line docstring; it names no stopgap
+  identifier. The three other files open with the `STOPGAP(M2)` marker.
+- Verification: `run_all.py --select test_stopgap_profile.py`: 13/13
+  units, 45 tests OK (31 new, covering every item of the plan's CP4 test
+  list: completeness over the live tree, tracked and untracked, plus a
+  scratch repository where a new untracked test module is unclassified and
+  an ignored file is not listed; real merges for the rename, deletion,
+  non-merge and git-failure cases; `main` health from injected JSON; the
+  output format; the alarm's decision table and its `gh` shell with `_gh`
+  patched). INV-1/INV-3: the diff against `b856a97` over `distribution
+  migration scripts .claude/commands
+  .github/workflows/workflow-conformance.yml` is empty, and
+  `workflow-manager verify .` matches workflow 2.6.0. As for CP1-CP3, the
+  full gate was not run at this checkpoint: under the Controller it leaks
+  git zombies (about 1200 already held by this lane's Controller).
+
+### CP5 -- workflows and settings data (complete)
+
+- `.github/workflows/workflow-manager-verify.yml` (changed): a `schedule`
+  trigger (`17 3 * * *`, the nightly full run); the concurrency group
+  `workflow-manager-verify-<event>-<ref for a pull request, else sha>`,
+  cancelled for pull requests only, so no `main` push, nightly or dispatch
+  run is ever cancelled. The `plan` job holds `contents: read, actions:
+  read`, runs `choose_profile.py` (step `profile`) before planning, passes
+  `--newest-release-only` only through `NEWEST`, set from that step's
+  output, and exports `profile`. A new `package` job runs `package.py
+  --version 0.0.0+ci --manager-root $GITHUB_WORKSPACE` after installing
+  `.github/tools/requirements.txt`. `aggregate` needs `[plan, shard,
+  package]` and its first step (`id: needs`) fails naming the plan or
+  package job's non-success result. A new `nightly-alarm` job (`needs:
+  aggregate`, `if: always() && github.event_name == 'schedule'`,
+  `contents: read, issues: write`) runs `nightly_alarm.py`. The profile
+  step, the `NEWEST` wiring and the alarm job carry `# STOPGAP(M2)`.
+- `.github/workflows/pr-title.yml` (new): `name: PR title`, `pull_request`
+  types `opened, edited, reopened, synchronize`, one job `Conventional
+  Commit title` running `release.py check-title "$TITLE"` with the title in
+  `env`.
+- `.github/workflows/release.yml` (new), plan 5.4: `workflow_run` of
+  "Workflow manager verification", `completed`, `main`; the job requires a
+  `push` run concluded `success`, holds `contents: write, actions: read`
+  and the job-level group `workflow-manager-release` without cancellation.
+  Steps: checkout of `main` (full history), `resolve-target` into
+  `$GITHUB_OUTPUT`, checkout of the target (full history), Python 3.12, the
+  pinned upstream fetch, the `plan` artifact downloaded from the target's
+  run, `assert-full-plan`, `next-version` (empty: a notice, then every
+  later step is skipped), `assert-not-superseded` (exit 3: a notice and
+  `superseded=true`), `package.py --version X.Y.Z`, and `gh release create
+  vX.Y.Z --target $TARGET_SHA --generate-notes` with notes saying the
+  release holds no Workflow release and which releases `distribution/`
+  holds.
+- `.github/repository/ruleset-main.json` and `merge-settings.json` (new):
+  the ruleset API payload (`~DEFAULT_BRANCH`; `deletion`,
+  `non_fast_forward`, `required_linear_history`; `pull_request` with 0
+  approvals and squash only; required checks `aggregate` and `Conventional
+  Commit title` from app 15368, `strict: false`; no bypass actors) and the
+  repository `PATCH` payload (squash only, `PR_TITLE`/`BLANK`, auto-merge,
+  delete branch on merge). No setting was applied: that is the user's
+  cutover (plan section 9).
+- `tools/release/release.py assert-full-plan PLAN [--repo-dir DIR]`: loads
+  the plan with the checkout's own runner (`planner.load_plan`: its
+  `plan_digest`, this tree's `tree_digest`, its partition), rediscovers the
+  inventory there (`inventory.discover`), and requires `selection_kind ==
+  "full"`, the same `tree_digest`, and a selection equal to the inventory
+  with no partial class. Any refusal exits 1.
+- `tools/ci/pr_profile_paths.json`: an exact `newest-release` rule for
+  `tests/test_release_workflows.py`.
+- Tests: `tests/test_release_workflows.py` (new, 19 tests): T-REL-1
+  (structure plus 12 mutations, and the `resolve-target` output format the
+  later steps read), T-PRT-1 (structure, and the real step run with a
+  title that would inject if interpolated), T-SET-1, and the permanent
+  `assert-full-plan` cases over real scratch-checkout `--plan-only`
+  output: a full plan passes; a targeted plan, a `--select` covering the
+  whole inventory, another tree's plan and a tampered plan are refused;
+  a `full` label omitting a unit, adding one, or selecting a class
+  partially is refused. `tests/test_parallel_runner.py`: T-CI-1 updated
+  (triggers, schedule, the exact group, `package` among the jobs and
+  `aggregate`'s needs, five new mutations) and T-CI-7 (new: the `needs`
+  step run for real over every result pair, and the `package` job).
+  T-CI-2 supplies the new `NEWEST` step variable. `tests/test_stopgap_profile.py`:
+  T-CI-6 (wiring, the real profile step choosing `full` for `push`, and the
+  real plan step producing `full`/`newest-release` from `NEWEST` in a
+  scratch clone), T-CI-8, and the stopgap `assert-full-plan` cases (a
+  three-release newest-release plan is refused while the full one passes;
+  over one release the newest-release selection equals the full one and is
+  still refused). No permanent module names a stopgap identifier.
+- Fixed on the way: CP4's `tests/test_stopgap_profile.py` tripped the
+  runner's static write lint (`TestStaticLint`) in four places, all false
+  positives of its flow-insensitive rootedness (a `path` bound to
+  `REPO_ROOT` in `_load_tool` made every `path.write_text` look like a write
+  under the checkout, and a literal `tools/migrate.py` read as a tool run
+  without `--check`). Renamed the binding and used another `tools/` path in
+  the classification case; no behaviour changed. CP4's targeted run could
+  not see it, because the lint test lives in `test_parallel_runner.py`.
+- Verification: `run_all.py --select` over `test_parallel_runner.py`,
+  `test_stopgap_profile.py`, `test_release_workflows.py`,
+  `test_release_versioning.py` and `test_manager_version.py`: every module
+  green except the lint case above, which is green after the fix
+  (`TestStaticLint` 3/3 and `test_stopgap_profile.py` 53/53 re-run).
+  INV-1/INV-3: the diff against `b856a97` over `distribution migration
+  scripts .claude/commands .github/workflows/workflow-conformance.yml` is
+  empty, and `workflow-manager verify .` matches workflow 2.6.0. As for
+  CP1-CP4, the full gate was not run at this checkpoint, because of the
+  Controller's git-zombie leak (about 3500 held by this lane's Controller
+  after these runs). The workflows themselves first run on GitHub at the
+  cutover (C0).
+
+### CP6 -- squash-merge compatibility (complete)
+
+Plan section 7. The stop rule did not fire: no part found a reader that
+fails once a completed item's commits are unreachable.
+
+- **Static audit** (part 1), of every git history or object read in the
+  installed `scripts/workflow_state.py` (WS) and
+  `scripts/workflow_fingerprint.py` (FP). The conclusion goes into
+  `docs/ARCHITECTURE.md` in CP7.
+
+  | Reader | git ops | Where | Class |
+  | --- | --- | --- | --- |
+  | Trailer walkers (`_discover_trailer_commits` and its `discover_*_commits`, `_commit_trailers`) | `log base..head`, `interpret-trailers` | WS:1832-1927 | branch-local, runs before the merge |
+  | `_is_ancestor` (entry reachability, amendment request, record intervals, obligations) | `merge-base --is-ancestor` | WS:2054 | branch-local |
+  | Plan-approval transaction and commit verification (`_read_committed_bytes`, `assert_committed_path_set_matches`, journal and index checks) | `show`, `diff-tree`, `cat-file`, `rev-parse`, `diff --cached` | WS:2321-4017 | branch-local |
+  | `load_pre_amendment_snapshot` | `ls-tree`, `cat-file` of the active item's `pre_amendment_approval_commit` | WS:2092-2107 | branch-local (only for an item in `AMENDING_PLAN`) |
+  | Generation-record chain, provenance interval and recovery, technical-approval commit validation | `diff`, `rev-parse`, `show <c>:STATE` | WS:9066, 13939-14643 | branch-local |
+  | Completion obligations (`resolve_completion_obligations` from `complete_work_item`) | `ls-tree`, `cat-file`, `show` | WS:10572-12501 | branch-local (runs once, at acceptance) |
+  | FP `resolve_base`, `_read_bytes_at_source`, `_path_exists_at_source`, `_snapshot_commit`, changed-path diffs | `rev-parse`, `show`, `cat-file -e`, `ls-tree`, `diff` | FP:648-886, 1527 | branch-local (the active item's own commits) |
+  | `origination_reference_commits`, `_checkpoint_status_at_commit`, `_identity_query_at_commit` | `rev-list --all --full-history -- STATE`, `ls-tree`, `cat-file` | WS:4982-5030, 8603 | reads state content |
+  | `find_latest_activation_event` (`load_config` fallback only) | `log --first-parent HEAD` | WS:1850 | reads state content (reachable history, no recorded SHA) |
+  | `_committed_blob`/`_rev_sha` (amendment witness, lifecycle views of worktree and branch tips) | `rev-parse --verify`, `cat-file` | WS:6935-6952 | legacy/cross-worktree only |
+  | `_resolving_commits_trailers` | `rev-list HEAD -- STATE`, `log -1` | WS:7248 | legacy/cross-worktree only |
+  | `verify_legacy_branch_reconciliation` (`promote_legacy_work_item`) | `merge-base`, `show` | WS:16049-16075 | legacy/cross-worktree only |
+
+  No reader resolves a SHA that a completed item records. Every reader
+  that resolves a recorded SHA gets it from the one active item the command
+  names. The loops over every `work_items` entry, terminal ones included,
+  are structural. The one that touches git (`validate_state(repo_root=)`,
+  WS:16508) runs `ls-files` on each item's `registry_path` in the working
+  tree, which the squash keeps. `workflow-manager verify` reads no history.
+  The history-wide readers only enumerate reachable commits. The squash
+  commit carries the terminal item's final state, so its id stays observed
+  and reuse is refused (`route_work_item` raises
+  `WorkItemTerminalReuseError` first).
+
+  Two notes, neither a defect of squash merging a completed item:
+  - Calling `implementing_entry_reachable` or `complete_work_item` on an
+    already-completed item would fail closed (False, `VERIFIER_UNRESOLVABLE`
+    or a raise), never silently. No command does this.
+  - `verify_legacy_branch_reconciliation` requires a `LEGACY_READY` item's
+    `reviewed_content_commit` to be an ancestor of `HEAD`, so a legacy
+    branch integrated by squash could never be promoted. That is the
+    dormant `D-Legacy` import path. This repository has no `LEGACY_READY`
+    item, and all five completed items are `MILESTONE_COMPLETE`.
+- **Disposable-repository test** (part 2),
+  `tests/test_squash_merge_compat.py` (new, stdlib, history-independent, 4
+  tests, about 3 s). It bootstraps `2.6.0` into a disposable repository and
+  drives `sq-item` to `MILESTONE_COMPLETE` on `milestone/sq-item`. The
+  drivers are the installed release's own acceptance-matrix harness, run
+  in subprocesses through `test_workflow_2_6_0_hardening_disposable_repo`'s
+  `drive()`. The branch is then squashed onto `main` with a blank body,
+  the branch deleted, the reflog expired and the objects pruned with `gc
+  --prune=now`. A `--no-local` clone is taken as well. The test asserts:
+  - the branch carried `Workflow-Checkpoint`/`Workflow-Work-Item`
+    trailers, while the squash commit has none, one parent and the
+    branch's tree;
+  - every branch commit the item records is gone in both checkouts: the
+    plan-approval commit (CP1's `start_commit`) and
+    `reviewed_implementation_head`/`reviewed_content_commit`.
+
+  Then, in both the pruned repository and the clone:
+  - `validate_state(repo_root=)` passes;
+  - re-routing `sq-item` raises `WorkItemTerminalReuseError`;
+  - a new item routes and reaches `plan_review_publication_status`
+    `BOUND`, is plan-approved (`IMPLEMENTING`) and completes CP1
+    (`SELF_REVIEWING_IMPLEMENTATION`);
+  - `workflow-manager verify` matches workflow 2.6.0.
+
+  The disposable item is governed by `"2.1"` (the template's default).
+  Part 3 covers `"2.2"`.
+- **Scratch-clone check** (part 3), one-off, not committed. The check was
+  done in a `--no-local` clone of this repository:
+  - a squash commit of `c1647c3`'s tree was made on parent `db4c7af` with
+    the blank-body title `feat: adaptive test sharding (#1)`;
+  - every ref but `refs/heads/main` was deleted, including `origin`, the
+    tags and the other branches;
+  - the reflog was expired and the objects pruned.
+
+  All 8 branch commits that `workflow-manager-adaptive-test-sharding`
+  records were then unreachable: the CP1-CP7 `start_commit`s `97ca7a0`,
+  `cc1d6c3`, `ac9e7b6`, `ff5d383`, `2dc17e1`, `534174c` and `9774721`, and
+  `reviewed_implementation_head` = `technical_approval.reviewed_content_commit`
+  `de833c8`. Only `base_commit` `db4c7af` stayed reachable. There was no
+  trailer in `db4c7af..main`. The tree was identical to `c1647c3`'s.
+
+  At `c1647c3`, Workflow `2.5.1` was installed; `2.6.0` came in `0ac857b`.
+  So the assertions ran in two arms:
+  - with the tree's own `2.5.1`;
+  - after `workflow_manager update` to `2.6.0` in a second such clone
+    (`drift` `[]`, committed).
+
+  In both arms:
+  - the state validated, with the item `MILESTONE_COMPLETE` and no active
+    item;
+  - re-routing the item raised `WorkItemTerminalReuseError`;
+  - a new item, governed by `"2.2"` (the activated default), reached
+    `AWAITING_PLAN_APPROVAL` after both plan reviews (`BOUND` publication
+    status under `2.6.0`), was approved (`IMPLEMENTING`) and completed CP1
+    (`SELF_REVIEWING_IMPLEMENTATION`);
+  - `workflow-manager verify` printed `installation matches workflow 2.5.1`
+    or `2.6.0` respectively, before and after.
+- `tools/ci/pr_profile_paths.json`: an exact `newest-release` rule for the
+  new module. `tests/test_stopgap_profile.py` lists it among this
+  milestone's modules.
+- Verification: `run_all.py --select test_squash_merge_compat.py --select
+  test_stopgap_profile.py --select test_parallel_runner.py::TestStaticLint`
+  gave 18/18 units, 60 tests, exit 0. INV-1/INV-3: the diff against
+  `b856a97` over `distribution migration scripts .claude/commands
+  .github/workflows/workflow-conformance.yml` is empty (the only diff
+  under `src/` is CP2's `cli.py`), and `workflow-manager verify .` matches
+  workflow 2.6.0. As for CP1-CP5, the full gate was not run at this
+  checkpoint.
+
+### CP7 -- documentation, gate policy, removal record, cutover runbook (complete)
+
+- `docs/ARCHITECTURE.md`:
+  - "Verification execution": the opening names the one reduced gate; the
+    CI paragraph now covers the nightly trigger, the profiles, the one
+    required test check (`aggregate`, now also needing `package`), the
+    `package` job, the per-commit concurrency and the release; plan 6.6's
+    policy text is applied verbatim as "One reduced selection is a gate, in
+    one place"; the serial-runs policy names the pull-request profile;
+  - "Stopgap test profile" (new subsection): the chooser's rules, where
+    the other rules are enforced, the marker's two forms, the list of the
+    eight marked files between `stopgap-marked-files` comments, and what M2
+    deletes (the four stopgap files whole, the marked blocks elsewhere, the
+    policy exception and the subsection);
+  - "Squash merges and the installed Workflow" (new section): CP6's
+    conclusion, the test, the one-off check, and the two limits;
+  - the layout lists `tools/release/`, `tools/ci/`, `.github/` and
+    `docs/RELEASING.md`.
+- `docs/RELEASING.md` (new): how a release happens and the impact table,
+  the first release (`v1.1.0` over the `1.0.0` baseline at `b856a97`),
+  fix-forward, catch-up, re-running a failed release, the stranded-release
+  recovery (5.4's residual), installing and verifying `SHA256SUMS`, `pipx
+  reinstall workflow-manager`, the settings and ruleset `gh api` commands,
+  the 60-day schedule caveat, the C1 alignment note, and the section 9
+  cutover runbook (C0-C6) with its `git push`/`gh pr create`/`gh pr
+  checks` commands.
+- `README.md`: verification, nightly (`event=schedule`) and release badges;
+  an "Install" section (a checkout at a tag, or the wheel with
+  `--manager-root`); the CI profile note; `RELEASING.md` in the reading
+  order.
+- `CLAUDE.md`, below the managed marker only: "Before changing anything"
+  states the gate policy and the path-rule obligation; a new "Branches,
+  pull requests and releases" section; `RELEASING.md` in "Where things
+  are". `workflow-manager verify .` still matches workflow 2.6.0.
+- `docs/ROADMAP.md`: 10.1's status (in progress, all checkpoints
+  implemented), the `OD-4` Controller-policy follow-up, and 10.2's pointer
+  to the "Stopgap test profile" subsection.
+- `tests/test_stopgap_profile.py`: the marker-set tests (plan 6.7).
+  `TestTheMarkedFilesAreRecorded`: the marked files of the scanned set
+  (tree paths, tracked and untracked, minus `docs/` and `*.md`) equal the
+  documented list; every file naming a stopgap identifier is marked; the
+  policy exception and subsection are present.
+  `TestWhatCountsAsAMarker`: the admitted forms; an inline string, a
+  trailing comment, a multiline-string line, a docstring, a YAML string, a
+  non-`_comment` JSON value and a non-code file are not markers; a
+  scratch repository's `docs/` and `*.md` files are never scanned, while an
+  unmarked or untracked code file naming an identifier is caught; the list
+  is read only between its comments. Checked by mutation outside the suite:
+  dropping `tests/parallel/report.py`'s marker unmarks it.
+- Verification: `run_all.py --select test_stopgap_profile.py --select
+  test_parallel_runner.py::TestStaticLint --select
+  test_parallel_runner.py::TestSerialEvidencePolicyIsDocumented --select
+  test_release_workflows.py`: 25/25 units, 84 tests, exit 0. INV-1/INV-3:
+  the diff against `b856a97` over `distribution migration scripts
+  .claude/commands .github/workflows/workflow-conformance.yml` is empty,
+  and `workflow-manager verify .` matches workflow 2.6.0. No CI evidence at
+  this checkpoint: the draft pull request's runs (C0) are the user's and
+  belong to the functional review. As for CP1-CP6, the full gate was not
+  run at this checkpoint; it runs at the wrap-up.
+
+### Self-review of the milestone diff and the full gate (`SELF_REVIEWING_IMPLEMENTATION`)
+
+- `enter_self_reviewing_implementation` was a no-op. CP7's
+  `complete_checkpoint` had already written the phase.
+- The whole `b856a97..cbbbffa` diff was reviewed:
+  - `tools/release/`: the title grammar, `next-version`,
+    `resolve-target`, `assert-full-plan`, `set-version` and `package.py`;
+  - `tools/ci/`: the chooser, the path rules and the alarm;
+  - the runner's `--newest-release-only` and `selection_kind`;
+  - `cli.py`'s `--version` and the missing-`distribution/` hint;
+  - the three workflows and the settings data;
+  - the new test modules, and the docs.
+- No finding was blocking or important, and nothing was changed.
+- The review checked each fail-safe path against INV-4: an API, git or
+  parse failure is `full` in the chooser, and a fallback or a refusal in
+  the release. It also checked that the release never trusts the plan's
+  own inventory, and that the workflows pass the title, SHAs and results
+  through `env`, never through script interpolation.
+- INV-1/INV-3: `git diff --stat b856a97 HEAD -- distribution migration
+  scripts .claude .github/workflows/workflow-conformance.yml` is empty.
+  `CLAUDE.md` changes only below the managed marker. `workflow-manager
+  verify .` prints `installation matches workflow 2.6.0`.
+- **The full gate**, the first of this milestone (none ran at CP1-CP7,
+  because of the Controller's git-zombie leak), was `python3
+  tests/run_all.py` at `cbbbffa`, 2026-09-29 11:38-11:45 (439 s wall, 8
+  workers):
+  - `evidence: full selection, local, 8 worker(s), head cbbbffad4b76f7c3f22ecfc6db8c559ec8ff5b94,
+    4086/4086 units, 25620 tests, selection_digest
+    1f9d81d3b17fa1a1726a3205cb784f2ae2fb9664dd9b0263a2b2ef4bbe178469,
+    tests_digest 66af7ecc9edd2d726e0665fee05f18d940496e697836ae85a9415e990bbc58ba,
+    tree_digest 61123d7437d37c3c735dd192ba5439e1fc0ac8ceda1520109b0ef7c095f5d8a8`,
+    `verdict: exit 0`;
+  - every host module was OK;
+  - the only non-zero frozen chunks were the four documented `2.3.1`/`2.4.0`
+    `workflow_integration_test.py` portability exceptions
+    (`TestRetiredScopedRemediationLeavesNoLiveSurface`), which phase B
+    judged as expected.
+- The base had 4042 units. The 44 more are this milestone's new host
+  classes (INV-2).
+- The run was under this lane's Controller, with the one-step workaround.
+  Afterwards the Controller held 49 zombies.
+
+### Implementation review round 1 and its application (`APPLYING_REVIEW_FEEDBACK`)
+
+- `LOCAL_MODEL_IMPLEMENTATION_REVIEW` round 1: `APPROVE`. The
+  `MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW` round 1: `REVISE`, for bundle
+  `7841f8e3...`, with no blocking finding and one important finding.
+  `b9e0e0f` commits that review's phase write alone.
+- **I1, accepted and fixed in `ed39920`.** M2's documented removal broke
+  the runner. Reproduced: `report.py` imported `NEWEST_RELEASE_KIND`
+  outside a marked block, and `cli.py`'s `ALLOWED`/`_DEFAULTS` named
+  `newest_release_only` unmarked. Every dependent reference now sits in a
+  marked block, including the help text and the comments naming the
+  selection kind, so `tests/parallel/planner.py` joins the marked-file
+  list. `TestTheRemovalRecordIsComplete` carries the removal out on a
+  scratch checkout. No file under `tests/parallel/` may still name a
+  stopgap identifier, and `--help`, `--list`, `--plan-only` and a real run
+  must succeed. It failed before the fix, naming the leftovers in
+  `cli.py`, `inventory.py`, `planner.py` and `report.py`.
+- **Optional, applied.** The reference scan now also covers
+  `newest-release`, `NEWEST_RELEASE` and `nightly-red`.
+- **Optional, not applied (apparatus).** CP1-CP7 each cited targeted runs
+  only. That is recorded above and cannot be repaired after the fact. The
+  full gates at `cbbbffa` and `ed39920` cover the final code.
+- **The full gate at the fix:** `python3 tests/run_all.py` at `ed39920`
+  (388 s wall, 8 workers):
+  - `evidence: full selection, local, 8 worker(s), head ed39920907a494eb2e63d39ffe2607d19327e0b1,
+    4088/4088 units, 25624 tests, selection_digest
+    f34791a5163c3e3093ba2f3259d8814bacafe7139831397a8c63df03aed01d34,
+    tests_digest 35bbf0a847683b7d550fe41f26021509e3dab0b7e9323aa9adced0c10cc9a09e,
+    tree_digest 64a850b3ea1d64f1e98f24946c576b7ca974ff2e48a19efab4e69f70e9cb450f`,
+    `verdict: exit 0`;
+  - the only non-zero frozen chunks were the same four documented
+    `2.3.1`/`2.4.0` `workflow_integration_test.py` portability exceptions;
+  - the two more units are the two new host classes.
+
+## Functional review checklist
+
+You are testing the trunk model as the repository owner uses it: titles,
+versions, the release package, the reduced pull-request profile, and the
+first pull request (cutover steps C0-C1, `docs/RELEASING.md`).
+- **Technical approval:** commit `7995695`, implementation revision 2.
+- **Where findings go:**
+  `.ai-review/workflow-manager-trunk-model/feedback/FUNCTIONAL_REVIEW.md`.
+- **Automated verification:** already current. The full gate passed at
+  `ed39920` (4088/4088 units, 25,624 tests, `tests_digest 35bbf0a8...`).
+  Only docs and state commits have landed since.
+
+**Setup.**
+- Python 3.12 or later, `git`, and an authenticated `gh` (flows 7-8 only).
+- Run flows 1, 4 and 5 in this checkout, with a clean working tree. Run
+  flows 2, 3 and 6 in a throwaway clone, so that no tag or scratch commit
+  touches this repository:
+
+```bash
+export M=~/Workspace/workflow-manager
+export T=$(mktemp -d) && git clone -q "$M" "$T/c"
+```
+
+**Test data.** None. Flow 2 creates a scratch squash commit and a tag in
+the clone only.
+
+**Flows.**
+
+1. **Title check.** In `$M`:
+   - `python3 tools/release/release.py check-title "feat: x"` prints
+     `valid title: feat, release impact minor`, exit 0;
+   - `"fix(cli): y"` gives impact `patch`, `"feat!: z"` gives `major`, and
+     `"docs: d"` gives `none`;
+   - `"Update things"` prints `invalid title: no 'type: description'
+     shape` with the expected grammar and the type list, exit 1.
+2. **The first release's version, simulated (C4-C5's version step).** In
+   the clone:
+
+   ```bash
+   cd "$T/c" && git checkout -q -b sim b856a97
+   git merge -q --squash milestone/workflow-manager-trunk-model
+   git -c user.email=a@b -c user.name=t commit -q \
+     -m "feat: trunk model, Manager releases and the stopgap PR test profile"
+   python3 tools/release/release.py next-version --repo-dir .
+   ```
+
+   Expected: `1.1.0` (the recorded baseline `1.0.0` at `b856a97`, plus a
+   `feat`), exit 0.
+3. **`--version`.** Still in the clone, after flow 2:
+   - `git tag v1.1.0 && PYTHONPATH=src python3 -m workflow_manager
+     --version` prints `workflow-manager 1.1.0 (checkout at v1.1.0)`;
+   - after `echo x >> README.md`, the same command prints
+     `workflow-manager development build (v1.1.0-dirty)`. Undo it with
+     `git checkout README.md`.
+   - In `$M` (no strict tag yet), it prints `workflow-manager development
+     build (...)`. The pipx-installed `workflow-manager` still prints
+     `1.0.0` until it is reinstalled (`pipx reinstall workflow-manager`);
+     that is expected, not a finding.
+4. **The reduced pull-request selection.** In `$M`:
+   - `python3 tests/run_all.py --list --newest-release-only | grep -c :`
+     prints `1115`; the full `--list` prints `4088`;
+   - the reduced list's only frozen release is `frozen:2.6.0`
+     (`... | grep -o '^frozen:[0-9.]*' | sort -u`).
+5. **The profile chooser, locally.** In `$M`:
+   `GITHUB_OUTPUT=$T/out GITHUB_STEP_SUMMARY=/dev/null python3
+   tools/ci/choose_profile.py --event push --repo-dir .` prints
+   `profile: full`, and `$T/out` holds `profile=full`. Any non-PR event
+   is always `full`.
+6. **The release package.** Needs Python's `build` module, which CI
+   installs:
+
+   ```bash
+   python3 -m venv "$T/v" && "$T/v/bin/pip" install -q build
+   "$T/v/bin/python" "$M/tools/release/package.py" --version 1.1.0 --out "$T/assets"
+   (cd "$T/assets" && sha256sum -c SHA256SUMS)
+   ```
+
+   Expected: exit 0; `$T/assets` holds `workflow_manager-1.1.0-py3-none-any.whl`,
+   `workflow_manager-1.1.0.tar.gz` and `SHA256SUMS`; both files print
+   `OK`. `git -C "$M" status` stays clean.
+7. **C0: the milestone's pull request (your action).** Push the branch and
+   open the draft pull request, with the commands in `docs/RELEASING.md`'s
+   "Cutover" step 1. Expected on its checks (`gh pr checks <n>`):
+   - `Conventional Commit title` green, and its summary says impact
+     `minor`;
+   - the verification `plan` job chooses `full` (the PR touches
+     `.github/`, `src/`, `tools/` and `tests/parallel/`), and its summary
+     table gives the reasons;
+   - `package` and `aggregate` green.
+
+   Record the run URLs in this file.
+
+   **Recorded (2026-09-29).** Draft pull request
+   [#4](https://github.com/RodrigoFAbreu/workflow-manager/pull/4) at
+   `6ca29d4`:
+   - `Conventional Commit title` green
+     ([run 36566238193](https://github.com/RodrigoFAbreu/workflow-manager/actions/runs/36566238193));
+   - verification
+     ([run 36566238056](https://github.com/RodrigoFAbreu/workflow-manager/actions/runs/36566238056),
+     `success`): `plan` chose `full` (16 shards, 309 phase-A chunks, 15
+     phase-B units), and `package` and `aggregate` are green.
+8. **C1: probes (your action).** Throwaway draft pull requests against
+   `milestone/workflow-manager-trunk-model`, closed unmerged:
+   - a docs-only change chooses `newest-release`;
+   - a change under `src/` chooses `full`;
+   - the title `Update things` fails the title check;
+   - a `docs: ...` title passes it with impact `none`.
+
+   **Recorded (2026-09-29).** Probes #5-#8, opened 12:13 and closed
+   unmerged at 12:18 UTC. Closing them cancelled their remaining
+   verification jobs, so those jobs show as failed without having failed a
+   test.
+   - #5 `docs: probe the newest-release profile`: `plan` chose
+     `newest-release`
+     ([run 36566708849](https://github.com/RodrigoFAbreu/workflow-manager/actions/runs/36566708849)).
+   - #6 `chore: probe the full profile`: `plan` chose `full`
+     ([run 36566717357](https://github.com/RodrigoFAbreu/workflow-manager/actions/runs/36566717357)).
+     Its inventory and `package` then failed on the probe's own edit, an
+     HTML comment written into a `.py` file under `src/`. That breakage is
+     the probe's, not the profile's.
+   - #7 `Update things`: the title check failed
+     ([run 36566723520](https://github.com/RodrigoFAbreu/workflow-manager/actions/runs/36566723520)).
+   - #8 `docs: probe the title check`: the title check passed
+     ([run 36566731686](https://github.com/RodrigoFAbreu/workflow-manager/actions/runs/36566731686)).
+
+**Known limitations (out of scope here).**
+- The ruleset, the merge settings, the squash merge and the first real
+  release (C2-C5) happen only after `/accept-milestone`, because
+  acceptance precedes the merge. C5 is recorded here when it happens.
+- A wheel needs `--manager-root` or a checkout until M2 bundles
+  `distribution/`.
+- The Workflow Controller still titles its pull requests with the bare
+  work-item id (`OD-4`); this repository sets no Controller policy until
+  the Controller's C1 release.
+- A pull request whose reduced run passed is not re-run when `main` later
+  turns red (plan 6.2); `main`'s own full run and the release gate cover
+  it.
+
+## Previous milestone
+
 **Complete.** `workflow-manager-adaptive-test-sharding`
 (`governing_workflow_version: "2.2"`, `process`, plan revision 7 approved
 2026-09-26, base `db4c7af`): adaptive, duration-balanced parallel execution

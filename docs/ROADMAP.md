@@ -43,11 +43,17 @@ Workflow 2.7 (W1) and 2.8 (W2).
 
 | # | Step | Repository | Section |
 |---|---|---|---|
-| M1 | Trunk model, plus the stopgap test profile until M2 | Workflow Manager | [10.1](#101-m1-trunk-model-and-the-stopgap-test-profile) |
+| M1 | Trunk model, plus the stopgap test profile until M2 (COMPLETE) | Workflow Manager | [10.1](#101-m1-trunk-model-and-the-stopgap-test-profile) |
+| M1b | Test cleanup: throwaway test repositories leave no orphaned Git processes, and a leak check | Workflow Manager | [10.1b](#101b-m1b-test-cleanup-no-orphaned-git-processes) |
 | M2 | Distribution rework: Workflow in its own repository, released as downloadable packages | Workflow Manager, `workflow` | [10.2](#102-m2-distribution-rework-packaged-workflow-releases) |
 | W1 | Workflow 2.7, the first packaged release: Orchestration Protocol v1 and the `v2.6.0-001` follow-up | `workflow` | [1.9](#19-post-26-controller-integration-and-workflow-orchestration-protocol-foundation) |
 | W2 | Workflow 2.8: declarative gate policy, and a red or changes-requested pull request reopening the same work item | `workflow` | [1.9](#19-post-26-controller-integration-and-workflow-orchestration-protocol-foundation) |
 | M3 | This repository and `workflow` driven by the Controller's loop | both | [10.3](#103-m3-driven-by-the-controllers-loop) |
+
+**Controller releases are installed only between Manager milestones**, never during one. That
+covers the Controller's own C1 release (1.4.0) and its zombie-process fix (a patch release). Until
+the fix is installed, this lane runs the Controller one step per process (`--max-steps 1`); see
+10.1b.
 
 **The Controller lane** (its roadmap owns it):
 1. squash merges and Conventional-Commit PR-title versions;
@@ -963,7 +969,12 @@ Potential future work:
 
 ## 10.1 M1: trunk model and the stopgap test profile
 
-**Priority:** NEXT in this lane.
+**Status:** COMPLETE. Accepted as milestone `workflow-manager-trunk-model`
+on 2026-09-29, from `milestone/workflow-manager-trunk-model` (pull request
+#4). The rest of the cutover (`docs/RELEASING.md`, "Cutover", C2-C5)
+follows acceptance and is the repository owner's: the ruleset, the merge
+settings, the squash merge and the first tag-derived Manager release.
+Design: `docs/ai-workflow/WORKFLOW_MANAGER_TRUNK_MODEL_PLAN.md`.
 
 This repository works the way the Workflow Controller does:
 
@@ -1003,9 +1014,48 @@ rules, which must be implemented together with it and not dropped:
    matrix.
 6. The second CI profile is removed when M2 lands.
 
+**Follow-up, ready once a Controller release with its C1 ships (`OD-4`).**
+Add a Controller repository policy for this repository: milestone branches
+enabled, the release section disabled (this repository releases through
+`.github/workflows/release.yml`), validated with that release's
+`workflow-controller inspect`. It must reach `main` before the milestone
+that first uses it starts, since adoption reads it at the branch point. M1
+adds none: under Controller 1.3.0 a policy would name draft pull requests
+with a non-Conventional title, end every squash merge in
+`MERGED_REWRITTEN`, and require a `version_change`/`pyproject` release
+model that M1 removes.
+
+## 10.1b M1b: test cleanup, no orphaned Git processes
+
+**Priority:** next, after M1. It runs in parallel with the Controller lane's zombie-process fix
+(agreed 2026-09-29).
+
+**Why.** Since Git 2.55, a commit can start detached background maintenance. The tests make
+thousands of commits in throwaway repositories, so one full test run leaves about 1,000 orphaned
+`git` processes. Workflow Controller 1.3.0 adopts those orphans (it is a Linux subreaper for its
+workers) but only collects the ones it saw alive, so they stay as zombies until the Controller
+exits. On 2026-09-29 they filled the per-user process limit and every Claude Code session on the
+machine aborted. The Controller fix belongs to the Controller lane. This milestone stops the
+orphans at the source, in this repository's tests.
+
+- **Throwaway test repositories turn off Git's automatic maintenance.** The shared test setup
+  (the fixture builder and the test infrastructure) sets `maintenance.auto=false` and `gc.auto=0`
+  in every repository it creates. Setting them through the environment is not enough: tests start
+  Git with their own clean environment. The tests also get a little faster.
+- **A leak check.** A test run, or the CI job, fails when the suite leaves orphaned background
+  processes behind, so the next tool that starts detaching processes shows up in CI, not as a
+  crash.
+- **Kept small.** The big test reduction (only the release in development plus the upgrade path)
+  stays in M2.
+- **Full matrix.** It changes the fixture builder and the test infrastructure, so M1's stopgap
+  rule 1 runs its pull request on the full matrix.
+
+**After it, between milestones:** install the Controller release that carries the zombie fix, and
+drop `--max-steps 1` from this lane's Controller runs.
+
 ## 10.2 M2: distribution rework, packaged Workflow releases
 
-**Priority:** after M1.
+**Priority:** after M1b.
 
 - **Workflow moves to its own repository** (`workflow`). It holds only the release in development,
   with its own version and release stream: one product per repository.
@@ -1021,7 +1071,10 @@ rules, which must be implemented together with it and not dropped:
 - **`distribution/` leaves this repository.** The Manager tests its own code, plus the release in
   development in its three fixtures, plus the upgrade path from the latest published release. Old
   releases are tested once, when they are built, and never again.
-- **The stopgap test profile (10.1) is removed.**
+- **The stopgap test profile (10.1) is removed.** `docs/ARCHITECTURE.md`'s
+  "Stopgap test profile" lists exactly the files that carry it (the
+  `STOPGAP(M2)` marker), what to delete, and the gate-policy exception to
+  drop with them.
 
 M2 publishes the existing releases as packages; it creates no new Workflow version. The first new
 one is W1, Workflow 2.7.

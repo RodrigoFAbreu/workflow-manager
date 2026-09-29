@@ -4,7 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "workflow-manager"
-version = "1.0.0"
+# Placeholder only: the Git tag is the Manager's only version authority. The
+# release sets the real version at build time, in a temporary copy
+# (tools/release/release.py set-version). Never edit this line by hand.
+version = "0.0.0.dev0"
 description = "Workflow distribution, bootstrap, update and verification tooling"
 requires-python = ">=3.11"
 

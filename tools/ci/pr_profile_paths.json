@@ -1,0 +1,180 @@
+{
+  "_comment": "STOPGAP(M2): the pull-request profile's path rules (plan 6.2); see docs/ARCHITECTURE.md's \"Stopgap test profile\". Exact paths or directory prefixes ending in '/', no globbing; the longest match wins; an unmatched path is full. Every tracked or untracked, unignored path must match a rule (tests/test_stopgap_profile.py).",
+  "rules": [
+    {
+      "path": "distribution/",
+      "profile": "full",
+      "reason": "rule 1: the Workflow releases themselves"
+    },
+    {
+      "path": "migration/",
+      "profile": "full",
+      "reason": "produces distribution/; portability exceptions set frozen expectations"
+    },
+    {
+      "path": "tools/",
+      "profile": "full",
+      "reason": "release producers, plus this stopgap's and the release's own code"
+    },
+    {
+      "path": "src/",
+      "profile": "full",
+      "reason": "rule 1: the installer and the fixture builder every frozen run goes through; cli.py is kept with them (fail safe)"
+    },
+    {
+      "path": "tests/support.py",
+      "profile": "full",
+      "reason": "rule 1: shared test infrastructure"
+    },
+    {
+      "path": "tests/frozen_runs.py",
+      "profile": "full",
+      "reason": "rule 1: shared test infrastructure"
+    },
+    {
+      "path": "tests/run_all.py",
+      "profile": "full",
+      "reason": "rule 1: shared test infrastructure"
+    },
+    {
+      "path": "tests/parallel/",
+      "profile": "full",
+      "reason": "rule 1: shared test infrastructure"
+    },
+    {
+      "path": "tests/test_conformance_suite.py",
+      "profile": "full",
+      "reason": "the matrix host classes live here"
+    },
+    {
+      "path": "tests/test_bootstrap_e2e.py",
+      "profile": "full",
+      "reason": "the matrix host classes live here"
+    },
+    {
+      "path": ".github/",
+      "profile": "full",
+      "reason": "CI and repository-settings definitions: a PR that changes CI proves the full pipeline"
+    },
+    {
+      "path": "pyproject.toml",
+      "profile": "full",
+      "reason": "packaging"
+    },
+    {
+      "path": "docs/",
+      "profile": "newest-release",
+      "reason": "documentation, which no frozen suite reads"
+    },
+    {
+      "path": "README.md",
+      "profile": "newest-release",
+      "reason": "documentation, which no frozen suite reads"
+    },
+    {
+      "path": "CLAUDE.md",
+      "profile": "newest-release",
+      "reason": "documentation, which no frozen suite reads"
+    },
+    {
+      "path": ".gitignore",
+      "profile": "newest-release",
+      "reason": "housekeeping, which no frozen suite reads"
+    },
+    {
+      "path": ".claude/",
+      "profile": "newest-release",
+      "reason": "this repository's installed Workflow copy; frozen suites run distribution/ payloads in fresh fixtures, and the managed workflow-conformance.yml still runs it on every PR"
+    },
+    {
+      "path": "scripts/",
+      "profile": "newest-release",
+      "reason": "this repository's installed Workflow copy; frozen suites run distribution/ payloads in fresh fixtures, and the managed workflow-conformance.yml still runs it on every PR"
+    },
+    {
+      "path": ".workflow-manager/",
+      "profile": "newest-release",
+      "reason": "this repository's installed Workflow copy; frozen suites run distribution/ payloads in fresh fixtures, and the managed workflow-conformance.yml still runs it on every PR"
+    },
+    {
+      "path": "tests/test_amendment_update_path.py",
+      "profile": "newest-release",
+      "reason": "host test module, which runs in every profile"
+    },
+    {
+      "path": "tests/test_bootstrap.py",
+      "profile": "newest-release",
+      "reason": "host test module, which runs in every profile"
+    },
+    {
+      "path": "tests/test_disposable_repo_fixtures.py",
+      "profile": "newest-release",
+      "reason": "host test module, which runs in every profile"
+    },
+    {
+      "path": "tests/test_implementation_review_two_stage_disposable_repo.py",
+      "profile": "newest-release",
+      "reason": "host test module, which runs in every profile"
+    },
+    {
+      "path": "tests/test_internal_references.py",
+      "profile": "newest-release",
+      "reason": "host test module, which runs in every profile"
+    },
+    {
+      "path": "tests/test_manager_version.py",
+      "profile": "newest-release",
+      "reason": "host test module, which runs in every profile"
+    },
+    {
+      "path": "tests/test_migration_inventory.py",
+      "profile": "newest-release",
+      "reason": "host test module, which runs in every profile"
+    },
+    {
+      "path": "tests/test_no_live_state_imported.py",
+      "profile": "newest-release",
+      "reason": "host test module, which runs in every profile"
+    },
+    {
+      "path": "tests/test_parallel_runner.py",
+      "profile": "newest-release",
+      "reason": "host test module, which runs in every profile"
+    },
+    {
+      "path": "tests/test_payload_bytes.py",
+      "profile": "newest-release",
+      "reason": "host test module, which runs in every profile"
+    },
+    {
+      "path": "tests/test_release_versioning.py",
+      "profile": "newest-release",
+      "reason": "host test module, which runs in every profile"
+    },
+    {
+      "path": "tests/test_release_workflows.py",
+      "profile": "newest-release",
+      "reason": "host test module, which runs in every profile"
+    },
+    {
+      "path": "tests/test_squash_merge_compat.py",
+      "profile": "newest-release",
+      "reason": "host test module, which runs in every profile"
+    },
+    {
+      "path": "tests/test_stopgap_profile.py",
+      "profile": "newest-release",
+      "reason": "host test module, which runs in every profile"
+    },
+    {
+      "path": "tests/test_templates.py",
+      "profile": "newest-release",
+      "reason": "host test module, which runs in every profile"
+    },
+    {
+      "path": "tests/test_workflow_2_6_0_hardening_disposable_repo.py",
+      "profile": "newest-release",
+      "reason": "host test module, which runs in every profile"
+    }
+  ]
+}
