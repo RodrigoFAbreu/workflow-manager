@@ -3673,7 +3673,7 @@
       "registry_path": "docs/ai-workflow/registry/workflow-manager-test-cleanup-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/workflow-manager-test-cleanup-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "APPLYING_REVIEW_FEEDBACK",
       "plan_revision": 5,
       "implementation_revision": 1,
       "functional_review_round": null,
@@ -3746,8 +3746,8 @@
       },
       "functional_acceptance_status": null,
       "blocking_decisions": [],
-      "state_revision": 26,
-      "last_transition": "2026-09-29T16:22:21Z",
+      "state_revision": 28,
+      "last_transition": "2026-09-29T18:24:30Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -3766,6 +3766,16 @@
           "bundle_id": "7929435d6b0d5e444b59dbade1bcaccd178f3ab47b0c551fe608de41de346709",
           "plan_revision": 5
         }
+      },
+      "implementation_review_stages": {
+        "review_content_id": "1b81a24b33267f87d460c7058444eb9512ee978e1963b73f3d425345e4b79340",
+        "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "b09bf814bf3ff727390ef7820f9f32c908c7d2005e34b15a499c8457bb3872dc",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-09-29T18:16:25Z"
+        },
+        "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": null
       }
     }
   }
