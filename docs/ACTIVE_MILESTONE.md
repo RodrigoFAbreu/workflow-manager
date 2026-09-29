@@ -11,8 +11,7 @@ Full plan: `docs/ai-workflow/WORKFLOW_MANAGER_TRUNK_MODEL_PLAN.md`.
 
 ## Current checkpoint
 
-`IMPLEMENTING`. CP1-CP5 are complete; CP6 (depends on CP4) is ready, and
-CP7 waits for it.
+`IMPLEMENTING`. CP1-CP6 are complete; CP7 is ready.
 
 ## Current blockers
 
@@ -265,6 +264,120 @@ checkpoint.
   Controller's git-zombie leak (about 3500 held by this lane's Controller
   after these runs). The workflows themselves first run on GitHub at the
   cutover (C0).
+
+### CP6 -- squash-merge compatibility (complete)
+
+Plan section 7. The stop rule did not fire: no part found a reader that
+fails once a completed item's commits are unreachable.
+
+- **Static audit** (part 1), of every git history or object read in the
+  installed `scripts/workflow_state.py` (WS) and
+  `scripts/workflow_fingerprint.py` (FP). The conclusion goes into
+  `docs/ARCHITECTURE.md` in CP7.
+
+  | Reader | git ops | Where | Class |
+  | --- | --- | --- | --- |
+  | Trailer walkers (`_discover_trailer_commits` and its `discover_*_commits`, `_commit_trailers`) | `log base..head`, `interpret-trailers` | WS:1832-1927 | branch-local, runs before the merge |
+  | `_is_ancestor` (entry reachability, amendment request, record intervals, obligations) | `merge-base --is-ancestor` | WS:2054 | branch-local |
+  | Plan-approval transaction and commit verification (`_read_committed_bytes`, `assert_committed_path_set_matches`, journal and index checks) | `show`, `diff-tree`, `cat-file`, `rev-parse`, `diff --cached` | WS:2321-4017 | branch-local |
+  | `load_pre_amendment_snapshot` | `ls-tree`, `cat-file` of the active item's `pre_amendment_approval_commit` | WS:2092-2107 | branch-local (only for an item in `AMENDING_PLAN`) |
+  | Generation-record chain, provenance interval and recovery, technical-approval commit validation | `diff`, `rev-parse`, `show <c>:STATE` | WS:9066, 13939-14643 | branch-local |
+  | Completion obligations (`resolve_completion_obligations` from `complete_work_item`) | `ls-tree`, `cat-file`, `show` | WS:10572-12501 | branch-local (runs once, at acceptance) |
+  | FP `resolve_base`, `_read_bytes_at_source`, `_path_exists_at_source`, `_snapshot_commit`, changed-path diffs | `rev-parse`, `show`, `cat-file -e`, `ls-tree`, `diff` | FP:648-886, 1527 | branch-local (the active item's own commits) |
+  | `origination_reference_commits`, `_checkpoint_status_at_commit`, `_identity_query_at_commit` | `rev-list --all --full-history -- STATE`, `ls-tree`, `cat-file` | WS:4982-5030, 8603 | reads state content |
+  | `find_latest_activation_event` (`load_config` fallback only) | `log --first-parent HEAD` | WS:1850 | reads state content (reachable history, no recorded SHA) |
+  | `_committed_blob`/`_rev_sha` (amendment witness, lifecycle views of worktree and branch tips) | `rev-parse --verify`, `cat-file` | WS:6935-6952 | legacy/cross-worktree only |
+  | `_resolving_commits_trailers` | `rev-list HEAD -- STATE`, `log -1` | WS:7248 | legacy/cross-worktree only |
+  | `verify_legacy_branch_reconciliation` (`promote_legacy_work_item`) | `merge-base`, `show` | WS:16049-16075 | legacy/cross-worktree only |
+
+  No reader resolves a SHA that a completed item records. Every reader
+  that resolves a recorded SHA gets it from the one active item the command
+  names. The loops over every `work_items` entry, terminal ones included,
+  are structural. The one that touches git (`validate_state(repo_root=)`,
+  WS:16508) runs `ls-files` on each item's `registry_path` in the working
+  tree, which the squash keeps. `workflow-manager verify` reads no history.
+  The history-wide readers only enumerate reachable commits. The squash
+  commit carries the terminal item's final state, so its id stays observed
+  and reuse is refused (`route_work_item` raises
+  `WorkItemTerminalReuseError` first).
+
+  Two notes, neither a defect of squash merging a completed item:
+  - Calling `implementing_entry_reachable` or `complete_work_item` on an
+    already-completed item would fail closed (False, `VERIFIER_UNRESOLVABLE`
+    or a raise), never silently. No command does this.
+  - `verify_legacy_branch_reconciliation` requires a `LEGACY_READY` item's
+    `reviewed_content_commit` to be an ancestor of `HEAD`, so a legacy
+    branch integrated by squash could never be promoted. That is the
+    dormant `D-Legacy` import path. This repository has no `LEGACY_READY`
+    item, and all five completed items are `MILESTONE_COMPLETE`.
+- **Disposable-repository test** (part 2),
+  `tests/test_squash_merge_compat.py` (new, stdlib, history-independent, 4
+  tests, about 3 s). It bootstraps `2.6.0` into a disposable repository and
+  drives `sq-item` to `MILESTONE_COMPLETE` on `milestone/sq-item`. The
+  drivers are the installed release's own acceptance-matrix harness, run
+  in subprocesses through `test_workflow_2_6_0_hardening_disposable_repo`'s
+  `drive()`. The branch is then squashed onto `main` with a blank body,
+  the branch deleted, the reflog expired and the objects pruned with `gc
+  --prune=now`. A `--no-local` clone is taken as well. The test asserts:
+  - the branch carried `Workflow-Checkpoint`/`Workflow-Work-Item`
+    trailers, while the squash commit has none, one parent and the
+    branch's tree;
+  - every branch commit the item records is gone in both checkouts: the
+    plan-approval commit (CP1's `start_commit`) and
+    `reviewed_implementation_head`/`reviewed_content_commit`.
+
+  Then, in both the pruned repository and the clone:
+  - `validate_state(repo_root=)` passes;
+  - re-routing `sq-item` raises `WorkItemTerminalReuseError`;
+  - a new item routes and reaches `plan_review_publication_status`
+    `BOUND`, is plan-approved (`IMPLEMENTING`) and completes CP1
+    (`SELF_REVIEWING_IMPLEMENTATION`);
+  - `workflow-manager verify` matches workflow 2.6.0.
+
+  The disposable item is governed by `"2.1"` (the template's default).
+  Part 3 covers `"2.2"`.
+- **Scratch-clone check** (part 3), one-off, not committed. The check was
+  done in a `--no-local` clone of this repository:
+  - a squash commit of `c1647c3`'s tree was made on parent `db4c7af` with
+    the blank-body title `feat: adaptive test sharding (#1)`;
+  - every ref but `refs/heads/main` was deleted, including `origin`, the
+    tags and the other branches;
+  - the reflog was expired and the objects pruned.
+
+  All 8 branch commits that `workflow-manager-adaptive-test-sharding`
+  records were then unreachable: the CP1-CP7 `start_commit`s `97ca7a0`,
+  `cc1d6c3`, `ac9e7b6`, `ff5d383`, `2dc17e1`, `534174c` and `9774721`, and
+  `reviewed_implementation_head` = `technical_approval.reviewed_content_commit`
+  `de833c8`. Only `base_commit` `db4c7af` stayed reachable. There was no
+  trailer in `db4c7af..main`. The tree was identical to `c1647c3`'s.
+
+  At `c1647c3`, Workflow `2.5.1` was installed; `2.6.0` came in `0ac857b`.
+  So the assertions ran in two arms:
+  - with the tree's own `2.5.1`;
+  - after `workflow_manager update` to `2.6.0` in a second such clone
+    (`drift` `[]`, committed).
+
+  In both arms:
+  - the state validated, with the item `MILESTONE_COMPLETE` and no active
+    item;
+  - re-routing the item raised `WorkItemTerminalReuseError`;
+  - a new item, governed by `"2.2"` (the activated default), reached
+    `AWAITING_PLAN_APPROVAL` after both plan reviews (`BOUND` publication
+    status under `2.6.0`), was approved (`IMPLEMENTING`) and completed CP1
+    (`SELF_REVIEWING_IMPLEMENTATION`);
+  - `workflow-manager verify` printed `installation matches workflow 2.5.1`
+    or `2.6.0` respectively, before and after.
+- `tools/ci/pr_profile_paths.json`: an exact `newest-release` rule for the
+  new module. `tests/test_stopgap_profile.py` lists it among this
+  milestone's modules.
+- Verification: `run_all.py --select test_squash_merge_compat.py --select
+  test_stopgap_profile.py --select test_parallel_runner.py::TestStaticLint`
+  gave 18/18 units, 60 tests, exit 0. INV-1/INV-3: the diff against
+  `b856a97` over `distribution migration scripts .claude/commands
+  .github/workflows/workflow-conformance.yml` is empty (the only diff
+  under `src/` is CP2's `cli.py`), and `workflow-manager verify .` matches
+  workflow 2.6.0. As for CP1-CP5, the full gate was not run at this
+  checkpoint.
 
 ## Previous milestone
 

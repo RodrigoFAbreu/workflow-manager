@@ -407,7 +407,8 @@ class TestPathRulesAreComplete(_TempDir):
 
     def test_this_milestones_modules_are_classified(self):
         for module in ("tests/test_release_versioning.py", "tests/test_manager_version.py",
-                       "tests/test_stopgap_profile.py", "tests/test_release_workflows.py"):
+                       "tests/test_stopgap_profile.py", "tests/test_release_workflows.py",
+                       "tests/test_squash_merge_compat.py"):
             with self.subTest(module=module):
                 rule = choose_profile.match_rule(module, LIVE_RULES)
                 self.assertEqual((rule.path, rule.profile), (module, "newest-release"))
