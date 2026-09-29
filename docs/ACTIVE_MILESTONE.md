@@ -11,9 +11,9 @@ Full plan: `docs/ai-workflow/WORKFLOW_MANAGER_TRUNK_MODEL_PLAN.md`.
 
 ## Current checkpoint
 
-`AWAITING_LOCAL_IMPLEMENTATION_REVIEW` (implementation revision 1).
-CP1-CP7 are complete, the self-review found nothing to fix, and the first
-full gate of this milestone is green.
+`AWAITING_FUNCTIONAL_REVIEW` (implementation revision 2, technical
+approval `7995695`). CP1-CP7 are complete, both implementation-review
+stages approved, and the full gate at the fix is green.
 
 ## Current blockers
 
@@ -21,9 +21,10 @@ None.
 
 ## Next action
 
-`/review-implementation workflow-manager-trunk-model`: the local
-implementation review of the bundle in
-`.ai-review/workflow-manager-trunk-model/current/`.
+The user's functional review: the "Functional review checklist" below.
+Findings go to
+`.ai-review/workflow-manager-trunk-model/feedback/FUNCTIONAL_REVIEW.md`
+(`/apply-functional-review`); a clean review goes to `/accept-milestone`.
 
 ## Checkpoint log
 
@@ -517,6 +518,117 @@ fails once a completed item's commits are unreachable.
   - the only non-zero frozen chunks were the same four documented
     `2.3.1`/`2.4.0` `workflow_integration_test.py` portability exceptions;
   - the two more units are the two new host classes.
+
+## Functional review checklist
+
+You are testing the trunk model as the repository owner uses it: titles,
+versions, the release package, the reduced pull-request profile, and the
+first pull request (cutover steps C0-C1, `docs/RELEASING.md`).
+- **Technical approval:** commit `7995695`, implementation revision 2.
+- **Where findings go:**
+  `.ai-review/workflow-manager-trunk-model/feedback/FUNCTIONAL_REVIEW.md`.
+- **Automated verification:** already current. The full gate passed at
+  `ed39920` (4088/4088 units, 25,624 tests, `tests_digest 35bbf0a8...`).
+  Only docs and state commits have landed since.
+
+**Setup.**
+- Python 3.12 or later, `git`, and an authenticated `gh` (flows 7-8 only).
+- Run flows 1, 4 and 5 in this checkout, with a clean working tree. Run
+  flows 2, 3 and 6 in a throwaway clone, so that no tag or scratch commit
+  touches this repository:
+
+```bash
+export M=~/Workspace/workflow-manager
+export T=$(mktemp -d) && git clone -q "$M" "$T/c"
+```
+
+**Test data.** None. Flow 2 creates a scratch squash commit and a tag in
+the clone only.
+
+**Flows.**
+
+1. **Title check.** In `$M`:
+   - `python3 tools/release/release.py check-title "feat: x"` prints
+     `valid title: feat, release impact minor`, exit 0;
+   - `"fix(cli): y"` gives impact `patch`, `"feat!: z"` gives `major`, and
+     `"docs: d"` gives `none`;
+   - `"Update things"` prints `invalid title: no 'type: description'
+     shape` with the expected grammar and the type list, exit 1.
+2. **The first release's version, simulated (C4-C5's version step).** In
+   the clone:
+
+   ```bash
+   cd "$T/c" && git checkout -q -b sim b856a97
+   git merge -q --squash milestone/workflow-manager-trunk-model
+   git -c user.email=a@b -c user.name=t commit -q \
+     -m "feat: trunk model, Manager releases and the stopgap PR test profile"
+   python3 tools/release/release.py next-version --repo-dir .
+   ```
+
+   Expected: `1.1.0` (the recorded baseline `1.0.0` at `b856a97`, plus a
+   `feat`), exit 0.
+3. **`--version`.** Still in the clone, after flow 2:
+   - `git tag v1.1.0 && PYTHONPATH=src python3 -m workflow_manager
+     --version` prints `workflow-manager 1.1.0 (checkout at v1.1.0)`;
+   - after `echo x >> README.md`, the same command prints
+     `workflow-manager development build (v1.1.0-dirty)`. Undo it with
+     `git checkout README.md`.
+   - In `$M` (no strict tag yet), it prints `workflow-manager development
+     build (...)`. The pipx-installed `workflow-manager` still prints
+     `1.0.0` until it is reinstalled (`pipx reinstall workflow-manager`);
+     that is expected, not a finding.
+4. **The reduced pull-request selection.** In `$M`:
+   - `python3 tests/run_all.py --list --newest-release-only | grep -c :`
+     prints `1115`; the full `--list` prints `4088`;
+   - the reduced list's only frozen release is `frozen:2.6.0`
+     (`... | grep -o '^frozen:[0-9.]*' | sort -u`).
+5. **The profile chooser, locally.** In `$M`:
+   `GITHUB_OUTPUT=$T/out GITHUB_STEP_SUMMARY=/dev/null python3
+   tools/ci/choose_profile.py --event push --repo-dir .` prints
+   `profile: full`, and `$T/out` holds `profile=full`. Any non-PR event
+   is always `full`.
+6. **The release package.** Needs Python's `build` module, which CI
+   installs:
+
+   ```bash
+   python3 -m venv "$T/v" && "$T/v/bin/pip" install -q build
+   "$T/v/bin/python" "$M/tools/release/package.py" --version 1.1.0 --out "$T/assets"
+   (cd "$T/assets" && sha256sum -c SHA256SUMS)
+   ```
+
+   Expected: exit 0; `$T/assets` holds `workflow_manager-1.1.0-py3-none-any.whl`,
+   `workflow_manager-1.1.0.tar.gz` and `SHA256SUMS`; both files print
+   `OK`. `git -C "$M" status` stays clean.
+7. **C0: the milestone's pull request (your action).** Push the branch and
+   open the draft pull request, with the commands in `docs/RELEASING.md`'s
+   "Cutover" step 1. Expected on its checks (`gh pr checks <n>`):
+   - `Conventional Commit title` green, and its summary says impact
+     `minor`;
+   - the verification `plan` job chooses `full` (the PR touches
+     `.github/`, `src/`, `tools/` and `tests/parallel/`), and its summary
+     table gives the reasons;
+   - `package` and `aggregate` green.
+
+   Record the run URLs in this file.
+8. **C1: probes (your action).** Throwaway draft pull requests against
+   `milestone/workflow-manager-trunk-model`, closed unmerged:
+   - a docs-only change chooses `newest-release`;
+   - a change under `src/` chooses `full`;
+   - the title `Update things` fails the title check;
+   - a `docs: ...` title passes it with impact `none`.
+
+**Known limitations (out of scope here).**
+- The ruleset, the merge settings, the squash merge and the first real
+  release (C2-C5) happen only after `/accept-milestone`, because
+  acceptance precedes the merge. C5 is recorded here when it happens.
+- A wheel needs `--manager-root` or a checkout until M2 bundles
+  `distribution/`.
+- The Workflow Controller still titles its pull requests with the bare
+  work-item id (`OD-4`); this repository sets no Controller policy until
+  the Controller's C1 release.
+- A pull request whose reduced run passed is not re-run when `main` later
+  turns red (plan 6.2); `main`'s own full run and the release gate cover
+  it.
 
 ## Previous milestone
 
