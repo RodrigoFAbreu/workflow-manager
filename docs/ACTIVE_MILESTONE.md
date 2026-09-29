@@ -11,7 +11,7 @@ Full plan: `docs/ai-workflow/WORKFLOW_MANAGER_TRUNK_MODEL_PLAN.md`.
 
 ## Current checkpoint
 
-`IMPLEMENTING`. CP1-CP6 are complete; CP7 is ready.
+`SELF_REVIEWING_IMPLEMENTATION`. CP1-CP7 are complete.
 
 ## Current blockers
 
@@ -19,8 +19,10 @@ None.
 
 ## Next action
 
-`/milestone-implement workflow-manager-trunk-model` for the next
-checkpoint.
+`/milestone-implement workflow-manager-trunk-model` again, for the wrap-up:
+the full-milestone self-review, the full gate (`python3
+tests/run_all.py`, not yet run in this milestone because of the
+Controller's git-zombie leak) and the implementation bundle.
 
 ## Checkpoint log
 
@@ -378,6 +380,66 @@ fails once a completed item's commits are unreachable.
   under `src/` is CP2's `cli.py`), and `workflow-manager verify .` matches
   workflow 2.6.0. As for CP1-CP5, the full gate was not run at this
   checkpoint.
+
+### CP7 -- documentation, gate policy, removal record, cutover runbook (complete)
+
+- `docs/ARCHITECTURE.md`:
+  - "Verification execution": the opening names the one reduced gate; the
+    CI paragraph now covers the nightly trigger, the profiles, the one
+    required test check (`aggregate`, now also needing `package`), the
+    `package` job, the per-commit concurrency and the release; plan 6.6's
+    policy text is applied verbatim as "One reduced selection is a gate, in
+    one place"; the serial-runs policy names the pull-request profile;
+  - "Stopgap test profile" (new subsection): the chooser's rules, where
+    the other rules are enforced, the marker's two forms, the list of the
+    eight marked files between `stopgap-marked-files` comments, and what M2
+    deletes (the four stopgap files whole, the marked blocks elsewhere, the
+    policy exception and the subsection);
+  - "Squash merges and the installed Workflow" (new section): CP6's
+    conclusion, the test, the one-off check, and the two limits;
+  - the layout lists `tools/release/`, `tools/ci/`, `.github/` and
+    `docs/RELEASING.md`.
+- `docs/RELEASING.md` (new): how a release happens and the impact table,
+  the first release (`v1.1.0` over the `1.0.0` baseline at `b856a97`),
+  fix-forward, catch-up, re-running a failed release, the stranded-release
+  recovery (5.4's residual), installing and verifying `SHA256SUMS`, `pipx
+  reinstall workflow-manager`, the settings and ruleset `gh api` commands,
+  the 60-day schedule caveat, the C1 alignment note, and the section 9
+  cutover runbook (C0-C6) with its `git push`/`gh pr create`/`gh pr
+  checks` commands.
+- `README.md`: verification, nightly (`event=schedule`) and release badges;
+  an "Install" section (a checkout at a tag, or the wheel with
+  `--manager-root`); the CI profile note; `RELEASING.md` in the reading
+  order.
+- `CLAUDE.md`, below the managed marker only: "Before changing anything"
+  states the gate policy and the path-rule obligation; a new "Branches,
+  pull requests and releases" section; `RELEASING.md` in "Where things
+  are". `workflow-manager verify .` still matches workflow 2.6.0.
+- `docs/ROADMAP.md`: 10.1's status (in progress, all checkpoints
+  implemented), the `OD-4` Controller-policy follow-up, and 10.2's pointer
+  to the "Stopgap test profile" subsection.
+- `tests/test_stopgap_profile.py`: the marker-set tests (plan 6.7).
+  `TestTheMarkedFilesAreRecorded`: the marked files of the scanned set
+  (tree paths, tracked and untracked, minus `docs/` and `*.md`) equal the
+  documented list; every file naming a stopgap identifier is marked; the
+  policy exception and subsection are present.
+  `TestWhatCountsAsAMarker`: the admitted forms; an inline string, a
+  trailing comment, a multiline-string line, a docstring, a YAML string, a
+  non-`_comment` JSON value and a non-code file are not markers; a
+  scratch repository's `docs/` and `*.md` files are never scanned, while an
+  unmarked or untracked code file naming an identifier is caught; the list
+  is read only between its comments. Checked by mutation outside the suite:
+  dropping `tests/parallel/report.py`'s marker unmarks it.
+- Verification: `run_all.py --select test_stopgap_profile.py --select
+  test_parallel_runner.py::TestStaticLint --select
+  test_parallel_runner.py::TestSerialEvidencePolicyIsDocumented --select
+  test_release_workflows.py`: 25/25 units, 84 tests, exit 0. INV-1/INV-3:
+  the diff against `b856a97` over `distribution migration scripts
+  .claude/commands .github/workflows/workflow-conformance.yml` is empty,
+  and `workflow-manager verify .` matches workflow 2.6.0. No CI evidence at
+  this checkpoint: the draft pull request's runs (C0) are the user's and
+  belong to the functional review. As for CP1-CP6, the full gate was not
+  run at this checkpoint; it runs at the wrap-up.
 
 ## Previous milestone
 

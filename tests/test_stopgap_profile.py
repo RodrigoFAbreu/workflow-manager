@@ -20,6 +20,11 @@ T-CI-8 (the nightly alarm runs on a `schedule` only, and is the only job with
 `issues: write`) -- and `release.py assert-full-plan`'s stopgap cases: a
 newest-release plan is refused, even over a one-release inventory, where it
 is full by set equality but not by flag.
+
+Checkpoint CP7 (`D-Stopgap-Removal`, plan 6.7): the marked files equal the
+list in `docs/ARCHITECTURE.md`'s "Stopgap test profile"; every file that
+names a stopgap identifier is marked; documentation and string mentions
+never count as markers.
 """
 
 # STOPGAP(M2): this whole module tests the stopgap profile; see
@@ -33,11 +38,13 @@ import importlib.util
 import io
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
 import tempfile
 import textwrap
+import tokenize
 import unittest
 import unittest.mock
 from pathlib import Path
@@ -861,6 +868,162 @@ class TestAssertFullPlanRefusesTheStopgap(runner_tests._CliCase):  # noqa: SLF00
         self.assertEqual(json.loads(newest.read_text())["selection"],
                          json.loads(full.read_text())["selection"])
         self.assert_refused(scratch, newest)
+
+
+# -- CP7: where M2 finds the stopgap (plan 6.7) ---------------------------------------
+
+MARKER = "STOPGAP(M2)"
+STOPGAP_IDENTIFIERS = ("newest-release-only", "newest_release", "choose_profile",
+                       "nightly_alarm", "nightly-alarm", "pr_profile_paths")
+YAML_MARKER = re.compile(r"^\s*# STOPGAP\(M2\)", re.MULTILINE)
+LIST_BEGIN = "<!-- stopgap-marked-files:begin -->"
+LIST_END = "<!-- stopgap-marked-files:end -->"
+
+
+def _is_documentation(rel: str) -> bool:
+    return rel.startswith("docs/") or rel.endswith(".md")
+
+
+def _python_marked(text: str) -> bool:
+    """A `COMMENT` token starting with `# STOPGAP(M2)` that is the first token
+    on its line; a line of a (multiline) string is a `STRING` token, never
+    this."""
+    try:
+        tokens = list(tokenize.generate_tokens(io.StringIO(text).readline))
+    except (tokenize.TokenError, SyntaxError):
+        return False
+    return any(tok.type == tokenize.COMMENT and tok.string.startswith(f"# {MARKER}")
+               and not tok.line[:tok.start[1]].strip() for tok in tokens)
+
+
+def _json_marked(value) -> bool:
+    if isinstance(value, dict):
+        comment = value.get("_comment")
+        if isinstance(comment, str) and comment.startswith(MARKER):
+            return True
+        return any(_json_marked(v) for v in value.values())
+    if isinstance(value, list):
+        return any(_json_marked(v) for v in value)
+    return False
+
+
+def is_marked(rel: str, text: str) -> bool:
+    """Whether `rel` carries the marker in one of its two admitted forms."""
+    if _is_documentation(rel):
+        return False
+    if rel.endswith(".py"):
+        return _python_marked(text)
+    if rel.endswith((".yml", ".yaml")):
+        return bool(YAML_MARKER.search(text))
+    if rel.endswith(".json"):
+        try:
+            return _json_marked(json.loads(text))
+        except ValueError:
+            return False
+    return False
+
+
+def scanned_files(repo: Path) -> dict[str, str]:
+    """The tree as plan 6.2 defines it, minus documentation, read as text."""
+    files = {}
+    for rel in choose_profile.tree_paths(repo):
+        path = repo / rel
+        if _is_documentation(rel) or not path.is_file() or path.is_symlink():
+            continue
+        files[rel] = path.read_bytes().decode("utf-8", errors="replace")
+    return files
+
+
+def documented_marked_files(architecture: str) -> list[str]:
+    section = architecture.split("### Stopgap test profile", 1)[1]
+    listing = section.split(LIST_BEGIN, 1)[1].split(LIST_END, 1)[0]
+    return re.findall(r"^- `([^`]+)`$", listing, re.MULTILINE)
+
+
+class TestTheMarkedFilesAreRecorded(unittest.TestCase):
+    """Rule 6: M2 finds every stopgap file from `docs/ARCHITECTURE.md`."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.files = scanned_files(REPO_ROOT)
+        cls.architecture = (REPO_ROOT / "docs" / "ARCHITECTURE.md").read_text()
+
+    def test_the_marked_files_equal_the_documented_list(self):
+        documented = documented_marked_files(self.architecture)
+        self.assertEqual(documented, sorted(set(documented)))
+        marked = sorted(rel for rel, text in self.files.items() if is_marked(rel, text))
+        self.assertEqual(marked, documented)
+
+    def test_every_file_naming_a_stopgap_identifier_is_marked(self):
+        naming = [rel for rel, text in self.files.items()
+                  if any(name in text for name in STOPGAP_IDENTIFIERS)]
+        self.assertIn("tools/ci/choose_profile.py", naming)
+        self.assertEqual([rel for rel in naming if not is_marked(rel, self.files[rel])], [])
+
+    def test_the_gate_policy_exception_is_recorded_as_a_stopgap(self):
+        section = self.architecture.split("## Verification execution", 1)[1].split("\n## ", 1)[0]
+        self.assertIn("**One reduced selection is a gate, in one place.**", section)
+        self.assertIn("This exception is a stopgap: M2 removes it", section)
+        self.assertIn("### Stopgap test profile", section)
+
+
+class TestWhatCountsAsAMarker(_TempDir):
+    """The two admitted forms, and every mention that is not one."""
+
+    def test_the_admitted_forms(self):
+        self.assertTrue(is_marked("a.py", "x = 1\n# STOPGAP(M2): here\n"))
+        self.assertTrue(is_marked("a.py", "def f():\n    # STOPGAP(M2): here\n    pass\n"))
+        self.assertTrue(is_marked("w.yml", "jobs:\n  # STOPGAP(M2): here\n"))
+        self.assertTrue(is_marked("r.json", json.dumps({"_comment": "STOPGAP(M2): rules"})))
+        self.assertTrue(is_marked("r.json", json.dumps({"a": [{"_comment": "STOPGAP(M2)."}]})))
+
+    def test_string_mentions_are_not_markers(self):
+        cases = {
+            "an inline string": 'x = "# STOPGAP(M2): not a marker"\n',
+            "a trailing comment": "x = 1  # STOPGAP(M2): not first on its line\n",
+            "a multiline-string line": 'DOC = """\n# STOPGAP(M2): inside a string\n"""\n',
+            "a docstring": 'def f():\n    """STOPGAP(M2)."""\n',
+            "the wrong spelling": "# STOPGAP: M2\n",
+        }
+        for name, text in cases.items():
+            with self.subTest(case=name):
+                self.assertFalse(is_marked("a.py", text))
+        self.assertFalse(is_marked("w.yml", "run: echo '# STOPGAP(M2)'\n"))
+        self.assertFalse(is_marked("r.json", json.dumps({"note": "STOPGAP(M2)"})))
+        self.assertFalse(is_marked("r.json", json.dumps({"_comment": "see STOPGAP(M2)"})))
+        self.assertFalse(is_marked("notes.txt", "# STOPGAP(M2)\n"))
+
+    def test_documentation_is_never_scanned(self):
+        repo = _git_repo(self.tmp / "repo")
+        _write(repo, "docs/plan.py", "# STOPGAP(M2): choose_profile\n")
+        _write(repo, "docs/notes.txt", "newest_release\n")
+        _write(repo, "NOTES.md", "# STOPGAP(M2): nightly_alarm\n")
+        _write(repo, "sub/README.md", "# STOPGAP(M2)\n")
+        _write(repo, "tools/marked.py", "# STOPGAP(M2): choose_profile\n")
+        _write(repo, "tools/unmarked.py", 'NAME = "pr_profile_paths"\n')
+        runner_tests._commit_all(repo)  # noqa: SLF001
+        _write(repo, "tools/untracked.py", "import nightly_alarm\n")
+        files = scanned_files(repo)
+        self.assertEqual(sorted(files), ["tools/marked.py", "tools/unmarked.py",
+                                         "tools/untracked.py"])
+        self.assertFalse(is_marked("docs/plan.py", "# STOPGAP(M2)\n"))
+        naming_unmarked = [rel for rel, text in files.items()
+                           if any(n in text for n in STOPGAP_IDENTIFIERS)
+                           and not is_marked(rel, text)]
+        self.assertEqual(naming_unmarked, ["tools/unmarked.py", "tools/untracked.py"])
+
+    def test_the_documented_list_is_read_between_its_markers(self):
+        text = textwrap.dedent(f"""\
+            ### Stopgap test profile
+
+            - `not/listed.py`
+            {LIST_BEGIN}
+            - `a/b.py`
+            - `c.json`
+            {LIST_END}
+            - `after.py`
+            """)
+        self.assertEqual(documented_marked_files(text), ["a/b.py", "c.json"])
 
 
 if __name__ == "__main__":

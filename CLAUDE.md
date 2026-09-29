@@ -74,6 +74,14 @@ python3 tests/run_all.py --jobs 1                 # serial reference (~40min) --
 ```
 
 Run what you touched with `--select`; gates run `python3 tests/run_all.py`.
+Every Workflow gate here (checkpoint, implementation review, acceptance)
+runs the full selection. The one reduced selection that is a gate is CI's
+pull-request profile (`--newest-release-only`, chosen by
+`tools/ci/choose_profile.py`), and only as the required `aggregate` check;
+a newest-release run is never full-suite evidence. It is a stopgap M2
+removes: see `docs/ARCHITECTURE.md`'s "One reduced selection is a gate, in
+one place" and "Stopgap test profile". A new top-level path or test module
+needs its own rule in `tools/ci/pr_profile_paths.json`, or the suite fails.
 A full-suite serial or single-shard run (`--jobs 1`, `--shards 1`, CI
 `shards=1`) is exceptional evidence, not a confidence rerun. Run one only
 when the approved plan or an acceptance criterion requires it, or to debug
@@ -97,10 +105,38 @@ reproducible separately, by `python3 tools/build_release.py --overlay
 migration/overlays/<version> --check`, from its own base release plus its
 own overlay -- `migrate.py --check` does not cover it.
 
+## Branches, pull requests and releases
+
+- **Trunk model.** `main` is protected by a ruleset
+  (`.github/repository/ruleset-main.json`) and changes only through pull
+  requests, merged by squash. One short-lived branch per milestone
+  (`milestone/<work-item-id>`).
+- **The pull-request title is the release.** It must be a Conventional
+  Commit (`feat: ...`, `fix(cli): ...`, `feat!: ...`), checked by the
+  required `Conventional Commit title` check, and it becomes the squash
+  commit's subject. `feat` releases a minor, `fix`/`perf`/`refactor`/
+  `build`/`revert` a patch, `!` a major; `docs`/`chore`/`ci`/`test`/`style`
+  release nothing. Check one with `python3 tools/release/release.py
+  check-title "<title>"`.
+- **Never edit a version.** The Git tag `vX.Y.Z` is the only version
+  authority; `pyproject.toml`'s `0.0.0.dev0` is a placeholder a test pins.
+  The release workflow computes, builds, tags and publishes the Manager
+  package after `main`'s full run is green. It never creates a Workflow
+  release.
+- **Settings are data.** `.github/repository/` holds the merge settings and
+  the ruleset; the repository owner applies them with the `gh api` commands
+  in `docs/RELEASING.md`. Pushing, opening or merging a pull request and
+  changing settings stay the user's (see "Git restrictions" above).
+- **Squash merges are safe for the installed Workflow**: no reader resolves
+  a SHA a completed item records (`docs/ARCHITECTURE.md`, "Squash merges
+  and the installed Workflow"). Re-check that before installing a Workflow
+  release that adds a history reader.
+
 ## Where things are
 
 - The migration record and its evidence: `docs/MIGRATION.md`
 - The distribution/state boundary: `docs/ARCHITECTURE.md`
+- How the Manager is released, and the settings commands: `docs/RELEASING.md`
 - Classification ruleset: `migration/classification.json`
 - Frozen tests a clean target cannot pass, with reasons:
   `migration/portability_exceptions.json`

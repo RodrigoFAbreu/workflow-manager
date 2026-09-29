@@ -1,5 +1,9 @@
 # Workflow Manager
 
+[![Verification](https://github.com/RodrigoFAbreu/workflow-manager/actions/workflows/workflow-manager-verify.yml/badge.svg?branch=main&event=push)](https://github.com/RodrigoFAbreu/workflow-manager/actions/workflows/workflow-manager-verify.yml?query=branch%3Amain+event%3Apush)
+[![Nightly](https://github.com/RodrigoFAbreu/workflow-manager/actions/workflows/workflow-manager-verify.yml/badge.svg?event=schedule)](https://github.com/RodrigoFAbreu/workflow-manager/actions/workflows/workflow-manager-verify.yml?query=event%3Aschedule)
+[![Release](https://img.shields.io/github/v/release/RodrigoFAbreu/workflow-manager?sort=semver)](https://github.com/RodrigoFAbreu/workflow-manager/releases)
+
 Distribution, bootstrap, and update tooling for the reusable AI development
 Workflow.
 
@@ -33,6 +37,30 @@ src/                 the bootstrapper
 tests/               stdlib unittest, no third-party dependencies
 docs/                the migration record, the architecture, and upstream defects
 ```
+
+## Install
+
+Until the Workflow releases move out of this repository (M2), the Manager
+needs a checkout that holds them. Either run it from a checkout at a release
+tag:
+
+```bash
+git clone --branch v1.1.0 https://github.com/RodrigoFAbreu/workflow-manager.git
+cd workflow-manager && python3 -m workflow_manager --version   # workflow-manager 1.1.0 (checkout at v1.1.0)
+```
+
+or install the release wheel and point it at such a checkout:
+
+```bash
+gh release download v1.1.0 --repo RodrigoFAbreu/workflow-manager --dir wm-1.1.0
+(cd wm-1.1.0 && sha256sum -c SHA256SUMS)
+pipx install ./wm-1.1.0/workflow_manager-1.1.0-py3-none-any.whl
+workflow-manager --manager-root /path/to/workflow-manager-at-v1.1.0 releases
+```
+
+Releases are published automatically from `main`; see
+[`docs/RELEASING.md`](docs/RELEASING.md) and the
+[releases page](https://github.com/RodrigoFAbreu/workflow-manager/releases).
 
 ## Use
 
@@ -116,6 +144,12 @@ python3 tests/run_all.py --jobs 1             # serial reference (~40 minutes) -
 python3 tests/run_all.py --help               # every mode, flag and exit code
 ```
 
+CI runs the full selection on every push to `main` and nightly. A pull
+request runs the host tests plus the newest release only, unless it touches
+the installer, the test infrastructure, `distribution/` or CI, or `main`'s
+latest full run is not green; that reduced profile is a stopgap until M2
+(see [`docs/ARCHITECTURE.md`'s "Stopgap test profile"](docs/ARCHITECTURE.md#stopgap-test-profile)).
+
 Run what you touched with `--select`; gates run `python3 tests/run_all.py`.
 `--fast` is a deprecated alias for a targeted `--select` of eight modules, not
 a verification gate. A full-suite `--jobs 1` (or single-shard) run is
@@ -138,6 +172,8 @@ present: a migrated release is verifiable from its own manifest alone.
    composed and verified.
 3. [`docs/defects/`](docs/defects/) — upstream defects found during migration,
    documented rather than repaired.
+4. [`docs/RELEASING.md`](docs/RELEASING.md) — how the Manager itself is
+   versioned and released.
 
 For the plan-amendment mechanism itself — a work item's operator reopening
 its own approved plan mid-`IMPLEMENTING`/`SELF_REVIEWING_IMPLEMENTATION` via

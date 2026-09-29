@@ -963,7 +963,11 @@ Potential future work:
 
 ## 10.1 M1: trunk model and the stopgap test profile
 
-**Priority:** NEXT in this lane.
+**Priority:** IN PROGRESS. Work item `workflow-manager-trunk-model`, on
+`milestone/workflow-manager-trunk-model`: all seven checkpoints are
+implemented (2026-09-29); implementation review, functional review and the
+cutover (`docs/RELEASING.md`, "Cutover") follow. Design:
+`docs/ai-workflow/WORKFLOW_MANAGER_TRUNK_MODEL_PLAN.md`.
 
 This repository works the way the Workflow Controller does:
 
@@ -1003,6 +1007,17 @@ rules, which must be implemented together with it and not dropped:
    matrix.
 6. The second CI profile is removed when M2 lands.
 
+**Follow-up, ready once a Controller release with its C1 ships (`OD-4`).**
+Add a Controller repository policy for this repository: milestone branches
+enabled, the release section disabled (this repository releases through
+`.github/workflows/release.yml`), validated with that release's
+`workflow-controller inspect`. It must reach `main` before the milestone
+that first uses it starts, since adoption reads it at the branch point. M1
+adds none: under Controller 1.3.0 a policy would name draft pull requests
+with a non-Conventional title, end every squash merge in
+`MERGED_REWRITTEN`, and require a `version_change`/`pyproject` release
+model that M1 removes.
+
 ## 10.2 M2: distribution rework, packaged Workflow releases
 
 **Priority:** after M1.
@@ -1021,7 +1036,10 @@ rules, which must be implemented together with it and not dropped:
 - **`distribution/` leaves this repository.** The Manager tests its own code, plus the release in
   development in its three fixtures, plus the upgrade path from the latest published release. Old
   releases are tested once, when they are built, and never again.
-- **The stopgap test profile (10.1) is removed.**
+- **The stopgap test profile (10.1) is removed.** `docs/ARCHITECTURE.md`'s
+  "Stopgap test profile" lists exactly the files that carry it (the
+  `STOPGAP(M2)` marker), what to delete, and the gate-policy exception to
+  drop with them.
 
 M2 publishes the existing releases as packages; it creates no new Workflow version. The first new
 one is W1, Workflow 2.7.
