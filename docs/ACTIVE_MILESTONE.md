@@ -13,34 +13,51 @@ Full plan: `docs/ai-workflow/WORKFLOW_MANAGER_PACKAGED_DISTRIBUTION_PLAN.md`.
 
 ## Current checkpoint
 
-`AWAITING_FUNCTIONAL_REVIEW` (implementation revision 4, technical
-approval `2216d5a`). CP1-CP7 are complete: package format, release
-source/pins/cache, CLI and install record, the five packages, the test suite
-on the release cache, removal, and documentation. Both implementation-review
-stages approved revision 2: external round 1 found one issue, an
-undiscardable cache entry escaping as `PermissionError`, fixed in `df5ecc6`.
-The functional review's first round passed flows 1-8 and cutover K1-K3.
-K4 found F1: the verification workflow used the `runner` context in a
-job-level `env`, so GitHub rejected it. F1 was fixed through the bounded
-branch (`3e90d7b`, revision 3). External round 3 then asked for a stronger
-regression scanner (`6bbd8ec`, revision 4). Both stages approved revision 4,
-pull request #11's CI is green, and the user re-approved (`2216d5a`).
+**Milestone complete.** `workflow-manager-packaged-distribution` reached
+`MILESTONE_COMPLETE` through `/accept-milestone` on 2026-10-01, with the
+user's confirmation, and `active_work_item_id` is cleared.
+- **Checkpoints:** CP1-CP7 are complete.
+- **Technical approval:** commit `2216d5a`, implementation revision 4.
+  Both implementation-review stages approved it. External round 1 found an
+  undiscardable cache entry escaping as `PermissionError` (fixed in
+  `df5ecc6`), and external round 3 asked for a stronger regression scanner
+  (`6bbd8ec`).
+- **Automated verification:** the full gate passed on the final code
+  (1410/1410 units, 8,746 tests, verdict 0, recorded at `2f817cc`). Only
+  docs and state commits have landed since.
+- **Functional review:** round 1 (revision 2) passed flows 1-8 and cutover
+  K1-K3. K4 found F1 (the verification workflow used the `runner` context
+  in a job-level `env`), fixed through the bounded branch in `3e90d7b`.
+  Round 2 (revision 4, checklist `69da8f7`) passed. The user accepted it
+  with no findings filed. The round 2 evidence is recorded under the
+  cutover below.
+
+The checkpoint log below is this milestone's permanent record.
 
 ## Current blockers
 
-None.
+None. What remains after acceptance:
+- cutover K5: squash-merge pull request #11 under its title `feat: Workflow
+  releases are downloaded, verified packages` (a `feat:` title, so it
+  releases the Manager's `v1.2.0`), check that `main`'s full run is green
+  and `v1.2.0` is published, then `pipx install` its wheel into a scratch
+  environment and bootstrap a scratch repository with no checkout;
+- between milestones, install Workflow Controller 1.4.2.
 
 ## Active plan
 
-`docs/ai-workflow/WORKFLOW_MANAGER_PACKAGED_DISTRIBUTION_PLAN.md`,
-revision 9. Registry:
-`docs/ai-workflow/registry/workflow-manager-packaged-distribution-registry.json`
-(CP1-CP7).
+None, because the milestone is complete. The plan document stays at
+`docs/ai-workflow/WORKFLOW_MANAGER_PACKAGED_DISTRIBUTION_PLAN.md`
+(revision 9) instead of being archived: `docs/ARCHITECTURE.md`,
+`docs/MIGRATION.md` and `docs/RELEASING.md` cite it as the design record.
 
 ## Next action
 
-The functional review's round 2 (checklist below), then `/accept-milestone`,
-then cutover K5 (the merge and the `v1.2.0` release).
+`workflow-manager-packaged-distribution` is complete. Next, once cutover K5
+is done, run `/milestone-plan` for the next incomplete milestone in
+`docs/ROADMAP.md`: W1, "Workflow 2.7, the first packaged release"
+(section 1.9). It is authored in the `workflow` repository, and this
+repository then adds its pin.
 
 ## Checkpoint log
 
@@ -679,6 +696,15 @@ go-ahead).**
   scratch environment and bootstrap a scratch repository with no checkout.
 
 A problem found in K2-K5 goes back through `/apply-functional-review`.
+
+**Round 2 results (2026-10-01, revision 4, checklist `69da8f7`).**
+- **K4:** pull request #11's CI on revision 4 is green: 21 checks, `CLEAN`
+  ([run 36774307005](https://github.com/RodrigoFAbreu/workflow-manager/actions/runs/36774307005)).
+  The verification run on the checklist head `69da8f7`
+  ([run 36788937581](https://github.com/RodrigoFAbreu/workflow-manager/actions/runs/36788937581))
+  is green too.
+- **Flow 8's targeted run:** 19/19 units, 127 tests, `verdict: exit 0`.
+- Flows 1-7 exercise code unchanged since round 1, where they all passed.
 
 **Known limitations (out of scope here).**
 - The network download path is proven only by K3 and K4, after this

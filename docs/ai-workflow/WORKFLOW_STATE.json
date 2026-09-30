@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_work_item_id": "workflow-manager-packaged-distribution",
+  "active_work_item_id": null,
   "work_items": {
     "plan-amendment-mechanism": {
       "work_item_type": "process",
@@ -3942,7 +3942,7 @@
       "registry_path": "docs/ai-workflow/registry/workflow-manager-packaged-distribution-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/workflow-manager-packaged-distribution-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_FUNCTIONAL_REVIEW",
+      "phase": "MILESTONE_COMPLETE",
       "plan_revision": 9,
       "implementation_revision": 4,
       "functional_review_round": null,
@@ -6953,8 +6953,8 @@
       },
       "functional_acceptance_status": null,
       "blocking_decisions": [],
-      "state_revision": 61,
-      "last_transition": "2026-09-30T22:59:22Z",
+      "state_revision": 62,
+      "last_transition": "2026-09-30T23:09:46Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
