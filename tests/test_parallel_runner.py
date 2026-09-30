@@ -54,15 +54,17 @@ from pathlib import Path
 from unittest import mock
 
 import support
-from support import CI_SUITES, REPO_ROOT
+from support import CI_SUITES, NEWEST_RELEASE, REPO_ROOT
 
 import frozen_runs
 import test_bootstrap_e2e as bootstrap_e2e
 import test_conformance_suite as conformance_suite
+import test_update_path as update_path
 from parallel import (canonical_json, cli, executor, inventory, isolation, matrix, plan_schema,
                       planner, report, resources, timings, tree, unit)
 from workflow_manager.fixture import build_conformance_repo, configure_throwaway_repo, init_git_repo
-from workflow_manager.release import find_release
+import workflow_manager.package as package_module
+from workflow_manager import source as release_source
 
 TESTS_DIR = REPO_ROOT / "tests"
 EXCLUSIVE_UNIT = "host:test_amendment_update_path.py::TestMigrateDoesNotDeleteASiblingAuthoredRelease"
@@ -341,7 +343,7 @@ class TestResourcesContract(_RealHostInventory):
             "absolute path": _resources_doc(**res(["/distribution/"])),
             "dot-dot component": _resources_doc(**res(["src/../tools/"])),
             "tests/ is not guarded": _resources_doc(**res(["tests/"])),
-            "sub-path of a guarded tree": _resources_doc(**res(["distribution/workflow/"])),
+            "sub-path of a guarded tree": _resources_doc(**res(["src/workflow_manager/"])),
             "docs/ is not guarded": _resources_doc(**res(["docs/"])),
             "tree twice in one resource": _resources_doc(**res(["src/", "src/"])),
             "empty description": _resources_doc(**res(["src/"], description="")),
@@ -699,9 +701,12 @@ class TestFrozenInventory(unittest.TestCase):
             self.assertEqual(canonical_json(found.to_json()),
                              canonical_json(self.frozen.to_json()))
 
-    def test_per_suite_totals_equal_the_pinned_counts_for_every_release(self):
-        self.assertEqual(self.frozen.ci_suites, {v: dict(s) for v, s in CI_SUITES.items()})
-        for version, suites in CI_SUITES.items():
+    def test_per_suite_totals_equal_the_pinned_counts_for_the_matrix_release(self):
+        """Only the release the matrix runs is discovered; the other pinned
+        versions' `CI_SUITES` entries are frozen records (plan 7.1)."""
+        run = {NEWEST_RELEASE: CI_SUITES[NEWEST_RELEASE]}
+        self.assertEqual(self.frozen.ci_suites, {v: dict(s) for v, s in run.items()})
+        for version, suites in run.items():
             self.assertEqual(list(self.frozen.ci_suites[version]), list(suites))  # order kept
             self.assertEqual(sorted(self.frozen.classes[version]), sorted(suites))
             for suite, pinned in suites.items():
@@ -709,17 +714,20 @@ class TestFrozenInventory(unittest.TestCase):
                     found = self.frozen.classes[version][suite]
                     self.assertEqual(sum(len(m) for m in found.values()), pinned)
 
-    def test_the_matrix_is_every_release_times_every_fixture(self):
+    def test_the_matrix_is_the_newest_release_times_every_fixture(self):
         self.assertEqual(sorted(self.frozen.matrix.values()),
-                         sorted((v, f) for v in CI_SUITES for f in matrix.FIXTURES))
-        self.assertEqual(len(self.frozen.matrix), 15)
+                         sorted((NEWEST_RELEASE, f) for f in matrix.FIXTURES))
+        self.assertEqual(len(self.frozen.matrix), 4)
+        self.assertFalse([u for u in self.frozen.matrix if re.search(r"\d", u.split("::")[1])],
+                         "matrix host classes carry no version in their names")
 
     def test_frozen_units_multiply_classes_by_fixture(self):
         units = self.frozen.units()
         per_release = {v: sum(len(c) for c in s.values()) for v, s in self.frozen.classes.items()}
-        self.assertEqual(len(units), 3 * sum(per_release.values()))
+        fixtures = len(matrix.FIXTURES)
+        self.assertEqual(len(units), fixtures * sum(per_release.values()))
         self.assertEqual(sum(len(t) for t in units.values()),
-                         3 * sum(sum(s.values()) for s in CI_SUITES.values()))
+                         fixtures * sum(CI_SUITES[NEWEST_RELEASE].values()))
         for unit_id in units:
             version, fixture, suite, cls = inventory.split_frozen_unit_id(unit_id)
             self.assertEqual(inventory.frozen_unit_id(version, fixture, suite, cls), unit_id)
@@ -766,15 +774,25 @@ if __name__ == "__main__":
 
 class TestFrozenInventoryCountRefusal(unittest.TestCase):
     """T-INV-3: a discovered total that differs from its pin is refused. A
-    minimal layout of its own: one release payload with one tiny suite, and a
-    literal `matrix.py`."""
+    minimal layout of its own: a one-pin package of one tiny suite, served
+    and cached beside the checkout, and a literal `matrix.py`."""
 
-    def layout(self, root: Path, pinned: int) -> Path:
-        scripts = root / "distribution" / "workflow" / "0.0.1" / "payload" / "scripts"
-        scripts.mkdir(parents=True)
-        (scripts / "tiny_test.py").write_text(TINY_SUITE)
+    @staticmethod
+    def layout(tmp: Path, pinned: int) -> Path:
+        """The checkout, at `tmp/checkout`. Its release lives in
+        `tmp/releases` (`TestFrozenInventoryCountRefusal.env`)."""
+        root = tmp / "checkout"
         shutil.copytree(TESTS_DIR / "parallel", root / "tests" / "parallel",
                         ignore=shutil.ignore_patterns("__pycache__", "matrix.py", "*.json"))
+        shutil.copy2(TESTS_DIR / "support.py", root / "tests" / "support.py")
+        (root / "tests" / "portability_exceptions.json").write_text(canonical_json(
+            {"by_version": {"0.0.1": {"exceptions": []}}}))
+        _writable_copy(REPO_ROOT / "src" / "workflow_manager", root / "src" / "workflow_manager",
+                       ignore=shutil.ignore_patterns("__pycache__"))
+        publish_synthetic_release(root, tmp / "releases", TINY_SUITE)
+        (root / "migration").mkdir()
+        (root / "migration" / "classification.json").write_text(canonical_json(
+            {"upstream": {"repository": "scratch", "tag": "scratch", "commit": "0" * 40}}))
         (root / "tests" / "parallel" / "matrix.py").write_text(textwrap.dedent(f"""
             FIXTURES = ("conformance", "target", "bootstrapped")
             CI_SUITES = {{"0.0.1": {{"tiny_test.py": {pinned}}}}}
@@ -782,15 +800,20 @@ class TestFrozenInventoryCountRefusal(unittest.TestCase):
         """))
         return root
 
+    @staticmethod
+    def env(tmp: Path):
+        """Discovery reads the layout's release through its own cache."""
+        return mock.patch.dict(os.environ, synthetic_release_env(tmp / "releases"))
+
     def test_a_wrong_pin_is_refused(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = self.layout(Path(tmp), pinned=4)
-            with self.assertRaises(inventory.InventoryCountError) as caught:
+            with self.assertRaises(inventory.InventoryCountError) as caught, self.env(Path(tmp)):
                 inventory.discover_frozen(root)
             self.assertIn("discovered 3 tests, CI_SUITES pins 4", str(caught.exception))
 
     def test_the_right_pin_is_accepted(self):
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory() as tmp, self.env(Path(tmp)):
             found = inventory.discover_frozen(self.layout(Path(tmp), pinned=3))
             self.assertEqual(found.classes, {"0.0.1": {"tiny_test.py": {
                 "TestAlpha": ["test_one", "test_two"], "TestBeta": ["test_three"]}}})
@@ -871,19 +894,19 @@ class TestFrozenSelection(unittest.TestCase):
 
     def test_real_matrix_host_class_selects_its_311_frozen_classes(self):
         inv = inventory.discover(REPO_ROOT)
-        chosen = inventory.select(inv.host, ["test_conformance_suite.py::TestConformanceFixture260"],
+        chosen = inventory.select(inv.host, ["test_conformance_suite.py::TestConformanceFixture"],
                                   inv.frozen)
         self.assertEqual(chosen.host_unit_ids(),
-                         ["host:test_conformance_suite.py::TestConformanceFixture260"])
+                         ["host:test_conformance_suite.py::TestConformanceFixture"])
         self.assertEqual(len(chosen.frozen_unit_ids()),
-                         sum(len(c) for c in inv.frozen.classes["2.6.0"].values()))
-        self.assertTrue(all(u.startswith("frozen:2.6.0/conformance/")
+                         sum(len(c) for c in inv.frozen.classes[NEWEST_RELEASE].values()))
+        self.assertTrue(all(u.startswith(f"frozen:{NEWEST_RELEASE}/conformance/")
                             for u in chosen.frozen_unit_ids()))
 
 
 # -- T-MRG-1 / -2 / -7: the merge ------------------------------------------------------
 
-MERGE_VERSION = "2.6.0"
+MERGE_VERSION = NEWEST_RELEASE
 
 
 def _record(chunk_id, suite, classes, ran, *, failing=(), returncode=0, fixture="conformance",
@@ -892,7 +915,7 @@ def _record(chunk_id, suite, classes, ran, *, failing=(), returncode=0, fixture=
         chunk_id=chunk_id, version=MERGE_VERSION, fixture=fixture, suite=suite,
         classes=tuple(classes), returncode=returncode, ran=ran, failing=tuple(failing),
         output=f"<{chunk_id}>\nRan {ran} tests in 0.1s\n", tree_digest="T1", plan_digest="P1",
-        release_digest=frozen_runs.release_digest(REPO_ROOT, MERGE_VERSION))
+        release_digest=frozen_runs.release_digest(MERGE_VERSION))
     fields.update(overrides)
     return frozen_runs.FrozenRecord(**fields)
 
@@ -1041,7 +1064,7 @@ class TestMergeContextIsIndependentProvenance(unittest.TestCase):
                 frozen_runs.load_records(Path(tmp), MERGE_VERSION, "conformance")
 
     def test_merged_mode_setupclass_refuses_without_an_authoritative_context(self):
-        host = conformance_suite.TestConformanceFixture260
+        host = conformance_suite.TestConformanceFixture
         with tempfile.TemporaryDirectory() as tmp:
             records, contexts = Path(tmp) / "records", Path(tmp) / "contexts"
             records.mkdir()
@@ -1108,6 +1131,8 @@ VIEW_ASSERTIONS = {
                      "test_the_installation_verifies_clean_after_the_suite_ran",
                      "test_the_suite_left_the_repository_git_clean"),
 }
+#: The `updated` class shares the `bootstrapped` assertions (plan 7.1).
+VIEW_ASSERTIONS["updated"] = VIEW_ASSERTIONS["bootstrapped"]
 _LEGACY_RAN_RE = re.compile(r"^Ran (\d+) tests? in ", re.MULTILINE)
 
 
@@ -1196,11 +1221,24 @@ def _host_outcomes(host, fixture, view):
     return outcomes
 
 
+MATRIX_MODULES = {"test_conformance_suite.py": conformance_suite,
+                  "test_bootstrap_e2e.py": bootstrap_e2e, "test_update_path.py": update_path}
+
+
 def _matrix_hosts():
     for unit_id, (version, fixture) in matrix.FROZEN_MATRIX.items():
         module, cls = inventory.split_host_unit_id(unit_id)
-        yield getattr(conformance_suite if module == "test_conformance_suite.py" else bootstrap_e2e,
-                      cls), version, fixture
+        yield getattr(MATRIX_MODULES[module], cls), version, fixture
+
+
+def _assertion_module(host):
+    """The module whose `expected_portability_exceptions` the host's
+    assertion bodies read: where the mixin that defines them lives."""
+    for cls in host.__mro__:
+        module = sys.modules[cls.__module__]
+        if hasattr(module, "expected_portability_exceptions"):
+            return module
+    raise AssertionError(f"{host.__name__} reads no expected_portability_exceptions")
 
 
 class _Scenario:
@@ -1252,7 +1290,7 @@ class _Scenario:
                 chunk = frozen_runs.FrozenChunk(cid, self.version, self.fixture, suite, classes)
                 records.append(frozen_runs.record_from_process(
                     chunk, _proc(output, rc), tree_digest="T", plan_digest="P",
-                    release_digest=frozen_runs.release_digest(REPO_ROOT, self.version),
+                    release_digest=frozen_runs.release_digest(self.version),
                     residue=tuple(self.residue) if index else (),
                     drift=tuple(self.drift) if index else ()))
         chunks = [frozen_runs.FrozenChunk(cid, self.version, self.fixture, suite, classes)
@@ -1303,7 +1341,7 @@ MUTATIONS = (None, "extra failing test", "one missing test", "stale portability 
 
 
 class TestHostAssertionsOverTheMergedView(unittest.TestCase):
-    """T-MRG-3, -4, -5, -6: every view-reading assertion of the 15 matrix
+    """T-MRG-3, -4, -5, -6: every view-reading assertion of the four matrix
     classes reaches the same verdict over a merged view, over the direct
     view of the equivalent whole-suite runs, and -- as the oracle -- in its
     pre-CP2 form over those `CompletedProcess`es."""
@@ -1317,7 +1355,7 @@ class TestHostAssertionsOverTheMergedView(unittest.TestCase):
                 scenario = _Scenario(version, fixture, _baseline_failures(version, fixture))
                 _mutate(scenario, mutation)
                 with self.subTest(host=host.__name__, mutation=mutation), \
-                        mock.patch.object(sys.modules[host.__module__],
+                        mock.patch.object(_assertion_module(host),
                                           "expected_portability_exceptions",
                                           lambda v, e=expected: e):
                     legacy = _legacy_outcomes(fixture, version, scenario.procs(), expected,
@@ -1336,7 +1374,7 @@ class TestHostAssertionsOverTheMergedView(unittest.TestCase):
                     expected = {**expected, STALE[0]: expected.get(STALE[0], set()) | {STALE[1]}}
                 scenario = _Scenario(version, fixture, _baseline_failures(version, fixture))
                 _mutate(scenario, mutation)
-                with mock.patch.object(sys.modules[host.__module__],
+                with mock.patch.object(_assertion_module(host),
                                        "expected_portability_exceptions",
                                        lambda v, e=expected: e):
                     outcomes = _host_outcomes(host, fixture, scenario.merged())
@@ -1344,20 +1382,20 @@ class TestHostAssertionsOverTheMergedView(unittest.TestCase):
                     caught.setdefault(mutation, set()).add(fixture)
                 self.assertNotIn("error", outcomes.values(), (host.__name__, mutation))
         self.assertEqual(caught, {
-            "extra failing test": {"conformance", "target", "bootstrapped"},
-            "one missing test": {"conformance", "target", "bootstrapped"},
-            "stale portability exception": {"target", "bootstrapped"},
-            "non-empty residue": {"bootstrapped"},
-            "non-empty drift": {"bootstrapped"},
-            "setUpClass error in one chunk": {"conformance", "target", "bootstrapped"},
-            "suite crashes on import": {"conformance", "target", "bootstrapped"},
+            "extra failing test": {"conformance", "target", "bootstrapped", "updated"},
+            "one missing test": {"conformance", "target", "bootstrapped", "updated"},
+            "stale portability exception": {"target", "bootstrapped", "updated"},
+            "non-empty residue": {"bootstrapped", "updated"},
+            "non-empty drift": {"bootstrapped", "updated"},
+            "setUpClass error in one chunk": {"conformance", "target", "bootstrapped", "updated"},
+            "suite crashes on import": {"conformance", "target", "bootstrapped", "updated"},
         })
 
     def test_a_crashed_or_errored_chunk_merges_and_fails_as_a_test_failure(self):
         """T-MRG-3 and T-MRG-4, called out: no merge refusal, and the two
         count/pass assertions fail -- with today's message for a missing
         summary."""
-        host = conformance_suite.TestConformanceFixture260
+        host = conformance_suite.TestConformanceFixture
         for mutation in ("setUpClass error in one chunk", "suite crashes on import"):
             scenario = _Scenario("2.6.0", "conformance", {})
             _mutate(scenario, mutation)
@@ -1369,7 +1407,7 @@ class TestHostAssertionsOverTheMergedView(unittest.TestCase):
                     self.assertEqual((len(result.failures), len(result.errors)), (1, 0), name)
                     if mutation == "suite crashes on import" and "number" in name:
                         self.assertIn("no unittest summary in output:", result.failures[0][1])
-        host = bootstrap_e2e.TestBootstrappedRepositorySatisfiesTheFrozenSuite260
+        host = bootstrap_e2e.TestBootstrappedRepositorySatisfiesTheFrozenSuite
         scenario = _Scenario("2.6.0", "bootstrapped", {})
         _mutate(scenario, "suite crashes on import")
         with mock.patch.object(host, "results", scenario.merged(), create=True):
@@ -1397,7 +1435,7 @@ class TestHostAssertionsOverTheMergedView(unittest.TestCase):
             {"workflow_test_harness_test.py": ["TestScratchRepoBasics"]},
             tree_digest="T", plan_digest="P")
         view = frozen_runs.merge([record], context)
-        host = conformance_suite.TestConformanceFixture260
+        host = conformance_suite.TestConformanceFixture
         with mock.patch.object(host.Run, "results", view):
             self.assertEqual(_host_outcomes(host, "conformance", view),
                              {name: "fail" for name in VIEW_ASSERTIONS["conformance"]})
@@ -1426,7 +1464,7 @@ class TestFrozenInvocation(unittest.TestCase):
         record = frozen_runs.execute(chunk, tree_digest="T", plan_digest="P")
         self.assertEqual((record.returncode, record.ran, record.failing), (0, 7, ()))
         self.assertEqual((record.tree_digest, record.plan_digest), ("T", "P"))
-        self.assertEqual(record.release_digest, frozen_runs.release_digest(REPO_ROOT, "2.6.0"))
+        self.assertEqual(record.release_digest, frozen_runs.release_digest("2.6.0"))
         self.assertEqual((record.residue, record.drift), ((), ()))
         self.assertFalse(record.timed_out)
         self.assertLessEqual(record.started_at, record.ended_at)
@@ -1434,21 +1472,21 @@ class TestFrozenInvocation(unittest.TestCase):
     def test_fixed_chunkings_partition_every_suite(self):
         frozen = inventory.discover_frozen(REPO_ROOT)
         for mode in ("two-chunk", "one-class"):
-            chunks = frozen_runs.fixed_chunking(frozen, "2.3.1", "target", mode)
+            chunks = frozen_runs.fixed_chunking(frozen, NEWEST_RELEASE, "target", mode)
             with self.subTest(mode):
                 frozen_runs.MergeContext.from_chunks(
-                    "2.3.1", "target", chunks,
-                    {s: list(c) for s, c in frozen.classes["2.3.1"].items()},
+                    NEWEST_RELEASE, "target", chunks,
+                    {s: list(c) for s, c in frozen.classes[NEWEST_RELEASE].items()},
                     tree_digest="T", plan_digest=frozen_runs.chunking_digest(chunks))
                 per_suite = {}
                 for chunk in chunks:
                     per_suite.setdefault(chunk.suite, []).append(chunk)
                 for suite, parts in per_suite.items():
-                    classes = frozen.classes["2.3.1"][suite]
+                    classes = frozen.classes[NEWEST_RELEASE][suite]
                     expected = (len(classes) if mode == "one-class" else min(2, len(classes)))
                     self.assertEqual(len(parts), expected, suite)
                     self.assertEqual(sum(len(c.enumerated) for c in parts),
-                                     CI_SUITES["2.3.1"][suite])
+                                     CI_SUITES[NEWEST_RELEASE][suite])
 
 
 class TestFullStateSnapshot(unittest.TestCase):
@@ -2291,8 +2329,8 @@ class TestSelectionIgnoresTiming(unittest.TestCase):
                 pass
     ''')
 
-    def layout(self, root: Path) -> Path:
-        TestFrozenInventoryCountRefusal.layout(None, root, pinned=3)
+    def layout(self, tmp: Path) -> Path:
+        root = TestFrozenInventoryCountRefusal.layout(tmp, pinned=3)
         (root / "tests" / "test_tiny.py").write_text(self.HOST_MODULE)
         _git_repo(root)
         _commit_all(root)
@@ -2313,7 +2351,7 @@ class TestSelectionIgnoresTiming(unittest.TestCase):
         }
 
     def test_selections_are_byte_identical_under_every_timing_file(self):
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory() as tmp, TestFrozenInventoryCountRefusal.env(Path(tmp)):
             root = self.layout(Path(tmp))
             first = inventory.discover(root)
             path = timings.timings_path(root)
@@ -2344,7 +2382,11 @@ class TestSelectionIgnoresTiming(unittest.TestCase):
 
 SCRATCH_EXCLUSIVE_UNIT = "host:test_scratch_exclusive.py::TestScratchExclusiveWriter"
 SCRATCH_SHARED_UNIT = "host:test_scratch_shared.py::TestScratchReader"
-SCRATCH_PAYLOAD = "distribution/workflow/0.0.1/payload"
+#: A small tree under the scratch's `tools/` -- a guarded tree that outlives
+#: CP6 -- which the exclusive writer removes and rebuilds and the shared reader
+#: reads.
+SCRATCH_TOOLS = "tools/scratch/lib/bin"
+SCRATCH_TOOL = "tools/scratch/lib/bin/tiny_tool.py"
 
 SCRATCH_EXCLUSIVE_MODULE = '''
 import shutil
@@ -2356,12 +2398,12 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class TestScratchExclusiveWriter(unittest.TestCase):
-    """Removes and rebuilds a directory of the scratch `distribution/` tree --
-    the shape of `TestMigrateDoesNotDeleteASiblingAuthoredRelease`."""
+    """Removes and rebuilds a directory of the scratch `tools/` tree -- the
+    shape of a test that rewrites a guarded tree in place."""
 
     def test_rmtree_and_restore(self):
-        target = ROOT / "distribution" / "workflow" / "0.0.1" / "payload"
-        backup = Path(tempfile.mkdtemp()) / "payload"
+        target = ROOT / "tools" / "scratch"
+        backup = Path(tempfile.mkdtemp()) / "scratch"
         shutil.copytree(target, backup)
         shutil.rmtree(target)
         shutil.copytree(backup, target)
@@ -2375,24 +2417,23 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class TestScratchReader(unittest.TestCase):
-    def test_reads_the_payload(self):
-        path = ROOT / "distribution" / "workflow" / "0.0.1" / "payload" / "scripts" / "tiny_test.py"
-        self.assertIn("unittest", path.read_text())
+    def test_reads_the_tool(self):
+        path = ROOT / "tools" / "scratch" / "lib" / "bin" / "tiny_tool.py"
+        self.assertIn("scratch tool", path.read_text())
 '''
 
 SCRATCH_RESOURCES = {
     "schema_version": 1,
     "resources": {
-        "repo:distribution": {
-            "paths": ["distribution/"],
-            "description": "the scratch checkout's distribution/ tree, where its synthetic "
-                           "release lives",
+        "repo:tools": {
+            "paths": ["tools/"],
+            "description": "the scratch checkout's tools/ tree",
         },
     },
     "exclusive": {
         SCRATCH_EXCLUSIVE_UNIT: {
-            "resources": ["repo:distribution"],
-            "reason": "rmtree()s and rebuilds distribution/workflow/0.0.1/payload",
+            "resources": ["repo:tools"],
+            "reason": "rmtree()s and rebuilds tools/scratch",
         },
     },
 }
@@ -2471,7 +2512,7 @@ from parallel.matrix import CI_SUITES
 
 
 class TestScratchMatrix(unittest.TestCase):
-    """The shape of the 15 real matrix host classes, over the scratch release:
+    """The shape of the four real matrix host classes, over the scratch release:
     direct/merged `setUpClass` through `open_matrix_run`, unchanged assertions
     over the per-suite view."""
 
@@ -2519,28 +2560,77 @@ def _sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def _write_scratch_release(root: Path, suite: str) -> None:
-    """`distribution/workflow/0.0.1/` with a manifest generated from the files
-    just written, so every digest matches by construction."""
-    release = root / "distribution" / "workflow" / "0.0.1"
-    files = {"payload/scripts/tiny_test.py": suite.encode()}
-    files.update({f"templates/{t}": body.encode() for t, body in SCRATCH_TEMPLATES.items()})
-    for rel, data in files.items():
-        (release / rel).parent.mkdir(parents=True, exist_ok=True)
-        (release / rel).write_bytes(data)
-    suite_bytes = files["payload/scripts/tiny_test.py"]
-    manifest = {
-        "schema_version": 1, "workflow_version": "0.0.1",
+def _scratch_manifest(files: dict[str, bytes], templates: dict[str, bytes],
+                      version: str = "0.0.1") -> dict:
+    """A `version` manifest over `files` (payload) and `templates`, every
+    digest matching by construction."""
+    return {
+        "schema_version": 1, "workflow_version": version,
         "upstream": {"repository": "scratch", "tag": "scratch", "commit": "0" * 40},
-        "artifacts": [{"target_path": "scripts/tiny_test.py",
-                       "location": "payload/scripts/tiny_test.py",
-                       "sha256": _sha256(suite_bytes), "size": len(suite_bytes),
-                       "executable": False, "category": "conformance"}],
+        "artifacts": [{"target_path": rel[len("payload/"):], "location": rel,
+                       "sha256": _sha256(data), "size": len(data),
+                       "executable": False, "category": "conformance"}
+                      for rel, data in files.items()],
         "templates": [{"target_path": t, "location": f"templates/{t}",
-                       "sha256": _sha256(body.encode()), "size": len(body.encode())}
-                      for t, body in SCRATCH_TEMPLATES.items()],
+                       "sha256": _sha256(body), "size": len(body)}
+                      for t, body in templates.items()],
     }
-    (release / "manifest.json").write_text(canonical_json(manifest))
+
+
+def synthetic_release_env(releases: Path) -> dict[str, str]:
+    """`WORKFLOW_MANAGER_RELEASE_SOURCE`/`_CACHE` for a synthetic release
+    published under `releases` by `publish_synthetic_release`: its `file://`
+    source and its private cache. These override the real cache the runner
+    exports, which is the only thing keeping a synthetic run off it (7.1)."""
+    return {release_source.SOURCE_ENV: (releases / "source").as_uri() + "/{version}/",
+            release_source.CACHE_ENV: str(releases / "cache")}
+
+
+def publish_synthetic_release(checkout: Path, releases: Path, suite: str, *,
+                              templates=None, version: str = "0.0.1") -> None:
+    """Package a synthetic release `version` whose payload is `suite` (as
+    `scripts/tiny_test.py`) and whose templates are `templates` (default
+    `SCRATCH_TEMPLATES`), serve it from `releases/source/`, and pin it in
+    `checkout`'s copy of `src/workflow_manager/`: the one pin for `0.0.1`,
+    an added one for any other version. Everything lives outside `checkout`,
+    so a run's tree digest never sees it."""
+    templates = SCRATCH_TEMPLATES if templates is None else templates
+    files = {"payload/scripts/tiny_test.py": suite.encode()}
+    bodies = {t: body.encode() for t, body in templates.items()}
+    tree = releases / "trees" / version
+    for rel, data in [*files.items(), *((f"templates/{t}", b) for t, b in bodies.items())]:
+        (tree / rel).parent.mkdir(parents=True, exist_ok=True)
+        (tree / rel).write_bytes(data)
+    (tree / "manifest.json").write_text(canonical_json(_scratch_manifest(files, bodies, version)))
+    built = package_module.build_package(tree, releases / "source" / version)
+    pin_file = checkout / "src" / "workflow_manager" / "published_releases.json"
+    pins = ({"schema_version": 1, "repository": "scratch/workflow", "releases": {}}
+            if version == "0.0.1" else json.loads(pin_file.read_text()))
+    pins["releases"][version] = {
+        "archive": built.archive.name, "sha256": package_module.file_sha256(built.archive),
+        "manifest_sha256": package_module.file_sha256(built.manifest)}
+    pin_file.write_text(canonical_json(pins))
+
+
+def scratch_releases(scratch_root: Path) -> Path:
+    """Where `scratch_checkout` published a scratch's release: a sibling of
+    the scratch, shared by its linked worktrees and clones (`-wtN`,
+    `-cloneN`), which carry the same pin."""
+    root = Path(scratch_root)
+    name = root.name
+    while True:
+        stripped = re.sub(r"-(wt|clone)\d+$", "", name)
+        if stripped == name:
+            break
+        name = stripped
+    return root.parent / f"{name}.releases"
+
+
+def scratch_release_env(scratch_root: Path) -> dict[str, str]:
+    """The release source and private cache every run in `scratch_root` uses
+    (7.2.1): it primes and tests only its own `0.0.1`, and never reads or
+    writes the real cache."""
+    return synthetic_release_env(scratch_releases(scratch_root))
 
 
 def _writable_copy(src: Path, dst: Path, **kwargs) -> None:
@@ -2552,7 +2642,7 @@ def _writable_copy(src: Path, dst: Path, **kwargs) -> None:
 
 def scratch_checkout(root: Path, *, resources=SCRATCH_RESOURCES, modules=None,
                      suite: str = SCRATCH_SUITE, pinned: int = SCRATCH_SUITE_TESTS,
-                     timings_units=None, damage_payload: bool = False) -> Path:
+                     timings_units=None, no_gitignore_template: bool = False) -> Path:
     """A throwaway git checkout at `root` with its own git dir (hence its own
     run lock and marker), complete enough for `run_all.py` to run for real:
 
@@ -2563,10 +2653,13 @@ def scratch_checkout(root: Path, *, resources=SCRATCH_RESOURCES, modules=None,
       `config.json` by `SCRATCH_CONFIG`, and
       `timings.json` by one holding only `timings_units` (local profile);
     - a synthetic release `0.0.1` whose payload is `suite`, pinned at
-      `pinned` tests, with a generated manifest (`damage_payload` changes the
-      payload bytes afterwards, so a fixture build fails its digest check);
-    - `migration/classification.json` and `portability_exceptions.json` in
-      the shape `support` reads, an empty `tools/`, and synthetic host
+      `pinned` tests: a package served and cached beside the scratch
+      (`scratch_releases`) and the one pin of the scratch's
+      `published_releases.json` (`no_gitignore_template` leaves the
+      `.gitignore` fragment out of a manifest that still verifies, so the
+      conformance fixture builder raises);
+    - `migration/classification.json` and `tests/portability_exceptions.json`
+      in the shape `support` reads, a small `tools/` tree, and synthetic host
       modules: the declared exclusive writer, a shared reader, the matrix
       host class, and `modules` (`{file name: source}`).
 
@@ -2599,19 +2692,20 @@ def scratch_checkout(root: Path, *, resources=SCRATCH_RESOURCES, modules=None,
     (tests / "test_scratch_matrix.py").write_text(SCRATCH_MATRIX_MODULE)
     for name, source in (modules or {}).items():
         (tests / name).write_text(textwrap.dedent(source))
-    _write_scratch_release(root, suite)
-    if damage_payload:
-        with open(root / SCRATCH_PAYLOAD / "scripts" / "tiny_test.py", "a") as handle:
-            handle.write("# damaged after the manifest was written\n")
+    templates = {t: body for t, body in SCRATCH_TEMPLATES.items()
+                 if not (no_gitignore_template and t == ".gitignore.workflow-fragment")}
+    publish_synthetic_release(root, scratch_releases(root), suite, templates=templates)
     (root / "migration").mkdir()
     (root / "migration" / "classification.json").write_text(canonical_json(
         {"upstream": {"repository": "scratch", "tag": "scratch", "commit": "0" * 40}}))
-    (root / "migration" / "portability_exceptions.json").write_text(canonical_json(
+    (tests / "portability_exceptions.json").write_text(canonical_json(
         {"by_version": {"0.0.1": {"exceptions": []}}}))
     (root / "src" / "scratchpkg").mkdir(parents=True)
     (root / "src" / "scratchpkg" / "__init__.py").write_text("")
     (root / "tools").mkdir()
     (root / "tools" / ".keep").write_text("")
+    (root / SCRATCH_TOOLS).mkdir(parents=True)
+    (root / SCRATCH_TOOL).write_text("# the scratch tool\n")
     (root / ".gitignore").write_text("__pycache__/\n*.pyc\n*.ignored\n")
     _commit_all(root, "scratch")
     # Valid by construction: loads against the scratch's own host inventory.
@@ -2623,7 +2717,8 @@ def resources_module_load(root: Path) -> resources.Resources:
     # Frozen discovery only when there is an `orphan_sources` key to check
     # against it: some scratch releases are miscounted on purpose.
     declared = json.loads(resources.resources_path(root).read_text()).get("orphan_sources")
-    every = inventory.discover(root).unit_ids() if declared else None
+    with mock.patch.dict(os.environ, scratch_release_env(root)):
+        every = inventory.discover(root).unit_ids() if declared else None
     return resources.load(root, inventory.discover_host(root), orphan_unit_ids=every)
 
 
@@ -3082,7 +3177,7 @@ class TestWriteBarrier(_ScratchCase):
 
     def test_a_transient_in_place_overwrite_is_the_documented_gap(self):
         scratch = scratch_checkout(self.tmp / "scratch")
-        target = scratch / SCRATCH_PAYLOAD / "scripts" / "tiny_test.py"
+        target = scratch / SCRATCH_TOOL
         before = tree.snapshot(scratch)
         with isolation.acquire_run_lock(scratch) as lock:
             barrier = isolation.apply_barrier(scratch, lock)
@@ -3119,7 +3214,7 @@ class TestWriteBarrier(_ScratchCase):
 
     def test_a_persistent_writer_is_reported_and_attributed(self):
         scratch = scratch_checkout(self.tmp / "scratch")
-        leak = scratch / SCRATCH_PAYLOAD / "leak.ignored"
+        leak = scratch / SCRATCH_TOOLS / "leak.ignored"
         tracked = scratch / "tools" / ".keep"
         before = tree.snapshot(scratch)
         run_started = time.time()
@@ -3145,14 +3240,14 @@ class TestWriteBarrier(_ScratchCase):
                                             run_dir=self.run_dir, timeout=60))
         run_ended = time.time()
         diffs = tree.compare(before, tree.snapshot(scratch))
-        self.assertEqual([d.path for d in diffs],
-                         [f"{SCRATCH_PAYLOAD}/leak.ignored", "tools/.keep"])
+        self.assertEqual(sorted(d.path for d in diffs),
+                         sorted([f"{SCRATCH_TOOLS}/leak.ignored", "tools/.keep"]))
         windows = [r.window for r in runs] + [isolation.Window("before-the-run", 0, 1)]
         attributed = isolation.attribute_integrity_diff(
             scratch, diffs, windows, run_started=run_started, run_ended=run_ended)
         by_path = {a.path: a for a in attributed}
-        self.assertEqual(by_path[f"{SCRATCH_PAYLOAD}/leak.ignored"].suspects, ("writer",))
-        self.assertEqual(by_path[f"{SCRATCH_PAYLOAD}/leak.ignored"].basis, "mtime")
+        self.assertEqual(by_path[f"{SCRATCH_TOOLS}/leak.ignored"].suspects, ("writer",))
+        self.assertEqual(by_path[f"{SCRATCH_TOOLS}/leak.ignored"].basis, "mtime")
         self.assertEqual(by_path["tools/.keep"].suspects, ("idle-1", "idle-2", "writer"))
         self.assertEqual(by_path["tools/.keep"].basis, "run")
 
@@ -3165,7 +3260,7 @@ class TestWriteBarrier(_ScratchCase):
                 run = isolation.run_chunk(scratch, "copier", _script_argv("""
                     import json, os, shutil, stat, sys
                     copy = os.path.join(os.environ["TMPDIR"], "copy")
-                    shutil.copytree(os.path.join(sys.argv[2], "distribution"), copy)
+                    shutil.copytree(os.path.join(sys.argv[2], "tools"), copy)
                     dirs = [d for d, _, _ in os.walk(copy)]
                     read_only = all(not os.stat(d).st_mode & stat.S_IWUSR for d in dirs)
                     try:
@@ -3173,8 +3268,7 @@ class TestWriteBarrier(_ScratchCase):
                         create = "created"
                     except PermissionError:
                         create = "PermissionError"
-                    existing = os.path.join(copy, "workflow", "0.0.1", "payload", "scripts",
-                                            "tiny_test.py")
+                    existing = os.path.join(copy, "scratch", "lib", "bin", "tiny_tool.py")
                     open(existing, "w").write("overwritten")
                     result = {"passed": True, "dirs": len(dirs), "read_only": read_only,
                               "create": create, "overwrite": open(existing).read()}
@@ -3188,7 +3282,7 @@ class TestWriteBarrier(_ScratchCase):
         self.assertEqual(run.record["create"], "PermissionError")
         self.assertEqual(run.record["overwrite"], "overwritten")
         self.assertIn("copy", run.tmp_residue)
-        self.assertIn("copy/workflow/0.0.1/payload/scripts/tiny_test.py", run.tmp_residue)
+        self.assertIn("copy/scratch/lib/bin/tiny_tool.py", run.tmp_residue)
         self.assertFalse(isolation.chunk_paths(self.run_dir, "copier").tmp.exists())
 
     def test_scratch_declarations_are_valid_and_lifting_follows_paths(self):
@@ -3203,14 +3297,14 @@ class TestWriteBarrier(_ScratchCase):
 
         chunk = plan_schema.ChunkDescriptor("excl", 0, (SCRATCH_EXCLUSIVE_UNIT,), 1.0,
                                             declared.resources_of(SCRATCH_EXCLUSIVE_UNIT))
-        self.assertEqual(isolation.lift_trees(declared, chunk), ("distribution/",))
+        self.assertEqual(isolation.lift_trees(declared, chunk), ("tools/",))
         with isolation.acquire_run_lock(scratch) as lock:
             barrier = isolation.apply_barrier(scratch, lock)
             try:
                 barrier.lift(isolation.lift_trees(declared, chunk))
                 for rel, mode in _guarded_modes(scratch).items():
                     with self.subTest(dir=rel):
-                        self.assertEqual(_writable(mode), rel.startswith("distribution"))
+                        self.assertEqual(_writable(mode), rel.startswith("tools"))
                 barrier.relock()
                 self.assertFalse(any(_writable(m) for m in _guarded_modes(scratch).values()))
                 with self.assertRaises(isolation.BarrierError):
@@ -3224,19 +3318,19 @@ class TestWriteBarrier(_ScratchCase):
         with isolation.acquire_run_lock(scratch) as lock:
             barrier = isolation.apply_barrier(scratch, lock)
             try:
-                barrier.lift(("distribution/",))
-                (scratch / "distribution" / "new").mkdir()
-                shutil.rmtree(scratch / SCRATCH_PAYLOAD / "scripts")
+                barrier.lift(("tools/",))
+                (scratch / "tools" / "new").mkdir()
+                shutil.rmtree(scratch / SCRATCH_TOOLS)
                 barrier.relock()
-                self.assertFalse(_writable(os.lstat(scratch / "distribution" / "new").st_mode))
+                self.assertFalse(_writable(os.lstat(scratch / "tools" / "new").st_mode))
                 marker = json.loads((isolation.state_dir(scratch) / "barrier.json").read_text())
-                self.assertIn("distribution/new", marker["modes"])
-                self.assertNotIn(f"{SCRATCH_PAYLOAD}/scripts", marker["modes"])
+                self.assertIn("tools/new", marker["modes"])
+                self.assertNotIn(SCRATCH_TOOLS, marker["modes"])
             finally:
                 isolation.restore_barrier(scratch, barrier)
-        self.assertTrue(_writable(os.lstat(scratch / "distribution" / "new").st_mode))
-        expected = {r: m for r, m in pre_modes.items() if not r.startswith(f"{SCRATCH_PAYLOAD}/scripts")}
-        expected["distribution/new"] = _guarded_modes(scratch)["distribution/new"]
+        self.assertTrue(_writable(os.lstat(scratch / "tools" / "new").st_mode))
+        expected = {r: m for r, m in pre_modes.items() if not r.startswith(SCRATCH_TOOLS)}
+        expected["tools/new"] = _guarded_modes(scratch)["tools/new"]
         self.assertEqual(_guarded_modes(scratch), expected)
 
 
@@ -3530,16 +3624,19 @@ class TestStaticLint(unittest.TestCase):
 
 def run_cli(scratch_root, *argv, env, timeout=600) -> subprocess.CompletedProcess:
     """`python3 <scratch>/tests/run_all.py ARGV` -- always a scratch checkout's own
-    runner, never the real one (5.9, "Tests and the lock")."""
+    runner, never the real one (5.9, "Tests and the lock"), on its own release
+    source and cache (`scratch_release_env`)."""
     return subprocess.run([sys.executable, str(scratch_root / "tests" / "run_all.py"),
                            *map(str, argv)], cwd=str(scratch_root), capture_output=True,
-                          text=True, env=env, timeout=timeout)
+                          text=True, env={**env, **scratch_release_env(scratch_root)},
+                          timeout=timeout)
 
 
 def start_cli(scratch_root, *argv, env) -> subprocess.Popen:
     return subprocess.Popen([sys.executable, str(scratch_root / "tests" / "run_all.py"),
                              *map(str, argv)], cwd=str(scratch_root), stdout=subprocess.PIPE,
-                            stderr=subprocess.PIPE, text=True, env=env)
+                            stderr=subprocess.PIPE, text=True,
+                            env={**env, **scratch_release_env(scratch_root)})
 
 
 def run_reproduction(scratch_root, command: str, *, env) -> subprocess.CompletedProcess:
@@ -3549,13 +3646,15 @@ def run_reproduction(scratch_root, command: str, *, env) -> subprocess.Completed
     assert words[:2] == ["python3", "tests/run_all.py"], command
     return subprocess.run([sys.executable, str(scratch_root / "tests" / "run_all.py"),
                            *words[2:]], cwd=str(scratch_root), capture_output=True, text=True,
-                          env=env, timeout=600)
+                          env={**env, **scratch_release_env(scratch_root)}, timeout=600)
 
 
 def main_in_process(scratch_root, *argv) -> tuple[int, str, str]:
-    """`cli.main` in this process, against a scratch checkout."""
+    """`cli.main` in this process, against a scratch checkout, on its own
+    release source and cache."""
     out, err = io.StringIO(), io.StringIO()
-    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err), \
+            mock.patch.dict(os.environ, scratch_release_env(scratch_root)):
         code = cli.main([str(a) for a in argv], repo_root=scratch_root)
     return code, out.getvalue(), err.getvalue()
 
@@ -3722,7 +3821,7 @@ class TestExitCodeContract(_CliCase):
     def test_setupclass_errors_import_crashes_and_builder_failures_are_1_not_2(self):
         cases = {"setupclass_error": {"suite": SCRATCH_SUITE_VARIANTS["setupclass_error"]},
                  "import_crash": {"suite": SCRATCH_SUITE_VARIANTS["import_crash"]},
-                 "builder_raises": {"damage_payload": True}}
+                 "builder_raises": {"no_gitignore_template": True}}
         for name, options in cases.items():
             with self.subTest(case=name):
                 scratch = scratch_checkout(self.tmp / name, **options)
@@ -4108,6 +4207,57 @@ def lock_reach_violations(source: str) -> list[str]:
     return violations
 
 
+#: The release cache this process was given (the runner's primed one),
+#: captured before any test moves `XDG_CACHE_HOME`.
+REAL_RELEASE_CACHE = release_source.cache_root()
+
+
+def _cache_listing(cache: Path) -> dict[str, tuple]:
+    """`{entry: (its `complete` marker's bytes and mtime)}` for a cache root:
+    enough to see an entry added, replaced or refetched."""
+    listing = {}
+    if cache.is_dir():
+        for entry in sorted(cache.iterdir()):
+            marker = entry / "complete"
+            listing[entry.name] = ((marker.read_bytes(), marker.stat().st_mtime_ns)
+                                   if marker.is_file() else None)
+    return listing
+
+
+class TestScratchReleaseIsolation(_CliCase):
+    """Plan 7.2.1: a scratch run primes and tests only its own pinned `0.0.1`,
+    from its own source into its own cache; the real pins never leak into it
+    and the real cache is untouched."""
+
+    def test_a_scratch_run_primes_and_tests_only_its_own_pin(self):
+        before = _cache_listing(REAL_RELEASE_CACHE)
+        scratch = scratch_checkout(self.tmp / "scratch")
+        proc = run_cli(scratch, "--results", self.tmp / "r", env=self.env)
+        self.assertEqual(proc.returncode, 0, proc.stdout[-3000:] + proc.stderr)
+        frozen = {u for u in _results(self.tmp / "r") if u.startswith("frozen:")}
+        self.assertTrue(frozen)
+        self.assertEqual({inventory.split_frozen_unit_id(u)[0] for u in frozen}, {"0.0.1"})
+        private = Path(scratch_release_env(scratch)[release_source.CACHE_ENV])
+        self.assertEqual(sorted(p.name for p in private.iterdir()), ["0.0.1", "0.0.1.lock"])
+        self.assertEqual(_cache_listing(REAL_RELEASE_CACHE), before)
+        self.assertNotIn("0.0.1", before)
+
+    def test_a_pin_that_cannot_be_primed_is_exit_2_naming_the_cache_and_the_source(self):
+        scratch = scratch_checkout(self.tmp / "scratch")
+        shutil.rmtree(scratch_releases(scratch) / "source")
+        env = scratch_release_env(scratch)
+        proc = run_cli(scratch, "--list", env=self.env)
+        assert_refusal(self, proc.returncode, proc.stderr, "PrimingError")
+        self.assertIn(env[release_source.CACHE_ENV], proc.stderr)
+        self.assertIn(env[release_source.SOURCE_ENV], proc.stderr)
+        self.assertIn("ReleaseUnavailableError", proc.stderr)
+
+    def test_the_scratch_exclusive_lock_holds_tools_a_tree_that_outlives_cp6(self):
+        declared = SCRATCH_RESOURCES["resources"]["repo:tools"]["paths"]
+        self.assertEqual(declared, ["tools/"])
+        self.assertIn("tools/", resources.GUARDED_TREES)
+
+
 class TestTestTreeHygiene(_CliCase):
 
     def test_the_scratch_checkout_refuses_the_real_one_and_builds_a_release(self):
@@ -4116,8 +4266,30 @@ class TestTestTreeHygiene(_CliCase):
                 scratch_checkout(root)
         scratch = scratch_checkout(self.tmp / "scratch")
         self.assertNotEqual(isolation.git_dir(scratch), isolation.git_dir(REPO_ROOT))
-        release = find_release(scratch, "0.0.1")
-        self.assertEqual(release.verify(), [])
+        # `support.release` in the scratch's own environment resolves its one
+        # pin through its own source and cache, never the real ones.
+        env = scratch_release_env(scratch)
+        proc = subprocess.run(
+            [sys.executable, "-B", "-c", "import json, support; r = support.release('0.0.1'); "
+             "print(json.dumps([support.PINNED_VERSIONS, r.version, r.verify(), r.source]))"],
+            cwd=str(scratch / "tests"), capture_output=True, text=True,
+            env={**os.environ, **env})
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertEqual(json.loads(proc.stdout), [["0.0.1"], "0.0.1", [], {
+            "kind": "package", "repository": "scratch/workflow",
+            "archive": "workflow-0.0.1.tar.gz",
+            "sha256": release_source.load_pins(
+                scratch / "src" / "workflow_manager" / "published_releases.json"
+            ).get("0.0.1").sha256}])
+        cache = Path(env[release_source.CACHE_ENV])
+        self.assertTrue((cache / "0.0.1" / "complete").is_file())
+        self.assertFalse((release_source.cache_root() / "0.0.1").exists())
+        pins = release_source.load_pins(scratch / "src" / "workflow_manager" /
+                                        "published_releases.json")
+        release = release_source.ReleaseCache(
+            cache, release_source.ReleaseSource(env[release_source.SOURCE_ENV]),
+            pins).resolve("0.0.1")
+        self.addCleanup(release.close)
         repo = build_conformance_repo(release, self.tmp / "fixture")
         self.assertTrue((repo / "scripts" / "tiny_test.py").is_file())
         self.assertEqual(support.run_suite(repo, "tiny_test.py").returncode, 0)
@@ -4816,7 +4988,7 @@ def run_ci_step(scratch_root, job: str, *, runner_temp: Path, env: dict, step_en
                              f"the test supplies {sorted(step_env)}")
     bin_dir = _python3_on_path(Path(runner_temp).parent / "bin")
     full = dict(env, RUNNER_TEMP=str(runner_temp), PATH=bin_dir + os.pathsep + env["PATH"],
-                **step_env, **(github_env or {}))
+                **step_env, **(github_env or {}), **scratch_release_env(scratch_root))
     return subprocess.run(["bash", "--noprofile", "--norc", "-eo", "pipefail", "-c", step["run"]],
                           cwd=str(scratch_root), capture_output=True, text=True, env=full,
                           timeout=600)

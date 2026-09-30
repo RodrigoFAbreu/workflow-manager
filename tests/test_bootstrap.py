@@ -19,7 +19,8 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from support import REPO_ROOT, cli_env
+import support
+from support import NEWEST_RELEASE, REPO_ROOT, cli_env
 
 import workflow_manager.cli as cli_module
 import workflow_manager.install as install_module
@@ -57,6 +58,9 @@ from workflow_manager.release import (
 )
 
 FIXED_NOW = "2026-01-01T00:00:00Z"
+#: A synthetic release above every pinned one (plan 7.2), so the "next"
+#: release is never lower than the installed one.
+NEXT_RELEASE = support.next_version(NEWEST_RELEASE)
 
 
 def empty_repo(root: Path) -> Path:
@@ -66,7 +70,7 @@ def empty_repo(root: Path) -> Path:
 
 class BootstrapCase(unittest.TestCase):
     def setUp(self):
-        self.release = find_release(REPO_ROOT, "2.3.1")
+        self.release = support.release(NEWEST_RELEASE)
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
         self.target = empty_repo(Path(self._tmp.name) / "target")
@@ -82,7 +86,7 @@ class TestRecognition(BootstrapCase):
         self.assertTrue(is_managed(self.target))
         result = status(self.target, self.release)
         self.assertTrue(result.managed)
-        self.assertEqual(result.workflow_version, "2.3.1")
+        self.assertEqual(result.workflow_version, NEWEST_RELEASE)
 
     def test_bootstrapping_twice_is_refused(self):
         bootstrap(self.target, self.release, now=FIXED_NOW)
@@ -116,7 +120,7 @@ class TestInstalledLayout(BootstrapCase):
         self.assertTrue(path.stat().st_mode & 0o111)
 
     def test_the_layout_dependent_verifiers_kept_their_depth(self):
-        """Frozen v2.3.1 resolves the repository root from these files as
+        """The frozen releases resolve the repository root from these files as
         `parents[3]`. Installing them anywhere else breaks the suite."""
         for name in ("verify_372h_lock_primitive_predicate.py",
                      "verify_372h_raw_edge_derivation.py"):
@@ -481,7 +485,7 @@ def synthesize_next_release(source: Release, dest: Path, version: str,
             continue
         data = source.read(record["location"])
         if record["target_path"] == changed:
-            data = data + b"\n<!-- v2.3.2 note -->\n"
+            data = data + f"\n<!-- v{version} note -->\n".encode()
             record["sha256"] = sha256(data)
             record["size"] = len(data)
         out = dest / record["location"]
@@ -490,7 +494,7 @@ def synthesize_next_release(source: Release, dest: Path, version: str,
         out.chmod(0o755 if record["executable"] else 0o644)
         artifacts.append(record)
 
-    added_data = b"# added in 2.3.2\n"
+    added_data = f"# added in {version}\n".encode()
     added = {
         "upstream_path": "docs/ai-workflow/WHATS_NEW.md",
         "target_path": "docs/ai-workflow/WHATS_NEW.md",
@@ -509,11 +513,11 @@ def synthesize_next_release(source: Release, dest: Path, version: str,
     for record in manifest["templates"]:
         data = source.read(record["location"])
         if record["target_path"] == "docs/ACTIVE_MILESTONE.md":
-            data = b"# Active Milestone\n\nNone. (2.3.2 wording.)\n"
+            data = f"# Active Milestone\n\nNone. ({version} wording.)\n".encode()
             record["sha256"] = sha256(data)
             record["size"] = len(data)
         elif change_ci and record["target_path"] in RELEASE_TEMPLATES:
-            data = data + b"\n# runs the 2.3.2 suites\n"
+            data = data + f"\n# runs the {version} suites\n".encode()
             record["sha256"] = sha256(data)
             record["size"] = len(data)
         out = dest / record["location"]
@@ -535,7 +539,7 @@ class TestReleaseToReleaseUpdate(BootstrapCase):
         super().setUp()
         bootstrap(self.target, self.release, now=FIXED_NOW)
         self.next_release = synthesize_next_release(
-            self.release, Path(self._tmp.name) / "release-2.3.2", "2.3.2",
+            self.release, Path(self._tmp.name) / f"release-{NEXT_RELEASE}", NEXT_RELEASE,
         )
         # Repository-local work this update must not cost anyone.
         self.state = self.target / "docs/ai-workflow/WORKFLOW_STATE.json"
@@ -551,8 +555,8 @@ class TestReleaseToReleaseUpdate(BootstrapCase):
 
     def test_the_update_moves_the_recorded_version(self):
         updated, _ = update(self.target, self.next_release, now="2027-01-01T00:00:00Z")
-        self.assertEqual(updated.workflow_version, "2.3.2")
-        self.assertEqual(Installation.read(self.target).workflow_version, "2.3.2")
+        self.assertEqual(updated.workflow_version, NEXT_RELEASE)
+        self.assertEqual(Installation.read(self.target).workflow_version, NEXT_RELEASE)
 
     def test_added_changed_and_dropped_files_are_all_handled(self):
         _, changes = update(self.target, self.next_release, now="2027-01-01T00:00:00Z")
@@ -561,7 +565,7 @@ class TestReleaseToReleaseUpdate(BootstrapCase):
         self.assertIn(f"added {self.ADDED}", changes)
         self.assertFalse((self.target / self.DROPPED).exists())
         self.assertTrue((self.target / self.ADDED).exists())
-        self.assertIn("v2.3.2 note", (self.target / self.CHANGED).read_text())
+        self.assertIn(f"v{NEXT_RELEASE} note", (self.target / self.CHANGED).read_text())
 
     def test_repository_local_state_is_untouched(self):
         update(self.target, self.next_release, now="2027-01-01T00:00:00Z")
@@ -573,10 +577,10 @@ class TestReleaseToReleaseUpdate(BootstrapCase):
         )
 
     def test_a_changed_template_does_not_rewrite_existing_state(self):
-        """2.3.2 ships a different `ACTIVE_MILESTONE.md` default. A repository
+        """The next release ships a different `ACTIVE_MILESTONE.md` default. A repository
         that already has one keeps its own."""
         update(self.target, self.next_release, now="2027-01-01T00:00:00Z")
-        self.assertNotIn("2.3.2 wording", self.checklist.read_text())
+        self.assertNotIn(f"{NEXT_RELEASE} wording", self.checklist.read_text())
 
     def test_the_updated_repository_verifies_against_the_new_release(self):
         update(self.target, self.next_release, now="2027-01-01T00:00:00Z")
@@ -755,7 +759,7 @@ class TestBootstrapDoesNotClobberTheRepositorysOwnFiles(BootstrapCase):
 
     def test_an_update_that_adds_a_file_the_repository_owns_stops_too(self):
         bootstrap(self.target, self.release, now=FIXED_NOW)
-        nxt = synthesize_next_release(self.release, Path(self._tmp.name) / "r2", "2.3.2")
+        nxt = synthesize_next_release(self.release, Path(self._tmp.name) / "r2", NEXT_RELEASE)
         mine = self.target / "docs/ai-workflow/WHATS_NEW.md"
         mine.write_text("# mine\n")
         with self.assertRaises(CollisionError):
@@ -824,7 +828,7 @@ class TestInterruptedOperationsAreRerunnable(BootstrapCase):
         """The half-applied files are the new release's own bytes. Calling them
         local edits would leave `--force` -- which discards edits -- as the only
         way forward."""
-        nxt = synthesize_next_release(self.release, Path(self._tmp.name) / "r2", "2.3.2",
+        nxt = synthesize_next_release(self.release, Path(self._tmp.name) / "r2", NEXT_RELEASE,
                                       change_ci=True)
         counted = self._managed_repo_with_live_state("update-count")
         with self._interrupted_at(0) as calls:
@@ -839,11 +843,11 @@ class TestInterruptedOperationsAreRerunnable(BootstrapCase):
                 with self._interrupted_at(nth):
                     with self.assertRaises(KeyboardInterrupt):
                         update(target, nxt, now="2027-01-01T00:00:00Z")
-                self.assertEqual(Installation.read(target).workflow_version, "2.3.1",
+                self.assertEqual(Installation.read(target).workflow_version, NEWEST_RELEASE,
                                  "the record must not claim a release that is half applied")
 
                 updated, _ = update(target, nxt, now="2027-01-02T00:00:00Z")
-                self.assertEqual(updated.workflow_version, "2.3.2")
+                self.assertEqual(updated.workflow_version, NEXT_RELEASE)
                 self.assertEqual(drift(target, nxt), [])
                 self.assertEqual(verify(target, nxt), [])
                 self.assertEqual(state.read_text(), self.LIVE_STATE)
@@ -851,7 +855,7 @@ class TestInterruptedOperationsAreRerunnable(BootstrapCase):
     def test_a_genuine_local_edit_still_blocks_a_resumed_update(self):
         """Resumability must not become a way to lose an edit."""
         bootstrap(self.target, self.release, now=FIXED_NOW)
-        nxt = synthesize_next_release(self.release, Path(self._tmp.name) / "r2", "2.3.2")
+        nxt = synthesize_next_release(self.release, Path(self._tmp.name) / "r2", NEXT_RELEASE)
         path = self.target / "scripts/workflow_state.py"
         path.write_text(path.read_text() + "\n# mine\n")
         with self.assertRaises(DriftError):
@@ -935,11 +939,11 @@ class TestTheConformanceCiIsReleaseOwned(BootstrapCase):
 
     def test_a_new_release_updates_it(self):
         bootstrap(self.target, self.release, now=FIXED_NOW)
-        nxt = synthesize_next_release(self.release, Path(self._tmp.name) / "r2", "2.3.2",
+        nxt = synthesize_next_release(self.release, Path(self._tmp.name) / "r2", NEXT_RELEASE,
                                       change_ci=True)
         _, changes = update(self.target, nxt, now=FIXED_NOW)
         self.assertIn(f"updated {self.CI}", changes)
-        self.assertIn("2.3.2 suites", (self.target / self.CI).read_text())
+        self.assertIn(f"{NEXT_RELEASE} suites", (self.target / self.CI).read_text())
         self.assertEqual(drift(self.target, nxt), [])
 
     def test_the_runtime_profile_does_not_install_it(self):
@@ -975,7 +979,7 @@ class _PackagedReleases(BootstrapCase):
         super().setUpClass()
         cls._class_tmp = tempfile.TemporaryDirectory()
         root = Path(cls._class_tmp.name)
-        base = find_release(REPO_ROOT, "2.3.1")
+        base = support.release(NEWEST_RELEASE)
         cls.source_dir = root / "source"
         releases = {}
         for version in cls.PINNED:
@@ -1093,6 +1097,7 @@ class TestReleaseResolution(_PackagedReleases):
         bootstrap(self.target, self.release, now=FIXED_NOW)
         record = Installation.read(self.target)
         record.workflow_version = "9.9.9"
+        record.source = None
         record.write(self.target)
         self.assertEqual(self._cli("status", str(self.target)), 1)
         self.assertIn("workflow 9.9.9 (full profile)", self.cli_stdout)
@@ -1272,15 +1277,16 @@ class TestDiscoveryApi(BootstrapCase):
         self.manager_root = Path(self._tmp.name) / "manager"
         base = release_root(self.manager_root)
         base.mkdir(parents=True)
-        (base / "2.3.1").symlink_to(self.release.root)
-        synthesize_next_release(self.release, base / "2.3.2", "2.3.2")
+        (base / NEWEST_RELEASE).symlink_to(self.release.root)
+        synthesize_next_release(self.release, base / NEXT_RELEASE, NEXT_RELEASE)
 
     def test_available_versions_are_ordered_oldest_first(self):
-        self.assertEqual(available_versions(self.manager_root), ["2.3.1", "2.3.2"])
+        self.assertEqual(available_versions(self.manager_root), [NEWEST_RELEASE, NEXT_RELEASE])
 
     def test_an_unpinned_release_means_the_newest(self):
-        self.assertEqual(find_release(self.manager_root).version, "2.3.2")
-        self.assertEqual(find_release(self.manager_root, "2.3.1").version, "2.3.1")
+        self.assertEqual(find_release(self.manager_root).version, NEXT_RELEASE)
+        self.assertEqual(find_release(self.manager_root, NEWEST_RELEASE).version,
+                         NEWEST_RELEASE)
 
 
 class TestStatusNeverClaimsCleanWithoutLooking(BootstrapCase):

@@ -8,42 +8,6 @@
     }
   },
   "orphan_sources": {
-    "frozen:2.3.1/bootstrapped/workflow_state_completion_obligations_test.py::TestStateLock": {
-      "reason": "frozen code (unchangeable): TestStateLock starts multiprocessing workers with the default context, which on Python 3.14 is forkserver; the forkserver and resource tracker it starts exit only after the chunk does, re-parented to its wrapper"
-    },
-    "frozen:2.3.1/conformance/workflow_state_completion_obligations_test.py::TestStateLock": {
-      "reason": "frozen code (unchangeable): TestStateLock starts multiprocessing workers with the default context, which on Python 3.14 is forkserver; the forkserver and resource tracker it starts exit only after the chunk does, re-parented to its wrapper"
-    },
-    "frozen:2.3.1/target/workflow_state_completion_obligations_test.py::TestStateLock": {
-      "reason": "frozen code (unchangeable): TestStateLock starts multiprocessing workers with the default context, which on Python 3.14 is forkserver; the forkserver and resource tracker it starts exit only after the chunk does, re-parented to its wrapper"
-    },
-    "frozen:2.4.0/bootstrapped/workflow_state_completion_obligations_test.py::TestStateLock": {
-      "reason": "frozen code (unchangeable): TestStateLock starts multiprocessing workers with the default context, which on Python 3.14 is forkserver; the forkserver and resource tracker it starts exit only after the chunk does, re-parented to its wrapper"
-    },
-    "frozen:2.4.0/conformance/workflow_state_completion_obligations_test.py::TestStateLock": {
-      "reason": "frozen code (unchangeable): TestStateLock starts multiprocessing workers with the default context, which on Python 3.14 is forkserver; the forkserver and resource tracker it starts exit only after the chunk does, re-parented to its wrapper"
-    },
-    "frozen:2.4.0/target/workflow_state_completion_obligations_test.py::TestStateLock": {
-      "reason": "frozen code (unchangeable): TestStateLock starts multiprocessing workers with the default context, which on Python 3.14 is forkserver; the forkserver and resource tracker it starts exit only after the chunk does, re-parented to its wrapper"
-    },
-    "frozen:2.5.0/bootstrapped/workflow_state_completion_obligations_test.py::TestStateLock": {
-      "reason": "frozen code (unchangeable): TestStateLock starts multiprocessing workers with the default context, which on Python 3.14 is forkserver; the forkserver and resource tracker it starts exit only after the chunk does, re-parented to its wrapper"
-    },
-    "frozen:2.5.0/conformance/workflow_state_completion_obligations_test.py::TestStateLock": {
-      "reason": "frozen code (unchangeable): TestStateLock starts multiprocessing workers with the default context, which on Python 3.14 is forkserver; the forkserver and resource tracker it starts exit only after the chunk does, re-parented to its wrapper"
-    },
-    "frozen:2.5.0/target/workflow_state_completion_obligations_test.py::TestStateLock": {
-      "reason": "frozen code (unchangeable): TestStateLock starts multiprocessing workers with the default context, which on Python 3.14 is forkserver; the forkserver and resource tracker it starts exit only after the chunk does, re-parented to its wrapper"
-    },
-    "frozen:2.5.1/bootstrapped/workflow_state_completion_obligations_test.py::TestStateLock": {
-      "reason": "frozen code (unchangeable): TestStateLock starts multiprocessing workers with the default context, which on Python 3.14 is forkserver; the forkserver and resource tracker it starts exit only after the chunk does, re-parented to its wrapper"
-    },
-    "frozen:2.5.1/conformance/workflow_state_completion_obligations_test.py::TestStateLock": {
-      "reason": "frozen code (unchangeable): TestStateLock starts multiprocessing workers with the default context, which on Python 3.14 is forkserver; the forkserver and resource tracker it starts exit only after the chunk does, re-parented to its wrapper"
-    },
-    "frozen:2.5.1/target/workflow_state_completion_obligations_test.py::TestStateLock": {
-      "reason": "frozen code (unchangeable): TestStateLock starts multiprocessing workers with the default context, which on Python 3.14 is forkserver; the forkserver and resource tracker it starts exit only after the chunk does, re-parented to its wrapper"
-    },
     "frozen:2.6.0/bootstrapped/workflow_state_completion_obligations_test.py::TestStateLock": {
       "reason": "frozen code (unchangeable): TestStateLock starts multiprocessing workers with the default context, which on Python 3.14 is forkserver; the forkserver and resource tracker it starts exit only after the chunk does, re-parented to its wrapper"
     },
@@ -51,6 +15,9 @@
       "reason": "frozen code (unchangeable): TestStateLock starts multiprocessing workers with the default context, which on Python 3.14 is forkserver; the forkserver and resource tracker it starts exit only after the chunk does, re-parented to its wrapper"
     },
     "frozen:2.6.0/target/workflow_state_completion_obligations_test.py::TestStateLock": {
+      "reason": "frozen code (unchangeable): TestStateLock starts multiprocessing workers with the default context, which on Python 3.14 is forkserver; the forkserver and resource tracker it starts exit only after the chunk does, re-parented to its wrapper"
+    },
+    "frozen:2.6.0/updated/workflow_state_completion_obligations_test.py::TestStateLock": {
       "reason": "frozen code (unchangeable): TestStateLock starts multiprocessing workers with the default context, which on Python 3.14 is forkserver; the forkserver and resource tracker it starts exit only after the chunk does, re-parented to its wrapper"
     },
     "host:test_orphan_processes.py::TestKilledChunks": {

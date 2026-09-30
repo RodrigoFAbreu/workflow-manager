@@ -23,7 +23,8 @@ chunk that left undeclared orphaned processes (`OrphanProcessError`), a Linux
 chunk without the orphan check (`OrphanCheckUnavailableError`), a declared
 frozen orphan source sharing a chunk (`OrphanDeclarationError`), a
 repository-integrity violation, another run holding this checkout's run
-lock, a refused root run) or a usage error (among them an inherited
+lock, a refused root run, a pinned release that cannot be put in the release
+cache (`PrimingError`)) or a usage error (among them an inherited
 `GIT_CONFIG_*` environment the chunk environment cannot extend,
 `GitConfigEnvError`, refused before any chunk starts). Every exit-2 refusal prints
 `run_all: error[<ErrorName>]: ...` as its first stderr line.
@@ -32,7 +33,9 @@ Order: arguments, path flags (never inside the repository) and `--select`
 syntax are checked first, reading nothing but argv and `git rev-parse`; only
 then is the checkout run lock taken (every mode takes it), and a barrier a
 dead run left behind recovered; everything after that happens under the
-lock.
+lock. Every mode but `--restore-barrier` then primes the release cache with
+every pinned version and exports it to discovery and to every unit (plan
+7.1).
 """
 
 from __future__ import annotations
@@ -43,7 +46,7 @@ import sys
 import traceback
 from pathlib import Path
 
-from . import executor, inventory, isolation, planner, report
+from . import executor, inventory, isolation, planner, priming, report
 from . import resources as resources_mod
 from .timings import PROFILES
 
@@ -63,7 +66,7 @@ FAST_ALIAS_SELECTION = (
 #: Exceptions reported as tagged exit-2 refusals.
 REFUSALS = (inventory.SelectSyntaxError, inventory.UnknownSelectorError,
             inventory.InventoryError, planner.PlanError, resources_mod.ResourcesFileError,
-            isolation.IsolationError, executor.ExecutorError)
+            isolation.IsolationError, executor.ExecutorError, priming.PrimingError)
 
 
 class PathInsideRepositoryError(ValueError):
@@ -296,30 +299,37 @@ def _main(argv, *, repo_root: Path) -> int:
             if not restored:
                 _out("no write barrier to restore")
             return 0
-        if mode == "list":
-            return executor.list_units(repo_root, lock, specs=parsed, out=_out)
-        if mode == "plan_only":
-            return executor.plan_only(repo_root, lock, specs=parsed,
-                                      profile=args.profile or "local", out_path=args.out,
-                                      shards=args.shards, whole_groups=args.whole_groups,
-                                      out=_out)
-        if mode == "run_shard":
-            return executor.run_shard(repo_root, lock, index=args.run_shard,
-                                      plan_path=args.plan, results=args.results,
-                                      allow_root=args.allow_root, out=_out, err=_err)
-        if mode == "aggregate":
-            return executor.aggregate(repo_root, lock, results_root=args.aggregate,
-                                      plan_path=args.plan, allow_root=args.allow_root,
-                                      out=_out, err=_err)
-        if mode == "update_timings":
-            return executor.update_timings(repo_root, lock, profile=args.profile,
-                                           sources=args.sources, out=_out, err=_err)
-        return executor.local_run(repo_root, lock, specs=parsed, jobs=args.jobs,
-                                  shuffle_seed=args.shuffle_seed,
-                                  whole_groups=args.whole_groups, allow_root=args.allow_root,
-                                  results=args.results, out=_out, err=_err)
+        primed = priming.prime(repo_root)
+        with priming.exported(primed["cache"]):
+            return _dispatch(mode, args, parsed, repo_root, lock)
     except REFUSALS as exc:
         return refuse(exc)
     finally:
         lock.release()
+
+
+def _dispatch(mode, args, parsed, repo_root: Path, lock) -> int:
+    """Run `mode` with the release cache primed and exported."""
+    if mode == "list":
+        return executor.list_units(repo_root, lock, specs=parsed, out=_out)
+    if mode == "plan_only":
+        return executor.plan_only(repo_root, lock, specs=parsed,
+                                  profile=args.profile or "local", out_path=args.out,
+                                  shards=args.shards, whole_groups=args.whole_groups,
+                                  out=_out)
+    if mode == "run_shard":
+        return executor.run_shard(repo_root, lock, index=args.run_shard,
+                                  plan_path=args.plan, results=args.results,
+                                  allow_root=args.allow_root, out=_out, err=_err)
+    if mode == "aggregate":
+        return executor.aggregate(repo_root, lock, results_root=args.aggregate,
+                                  plan_path=args.plan, allow_root=args.allow_root,
+                                  out=_out, err=_err)
+    if mode == "update_timings":
+        return executor.update_timings(repo_root, lock, profile=args.profile,
+                                       sources=args.sources, out=_out, err=_err)
+    return executor.local_run(repo_root, lock, specs=parsed, jobs=args.jobs,
+                              shuffle_seed=args.shuffle_seed,
+                              whole_groups=args.whole_groups, allow_root=args.allow_root,
+                              results=args.results, out=_out, err=_err)
 

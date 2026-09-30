@@ -185,7 +185,7 @@ def release_workflow_problems(doc: dict, verify_name: str) -> list[str]:
     need("--manager-root" not in steps[package]["run"],
          "the build names a checkout: the wheel resolves releases through its pins")
     need("published_releases.json" in steps[publish]["run"]
-         and "distribution/workflow" not in steps[publish]["run"],
+         and "distribution/" not in steps[publish]["run"],
          "the release notes do not list the pinned Workflow releases")
     need("--target \"$TARGET_SHA\"" in steps[publish]["run"],
          "the release is not created at the resolved target")
@@ -386,7 +386,8 @@ def run_assert_full_plan(scratch: Path, plan: Path, env: dict) -> subprocess.Com
     with `scratch`'s own runner."""
     return subprocess.run([sys.executable, str(RELEASE_PY), "assert-full-plan", "--repo-dir",
                            str(scratch), str(plan)], cwd=str(scratch), capture_output=True,
-                          text=True, env=env, timeout=600)
+                          text=True, env={**env, **runner_tests.scratch_release_env(scratch)},
+                          timeout=600)
 
 
 def full_plan_units(plan: Path) -> dict:

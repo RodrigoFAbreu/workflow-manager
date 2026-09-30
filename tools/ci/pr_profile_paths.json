@@ -167,6 +167,21 @@
       "reason": "M2's packages reproduce the committed releases (plan 13: full until CP6 removes this file)"
     },
     {
+      "path": "tests/test_update_path.py",
+      "profile": "full",
+      "reason": "the updated fixture's matrix host class lives here (plan 13: full until CP6 removes this file)"
+    },
+    {
+      "path": "tests/test_authored_release_tools.py",
+      "profile": "full",
+      "reason": "checks the authored-release tools and distribution/ (plan 13: full until CP6 removes this file)"
+    },
+    {
+      "path": "tests/portability_exceptions.json",
+      "profile": "full",
+      "reason": "portability exceptions set frozen expectations (moved from migration/ by M2's CP5)"
+    },
+    {
       "path": "tests/test_release_versioning.py",
       "profile": "newest-release",
       "reason": "host test module, which runs in every profile"

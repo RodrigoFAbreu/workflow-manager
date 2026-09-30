@@ -39,7 +39,6 @@ import io
 import json
 import os
 import re
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -49,7 +48,7 @@ import unittest
 import unittest.mock
 from pathlib import Path
 
-from support import CI_SUITES, REPO_ROOT
+from support import CI_SUITES, NEWEST_RELEASE, REPO_ROOT
 
 import test_parallel_runner as runner_tests
 import test_release_workflows as release_tests
@@ -237,11 +236,11 @@ class TestTheFullSelectionIsUnchanged(unittest.TestCase):
         inv = inventory.discover(REPO_ROOT)
         self.assert_same_as_base(inv.host, inv.frozen)
         frozen = inv.frozen.units()
-        # Every frozen unit of every release and fixture, at its pinned count.
+        # Every frozen unit of the matrix's release and every fixture.
         self.assertEqual(len(frozen), len(matrix.FIXTURES) * sum(
-            len(classes) for version in CI_SUITES
+            len(classes) for version in inv.frozen.classes
             for classes in inv.frozen.classes[version].values()))
-        self.assertEqual(set(inv.frozen.ci_suites), set(CI_SUITES))
+        self.assertEqual(set(inv.frozen.ci_suites), {NEWEST_RELEASE})
 
 
 class TestTheLiveNewestReleaseSelection(unittest.TestCase):
@@ -253,7 +252,7 @@ class TestTheLiveNewestReleaseSelection(unittest.TestCase):
         newest = max(CI_SUITES, key=_numeric)
         self.assertEqual(inventory.newest_release(inv.frozen), newest)
         kept = sorted(u for u, (v, _) in matrix.FROZEN_MATRIX.items() if v == newest)
-        self.assertEqual(len(kept), 3)
+        self.assertEqual(len(kept), len(matrix.FIXTURES))
         self.assertTrue(set(kept) <= set(chosen.host_unit_ids()))
         self.assertFalse(chosen.partial_frozen)
 
@@ -307,10 +306,11 @@ class TestARealListRun(runner_tests._CliCase):  # noqa: SLF001
 
     def make_scratch(self) -> Path:
         scratch = runner_tests.scratch_checkout(self.tmp / "scratch")
-        workflow = scratch / "distribution" / "workflow"
         rows = {runner_tests.SCRATCH_MATRIX_UNIT: ("0.0.1", "conformance")}
         for version in self.VERSIONS[1:]:
-            shutil.copytree(workflow / "0.0.1", workflow / version)
+            runner_tests.publish_synthetic_release(
+                scratch, runner_tests.scratch_releases(scratch), runner_tests.SCRATCH_SUITE,
+                version=version)
             tag = version.replace(".", "")
             module = f"test_scratch_matrix{tag}.py"
             (scratch / "tests" / module).write_text(
@@ -873,7 +873,12 @@ class TestAssertFullPlanRefusesTheStopgap(runner_tests._CliCase):  # noqa: SLF00
 # -- CP7: where M2 finds the stopgap (plan 6.7) ---------------------------------------
 
 MARKER = "STOPGAP(M2)"
-STOPGAP_IDENTIFIERS = ("newest-release", "newest_release", "NEWEST_RELEASE", "choose_profile",
+#: The stopgap's own names. `tests/support.py`'s `NEWEST_RELEASE` (the matrix's
+#: release, plan 7.1) is permanent and shares only the bare name, so the
+#: stopgap's uses of it are matched in their qualified forms.
+STOPGAP_IDENTIFIERS = ("newest-release", "newest_release_only", "newest_release(",
+                       "select_newest_release", "NEWEST_RELEASE_KIND",
+                       "inventory.NEWEST_RELEASE", "NEWEST_RELEASE = Spec", "choose_profile",
                        "nightly_alarm", "nightly-alarm", "nightly-red", "pr_profile_paths")
 YAML_MARKER = re.compile(r"^\s*# STOPGAP\(M2\)", re.MULTILINE)
 LIST_BEGIN = "<!-- stopgap-marked-files:begin -->"

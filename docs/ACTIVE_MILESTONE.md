@@ -14,8 +14,9 @@ Full plan: `docs/ai-workflow/WORKFLOW_MANAGER_PACKAGED_DISTRIBUTION_PLAN.md`.
 ## Current checkpoint
 
 CP1 (package format), CP2 (release source, pins and verified cache), CP3
-(CLI and install record) and CP4 (the five packages, the pins and Manager
-packaging) are complete. Next: CP5 (the test suite on the release cache).
+(CLI and install record), CP4 (the five packages, the pins and Manager
+packaging) and CP5 (the test suite on the release cache) are complete.
+Next: CP6 (removal).
 
 ## Current blockers
 
@@ -30,7 +31,7 @@ revision 9. Registry:
 
 ## Next action
 
-`/milestone-implement workflow-manager-packaged-distribution` for CP5.
+`/milestone-implement workflow-manager-packaged-distribution` for CP6.
 
 ## Checkpoint log
 
@@ -273,6 +274,94 @@ revision 9. Registry:
   units, 25,828 tests, `selection_digest f66d59fe...`, `tests_digest
   be0b5900...`, verdict exit 0, wall 398 s (20 declared orphan-source
   chunks tolerated).
+
+### CP5 -- the test suite on the release cache (complete)
+
+- **Tested releases (7.1):** `tests/support.py` computes `PINNED_VERSIONS`,
+  `NEWEST_RELEASE` (`2.6.0`) and `UPGRADE_FROM` (`2.5.1`; `None` with one
+  pin) from the pin file at import, and `release(v)` resolves a pinned
+  release through the cache as a verified snapshot, memoized per process;
+  `next_version(v)` gives the synthetic next release. `CI_SUITES` and
+  `tests/portability_exceptions.json` (moved from `migration/`, every
+  entry unchanged) keep all five versions as frozen records.
+- **Matrix:** `tests/parallel/matrix.py` names four unversioned classes, all
+  on `NEWEST_RELEASE`: `TestConformanceFixture`, `TestBootstrappedTarget`,
+  `TestBootstrappedRepositorySatisfiesTheFrozenSuite` and the new
+  `test_update_path.py::TestUpdatedRepositorySatisfiesTheFrozenSuite`
+  (omitted with one pin). `frozen_runs.py` gains the `updated` fixture
+  (`build_updated_repo`: bootstrap `UPGRADE_FROM`, commit, `update`,
+  commit; `NoUpgradeSourceError` with one pin), post-run residue/drift for
+  it, and reads every release and `release_digest(version)` through
+  `support.release`. Frozen discovery loads suites from the snapshot.
+  1,244 frozen units (4 x 311).
+- **Priming:** new `tests/parallel/priming.py`. Every mode except
+  `--restore-barrier` resolves every pinned version with
+  `ReleaseCache.ensure` in a subprocess on the checkout's own `src/` and pins,
+  then exports `WORKFLOW_MANAGER_RELEASE_CACHE` for discovery and every
+  unit. A failure is `PrimingError`, exit 2, naming the cache and the source.
+- **Module rework (7.2):** `test_conformance_suite.py` split: the matrix
+  classes plus `TestAuthoredReleaseCiTemplateSuiteNames` (every pinned
+  version except `2.3.1`, through `support.release`), the new
+  `TestPinnedVersionsCarryTheirRecords` (pins = `CI_SUITES` keys = exception
+  keys) and `TestPortabilityExceptions250RequiredEmptyEntry` stay; the tool
+  classes moved to the new `tests/test_authored_release_tools.py` (CP6
+  deletes it). `test_bootstrap.py` runs on `NEWEST_RELEASE`, with
+  `NEXT_RELEASE` as the synthetic next release. `test_bootstrap_e2e.py`
+  (mixin gains `FIXTURE`; live-state update on the newest pin; the default
+  is the newest pin). `test_internal_references.py`,
+  `test_disposable_repo_fixtures.py`, `test_squash_merge_compat.py` (no
+  `--manager-root`), `test_orphan_processes.py` and
+  `test_workflow_2_6_0_hardening_disposable_repo.py` (guard names
+  `TestBootstrappedTarget`, reads the moved exceptions) read releases through
+  `support.release`. `resources.json`'s `frozen:` orphan sources keep
+  `2.6.0` plus the `updated` fixture; the five `host:` entries and
+  `repo:distribution` are unchanged. `timings.json` gains an `updated` group
+  overhead (twice `bootstrapped`'s, an estimate until the next refresh).
+- **Scratch checkout (7.2.1):** the scratch's `0.0.1` is a real package
+  (`publish_synthetic_release`, `build_package`) served from and cached in a
+  sibling `<scratch>.releases/` directory, and it is the scratch's one pin.
+  `scratch_release_env` overrides the source and cache for `run_cli`,
+  `start_cli`, `run_reproduction`, `main_in_process`, `run_ci_step`,
+  `release_tests.run_assert_full_plan` and in-process discovery. Worktrees
+  and clones map back to their scratch by name. `builder_raises` now uses a
+  package whose manifest has no `.gitignore` fragment. The exclusive lock
+  moved to `repo:tools` over the scratch's `tools/scratch/lib/bin/`, and the
+  integrity tests use that tree. The `:344` sub-path case is now
+  `src/workflow_manager/`. `TestFrozenInventoryCountRefusal`'s layout is a
+  one-pin package too. The stopgap test's three-release scratch publishes
+  `0.0.9`/`0.0.10` packages.
+- **New tests:** `test_update_path.py` (the matrix class, the real pins
+  define an update path, and a CLI bootstrap of `UPGRADE_FROM` then `update`:
+  record, `source`, newest bytes, `verify`).
+  `TestScratchReleaseIsolation`: a scratch run primes and tests only
+  `0.0.1`, and the real cache is unchanged; an unprimable pin is
+  `PrimingError`; the lock is on `tools/`. `TestTestTreeHygiene` resolves
+  `0.0.1` with `support.release` in the scratch's environment.
+  `test_internal_references.py`: `TestNoTestResolvesAReleaseThroughTheLayout`
+  (imports of `find_release`/`available_versions`/`release_root`, the
+  layout string or path components, comments included; scans
+  `tests/**/*.py` minus CP6's deletion list; stale exemptions fail) and
+  `TestNoLiteralCliEnvironment`.
+- **Deviations, recorded:** the layout scan has four exemptions, not six.
+  `TestReleaseResolution` and `TestManagerRootAlias` reach the layout only
+  through calls (`release_root(...)`), which the scan does not flag. Listing
+  them would trip the stale-exemption check. The remaining four are the
+  `workflow_manager.release` import (until CP6), the two `MIGRATION.md`
+  regex classes and `LINT_MODULE`.
+  Scratch runs take the source/cache override as extra keys over the
+  caller's environment, not through `support.cli_env`: `cli_env` resets
+  `PYTHONPATH`/`PATH`/`HOME` to the real checkout's. The stopgap test's
+  `STOPGAP_IDENTIFIERS` now match the stopgap's qualified names
+  (`inventory.NEWEST_RELEASE`, `NEWEST_RELEASE_KIND`, `newest_release(`,
+  ...), because the plan makes `support.NEWEST_RELEASE` permanent.
+  `test_release_workflows.py`'s notes check says `distribution/` rather
+  than the layout string.
+- **Verified (gate):** `python3 tests/run_all.py`: full selection, local,
+  8 workers, head `ce03624` plus this checkpoint's working tree, 1467/1467
+  units, 8,925 tests, `selection_digest bc62a9da...`, `tests_digest
+  60425a69...`, verdict exit 0, wall 274 s (9 declared orphan-source chunks
+  tolerated). `distribution/` is still present and now read only by the
+  modules on CP6's deletion list.
 
 ## Previous milestone
 

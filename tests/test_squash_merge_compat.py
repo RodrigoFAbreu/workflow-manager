@@ -39,14 +39,13 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from support import REPO_ROOT
+import support
 
 import test_workflow_2_6_0_hardening_disposable_repo as hardening
 
 from workflow_manager import cli
 from workflow_manager.fixture import configure_throwaway_repo, init_git_repo
 from workflow_manager.install import bootstrap
-from workflow_manager.release import find_release
 
 VERSION = "2.6.0"
 ITEM = "sq-item"
@@ -108,7 +107,7 @@ class TestSquashMergedItemOnMain(unittest.TestCase):
         _git(root, "config", "user.email", "squash@example.invalid")
         _git(root, "config", "user.name", "Squash Compat")
         _git(root, "config", "commit.gpgsign", "false")
-        bootstrap(root, find_release(REPO_ROOT, VERSION), now=hardening.FIXED_NOW)
+        bootstrap(root, support.release(VERSION), now=hardening.FIXED_NOW)
         _git(root, "add", "-A")
         _git(root, "commit", "-q", "-m", f"chore: bootstrap workflow {VERSION}")
         cls.main_before = _git(root, "rev-parse", "HEAD").strip()
@@ -230,7 +229,7 @@ class TestSquashMergedItemOnMain(unittest.TestCase):
 
         out, err = io.StringIO(), io.StringIO()
         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
-            code = cli.main(["--manager-root", str(REPO_ROOT), "verify", str(checkout)])
+            code = cli.main(["verify", str(checkout)])
         self.assertEqual(code, 0, err.getvalue())
         self.assertIn(f"installation matches workflow {VERSION}", out.getvalue())
 

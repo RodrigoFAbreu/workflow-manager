@@ -9,7 +9,7 @@ fixture's existing builder, runs `python3 <suite>.py <Class> ...` through
 `support.run_suite` -- the frozen file still runs as `__main__`, through its
 own bare `unittest.main()` -- and returns a `FrozenRecord`.
 
-The 15 matrix host classes get their per-suite view from `open_matrix_run`:
+The four matrix host classes get their per-suite view from `open_matrix_run`:
 
 - **direct mode** (`WM_FROZEN_RECORDS` unset -- every unchanged entry
   point): one repository, every suite run whole in `CI_SUITES` order, each
@@ -47,14 +47,14 @@ import unittest
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import support
 from support import CI_SUITES, REPO_ROOT, failing_tests, run_suite
 
 from parallel import canonical_json, strict_json_loads
 from parallel.tree import describe, tree_digest
 
 from workflow_manager.fixture import build_conformance_repo, build_target_repo, init_git_repo
-from workflow_manager.install import bootstrap, drift
-from workflow_manager.release import find_release
+from workflow_manager.install import bootstrap, drift, update
 
 RECORDS_ENV = "WM_FROZEN_RECORDS"
 CONTEXT_ENV = "WM_FROZEN_CONTEXT"
@@ -96,21 +96,48 @@ def build_bootstrapped_repo(release, dest: Path) -> Path:
     return target
 
 
+class NoUpgradeSourceError(RuntimeError):
+    """The `updated` fixture was built with only one pinned release, so there
+    is no older release to update from."""
+
+
+def build_updated_repo(release, dest: Path) -> Path:
+    """`UPGRADE_FROM` bootstrapped into an empty repository and committed,
+    then `install.update`d to `release` and committed again -- the repository
+    a real consumer has after updating (plan 7.1). `UPGRADE_FROM` is resolved
+    here, lazily, so a one-pin checkout never needs it."""
+    if support.UPGRADE_FROM is None:
+        raise NoUpgradeSourceError(
+            f"the updated fixture needs a release below {release.version} to update from, "
+            f"and only one release is pinned")
+    target = build_bootstrapped_repo(support.release(support.UPGRADE_FROM), dest)
+    update(target, release, now=FIXED_NOW)
+    _git(target, "add", "-A")
+    _git(target, "commit", "-q", "-m", f"update workflow to {release.version}")
+    return target
+
+
 #: fixture kind -> (builder, name of the repository directory it builds)
 FIXTURE_BUILDERS = {
     "conformance": (build_conformance_repo, "repo"),
     "target": (build_target_repo, "repo"),
     "bootstrapped": (build_bootstrapped_repo, "consumer"),
+    "updated": (build_updated_repo, "consumer"),
 }
 
+#: The fixtures whose host classes assert a clean `git status` and no drift
+#: after the suites.
+POST_RUN_CHECKED = ("bootstrapped", "updated")
 
-def release_digest(repo_root: Path, version: str) -> str:
-    """sha256 of the release's own `manifest.json`."""
-    manifest = Path(repo_root) / "distribution" / "workflow" / version / "manifest.json"
+
+def release_digest(version: str) -> str:
+    """sha256 of the pinned release's own `manifest.json`, read from its
+    verified snapshot (`support.release`)."""
     try:
+        manifest = support.release(version).root / "manifest.json"
         return hashlib.sha256(manifest.read_bytes()).hexdigest()
-    except OSError as exc:
-        raise FrozenMergeError(f"release {version}: cannot read {manifest}: {exc}") from exc
+    except Exception as exc:  # noqa: BLE001 -- any failure to read it is structural
+        raise FrozenMergeError(f"release {version}: cannot read its manifest: {exc}") from exc
 
 
 # -- chunks and records --------------------------------------------------------
@@ -197,10 +224,10 @@ def record_from_process(chunk: FrozenChunk, proc: subprocess.CompletedProcess, *
 
 
 def _post_run_state(fixture: str, repo: Path, release) -> dict:
-    """The `bootstrapped` host class's post-run checks: `git status
-    --porcelain` residue and `install.drift`. Not measured for the other
-    fixtures, whose host classes assert neither."""
-    if fixture != "bootstrapped":
+    """The `bootstrapped` and `updated` host classes' post-run checks: `git
+    status --porcelain` residue and `install.drift`. Not measured for the
+    other fixtures, whose host classes assert neither."""
+    if fixture not in POST_RUN_CHECKED:
         return {}
     return {"residue": tuple(_git(repo, "status", "--porcelain").splitlines()),
             "drift": tuple(str(d) for d in drift(repo, release))}
@@ -214,7 +241,7 @@ def execute(chunk: FrozenChunk, *, tree_digest: str | None, plan_digest: str | N
     -- `returncode` 1, `ran` None, the traceback as output -- so it fails the
     unchanged assertions as a test failure, not as a missing record."""
     provenance = {"tree_digest": tree_digest, "plan_digest": plan_digest,
-                  "release_digest": release_digest(repo_root, chunk.version)}
+                  "release_digest": release_digest(chunk.version)}
     builder, name = FIXTURE_BUILDERS[chunk.fixture]
     started_at, started = time.time(), time.monotonic()
 
@@ -224,7 +251,7 @@ def execute(chunk: FrozenChunk, *, tree_digest: str | None, plan_digest: str | N
 
     with tempfile.TemporaryDirectory(prefix="wm-frozen-") as tmp:
         try:
-            release = find_release(repo_root, chunk.version)
+            release = support.release(chunk.version)
             repo = builder(release, Path(tmp) / name)
         except Exception:  # noqa: BLE001 -- any builder failure is the chunk's outcome
             error = traceback.format_exc()
@@ -455,7 +482,7 @@ def merge(records, context: MergeContext, repo_root: Path = REPO_ROOT
     the release digest from the release's own manifest), never from the
     records being checked."""
     context.validate()
-    expected_release = release_digest(repo_root, context.version)
+    expected_release = release_digest(context.version)
     by_suite: dict[str, list[FrozenRecord]] = {}
     seen: set[str] = set()
     for record in records:
@@ -557,7 +584,7 @@ def open_matrix_run(version: str, fixture: str, *, repo_root: Path = REPO_ROOT,
     builder, name = FIXTURE_BUILDERS[fixture]
     tmp = tempfile.TemporaryDirectory()
     try:
-        release = find_release(repo_root, version)
+        release = support.release(version)
         root = builder(release, Path(tmp.name) / name)
         if merged is None:
             results = {}
@@ -821,7 +848,7 @@ def _evidence_residue(versions, out: Path) -> dict:
         key = f"{version}/{fixture}"
         builder, name = FIXTURE_BUILDERS[fixture]
         with tempfile.TemporaryDirectory(prefix="wm-residue-") as tmp:
-            repo = builder(find_release(REPO_ROOT, version), Path(tmp) / name)
+            repo = builder(support.release(version), Path(tmp) / name)
             suites = {}
             for suite in CI_SUITES[version]:
                 before = full_state(repo)
@@ -876,7 +903,8 @@ def _compare(out: Path) -> int:
                     problems.append(f"E-MRG-3 {key} {suite}: unclassified delta {delta}")
                 else:
                     kinds[delta["class"]] = kinds.get(delta["class"], 0) + 1
-            if entry["returncode"] != 0 and "bootstrapped" not in key and "target" not in key:
+            if entry["returncode"] != 0 and not any(
+                    f in key for f in ("bootstrapped", "target", "updated")):
                 problems.append(f"E-MRG-3 {key} {suite}: exit {entry['returncode']}")
         print(f"{key}: residue pre-classified {kinds or 'none'}")
     for problem in problems:

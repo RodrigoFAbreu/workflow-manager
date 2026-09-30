@@ -17,7 +17,7 @@ sys.path.insert(0, str(REPO_ROOT / "src"))
 
 CLASSIFICATION = json.loads((REPO_ROOT / "migration" / "classification.json").read_text())
 PORTABILITY_EXCEPTIONS = json.loads(
-    (REPO_ROOT / "migration" / "portability_exceptions.json").read_text()
+    (REPO_ROOT / "tests" / "portability_exceptions.json").read_text()
 )
 
 #: Set WORKFLOW_MANAGER_UPSTREAM to point the upstream-comparison tests at a
@@ -54,6 +54,43 @@ def frozen_bytes(path: str) -> bytes:
         ["git", "-C", str(UPSTREAM), "show", f"{FROZEN_COMMIT}:{path}"],
         check=True, capture_output=True,
     ).stdout
+
+
+def _pinned_versions() -> list[str]:
+    from workflow_manager import source
+
+    return source.load_pins().versions()
+
+
+#: Every pinned version, oldest first (plan 7.1, `D-Tested-Releases`).
+PINNED_VERSIONS = _pinned_versions()
+#: The release the frozen matrix runs: the highest pinned version.
+NEWEST_RELEASE = PINNED_VERSIONS[-1]
+#: The release the `updated` fixture bootstraps before updating it to
+#: `NEWEST_RELEASE`: the one below it, or None when only one is pinned.
+UPGRADE_FROM = PINNED_VERSIONS[-2] if len(PINNED_VERSIONS) > 1 else None
+
+_RELEASES: dict = {}
+
+
+def release(version: str):
+    """Pinned release `version`, as a verified private snapshot taken from the
+    release cache (plan 5.4), memoized per version for this process. The
+    snapshot is removed at interpreter exit."""
+    if version not in _RELEASES:
+        from workflow_manager import source
+
+        pins = source.load_pins()
+        cache = source.ReleaseCache(source.cache_root(), source.ReleaseSource.select(), pins)
+        _RELEASES[version] = cache.resolve(version)
+    return _RELEASES[version]
+
+
+def next_version(version: str) -> str:
+    """`version` with its patch component plus one: a synthetic release that
+    is never lower than `version`."""
+    major, minor, patch = version.split(".")
+    return f"{major}.{minor}.{int(patch) + 1}"
 
 
 def cli_env(**extra: str) -> dict[str, str]:
@@ -122,10 +159,10 @@ def failing_tests(output: str) -> set[str]:
 
 #: The frozen suites the upstream CI runs on every pull request, with the
 #: exact test counts each release's own payload produces -- one inner dict
-#: per `distribution/workflow/<version>/`. `tests/test_conformance_suite.py`
-#: and `tests/test_bootstrap_e2e.py` assert these numbers so a silently-
-#: skipped test is a failure, not a pass, for whichever release a given test
-#: class exercises. `2.3.1` is frozen upstream content and its counts never
+#: per pinned version. A published release is immutable, so every entry is a
+#: frozen record and stays; only `NEWEST_RELEASE`'s is run, by the matrix
+#: host classes, which assert these numbers so a silently-skipped test is a
+#: failure, not a pass. `2.3.1` is frozen upstream content and its counts never
 #: move; `2.4.0` is this repository's own first authored release (D-Authored-
 #: Release-2) -- its counts are pinned to what that release's own overlay
 #: payload actually produces, re-derived whenever the overlay changes.
@@ -199,7 +236,7 @@ CI_SUITES = {
 
 def expected_portability_exceptions(workflow_version: str) -> dict:
     """`{suite: {test, ...}}` for the documented portability exceptions of one
-    release, from `migration/portability_exceptions.json`'s per-version
+    release, from `tests/portability_exceptions.json`'s per-version
     `by_version[workflow_version]["exceptions"]` list -- the one place both
     `tests/test_conformance_suite.py`'s `TestBootstrappedTarget*` and
     `tests/test_bootstrap_e2e.py`'s `TestBootstrappedRepositorySatisfiesThe

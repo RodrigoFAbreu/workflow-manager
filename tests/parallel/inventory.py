@@ -15,10 +15,10 @@ imports and never runs: no test, fixture or `setUpClass` is called.
 
 Frozen discovery reads `FROZEN_MATRIX`/`CI_SUITES` (`tests/parallel/
 matrix.py`) inside its own discovery subprocess, from the checkout it is
-pointed at, then loads each release's suites from that release's own
-`distribution/workflow/<version>/payload/scripts/` -- the bytes every fixture
-copies -- one child process per release, and refuses a per-suite total that
-differs from the pinned count (`InventoryCountError`).
+pointed at, then loads each release's suites from the cached release tree's
+`payload/scripts/` (its verified snapshot, `support.release`) -- the bytes
+every fixture copies -- one child process per release, and refuses a
+per-suite total that differs from the pinned count (`InventoryCountError`).
 
 The selection is a pure function of the inventory and the `--select`
 specs; no timing data, shard count or profile is an input to it.
@@ -220,6 +220,8 @@ def _discover_frozen_in_process(repo_root: Path) -> dict:
     """Runs inside the frozen discovery subprocess (cwd `<repo_root>/tests/`):
     read the matrix, then list each release's suites in a child process of
     its own, since every release ships modules of the same names."""
+    import support
+
     from . import matrix
 
     versions = sorted({version for version, _ in matrix.FROZEN_MATRIX.values()})
@@ -228,7 +230,7 @@ def _discover_frozen_in_process(repo_root: Path) -> dict:
         if version not in matrix.CI_SUITES:
             raise InventoryError(f"FROZEN_MATRIX names release {version}, which CI_SUITES lacks")
         suites = list(matrix.CI_SUITES[version])
-        scripts = repo_root / "distribution" / "workflow" / version / "payload" / "scripts"
+        scripts = support.release(version).root / "payload" / "scripts"
         env = _discovery_env()
         env["PYTHONPATH"] = str(repo_root / "tests")
         proc = subprocess.run(
