@@ -13,11 +13,13 @@ Full plan: `docs/ai-workflow/WORKFLOW_MANAGER_PACKAGED_DISTRIBUTION_PLAN.md`.
 
 ## Current checkpoint
 
-CP1-CP7 are complete: package format, release source/pins/cache, CLI and
-install record, the five packages, the test suite on the release cache,
-removal, and documentation. The self-review and the full gate are done
-(below). Next: the local implementation review
-(`AWAITING_LOCAL_IMPLEMENTATION_REVIEW`).
+`AWAITING_FUNCTIONAL_REVIEW` (implementation revision 2, technical
+approval `9581d3e`). CP1-CP7 are complete: package format, release
+source/pins/cache, CLI and install record, the five packages, the test suite
+on the release cache, removal, and documentation. Both implementation-review
+stages approved revision 2: external round 1 found one issue, an
+undiscardable cache entry escaping as `PermissionError`, fixed in `df5ecc6`.
+Cutover K1 is done (below).
 
 ## Current blockers
 
@@ -32,10 +34,8 @@ revision 9. Registry:
 
 ## Next action
 
-The implementation bundle (`implementation_revision: 1`) is generated.
-Next: `/review-implementation workflow-manager-packaged-distribution` (the
-local stage, `LOCAL_MODEL_IMPLEMENTATION_REVIEW`), then the manual external
-stage.
+The functional review (checklist below), then the rest of the cutover
+(K2-K5, each on the user's go-ahead), then `/accept-milestone`.
 
 ## Checkpoint log
 
@@ -573,6 +573,104 @@ stage.
     `orphan_sources` chunks, none undeclared and none a Git process;
   - the selection and tests digests equal CP6's gate: CP7 changed only
     documentation.
+
+## Functional review checklist
+
+You are testing the Manager as an operator uses it after M2: releases come
+from verified packages in a cache, never from a checkout's `distribution/`.
+- **Technical approval:** commit `9581d3e`, implementation revision 2.
+- **Where findings go:**
+  `.ai-review/workflow-manager-packaged-distribution/feedback/FUNCTIONAL_REVIEW.md`.
+- **Automated verification:** already current. The full gate passed on the
+  final code (recorded at `32c9290` with the fix's tree: 1409/1409 units,
+  8,739 tests, verdict 0). Only state commits have landed since.
+
+**Setup.**
+- Linux, Python 3.12 or later, Git, and an authenticated `gh` (cutover
+  only).
+- Run every flow offline against a PRIVATE copy of the release cache, so
+  that nothing touches your real cache, with a release source that cannot
+  be reached (a closed loopback port), so any unexpected download fails
+  loudly:
+
+```bash
+export M=~/Workspace/workflow-manager T=$(mktemp -d)
+cp -a ~/.cache/workflow-manager/releases "$T/cache"
+export WORKFLOW_MANAGER_RELEASE_CACHE="$T/cache"
+export WORKFLOW_MANAGER_RELEASE_SOURCE='http://127.0.0.1:9/{version}/'
+wm() { PYTHONPATH="$M/src" python3 -m workflow_manager "$@"; }
+newrepo() { git init -q "$1" && git -C "$1" commit -q --allow-empty -m init; }
+```
+
+**Test data.** Scratch Git repositories under `$T`, created by the flows.
+
+**Flows.**
+
+1. **The pinned releases.** `wm releases`. Expected: exactly `2.3.1`,
+   `2.4.0`, `2.5.0`, `2.5.1` and `2.6.0`, each with its archive name, its
+   pinned sha256, and `[cached]`.
+2. **A fresh install from the cache.** `newrepo "$T/r1"; wm bootstrap
+   "$T/r1"; wm verify "$T/r1"; wm status "$T/r1"`. Expected: `2.6.0`, the
+   newest pin, is installed, and `verify` reports a clean installation.
+   The installation record (`.workflow-manager/installation.json`) carries
+   a `source` object naming the package and its digest.
+3. **The update path.** `newrepo "$T/r2"; wm --release-version 2.5.1
+   bootstrap "$T/r2"`, commit the result, then `wm update "$T/r2"; wm
+   verify "$T/r2"`. Expected: the repository moves from `2.5.1` to `2.6.0`,
+   and `verify` is clean.
+4. **A damaged cache entry is never installed.** Change one byte of a file
+   under `$T/cache/2.6.0/tree/`, then `newrepo "$T/r3"; wm bootstrap
+   "$T/r3"; echo "rc=$?"`. Expected: the entry fails its check against the
+   pin and is discarded. The refetch cannot reach the source, so the
+   command fails with the named `ReleaseUnavailableError` and `rc=1`, and
+   `$T/r3` gets no Workflow files. Restore with `rm -rf "$T/cache/2.6.0"`
+   and copy it from the real cache again.
+5. **An unpublished version is refused.** `wm --release-version 9.9.9
+   bootstrap "$T/r3"; echo "rc=$?"`. Expected: `ReleaseNotPublishedError`
+   and `rc=1`.
+6. **A local directory for a pinned version must match its pin.** Copy
+   `$T/cache/2.6.0/tree` to `$T/alt`, change one byte of a payload file,
+   then `wm --release-dir "$T/alt" bootstrap "$T/r3"; echo "rc=$?"`.
+   Expected: a named integrity refusal, `rc=1`, and nothing installed.
+7. **The packages reproduce their pins.** `wm package build
+   "$T/cache/2.6.0/tree" --out "$T/pkg"`, then `wm package verify
+   "$T/pkg/workflow-2.6.0.tar.gz" --sha256 <2.6.0's pin from flow 1>`.
+   Expected: the rebuilt archive verifies, and its digest equals the pin.
+8. **The removals.** In `$M`: `distribution/`, `migration/`,
+   `tools/migrate.py` and `tools/build_release.py` no longer exist.
+   `python3 tests/run_all.py --fast` is rejected as an unknown option.
+   `python3 tests/run_all.py --select test_release_source.py` passes with
+   `verdict: exit 0`.
+
+**The cutover (after this checklist; network; each step on the user's
+go-ahead).**
+- **K1 (done 2026-09-30).** `RodrigoFAbreu/workflow` was created public,
+  release immutability is on (`immutable-releases`: `enabled: true`), and
+  it is cloned empty at `~/Workspace/workflow`.
+- **K2.** Push the five seed commits with tags `v2.3.1` to `v2.6.0`, and
+  publish the five releases with their archive, manifest and `SHA256SUMS`
+  assets.
+- **K3.** With an empty temporary cache and the default source:
+  `releases`, then `bootstrap`/`verify` of a scratch repository for each
+  pinned version. `sha256sum -c SHA256SUMS` passes on each download, and
+  every digest equals its pin.
+- **K4.** Push the branch and open the pull request titled `feat: Workflow
+  releases are downloaded, verified packages`. The full selection is green
+  in CI; its first run downloads the K2 packages.
+- **K5.** Squash-merge, check that `main`'s full run is green and that
+  Manager `v1.2.0` is published, then `pipx install` its wheel into a
+  scratch environment and bootstrap a scratch repository with no checkout.
+
+A problem found in K2-K5 goes back through `/apply-functional-review`.
+
+**Known limitations (out of scope here).**
+- The network download path is proven only by K3 and K4, after this
+  checklist.
+- Archives are deterministic per machine, not across zlib versions. The
+  pins name the published archives.
+- Each new Workflow release needs a small Manager pull request that adds
+  its pin (`OD-M2-2`).
+- `--manager-root` survives one release as a deprecated alias.
 
 ## Previous milestone
 
