@@ -13,8 +13,8 @@ Full plan: `docs/ai-workflow/WORKFLOW_MANAGER_PACKAGED_DISTRIBUTION_PLAN.md`.
 
 ## Current checkpoint
 
-CP1 (package format) is complete. Next: CP2 (release source, pins and
-verified cache).
+CP1 (package format) and CP2 (release source, pins and verified cache)
+are complete. Next: CP3 (CLI and install record).
 
 ## Current blockers
 
@@ -29,7 +29,7 @@ revision 9. Registry:
 
 ## Next action
 
-`/milestone-implement workflow-manager-packaged-distribution` for CP2.
+`/milestone-implement workflow-manager-packaged-distribution` for CP3.
 
 ## Checkpoint log
 
@@ -75,6 +75,74 @@ revision 9. Registry:
   `git archive ec38979 distribution/workflow` twice and extracted it: all
   five archives were byte-identical across builds and extracted to their
   source trees exactly.
+
+### CP2 -- source, pins and cache (complete)
+
+- **`D-Release-Source`** (`src/workflow_manager/source.py`):
+  `ReleaseSource.select(option, environ)` takes `--release-source`, else
+  `WORKFLOW_MANAGER_RELEASE_SOURCE`, else the `RodrigoFAbreu/workflow`
+  release-download template. A value with `://` is a URL template, which
+  must carry `{version}` and be `https://`, `file://`, or `http://` to a
+  loopback host; anything else is a local directory of `<version>/`
+  folders. Fetching uses `urllib.request` with a 60-second timeout, reads
+  `SHA256SUMS` first, then the archive and the manifest asset, and caps
+  each asset at 64 MiB. Redirects: at most five, to any host, never from
+  `https` to anything else, and every hop must pass the scheme rule. Any
+  failure to obtain an asset is `ReleaseUnavailableError`.
+- **`D-Pins`:** `src/workflow_manager/published_releases.json` (empty
+  `releases` until CP4) ships as package data (`pyproject.toml`'s new
+  `[tool.setuptools.package-data]`). `load_pins` refuses a malformed pin
+  file (schema, repository, archive name, digest shape) with
+  `ReleaseIntegrityError`. A download is accepted only when the archive
+  hashes to the pin **and** to its `SHA256SUMS` line, and the manifest
+  asset hashes to `manifest_sha256` and to its line.
+- **`D-Release-Cache`:** `cache_root(option, environ)` takes
+  `--release-cache`, `WORKFLOW_MANAGER_RELEASE_CACHE`, `$XDG_CACHE_HOME`,
+  then `~/.cache`. `ReleaseCache.ensure(version)` (5.4 steps 1-4, for
+  priming) and `resolve(version)` (steps 1-6) work under an `fcntl` lock
+  on `<cache>/<version>.lock`. A hit needs `complete` naming the pin, the
+  cached archive hashing to it, `tree/manifest.json` hashing to
+  `manifest_sha256`, the manifest naming the requested version and
+  `Release.verify()`; anything else is logged (`discarding cache entry
+  ...`), removed and refetched into a temporary sibling that is renamed
+  into place, with `complete` written last. `resolve` then copies the
+  manifest-enumerated files into a private `0700` directory and checks the
+  copy against the pin; a failed copy discards the entry and refetches
+  once (`ReleaseUnavailableError` if that cannot be done,
+  `ReleaseIntegrityError` if the new copy fails too). It returns a
+  `SnapshotRelease` (a `Release` subclass carrying the record's `source`),
+  removed by `close()`/`with` and by an `atexit` backstop. An unpinned
+  version is `ReleaseNotPublishedError`; an unusable cache directory is
+  `ReleaseUnavailableError`. Both new errors subclass `InstallError`, so
+  CP3's CLI reports them through its existing handling.
+- **`local_release(dir, requested_version, pins)`** (5.5): refuses a
+  directory whose manifest version differs from the requested one; a
+  pinned version must match `manifest_sha256` (the error names the
+  version, the directory and both digests) and is recorded as the package
+  (`source.kind: "package"`, with a stderr note); an unpinned one is
+  checked by its own manifest and recorded as `{"kind": "local"}`. Either
+  way it is used through a verified snapshot, without a lock.
+- **Tests** (`tests/test_release_source.py`, +58): `TestPins`,
+  `TestSourceSelection`, `TestFetch` (local `http.server` on 127.0.0.1,
+  `file://`, local directory; redirects, the five-hop limit, `https`->`http`
+  and off-loopback `http` redirects, the size cap), `TestPinChecks`
+  (republished archive with agreeing sums, sums or manifest asset against
+  the pin, another version in the archive, unpinned), `TestCache` (entry
+  layout, `ensure` takes no snapshot, offline hit and miss, seven kinds of
+  broken entry each discarded and refetched, or `ReleaseUnavailableError`
+  offline), `TestSnapshots` (private `0700` copy, the resolve/install
+  boundary through `install.bootstrap`, the lock-ignoring writer seam
+  online, offline and twice, `close`/`with`, the `atexit` backstop in a
+  child process), `TestLocking` (four concurrent resolves fetch once;
+  `resolve` waits for a held lock) and `TestLocalRelease`. Each test sets
+  `WORKFLOW_MANAGER_RELEASE_CACHE` to its own temporary cache and asserts
+  `cache_root()` resolves to it. The `--manager-root` alias's own
+  local-directory test is CP3's, where the alias is wired.
+- **Verified:** `python3 tests/run_all.py --select test_release_source.py`
+  -- 12/12 units, 94 tests, exit 0; `--select test_manager_version.py
+  --select test_stopgap_profile.py` -- 107 tests, exit 0; `--select
+  test_orphan_processes.py --select test_release_versioning.py` -- 118
+  tests, exit 0.
 
 ## Previous milestone
 

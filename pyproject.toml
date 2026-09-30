@@ -16,3 +16,7 @@ workflow-manager = "workflow_manager.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+# The pins: the only versions this Manager installs from a package (D-Pins).
+workflow_manager = ["published_releases.json"]
