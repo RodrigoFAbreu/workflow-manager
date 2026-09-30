@@ -280,17 +280,33 @@ def _capture(main, argv) -> tuple[int, str]:
 #: of `workflow-manager-packaged-distribution`).
 WORKFLOW_ENV_CONTEXTS = frozenset({"github", "secrets", "inputs", "vars"})
 JOB_ENV_CONTEXTS = frozenset({"github", "needs", "strategy", "matrix", "vars", "secrets", "inputs"})
-_EXPRESSION = re.compile(r"\$\{\{(.*?)\}\}", re.S)
 _STRING_LITERAL = re.compile(r"'(?:[^']|'')*'")
-_CONTEXT_ROOT = re.compile(r"(?<![\w.])([A-Za-z_][\w-]*)\s*(?=[.\[])")
+#: A bare identifier: not a property (`.name`), not a function call
+#: (`name(`), so a context root whether dereferenced or used whole.
+_IDENTIFIER = re.compile(r"(?<![\w.-])([A-Za-z_][\w-]*)(?![\w-])(?!\s*\()")
+_LITERALS = frozenset({"true", "false", "null", "NaN", "Infinity"})
+
+
+def _expressions(text: str) -> list[str]:
+    """Each `${{ }}` body, with its string literals blanked. A `}}` inside a
+    string literal does not end the expression."""
+    bodies, i = [], 0
+    while (start := text.find("${{", i)) != -1:
+        j = start + 3
+        while j < len(text) and not text.startswith("}}", j):
+            literal = _STRING_LITERAL.match(text, j)
+            j = literal.end() if literal else j + 1
+        bodies.append(_STRING_LITERAL.sub("''", text[start + 3:j]))
+        i = j + 2
+    return bodies
 
 
 def _contexts(value) -> set[str]:
-    """The context names an `env` value's `${{ }}` expressions dereference."""
+    """The context names an `env` value's `${{ }}` expressions use."""
     roots: set[str] = set()
-    for expression in _EXPRESSION.findall(str(value)):
-        roots.update(_CONTEXT_ROOT.findall(_STRING_LITERAL.sub("''", expression)))
-    return roots
+    for expression in _expressions(str(value)):
+        roots.update(_IDENTIFIER.findall(expression))
+    return roots - _LITERALS
 
 
 def env_context_violations(workflow: dict) -> list[str]:
@@ -328,6 +344,24 @@ class TestEnvExpressionContexts(unittest.TestCase):
             "jobs": {"j": {"env": {"C": "${{ matrix.shard }}-${{ needs.plan.outputs.shards }}",
                                    "D": "${{ hashFiles('a/b.json') }}", "E": "plain"}}},
         }
+        self.assertEqual(env_context_violations(workflow), [])
+
+    def test_a_bare_context_is_reported(self):
+        workflow = {"jobs": {"j": {"env": {"A": "${{ toJSON(runner) }}", "B": "${{ job }}",
+                                           "C": "${{ fromJSON(steps)[0] }}"}}}}
+        self.assertEqual(env_context_violations(workflow),
+                         ["jobs.j.env.A: runner", "jobs.j.env.B: job", "jobs.j.env.C: steps"])
+
+    def test_a_closing_brace_pair_in_a_string_does_not_end_the_expression(self):
+        workflow = {"env": {"A": "${{ format('}}{0}', runner.temp) }}"},
+                    "jobs": {"j": {"env": {"B": "x-${{ format('{{}}', env.Z) }}-${{ github.sha }}"}}}}
+        self.assertEqual(env_context_violations(workflow), ["env.A: runner", "jobs.j.env.B: env"])
+
+    def test_literals_function_names_and_properties_are_not_contexts(self):
+        workflow = {"jobs": {"j": {"env": {
+            "A": "${{ true && null || false }}", "B": "${{ contains(github.ref, 'runner') }}",
+            "C": "${{ github.event.runner.job }}", "D": "${{ 1.5e3 }}-${{ 0xff }}",
+            "E": "${{ matrix['runner'] }}"}}}}
         self.assertEqual(env_context_violations(workflow), [])
 
     def test_step_only_contexts_are_reported_at_both_levels(self):
