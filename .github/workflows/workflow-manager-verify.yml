@@ -157,7 +157,9 @@ jobs:
 
   # The release's own build-and-verify path, on every run, so a packaging
   # break is caught on the pull request and not at release time. It needs no
-  # upstream: `releases` and `verify` read only the checkout's own manifests.
+  # upstream: `releases` lists the wheel's pins, and `verify` resolves the
+  # checkout's recorded release through the release cache, downloading it
+  # from the published source only on a cache miss.
   package:
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -166,10 +168,17 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Restore the release cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/workflow-manager-releases
+          key: workflow-releases-${{ hashFiles('src/workflow_manager/published_releases.json') }}
       - name: Build and verify the package
+        env:
+          WORKFLOW_MANAGER_RELEASE_CACHE: ${{ runner.temp }}/workflow-manager-releases
         run: |
           python3 -m pip install -r .github/tools/requirements.txt
-          python3 tools/release/package.py --version 0.0.0+ci --out "$RUNNER_TEMP/dist" --manager-root "$GITHUB_WORKSPACE"
+          python3 tools/release/package.py --version 0.0.0+ci --out "$RUNNER_TEMP/dist"
 
   aggregate:
     needs: [plan, shard, package]

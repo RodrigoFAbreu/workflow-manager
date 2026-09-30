@@ -286,3 +286,47 @@ git dir), so a downgrade fails silently, not loudly. Running mixed
 releases across linked worktrees is unsupported for the same reason.
 `CLAUDE.md`'s "Adding an authored Workflow release" states both as operator
 instructions.
+
+## Packaged releases -- the five packages (M2, CP4)
+
+Every release above is published as a package (plan
+`docs/ai-workflow/WORKFLOW_MANAGER_PACKAGED_DISTRIBUTION_PLAN.md`, 5.1 and
+6): `workflow-<v>.tar.gz`, `workflow-<v>.manifest.json` and
+`SHA256SUMS`. The packages were built from the base's **committed** tree,
+never the working tree:
+
+    python3 tools/workflow_packages.py build --commit ec38979 --out <dir> \
+        --pins src/workflow_manager/published_releases.json --prime
+
+`--commit ec38979` extracts `git archive ec38979 distribution/workflow`
+into a scratch directory. Each package was built twice, and the two builds'
+three assets were byte-identical. Each was then extracted and compared with
+its committed `distribution/workflow/<v>/` tree: the same file set, the same
+bytes and the same modes, nothing more and nothing less (INV-1). The archive
+and manifest digests are the Manager's pins
+(`src/workflow_manager/published_releases.json`, `D-Pins`), and
+`sha256sum -c --strict SHA256SUMS` passes in every package directory.
+`--prime` filled the default release cache
+(`~/.cache/workflow-manager/releases`) from the built packages through
+`ReleaseCache.ensure`, so every entry passed the same pin and
+`SHA256SUMS` checks as a download. These cached assets are the ones the
+cutover publishes (plan 9, `K2`). Two consecutive builds gave identical
+output directories (`diff -r`).
+
+| version | files | archive sha256 | manifest sha256 | uncompressed tar sha256 | round trip |
+| --- | --- | --- | --- | --- | --- |
+| 2.3.1 | 67 | `1e732b957dd8cc8119d1f05b197ac96f6d9278877764cb2d9e9acdaae9f6dbd3` | `f9e14159e0f2db11366d526d7e01d7da6de152b2034227e178b6c7768302d32e` | `c1418a367d5801625ed557173f05c2e9b2325846765b7fbb10e4934095ec20d0` | identical |
+| 2.4.0 | 68 | `097fb7145dd56091529aa2cf7bf0303345776fd00e11c04b0df6bfbc11f4f7d2` | `84b6407aa2c3d70c0cfd7270c180b3ecd3286629e5273632e17c3510ddbd707a` | `845c2e6cf27ca63abdc17678b56f60d6140d75fca2a4d222b45a3a6db66aac2e` | identical |
+| 2.5.0 | 70 | `d1112f852216e5506290a46c5186d412fc0195619bbce493ede8cb32b430392f` | `3886c7f7e62c4ef00d910fc0f66976c3d9d96d5e16a4af09e1e7a97b0c43ff19` | `1fdc7f10edffe285b2d153cfd50cc8c7d67ab20aca526646c4c482987b37b69d` | identical |
+| 2.5.1 | 70 | `8427d895e2e6f9f77e18042128342e95d22b2469bab43a49baa3d8043f948b4e` | `917a1b00fd699cec57eebdb34548dc96c2b258482ca13c6fcebf37a08fcb8e73` | `8d4abcecfa2c97877736c4bbd2fb708c548d76fac807b9af8c6165e9731e8be2` | identical |
+| 2.6.0 | 70 | `dc86a7965949c5da9cb7a9d8f2999b138828245aa835bf7c79887e7352e99f61` | `d92517a27a9287b3edc40636d427a6935954f7090a2578ad055979620f84fc2e` | `1b8a3e790dee2ffc03782c6b2138780aa041b7f59de34864026bb2bdc70ce348` | identical |
+"files" counts every file in the release, `manifest.json` included. The
+uncompressed-tar digest is the sha256 of the gunzipped archive.
+
+`tests/test_package_round_trip.py` re-proves this from the same
+`git archive` extraction on every run, until CP6 deletes it with
+`distribution/`. It covers the round trip, the byte-identical rebuild, the
+pins, and `TestCheckoutReleasesArePinned`. `tests/test_published_packages.py`'s
+`TestPinnedPackagesVerify` is the permanent check: each pinned package,
+obtained through the cache, re-verifies against its pin and its own
+manifest.

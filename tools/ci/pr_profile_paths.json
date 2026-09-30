@@ -157,6 +157,16 @@
       "reason": "M2's release packages, source and cache (plan 13: full until CP6 removes this file)"
     },
     {
+      "path": "tests/test_published_packages.py",
+      "profile": "full",
+      "reason": "M2's pinned release packages verify through the cache (plan 13: full until CP6 removes this file)"
+    },
+    {
+      "path": "tests/test_package_round_trip.py",
+      "profile": "full",
+      "reason": "M2's packages reproduce the committed releases (plan 13: full until CP6 removes this file)"
+    },
+    {
       "path": "tests/test_release_versioning.py",
       "profile": "newest-release",
       "reason": "host test module, which runs in every profile"

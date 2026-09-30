@@ -4956,9 +4956,24 @@ class TestOneRequiredCheck(unittest.TestCase):
         run = "\n".join(s.get("run") or "" for s in steps)
         self.assertIn("python3 -m pip install -r .github/tools/requirements.txt", run)
         self.assertIn('python3 tools/release/package.py --version 0.0.0+ci '
-                      '--out "$RUNNER_TEMP/dist" --manager-root "$GITHUB_WORKSPACE"', run)
+                      '--out "$RUNNER_TEMP/dist"\n', run)
+        self.assertNotIn("--manager-root", run, "the wheel resolves releases through its pins")
         self.assertNotIn("UPSTREAM_URL", run, "the package job needs no upstream")
         self.assertLess(run.index("pip install"), run.index("package.py"))
+        # The release cache (plan 5.6): restored before the build, and named
+        # to the build, so `verify` downloads only on a cache miss.
+        cache_dir = "${{ runner.temp }}/workflow-manager-releases"
+        restore = [i for i, s in enumerate(steps)
+                   if (s.get("uses") or "").split("@")[0] == "actions/cache"]
+        build = [i for i, s in enumerate(steps) if "package.py" in (s.get("run") or "")]
+        self.assertEqual(len(restore), 1)
+        self.assertEqual(len(build), 1)
+        self.assertLess(restore[0], build[0])
+        self.assertEqual(steps[restore[0]]["with"], {
+            "path": cache_dir,
+            "key": "workflow-releases-"
+                   "${{ hashFiles('src/workflow_manager/published_releases.json') }}"})
+        self.assertEqual(steps[build[0]]["env"], {"WORKFLOW_MANAGER_RELEASE_CACHE": cache_dir})
 
     def test_only_a_pull_request_run_is_cancelled(self):
         concurrency = ci_workflow()["concurrency"]

@@ -1,5 +1,31 @@
 {
-  "releases": {},
+  "releases": {
+    "2.3.1": {
+      "archive": "workflow-2.3.1.tar.gz",
+      "manifest_sha256": "f9e14159e0f2db11366d526d7e01d7da6de152b2034227e178b6c7768302d32e",
+      "sha256": "1e732b957dd8cc8119d1f05b197ac96f6d9278877764cb2d9e9acdaae9f6dbd3"
+    },
+    "2.4.0": {
+      "archive": "workflow-2.4.0.tar.gz",
+      "manifest_sha256": "84b6407aa2c3d70c0cfd7270c180b3ecd3286629e5273632e17c3510ddbd707a",
+      "sha256": "097fb7145dd56091529aa2cf7bf0303345776fd00e11c04b0df6bfbc11f4f7d2"
+    },
+    "2.5.0": {
+      "archive": "workflow-2.5.0.tar.gz",
+      "manifest_sha256": "3886c7f7e62c4ef00d910fc0f66976c3d9d96d5e16a4af09e1e7a97b0c43ff19",
+      "sha256": "d1112f852216e5506290a46c5186d412fc0195619bbce493ede8cb32b430392f"
+    },
+    "2.5.1": {
+      "archive": "workflow-2.5.1.tar.gz",
+      "manifest_sha256": "917a1b00fd699cec57eebdb34548dc96c2b258482ca13c6fcebf37a08fcb8e73",
+      "sha256": "8427d895e2e6f9f77e18042128342e95d22b2469bab43a49baa3d8043f948b4e"
+    },
+    "2.6.0": {
+      "archive": "workflow-2.6.0.tar.gz",
+      "manifest_sha256": "d92517a27a9287b3edc40636d427a6935954f7090a2578ad055979620f84fc2e",
+      "sha256": "dc86a7965949c5da9cb7a9d8f2999b138828245aa835bf7c79887e7352e99f61"
+    }
+  },
   "repository": "RodrigoFAbreu/workflow",
   "schema_version": 1
 }

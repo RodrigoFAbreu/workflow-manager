@@ -1,17 +1,23 @@
 #!/usr/bin/env python3
 """Build and prove the Workflow Manager's release assets (`D-Artifact`).
 
-    package.py --version X.Y.Z --out DIR [--manager-root R]
+    package.py --version X.Y.Z --out DIR
 
 Copies the project (`pyproject.toml`, `README.md`, `src/`) to a temporary
 directory, sets the version there (`release.py set-version`), builds a wheel
 and an sdist into DIR with `python -m build`, and installs the wheel into a
 fresh venv, where it requires:
 
+- the wheel to carry the pins, `workflow_manager/published_releases.json`;
 - `workflow-manager --version` to print exactly `workflow-manager X.Y.Z`;
-- with `--manager-root R`, `workflow-manager --manager-root R releases` to
-  list every release in `R/distribution/workflow/`, and
-  `workflow-manager --manager-root R verify R` to exit 0.
+- `workflow-manager releases` to list exactly the versions this checkout's
+  `src/workflow_manager/published_releases.json` pins (`D-Manager-Packaging`);
+- `workflow-manager verify <this checkout>` to exit 0, resolving the
+  checkout's recorded Workflow release through the release cache.
+
+Every command runs outside any checkout, with this process's environment:
+`WORKFLOW_MANAGER_RELEASE_CACHE` and `WORKFLOW_MANAGER_RELEASE_SOURCE` reach
+the wheel unchanged, so a primed cache means no download.
 
 Finally it writes DIR/SHA256SUMS (`sha256sum`-compatible, sorted by name,
 over every other file in DIR). The build frontend is CI's own
@@ -28,6 +34,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import zipfile
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -44,6 +51,9 @@ COPY_TREES = ("src",)
 IGNORED = shutil.ignore_patterns("__pycache__", "*.pyc", "*.pyo", "*.egg-info", "build", "dist")
 
 SUMS_NAME = workflow_package.SUMS_NAME
+#: The pins, where the checkout keeps them and where the wheel must carry them.
+PINS_PATH = Path("src/workflow_manager/published_releases.json")
+PINS_IN_WHEEL = "workflow_manager/published_releases.json"
 DISTRIBUTION_NAME = "workflow-manager"
 COMMAND_TIMEOUT_SECONDS = 600
 
@@ -93,11 +103,22 @@ def check_version_output(output: str, version: str) -> None:
         raise PackageError(f"--version printed {actual!r}, expected {expected!r}")
 
 
-def expected_release_versions(manager_root: Path) -> list[str]:
-    base = manager_root / "distribution" / "workflow"
-    if not base.is_dir():
-        raise PackageError(f"{base} is missing: --manager-root must be a checkout")
-    return sorted(p.name for p in base.iterdir() if (p / "manifest.json").is_file())
+def expected_release_versions(checkout: Path) -> list[str]:
+    """The versions `checkout`'s pin file publishes: what `releases` must list."""
+    path = checkout / PINS_PATH
+    try:
+        releases = json.loads(path.read_text())["releases"]
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        raise PackageError(f"cannot read the pins at {path}: {exc}") from exc
+    if not isinstance(releases, dict):
+        raise PackageError(f"{path}'s releases is not a mapping")
+    return sorted(releases)
+
+
+def check_wheel_carries_pins(wheel: Path) -> None:
+    with zipfile.ZipFile(wheel) as archive:
+        if PINS_IN_WHEEL not in archive.namelist():
+            raise PackageError(f"{wheel.name} does not carry {PINS_IN_WHEEL}")
 
 
 def check_releases_output(output: str, versions: list[str]) -> None:
@@ -126,7 +147,7 @@ def _single(out: Path, pattern: str) -> Path:
     return found[0]
 
 
-def package(version: str, out: Path, manager_root: Path | None) -> None:
+def package(version: str, out: Path) -> None:
     if not VERSION_RE.match(version):
         raise PackageError(f"version {version!r} is not X.Y.Z or X.Y.Z+local")
     out.mkdir(parents=True, exist_ok=True)
@@ -140,6 +161,7 @@ def package(version: str, out: Path, manager_root: Path | None) -> None:
         _run([sys.executable, "-m", "build", "--outdir", str(out), str(project)])
         wheel = _single(out, "*.whl")
         _single(out, "*.tar.gz")
+        check_wheel_carries_pins(wheel)
 
         venv = Path(tmp) / "venv"
         _run([sys.executable, "-m", "venv", str(venv)])
@@ -149,11 +171,9 @@ def package(version: str, out: Path, manager_root: Path | None) -> None:
         # Run outside any checkout, so only the wheel's own metadata answers.
         entry = str(bindir / DISTRIBUTION_NAME)
         check_version_output(_run([entry, "--version"], cwd=Path(tmp)).stdout, version)
-        if manager_root is not None:
-            root = manager_root.resolve()
-            listed = _run([entry, "--manager-root", str(root), "releases"], cwd=Path(tmp))
-            check_releases_output(listed.stdout, expected_release_versions(root))
-            _run([entry, "--manager-root", str(root), "verify", str(root)], cwd=Path(tmp))
+        listed = _run([entry, "releases"], cwd=Path(tmp))
+        check_releases_output(listed.stdout, expected_release_versions(REPO_ROOT))
+        _run([entry, "verify", str(REPO_ROOT)], cwd=Path(tmp))
     write_sha256sums(out)
 
 
@@ -167,10 +187,9 @@ def main(argv: list[str] | None = None) -> int:
     parser = _Parser(prog="package.py", description=__doc__.splitlines()[0])
     parser.add_argument("--version", required=True)
     parser.add_argument("--out", required=True, type=Path)
-    parser.add_argument("--manager-root", type=Path, default=None)
     args = parser.parse_args(argv)
     try:
-        package(args.version, args.out, args.manager_root)
+        package(args.version, args.out)
     except (PackageError, ReleaseError) as exc:
         print(f"package.py: {exc}", file=sys.stderr)
         return 1

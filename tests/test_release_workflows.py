@@ -138,6 +138,8 @@ def release_workflow_problems(doc: dict, verify_name: str) -> list[str]:
                                  "assert not superseded")
         package = _step_index(steps, lambda s: _runs(s, "tools/release/package.py"),
                               "build the package")
+        cache = _step_index(steps, lambda s: _uses(s, "actions/cache"),
+                            "restore the release cache")
         publish = _step_index(steps, lambda s: _runs(s, "gh release create"), "publish")
     except AssertionError as exc:
         return problems + [str(exc)]
@@ -170,11 +172,26 @@ def release_workflow_problems(doc: dict, verify_name: str) -> list[str]:
     need(full_plan < version < superseded < package < publish,
          "the order is not assert-full-plan, next-version, assert-not-superseded, package, "
          "gh release create")
+    # The release cache (plan 5.6): restored just before the build and named
+    # to it, so the wheel's `verify` downloads only on a cache miss.
+    cache_dir = "${{ runner.temp }}/workflow-manager-releases"
+    need(superseded < cache < package, "the release cache is not restored before the build")
+    need((steps[cache].get("with") or {}) == {
+        "path": cache_dir,
+        "key": "workflow-releases-${{ hashFiles('src/workflow_manager/published_releases.json') }}"},
+        "the release cache is not keyed on the pins")
+    need((steps[package].get("env") or {}).get("WORKFLOW_MANAGER_RELEASE_CACHE") == cache_dir,
+         "the build does not use the restored release cache")
+    need("--manager-root" not in steps[package]["run"],
+         "the build names a checkout: the wheel resolves releases through its pins")
+    need("published_releases.json" in steps[publish]["run"]
+         and "distribution/workflow" not in steps[publish]["run"],
+         "the release notes do not list the pinned Workflow releases")
     need("--target \"$TARGET_SHA\"" in steps[publish]["run"],
          "the release is not created at the resolved target")
     need((steps[publish].get("env") or {}).get("TARGET_SHA")
          == "${{ steps.target.outputs.target_sha }}", "TARGET_SHA is not the resolved target")
-    for index in (package, publish):
+    for index in (cache, package, publish):
         need("steps.superseded.outputs.superseded != 'true'" in (steps[index].get("if") or "")
              and "steps.version.outputs.version != ''" in (steps[index].get("if") or ""),
              f"step {index} runs with nothing to release or when superseded")
@@ -216,6 +233,12 @@ class TestReleaseWorkflow(unittest.TestCase):
                                     "          GH_TOKEN",
                                     "        env:\n          GH_TOKEN"),
             "python 3.11": ('python-version: "3.12"', 'python-version: "3.11"'),
+            "no release cache": ("          WORKFLOW_MANAGER_RELEASE_CACHE: "
+                                 "${{ runner.temp }}/workflow-manager-releases\n", ""),
+            "a cache key off the pins": ("hashFiles('src/workflow_manager/published_releases.json')",
+                                         "hashFiles('pyproject.toml')"),
+            "a checkout's releases": ('--out "$RUNNER_TEMP/assets"',
+                                      '--out "$RUNNER_TEMP/assets" --manager-root "$GITHUB_WORKSPACE"'),
         }
         for label, (old, new) in mutants.items():
             with self.subTest(mutation=label):

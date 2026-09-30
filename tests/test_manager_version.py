@@ -401,7 +401,7 @@ class Sha256SumsTest(_Tmp):
             package.sha256sums_text(self.tmp)
 
 
-class VersionOutputCheckTest(unittest.TestCase):
+class VersionOutputCheckTest(_Tmp):
     def test_exact_match(self):
         package.check_version_output("workflow-manager 1.2.3\n", "1.2.3")
 
@@ -421,13 +421,43 @@ class VersionOutputCheckTest(unittest.TestCase):
         with self.assertRaises(package.PackageError):
             package.check_releases_output("", ["2.3.1"])
 
+    def test_the_expected_list_is_the_pins(self):
+        """What the smoke check requires `releases` to list is exactly the
+        versions the checkout's pin file publishes (plan 5.6)."""
+        pins = json.loads((REPO_ROOT / "src/workflow_manager/published_releases.json")
+                          .read_text())
+        self.assertEqual(package.expected_release_versions(REPO_ROOT), sorted(pins["releases"]))
+        self.assertEqual(package.PINS_PATH.as_posix(), "src/workflow_manager/published_releases.json")
+        self.assertEqual(package.PINS_IN_WHEEL, "workflow_manager/published_releases.json")
+
+    def test_the_expected_list_refuses_an_unreadable_pin_file(self):
+        with self.assertRaisesRegex(package.PackageError, "cannot read the pins"):
+            package.expected_release_versions(self.tmp)
+        (self.tmp / package.PINS_PATH).parent.mkdir(parents=True)
+        (self.tmp / package.PINS_PATH).write_text('{"releases": []}')
+        with self.assertRaisesRegex(package.PackageError, "not a mapping"):
+            package.expected_release_versions(self.tmp)
+
     def test_the_live_release_set(self):
+        """`releases`, with no checkout named, lists exactly the pins: the
+        comparison the smoke check makes from the installed wheel."""
         versions = package.expected_release_versions(REPO_ROOT)
         self.assertIn("2.6.0", versions)
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
-            cli.main(["--manager-root", str(REPO_ROOT), "releases"])
+            self.assertEqual(cli.main(["releases"]), 0)
         package.check_releases_output(out.getvalue(), versions)
+
+    def test_a_wheel_without_the_pins_is_refused(self):
+        import zipfile
+        wheel = self.tmp / "workflow_manager-1.2.3-py3-none-any.whl"
+        with zipfile.ZipFile(wheel, "w") as archive:
+            archive.writestr("workflow_manager/__init__.py", "")
+        with self.assertRaisesRegex(package.PackageError, "does not carry"):
+            package.check_wheel_carries_pins(wheel)
+        with zipfile.ZipFile(wheel, "a") as archive:
+            archive.writestr(package.PINS_IN_WHEEL, "{}")
+        package.check_wheel_carries_pins(wheel)
 
 
 class PackageCliTest(_Tmp):
@@ -453,6 +483,11 @@ class PackageCliTest(_Tmp):
 
     def test_usage_errors_exit_2(self):
         self.assertEqual(self.run_tool("--out", str(self.tmp)).returncode, 2)
+        # `--manager-root` is gone (plan 5.6): the wheel reads its own pins.
+        proc = self.run_tool("--version", "1.2.3", "--out", str(self.tmp / "out"),
+                             "--manager-root", str(REPO_ROOT))
+        self.assertEqual(proc.returncode, 2)
+        self.assertIn("--manager-root", proc.stderr)
 
 
 if __name__ == "__main__":

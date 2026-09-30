@@ -13,9 +13,9 @@ Full plan: `docs/ai-workflow/WORKFLOW_MANAGER_PACKAGED_DISTRIBUTION_PLAN.md`.
 
 ## Current checkpoint
 
-CP1 (package format), CP2 (release source, pins and verified cache) and
-CP3 (CLI and install record) are complete. Next: CP4 (build and prove the
-five packages).
+CP1 (package format), CP2 (release source, pins and verified cache), CP3
+(CLI and install record) and CP4 (the five packages, the pins and Manager
+packaging) are complete. Next: CP5 (the test suite on the release cache).
 
 ## Current blockers
 
@@ -30,7 +30,7 @@ revision 9. Registry:
 
 ## Next action
 
-`/milestone-implement workflow-manager-packaged-distribution` for CP4.
+`/milestone-implement workflow-manager-packaged-distribution` for CP5.
 
 ## Checkpoint log
 
@@ -211,6 +211,68 @@ revision 9. Registry:
   `package verify`), the same selection -- 1353/1353 units, 8604 tests,
   exit 0 (`selection_digest f43674d9...`, `tests_digest d0151f3d...`).
   Targeted selections, not a gate.
+
+### CP4 -- build and prove the five packages (complete)
+
+- **`tools/workflow_packages.py build (--from DIR | --commit SHA) --out DIR
+  [--pins FILE [--check]] [--prime]`** (plan 6): one package per release
+  into `<out>/<v>/` (a `--release-source` directory layout); each built
+  twice and compared byte for byte, then extracted and compared with its
+  source tree (file set, bytes, modes); `--commit` extracts `git archive
+  <sha> distribution/workflow`, never the working tree; `--pins` writes the
+  pin file canonically (or `--check`s it); `--prime` fills the default
+  cache through `ReleaseCache.ensure`. Prints the evidence table.
+- **Run:** `build --commit ec38979 --out /tmp/m2-cp4/assets --pins
+  src/workflow_manager/published_releases.json --prime`. All five round
+  trips identical; two full runs `diff -r` identical; `sha256sum -c
+  --strict` OK in every package directory. The evidence table is in
+  `docs/MIGRATION.md` ("Packaged releases -- the five packages"). The pins
+  now publish `2.3.1`-`2.6.0`; `~/.cache/workflow-manager/releases` holds
+  all five.
+- **Manager packaging (5.6):** `tools/release/package.py` loses
+  `--manager-root`; the expected `releases` list is the checkout's pins;
+  the wheel must carry `workflow_manager/published_releases.json`; the smoke
+  check always runs `releases` and `verify <checkout>` from the wheel with
+  the caller's environment. `workflow-manager-verify.yml`'s `package` job
+  and `release.yml`'s build step gain an `actions/cache@v4` restore of
+  `${{ runner.temp }}/workflow-manager-releases` keyed on
+  `hashFiles('src/workflow_manager/published_releases.json')` and
+  `WORKFLOW_MANAGER_RELEASE_CACHE`; the notes line lists the pinned
+  versions. Smoke (outside the suite): `package.py --version 0.0.0+ci`
+  from a scratch venv with `WORKFLOW_MANAGER_RELEASE_SOURCE=/nonexistent`
+  -> exit 0 (wheel, sdist, SHA256SUMS; `releases` and `verify` through the
+  primed cache, offline).
+- **Tests:** new `tests/test_package_round_trip.py` (deleted in CP6):
+  `TestPackagesReproduceTheDistributionTree` (round trip against the
+  `git archive ec38979` extraction with an independent file comparison,
+  byte-identical rebuild, pins reproduce byte for byte),
+  `TestCheckoutReleasesArePinned` (every committed release is pinned and
+  its manifest hashes to the pin; the working tree's manifests too), and
+  `TestWorkflowPackagesTool` (the tool on synthetic releases: pins
+  write/check, prime, `__pycache__` debris fails the round trip, mode
+  difference, refusals, usage errors). New `tests/test_published_packages.py`:
+  `TestPinnedPackagesVerify` (permanent: each pin's cached assets and
+  `SHA256SUMS`, re-extraction, verified snapshot). Edited:
+  `test_parallel_runner.py` (package job command, cache step and env),
+  `test_release_workflows.py` (cache step before the build, keyed on the
+  pins, no `--manager-root`, notes from the pins; three new mutants),
+  `test_manager_version.py` (`test_the_live_release_set` on the pins
+  without `--manager-root`; expected list = pins; wheel must carry the
+  pins; `--manager-root` now a usage error). Both new modules have `full`
+  rules in `tools/ci/pr_profile_paths.json`.
+- **INV-3:** `python3 -m workflow_manager verify .` with
+  `WORKFLOW_MANAGER_RELEASE_SOURCE=/nonexistent` -> exit 0 through the
+  primed cache, offline; `releases` lists all five `[cached]`.
+- **CI note:** `TestPinnedPackagesVerify` and every CLI test that resolves
+  a pinned version read the cache. CI's shard jobs have no primed cache
+  until CP5 (runner priming) and CP6 (cache restore); the packaging jobs
+  download on a miss, which needs the cutover's `K2`. No implementation
+  gate depends on CI (plan 9, INV-5).
+- **Verified (gate):** `python3 tests/run_all.py` -- full selection, local,
+  8 workers, head `92ef881` plus this checkpoint's working tree, 4122/4122
+  units, 25,828 tests, `selection_digest f66d59fe...`, `tests_digest
+  be0b5900...`, verdict exit 0, wall 398 s (20 declared orphan-source
+  chunks tolerated).
 
 ## Previous milestone
 
