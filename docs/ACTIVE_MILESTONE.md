@@ -12,11 +12,13 @@ plan: `docs/ai-workflow/WORKFLOW_MANAGER_TEST_CLEANUP_PLAN.md`.
 
 ## Current checkpoint
 
-`AWAITING_LOCAL_IMPLEMENTATION_REVIEW` (implementation revision 5,
+`AWAITING_LOCAL_IMPLEMENTATION_REVIEW` (implementation revision 6,
 post-fix). CP1-CP3 are complete. The functional review's F1 was fixed in
-`944920a`; revision 4's local review returned `REVISE` with one test-only
-finding (I1), fixed in `906e884`, and the full gate at `9ba3b4d` is
-green. Technical approval `0263fa9` is `STALE`.
+`944920a`; revision 4's local review returned `REVISE` (I1, fixed in
+`906e884`). Revision 5's local review approved; its manual external
+review returned `REVISE` with three test-only timing findings, fixed in
+`8702136` and `8a9acc0`. The full gate at `8a9acc0` is green. Technical
+approval `0263fa9` is `STALE`.
 
 ## Current blockers
 
@@ -29,9 +31,10 @@ None.
 
 ## Next action
 
-Both implementation-review stages for revision 5 (`/review-implementation`,
-then the manual external stage), then `/approve-review implementation`
-and the functional review again.
+Both implementation-review stages for revision 6 (`/review-implementation`,
+then the manual external stage), a green required CI run for revision 6
+(the external review's acceptance criterion; pushing is the user's), then
+`/approve-review implementation` and the functional review again.
 
 ## Checkpoint log
 
@@ -366,6 +369,39 @@ locally. F1 was judged correct. The one finding was test-only:
   2ac5212b..., tree_digest 8c066271...`, `verdict: exit 0`, 389.2 s wall.
   `orphan check: on`, only the 20 declared `orphan_sources` chunks
   tolerated, no Git orphan.
+
+### Implementation review round 5 (`MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW`, `REVISE`)
+
+Revision 5's local stage approved. The manual external stage returned
+`REVISE` with three important, test-only findings, all in
+`TestReaperDirect`, all accepted and reproduced:
+
+- **I1:** `test_a_double_forked_setsid_sleeper_is_one_killed_orphan`
+  required `"sleep 300"`, but the middle process could exit before the
+  daemon exec'd, so the wrapper labelled it with its Python command line
+  (revision 4's CI failure). Fixed in `8702136`: in `exec` mode the middle
+  process exits only once the daemon's command line reads `sleep`. In
+  `8a9acc0` the daemon execs 0.2 s late, so the old ordering fails every
+  time (negative control: 3 of 3 failures with the wait removed).
+- **I2:** the 2.5, 4 and 4.5 s wall-clock limits. **I3:** the short-lived
+  daemon's `exited` fate, and the fork case's "more than 20 forks before
+  the grace period ends". Fixed in `8702136`: `reaper.py` gains a
+  `--grace-seconds` test seam (the runner never passes it). The clean,
+  comm-label, short-lived and many-daemons cases run with a 3600 s grace
+  period, which `reap`'s 120 s timeout always ends first, so returning at
+  all proves an end on `ECHILD` and no self-exiting orphan is `killed`.
+  The fork case's chunk exits, starting the default grace period, only
+  after 21 forks. No wall-clock assertion remains.
+- Load check: `TestReaperDirect` 3 times concurrently under 2 CPU-bound
+  processes per CPU, all green; 5 more sequential runs green.
+- **The full gate** at `8a9acc0`: `evidence: full selection, local, 8
+  worker(s), head 8a9acc0d69d9c9ca11c915fc68ad0aa3761c864a, 4102/4102
+  units, 25687 tests, selection_digest 43d1394e..., tests_digest
+  2ac5212b..., tree_digest 9b1c8f52...`, `verdict: exit 0`, 384.6 s wall.
+  `orphan check: on`, only the 20 declared `orphan_sources` chunks
+  tolerated, no Git orphan.
+- The review's acceptance criterion also asks for a green required CI run
+  for the corrected revision. That needs a push, which is the user's.
 
 ## Functional review checklist
 
