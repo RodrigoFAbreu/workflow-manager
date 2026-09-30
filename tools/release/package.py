@@ -23,7 +23,6 @@ Exit codes: 0 success; 1 build or proof failure; 2 usage error.
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import shutil
 import subprocess
@@ -31,10 +30,12 @@ import sys
 import tempfile
 from pathlib import Path
 
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(REPO_ROOT / "src"))
 from release import VERSION_RE, ReleaseError, set_version  # noqa: E402
 
-REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+from workflow_manager import package as workflow_package  # noqa: E402
 
 #: What the wheel and sdist are built from; nothing else of the checkout.
 COPY_FILES = ("pyproject.toml", "README.md")
@@ -42,7 +43,7 @@ COPY_TREES = ("src",)
 #: Build and editor debris a checkout's `src/` may hold; never shipped.
 IGNORED = shutil.ignore_patterns("__pycache__", "*.pyc", "*.pyo", "*.egg-info", "build", "dist")
 
-SUMS_NAME = "SHA256SUMS"
+SUMS_NAME = workflow_package.SUMS_NAME
 DISTRIBUTION_NAME = "workflow-manager"
 COMMAND_TIMEOUT_SECONDS = 600
 
@@ -68,22 +69,14 @@ def copy_project(source: Path, destination: Path) -> list[str]:
                   for p in destination.rglob("*") if p.is_file())
 
 
-def _sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1 << 20), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
 def sha256sums_text(directory: Path) -> str:
     """`sha256sum`'s text format (`<hex>  <name>`), one line per regular file
-    directly in `directory` other than SHA256SUMS itself, sorted by name."""
-    files = sorted((p for p in directory.iterdir() if p.is_file() and p.name != SUMS_NAME),
-                   key=lambda p: p.name)
+    directly in `directory` other than SHA256SUMS itself, sorted by name.
+    The format is the shared writer's, the one Workflow packages use too."""
+    files = [p for p in directory.iterdir() if p.is_file() and p.name != SUMS_NAME]
     if not files:
         raise PackageError(f"{directory} holds no files to digest")
-    return "".join(f"{_sha256(p)}  {p.name}\n" for p in files)
+    return workflow_package.sha256sums_text(files)
 
 
 def write_sha256sums(directory: Path) -> Path:

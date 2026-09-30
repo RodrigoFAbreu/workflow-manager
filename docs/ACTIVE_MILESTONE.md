@@ -2,6 +2,82 @@
 
 ## Milestone
 
+`workflow-manager-packaged-distribution` (M2; `governing_workflow_version:
+"2.2"`, `process`, plan revision 9 approved in `e341c90` on basis
+`EXTERNAL_APPROVE`, base `ec38979`, branch
+`milestone/workflow-manager-packaged-distribution`): a Workflow release
+becomes a versioned, checksummed, immutable package that the Manager
+downloads, verifies, caches and installs; `distribution/`, `migration/`,
+the migration tooling and the stopgap test profile leave this repository.
+Full plan: `docs/ai-workflow/WORKFLOW_MANAGER_PACKAGED_DISTRIBUTION_PLAN.md`.
+
+## Current checkpoint
+
+CP1 (package format) is complete. Next: CP2 (release source, pins and
+verified cache).
+
+## Current blockers
+
+None.
+
+## Active plan
+
+`docs/ai-workflow/WORKFLOW_MANAGER_PACKAGED_DISTRIBUTION_PLAN.md`,
+revision 9. Registry:
+`docs/ai-workflow/registry/workflow-manager-packaged-distribution-registry.json`
+(CP1-CP7).
+
+## Next action
+
+`/milestone-implement workflow-manager-packaged-distribution` for CP2.
+
+## Checkpoint log
+
+### CP1 -- package format (complete)
+
+- **`D-Package-Format`** (`src/workflow_manager/package.py`):
+  `build_package(release_dir, out_dir)` writes the three assets
+  (`workflow-V.tar.gz`, `workflow-V.manifest.json`, `SHA256SUMS`) and
+  returns them as a `Package`. It refuses a tree that fails
+  `Release.verify()`, a manifest location that is unsafe or repeated, and a
+  linked file or one that lies outside the release; each file's bytes are
+  re-checked against the manifest as they are packed. Members come from
+  the manifest (`manifest.json`, every location, every parent directory),
+  sorted, `mtime 0`, `0:0`, no owner names, `0755`/`0644`; the tar is
+  `PAX_FORMAT`, which writes a plain USTAR header for every member that
+  fits one and a PAX header only for a path that does not; the gzip header
+  has `mtime 0` and no name.
+- `extract_package(archive, dest, version=None)` accepts only regular files
+  and directories under the single top-level `workflow-V/` (`V` the carried
+  manifest's version, and the requested one when given), with relative
+  paths and no `..`; it refuses links, devices, FIFOs, duplicates, absolute
+  paths, extra files or directories, missing files, a wrong digest or size,
+  any file mode other than the manifest's `0644`/`0755`, a directory mode
+  other than `0755`, a malformed manifest, and more than
+  `MAX_UNPACKED_BYTES` (256 MiB) unpacked. It stages the tree in a
+  temporary sibling of `dest`, re-runs `Release.verify()` there, and
+  publishes by `rename`; every failure raises `ReleaseIntegrityError` and
+  leaves nothing behind. It never calls `tarfile`'s own extraction.
+- **Shared SHA256SUMS writer:** `package.sha256sums_text(files)`.
+  `tools/release/package.py`'s `sha256sums_text(directory)` keeps its
+  signature and its empty-directory refusal and delegates the format to it
+  (it now puts `src/` on `sys.path`).
+- **Tests:** `tests/test_release_source.py` (new; CP2 extends it with
+  5.2-5.4): `TestDeterministicBuild`, `TestRoundTrip`, `TestSafeExtraction`,
+  `TestSha256Sums` (36 tests, synthetic releases only).
+  `tools/ci/pr_profile_paths.json` gains the module's own `full` rule
+  (plan 13).
+- **Verified:** `python3 tests/run_all.py --select test_release_source.py
+  --select test_manager_version.py --select
+  test_stopgap_profile.py::TestPathRulesAreComplete` -- 14/14 units, 84
+  tests, exit 0. A scratch smoke check (not a test, not recorded as
+  evidence; CP4 does it properly) built each of the five releases from
+  `git archive ec38979 distribution/workflow` twice and extracted it: all
+  five archives were byte-identical across builds and extracted to their
+  source trees exactly.
+
+## Previous milestone
+
 `workflow-manager-test-cleanup` (M1b; `governing_workflow_version: "2.2"`,
 `process`, plan revision 5 approved in `5446584` on basis
 `EXTERNAL_APPROVE`, base `7dabd2e`, branch
