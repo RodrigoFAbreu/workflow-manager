@@ -3673,7 +3673,7 @@
       "registry_path": "docs/ai-workflow/registry/workflow-manager-test-cleanup-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/workflow-manager-test-cleanup-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "AWAITING_FUNCTIONAL_REVIEW",
       "plan_revision": 5,
       "implementation_revision": 7,
       "functional_review_round": null,
@@ -3728,10 +3728,10 @@
         "recorded_at": "2026-09-29T14:58:47Z"
       },
       "technical_approval": {
-        "status": "STALE",
+        "status": "CURRENT",
         "basis": "EXTERNAL_APPROVE",
-        "reviewed_bundle_id": "aa4f8d003295acd45c0a9e792a0601798622cac75f6cd46fa0469df76334b384",
-        "approved_review_content_id": "fa3cceefe290250871e328040c0c096042d9c5e0ab767c7b28e702b3bc9d36c7",
+        "reviewed_bundle_id": "d4a3192b2dbfef5ff6e9c3287a992944d80026c1ecf4b7521ad63f36044484ea",
+        "approved_review_content_id": "f51de6638a7df2264cc05c8300dd3fe35e033b872f92214f5174a1cd3b31a3aa",
         "review_content_manifest": [
           {
             "path": "CLAUDE.md",
@@ -3791,7 +3791,7 @@
             "path": "tests/parallel/reaper.py",
             "exists": true,
             "mode": "100644",
-            "blob": "f8153fa367a9c875488df3fbd67ddf7dfba86999"
+            "blob": "b133614a848ab099fba9563c932f870bfa608c76"
           },
           {
             "path": "tests/parallel/report.py",
@@ -3839,7 +3839,7 @@
             "path": "tests/test_orphan_processes.py",
             "exists": true,
             "mode": "100644",
-            "blob": "b3621729af0ebdda506f2766ef97741b14b85e9e"
+            "blob": "acc193cfa8edc356cf05a4f51829f4da738460ff"
           },
           {
             "path": "tests/test_parallel_runner.py",
@@ -3872,11 +3872,11 @@
             "blob": "cdb007a35cd07dc918f700ebcd7d1e63e3bfedbc"
           }
         ],
-        "reviewed_content_commit": "d6efce4eabc1bd3554d1b418a4743369db07235e",
+        "reviewed_content_commit": "74f7f4c873440896e2b3721e461c6c984e28c2e6",
         "legacy_evidence": null,
         "user_confirmation": "implementation workflow-manager-test-cleanup",
         "waived_guarantees": [],
-        "recorded_at": "2026-09-29T21:06:56Z"
+        "recorded_at": "2026-09-30T01:21:06Z"
       },
       "technical_review_block_pins": [],
       "plan_review_stages": {
@@ -3896,8 +3896,8 @@
       },
       "functional_acceptance_status": null,
       "blocking_decisions": [],
-      "state_revision": 44,
-      "last_transition": "2026-09-30T00:35:09Z",
+      "state_revision": 47,
+      "last_transition": "2026-09-30T01:21:06Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -3918,14 +3918,19 @@
         }
       },
       "implementation_review_stages": {
-        "review_content_id": "0cc1249ee5fe3a73e78d2f064d248840976ebbc2afee568d0561282e9574b9c1",
+        "review_content_id": "f51de6638a7df2264cc05c8300dd3fe35e033b872f92214f5174a1cd3b31a3aa",
         "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {
-          "bundle_id": "d558607109fb4b7f70999a1e68bea1280a31e68a620bbe89c101749a41cd95b4",
+          "bundle_id": "d4a3192b2dbfef5ff6e9c3287a992944d80026c1ecf4b7521ad63f36044484ea",
           "verdict": "APPROVE",
-          "round": 6,
-          "completed_at": "2026-09-30T00:13:34Z"
+          "round": 7,
+          "completed_at": "2026-09-30T00:40:33Z"
         },
-        "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": null
+        "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "d4a3192b2dbfef5ff6e9c3287a992944d80026c1ecf4b7521ad63f36044484ea",
+          "verdict": "APPROVE",
+          "round": 7,
+          "completed_at": "2026-09-30T00:45:19Z"
+        }
       }
     }
   }
