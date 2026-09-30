@@ -12,30 +12,44 @@ plan: `docs/ai-workflow/WORKFLOW_MANAGER_TEST_CLEANUP_PLAN.md`.
 
 ## Current checkpoint
 
-`AWAITING_FUNCTIONAL_REVIEW` (implementation revision 7, technical
-approval `10eff23`). CP1-CP3 are complete. The functional review's F1 was fixed in
-`944920a`; revision 4's local review returned `REVISE` (I1, fixed in
-`906e884`). Revision 5's manual external review returned `REVISE` with
-three test-only timing findings, fixed in `8702136` and `8a9acc0`.
-Revision 6's local review approved; its manual external review returned
-`REVISE` with two test-only readiness-wait findings, fixed in `ed233bd`.
-The full gate at `ed233bd` is green. Revision 7's local and manual
-external stages both approved, pull request #10's CI on `f9dadd9` is green,
-and the user's technical approval `10eff23` replaced the stale `0263fa9`.
+**Milestone complete.** `workflow-manager-test-cleanup` reached
+`MILESTONE_COMPLETE` through `/accept-milestone` on 2026-09-30, with the
+user's confirmation, and `active_work_item_id` is cleared.
+- **Checkpoints:** CP1-CP3 are complete.
+- **Technical approval:** commit `10eff23`, implementation revision 7.
+  Both implementation-review stages approved.
+- **Automated verification:** the full gate passed at `ed233bd` (4102/4102
+  units, 25,688 tests). Only docs and state commits have landed since.
+- **Functional review:** round 1 (revision 3) found F1, fixed in
+  `944920a`. Round 2 (revision 7) passed every flow; the user accepted it
+  with no findings filed. The round 2 evidence is recorded under the
+  flows below.
+
+The checkpoint log below is this milestone's permanent record.
 
 ## Current blockers
 
-None.
+None. What remains after acceptance:
+- squash-merge pull request #10 under its title `test: throwaway test
+  repositories leave no orphaned Git processes` (a `test:` title, so it
+  releases nothing), and check that `main`'s full run is green;
+- between milestones, install the Workflow Controller release that carries
+  the zombie-process fix, and drop `--max-steps 1` from this lane's
+  Controller runs (`docs/ROADMAP.md`, 10.1b).
 
 ## Active plan
 
-`docs/ai-workflow/WORKFLOW_MANAGER_TEST_CLEANUP_PLAN.md`, revision 5
-(CP1-CP3).
+None, because the milestone is complete. The plan document stays at
+`docs/ai-workflow/WORKFLOW_MANAGER_TEST_CLEANUP_PLAN.md` (revision 5)
+instead of being archived: `docs/ARCHITECTURE.md` cites it as the design
+record.
 
 ## Next action
 
-The functional review of revision 7 (checklist round 2 below), then
-`/accept-milestone`.
+`workflow-manager-test-cleanup` is complete. Next, once pull request #10
+has merged and `main`'s full run is green, run `/milestone-plan` for the
+next incomplete milestone in `docs/ROADMAP.md`: M2, "Distribution rework,
+packaged Workflow releases" (section 10.2).
 
 ## Checkpoint log
 
@@ -550,6 +564,21 @@ git -C "$T/c" checkout -q milestone/workflow-manager-test-cleanup
 
    Record the run URLs in this file. Round 1: run 36633871279 failed
    (F1). Revision 7: run 36651520532 is green.
+
+**Round 2 results (2026-09-30, revision 7, clone head `f421fe0`).** Flows
+1-4 ran in a throwaway clone with scratch directories; flow 5 is pull
+request #10.
+- **Flow 1:** `orphan check: on`, exactly the 20 declared `orphan_sources`
+  chunks tolerated, 4102/4102 units, 25,688 tests, `verdict: exit 0`. The
+  outer probe reported `"supported": true`, `"chunk_status": 0` and no
+  orphans; at most 3 zombies were seen during the run.
+- **Flow 2:** `OrphanProcessError` naming
+  `host:test_zz_orphan_probe.py::TestLeavesADaemon`, `rc=2`.
+- **Flow 3:** `GitConfigEnvError`, `rc=2`.
+- **Flow 4:** 14/14 units, 64 tests, `orphan check: on`, `verdict: exit 0`.
+- **Flow 5:** pull request #10 at `f421fe0`: 21 checks pass and one skips
+  (the nightly alarm)
+  ([run 36655080879](https://github.com/RodrigoFAbreu/workflow-manager/actions/runs/36655080879)).
 
 **Known limitations (out of scope here).**
 - Non-Linux runs print a notice instead of checking (`OD-4`); CI enforces
