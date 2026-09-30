@@ -720,12 +720,16 @@ class _ReaperCase(_Tmp):
 #: a zombie before it exits, so the daemon is re-parented only once its
 #: label is fixed: its `sleep` command line, or its `comm`. For
 #: `READY == "forked"` the chunk exits only once the daemon has recorded
-#: more than 20 forked pids in `argv[2]`.
+#: more than 20 forked pids in `argv[2]`. A daemon that is not ready within
+#: `TIMEOUT` seconds, or that dies before it execs `sleep`, is killed and the
+#: chunk fails with a message naming the state, before the wrapper's check
+#: can start on a precondition that does not hold.
 _DOUBLE_FORK = """
-import os, sys, time
+import os, signal, sys, time
 
 DAEMON = {daemon!r}
 READY = {ready!r}
+TIMEOUT = {timeout!r}
 
 r, w = os.pipe()
 middle = os.fork()
@@ -737,20 +741,39 @@ if middle == 0:
         exec(DAEMON)
         os._exit(0)
     os.write(w, str(daemon).encode())
+    deadline = time.monotonic() + TIMEOUT
     while READY in ("exec", "zombie"):
-        stat = open(f"/proc/{{daemon}}/stat").read()
-        if READY == "zombie" and stat.rsplit(")", 1)[1].split()[0] == "Z":
+        state = open(f"/proc/{{daemon}}/stat").read().rsplit(")", 1)[1].split()[0]
+        if READY == "zombie" and state == "Z":
             break
         if READY == "exec" and open(f"/proc/{{daemon}}/cmdline", "rb").read().startswith(b"sleep"):
             break
+        if READY == "exec" and state == "Z" or time.monotonic() >= deadline:
+            os.kill(daemon, signal.SIGKILL)
+            os.write(2, f"daemon not ready ({{READY}}) in the middle process: {{state}}\\n".encode())
+            os._exit(3)
         time.sleep(0.01)
     os._exit(0)
 os.close(w)
 daemon = int(os.read(r, 64))
-os.waitpid(middle, 0)
+_, status = os.waitpid(middle, 0)
 open(sys.argv[1], "w").write(str(daemon))
-deadline = time.monotonic() + 60
-while time.monotonic() < deadline:
+
+
+def fail(why):
+    try:
+        os.kill(daemon, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+    sys.exit(f"daemon not ready ({{READY}}): {{why}}")
+
+
+if status:
+    fail(f"the middle process exited with status {{status}}")
+deadline = time.monotonic() + TIMEOUT
+while True:
+    if time.monotonic() >= deadline:
+        fail(f"not ready after {{TIMEOUT}} s")
     try:
         stat = open(f"/proc/{{daemon}}/stat").read()
         state = stat.rsplit(")", 1)[1].split()[0]
@@ -770,8 +793,8 @@ while time.monotonic() < deadline:
 """
 
 
-def double_fork(daemon: str, ready: str) -> str:
-    return _DOUBLE_FORK.format(daemon=daemon, ready=ready)
+def double_fork(daemon: str, ready: str, timeout: float = 60) -> str:
+    return _DOUBLE_FORK.format(daemon=daemon, ready=ready, timeout=timeout)
 
 
 #: A grace period no run reaches: `reap`'s 120 s timeout ends the run first.
@@ -820,9 +843,24 @@ class TestReaperDirect(_ReaperCase):
                                            "fate": "killed"}])
         self.assertTrue(_dead(daemon), "the orphan was left behind, or left as a zombie")
 
-    def _double(self, pid_file: Path, ready: str, daemon: str, *args: str, extra=()):
-        return self.reap(None, *args, argv=[sys.executable, "-B", "-c", double_fork(daemon, ready),
-                                            pid_file, *extra])
+    def _double(self, pid_file: Path, ready: str, daemon: str, *args: str, extra=(), timeout=60):
+        return self.reap(None, *args, argv=[sys.executable, "-B", "-c",
+                                            double_fork(daemon, ready, timeout), pid_file, *extra])
+
+    def test_a_daemon_that_never_gets_ready_fails_the_chunk_with_its_state(self):
+        pids = self.tmp / "forked.pids"
+        for ready, daemon, why in (
+                ("exec", "os._exit(0)", "the middle process exited"),
+                ("exec", "import time; time.sleep(300)", "the middle process exited"),
+                ("forked", "import time; time.sleep(300)", "not ready after 1 s")):
+            with self.subTest(ready=ready, daemon=daemon):
+                pid_file = self.tmp / "daemon.pid"
+                # `UNREACHABLE_GRACE`: returning at all means the daemon was killed.
+                proc, doc, _ = self._double(pid_file, ready, daemon, *UNREACHABLE_GRACE,
+                                            extra=(pids,), timeout=1)
+                self.assertEqual(proc.returncode, 1, proc.stderr)
+                self.assertIn(f"daemon not ready ({ready}): {why}", proc.stderr)
+                self.assertTrue(_dead(int(pid_file.read_text())))
 
     def test_an_orphan_whose_cmdline_reads_empty_is_labelled_by_its_comm(self):
         pid_file = self.tmp / "daemon.pid"
