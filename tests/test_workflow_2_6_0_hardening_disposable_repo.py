@@ -60,7 +60,7 @@ from pathlib import Path
 
 from support import REPO_ROOT
 
-from workflow_manager.fixture import drive_synthetic_work_item_through_checkpoints
+from workflow_manager.fixture import drive_synthetic_work_item_through_checkpoints, init_git_repo
 from workflow_manager.install import bootstrap, drift, update
 from workflow_manager.installation import Installation
 from workflow_manager.release import find_release
@@ -229,7 +229,7 @@ class _InstalledRepoCase(unittest.TestCase):
         self.addCleanup(self._tmp.cleanup)
         self.root = Path(self._tmp.name) / "repo"
         self.root.mkdir()
-        _git(self.root, "init", "-q", "-b", "main")
+        init_git_repo(self.root)
         _git(self.root, "config", "user.email", "cp8@example.invalid")
         _git(self.root, "config", "user.name", "CP8 Hardening")
         _git(self.root, "config", "commit.gpgsign", "false")

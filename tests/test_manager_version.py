@@ -25,6 +25,7 @@ from unittest import mock
 from support import REPO_ROOT
 
 from workflow_manager import cli
+from workflow_manager.fixture import init_git_repo
 
 PACKAGE_PY = REPO_ROOT / "tools" / "release" / "package.py"
 
@@ -57,7 +58,7 @@ class _Tmp(unittest.TestCase):
 
     def make_repo(self, path: Path) -> Path:
         path.mkdir(parents=True)
-        _git(path, "init", "-q", "-b", "main")
+        init_git_repo(path)
         _git(path, "config", "user.email", "t@example.invalid")
         _git(path, "config", "user.name", "t")
         _git(path, "config", "commit.gpgsign", "false")

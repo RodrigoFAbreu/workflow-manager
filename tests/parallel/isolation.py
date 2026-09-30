@@ -1,9 +1,10 @@
 """Isolation and the repository-integrity guard (plan sections 5.7-5.9).
 
 - `run_chunk` runs one chunk in its own process, in a new session, with the
-  per-chunk environment and a private `TMPDIR`; it kills the chunk's whole
-  process group on timeout and again once the chunk has exited, and
-  classifies the outcome (a timeout or a missing record is an
+  per-chunk environment and a private `TMPDIR`, under the leak check's
+  wrapper (`reaper.py`); it kills the chunk's whole process group on timeout
+  and again once the chunk has exited, and classifies the outcome (a
+  timeout, a missing record or a missing orphan report is an
   infrastructure fault, never a pass).
 - `phase_a_order` puts every exclusive chunk into pre-phase A0, ahead of
   every shared chunk; `check_exclusive_windows` re-checks from recorded
@@ -29,6 +30,7 @@ import shutil
 import signal
 import stat
 import subprocess
+import sys
 import threading
 import time
 from dataclasses import dataclass
@@ -59,7 +61,20 @@ TIMED_OUT = "timed_out"
 MISSING_RECORD = "missing_record"
 BAD_RECORD = "bad_record"
 RECORD_MISMATCH = "record_mismatch"
-INFRASTRUCTURE_OUTCOMES = (TIMED_OUT, MISSING_RECORD, BAD_RECORD, RECORD_MISMATCH)
+BAD_ORPHAN_REPORT = "bad_orphan_report"
+INFRASTRUCTURE_OUTCOMES = (TIMED_OUT, MISSING_RECORD, BAD_RECORD, RECORD_MISMATCH,
+                           BAD_ORPHAN_REPORT)
+
+#: The leak check's wrapper (test-cleanup plan 5.4), located from this file,
+#: never from a `repo_root` argument: nested runners run from scratch
+#: checkouts, and direct callers pass any directory.
+REAPER = Path(__file__).resolve().with_name("reaper.py")
+ORPHAN_REPORT_SCHEMA_VERSION = 1
+ORPHAN_FATES = ("exited", "killed")
+
+#: Test seam only: extra wrapper arguments (`--force-unsupported REASON`,
+#: `--platform NAME`). The runner itself never sets it.
+REAPER_TEST_ARGS: tuple[str, ...] = ()
 
 
 class IsolationError(Exception):
@@ -258,20 +273,240 @@ class ChunkPaths:
     record: Path
     log: Path
     tmp: Path
+    orphans: Path
 
 
 def chunk_paths(run_dir: Path, chunk_id: str) -> ChunkPaths:
-    """Where `run_chunk` expects a chunk's record and puts its log and
-    `TMPDIR` -- all inside `run_dir`, which lives outside the checkout (5.6)."""
+    """Where `run_chunk` expects a chunk's record and orphan report and puts
+    its log and `TMPDIR` -- all inside `run_dir`, which lives outside the
+    checkout (5.6)."""
     name = _safe_name(chunk_id)
     run_dir = Path(run_dir)
     return ChunkPaths(run_dir / "records" / f"{name}.json", run_dir / "logs" / f"{name}.log",
-                      run_dir / "tmp" / name)
+                      run_dir / "tmp" / name, run_dir / "orphans" / f"{name}.json")
 
 
-def chunk_env(tmpdir: Path, extra: dict | None = None, base: dict | None = None) -> dict:
+# -- quiet Git: the chunk environment's layer (D-Quiet-Git-Env) ---------------------------
+
+#: `src/workflow_manager/fixture.py`, located from this file, never from a
+#: `repo_root` argument: its `THROWAWAY_GIT_CONFIG` literal is the one
+#: definition of the settings, read as data because the executor process never
+#: imports `workflow_manager` (frozen_chunk.py's docstring).
+FIXTURE_SOURCE = Path(__file__).resolve().parents[2] / "src" / "workflow_manager" / "fixture.py"
+
+#: Where the executor builds the run's Git template, under its run directory.
+GIT_TEMPLATE_DIR_NAME = "git-template"
+
+#: What Git's own default template is read without: a user or system
+#: `init.templateDir`, and any inherited config entries (an operator's
+#: `-c init.templateDir=...` reaches a child through these).
+_TEMPLATE_BUILD_DROPPED = ("GIT_TEMPLATE_DIR", "GIT_CONFIG_PARAMETERS", "GIT_CONFIG_COUNT")
+
+
+class GitConfigEnvError(IsolationError):
+    """The inherited environment's Git config entries cannot be extended
+    safely: a malformed `GIT_CONFIG_COUNT` series, or a
+    `GIT_CONFIG_PARAMETERS` that sets one of the quiet keys or includes a
+    file (it outranks every `GIT_CONFIG_COUNT` entry) or cannot be parsed."""
+
+
+def _load_throwaway_git_config() -> dict[str, str]:
+    tree = ast.parse(FIXTURE_SOURCE.read_text(encoding="utf-8"), filename=str(FIXTURE_SOURCE))
+    for node in tree.body:
+        target = node.target if isinstance(node, ast.AnnAssign) else (
+            node.targets[0] if isinstance(node, ast.Assign) and len(node.targets) == 1 else None)
+        if isinstance(target, ast.Name) and target.id == "THROWAWAY_GIT_CONFIG":
+            value = ast.literal_eval(node.value)
+            if (isinstance(value, dict) and value
+                    and all(isinstance(k, str) and isinstance(v, str) for k, v in value.items())):
+                return dict(value)
+            break
+    raise IsolationError(f"{FIXTURE_SOURCE}: no THROWAWAY_GIT_CONFIG string mapping")
+
+
+THROWAWAY_GIT_CONFIG = _load_throwaway_git_config()
+
+
+def _sq_token(text: str, i: int) -> tuple[str, int]:
+    """One `sq_quote`d token of `GIT_CONFIG_PARAMETERS` starting at `text[i]`:
+    `'...'`, where `'\\''` and `'\\!'` continue it with a literal `'` or `!`."""
+    if i >= len(text) or text[i] != "'":
+        raise ValueError(f"expected a quote at offset {i}")
+    out = []
+    i += 1
+    while True:
+        end = text.find("'", i)
+        if end < 0:
+            raise ValueError("unterminated quote")
+        out.append(text[i:end])
+        i = end + 1
+        if text[i:i + 1] == "\\" and text[i + 1:i + 2] in ("'", "!") and text[i + 2:i + 3] == "'":
+            out.append(text[i + 1])
+            i += 3
+            continue
+        return "".join(out), i
+
+
+def parse_git_config_parameters(text: str) -> list[tuple[str, str | None]]:
+    """`GIT_CONFIG_PARAMETERS` as Git writes it (`git -c`): space-separated
+    entries, each `'key'='value'`, `'key'=` (no value) or the older
+    `'key=value'`. Raises `ValueError` on anything else."""
+    entries = []
+    i = 0
+    while i < len(text):
+        if text[i].isspace():
+            i += 1
+            continue
+        token, i = _sq_token(text, i)
+        if text[i:i + 1] == "=":
+            i += 1
+            if text[i:i + 1] == "'":
+                value, i = _sq_token(text, i)
+                entries.append((token, value))
+            else:
+                entries.append((token, None))
+        else:
+            key, sep, value = token.partition("=")
+            entries.append((key, value if sep else None))
+        if i < len(text) and not text[i].isspace():
+            raise ValueError(f"unexpected {text[i]!r} at offset {i}")
+    return entries
+
+
+def _git_config_count(env: dict) -> int:
+    raw = env.get("GIT_CONFIG_COUNT")
+    if raw is None:
+        return 0
+    if not (raw.isascii() and raw.isdigit()):
+        raise GitConfigEnvError(
+            f"GIT_CONFIG_COUNT={raw!r} is not a non-negative integer; Git would refuse "
+            "every command under it")
+    count = int(raw)
+    for index in range(count):
+        for name in (f"GIT_CONFIG_KEY_{index}", f"GIT_CONFIG_VALUE_{index}"):
+            if name not in env:
+                raise GitConfigEnvError(
+                    f"GIT_CONFIG_COUNT={count} but {name} is not set; Git would refuse "
+                    "every command under it")
+    return count
+
+
+def _is_include(key: str) -> bool:
+    """Whether a config key includes a file: `include.path` or
+    `includeIf.<condition>.path`. Section and variable names compare
+    case-insensitively, as Git does; any `path` under either section counts,
+    which is stricter than Git needs."""
+    parts = key.split(".")
+    return len(parts) >= 2 and parts[0].lower() in ("include", "includeif") \
+        and parts[-1].lower() == "path"
+
+
+def quiet_git_config(env: dict) -> dict:
+    """Append `THROWAWAY_GIT_CONFIG` to `env`'s `GIT_CONFIG_COUNT` series, in
+    place, and return `env` (plan 5.2).
+
+    The parent's entries are kept and ours are numbered after them. A key is
+    appended unless the *last* inherited value for it (matched
+    case-insensitively, as Git does) is already ours, as the same string --
+    Git uses a single-valued key's last value -- so a nested call appends
+    nothing. A `GIT_CONFIG_PARAMETERS` that sets one of the keys would
+    outrank anything appended here, so it is refused. So is one that
+    includes a file, whose contents cannot be checked here and would outrank
+    ours the same way. An include in the `GIT_CONFIG_COUNT` series is kept:
+    Git expands it where it stands, so it discards every value before it and
+    all four keys are appended after the last one, where ours win. One that
+    cannot be parsed, or a malformed `GIT_CONFIG_COUNT` series, is refused
+    too (`GitConfigEnvError`)."""
+    wanted = {key.lower() for key in THROWAWAY_GIT_CONFIG}
+    parameters = env.get("GIT_CONFIG_PARAMETERS")
+    if parameters is not None:
+        try:
+            entries = parse_git_config_parameters(parameters)
+        except ValueError as exc:
+            raise GitConfigEnvError(
+                f"GIT_CONFIG_PARAMETERS cannot be parsed ({exc}): {parameters!r}") from None
+        clashes = sorted({key for key, _ in entries if key.lower() in wanted})
+        if clashes:
+            raise GitConfigEnvError(
+                f"GIT_CONFIG_PARAMETERS sets {', '.join(clashes)}, which outranks the "
+                "runner's quiet-Git settings; unset it (or drop those keys) and re-run")
+        includes = sorted({key for key, _ in entries if _is_include(key)})
+        if includes:
+            raise GitConfigEnvError(
+                f"GIT_CONFIG_PARAMETERS sets {', '.join(includes)}, and an included file "
+                "outranks the runner's quiet-Git settings; unset it (or drop the include) "
+                "and re-run")
+    count = _git_config_count(env)
+    last: dict[str, str] = {}
+    for index in range(count):
+        key = env[f"GIT_CONFIG_KEY_{index}"]
+        if _is_include(key):
+            last.clear()
+            continue
+        last[key.lower()] = env[f"GIT_CONFIG_VALUE_{index}"]
+    for key, value in THROWAWAY_GIT_CONFIG.items():
+        if last.get(key.lower()) == value:
+            continue
+        env[f"GIT_CONFIG_KEY_{count}"] = key
+        env[f"GIT_CONFIG_VALUE_{count}"] = value
+        count += 1
+    if count or "GIT_CONFIG_COUNT" in env:
+        env["GIT_CONFIG_COUNT"] = str(count)
+    return env
+
+
+def check_git_env(environ: dict | None = None) -> None:
+    """Refuse (`GitConfigEnvError`) an inherited environment `chunk_env` could
+    not extend -- called by every mode that runs chunks, before any starts."""
+    quiet_git_config(dict(os.environ if environ is None else environ))
+
+
+def build_git_template(run_dir: Path) -> Path:
+    """`<run_dir>/git-template/`: Git's own default template plus a `config`
+    holding `THROWAWAY_GIT_CONFIG`, which Git copies into every repository
+    `git init` or `git clone` creates (plan 5.2). Built once per run, before
+    any chunk starts; returns its path."""
+    run_dir = Path(run_dir)
+    template = run_dir / GIT_TEMPLATE_DIR_NAME
+    scratch = run_dir / "git-template-scratch"
+    for path in (template, scratch):
+        if path.exists():
+            shutil.rmtree(path)
+    env = {name: value for name, value in os.environ.items()
+           if name not in _TEMPLATE_BUILD_DROPPED
+           and not name.startswith(("GIT_CONFIG_KEY_", "GIT_CONFIG_VALUE_"))}
+    env["GIT_CONFIG_GLOBAL"] = "/dev/null"
+    env["GIT_CONFIG_NOSYSTEM"] = "1"
+    env.pop("GIT_CONFIG_SYSTEM", None)
+    try:
+        subprocess.run(["git", "init", "-q", str(scratch)], check=True, capture_output=True,
+                       env=env)
+        template.mkdir(parents=True)
+        for entry in sorted((scratch / ".git").iterdir()):
+            if entry.name in ("HEAD", "config", "objects", "refs"):
+                continue
+            if entry.is_dir() and not entry.is_symlink():
+                shutil.copytree(entry, template / entry.name, symlinks=True)
+            else:
+                shutil.copy2(entry, template / entry.name, follow_symlinks=False)
+        for key, value in THROWAWAY_GIT_CONFIG.items():
+            subprocess.run(["git", "config", "--file", str(template / "config"), key, value],
+                           check=True, capture_output=True, env=env)
+    finally:
+        if scratch.exists():
+            shutil.rmtree(scratch)
+    return template
+
+
+def chunk_env(tmpdir: Path, extra: dict | None = None, base: dict | None = None, *,
+              git_template: Path | None = None) -> dict:
     """Today's environment minus `PYTHONPATH`/`FORCE_COLOR`, plus bytecode and
-    colour off and the chunk's private `TMPDIR` (5.7)."""
+    colour off and the chunk's private `TMPDIR` (5.7), plus quiet Git (5.2 of
+    the test-cleanup plan): `THROWAWAY_GIT_CONFIG` appended to the
+    `GIT_CONFIG_*` series, and `GIT_TEMPLATE_DIR` set to `git_template` --
+    or, when none is given, removed, so an inherited template never reaches
+    a chunk. Raises `GitConfigEnvError` on an inherited series it cannot
+    extend."""
     env = dict(os.environ if base is None else base)
     env.pop("PYTHONPATH", None)
     env.pop("FORCE_COLOR", None)
@@ -279,7 +514,11 @@ def chunk_env(tmpdir: Path, extra: dict | None = None, base: dict | None = None)
     env["PYTHON_COLORS"] = "0"
     env["TMPDIR"] = str(tmpdir)
     env.update(extra or {})
-    return env
+    if git_template is None:
+        env.pop("GIT_TEMPLATE_DIR", None)
+    else:
+        env["GIT_TEMPLATE_DIR"] = str(git_template)
+    return quiet_git_config(env)
 
 
 def _make_removable(root: Path) -> None:
@@ -329,6 +568,13 @@ class ChunkRun:
     pgid: int
     tmp_residue: tuple[str, ...] = ()
     detail: str = ""
+    #: The leak check's findings: every orphan the wrapper recorded, and
+    #: whether the check ran (`None` when no report was read: a timeout, or a
+    #: report that failed its checks).
+    orphans: tuple[dict, ...] = ()
+    platform: str | None = None
+    supported: bool | None = None
+    unsupported_reason: str | None = None
 
     @property
     def infrastructure_fault(self) -> str | None:
@@ -373,26 +619,91 @@ def _classify(returncode: int, record_path: Path) -> tuple[str, dict | None, str
     return (PASSED if returncode == 0 else FAILED), record, ""
 
 
+def _orphan_report_error(doc, chunk_id: str, returncode: int) -> str | None:
+    if not isinstance(doc, dict) or set(doc) != {
+            "schema_version", "chunk_id", "platform", "supported", "unsupported_reason",
+            "chunk_status", "orphans"}:
+        return "the orphan report is not an object with exactly the schema's keys"
+    if doc["schema_version"] != ORPHAN_REPORT_SCHEMA_VERSION:
+        return f"orphan report schema_version {doc['schema_version']!r}"
+    if doc["chunk_id"] != chunk_id:
+        return f"the orphan report is for chunk {doc['chunk_id']!r}"
+    if not isinstance(doc["platform"], str) or type(doc["supported"]) is not bool:
+        return "the orphan report's platform or supported field is malformed"
+    reason = doc["unsupported_reason"]
+    if (reason is None) != doc["supported"] or (reason is not None and not isinstance(reason, str)):
+        return "the orphan report's unsupported_reason disagrees with supported"
+    status = doc["chunk_status"]
+    if type(status) is not int:
+        return f"the orphan report's chunk_status {status!r} is not an integer"
+    if status != returncode:
+        return f"the orphan report's chunk_status {status} disagrees with the wrapper's exit " \
+               f"{returncode}"
+    orphans = doc["orphans"]
+    if not isinstance(orphans, list) or (orphans and not doc["supported"]):
+        return "the orphan report's orphans field is malformed"
+    for entry in orphans:
+        if not isinstance(entry, dict) or set(entry) != {"pid", "cmdline", "fate"} \
+                or type(entry["pid"]) is not int or not isinstance(entry["cmdline"], str) \
+                or entry["fate"] not in ORPHAN_FATES:
+            return f"the orphan report has a malformed entry {entry!r}"
+    return None
+
+
+def read_orphan_report(path: Path, chunk_id: str, returncode: int) -> tuple[dict | None, str]:
+    """`(report, "")` for a report that exists, parses, carries `chunk_id`
+    and the wrapper's own exit as the chunk's status; else `(None, why)`.
+    Never read as "no orphans"."""
+    if not path.exists():
+        return None, f"no orphan report (wrapper exit {returncode}) at {path}"
+    try:
+        doc = strict_json_loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        return None, f"unreadable orphan report {path}: {exc}"
+    error = _orphan_report_error(doc, chunk_id, returncode)
+    if error:
+        return None, f"{error} ({path})"
+    return doc, ""
+
+
+def reaper_argv(argv, *, report: Path, chunk_id: str, pass_fds=()) -> list[str]:
+    """`argv` under the leak check's wrapper (5.4)."""
+    wrapper = [sys.executable, "-I", "-S", "-B", str(REAPER), "--report", str(report),
+               "--chunk-id", chunk_id]
+    for fd in pass_fds:
+        wrapper += ["--pass-fd", str(fd)]
+    return wrapper + list(REAPER_TEST_ARGS) + ["--", *(str(a) for a in argv)]
+
+
 def run_chunk(repo_root: Path, chunk_id: str, argv, *, run_dir: Path, timeout: float,
               cwd: Path | None = None, extra_env: dict | None = None,
-              lock: RunLock | None = None) -> ChunkRun:
-    """Run one chunk in its own process and session.
+              lock: RunLock | None = None, git_template: Path | None = None,
+              interrupted: threading.Event | None = None) -> ChunkRun:
+    """Run one chunk in its own process and session, under the leak check's
+    wrapper (`reaper.py`, test-cleanup plan 5.4).
 
     `argv` must make the chunk write its record to
     `chunk_paths(run_dir, chunk_id).record`. The chunk's stdout and stderr go
-    to its log. With `lock`, the lock fd is passed to the chunk process and its
-    process group is recorded in the lock file while it runs. On timeout the
-    whole group is killed (`timed_out`); once the chunk process has exited, for
-    any reason, its group is killed again so no descendant outlives it. The
-    private `TMPDIR` is emptied afterwards and what was in it is reported."""
+    to its log. The wrapper leads the chunk's session and group, adopts and
+    reaps every orphan the chunk leaves, and writes the orphan report. With
+    `lock`, the lock fd is passed through the wrapper to the chunk process and
+    the group is recorded in the lock file while it runs. On timeout the whole
+    group is killed (`timed_out`); once the wrapper has exited, for any
+    reason, the group is killed again so no descendant outlives it. After an
+    ordinary exit a missing or failing orphan report is `bad_orphan_report`;
+    once `interrupted` is set (the executor's interrupt kills the group from
+    outside), the report is not read, as on timeout.
+    The private `TMPDIR` is emptied afterwards and what was in it is reported.
+    `git_template` is the run's Git template (`chunk_env`)."""
     paths = chunk_paths(run_dir, chunk_id)
-    for directory in (paths.record.parent, paths.log.parent):
+    for directory in (paths.record.parent, paths.log.parent, paths.orphans.parent):
         directory.mkdir(parents=True, exist_ok=True)
     paths.record.unlink(missing_ok=True)
+    paths.orphans.unlink(missing_ok=True)
     if paths.tmp.exists():
         clean_tmpdir(paths.tmp)
     paths.tmp.mkdir(parents=True)
-    env = chunk_env(paths.tmp, extra_env)
+    env = chunk_env(paths.tmp, extra_env, git_template=git_template)
     pass_fds = (lock.fd,) if lock is not None else ()
 
     timed_out = False
@@ -404,7 +715,9 @@ def run_chunk(repo_root: Path, chunk_id: str, argv, *, run_dir: Path, timeout: f
     # once the chunk exists -- before its group is registered, too -- still
     # reaches the `finally` that kills that group.
     try:
-        proc = subprocess.Popen([str(a) for a in argv], cwd=str(cwd or repo_root), env=env,
+        proc = subprocess.Popen(reaper_argv(argv, report=paths.orphans, chunk_id=chunk_id,
+                                            pass_fds=pass_fds),
+                                cwd=str(cwd or repo_root), env=env,
                                 stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT,
                                 start_new_session=True, pass_fds=pass_fds)
         log.close()
@@ -429,12 +742,20 @@ def run_chunk(repo_root: Path, chunk_id: str, argv, *, run_dir: Path, timeout: f
     pgid = proc.pid
 
     residue = clean_tmpdir(paths.tmp)
+    report = None
     if timed_out:
         outcome, record, detail = TIMED_OUT, None, f"killed after {timeout:g}s"
     else:
         outcome, record, detail = _classify(returncode, paths.record)
+        if interrupted is None or not interrupted.is_set():
+            report, why = read_orphan_report(paths.orphans, chunk_id, returncode)
+            if report is None:
+                outcome, detail = BAD_ORPHAN_REPORT, why
+    check = {} if report is None else {
+        "orphans": tuple(report["orphans"]), "platform": report["platform"],
+        "supported": report["supported"], "unsupported_reason": report["unsupported_reason"]}
     return ChunkRun(chunk_id, outcome, returncode, record, paths.log, started_at, ended_at,
-                    pgid, residue, detail)
+                    pgid, residue, detail, **check)
 
 
 # -- serialization of exclusive chunks (5.8) ---------------------------------------------

@@ -52,7 +52,7 @@ from support import CI_SUITES, REPO_ROOT, failing_tests, run_suite
 from parallel import canonical_json, strict_json_loads
 from parallel.tree import describe, tree_digest
 
-from workflow_manager.fixture import build_conformance_repo, build_target_repo
+from workflow_manager.fixture import build_conformance_repo, build_target_repo, init_git_repo
 from workflow_manager.install import bootstrap, drift
 from workflow_manager.release import find_release
 
@@ -82,11 +82,7 @@ def _git(repo: Path, *args: str) -> str:
 
 
 def empty_repo(root: Path) -> Path:
-    root.mkdir(parents=True, exist_ok=True)
-    _git(root, "init", "-q", "-b", "main")
-    _git(root, "config", "user.email", "e2e@example.invalid")
-    _git(root, "config", "user.name", "E2E")
-    _git(root, "config", "commit.gpgsign", "false")
+    init_git_repo(root)
     return root
 
 

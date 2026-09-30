@@ -1,14 +1,16 @@
 """Declared non-overlappable tests (plan section 5.8, `D-Resources`).
 
 `<repo_root>/tests/parallel/resources.json` declares every resource and every
-unit that needs one exclusively. This loader is the only reader of that file:
-the planner's placement, `isolation`'s A0 ordering and barrier lifting, and
-the static lint all go through `load`.
+unit that needs one exclusively, and, optionally, the units whose orphaned
+processes the leak check tolerates (`orphan_sources`, test-cleanup plan
+5.4). This loader is the only reader of that file: the planner's placement,
+`isolation`'s A0 ordering and barrier lifting, the verdict's orphan check
+and the static lint all go through `load`.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import strict_json_loads
@@ -40,9 +42,17 @@ class Exclusive:
 
 
 @dataclass(frozen=True)
+class OrphanSource:
+    unit: str
+    reason: str
+
+
+@dataclass(frozen=True)
 class Resources:
     resources: dict[str, Resource]
     exclusive: dict[str, Exclusive]
+    #: unit id -> why its orphans are tolerated (host or frozen)
+    orphan_sources: dict[str, OrphanSource] = field(default_factory=dict)
 
     def is_exclusive(self, unit_id: str) -> bool:
         return unit_id in self.exclusive
@@ -69,25 +79,35 @@ def resources_path(repo_root: Path) -> Path:
     return Path(repo_root) / "tests" / "parallel" / "resources.json"
 
 
-def load(repo_root: Path, host_unit_ids) -> Resources:
+def load(repo_root: Path, host_unit_ids, *, orphan_unit_ids=None) -> Resources:
     """Load and validate `<repo_root>/tests/parallel/resources.json`.
 
     `host_unit_ids` is the host inventory the caller already discovered; every
-    exclusive unit must be one of them. The loader never runs discovery."""
+    exclusive unit must be one of them. `orphan_unit_ids` is the full
+    inventory (host and frozen) `orphan_sources` keys are validated against;
+    omitted, they are validated against the host ids, so a frozen declaration
+    read by a caller that forgot it is refused. The loader never runs
+    discovery."""
     path = resources_path(repo_root)
     try:
         raw = strict_json_loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:
         raise ResourcesFileError(f"{path}: unreadable: {exc}") from exc
-    return parse(raw, host_unit_ids, source=str(path))
+    return parse(raw, host_unit_ids, source=str(path), orphan_unit_ids=orphan_unit_ids)
 
 
-def parse(raw, host_unit_ids, *, source: str = "resources.json") -> Resources:
+REQUIRED_KEYS = frozenset({"schema_version", "resources", "exclusive"})
+OPTIONAL_KEYS = frozenset({"orphan_sources"})
+
+
+def parse(raw, host_unit_ids, *, source: str = "resources.json",
+          orphan_unit_ids=None) -> Resources:
     def fail(message: str):
         raise ResourcesFileError(f"{source}: {message}")
 
-    if not isinstance(raw, dict) or set(raw) != {"schema_version", "resources", "exclusive"}:
-        fail("top level must be an object with exactly schema_version, resources, exclusive")
+    if not isinstance(raw, dict) or not REQUIRED_KEYS <= set(raw) <= REQUIRED_KEYS | OPTIONAL_KEYS:
+        fail("top level must be an object with exactly schema_version, resources, exclusive, "
+             "and optionally orphan_sources")
     if type(raw["schema_version"]) is not int or raw["schema_version"] != SCHEMA_VERSION:
         fail(f"schema_version must be {SCHEMA_VERSION}, got {raw['schema_version']!r}")
     if not isinstance(raw["resources"], dict) or not isinstance(raw["exclusive"], dict):
@@ -147,4 +167,21 @@ def parse(raw, host_unit_ids, *, source: str = "resources.json") -> Resources:
             fail(f"exclusive unit {unit!r} is not in the host inventory")
         exclusive[unit] = Exclusive(unit, tuple(sorted(held)), reason)
 
-    return Resources(resources, exclusive)
+    raw_sources = raw.get("orphan_sources", {})
+    if not isinstance(raw_sources, dict):
+        fail("orphan_sources must be an object")
+    inventory = set(known_units if orphan_unit_ids is None else orphan_unit_ids)
+    orphan_sources: dict[str, OrphanSource] = {}
+    for unit in sorted(raw_sources):
+        spec = raw_sources[unit]
+        if not isinstance(spec, dict) or set(spec) != {"reason"}:
+            fail(f"orphan_sources {unit!r} must be an object with exactly reason")
+        reason = spec["reason"]
+        if not isinstance(reason, str) or not reason.strip():
+            fail(f"orphan_sources {unit!r}: reason must be a non-empty string")
+        if unit not in inventory:
+            fail(f"orphan_sources unit {unit!r} is not in the "
+                 f"{'host ' if orphan_unit_ids is None else ''}inventory")
+        orphan_sources[unit] = OrphanSource(unit, reason)
+
+    return Resources(resources, exclusive, orphan_sources)

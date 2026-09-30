@@ -19,8 +19,13 @@
 Exit 0: every planned unit reported and every test passed. Exit 1: a test
 failed or errored. Exit 2: an infrastructure fault (incomplete or foreign
 results, a digest mismatch, a refused merge, a killed or recordless chunk, a
+chunk that left undeclared orphaned processes (`OrphanProcessError`), a Linux
+chunk without the orphan check (`OrphanCheckUnavailableError`), a declared
+frozen orphan source sharing a chunk (`OrphanDeclarationError`), a
 repository-integrity violation, another run holding this checkout's run
-lock, a refused root run) or a usage error. Every exit-2 refusal prints
+lock, a refused root run) or a usage error (among them an inherited
+`GIT_CONFIG_*` environment the chunk environment cannot extend,
+`GitConfigEnvError`, refused before any chunk starts). Every exit-2 refusal prints
 `run_all: error[<ErrorName>]: ...` as its first stderr line.
 
 Order: arguments, path flags (never inside the repository) and `--select`

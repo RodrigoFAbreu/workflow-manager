@@ -44,6 +44,7 @@ from support import REPO_ROOT
 import test_workflow_2_6_0_hardening_disposable_repo as hardening
 
 from workflow_manager import cli
+from workflow_manager.fixture import configure_throwaway_repo, init_git_repo
 from workflow_manager.install import bootstrap
 from workflow_manager.release import find_release
 
@@ -103,7 +104,7 @@ class TestSquashMergedItemOnMain(unittest.TestCase):
     @classmethod
     def _build(cls, tmp: Path) -> None:
         root = cls.root
-        _git(root, "init", "-q", "-b", "main")
+        init_git_repo(root)
         _git(root, "config", "user.email", "squash@example.invalid")
         _git(root, "config", "user.name", "Squash Compat")
         _git(root, "config", "commit.gpgsign", "false")
@@ -150,6 +151,7 @@ class TestSquashMergedItemOnMain(unittest.TestCase):
 
         cls.clone = tmp / "clone"
         _git(tmp, "clone", "-q", "--no-local", str(root), str(cls.clone))
+        configure_throwaway_repo(cls.clone)
         _git(cls.clone, "config", "user.email", "squash@example.invalid")
         _git(cls.clone, "config", "user.name", "Squash Compat")
         _git(cls.clone, "config", "commit.gpgsign", "false")

@@ -279,7 +279,12 @@ trunk model's changes are recorded in
 - **Exit codes.** `0` is all green. `1` means a test failed. `2` is an
   infrastructure fault: incomplete or foreign results, a digest mismatch, a
   refused merge, a killed or recordless chunk, a repository-integrity
-  violation, a held run lock, a refused root run, or a usage error. When a
+  violation, a held run lock, a refused root run, a usage error, an
+  undeclared orphaned process (`OrphanProcessError`), a Linux chunk whose
+  orphan check was unavailable (`OrphanCheckUnavailableError`), a declared
+  frozen unit sharing a chunk (`OrphanDeclarationError`), a missing or
+  invalid orphan report (`bad_orphan_report`), or a refused Git config
+  environment (`GitConfigEnvError`); see "Orphaned processes" below. When a
   run has both, `2` wins, and every observed failure is still listed. Each
   failure in the report carries a one-line reproduction command.
 
@@ -485,6 +490,108 @@ arrives with read-only directories. Overwriting an existing file in the
 copy works. Creating, deleting or renaming inside it fails with `EACCES`,
 which is a false failure caused by the barrier. No test does this today. A
 future test that needs to must restore `u+w` on its own copy first.
+
+**Orphaned processes.** Git 2.55 detaches automatic maintenance
+(`gc --auto`, `maintenance run --auto`) after commits, and the detached
+process leaves the chunk's process group, so the runner's group kill misses
+it. It is re-parented to the nearest subreaper, which under a Workflow
+Controller is the Controller. A full run with the default Git config handed
+42,158 orphans to an outer probe, and under Controller `1.3.0` they became
+zombies until they filled the per-user process limit. The design record is
+`docs/ai-workflow/WORKFLOW_MANAGER_TEST_CLEANUP_PLAN.md`. Two layers switch
+the maintenance off at the source, and a leak check fails any run that still
+orphans something.
+
+- **The settings.** `THROWAWAY_GIT_CONFIG` in
+  `src/workflow_manager/fixture.py` holds `maintenance.auto=false`,
+  `gc.auto=0`, `maintenance.autoDetach=false` and `gc.autoDetach=false`.
+  Nothing writes them outside a throwaway repository, a chunk's environment
+  or the run's template directory. The global and system Git config are
+  never touched.
+- **The environment layer** (`isolation.chunk_env`). Every chunk's
+  environment appends the four pairs to the `GIT_CONFIG_COUNT` series. The
+  parent's entries are kept, and a pair is appended only when the key's last
+  inherited value differs (keys compare case-insensitively) or an include
+  in the series comes after it. A malformed
+  series, or a `GIT_CONFIG_PARAMETERS` that sets one of the keys, includes
+  a file (`include.path`, `includeIf.<condition>.path`) or cannot be
+  parsed, is refused as `GitConfigEnvError` (exit `2`), because
+  `GIT_CONFIG_PARAMETERS` outranks the series. An include in the series
+  itself is kept. Git expands it where it stands, so all four pairs are
+  appended after the last one and win. The executor also builds
+  `<run_dir>/git-template/` once per run, from Git's default template plus
+  a `config` holding the four keys, and sets `GIT_TEMPLATE_DIR` to it, so
+  every repository a chunk initialises or clones carries them in its own
+  local config. This is the only layer that reaches the frozen suites'
+  own repositories, and it also reaches the frozen engine's scratch evidence
+  clone, whose named test runs Git with a `PATH`-only environment.
+- **The per-repository layer.** `configure_throwaway_repo(root)` writes the
+  keys into one repository, and `init_git_repo` calls it. Every host
+  `git init` is an `init_git_repo` call, and every clone is followed by
+  `configure_throwaway_repo` on its destination, so a direct run outside the
+  runner is covered too. `test_orphan_processes.py`'s `TestRoutingCheck`
+  statically checks every `init`/`clone` site in the host test modules, the
+  runner and `src/workflow_manager/`, bound to the repository the site
+  creates. A new site that bypasses the
+  helpers fails the suite, unless it is in the check's reasoned exemption
+  list.
+- **The leak check.** Each chunk runs under `tests/parallel/reaper.py`, a
+  stdlib-only wrapper (`python3 -I -S -B`) that makes itself a child
+  subreaper and starts the chunk as its only child. Every orphan the chunk
+  leaves is re-parented to the wrapper, which records it (its command line,
+  or `[<comm>]` when that reads empty, as it does for Git's detached
+  maintenance) and reaps it. After the chunk exits it waits for at most
+  5 s, stopping at once when nothing is left, then kills and reaps the rest
+  in a loop until none remains. It writes
+  `<run_dir>/orphans/<chunk>.json` and exits with the chunk's own status,
+  so the chunk's outcome is classified as before. Reaping lives in the
+  wrapper, never in the runner, because the runner waits for its own
+  children by pid and a reaper there would steal their exit statuses.
+- **The verdict.** An undeclared orphan is an `OrphanProcessError` naming
+  the chunk and the orphans' labels. A report that is missing, unreadable,
+  another chunk's or inconsistent with the wrapper's exit is
+  `bad_orphan_report`, never "no orphans". On Linux, a chunk whose wrapper
+  could not run the check is `OrphanCheckUnavailableError`, decided on the
+  report's own `platform`. On other platforms the report prints `orphan
+  check: unavailable on this platform` and the run can still pass. All
+  three apply in local, `--run-shard` and `--aggregate` modes, since a
+  chunk's orphans travel in its `ChunkResult`. The report prints `orphan
+  check: on`, and it lists every tolerated orphan by chunk.
+- **Declared sources.** `tests/parallel/resources.json`'s optional
+  `orphan_sources` maps an exact unit id, host or frozen, to a non-empty
+  `reason`. An unknown unit is a schema error. Only a chunk that contains a
+  declared unit has its orphans tolerated. A declared frozen class
+  therefore runs in a chunk of its own (`<group>#<Class>`), and a chunk
+  that mixes one with another unit is `OrphanDeclarationError`. The policy
+  is to fix an orphan from this repository's own code at the source, and to
+  declare it only when orphaning is the test's subject. An orphan from
+  frozen code is declared with its class named. A declaration that
+  tolerated nothing in a run is listed as unused. Today there are 20
+  declarations: five host classes that kill chunk groups on purpose, and
+  the frozen `TestStateLock` in all 15 release and fixture pairs, whose
+  `multiprocessing` forkserver (the default on Python 3.14) outlives its
+  chunk.
+- **Whole-run use.** The same wrapper measures a whole run:
+
+  ```bash
+  python3 -I -S -B tests/parallel/reaper.py --report <file> --chunk-id whole-run -- python3 tests/run_all.py
+  ```
+
+  Its report lists every orphan that escaped the per-chunk wrappers. At
+  the test-cleanup milestone's CP3, a full run under it, with no
+  `GIT_CONFIG_*` exported, listed none, against 42,158 at the milestone's
+  base. None of the orphans the per-chunk wrappers reaped was Git
+  (`docs/ACTIVE_MILESTONE.md`, CP3).
+- **Residuals.** On timeout, interrupt or `SIGKILL`, a chunk's wrapper
+  dies with it, as does a wrapper whose own fault path cannot finish its
+  kill loop. Orphans adopted after that go to the next subreaper up. The
+  runner's own Git calls, the plan step and `prepare_merge` run outside
+  any wrapper; they start no detached work. The check is off on non-Linux
+  hosts, and says so. Code that runs `git init` or `git clone` under an
+  environment it builds from scratch gets neither layer. No such site
+  exists in this repository's code, and the leak check fails the run if a
+  frozen one ever orphans. The managed `workflow-conformance.yml` runs the
+  installed suites outside the runner, in CI only.
 
 ### Stopgap test profile
 

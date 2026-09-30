@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "work_item_id": "workflow-manager-test-cleanup",
+  "plan_revision": 5,
+  "checkpoints": [
+    {
+      "id": "CP1",
+      "name": "Git maintenance off at the source: THROWAWAY_GIT_CONFIG, the chunk-environment layer, the shared per-repository setup for every init/clone site, and the static routing check",
+      "depends_on": [],
+      "complexity": 2,
+      "session_target": 1
+    },
+    {
+      "id": "CP2",
+      "name": "The leak check: the per-chunk subreaper wrapper, OrphanProcessError in every runner mode, declared orphan_sources, and every orphan source fixed or declared",
+      "depends_on": [
+        "CP1"
+      ],
+      "complexity": 4,
+      "session_target": 1
+    },
+    {
+      "id": "CP3",
+      "name": "Measurement under the whole-run wrapper, ARCHITECTURE.md and CLAUDE.md, and the milestone's evidence",
+      "depends_on": [
+        "CP1",
+        "CP2"
+      ],
+      "complexity": 2,
+      "session_target": 1
+    }
+  ]
+}

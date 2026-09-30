@@ -175,7 +175,11 @@ def make_chunks(unit_ids, estimates: dict[str, float], *, profile: str, config: 
                 timings: timings_mod.Timings, resources: Resources,
                 whole_groups: bool = False) -> list[_Chunk]:
     """Phase-A chunks: a host class is its own chunk, never split; frozen
-    classes chunk per `(version, fixture, suite)` group."""
+    classes chunk per `(version, fixture, suite)` group, except that a frozen
+    class with an `orphan_sources` declaration gets a chunk of its own
+    (`<group>#<class>`), so the declaration tolerates that class's orphans
+    and nobody else's (test-cleanup plan 5.4). The rest of its group chunks
+    as it would without the declaration."""
     threshold = config["split_threshold_ratio"] * config["target_shard_seconds"]
     chunks = []
     groups: dict[tuple[str, str, str], list[tuple[str, float]]] = {}
@@ -189,8 +193,14 @@ def make_chunks(unit_ids, estimates: dict[str, float], *, profile: str, config: 
     for (version, fixture, suite), classes in sorted(groups.items()):
         overhead = timings_mod.group_overhead(timings, profile, fixture,
                                               config["default_group_overhead_seconds"])
-        chunks.extend(_frozen_chunks(f"frozen:{version}/{fixture}/{suite}", classes, overhead,
-                                     threshold, whole_groups))
+        group = f"frozen:{version}/{fixture}/{suite}"
+        rest = [(u, e) for u, e in classes if u not in resources.orphan_sources]
+        if rest:
+            chunks.extend(_frozen_chunks(group, rest, overhead, threshold, whole_groups))
+        for unit, estimate in classes:
+            if unit in resources.orphan_sources:
+                chunks.append(_Chunk(f"{group}#{split_frozen_unit_id(unit)[3]}", (unit,),
+                                     _round(estimate + overhead)))
     return chunks
 
 
@@ -363,7 +373,8 @@ def plan_checkout(repo_root: Path, inv, selection: Selection, *, profile: str, *
         selection, inventory_unit_ids=inv.unit_ids(),
         matrix_units=inv.frozen.matrix if inv.frozen is not None else (),
         timings=timings_mod.load(repo_root), config=load_config(repo_root), profile=profile,
-        tree_digest=inv.tree_digest, resources=resources_mod.load(repo_root, list(inv.host)),
+        tree_digest=inv.tree_digest,
+        resources=resources_mod.load(repo_root, list(inv.host), orphan_unit_ids=inv.unit_ids()),
         **options)
 
 

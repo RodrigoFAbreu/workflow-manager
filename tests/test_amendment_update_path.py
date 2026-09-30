@@ -34,7 +34,7 @@ from pathlib import Path
 
 from support import REPO_ROOT
 
-from workflow_manager.fixture import drive_synthetic_work_item_through_checkpoints
+from workflow_manager.fixture import drive_synthetic_work_item_through_checkpoints, init_git_repo
 from workflow_manager.install import bootstrap, drift, update, verify
 from workflow_manager.release import find_release
 
@@ -109,7 +109,7 @@ class _RealReleaseCase(unittest.TestCase):
         self.addCleanup(self._tmp.cleanup)
         self.target = Path(self._tmp.name) / "repo"
         self.target.mkdir(parents=True)
-        _git(self.target, "init", "-q", "-b", "main")
+        init_git_repo(self.target)
         _git(self.target, "config", "user.email", "cp8@example.invalid")
         _git(self.target, "config", "user.name", "CP8 Update Path")
         _git(self.target, "config", "commit.gpgsign", "false")
@@ -499,7 +499,7 @@ class TestReleaseCliAgainstTheAuthoredManifest(unittest.TestCase):
         self.addCleanup(self._tmp.cleanup)
         self.target = Path(self._tmp.name) / "repo"
         self.target.mkdir(parents=True)
-        _git(self.target, "init", "-q", "-b", "main")
+        init_git_repo(self.target)
         _git(self.target, "config", "user.email", "cp8@example.invalid")
         _git(self.target, "config", "user.name", "CP8 Update Path")
         _git(self.target, "config", "commit.gpgsign", "false")

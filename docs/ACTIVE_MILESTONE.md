@@ -2,6 +2,598 @@
 
 ## Milestone
 
+`workflow-manager-test-cleanup` (M1b; `governing_workflow_version: "2.2"`,
+`process`, plan revision 5 approved in `5446584` on basis
+`EXTERNAL_APPROVE`, base `7dabd2e`, branch
+`milestone/workflow-manager-test-cleanup`): this repository's tests stop
+orphaning Git's detached background maintenance at the source, and the
+runner fails any run whose tests leave orphaned processes behind. Full
+plan: `docs/ai-workflow/WORKFLOW_MANAGER_TEST_CLEANUP_PLAN.md`.
+
+## Current checkpoint
+
+**Milestone complete.** `workflow-manager-test-cleanup` reached
+`MILESTONE_COMPLETE` through `/accept-milestone` on 2026-09-30, with the
+user's confirmation, and `active_work_item_id` is cleared.
+- **Checkpoints:** CP1-CP3 are complete.
+- **Technical approval:** commit `10eff23`, implementation revision 7.
+  Both implementation-review stages approved.
+- **Automated verification:** the full gate passed at `ed233bd` (4102/4102
+  units, 25,688 tests). Only docs and state commits have landed since.
+- **Functional review:** round 1 (revision 3) found F1, fixed in
+  `944920a`. Round 2 (revision 7) passed every flow; the user accepted it
+  with no findings filed. The round 2 evidence is recorded under the
+  flows below.
+
+The checkpoint log below is this milestone's permanent record.
+
+## Current blockers
+
+None. What remains after acceptance:
+- squash-merge pull request #10 under its title `test: throwaway test
+  repositories leave no orphaned Git processes` (a `test:` title, so it
+  releases nothing), and check that `main`'s full run is green;
+- between milestones, install the Workflow Controller release that carries
+  the zombie-process fix, and drop `--max-steps 1` from this lane's
+  Controller runs (`docs/ROADMAP.md`, 10.1b).
+
+## Active plan
+
+None, because the milestone is complete. The plan document stays at
+`docs/ai-workflow/WORKFLOW_MANAGER_TEST_CLEANUP_PLAN.md` (revision 5)
+instead of being archived: `docs/ARCHITECTURE.md` cites it as the design
+record.
+
+## Next action
+
+`workflow-manager-test-cleanup` is complete. Next, once pull request #10
+has merged and `main`'s full run is green, run `/milestone-plan` for the
+next incomplete milestone in `docs/ROADMAP.md`: M2, "Distribution rework,
+packaged Workflow releases" (section 10.2).
+
+## Checkpoint log
+
+### CP1 -- Git maintenance off at the source (complete)
+
+- **`D-Quiet-Git`** (`src/workflow_manager/fixture.py`):
+  `THROWAWAY_GIT_CONFIG` (`maintenance.auto=false`, `gc.auto=0`,
+  `maintenance.autoDetach=false`, `gc.autoDetach=false`), plus
+  `configure_throwaway_repo(root)`, which writes them into a repository's
+  local config. `init_git_repo` calls it.
+- **`D-Quiet-Git-Env`** (`tests/parallel/isolation.py`): `chunk_env`
+  appends the four pairs to the `GIT_CONFIG_COUNT` series
+  (`quiet_git_config`). It keeps the parent's entries, decides by each
+  key's last inherited value (case-insensitive), re-appends all four after
+  an include in the series (Git expands it where it stands; added for the
+  local implementation review's round-2 finding), and is idempotent when
+  nested. It refuses (`GitConfigEnvError`, a tagged exit 2) a malformed
+  series, and a `GIT_CONFIG_PARAMETERS` that sets one of the keys, includes
+  a file (`include.path`, `includeIf.<condition>.path`; added for the
+  external implementation review's round-1 finding) or cannot be parsed.
+  The parser reads Git's own `-c` encoding, checked against Git
+  2.55.0's output. `chunk_env`/`run_chunk` take an optional
+  `git_template`: `GIT_TEMPLATE_DIR` is set to it, or removed when it is
+  omitted. `build_git_template(run_dir)` builds `<run_dir>/git-template/`
+  from Git's default template (read with the user and system config off and
+  every inherited `GIT_TEMPLATE_DIR`/`GIT_CONFIG_*`/`GIT_CONFIG_PARAMETERS`
+  removed, which disposes of the plan review's three optional findings)
+  plus a `config` holding the four keys.
+- **Executor** (`tests/parallel/executor.py`): `local_run`, `run_shard`
+  and `aggregate` call `isolation.check_git_env()` before anything runs.
+  `Engine` builds the template once per run and passes it to every
+  `run_chunk` and to `prepare_merge`'s `chunk_env`. `cli.py`'s docstring
+  names the new refusal. It needed no code change, since
+  `GitConfigEnvError` is an `IsolationError`, which is already in
+  `REFUSALS`.
+- **Routing** (`D-Quiet-Git-Repo`): the ten host `init` sites of plan 3.2
+  are `init_git_repo` calls. `frozen_runs.empty_repo` and
+  `test_bootstrap.empty_repo` are now just that call, and the rest keep
+  their own identity and extra keys after it. The two clones
+  (`test_squash_merge_compat._build`, `test_parallel_runner.scratch_clone`)
+  are followed by `configure_throwaway_repo` on their destinations.
+- **Tests** (`tests/test_orphan_processes.py`, new; an exact `full` rule in
+  `tools/ci/pr_profile_paths.json`):
+  - T-QG-1, `TestChunkEnvGitConfig`, 13 tests;
+  - T-QG-2, `TestThrowawayRepositories`, 4 tests. They cover the helper,
+    a configured clone, and a plain init and a plain clone under the
+    template, whose `hooks/` and `info/` equal a default repository's.
+    They also cover a direct `run_chunk` that drops an inherited
+    `GIT_TEMPLATE_DIR`;
+  - T-QG-5, `TestFrozenEvidenceClone`, 2 tests. The frozen `2.6.0`
+    `_materialize_pinned_worktree_at_commit` runs unmodified from the
+    payload, in a `-B` interpreter, under `patch.dict(os.environ)`. With
+    the template, a `PATH`-only Git reports `local` for all four keys.
+    Without it, it reports none of them. The payload's files are unchanged;
+  - T-QG-4, `TestRoutingCheck`, 12 tests: the real tree, plus the rule's
+    synthetic cases.
+
+  `test_parallel_runner.py`'s `test_the_chunk_environment_and_session` now
+  asserts the four pairs, and `GIT_TEMPLATE_DIR` both with and without a
+  template.
+- **Deviations from the plan's wording, both disclosed here:**
+  - The executor process never imports `workflow_manager`
+    (`frozen_chunk.py`'s docstring). So `isolation.py` reads
+    `THROWAWAY_GIT_CONFIG` as a literal from `fixture.py`'s source with
+    `ast`, located from its own `__file__`, instead of importing it. The
+    definition stays single, and a T-QG-1 test asserts that the two values
+    are equal.
+  - T-QG-4's exemption list is no longer empty. It holds four entries,
+    each with its reason:
+    - `isolation.build_git_template`'s scratch `git init`, which reads
+      Git's default template and never commits;
+    - three deliberate plain sites in `test_orphan_processes.py`: the
+      default-config baseline repository, and T-QG-2's plain `init` and
+      plain `clone` under the template.
+
+    A test keeps every exemption matched to a live site. Two of the
+    module's own tuples looked like shape 3. They were rewritten, which
+    changed no rule.
+- **Verification:**
+  - `run_all.py --select test_orphan_processes.py`: 4/4 units, 31 tests,
+    exit 0;
+  - every touched host module plus `test_bootstrap_e2e.py` and
+    `test_disposable_repo_fixtures.py`: 1448/1448 units, 8901 tests, exit
+    0;
+  - INV-1's `git diff 7dabd2e` is empty, `workflow-manager verify .` is
+    clean, and `CLAUDE.md` is unchanged;
+  - the full gate, `python3 tests/run_all.py` over this checkpoint's tree
+    (`tree_digest 60386226...`): 4092/4092 units, 25,655 tests, exit 0,
+    `selection_digest 6e7a9c1b...`, `tests_digest 10276e31...`. Its only
+    failed chunks are the documented `2.3.1`/`2.4.0`
+    `workflow_integration_test.py` portability exceptions.
+
+### CP2 -- the leak check, and every orphan source fixed or declared (complete)
+
+- **The wrapper** (`tests/parallel/reaper.py`, new, stdlib-only, run as
+  `python3 -I -S -B`): plan 5.4 steps 1-6. It makes itself a child
+  subreaper, runs the chunk as its only child, and passes the lock fd on
+  (`--pass-fd`). Every 10 ms it lists `/proc/self/task/*/children` and
+  drains exited children (`waitid(P_ALL, WNOWAIT)`, record, then
+  `waitpid`). Labels are the command line, else `[<comm>]`, else
+  `[unknown]`, and a weak label is upgraded at reap time. After the chunk
+  exits, a grace period of at most 5 s ends at once on `ECHILD`, followed
+  by a kill-and-drain loop until `ECHILD`. The report is written
+  atomically. Exit is the chunk's status, with a signal death re-raised
+  (`SIG_DFL`, unblocked, `RLIMIT_CORE` 0, fallback `os._exit(128+n)`).
+  Its own fault is exit 125, with no report, after a best-effort kill
+  loop. An unsupported host reports `supported: false` with the reason.
+  The test seams `--force-unsupported`/`--platform` are reached only
+  through `isolation.REAPER_TEST_ARGS`, never through the environment, so
+  an operator cannot forge a non-Linux platform.
+- **The runner** (`isolation.py`): `run_chunk` launches the wrapper,
+  located from `isolation.py`'s own path. It deletes a stale report first
+  and, after an ordinary exit, validates the report: its schema, its
+  `chunk_id`, and a `chunk_status` equal to the wrapper's exit. A failure
+  there is the new infrastructure outcome `bad_orphan_report`, naming the
+  report path. `ChunkRun`/`ChunkResult` carry `orphans`, `platform`,
+  `supported` and `unsupported_reason` through the JSON round trip.
+- **The verdict** (`executor.py`): `verdict_of(orphan_sources=)` adds
+  `OrphanProcessError`, `OrphanCheckUnavailableError` (Linux, decided on
+  the report's `platform`) and `OrphanDeclarationError`, in local,
+  `--run-shard` and `--aggregate` modes. The three `resources.load`
+  callers and `planner.plan_checkout` pass `orphan_unit_ids`.
+- **The report** (`report.py`): one `orphan check:` line, a `tolerated
+  orphans` section by chunk, and `orphan_sources unused in this run`.
+  `cli.py`'s docstring names the three new exit-2 faults.
+- **Declarations** (`resources.py`, `resources.json`): an optional
+  `orphan_sources` key, with a non-empty `reason`, validated against the
+  full inventory (or against the host ids when `orphan_unit_ids` is
+  omitted). `planner.make_chunks` gives a declared frozen class its own
+  chunk (`<group>#<Class>`). With no frozen declaration, the chunks are
+  unchanged.
+- **Tests** (`tests/test_orphan_processes.py`):
+  - T-QG-3: `TestEnvironmentLayerUnderTheWrapper` and
+    `TestFrozenCloneUnderTheWrapper`;
+  - T-OC-1: `TestReaperDirect`, 11 tests;
+  - T-OC-2: `TestOrphansThroughTheExecutor`, `TestBadOrphanReports` and
+    `TestVerdictOfOrphans`;
+  - T-OC-3: `TestOrphanSourcesSchema` and
+    `TestFrozenDeclarationThroughTheModes`;
+  - T-OC-4: `TestKilledChunks`.
+
+  T-QG-5's setup moved into `_FrozenCloneCase`, which T-QG-3 reuses.
+  T-QG-3 runs on Git 2.55.0, which it prints. The `ubuntu-latest` image
+  (Ubuntu 24.04, image version `20260920.314.1`) documents Git 2.55.0 as
+  well, so no extra verification on an older Git was needed.
+- **Adapted, not weakened** (`test_parallel_runner.py`):
+  - the chunk-session test now asserts that the chunk's session and group
+    are its parent wrapper's;
+  - the two `ChunkResult` round-trip tests carry an orphan check;
+  - the real-file `resources.load` calls pass `orphan_unit_ids`;
+  - `scratch_checkout`'s own validation load does full discovery only when
+    the scratch declares `orphan_sources`.
+- **Deviations, disclosed:**
+  - `ChunkResult.from_json` also refuses a `passed`/`failed` result with no
+    orphan check. That is fail-closed for `--aggregate`, and not in the
+    plan's wording.
+  - `run_chunk` takes an `interrupted` event, which the executor passes as
+    `Engine.stop`. On the interrupt path the executor kills the group from
+    outside, so the report is not read, exactly as on timeout (plan 5.4:
+    "not the timeout or interrupt paths"). Without it, an interrupted run
+    also reported a spurious `bad_orphan_report`.
+
+**Orphan inventory** (full selection with the check on,
+`/tmp/cp2-full1`, before any declaration). Each source is listed by chunk
+and label, with its disposition:
+
+| source | label | disposition |
+| --- | --- | --- |
+| `host:test_parallel_runner.py` classes using the spawn-context helpers (seen in `TestRefusalsAreDistinguishable`, `TestRunLockAndRecovery`) | `python3 -B -c from multiprocessing.resource_tracker import main;main(4)` / `[python3]` | **fixed at the source**: `tearDownModule` stops `multiprocessing`'s resource tracker, waiting for it |
+| `host:test_parallel_runner.py::TestRunChunk` | 2 x `[python3]` | **declared**: the timeout and interrupt tests kill a chunk's group, wrapper included, and the chunk the wrapper had not reaped is re-parented (5.6) |
+| `host:test_parallel_runner.py::TestExecutorLevelFaults` | 1 x `[python3]` | **declared**: the same, from its timeout test |
+| `host:test_parallel_runner.py::TestLockAndRecoveryThroughTheCli` | the scratch run's `reaper.py` / chunk | **declared**: it SIGKILLs an executor while its chunk runs, and interrupts runs |
+| `host:test_parallel_runner.py::TestRunLockAndRecovery` | the `_WAIT_FOR_FILE` child | **declared**: it SIGKILLs a helper executor whose chunk-like child holds the lock |
+| `host:test_orphan_processes.py::TestKilledChunks` | 1-2 x `[python3]` | **declared**: T-OC-4 times out and interrupts chunks on purpose |
+| `frozen:<2.3.1..2.6.0>/<conformance,target,bootstrapped>/workflow_state_completion_obligations_test.py::TestStateLock` (15 units) | `multiprocessing.forkserver` main, `resource_tracker` main, `[python3]` | **declared, frozen**: the default `multiprocessing` context (forkserver on Python 3.14) outlives the chunk; each declared class runs in its own chunk |
+
+No Git process appeared among the orphans in any run (no `[git]` or
+`git` label). An earlier run with the SIGINT test hanging was an artefact
+of launching it from a shell `&` job, which ignores SIGINT; background runs
+launched through the tool keep SIGINT's default.
+
+- **Verification:**
+  - `python3 -m unittest test_orphan_processes`: 58 tests, OK;
+  - `run_all.py --select test_parallel_runner.py --select
+    test_orphan_processes.py` exposed the sources above;
+  - **full gate, run 1** (`/tmp/cp2-full2`): 4101/4101 units, 25,682
+    tests, exit 0, `orphan check: on`, zero undeclared orphans, 20 chunks
+    tolerated, no unused declaration;
+  - **full gate, run 2** (`/tmp/cp2-full3`, the same tree): the same
+    totals, exit 0, zero undeclared orphans;
+  - both runs have `selection_digest b8ca6c1f...`, `tests_digest
+    47b3b636...` and `tree_digest 3c65e8a3...`. The only failed chunks are
+    the documented `2.3.1`/`2.4.0` `workflow_integration_test.py`
+    portability exceptions;
+  - INV-1's `git diff 7dabd2e` is empty, `workflow-manager verify .` is
+    clean, and `CLAUDE.md` is unchanged.
+
+### CP3 -- measurement, documentation and the milestone's evidence (complete)
+
+- **Measurement** (plan 3.4 repeated under the wrapper's whole-run use,
+  5.4). The command, run with the operator's `GIT_CONFIG_*` exports removed
+  so that only this milestone's layers apply:
+
+  ```bash
+  env -u GIT_CONFIG_COUNT -u GIT_CONFIG_KEY_0 -u GIT_CONFIG_VALUE_0 \
+      -u GIT_CONFIG_KEY_1 -u GIT_CONFIG_VALUE_1 \
+    python3 -I -S -B tests/parallel/reaper.py --report /tmp/cp3-whole/outer.json \
+      --chunk-id whole-run -- python3 tests/run_all.py --results /tmp/cp3-whole/results
+  ```
+
+  | run | verdict | orphans reaching the outer probe | Git among them | wall |
+  | --- | --- | --- | --- | --- |
+  | base `7dabd2e`, default Git config (plan 3.4) | exit 2 (the author's own edit, 3.4) | 42,158 | 31,731 seen as Git, plus 10,391 unread | 380 s |
+  | base `7dabd2e`, the four keys exported (plan 3.4) | exit 0 | 36 | 0 | 370 s |
+  | CP3 (head `2c0a926` plus this checkpoint's docs), nothing exported | exit 0 | **0** | **0** | 384 s |
+
+  - The outer report (`outer.json`): `supported: true`, `platform: linux`,
+    `chunk_status: 0` and `orphans: []`. Nothing escaped the per-chunk
+    wrappers, and nothing ran outside a wrapper orphaned anything (plan
+    5.6's "processes outside chunks").
+  - The per-chunk reports: 333 of them, one per chunk, all `supported:
+    true`. They recorded 37 orphans in 20 chunks, exactly the 20 declared
+    `orphan_sources` (no undeclared orphan, no unused declaration). **No
+    entry is Git**: no label is `[git]` or a `git` command line. The
+    orphans are the declared frozen `TestStateLock` forkserver and
+    resource-tracker processes, and the declared host kill tests'
+    `[python3]`, scratch `reaper.py` and `_WAIT_FOR_FILE` children.
+  - The wall time is one run, for information, not a target. It is within
+    the noise of 3.4's rows.
+- **Documentation:**
+  - `docs/ARCHITECTURE.md`, "Verification execution": the exit-`2` list
+    gains `OrphanProcessError`, `OrphanCheckUnavailableError`,
+    `OrphanDeclarationError`, `bad_orphan_report` and `GitConfigEnvError`;
+  - a new "Orphaned processes" paragraph gives the cause, the settings, the
+    environment layer and its template, the per-repository layer and its
+    routing check, the leak check, the verdict, `orphan_sources` and its
+    policy, the whole-run use with this measurement, and plan 5.6's
+    residuals;
+  - `CLAUDE.md`, non-managed part: one paragraph saying that a run fails on
+    an orphaned process, and that deliberate sources are declared in
+    `orphan_sources`.
+- **Verification:**
+  - the full gate is the measured run above: 4101/4101 units, 25,682
+    tests, exit 0, `orphan check: on`, `selection_digest b8ca6c1f...`,
+    `tests_digest 47b3b636...`, `tree_digest c7db107f...`. Its only failed
+    chunks are the documented `2.3.1`/`2.4.0`
+    `workflow_integration_test.py` portability exceptions. The two digests
+    equal CP2's two gates, since CP3 changes no code or test;
+  - INV-1: `git diff 7dabd2e -- distribution migration scripts
+    .claude/commands .github/workflows/workflow-conformance.yml` is empty,
+    and `workflow-manager verify .` reports that the installation matches
+    workflow 2.6.0;
+  - INV-2: no test was removed or skipped, and no frozen pin or portability
+    exception changed;
+  - INV-3: `CLAUDE.md` up to `<!-- workflow-manager:end -->` is
+    byte-identical to the base.
+
+### Self-review of the milestone diff and the full gate (`SELF_REVIEWING_IMPLEMENTATION`)
+
+- `enter_self_reviewing_implementation` was a no-op. CP3's
+  `complete_checkpoint` had already written the phase.
+- The whole `7dabd2e..3988c5c` diff was reviewed:
+  - `tests/parallel/reaper.py`: recording, the drain order (record before
+    reap), the grace period, the kill loop until `ECHILD`, the exit status
+    pass-through and the own-fault path;
+  - `tests/parallel/isolation.py`: `quiet_git_config` and its
+    `GIT_CONFIG_PARAMETERS` parser, `build_git_template` (the plan
+    review's `GIT_CONFIG_*` strip is in `_TEMPLATE_BUILD_DROPPED` plus the
+    `KEY_`/`VALUE_` prefixes), `chunk_env`'s template handling, and
+    `run_chunk`'s report validation;
+  - `executor.py`, `planner.py`, `report.py` and `resources.py`: the
+    three new verdict faults in all three modes, the `ChunkResult`
+    round trip, the own chunk for a declared frozen class, and the
+    `orphan_sources` schema;
+  - `fixture.py`, the routed `init`/clone sites, `resources.json`, the new
+    test module, and the docs.
+- No finding was blocking or important, and nothing was changed. One
+  reachable-in-theory case was checked and left as it is: a wrapper that
+  survives re-raising the chunk's death signal exits `128+n`, which
+  disagrees with the report's `chunk_status` and is therefore a
+  `bad_orphan_report` fault. That fails closed, and only a signal whose
+  default action is not to terminate can reach it.
+- INV-1/INV-3: `git diff --stat 7dabd2e HEAD -- distribution migration
+  scripts .claude/commands .github/workflows/workflow-conformance.yml` is
+  empty. `CLAUDE.md` up to `<!-- workflow-manager:end -->` is
+  byte-identical to the base.
+- **The full gate**, `python3 tests/run_all.py --results /tmp/m1b-gate` at
+  `3988c5c`, 2026-09-29 17:15-17:21 (380.5 s wall, 8 workers):
+  - `evidence: full selection, local, 8 worker(s), head 3988c5c06b050cd59ceb01459aa8574eb3d330a6,
+    4101/4101 units, 25682 tests, selection_digest
+    b8ca6c1f6133fa0cdf10e9ac86d3a3d1f4dcdc290c641e5627f7b4911d6cb194,
+    tests_digest 47b3b6364ed38a35b82fed9f354437ca0a6da96f4e189d0da0a712eb08364c14,
+    tree_digest 1c2f4dafdf44691f9aee26609c43871d5e66fc55afc92cc6ff7845241b9bf6c2`,
+    `verdict: exit 0`;
+  - `orphan check: on`. The 333 per-chunk reports are all `supported:
+    true`. They record 36 orphans in 20 chunks, exactly the 20 declared
+    `orphan_sources`, with no undeclared orphan, no unused declaration,
+    and **no Git process**;
+  - every host module was OK. The only non-zero frozen chunks were the four
+    documented `2.3.1`/`2.4.0` `workflow_integration_test.py` portability
+    exceptions (`TestRetiredScopedRemediationLeavesNoLiveSurface`), which
+    phase B judged as expected;
+  - the selection and tests digests equal CP2's and CP3's, since no code
+    or test changed after CP2.
+- The whole-run outer-probe measurement (0 orphans reaching it) is CP3's,
+  at `2c0a926` plus CP3's docs. Nothing in the code or tests changed since,
+  so it was not repeated.
+
+### Implementation review round 4 (`LOCAL_MODEL_IMPLEMENTATION_REVIEW`, `REVISE`)
+
+Revision 4 (the functional-review fix F1, `944920a`) was reviewed
+locally. F1 was judged correct. The one finding was test-only:
+
+- **I1, important:**
+  `TestReaperDirect::test_an_orphan_whose_cmdline_reads_empty_is_labelled_by_its_comm`
+  had a race like F1's. The middle process exited while the daemon was
+  still alive, so the wrapper could see it alive and label it by its
+  inherited command line rather than `[python3]`. It failed once in the
+  review's runner rerun. Fixed in `906e884`: in `zombie` mode the middle
+  process waits, without reaping, until the daemon is a zombie, and only
+  then exits. The test's daemon now sleeps 0.2 s before it exits, so the
+  old ordering fails every time (negative control: 5 of 5 failures with
+  the wait removed). Loop: 200 runs under 16 CPU-bound load processes, 0
+  failures.
+- **O-a, applied** (`9ba3b4d`): `is_git_label` applies the `git`/`git-*`
+  rule to a bracketed `[<comm>]` too (`[git-remote-htt]` is Git,
+  `[gitk-like]` is not).
+- **O-b, applied:** the bundle now names `676a164` as F1's gate commit.
+- **The full gate** at `9ba3b4d`: `evidence: full selection, local, 8
+  worker(s), head 9ba3b4d6e47e10bef3f11de2ce565036bc43f4b7, 4102/4102
+  units, 25687 tests, selection_digest 43d1394e..., tests_digest
+  2ac5212b..., tree_digest 8c066271...`, `verdict: exit 0`, 389.2 s wall.
+  `orphan check: on`, only the 20 declared `orphan_sources` chunks
+  tolerated, no Git orphan.
+
+### Implementation review round 5 (`MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW`, `REVISE`)
+
+Revision 5's local stage approved. The manual external stage returned
+`REVISE` with three important, test-only findings, all in
+`TestReaperDirect`, all accepted and reproduced:
+
+- **I1:** `test_a_double_forked_setsid_sleeper_is_one_killed_orphan`
+  required `"sleep 300"`, but the middle process could exit before the
+  daemon exec'd, so the wrapper labelled it with its Python command line
+  (revision 4's CI failure). Fixed in `8702136`: in `exec` mode the middle
+  process exits only once the daemon's command line reads `sleep`. In
+  `8a9acc0` the daemon execs 0.2 s late, so the old ordering fails every
+  time (negative control: 3 of 3 failures with the wait removed).
+- **I2:** the 2.5, 4 and 4.5 s wall-clock limits. **I3:** the short-lived
+  daemon's `exited` fate, and the fork case's "more than 20 forks before
+  the grace period ends". Fixed in `8702136`: `reaper.py` gains a
+  `--grace-seconds` test seam (the runner never passes it). The clean,
+  comm-label, short-lived and many-daemons cases run with a 3600 s grace
+  period, which `reap`'s 120 s timeout always ends first, so returning at
+  all proves an end on `ECHILD` and no self-exiting orphan is `killed`.
+  The fork case's chunk exits, starting the default grace period, only
+  after 21 forks. No wall-clock assertion remains.
+- Load check: `TestReaperDirect` 3 times concurrently under 2 CPU-bound
+  processes per CPU, all green; 5 more sequential runs green.
+- **The full gate** at `8a9acc0`: `evidence: full selection, local, 8
+  worker(s), head 8a9acc0d69d9c9ca11c915fc68ad0aa3761c864a, 4102/4102
+  units, 25687 tests, selection_digest 43d1394e..., tests_digest
+  2ac5212b..., tree_digest 9b1c8f52...`, `verdict: exit 0`, 384.6 s wall.
+  `orphan check: on`, only the 20 declared `orphan_sources` chunks
+  tolerated, no Git orphan.
+- The review's acceptance criterion also asks for a green required CI run
+  for the corrected revision. That needs a push, which is the user's.
+
+### Implementation review round 6 (`MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW`, `REVISE`)
+
+Revision 6's local stage approved. The manual external stage returned
+`REVISE` with two important, test-only findings, both in `_DOUBLE_FORK`'s
+readiness waits, both accepted and reproduced. Fixed together in
+`ed233bd`:
+
+- **I1:** the middle process's wait for the daemon's `sleep` exec had no
+  deadline. A daemon that died first stayed an unreaped zombie whose
+  command line reads empty, so the middle process polled forever and the
+  chunk blocked in `waitpid`; `reap`'s 120 s timeout kills only the
+  wrapper. The middle process now fails at once on a daemon that is a
+  zombie in `exec` mode, and after `TIMEOUT` (60 s) otherwise: it kills
+  the daemon and exits 3, and the chunk fails on that status.
+- **I2:** the chunk's own readiness loop fell through after 60 s, so a
+  slow spawner could start the wrapper's kill grace with fewer than 21
+  forks. On its deadline it now kills the daemon and exits 1, naming the
+  state it waited for, so the test fails on its return code before the
+  wrapper's check starts.
+- Regression: `test_a_daemon_that_never_gets_ready_fails_the_chunk_with_its_state`
+  (a daemon that exits before its exec, one that never execs, and one
+  that never forks, with a 1 s `TIMEOUT` and `UNREACHABLE_GRACE`, so
+  returning at all proves the daemon was killed).
+- Negative control: the revision-6 template with a daemon that exits
+  before its exec was still waiting after 15 s; the fixed one fails in
+  0.02 s.
+- Load check: `TestReaperDirect` 3 times concurrently under 2 CPU-bound
+  processes per CPU, all green.
+- **The full gate** at `ed233bd`: `evidence: full selection, local, 8
+  worker(s), head ed233bd182437e9ee919c0924567ac7296c40e67, 4102/4102
+  units, 25688 tests, selection_digest 43d1394e..., tests_digest
+  d2553227..., tree_digest beac9d70...`, `verdict: exit 0`, 396.0 s wall.
+  `orphan check: on`, only the 20 declared `orphan_sources` chunks
+  tolerated, no Git orphan.
+
+### Revision 7 approved
+
+Revision 7's local stage (round 7) and manual external stage (round 7)
+both returned `APPROVE`. Pull request #10's required CI on `f9dadd9` is
+green: 21 checks pass (run
+https://github.com/RodrigoFAbreu/workflow-manager/actions/runs/36651520532).
+The user's technical approval is `10eff23`.
+
+## Functional review checklist
+
+You are testing the runner as an operator uses it: no orphaned Git
+processes, and a run that fails when its tests leave a process behind.
+- **Round 2** (implementation revision 7). Round 1 (revision 3) found F1,
+  fixed in `944920a`. The later review rounds changed only
+  `tests/test_orphan_processes.py`, making its assertions independent of
+  timing. Re-test flows 1, 4 and 5; flows 2 and 3 exercise code that
+  has not changed since round 1 (both passed then), and are optional.
+- **Technical approval:** commit `10eff23`, implementation revision 7.
+- **Where findings go:**
+  `.ai-review/workflow-manager-test-cleanup/feedback/FUNCTIONAL_REVIEW.md`.
+- **Automated verification:** already current. The full gate passed at
+  `ed233bd`, the final code (4102/4102 units, 25,688 tests, verdict 0,
+  orphan check on). Only docs and state commits have landed since.
+
+**Setup.**
+- Linux, Python 3.12 or later, Git 2.55 or later, and an authenticated `gh`
+  (flow 5 only).
+- Unset your own Git environment layers first, so that only this
+  milestone's layers apply: `env -u GIT_CONFIG_COUNT -u GIT_CONFIG_KEY_0
+  -u GIT_CONFIG_VALUE_0 -u GIT_CONFIG_KEY_1 -u GIT_CONFIG_VALUE_1 ...`.
+- Run flow 1 in this checkout, with a clean working tree. Run flows 2-4 in
+  a throwaway clone, so that no scratch test touches this repository:
+
+```bash
+export M=~/Workspace/workflow-manager
+export T=$(mktemp -d) && git clone -q "$M" "$T/c"
+git -C "$T/c" checkout -q milestone/workflow-manager-test-cleanup
+```
+
+**Test data.** None. Flow 2 adds one scratch test module to the clone.
+
+**Flows.**
+
+1. **The full gate under an outer probe (the milestone's point).** In `$M`:
+
+   ```bash
+   env -u GIT_CONFIG_COUNT -u GIT_CONFIG_KEY_0 -u GIT_CONFIG_VALUE_0 \
+       -u GIT_CONFIG_KEY_1 -u GIT_CONFIG_VALUE_1 \
+     python3 -I -S -B tests/parallel/reaper.py --report "$T/outer.json" \
+       --chunk-id whole-run -- python3 tests/run_all.py --results "$T/results"
+   ```
+
+   Expected, in about 6.5 minutes:
+   - `orphan check: on`, and a list of tolerated orphans by chunk: only the
+     20 declared `orphan_sources` units (the frozen `TestStateLock`
+     classes and five host kill tests);
+   - `4102/4102 units`, `verdict: exit 0`. The only non-zero frozen chunks
+     are the four documented `2.3.1`/`2.4.0` `workflow_integration_test.py`
+     portability exceptions;
+   - `$T/outer.json` has `"supported": true`, `"chunk_status": 0` and
+     `"orphans": []`: nothing escaped the run. Before this milestone the
+     same probe received 42,158 orphans, 31,731 of them Git.
+   - While it runs, `ps -eo stat= | grep -c '^Z'` stays near zero.
+   - Run it in the foreground, never started with `&`: a background start
+     from a non-interactive shell ignores SIGINT for the whole tree, and
+     one runner test then times out (observation O1 from round 1, not
+     caused by this milestone).
+2. **A leaked process fails the run.** In the clone, add a test that leaves
+   a detached process behind:
+
+   ```bash
+   cd "$T/c" && cat > tests/test_zz_orphan_probe.py <<'PY'
+   import subprocess, sys, unittest
+   class TestLeavesADaemon(unittest.TestCase):
+       def test_daemon(self):
+           subprocess.run([sys.executable, "-c",
+               "import os,time\nif os.fork()==0:\n    os.setsid()\n    time.sleep(20)\n"], check=True)
+   PY
+   python3 tests/run_all.py --select test_zz_orphan_probe.py; echo "rc=$?"
+   ```
+
+   Expected: the test itself prints `OK`, then `orphan check: on`,
+   `verdict: exit 2`, and `run_all: error[OrphanProcessError]:
+   host:test_zz_orphan_probe.py::TestLeavesADaemon: 1 orphaned process(es):
+   1 x /usr/bin/python3 -c import os,time ...`, and `rc=2`. Remove the file
+   afterwards.
+3. **An inherited include is refused.** In the clone:
+
+   ```bash
+   printf '[maintenance]\n\tauto = true\n' > "$T/inc.cfg"
+   GIT_CONFIG_PARAMETERS="'include.path'='$T/inc.cfg'" \
+     python3 tests/run_all.py --select test_templates.py; echo "rc=$?"
+   ```
+
+   Expected: `run_all: error[GitConfigEnvError]: GIT_CONFIG_PARAMETERS sets
+   include.path, and an included file outranks the runner's quiet-Git
+   settings; unset it (or drop the include) and re-run`, and `rc=2`.
+4. **Ordinary targeted runs still pass.** In the clone:
+   `python3 tests/run_all.py --select test_orphan_processes.py` passes,
+   with `orphan check: on` and `verdict: exit 0`.
+5. **The pull request.** Pull request #10, titled `test: throwaway test
+   repositories leave no orphaned Git processes` (`OD-1`), at head
+   `f9dadd9` or later. Expected on `gh pr checks 10`:
+   - `Conventional Commit title` green, with release impact `none`;
+   - the verification `plan` job chooses `full` (the pull request touches
+     `src/` and `tests/parallel/`, M1's stopgap rule 1);
+   - all shards, `package` and `aggregate` green, and the shard logs say
+     `orphan check: on`.
+
+   Record the run URLs in this file. Round 1: run 36633871279 failed
+   (F1). Revision 7: run 36651520532 is green.
+
+**Round 2 results (2026-09-30, revision 7, clone head `f421fe0`).** Flows
+1-4 ran in a throwaway clone with scratch directories; flow 5 is pull
+request #10.
+- **Flow 1:** `orphan check: on`, exactly the 20 declared `orphan_sources`
+  chunks tolerated, 4102/4102 units, 25,688 tests, `verdict: exit 0`. The
+  outer probe reported `"supported": true`, `"chunk_status": 0` and no
+  orphans; at most 3 zombies were seen during the run.
+- **Flow 2:** `OrphanProcessError` naming
+  `host:test_zz_orphan_probe.py::TestLeavesADaemon`, `rc=2`.
+- **Flow 3:** `GitConfigEnvError`, `rc=2`.
+- **Flow 4:** 14/14 units, 64 tests, `orphan check: on`, `verdict: exit 0`.
+- **Flow 5:** pull request #10 at `f421fe0`: 21 checks pass and one skips
+  (the nightly alarm)
+  ([run 36655080879](https://github.com/RodrigoFAbreu/workflow-manager/actions/runs/36655080879)).
+
+**Known limitations (out of scope here).**
+- Non-Linux runs print a notice instead of checking (`OD-4`); CI enforces
+  the check on Linux.
+- The Workflow Controller's own zombie leak is the Controller lane's fix
+  (C1b). This milestone removes this suite's orphans at the source; the
+  Manager lane keeps running the Controller one step at a time until that
+  fix is installed.
+- Dynamic Git arguments are outside the static routing check (plan 5.6).
+- Observation O1 (the runner has no SIGINT handler of its own) was already
+  present at the base `7dabd2e`. It is recorded as a follow-up, not fixed
+  here.
+
+## Previous milestone
+
 `workflow-manager-trunk-model` (`governing_workflow_version: "2.2"`,
 `process`, plan revision 3 approved in `aede0df`, base `b856a97`): the
 trunk model for this repository -- a protected, squash-only `main`,

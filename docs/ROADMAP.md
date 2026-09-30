@@ -44,7 +44,7 @@ Workflow 2.7 (W1) and 2.8 (W2).
 | # | Step | Repository | Section |
 |---|---|---|---|
 | M1 | Trunk model, plus the stopgap test profile until M2 (COMPLETE) | Workflow Manager | [10.1](#101-m1-trunk-model-and-the-stopgap-test-profile) |
-| M1b | Test cleanup: throwaway test repositories leave no orphaned Git processes, and a leak check | Workflow Manager | [10.1b](#101b-m1b-test-cleanup-no-orphaned-git-processes) |
+| M1b | Test cleanup: throwaway test repositories leave no orphaned Git processes, and a leak check (COMPLETE) | Workflow Manager | [10.1b](#101b-m1b-test-cleanup-no-orphaned-git-processes) |
 | M2 | Distribution rework: Workflow in its own repository, released as downloadable packages | Workflow Manager, `workflow` | [10.2](#102-m2-distribution-rework-packaged-workflow-releases) |
 | W1 | Workflow 2.7, the first packaged release: Orchestration Protocol v1, and the `v2.6.0-001` and `v2.6.0-002` follow-ups | `workflow` | [1.9](#19-post-26-controller-integration-and-workflow-orchestration-protocol-foundation) |
 | W2 | Workflow 2.8: declarative gate policy, and a red or changes-requested pull request reopening the same work item | `workflow` | [1.9](#19-post-26-controller-integration-and-workflow-orchestration-protocol-foundation) |
@@ -1029,8 +1029,12 @@ model that M1 removes.
 
 ## 10.1b M1b: test cleanup, no orphaned Git processes
 
-**Priority:** next, after M1. It runs in parallel with the Controller lane's zombie-process fix
-(agreed 2026-09-29).
+**Status:** COMPLETE. Accepted as milestone `workflow-manager-test-cleanup` on 2026-09-30, from
+`milestone/workflow-manager-test-cleanup` (pull request #10, titled `test: throwaway test
+repositories leave no orphaned Git processes`, which releases nothing). Design:
+`docs/ai-workflow/WORKFLOW_MANAGER_TEST_CLEANUP_PLAN.md`. Follow-up, not fixed there: the runner has
+no SIGINT handler of its own, so a run started with `&` from a non-interactive shell ignores SIGINT
+and one runner test times out (observation O1, present at the base `7dabd2e`).
 
 **Why.** Since Git 2.55, a commit can start detached background maintenance. The tests make
 thousands of commits in throwaway repositories, so one full test run leaves about 1,000 orphaned

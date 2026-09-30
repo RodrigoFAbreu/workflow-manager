@@ -20,6 +20,7 @@ from pathlib import Path
 from support import REPO_ROOT
 
 import workflow_manager.install as install_module
+from workflow_manager.fixture import init_git_repo
 from workflow_manager.install import (
     AlreadyManagedError,
     CollisionError,
@@ -53,14 +54,7 @@ FIXED_NOW = "2026-01-01T00:00:00Z"
 
 
 def empty_repo(root: Path) -> Path:
-    root.mkdir(parents=True, exist_ok=True)
-    for args in (
-        ["init", "-q", "-b", "main"],
-        ["config", "user.email", "t@example.invalid"],
-        ["config", "user.name", "T"],
-        ["config", "commit.gpgsign", "false"],
-    ):
-        subprocess.run(["git", "-C", str(root), *args], check=True, capture_output=True)
+    init_git_repo(root)
     return root
 
 
