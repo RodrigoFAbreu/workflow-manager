@@ -12,15 +12,16 @@ plan: `docs/ai-workflow/WORKFLOW_MANAGER_TEST_CLEANUP_PLAN.md`.
 
 ## Current checkpoint
 
-`AWAITING_LOCAL_IMPLEMENTATION_REVIEW` (implementation revision 7,
-post-fix). CP1-CP3 are complete. The functional review's F1 was fixed in
+`AWAITING_FUNCTIONAL_REVIEW` (implementation revision 7, technical
+approval `10eff23`). CP1-CP3 are complete. The functional review's F1 was fixed in
 `944920a`; revision 4's local review returned `REVISE` (I1, fixed in
 `906e884`). Revision 5's manual external review returned `REVISE` with
 three test-only timing findings, fixed in `8702136` and `8a9acc0`.
 Revision 6's local review approved; its manual external review returned
 `REVISE` with two test-only readiness-wait findings, fixed in `ed233bd`.
-The full gate at `ed233bd` is green. Technical approval `0263fa9` is
-`STALE`.
+The full gate at `ed233bd` is green. Revision 7's local and manual
+external stages both approved, pull request #10's CI on `f9dadd9` is green,
+and the user's technical approval `10eff23` replaced the stale `0263fa9`.
 
 ## Current blockers
 
@@ -33,10 +34,8 @@ None.
 
 ## Next action
 
-Both implementation-review stages for revision 7 (`/review-implementation`,
-then the manual external stage), a green required CI run for revision 7
-(the external review's acceptance criterion; pushing is the user's), then
-`/approve-review implementation` and the functional review again.
+The functional review of revision 7 (checklist round 2 below), then
+`/accept-milestone`.
 
 ## Checkpoint log
 
@@ -440,16 +439,29 @@ readiness waits, both accepted and reproduced. Fixed together in
   `orphan check: on`, only the 20 declared `orphan_sources` chunks
   tolerated, no Git orphan.
 
+### Revision 7 approved
+
+Revision 7's local stage (round 7) and manual external stage (round 7)
+both returned `APPROVE`. Pull request #10's required CI on `f9dadd9` is
+green: 21 checks pass (run
+https://github.com/RodrigoFAbreu/workflow-manager/actions/runs/36651520532).
+The user's technical approval is `10eff23`.
+
 ## Functional review checklist
 
 You are testing the runner as an operator uses it: no orphaned Git
 processes, and a run that fails when its tests leave a process behind.
-- **Technical approval:** commit `0263fa9`, implementation revision 3.
+- **Round 2** (implementation revision 7). Round 1 (revision 3) found F1,
+  fixed in `944920a`. The later review rounds changed only
+  `tests/test_orphan_processes.py`, making its assertions independent of
+  timing. Re-test flows 1, 4 and 5; flows 2 and 3 exercise code that
+  has not changed since round 1 (both passed then), and are optional.
+- **Technical approval:** commit `10eff23`, implementation revision 7.
 - **Where findings go:**
   `.ai-review/workflow-manager-test-cleanup/feedback/FUNCTIONAL_REVIEW.md`.
 - **Automated verification:** already current. The full gate passed at
-  `d6efce4`, the final code (4101/4101 units, 25,685 tests, verdict 0,
-  orphan check on). Only state commits have landed since.
+  `ed233bd`, the final code (4102/4102 units, 25,688 tests, verdict 0,
+  orphan check on). Only docs and state commits have landed since.
 
 **Setup.**
 - Linux, Python 3.12 or later, Git 2.55 or later, and an authenticated `gh`
@@ -483,13 +495,17 @@ git -C "$T/c" checkout -q milestone/workflow-manager-test-cleanup
    - `orphan check: on`, and a list of tolerated orphans by chunk: only the
      20 declared `orphan_sources` units (the frozen `TestStateLock`
      classes and five host kill tests);
-   - `4101/4101 units`, `verdict: exit 0`. The only non-zero frozen chunks
+   - `4102/4102 units`, `verdict: exit 0`. The only non-zero frozen chunks
      are the four documented `2.3.1`/`2.4.0` `workflow_integration_test.py`
      portability exceptions;
    - `$T/outer.json` has `"supported": true`, `"chunk_status": 0` and
      `"orphans": []`: nothing escaped the run. Before this milestone the
      same probe received 42,158 orphans, 31,731 of them Git.
    - While it runs, `ps -eo stat= | grep -c '^Z'` stays near zero.
+   - Run it in the foreground, never started with `&`: a background start
+     from a non-interactive shell ignores SIGINT for the whole tree, and
+     one runner test then times out (observation O1 from round 1, not
+     caused by this milestone).
 2. **A leaked process fails the run.** In the clone, add a test that leaves
    a detached process behind:
 
@@ -523,16 +539,17 @@ git -C "$T/c" checkout -q milestone/workflow-manager-test-cleanup
 4. **Ordinary targeted runs still pass.** In the clone:
    `python3 tests/run_all.py --select test_orphan_processes.py` passes,
    with `orphan check: on` and `verdict: exit 0`.
-5. **The pull request (your action).** Push the branch and open the pull
-   request titled `test: throwaway test repositories leave no orphaned Git
-   processes` (`OD-1`). Expected on `gh pr checks <n>`:
+5. **The pull request.** Pull request #10, titled `test: throwaway test
+   repositories leave no orphaned Git processes` (`OD-1`), at head
+   `f9dadd9` or later. Expected on `gh pr checks 10`:
    - `Conventional Commit title` green, with release impact `none`;
    - the verification `plan` job chooses `full` (the pull request touches
      `src/` and `tests/parallel/`, M1's stopgap rule 1);
    - all shards, `package` and `aggregate` green, and the shard logs say
      `orphan check: on`.
 
-   Record the run URLs in this file.
+   Record the run URLs in this file. Round 1: run 36633871279 failed
+   (F1). Revision 7: run 36651520532 is green.
 
 **Known limitations (out of scope here).**
 - Non-Linux runs print a notice instead of checking (`OD-4`); CI enforces
@@ -542,9 +559,9 @@ git -C "$T/c" checkout -q milestone/workflow-manager-test-cleanup
   Manager lane keeps running the Controller one step at a time until that
   fix is installed.
 - Dynamic Git arguments are outside the static routing check (plan 5.6).
-- The bundle's `TEST_RESULTS.md` still describes revision 2; the revision-3
-  gate at `d6efce4` is recorded in the implementation-review round above
-  and was independently confirmed by the external reviewer.
+- Observation O1 (the runner has no SIGINT handler of its own) was already
+  present at the base `7dabd2e`. It is recorded as a follow-up, not fixed
+  here.
 
 ## Previous milestone
 
