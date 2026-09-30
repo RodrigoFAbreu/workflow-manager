@@ -859,6 +859,45 @@ class TestCache(_SourceTest):
                     cache.resolve(VERSION)
                 self.assertFalse(entry.exists())
 
+    def undeletable_broken_entry(self) -> Path:
+        """A broken entry holding a directory its owner cannot delete from."""
+        entry = self.cache().ensure(VERSION)
+        (entry / "complete").write_text("0" * 64 + "\n")
+        locked = entry / "tree/payload"
+        locked.chmod(0o555)
+        self.addCleanup(locked.chmod, 0o755)
+        return entry
+
+    @unittest.skipIf(os.geteuid() == 0, "root deletes from a read-only directory")
+    def test_a_broken_entry_that_cannot_be_discarded_is_unavailable(self):
+        entry = self.undeletable_broken_entry()
+        for call in (self.cache().resolve, self.cache().ensure):
+            with self.subTest(call.__name__):
+                with contextlib.redirect_stderr(io.StringIO()), \
+                        self.assertRaises(source.ReleaseUnavailableError) as raised:
+                    call(VERSION)
+                message = str(raised.exception)
+                self.assertIn(f"cannot discard the cache entry {entry}", message)
+                self.assertIn("does not match the pin", message)
+                self.assertIn("--release-cache", message)
+                self.assertIsInstance(raised.exception.__cause__, PermissionError)
+
+    @unittest.skipIf(os.geteuid() == 0, "root deletes from a read-only directory")
+    def test_the_cli_names_an_entry_it_cannot_discard(self):
+        from workflow_manager import cli
+
+        entry = self.undeletable_broken_entry()
+        target = self.tmp / "target"
+        target.mkdir()
+        err = io.StringIO()
+        with mock.patch.object(cli, "_pins", return_value=self.pins), \
+                contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err):
+            code = cli.main(["--release-source", str(self.served), "bootstrap", str(target)])
+        self.assertEqual(code, 1)
+        self.assertIn(f"error: cannot discard the cache entry {entry}", err.getvalue())
+        self.assertNotIn("Traceback", err.getvalue())
+        self.assertEqual(list(target.iterdir()), [])
+
 
 class TestSnapshots(_SourceTest):
     def test_resolve_returns_a_private_snapshot(self):

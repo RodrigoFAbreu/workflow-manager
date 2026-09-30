@@ -397,10 +397,16 @@ class ReleaseCache:
     def _discard(self, entry: Path, why: str) -> None:
         if entry.exists() or entry.is_symlink():
             _log(f"discarding cache entry {entry}: {why}")
-            if entry.is_dir() and not entry.is_symlink():
-                shutil.rmtree(entry)
-            else:
-                entry.unlink()
+            try:
+                if entry.is_dir() and not entry.is_symlink():
+                    shutil.rmtree(entry)
+                else:
+                    entry.unlink()
+            except OSError as exc:
+                raise ReleaseUnavailableError(
+                    f"cannot discard the cache entry {entry} ({why}): {exc}. Remove it "
+                    f"by hand, or choose another cache with --release-cache or "
+                    f"${CACHE_ENV}") from exc
 
     def _fetch(self, pin: Pin) -> None:
         """Fetch, check and extract the package into a temporary sibling of
