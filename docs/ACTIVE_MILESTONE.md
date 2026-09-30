@@ -13,8 +13,9 @@ Full plan: `docs/ai-workflow/WORKFLOW_MANAGER_PACKAGED_DISTRIBUTION_PLAN.md`.
 
 ## Current checkpoint
 
-CP1 (package format) and CP2 (release source, pins and verified cache)
-are complete. Next: CP3 (CLI and install record).
+CP1 (package format), CP2 (release source, pins and verified cache) and
+CP3 (CLI and install record) are complete. Next: CP4 (build and prove the
+five packages).
 
 ## Current blockers
 
@@ -29,7 +30,7 @@ revision 9. Registry:
 
 ## Next action
 
-`/milestone-implement workflow-manager-packaged-distribution` for CP3.
+`/milestone-implement workflow-manager-packaged-distribution` for CP4.
 
 ## Checkpoint log
 
@@ -143,6 +144,73 @@ revision 9. Registry:
   --select test_stopgap_profile.py` -- 107 tests, exit 0; `--select
   test_orphan_processes.py --select test_release_versioning.py` -- 118
   tests, exit 0.
+
+### CP3 -- CLI and install record (complete)
+
+- **`D-CLI`** (`src/workflow_manager/cli.py`): `bootstrap`, `update`,
+  `status` and `verify` resolve a release in one function, `_resolve`:
+  `--release-dir` (through `local_release`), then the `--manager-root`
+  alias when its checkout holds the version, then the pins through the
+  cache (`ReleaseCache.resolve`), and last the **checkout fallback** --
+  an unpinned version this Manager's own checkout holds under
+  `distribution/workflow/<v>/`, used as a local release with a stderr note
+  (CP3 to CP6 only). The default version is the newest pinned one, else the
+  newest local candidate. Every release is used as a snapshot inside a
+  `with` block. New global options: `--release-source`, `--release-cache`,
+  `--release-dir`. `--manager-root` defaults to nothing, always prints a
+  deprecation notice, and falls through to the pins when its checkout lacks
+  the version. `missing_distribution_message` and `_require_distribution`
+  are gone; `cli.py` no longer imports `find_release`.
+- **Exit codes:** `ReleaseNotPublishedError`, `ReleaseUnavailableError` and
+  `ReleaseIntegrityError` exit **1** with `error: ...` (plan 5.5, "All of
+  them exit 1"). This changes `ReleaseIntegrityError`'s CLI exit from 2 to
+  1; every other refusal still exits 2.
+- `status` of a managed target prints a `source:` line (`package <archive>
+  from <repository> (sha256 ...)`, `(local, unpublished)`, or `not
+  recorded`); when the release cannot be resolved it first prints the
+  recorded version, profile, source and install times, then the error,
+  which names `--release-dir`.
+- `releases` lists every pinned version (`<v>  <archive>  sha256 <digest>
+  [cached|not cached]`, no network), then each unpinned local candidate as
+  `<v>  (checkout, unpublished)  ...` (`(--manager-root, unpublished)` with
+  the alias). It exits 0 with nothing pinned, noting that on stderr.
+- `package build <release-dir> --out <dir>` and `package verify <archive>
+  [--sha256 H]` wrap `build_package`/`extract_package`.
+- **Install record** (`installation.py`, `install.py`): an optional
+  `source` (the `SnapshotRelease.source` the resolver attached), written
+  after `provenance` and omitted when absent, so a pre-M2 record round-trips
+  byte for byte; a non-object `source` is a corrupt record.
+  `SCHEMA_VERSION` stays 1.
+- **Tests:** `tests/support.py` gains `cli_env(**extra)` (7.1), now used by
+  `test_bootstrap_e2e.py`, `test_amendment_update_path.py` and the
+  empty-`HOME` lifecycle test. `test_bootstrap.py`: `TestReleaseResolution`
+  rebuilt on two synthetic packaged, pinned releases served from a local
+  directory plus an unpinned checkout-fallback release (newest pinned
+  default, INV-4 install bytes, cache hit without a source, discard and
+  refetch, unavailable exit 1, update, reports against the recorded
+  release, unpublished record needing `--release-dir`, `--release-dir`
+  local/pinned/altered/wrong version, fallback, no-pin default,
+  `releases`); new `TestManagerRootAlias` (unpinned positive branch with
+  the notice, consistently altered pinned copy refused with nothing
+  written, fall-through, `releases`), `TestSourceRecord` and
+  `TestDiscoveryApi` (the `available_versions`/`find_release` tests, kept
+  until CP6). `test_manager_version.py`: `MissingDistributionHintTest` now
+  models a wheel install (no fallback, empty pins) and asserts the
+  unpublished and unavailable messages and exit 1. `test_release_source.py`:
+  `TestPackageCommand`.
+- **INV-3:** `python3 -m workflow_manager verify .` -> exit 0 through the
+  fallback ("release 2.6.0 is not published; using the checkout's
+  unpublished copy"), and with `--release-dir distribution/workflow/2.6.0`
+  -> exit 0; `status .` -> clean, `source: not recorded`.
+- **Verified:** `python3 tests/run_all.py --select test_bootstrap.py
+  --select test_manager_version.py --select test_bootstrap_e2e.py --select
+  test_amendment_update_path.py --select test_squash_merge_compat.py
+  --select test_release_source.py` -- 1352/1352 units, 8599 tests, exit 0
+  (head `8e0042b` plus this checkpoint's first working tree); after the
+  `package` tests and the diff review (import order, one digest read in
+  `package verify`), the same selection -- 1353/1353 units, 8604 tests,
+  exit 0 (`selection_digest f43674d9...`, `tests_digest d0151f3d...`).
+  Targeted selections, not a gate.
 
 ## Previous milestone
 

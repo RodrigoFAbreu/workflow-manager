@@ -1105,5 +1105,62 @@ class TestLocalRelease(_SourceTest):
                          self.pristine["payload/scripts/tool.sh"][0])
 
 
+
+class TestPackageCommand(_Tmp):
+    """`workflow_manager package build|verify` (5.5): the CLI face of 5.1, for
+    the `workflow` repository's own release workflow."""
+
+    def _cli(self, *argv):
+        from workflow_manager import cli
+
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            code = cli.main(["package", *argv])
+        return code, out.getvalue(), err.getvalue()
+
+    def test_build_writes_what_build_package_writes(self):
+        release = make_release(self.tmp / "release")
+        code, out, _ = self._cli("build", str(release), "--out", str(self.tmp / "cli"))
+        self.assertEqual(code, 0)
+        direct = package.build_package(release, self.tmp / "direct")
+        for built in (direct.archive, direct.manifest, direct.sums):
+            self.assertEqual((self.tmp / "cli" / built.name).read_bytes(), built.read_bytes())
+            self.assertIn(built.name, out)
+
+    def test_build_refuses_a_release_that_fails_verification(self):
+        release = make_release(self.tmp / "release")
+        (release / "payload/docs/guide.md").write_bytes(b"changed\n")
+        code, _, err = self._cli("build", str(release), "--out", str(self.tmp / "out"))
+        self.assertEqual(code, 1)
+        self.assertIn("fails verification", err)
+
+    def test_verify_accepts_a_package_and_its_digest(self):
+        built = package.build_package(make_release(self.tmp / "release"), self.tmp / "out")
+        digest = package.file_sha256(built.archive)
+        for argv in ([str(built.archive)], [str(built.archive), "--sha256", digest]):
+            with self.subTest(argv=argv):
+                code, out, _ = self._cli("verify", *argv)
+                self.assertEqual(code, 0)
+                self.assertIn(f"release {VERSION}", out)
+                self.assertIn("verified", out)
+
+    def test_verify_refuses_another_digest(self):
+        built = package.build_package(make_release(self.tmp / "release"), self.tmp / "out")
+        code, _, err = self._cli("verify", str(built.archive), "--sha256", "0" * 64)
+        self.assertEqual(code, 1)
+        self.assertIn("0" * 64, err)
+
+    def test_verify_refuses_an_unsafe_archive(self):
+        archive = self.tmp / "evil.tar.gz"
+        with tarfile.open(archive, "w:gz") as tar:
+            info = tarfile.TarInfo(f"{TOP}/link")
+            info.type = tarfile.SYMTYPE
+            info.linkname = "/etc/passwd"
+            tar.addfile(info)
+        code, _, err = self._cli("verify", str(archive))
+        self.assertEqual(code, 1)
+        self.assertTrue(err.startswith("error: "), err)
+
+
 if __name__ == "__main__":
     unittest.main()

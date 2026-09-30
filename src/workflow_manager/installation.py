@@ -19,6 +19,12 @@ It holds three separate maps, because the three have different update rules:
     Files the installer contributes a section to without owning the whole
     file (`.gitignore`, `CLAUDE.md`).
 
+It also records where the release came from, in an optional `source`:
+`{"kind": "package", "repository", "archive", "sha256"}` for bytes bound to a
+published package's pin, or `{"kind": "local"}` for an unpublished release
+directory. A record written before sources existed has none, and still reads
+and writes back unchanged: the field is additive, so `SCHEMA_VERSION` stays 1.
+
 The record is the one thing a target cannot afford to lose, so it is written
 by rename rather than in place: an interrupted write leaves the previous
 record, never half of the new one.
@@ -59,19 +65,25 @@ class Installation:
     merged: dict = field(default_factory=dict)
     installed_at: str | None = None
     updated_at: str | None = None
+    source: dict | None = None
     schema_version: int = SCHEMA_VERSION
 
     # -- serialization -----------------------------------------------------
 
     def to_dict(self) -> dict:
         """Key order is fixed and every map is sorted, so two installs of the
-        same release produce identical bytes apart from the timestamps."""
-        return {
+        same release produce identical bytes apart from the timestamps. A
+        record without a `source` is written without the key."""
+        data = {
             "schema_version": self.schema_version,
             "workflow_version": self.workflow_version,
             "profile": self.profile,
             "upstream": self.upstream,
             "provenance": self.provenance,
+        }
+        if self.source is not None:
+            data["source"] = self.source
+        return data | {
             "installed_at": self.installed_at,
             "updated_at": self.updated_at,
             "managed": dict(sorted(self.managed.items())),
@@ -89,6 +101,8 @@ class Installation:
                 f"unsupported installation schema_version {data.get('schema_version')!r}; "
                 f"this workflow-manager understands {SCHEMA_VERSION}"
             )
+        if data.get("source") is not None and not isinstance(data["source"], dict):
+            raise TypeError("source is not an object")
         return cls(
             workflow_version=data["workflow_version"],
             profile=data["profile"],
@@ -99,6 +113,7 @@ class Installation:
             merged=dict(data.get("merged", {})),
             installed_at=data.get("installed_at"),
             updated_at=data.get("updated_at"),
+            source=data.get("source"),
         )
 
     # -- io ----------------------------------------------------------------

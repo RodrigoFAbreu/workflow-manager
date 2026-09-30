@@ -9,6 +9,7 @@ result.
 from __future__ import annotations
 
 import contextlib
+import io
 import json
 import shutil
 import subprocess
@@ -16,10 +17,14 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
-from support import REPO_ROOT
+from support import REPO_ROOT, cli_env
 
+import workflow_manager.cli as cli_module
 import workflow_manager.install as install_module
+import workflow_manager.package as package_module
+from workflow_manager import source as release_source
 from workflow_manager.fixture import init_git_repo
 from workflow_manager.install import (
     AlreadyManagedError,
@@ -47,6 +52,7 @@ from workflow_manager.release import (
     ReleaseIntegrityError,
     available_versions,
     find_release,
+    release_root,
     sha256,
 )
 
@@ -953,29 +959,321 @@ class TestTheConformanceCiIsReleaseOwned(BootstrapCase):
         self.assertEqual(drift(self.target, self.release), [])
 
 
-class TestReleaseResolution(BootstrapCase):
-    """What `bootstrap`, `update`, `status` and `verify` mean by "the release"
-    once `distribution/` holds more than one."""
+class _PackagedReleases(BootstrapCase):
+    """Synthetic published releases, served from a local source directory
+    (plan 5.5, CP3): `7.0.0` and `7.0.1` are packaged and pinned in a pin file
+    of this class's own; `7.1.0` is an unpinned release in this class's own
+    stand-in for the Manager checkout, so the checkout fallback serves it.
+    Every CLI call names this class's source and its own per-test cache, and
+    the real pin file and checkout are never consulted."""
+
+    PINNED = ("7.0.0", "7.0.1")
+    UNPINNED = "7.1.0"
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls._class_tmp = tempfile.TemporaryDirectory()
+        root = Path(cls._class_tmp.name)
+        base = find_release(REPO_ROOT, "2.3.1")
+        cls.source_dir = root / "source"
+        releases = {}
+        for version in cls.PINNED:
+            tree = synthesize_next_release(base, root / "trees" / version, version)
+            built = package_module.build_package(tree.root, cls.source_dir / version)
+            releases[version] = {"archive": built.archive.name,
+                                 "sha256": package_module.file_sha256(built.archive),
+                                 "manifest_sha256": package_module.file_sha256(built.manifest)}
+        cls.trees = root / "trees"
+        cls.pins_path = root / "published_releases.json"
+        cls.pins_path.write_text(json.dumps({"schema_version": 1,
+                                             "repository": "example/workflow",
+                                             "releases": releases}))
+        cls.checkout = root / "manager"
+        synthesize_next_release(base, release_root(cls.checkout) / cls.UNPINNED, cls.UNPINNED)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls._class_tmp.cleanup()
+        super().tearDownClass()
+
+    def setUp(self):
+        super().setUp()
+        self.cache = Path(self._tmp.name) / "cache"
+        for patcher in (mock.patch.object(release_source, "PINS_PATH", self.pins_path),
+                        mock.patch.object(cli_module, "MANAGER_ROOT", self.checkout)):
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def _cli(self, *args, source_dir=None):
+        """The CLI in-process, with its report captured rather than printed."""
+        out, err = io.StringIO(), io.StringIO()
+        argv = ["--release-source", str(source_dir or self.source_dir),
+                "--release-cache", str(self.cache), *args]
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            code = cli_module.main(argv)
+        self.cli_stdout, self.cli_stderr = out.getvalue(), err.getvalue()
+        self.cli_output = self.cli_stdout + self.cli_stderr
+        return code
+
+
+class TestReleaseResolution(_PackagedReleases):
+    """What `bootstrap`, `update`, `status` and `verify` mean by "the release":
+    the pins through the cache, `--release-dir`, and the checkout fallback."""
+
+    def test_bootstrap_installs_the_newest_pinned_and_records_its_package(self):
+        self.assertEqual(self._cli("bootstrap", str(self.target)), 0, self.cli_output)
+        record = Installation.read(self.target)
+        self.assertEqual(record.workflow_version, "7.0.1")
+        pins = release_source.load_pins(self.pins_path)
+        self.assertEqual(record.source, pins.source_record("7.0.1"))
+        self.assertEqual(record.source["kind"], "package")
+
+    def test_install_bytes_equal_those_of_the_release_itself(self):
+        """INV-4: a package-backed install writes what a direct install of the
+        same release writes; only the record's `source` is new."""
+        self.assertEqual(self._cli("bootstrap", str(self.target)), 0, self.cli_output)
+        direct = empty_repo(Path(self._tmp.name) / "direct")
+        bootstrap(direct, Release(self.trees / "7.0.1"))
+        ours, theirs = Installation.read(self.target), Installation.read(direct)
+        self.assertEqual(ours.managed, theirs.managed)
+        self.assertEqual(ours.generated, theirs.generated)
+        self.assertEqual(ours.merged, theirs.merged)
+        self.assertIsNone(theirs.source)
+
+    def test_a_cache_hit_needs_no_source(self):
+        self.assertEqual(self._cli("--release-version", "7.0.0", "bootstrap",
+                                   str(self.target)), 0, self.cli_output)
+        gone = Path(self._tmp.name) / "no-source"
+        self.assertEqual(self._cli("verify", str(self.target), source_dir=gone), 0,
+                         self.cli_output)
+        self.assertIn("installation matches workflow 7.0.0", self.cli_stdout)
+
+    def test_a_broken_cache_entry_is_discarded_and_refetched(self):
+        self.assertEqual(self._cli("--release-version", "7.0.0", "bootstrap",
+                                   str(self.target)), 0, self.cli_output)
+        manifest = self.cache / "7.0.0" / "tree" / "manifest.json"
+        manifest.write_text(manifest.read_text() + " ")
+        self.assertEqual(self._cli("verify", str(self.target)), 0, self.cli_output)
+        self.assertIn("discarding cache entry", self.cli_stderr)
+        self.assertEqual(self._cli("verify", str(self.target)), 0, self.cli_output)
+        self.assertNotIn("discarding", self.cli_stderr)
+
+    def test_an_unreachable_package_is_unavailable_and_exits_1(self):
+        gone = Path(self._tmp.name) / "no-source"
+        self.assertEqual(self._cli("bootstrap", str(self.target), source_dir=gone), 1)
+        self.assertIn("cannot fetch", self.cli_stderr)
+        self.assertFalse(is_managed(self.target))
+
+    def test_update_moves_to_the_newest_pinned(self):
+        self.assertEqual(self._cli("--release-version", "7.0.0", "bootstrap",
+                                   str(self.target)), 0, self.cli_output)
+        self.assertEqual(self._cli("update", str(self.target)), 0, self.cli_output)
+        self.assertEqual(Installation.read(self.target).workflow_version, "7.0.1")
+
+    def test_reports_are_measured_against_the_release_the_target_records(self):
+        """A target on an older release must not start looking broken because
+        a newer one was published."""
+        self.assertEqual(self._cli("--release-version", "7.0.0", "bootstrap",
+                                   str(self.target)), 0, self.cli_output)
+        self.assertEqual(self._cli("status", str(self.target)), 0, self.cli_output)
+        self.assertIn("workflow 7.0.0", self.cli_stdout)
+        self.assertIn("source: package workflow-7.0.0.tar.gz from example/workflow",
+                      self.cli_stdout)
+        self.assertEqual(self._cli("verify", str(self.target)), 0, self.cli_output)
+
+    def test_a_damaged_target_is_never_reported_as_clean(self):
+        self.assertEqual(self._cli("bootstrap", str(self.target)), 0, self.cli_output)
+        (self.target / "scripts/workflow_state.py").write_text("# clobbered\n")
+        self.assertEqual(self._cli("status", str(self.target)), 1)
+        self.assertEqual(self._cli("verify", str(self.target)), 1)
+
+    def test_a_target_recording_an_unpublished_release_needs_release_dir(self):
+        """5.5: status prints what the record says, then names the remedy."""
+        bootstrap(self.target, self.release, now=FIXED_NOW)
+        record = Installation.read(self.target)
+        record.workflow_version = "9.9.9"
+        record.write(self.target)
+        self.assertEqual(self._cli("status", str(self.target)), 1)
+        self.assertIn("workflow 9.9.9 (full profile)", self.cli_stdout)
+        self.assertIn("source: not recorded", self.cli_stdout)
+        self.assertIn(f"installed at {FIXED_NOW}", self.cli_stdout)
+        self.assertIn("release 9.9.9 is not published", self.cli_stderr)
+        self.assertIn("--release-dir", self.cli_stderr)
+        self.assertEqual(self._cli("verify", str(self.target)), 1)
+        self.assertIn("--release-dir", self.cli_stderr)
+
+    def test_release_dir_installs_an_unpublished_release_as_local(self):
+        local = synthesize_next_release(self.release, Path(self._tmp.name) / "dev", "8.0.0")
+        self.assertEqual(self._cli("--release-dir", str(local.root), "bootstrap",
+                                   str(self.target)), 0, self.cli_output)
+        record = Installation.read(self.target)
+        self.assertEqual((record.workflow_version, record.source), ("8.0.0", {"kind": "local"}))
+        self.assertEqual(self._cli("--release-dir", str(local.root), "status",
+                                   str(self.target)), 0, self.cli_output)
+        self.assertIn("source: (local, unpublished)", self.cli_stdout)
+        # Without it, an unpublished release cannot be verified.
+        self.assertEqual(self._cli("verify", str(self.target)), 1)
+
+    def test_release_dir_holding_a_pinned_version_is_recorded_as_its_package(self):
+        self.assertEqual(self._cli("--release-dir", str(self.trees / "7.0.0"), "bootstrap",
+                                   str(self.target)), 0, self.cli_output)
+        pins = release_source.load_pins(self.pins_path)
+        self.assertEqual(Installation.read(self.target).source, pins.source_record("7.0.0"))
+        self.assertIn("using a local copy of published release 7.0.0", self.cli_stderr)
+
+    def test_release_dir_holding_an_altered_pinned_version_is_refused(self):
+        altered = Path(self._tmp.name) / "altered"
+        shutil.copytree(self.trees / "7.0.0", altered)
+        _alter_consistently(altered)
+        self.assertEqual(self._cli("--release-dir", str(altered), "bootstrap",
+                                   str(self.target)), 1)
+        self.assertIn("claims published release 7.0.0", self.cli_stderr)
+        self.assertFalse(is_managed(self.target))
+
+    def test_release_dir_of_another_version_is_refused(self):
+        self.assertEqual(self._cli("--release-dir", str(self.trees / "7.0.0"),
+                                   "--release-version", "7.0.1", "bootstrap",
+                                   str(self.target)), 1)
+        self.assertIn("not the requested 7.0.1", self.cli_stderr)
+
+    def test_the_checkout_fallback_serves_an_unpinned_version(self):
+        """CP3 to CP6 only: an unpinned version the checkout holds installs
+        from it as a local release, with a note."""
+        self.assertEqual(self._cli("--release-version", self.UNPINNED, "bootstrap",
+                                   str(self.target)), 0, self.cli_output)
+        self.assertIn(f"release {self.UNPINNED} is not published", self.cli_stderr)
+        self.assertEqual(Installation.read(self.target).source, {"kind": "local"})
+        self.assertEqual(self._cli("verify", str(self.target)), 0, self.cli_output)
+
+    def test_without_pins_the_default_is_the_newest_fallback_version(self):
+        empty = Path(self._tmp.name) / "no-pins.json"
+        empty.write_text('{"schema_version": 1, "repository": "example/workflow", '
+                         '"releases": {}}')
+        with mock.patch.object(release_source, "PINS_PATH", empty):
+            self.assertEqual(self._cli("bootstrap", str(self.target)), 0, self.cli_output)
+        self.assertEqual(Installation.read(self.target).workflow_version, self.UNPINNED)
+
+    def test_releases_lists_the_pins_and_the_fallback(self):
+        self.assertEqual(self._cli("releases"), 0, self.cli_output)
+        lines = self.cli_stdout.splitlines()
+        self.assertEqual([line.split()[0] for line in lines], ["7.0.0", "7.0.1", self.UNPINNED])
+        self.assertIn("[not cached]", lines[0])
+        self.assertIn(f"{self.UNPINNED}  (checkout, unpublished)", lines[2])
+        self._cli("--release-version", "7.0.0", "bootstrap", str(self.target))
+        self._cli("releases")
+        self.assertIn("[cached]", self.cli_stdout.splitlines()[0])
+
+    def test_the_cache_named_by_release_cache_is_the_one_filled(self):
+        self._cli("bootstrap", str(self.target))
+        self.assertTrue((self.cache / "7.0.1" / "complete").is_file())
+
+
+class TestManagerRootAlias(_PackagedReleases):
+    """The deprecated `--manager-root` alias (5.5), on a temporary checkout
+    this class lays out itself, so it does not depend on the repository's own
+    `distribution/` and runs unchanged after it is removed."""
+
+    def setUp(self):
+        super().setUp()
+        self.alias = Path(self._tmp.name) / "old-checkout"
+
+    def test_an_unpinned_checkout_release_is_used_as_a_release_dir(self):
+        synthesize_next_release(self.release, release_root(self.alias) / "6.0.0", "6.0.0")
+        self.assertEqual(self._cli("--manager-root", str(self.alias), "--release-version",
+                                   "6.0.0", "bootstrap", str(self.target)), 0, self.cli_output)
+        self.assertIn("--manager-root is deprecated", self.cli_stderr)
+        record = Installation.read(self.target)
+        self.assertEqual((record.workflow_version, record.source), ("6.0.0", {"kind": "local"}))
+
+    def test_an_altered_pinned_checkout_release_is_refused(self):
+        altered = release_root(self.alias) / "7.0.0"
+        shutil.copytree(self.trees / "7.0.0", altered)
+        _alter_consistently(altered)
+        self.assertEqual(Release(altered).verify(), [])
+        self.assertEqual(self._cli("--manager-root", str(self.alias), "--release-version",
+                                   "7.0.0", "bootstrap", str(self.target)), 1)
+        self.assertIn("claims published release 7.0.0", self.cli_stderr)
+        self.assertFalse(is_managed(self.target))
+        self.assertEqual(sorted(p.name for p in self.target.iterdir()), [".git"])
+
+    def test_a_checkout_without_the_version_falls_through_to_the_pins(self):
+        self.alias.mkdir()
+        self.assertEqual(self._cli("--manager-root", str(self.alias), "bootstrap",
+                                   str(self.target)), 0, self.cli_output)
+        self.assertIn("--manager-root is deprecated", self.cli_stderr)
+        self.assertEqual(Installation.read(self.target).source["kind"], "package")
+
+    def test_releases_adds_the_checkout_versions(self):
+        synthesize_next_release(self.release, release_root(self.alias) / "6.0.0", "6.0.0")
+        self.assertEqual(self._cli("--manager-root", str(self.alias), "releases"), 0)
+        self.assertEqual([line.split()[0] for line in self.cli_stdout.splitlines()],
+                         ["7.0.0", "7.0.1", "6.0.0"])
+        self.assertIn("6.0.0  (--manager-root, unpublished)", self.cli_stdout)
+
+
+def _alter_consistently(tree: Path) -> None:
+    """Change one payload file and record its new digest in the manifest, so
+    `Release.verify()` passes but the manifest no longer hashes to its pin."""
+    manifest_path = tree / "manifest.json"
+    manifest = json.loads(manifest_path.read_text())
+    record = manifest["artifacts"][0]
+    path = tree / record["location"]
+    data = path.read_bytes() + b"\n# altered\n"
+    path.write_bytes(data)
+    record["sha256"], record["size"] = sha256(data), len(data)
+    manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
+
+
+class TestSourceRecord(unittest.TestCase):
+    """5.5: the record's `source` is additive and optional."""
+
+    PRE_M2 = {
+        "schema_version": 1, "workflow_version": "2.6.0", "profile": "full",
+        "upstream": {"tag": "t"}, "provenance": {"origin": "authored"},
+        "installed_at": FIXED_NOW, "updated_at": FIXED_NOW,
+        "managed": {"a": {"sha256": "x", "executable": False}}, "generated": {}, "merged": {},
+    }
+
+    def test_a_record_without_source_round_trips_unchanged(self):
+        before = (json.dumps(self.PRE_M2, indent=2, ensure_ascii=False) + "\n").encode()
+        loaded = Installation.from_dict(json.loads(before))
+        self.assertIsNone(loaded.source)
+        self.assertEqual(loaded.serialize(), before)
+
+    def test_a_record_with_source_round_trips(self):
+        for record in ({"kind": "local"},
+                       {"kind": "package", "repository": "example/workflow",
+                        "archive": "workflow-2.6.0.tar.gz", "sha256": "0" * 64}):
+            with self.subTest(kind=record["kind"]):
+                data = dict(self.PRE_M2, source=record)
+                loaded = Installation.from_dict(data)
+                self.assertEqual(loaded.source, record)
+                again = Installation.from_dict(json.loads(loaded.serialize()))
+                self.assertEqual(again.serialize(), loaded.serialize())
+                self.assertEqual(loaded.to_dict()["schema_version"], 1)
+
+    def test_a_malformed_source_is_a_corrupt_record(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp)
+            path = installation_path(target)
+            path.parent.mkdir()
+            path.write_text(json.dumps(dict(self.PRE_M2, source="package")))
+            with self.assertRaises(CorruptInstallationError):
+                Installation.read(target)
+
+
+class TestDiscoveryApi(BootstrapCase):
+    """`release.py`'s discovery API, which serves only the checkout fallback,
+    the alias and CP4's builder until CP6 removes it."""
 
     def setUp(self):
         super().setUp()
         self.manager_root = Path(self._tmp.name) / "manager"
-        base = self.manager_root / "distribution" / "workflow"
+        base = release_root(self.manager_root)
         base.mkdir(parents=True)
         (base / "2.3.1").symlink_to(self.release.root)
         synthesize_next_release(self.release, base / "2.3.2", "2.3.2")
-
-    def _cli(self, *args):
-        """The CLI in-process, with its report captured rather than printed."""
-        import io
-
-        from workflow_manager.cli import main
-
-        out, err = io.StringIO(), io.StringIO()
-        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
-            code = main(["--manager-root", str(self.manager_root), *args])
-        self.cli_output = out.getvalue() + err.getvalue()
-        return code
 
     def test_available_versions_are_ordered_oldest_first(self):
         self.assertEqual(available_versions(self.manager_root), ["2.3.1", "2.3.2"])
@@ -983,30 +1281,6 @@ class TestReleaseResolution(BootstrapCase):
     def test_an_unpinned_release_means_the_newest(self):
         self.assertEqual(find_release(self.manager_root).version, "2.3.2")
         self.assertEqual(find_release(self.manager_root, "2.3.1").version, "2.3.1")
-
-    def test_bootstrap_installs_the_newest_and_update_moves_to_it(self):
-        self.assertEqual(self._cli("bootstrap", str(self.target)), 0)
-        self.assertEqual(Installation.read(self.target).workflow_version, "2.3.2")
-
-    def test_reports_are_measured_against_the_release_the_target_records(self):
-        """A target pinned to an older release must not start looking broken
-        because a newer one landed in `distribution/`."""
-        self.assertEqual(self._cli("--release-version", "2.3.1", "bootstrap", str(self.target)), 0)
-        self.assertEqual(self._cli("status", str(self.target)), 0)
-        self.assertEqual(self._cli("verify", str(self.target)), 0)
-
-    def test_a_damaged_target_is_never_reported_as_clean(self):
-        self.assertEqual(self._cli("--release-version", "2.3.1", "bootstrap", str(self.target)), 0)
-        (self.target / "scripts/workflow_state.py").write_text("# clobbered\n")
-        self.assertEqual(self._cli("status", str(self.target)), 1)
-        self.assertEqual(self._cli("verify", str(self.target)), 1)
-
-    def test_a_target_recording_a_release_that_is_absent_is_an_error(self):
-        bootstrap(self.target, self.release, now=FIXED_NOW)
-        record = Installation.read(self.target)
-        record.workflow_version = "9.9.9"
-        record.write(self.target)
-        self.assertEqual(self._cli("status", str(self.target)), 2)
 
 
 class TestStatusNeverClaimsCleanWithoutLooking(BootstrapCase):
@@ -1049,12 +1323,7 @@ class TestNoRuntimeDependencyOnTheUpstreamRepository(BootstrapCase):
         elsewhere = Path(self._tmp.name) / "empty-home"
         elsewhere.mkdir()
         self.assertFalse((elsewhere / "Workspace" / "repflow-android").exists())
-        env = {
-            "PYTHONPATH": str(REPO_ROOT / "src"),
-            "PATH": "/usr/bin:/bin",
-            "HOME": str(elsewhere),
-            "PYTHONDONTWRITEBYTECODE": "1",
-        }
+        env = cli_env(HOME=str(elsewhere), PYTHONDONTWRITEBYTECODE="1")
         for argv in (
             ["bootstrap", str(self.target)],
             ["verify", str(self.target)],

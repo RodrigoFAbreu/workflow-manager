@@ -26,7 +26,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from support import CI_SUITES, REPO_ROOT, expected_portability_exceptions
+from support import CI_SUITES, REPO_ROOT, cli_env, expected_portability_exceptions
 
 from frozen_runs import FIXED_NOW, open_matrix_run
 from frozen_runs import empty_repo as _empty_repo
@@ -269,9 +269,7 @@ class TestCliDrivesTheSameOperations(unittest.TestCase):
     def _cli(self, *args):
         return subprocess.run(
             [sys.executable, "-m", "workflow_manager", *args],
-            cwd=str(REPO_ROOT), capture_output=True, text=True,
-            env={"PYTHONPATH": str(REPO_ROOT / "src"), "PATH": "/usr/bin:/bin",
-                 "HOME": str(Path.home())},
+            cwd=str(REPO_ROOT), capture_output=True, text=True, env=cli_env(),
         )
 
     def test_status_bootstrap_verify_uninstall_round_trip(self):

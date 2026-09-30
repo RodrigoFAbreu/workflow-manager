@@ -32,7 +32,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from support import REPO_ROOT
+from support import REPO_ROOT, cli_env
 
 from workflow_manager.fixture import drive_synthetic_work_item_through_checkpoints, init_git_repo
 from workflow_manager.install import bootstrap, drift, update, verify
@@ -510,9 +510,7 @@ class TestReleaseCliAgainstTheAuthoredManifest(unittest.TestCase):
             argv += ["--release-version", release_version]
         argv += list(args)
         return subprocess.run(
-            argv, cwd=str(REPO_ROOT), capture_output=True, text=True,
-            env={"PYTHONPATH": str(REPO_ROOT / "src"), "PATH": "/usr/bin:/bin",
-                 "HOME": str(Path.home())},
+            argv, cwd=str(REPO_ROOT), capture_output=True, text=True, env=cli_env(),
         )
 
     def test_release_provenance_and_upstream_read_correctly(self):

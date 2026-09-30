@@ -56,6 +56,29 @@ def frozen_bytes(path: str) -> bytes:
     ).stdout
 
 
+def cli_env(**extra: str) -> dict[str, str]:
+    """A from-scratch environment for a `workflow_manager` subprocess (plan 7.1).
+
+    It always names the parent's resolved release cache in
+    `WORKFLOW_MANAGER_RELEASE_CACHE`, so a test that moves `HOME` on purpose
+    still reads the cache every other test reads, and it carries
+    `WORKFLOW_MANAGER_RELEASE_SOURCE` through when that is set. Those are
+    defaults: `extra` is applied last and overrides them.
+    """
+    from workflow_manager import source
+
+    env = {
+        "PYTHONPATH": str(REPO_ROOT / "src"),
+        "PATH": "/usr/bin:/bin",
+        "HOME": str(Path.home()),
+        source.CACHE_ENV: str(source.cache_root()),
+    }
+    if os.environ.get(source.SOURCE_ENV):
+        env[source.SOURCE_ENV] = os.environ[source.SOURCE_ENV]
+    env.update(extra)
+    return env
+
+
 def run_suite(repo: Path, suite: str, timeout: int = 1800,
               classes=()) -> subprocess.CompletedProcess:
     """One frozen conformance suite, run the way the frozen CI runs it:

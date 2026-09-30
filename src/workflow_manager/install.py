@@ -353,6 +353,7 @@ def bootstrap(target: Path, release: Release, profile: str = INSTALL_PROFILE_FUL
         provenance=release.provenance,
         installed_at=stamp,
         updated_at=stamp,
+        source=getattr(release, "source", None),
     )
 
     for rel, artifact in sorted(incoming.items()):
@@ -474,6 +475,7 @@ def update(target: Path, release: Release, profile: str | None = None,
         provenance=release.provenance,
         installed_at=current.installed_at,
         updated_at=stamp,
+        source=getattr(release, "source", None),
         # A path the release has taken ownership of since the target was
         # installed stops being repository-local state; leaving a stale
         # `generated` entry behind would record it as both.

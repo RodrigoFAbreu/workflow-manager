@@ -15,6 +15,7 @@ import contextlib
 import hashlib
 import importlib.util
 import io
+import json
 import subprocess
 import sys
 import tempfile
@@ -239,26 +240,42 @@ class VersionFlagTest(unittest.TestCase):
 
 
 class MissingDistributionHintTest(_Tmp):
-    """Without `distribution/workflow/`, every command that needs a release
-    names the likely cause (a wheel install) and the fix (`--manager-root`)."""
+    """Where the Manager has no release to use -- a wheel install, so no
+    checkout fallback -- every command that needs one names why and the fix
+    (plan 5.5): an unpublished version needs `--release-dir`, and a published
+    one that cannot be fetched names the cache and source options. Both exit 1.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.pins = self.tmp / "published_releases.json"
+        self.write_pins({})
+        for patcher in (mock.patch.object(cli.release_source, "PINS_PATH", self.pins),
+                        mock.patch.object(cli, "MANAGER_ROOT", self.tmp / "site-packages")):
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def write_pins(self, releases):
+        self.pins.write_text(json.dumps({"schema_version": 1, "repository": "example/workflow",
+                                         "releases": releases}))
 
     def run_cli(self, *argv):
         out, err = io.StringIO(), io.StringIO()
         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
-            code = cli.main(["--manager-root", str(self.tmp), *argv])
+            code = cli.main(["--release-cache", str(self.tmp / "cache"),
+                             "--release-source", str(self.tmp / "no-source"), *argv])
         return code, out.getvalue(), err.getvalue()
 
     def assert_hint(self, err):
-        self.assertIn(f"no Workflow releases at {self.tmp / 'distribution' / 'workflow'}", err)
-        self.assertIn("installed from a wheel, not run from a checkout", err)
-        self.assertIn("--manager-root <workflow-manager checkout at the matching tag>", err)
+        self.assertIn("--release-dir", err)
         self.assertNotIn("migrate.py", err)
+        self.assertNotIn("Until M2", err)
 
     def test_releases(self):
         code, out, err = self.run_cli("releases")
-        self.assertEqual(code, 1)
+        self.assertEqual(code, 0)
         self.assertEqual(out, "")
-        self.assert_hint(err)
+        self.assertIn("no Workflow release is published", err)
 
     def test_bootstrap_and_update(self):
         target = self.tmp / "target"
@@ -266,20 +283,30 @@ class MissingDistributionHintTest(_Tmp):
         for command in ("bootstrap", "update"):
             with self.subTest(command=command):
                 code, _, err = self.run_cli(command, str(target))
-                self.assertEqual(code, 2)
+                self.assertEqual(code, 1)
+                self.assertIn("no Workflow release is published", err)
                 self.assert_hint(err)
 
     def test_verify_and_status_of_a_managed_target(self):
         for command in ("verify", "status"):
             with self.subTest(command=command):
                 code, _, err = self.run_cli(command, str(REPO_ROOT))
-                self.assertEqual(code, 2)
+                self.assertEqual(code, 1)
+                self.assertIn("is not published", err)
                 self.assert_hint(err)
 
-    def test_a_pinned_release_version(self):
+    def test_a_requested_release_version(self):
         code, _, err = self.run_cli("--release-version", "2.6.0", "status", str(self.tmp))
-        self.assertEqual(code, 2)
+        self.assertEqual(code, 1)
+        self.assertIn("release 2.6.0 is not published", err)
         self.assert_hint(err)
+
+    def test_a_published_release_that_cannot_be_fetched(self):
+        self.write_pins({"2.6.0": {"archive": "workflow-2.6.0.tar.gz", "sha256": "0" * 64,
+                                   "manifest_sha256": "1" * 64}})
+        code, _, err = self.run_cli("--release-version", "2.6.0", "status", str(self.tmp))
+        self.assertEqual(code, 1)
+        self.assertIn("cannot fetch", err)
 
     def test_status_of_an_unmanaged_target_needs_no_release(self):
         code, out, err = self.run_cli("status", str(self.tmp))
@@ -288,7 +315,7 @@ class MissingDistributionHintTest(_Tmp):
 
     def test_the_checkout_itself_still_lists_its_releases(self):
         out = io.StringIO()
-        with contextlib.redirect_stdout(out):
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
             self.assertEqual(cli.main(["--manager-root", str(REPO_ROOT), "releases"]), 0)
         self.assertIn("2.6.0", out.getvalue())
 

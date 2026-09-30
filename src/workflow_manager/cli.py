@@ -6,14 +6,19 @@
     python3 -m workflow_manager verify    <target>
     python3 -m workflow_manager uninstall <target>
     python3 -m workflow_manager releases
+    python3 -m workflow_manager package build <release-dir> --out <dir>
+    python3 -m workflow_manager package verify <archive> [--sha256 H]
     python3 -m workflow_manager --version
 
-Every command takes `--release-version` to pick among the releases in
-`distribution/`. Without it, the two commands that *change* which release a
-repository is on -- `bootstrap` and `update` -- mean the newest release, and
-the two that *report on* an installation -- `status` and `verify` -- mean the
-release the target says it has, so they never quietly grade a repository
-against something it was never installed from.
+Releases are published packages, pinned in the Manager's
+`published_releases.json` and fetched through a verified cache
+(`--release-source`, `--release-cache`); `--release-dir` installs an
+unpackaged release directory instead. `--release-version` picks the release.
+Without it, the two commands that *change* which release a repository is on
+-- `bootstrap` and `update` -- mean the newest published release, and the two
+that *report on* an installation -- `status` and `verify` -- mean the release
+the target says it has, so they never quietly grade a repository against
+something it was never installed from.
 """
 
 from __future__ import annotations
@@ -22,9 +27,12 @@ import argparse
 import re
 import subprocess
 import sys
+import tempfile
+from contextlib import nullcontext
 from importlib import metadata
 from pathlib import Path
 
+from . import source as release_source
 from .install import (
     AlreadyManagedError,
     CollisionError,
@@ -38,13 +46,23 @@ from .install import (
     verify,
 )
 from .installation import CorruptInstallationError, Installation, is_managed
+from .package import build_package, extract_package, file_sha256
 from .release import (
     INSTALL_PROFILE_FULL,
     INSTALL_PROFILES,
+    Release,
     ReleaseIntegrityError,
+    _version_key,
     available_versions,
-    find_release,
     release_root,
+)
+from .source import (
+    ReleaseCache,
+    ReleaseNotPublishedError,
+    ReleaseSource,
+    ReleaseUnavailableError,
+    cache_root,
+    local_release,
 )
 
 MANAGER_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -137,23 +155,84 @@ class _VersionAction(argparse.Action):
         parser.exit()
 
 
-def missing_distribution_message(manager_root: Path) -> str:
-    return (
-        f"no Workflow releases at {release_root(manager_root)}: this Manager is "
-        f"probably installed from a wheel, not run from a checkout. Until M2, pass "
-        f"--manager-root <workflow-manager checkout at the matching tag>."
-    )
+# ---------------------------------------------------------------------------
+# Resolving a release (`D-CLI`)
+# ---------------------------------------------------------------------------
+
+#: The errors that mean "no usable release": exit 1, with actionable text.
+RELEASE_ERRORS = (ReleaseNotPublishedError, ReleaseUnavailableError, ReleaseIntegrityError)
+
+MANAGER_ROOT_DEPRECATION = (
+    "workflow-manager: --manager-root is deprecated and will be removed in a later release. "
+    "Published releases need no option; use --release-dir <dir> for an unpackaged release."
+)
 
 
-def _require_distribution(manager_root: Path) -> None:
-    if not release_root(manager_root).is_dir():
-        raise InstallError(missing_distribution_message(manager_root))
+def _pins():
+    """The pin file, read at call time (tests point `source.PINS_PATH` elsewhere)."""
+    return release_source.load_pins(release_source.PINS_PATH)
+
+
+def _cache(args, pins) -> ReleaseCache:
+    return ReleaseCache(cache_root(args.release_cache),
+                        ReleaseSource.select(args.release_source), pins)
+
+
+def _checkout_releases(checkout: Path) -> dict[str, Path]:
+    """`<checkout>/distribution/workflow/<v>/` for every `v` present."""
+    return {v: release_root(checkout) / v for v in available_versions(checkout)}
+
+
+def _fallback_releases(pins) -> dict[str, Path]:
+    """The checkout fallback (CP3 to CP6 only): this Manager's own checkout's
+    `distribution/workflow/<v>/`, for every `v` that is not pinned."""
+    return {v: path for v, path in _checkout_releases(MANAGER_ROOT).items()
+            if pins.get(v) is None}
+
+
+def _local_candidates(args, pins) -> tuple[dict[str, Path], str]:
+    """Local release directories a version may resolve to, and what they are:
+    the `--manager-root` alias's checkout, else the checkout fallback."""
+    if args.manager_root is not None:
+        return _checkout_releases(args.manager_root), "--manager-root"
+    return _fallback_releases(pins), "checkout"
+
+
+def _default_version(args, pins) -> str:
+    """The newest pinned version, else the newest local candidate."""
+    versions = pins.versions()
+    if not versions:
+        versions = sorted(_local_candidates(args, pins)[0], key=_version_key)
+    if not versions:
+        raise ReleaseNotPublishedError(
+            "no Workflow release is published: this Manager pins none, and none is "
+            "available locally. Install an unpackaged release with --release-dir <dir>.")
+    return versions[-1]
+
+
+def _resolve(args, version: str | None):
+    """The release `version` (default: the newest) as a verified private
+    snapshot. Precedence: `--release-dir`, the `--manager-root` alias when its
+    checkout holds the version, the pins through the cache, and last the
+    checkout fallback for an unpinned version."""
+    pins = _pins()
+    if args.release_dir is not None:
+        return local_release(args.release_dir, version, pins)
+    if version is None:
+        version = _default_version(args, pins)
+    candidates, _ = _local_candidates(args, pins)
+    if args.manager_root is not None and version in candidates:
+        return local_release(candidates[version], version, pins)
+    if pins.get(version) is None and version in candidates:
+        print(f"workflow-manager: release {version} is not published; using the "
+              f"checkout's unpublished copy at {candidates[version]}", file=sys.stderr)
+        return local_release(candidates[version], version, pins)
+    return _cache(args, pins).resolve(version)
 
 
 def _release(args):
-    """The newest migrated release, or the pinned one."""
-    _require_distribution(args.manager_root)
-    return find_release(args.manager_root, args.release_version)
+    """What `bootstrap` and `update` install."""
+    return _resolve(args, args.release_version)
 
 
 def _release_for_target(args):
@@ -161,50 +240,73 @@ def _release_for_target(args):
 
     An installed repository is graded against the release it records, not
     against whatever happens to be newest -- otherwise every target would look
-    broken the moment a new release landed in `distribution/`.
+    broken the moment a new release was published.
     """
     if args.release_version is not None:
-        _require_distribution(args.manager_root)
-        return find_release(args.manager_root, args.release_version)
+        return _resolve(args, args.release_version)
     if not is_managed(args.target):
         return None
-    _require_distribution(args.manager_root)
-    version = Installation.read(args.target).workflow_version
-    available = available_versions(args.manager_root)
-    if version not in available:
-        raise InstallError(
-            f"{args.target} records workflow {version}, which is not in "
-            f"{Path(args.manager_root) / 'distribution' / 'workflow'} "
-            f"(present: {', '.join(available) or 'none'}). "
-            f"Nothing can be verified against a release that is not here."
-        )
-    return find_release(args.manager_root, version)
+    return _resolve(args, Installation.read(args.target).workflow_version)
+
+
+def _describe_source(record: dict | None) -> str:
+    if record is None:
+        return "not recorded"
+    if record.get("kind") == "local":
+        return "(local, unpublished)"
+    return (f"package {record.get('archive')} from {record.get('repository')} "
+            f"(sha256 {record.get('sha256')})")
+
+
+def _print_record(target: Path) -> None:
+    """What `status` knows about a managed target without its release."""
+    installation = Installation.read(target)
+    print(f"workflow {installation.workflow_version} ({installation.profile} profile)")
+    print(f"  source: {_describe_source(installation.source)}")
+    print(f"  installed at {installation.installed_at}, updated at {installation.updated_at}")
 
 
 def cmd_releases(args) -> int:
-    if not release_root(args.manager_root).is_dir():
-        print(f"error: {missing_distribution_message(args.manager_root)}", file=sys.stderr)
-        return 1
-    for version in available_versions(args.manager_root):
-        release = find_release(args.manager_root, version)
-        print(f"{release.version}  from {release.upstream['tag']} "
+    pins = _pins()
+    cache = ReleaseCache(cache_root(args.release_cache), None, pins)
+    for version in pins.versions():
+        pin = pins.get(version)
+        state = "cached" if cache.cached(version) else "not cached"
+        print(f"{version}  {pin.archive}  sha256 {pin.sha256}  [{state}]")
+    candidates, kind = _local_candidates(args, pins)
+    for version in sorted(candidates, key=_version_key):
+        if pins.get(version) is not None:
+            continue
+        release = Release(candidates[version])
+        print(f"{release.version}  ({kind}, unpublished)  from {release.upstream['tag']} "
               f"({release.upstream['commit'][:12]})  "
               f"[{release.provenance['origin']}]  "
               f"{len(release.installable(INSTALL_PROFILE_FULL))} files")
+    if not pins.versions() and not candidates:
+        print("workflow-manager: no Workflow release is published or available locally",
+              file=sys.stderr)
     return 0
 
 
 def cmd_status(args) -> int:
-    result = status(args.target, _release_for_target(args))
+    try:
+        release = _release_for_target(args)
+    except RELEASE_ERRORS:
+        if is_managed(args.target):
+            _print_record(args.target)
+        raise
+    with release if release is not None else nullcontext():
+        result = status(args.target, release)
     print(result)
     if not result.managed:
         return 0
+    print(f"  source: {_describe_source(Installation.read(args.target).source)}")
     return 0 if (result.verified and not result.problems) else 1
 
 
 def cmd_bootstrap(args) -> int:
-    release = _release(args)
-    installation = bootstrap(args.target, release, args.profile, force=args.force)
+    with _release(args) as release:
+        installation = bootstrap(args.target, release, args.profile, force=args.force)
     print(f"bootstrapped workflow {installation.workflow_version} "
           f"({installation.profile}) into {args.target}")
     print(f"  {len(installation.managed)} managed files, "
@@ -214,8 +316,8 @@ def cmd_bootstrap(args) -> int:
 
 
 def cmd_update(args) -> int:
-    release = _release(args)
-    installation, changes = update(args.target, release, args.profile, force=args.force)
+    with _release(args) as release:
+        installation, changes = update(args.target, release, args.profile, force=args.force)
     print(f"updated {args.target} to workflow {installation.workflow_version}")
     for change in changes:
         print(f"  {change}")
@@ -228,7 +330,8 @@ def cmd_verify(args) -> int:
     release = _release_for_target(args)
     if release is None:
         raise NotManagedError(f"{args.target} is not a managed repository; nothing to verify")
-    problems = verify(args.target, release)
+    with release:
+        problems = verify(args.target, release)
     if not problems:
         print(f"{args.target}: installation matches workflow {release.version}")
         return 0
@@ -245,6 +348,23 @@ def cmd_uninstall(args) -> int:
     return 0
 
 
+def cmd_package(args) -> int:
+    if args.package_command == "build":
+        built = build_package(args.release_dir, args.out)
+        for path in (built.archive, built.manifest, built.sums):
+            print(path)
+        return 0
+    if args.sha256 is not None:
+        actual = file_sha256(args.archive)
+        if actual != args.sha256.lower():
+            raise ReleaseIntegrityError(f"{args.archive} has digest {actual}, not {args.sha256}")
+    with tempfile.TemporaryDirectory(prefix="workflow-package-") as tmp:
+        release = extract_package(args.archive, Path(tmp) / "tree")
+        print(f"{args.archive}: release {release.version}, "
+              f"{len(release.artifacts) + len(release.templates())} files, verified")
+    return 0
+
+
 COMMANDS = {
     "releases": cmd_releases,
     "status": cmd_status,
@@ -252,6 +372,7 @@ COMMANDS = {
     "update": cmd_update,
     "verify": cmd_verify,
     "uninstall": cmd_uninstall,
+    "package": cmd_package,
 }
 
 
@@ -260,13 +381,32 @@ def build_parser() -> argparse.ArgumentParser:
         prog="workflow_manager", description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument("--manager-root", type=Path, default=MANAGER_ROOT,
-                        help="the workflow-manager checkout holding distribution/")
+    parser.add_argument("--manager-root", type=Path, default=None,
+                        help="deprecated: a workflow-manager checkout holding "
+                             "distribution/workflow/<version>/")
     parser.add_argument("--version", action=_VersionAction)
     parser.add_argument("--release-version", default=None)
+    parser.add_argument("--release-source", default=None,
+                        help="where packages come from: a URL template with {version}, "
+                             f"or a directory of <version>/ (default: ${release_source.SOURCE_ENV}, "
+                             "else the published releases)")
+    parser.add_argument("--release-cache", default=None,
+                        help=f"the release cache directory (default: ${release_source.CACHE_ENV}, "
+                             "else the user cache directory)")
+    parser.add_argument("--release-dir", type=Path, default=None,
+                        help="install an unpackaged release directory instead of a package")
     sub = parser.add_subparsers(dest="command", required=True)
 
-    sub.add_parser("releases", help="list migrated releases")
+    sub.add_parser("releases", help="list published releases")
+
+    p = sub.add_parser("package", help="build or verify a Workflow release package")
+    package_sub = p.add_subparsers(dest="package_command", required=True)
+    q = package_sub.add_parser("build")
+    q.add_argument("release_dir", type=Path)
+    q.add_argument("--out", type=Path, required=True)
+    q = package_sub.add_parser("verify")
+    q.add_argument("archive", type=Path)
+    q.add_argument("--sha256", default=None)
 
     for name in ("status", "verify", "uninstall"):
         p = sub.add_parser(name)
@@ -288,8 +428,13 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    if args.manager_root is not None:
+        print(MANAGER_ROOT_DEPRECATION, file=sys.stderr)
     try:
         return COMMANDS[args.command](args)
+    except RELEASE_ERRORS as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 1
     except DriftError as error:
         print(str(error), file=sys.stderr)
         print("\nre-run with --force to discard those local edits", file=sys.stderr)
@@ -300,7 +445,7 @@ def main(argv: list[str] | None = None) -> int:
               file=sys.stderr)
         return 2
     except (AlreadyManagedError, NotManagedError, InstallError, CorruptInstallationError,
-            ReleaseIntegrityError, FileNotFoundError, ValueError) as error:
+            FileNotFoundError, ValueError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 2
 
