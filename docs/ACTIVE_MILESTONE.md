@@ -12,13 +12,15 @@ plan: `docs/ai-workflow/WORKFLOW_MANAGER_TEST_CLEANUP_PLAN.md`.
 
 ## Current checkpoint
 
-`AWAITING_LOCAL_IMPLEMENTATION_REVIEW` (implementation revision 6,
+`AWAITING_LOCAL_IMPLEMENTATION_REVIEW` (implementation revision 7,
 post-fix). CP1-CP3 are complete. The functional review's F1 was fixed in
 `944920a`; revision 4's local review returned `REVISE` (I1, fixed in
-`906e884`). Revision 5's local review approved; its manual external
-review returned `REVISE` with three test-only timing findings, fixed in
-`8702136` and `8a9acc0`. The full gate at `8a9acc0` is green. Technical
-approval `0263fa9` is `STALE`.
+`906e884`). Revision 5's manual external review returned `REVISE` with
+three test-only timing findings, fixed in `8702136` and `8a9acc0`.
+Revision 6's local review approved; its manual external review returned
+`REVISE` with two test-only readiness-wait findings, fixed in `ed233bd`.
+The full gate at `ed233bd` is green. Technical approval `0263fa9` is
+`STALE`.
 
 ## Current blockers
 
@@ -31,8 +33,8 @@ None.
 
 ## Next action
 
-Both implementation-review stages for revision 6 (`/review-implementation`,
-then the manual external stage), a green required CI run for revision 6
+Both implementation-review stages for revision 7 (`/review-implementation`,
+then the manual external stage), a green required CI run for revision 7
 (the external review's acceptance criterion; pushing is the user's), then
 `/approve-review implementation` and the functional review again.
 
@@ -402,6 +404,41 @@ Revision 5's local stage approved. The manual external stage returned
   tolerated, no Git orphan.
 - The review's acceptance criterion also asks for a green required CI run
   for the corrected revision. That needs a push, which is the user's.
+
+### Implementation review round 6 (`MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW`, `REVISE`)
+
+Revision 6's local stage approved. The manual external stage returned
+`REVISE` with two important, test-only findings, both in `_DOUBLE_FORK`'s
+readiness waits, both accepted and reproduced. Fixed together in
+`ed233bd`:
+
+- **I1:** the middle process's wait for the daemon's `sleep` exec had no
+  deadline. A daemon that died first stayed an unreaped zombie whose
+  command line reads empty, so the middle process polled forever and the
+  chunk blocked in `waitpid`; `reap`'s 120 s timeout kills only the
+  wrapper. The middle process now fails at once on a daemon that is a
+  zombie in `exec` mode, and after `TIMEOUT` (60 s) otherwise: it kills
+  the daemon and exits 3, and the chunk fails on that status.
+- **I2:** the chunk's own readiness loop fell through after 60 s, so a
+  slow spawner could start the wrapper's kill grace with fewer than 21
+  forks. On its deadline it now kills the daemon and exits 1, naming the
+  state it waited for, so the test fails on its return code before the
+  wrapper's check starts.
+- Regression: `test_a_daemon_that_never_gets_ready_fails_the_chunk_with_its_state`
+  (a daemon that exits before its exec, one that never execs, and one
+  that never forks, with a 1 s `TIMEOUT` and `UNREACHABLE_GRACE`, so
+  returning at all proves the daemon was killed).
+- Negative control: the revision-6 template with a daemon that exits
+  before its exec was still waiting after 15 s; the fixed one fails in
+  0.02 s.
+- Load check: `TestReaperDirect` 3 times concurrently under 2 CPU-bound
+  processes per CPU, all green.
+- **The full gate** at `ed233bd`: `evidence: full selection, local, 8
+  worker(s), head ed233bd182437e9ee919c0924567ac7296c40e67, 4102/4102
+  units, 25688 tests, selection_digest 43d1394e..., tests_digest
+  d2553227..., tree_digest beac9d70...`, `verdict: exit 0`, 396.0 s wall.
+  `orphan check: on`, only the 20 declared `orphan_sources` chunks
+  tolerated, no Git orphan.
 
 ## Functional review checklist
 
