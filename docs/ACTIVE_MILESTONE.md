@@ -13,13 +13,18 @@ Full plan: `docs/ai-workflow/WORKFLOW_MANAGER_PACKAGED_DISTRIBUTION_PLAN.md`.
 
 ## Current checkpoint
 
-`AWAITING_FUNCTIONAL_REVIEW` (implementation revision 2, technical
-approval `9581d3e`). CP1-CP7 are complete: package format, release
+`AWAITING_FUNCTIONAL_REVIEW` (implementation revision 4, technical
+approval `2216d5a`). CP1-CP7 are complete: package format, release
 source/pins/cache, CLI and install record, the five packages, the test suite
 on the release cache, removal, and documentation. Both implementation-review
 stages approved revision 2: external round 1 found one issue, an
 undiscardable cache entry escaping as `PermissionError`, fixed in `df5ecc6`.
-Cutover K1 is done (below).
+The functional review's first round passed flows 1-8 and cutover K1-K3.
+K4 found F1: the verification workflow used the `runner` context in a
+job-level `env`, so GitHub rejected it. F1 was fixed through the bounded
+branch (`3e90d7b`, revision 3). External round 3 then asked for a stronger
+regression scanner (`6bbd8ec`, revision 4). Both stages approved revision 4,
+pull request #11's CI is green, and the user re-approved (`2216d5a`).
 
 ## Current blockers
 
@@ -34,8 +39,8 @@ revision 9. Registry:
 
 ## Next action
 
-The functional review (checklist below), then the rest of the cutover
-(K2-K5, each on the user's go-ahead), then `/accept-milestone`.
+The functional review's round 2 (checklist below), then `/accept-milestone`,
+then cutover K5 (the merge and the `v1.2.0` release).
 
 ## Checkpoint log
 
@@ -578,12 +583,19 @@ The functional review (checklist below), then the rest of the cutover
 
 You are testing the Manager as an operator uses it after M2: releases come
 from verified packages in a cache, never from a checkout's `distribution/`.
-- **Technical approval:** commit `9581d3e`, implementation revision 2.
+- **Round 2** (implementation revision 4). Round 1 (revision 2) passed flows
+  1-8 and K1-K3. It found F1 in K4, which was fixed in `3e90d7b`, with its
+  regression scanner hardened in `6bbd8ec`. Revisions 3 and 4 changed only
+  `.github/workflows/workflow-manager-verify.yml`, two test modules and one
+  `docs/ARCHITECTURE.md` paragraph, with no Manager code. Re-test K4 (the CI
+  run) and flow 8's targeted run. Flows 1-7 exercise unchanged code (all
+  passed in round 1) and are optional.
+- **Technical approval:** commit `2216d5a`, implementation revision 4.
 - **Where findings go:**
   `.ai-review/workflow-manager-packaged-distribution/feedback/FUNCTIONAL_REVIEW.md`.
 - **Automated verification:** already current. The full gate passed on the
-  final code (recorded at `32c9290` with the fix's tree: 1409/1409 units,
-  8,739 tests, verdict 0). Only state commits have landed since.
+  final code (recorded at `4f42956` with the fix's tree: 1410/1410 units,
+  8,746 tests, verdict 0). Only state commits have landed since.
 
 **Setup.**
 - Linux, Python 3.12 or later, Git, and an authenticated `gh` (cutover
@@ -656,7 +668,12 @@ go-ahead).**
   every digest equals its pin.
 - **K4.** Push the branch and open the pull request titled `feat: Workflow
   releases are downloaded, verified packages`. The full selection is green
-  in CI; its first run downloads the K2 packages.
+  in CI; its first run downloads the K2 packages. Round 1: pull request #11
+  was opened, and its verification workflow was rejected (run 36767970166;
+  F1). Revision 3's run was green, starting from an empty CI cache (the
+  first real download). Revision 4's run
+  (https://github.com/RodrigoFAbreu/workflow-manager/actions/runs/36774307005)
+  is green: 21 checks, `CLEAN`.
 - **K5.** Squash-merge, check that `main`'s full run is green and that
   Manager `v1.2.0` is published, then `pipx install` its wheel into a
   scratch environment and bootstrap a scratch repository with no checkout.
