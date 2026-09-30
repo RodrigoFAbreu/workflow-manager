@@ -8,52 +8,16 @@ import subprocess
 import sys
 from pathlib import Path
 
-#: Importing payload modules must not leave `__pycache__` inside the
-#: canonical distribution -- it is meant to be byte-for-byte inspectable.
+#: Importing payload modules must not leave `__pycache__` inside a cached
+#: release tree -- it is meant to be byte-for-byte inspectable.
 sys.dont_write_bytecode = True
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
-CLASSIFICATION = json.loads((REPO_ROOT / "migration" / "classification.json").read_text())
 PORTABILITY_EXCEPTIONS = json.loads(
     (REPO_ROOT / "tests" / "portability_exceptions.json").read_text()
 )
-
-#: Set WORKFLOW_MANAGER_UPSTREAM to point the upstream-comparison tests at a
-#: different clone. They skip when it is absent -- the migrated distribution
-#: must be verifiable from its own manifest without the upstream repository.
-UPSTREAM = Path(
-    os.environ.get("WORKFLOW_MANAGER_UPSTREAM", str(Path.home() / "Workspace" / "repflow-android"))
-)
-
-FROZEN_COMMIT = CLASSIFICATION["upstream"]["commit"]
-FROZEN_TAG = CLASSIFICATION["upstream"]["tag"]
-
-
-def upstream_available() -> bool:
-    if not (UPSTREAM / ".git").exists():
-        return False
-    proc = subprocess.run(
-        ["git", "-C", str(UPSTREAM), "cat-file", "-e", f"{FROZEN_COMMIT}^{{commit}}"],
-        capture_output=True,
-    )
-    return proc.returncode == 0
-
-
-def frozen_paths() -> list[str]:
-    out = subprocess.run(
-        ["git", "-C", str(UPSTREAM), "ls-tree", "-r", "--name-only", FROZEN_COMMIT],
-        check=True, capture_output=True, text=True,
-    ).stdout
-    return out.splitlines()
-
-
-def frozen_bytes(path: str) -> bytes:
-    return subprocess.run(
-        ["git", "-C", str(UPSTREAM), "show", f"{FROZEN_COMMIT}:{path}"],
-        check=True, capture_output=True,
-    ).stdout
 
 
 def _pinned_versions() -> list[str]:

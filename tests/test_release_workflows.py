@@ -127,7 +127,6 @@ def release_workflow_problems(doc: dict, verify_name: str) -> list[str]:
                            if (steps[i].get("with") or {}).get("ref")
                            == "${{ steps.target.outputs.target_sha }}"]
         python = _step_index(steps, lambda s: _uses(s, "actions/setup-python"), "set up python")
-        fetch = _step_index(steps, lambda s: _runs(s, "UPSTREAM_URL"), "fetch the upstream")
         download = _step_index(steps, lambda s: _uses(s, "actions/download-artifact"),
                                "download the plan")
         full_plan = _step_index(steps, lambda s: _runs(s, "release.py assert-full-plan"),
@@ -152,12 +151,11 @@ def release_workflow_problems(doc: dict, verify_name: str) -> list[str]:
         need(resolve < target_checkout[0], "the target is checked out before it is resolved")
         need((steps[target_checkout[0]].get("with") or {}).get("fetch-depth") == 0,
              "the target checkout is shallow: next-version reads tags and history")
-        need(target_checkout[0] < python < full_plan and target_checkout[0] < fetch < full_plan,
-             "python 3.12 and the upstream are not set up between the target checkout and "
-             "assert-full-plan")
+        need(target_checkout[0] < python < full_plan,
+             "python 3.12 is not set up between the target checkout and assert-full-plan")
     need((steps[python].get("with") or {}) == {"python-version": "3.12"}, "python is not 3.12")
-    need('rev-parse "$UPSTREAM_TAG^{commit}")" = "$UPSTREAM_COMMIT"' in steps[fetch]["run"],
-         "the fetched upstream tag is not checked against the pinned commit")
+    need(not any("UPSTREAM" in (s.get("run") or "") for s in steps) and "env" not in doc,
+         "the release still fetches an upstream: every release comes through the pins")
     artifact = steps[download].get("with") or {}
     need(artifact.get("run-id") == "${{ steps.target.outputs.target_run }}",
          f"the plan is downloaded from {artifact.get('run-id')!r}, not the target's run")
@@ -239,6 +237,7 @@ class TestReleaseWorkflow(unittest.TestCase):
                                          "hashFiles('pyproject.toml')"),
             "a checkout's releases": ('--out "$RUNNER_TEMP/assets"',
                                       '--out "$RUNNER_TEMP/assets" --manager-root "$GITHUB_WORKSPACE"'),
+            "an upstream again": ("\njobs:\n", "\nenv:\n  UPSTREAM_URL: x\n\njobs:\n"),
         }
         for label, (old, new) in mutants.items():
             with self.subTest(mutation=label):

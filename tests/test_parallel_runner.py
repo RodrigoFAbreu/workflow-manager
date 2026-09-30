@@ -25,8 +25,7 @@ checkout -- a fresh CI-like checkout -- with a stand-in `RUNNER_TEMP`.
 
 `workflow-manager-trunk-model`'s CP5 updates T-CI-1 (the nightly trigger and
 the per-commit concurrency group of `main`) and adds T-CI-7 (the one required
-check also needs the new `package` job). The stopgap wiring's own tests,
-T-CI-6 and T-CI-8, live in `tests/test_stopgap_profile.py`.
+check also needs the new `package` job).
 """
 
 from __future__ import annotations
@@ -67,7 +66,6 @@ import workflow_manager.package as package_module
 from workflow_manager import source as release_source
 
 TESTS_DIR = REPO_ROOT / "tests"
-EXCLUSIVE_UNIT = "host:test_amendment_update_path.py::TestMigrateDoesNotDeleteASiblingAuthoredRelease"
 
 
 def _git(repo: Path, *args: str) -> str:
@@ -117,7 +115,7 @@ class TestHostInventoryIsDeterministic(_RealHostInventory):
             copy = Path(tmp)
             shutil.copytree(TESTS_DIR, copy / "tests",
                             ignore=shutil.ignore_patterns("__pycache__"))
-            for tree_name in ("distribution", "migration", "src", "tools"):
+            for tree_name in ("src", "tools"):
                 (copy / tree_name).symlink_to(REPO_ROOT / tree_name)
             real_listdir = os.listdir
             calls = []
@@ -231,8 +229,8 @@ class TestSelectionGrammar(_RealHostInventory):
         self.assertEqual(one, two)
 
     def test_real_module_spec_selects_exactly_that_module(self):
-        chosen = inventory.select(self.host, ["test_templates.py"]).unit_ids()
-        expected = sorted(u for u in self.host if u.startswith("host:test_templates.py::"))
+        chosen = inventory.select(self.host, ["test_bootstrap.py"]).unit_ids()
+        expected = sorted(u for u in self.host if u.startswith("host:test_bootstrap.py::"))
         self.assertTrue(expected)
         self.assertEqual(chosen, expected)
 
@@ -273,12 +271,12 @@ def _resources_doc(**overrides):
     doc = {
         "schema_version": 1,
         "resources": {
-            "repo:distribution": {"paths": ["distribution/"], "description": "dist"},
-            "repo:src": {"paths": ["src/", "tools/"], "description": "code"},
+            "repo:tools": {"paths": ["tools/"], "description": "tools"},
+            "repo:src": {"paths": ["src/"], "description": "code"},
         },
         "exclusive": {
-            "host:test_a.py::A": {"resources": ["repo:distribution"], "reason": "rmtree"},
-            "host:test_a.py::B": {"resources": ["repo:src", "repo:distribution"], "reason": "both"},
+            "host:test_a.py::A": {"resources": ["repo:tools"], "reason": "rmtree"},
+            "host:test_a.py::B": {"resources": ["repo:src", "repo:tools"], "reason": "both"},
         },
     }
     doc.update(overrides)
@@ -289,20 +287,26 @@ class TestResourcesContract(_RealHostInventory):
     """T-INV-8, `resources.load`."""
 
     def test_the_committed_declaration_loads_against_the_real_inventory(self):
-        loaded = resources.load(REPO_ROOT, self.host,
-                                orphan_unit_ids=inventory.discover(REPO_ROOT).unit_ids())
-        self.assertEqual(loaded.exclusive_units(), (EXCLUSIVE_UNIT,))
-        self.assertIn(EXCLUSIVE_UNIT, self.host)
-        self.assertEqual(loaded.resources["repo:distribution"].paths, ("distribution/",))
-        self.assertEqual(loaded.trees_for(EXCLUSIVE_UNIT), ("distribution/",))
-        self.assertTrue(loaded.exclusive[EXCLUSIVE_UNIT].reason)
+        """It declares no resource and no exclusive unit; every `orphan_sources`
+        id is a discovered unit, and every frozen one is `NEWEST_RELEASE`'s."""
+        found = inventory.discover(REPO_ROOT)
+        loaded = resources.load(REPO_ROOT, self.host, orphan_unit_ids=found.unit_ids())
+        self.assertEqual(loaded.resources, {})
+        self.assertEqual(loaded.exclusive_units(), ())
+        doc = json.loads(resources.resources_path(REPO_ROOT).read_text())
+        orphans = sorted(doc["orphan_sources"])
+        self.assertTrue(orphans)
+        self.assertEqual(sorted(set(orphans) - set(found.unit_ids())), [])
+        for unit_id in orphans:
+            if unit_id.startswith(inventory.FROZEN_PREFIX):
+                with self.subTest(unit=unit_id):
+                    self.assertEqual(inventory.split_frozen_unit_id(unit_id)[0], NEWEST_RELEASE)
 
     def test_a_valid_two_resource_file_reports_each_tree_union(self):
         loaded = resources.parse(_resources_doc(), SYNTHETIC)
-        self.assertEqual(loaded.trees_for("host:test_a.py::A"), ("distribution/",))
-        self.assertEqual(loaded.trees_for("host:test_a.py::B"),
-                         ("distribution/", "src/", "tools/"))
-        self.assertEqual(loaded.resources_of("host:test_a.py::B"), ("repo:distribution", "repo:src"))
+        self.assertEqual(loaded.trees_for("host:test_a.py::A"), ("tools/",))
+        self.assertEqual(loaded.trees_for("host:test_a.py::B"), ("src/", "tools/"))
+        self.assertEqual(loaded.resources_of("host:test_a.py::B"), ("repo:src", "repo:tools"))
         self.assertEqual(loaded.trees_for("host:test_b.py::C"), ())
         self.assertFalse(loaded.is_exclusive("host:test_b.py::C"))
 
@@ -327,20 +331,21 @@ class TestResourcesContract(_RealHostInventory):
             # Review O8: the two cases below were accepted, or refused under the wrong tag.
             "float schema_version": _resources_doc(schema_version=1.0),
             "unhashable resource name": _resources_doc(exclusive={
-                "host:test_a.py::A": {"resources": [["repo:distribution"]], "reason": "x"}}),
+                "host:test_a.py::A": {"resources": [["repo:tools"]], "reason": "x"}}),
             "undeclared resource": _resources_doc(exclusive={
                 "host:test_a.py::A": {"resources": ["repo:nope"], "reason": "x"}}),
             "empty resources list": _resources_doc(exclusive={
                 "host:test_a.py::A": {"resources": [], "reason": "x"}}),
             "empty reason": _resources_doc(exclusive={
-                "host:test_a.py::A": {"resources": ["repo:distribution"], "reason": " "}}),
+                "host:test_a.py::A": {"resources": ["repo:tools"], "reason": " "}}),
             "unit not in inventory": _resources_doc(exclusive={
-                "host:test_zzz.py::Z": {"resources": ["repo:distribution"], "reason": "x"}}),
+                "host:test_zzz.py::Z": {"resources": ["repo:tools"], "reason": "x"}}),
             "bare-string resource (revision-6 form)": _resources_doc(
-                resources={"repo:distribution": "distribution/"}, exclusive={}),
+                resources={"repo:tools": "tools/"}, exclusive={}),
             "empty paths": _resources_doc(**res([])),
             "non-string path": _resources_doc(**res([7])),
-            "absolute path": _resources_doc(**res(["/distribution/"])),
+            "absolute path": _resources_doc(**res(["/tools/"])),
+            "a tree M2 removed": _resources_doc(**res(["distribution/"])),
             "dot-dot component": _resources_doc(**res(["src/../tools/"])),
             "tests/ is not guarded": _resources_doc(**res(["tests/"])),
             "sub-path of a guarded tree": _resources_doc(**res(["src/workflow_manager/"])),
@@ -357,8 +362,8 @@ class TestResourcesContract(_RealHostInventory):
             with self.subTest(case=name), self.assertRaises(resources.ResourcesFileError):
                 resources.parse(doc, SYNTHETIC)
 
-    def test_guarded_trees_are_the_four_the_barrier_covers(self):
-        self.assertEqual(resources.GUARDED_TREES, ("distribution/", "migration/", "src/", "tools/"))
+    def test_guarded_trees_are_the_two_the_barrier_covers(self):
+        self.assertEqual(resources.GUARDED_TREES, ("src/", "tools/"))
 
 
 class TestChunkDescriptorContract(unittest.TestCase):
@@ -366,7 +371,7 @@ class TestChunkDescriptorContract(unittest.TestCase):
 
     def chunk(self, **kw):
         base = dict(id="c1", shard_index=0, units=("host:b", "host:a"), estimate=1.5,
-                    resources=("repo:distribution",))
+                    resources=("repo:tools",))
         base.update(kw)
         return plan_schema.ChunkDescriptor(**base)
 
@@ -693,7 +698,7 @@ class TestFrozenInventory(unittest.TestCase):
             copy = Path(tmp)
             shutil.copytree(TESTS_DIR, copy / "tests",
                             ignore=shutil.ignore_patterns("__pycache__"))
-            for tree_name in ("distribution", "migration", "src", "tools"):
+            for tree_name in ("src", "tools"):
                 (copy / tree_name).symlink_to(REPO_ROOT / tree_name)
             real_listdir = os.listdir
             with mock.patch("os.listdir", lambda p=".": list(reversed(sorted(real_listdir(p))))):
@@ -790,9 +795,6 @@ class TestFrozenInventoryCountRefusal(unittest.TestCase):
         _writable_copy(REPO_ROOT / "src" / "workflow_manager", root / "src" / "workflow_manager",
                        ignore=shutil.ignore_patterns("__pycache__"))
         publish_synthetic_release(root, tmp / "releases", TINY_SUITE)
-        (root / "migration").mkdir()
-        (root / "migration" / "classification.json").write_text(canonical_json(
-            {"upstream": {"repository": "scratch", "tag": "scratch", "commit": "0" * 40}}))
         (root / "tests" / "parallel" / "matrix.py").write_text(textwrap.dedent(f"""
             FIXTURES = ("conformance", "target", "bootstrapped")
             CI_SUITES = {{"0.0.1": {{"tiny_test.py": {pinned}}}}}
@@ -1747,7 +1749,7 @@ class TestPlanIsDeterministic(unittest.TestCase):
         units, estimates = self.scenario()
         timing_doc = json.loads(_timings(local=estimates).to_json())
         resource_doc = {"schema_version": 1,
-                        "resources": {"r": {"paths": ["distribution/"], "description": "d"}},
+                        "resources": {"r": {"paths": ["tools/"], "description": "d"}},
                         "exclusive": {units[3]: {"resources": ["r"], "reason": "x"}}}
         payload = json.dumps({"units": units, "matrix": [units[0]], "timings": timing_doc,
                               "config": PLAN_CONFIG, "resources": resource_doc})
@@ -2228,10 +2230,9 @@ class TestExclusivePlacement(unittest.TestCase):
     def load_resources(self, root: Path, exclusive=True):
         (root / "tests" / "parallel").mkdir(parents=True)
         doc = {"schema_version": 1,
-               "resources": {"repo:distribution": {"paths": ["distribution/"],
-                                                   "description": "the tree"}},
-               "exclusive": {self.EXCL: {"resources": ["repo:distribution"],
-                                         "reason": "rewrites distribution/"}} if exclusive
+               "resources": {"repo:tools": {"paths": ["tools/"], "description": "the tree"}},
+               "exclusive": {self.EXCL: {"resources": ["repo:tools"],
+                                         "reason": "rewrites tools/"}} if exclusive
                else {}}
         resources.resources_path(root).write_text(json.dumps(doc))
         return resources.load(root, [self.EXCL, *self.SHARED])
@@ -2267,7 +2268,7 @@ class TestExclusivePlacement(unittest.TestCase):
                     self.assertEqual(len(holders), 1)
                     shard = parsed[holders[0]]
                     self.assertEqual(shard[0].units, (self.EXCL,))
-                    self.assertEqual(shard[0].resources, ("repo:distribution",))
+                    self.assertEqual(shard[0].resources, ("repo:tools",))
                     self.assertTrue(len(shard) > 1)
                     self.assertTrue(all(not c.resources for s in parsed for c in s
                                         if self.EXCL not in c.units))
@@ -2303,9 +2304,6 @@ class TestTheRealCheckoutPlans(unittest.TestCase):
                 self.assertEqual(len(units), len(set(units)))
                 self.assertLessEqual(plan["n"], planner.max_shards(plan["bounds"], profile, 8))
                 self.assertEqual(plan["tree_digest"], inv.tree_digest)
-                first = [s[0] for s in plan_schema.shard_chunks(plan)
-                         if any(EXCLUSIVE_UNIT in c.units for c in s)]
-                self.assertEqual([c.units for c in first], [(EXCLUSIVE_UNIT,)])
 
 
 # -- T-INV-6: the selection never depends on timing -------------------------------------
@@ -2658,8 +2656,7 @@ def scratch_checkout(root: Path, *, resources=SCRATCH_RESOURCES, modules=None,
       `published_releases.json` (`no_gitignore_template` leaves the
       `.gitignore` fragment out of a manifest that still verifies, so the
       conformance fixture builder raises);
-    - `migration/classification.json` and `tests/portability_exceptions.json`
-      in the shape `support` reads, a small `tools/` tree, and synthetic host
+    - `tests/portability_exceptions.json` in the shape `support` reads, a small `tools/` tree, and synthetic host
       modules: the declared exclusive writer, a shared reader, the matrix
       host class, and `modules` (`{file name: source}`).
 
@@ -2695,9 +2692,6 @@ def scratch_checkout(root: Path, *, resources=SCRATCH_RESOURCES, modules=None,
     templates = {t: body for t, body in SCRATCH_TEMPLATES.items()
                  if not (no_gitignore_template and t == ".gitignore.workflow-fragment")}
     publish_synthetic_release(root, scratch_releases(root), suite, templates=templates)
-    (root / "migration").mkdir()
-    (root / "migration" / "classification.json").write_text(canonical_json(
-        {"upstream": {"repository": "scratch", "tag": "scratch", "commit": "0" * 40}}))
     (tests / "portability_exceptions.json").write_text(canonical_json(
         {"by_version": {"0.0.1": {"exceptions": []}}}))
     (root / "src" / "scratchpkg").mkdir(parents=True)
@@ -3050,7 +3044,7 @@ class TestRunChunk(_ScratchCase):
 
 def _descriptor(chunk_id, shard, *, exclusive=False, estimate=1.0):
     return plan_schema.ChunkDescriptor(chunk_id, shard, (f"host:test_{chunk_id}.py::C",),
-                                       estimate, ("repo:distribution",) if exclusive else ())
+                                       estimate, ("repo:tools",) if exclusive else ())
 
 
 def _synthetic_plan(shards):
@@ -3291,7 +3285,8 @@ class TestWriteBarrier(_ScratchCase):
         self.assertIn(SCRATCH_EXCLUSIVE_UNIT, inventory.discover_host(scratch))
         self.assertEqual(declared.exclusive_units(), (SCRATCH_EXCLUSIVE_UNIT,))
         stray = json.loads(json.dumps(SCRATCH_RESOURCES))
-        stray["exclusive"] = {EXCLUSIVE_UNIT: stray["exclusive"][SCRATCH_EXCLUSIVE_UNIT]}
+        stray["exclusive"] = {"host:test_bootstrap.py::TestInstallationRecord":
+                              stray["exclusive"][SCRATCH_EXCLUSIVE_UNIT]}
         with self.assertRaises(resources.ResourcesFileError):
             scratch_checkout(self.tmp / "stray", resources=stray)
 
@@ -3540,40 +3535,33 @@ import support
 from support import REPO_ROOT
 from workflow_manager import install
 
-DIST = REPO_ROOT / "distribution"
+TOOLS = REPO_ROOT / "tools"
 
 
 class TestWriters(unittest.TestCase):
     def test_all(self):
-        subprocess.run([sys.executable, str(REPO_ROOT / "tools" / "migrate.py")])       # 1
-        subprocess.run([sys.executable, "tools/build_release.py", "--overlay", "x"])     # 2
-        install.bootstrap(REPO_ROOT, release)                                             # 3
-        install.update(target=REPO_ROOT / "sub", release=release)                        # 4
-        migrate.migrate(upstream, REPO_ROOT / "distribution")                             # 5
-        self.build_release.build(REPO_ROOT / "migration" / "overlays" / "x")               # 6
-        shutil.rmtree(DIST / "workflow")                                                   # 7
-        os.remove(str(REPO_ROOT / "README.md"))                                            # 8
-        (REPO_ROOT / "a").unlink()                                                         # 9
-        (support.REPO_ROOT / "b").write_text("x")                                          # 10
-        target = DIST / "c"
-        target.write_bytes(b"x")                                                           # 11
-        open(REPO_ROOT / "d", "a")                                                         # 12
-        open(os.path.join(REPO_ROOT, "e"), mode="x")                                       # 13
-        (REPO_ROOT / "f").open("w")                                                        # 14
-        shutil.copy2(src, REPO_ROOT / "g")                                                 # 15
-        shutil.copytree(src, dst=f"{REPO_ROOT}/h")                                         # 16
-        os.replace(src, REPO_ROOT / "i")                                                   # 17
-        Path(src).rename(REPO_ROOT / "j")                                                  # 18
+        install.bootstrap(REPO_ROOT, release)                                             # 1
+        install.update(target=REPO_ROOT / "sub", release=release)                        # 2
+        shutil.rmtree(TOOLS / "release")                                                   # 3
+        os.remove(str(REPO_ROOT / "README.md"))                                            # 4
+        (REPO_ROOT / "a").unlink()                                                         # 5
+        (support.REPO_ROOT / "b").write_text("x")                                          # 6
+        target = TOOLS / "c"
+        target.write_bytes(b"x")                                                           # 7
+        open(REPO_ROOT / "d", "a")                                                         # 8
+        open(os.path.join(REPO_ROOT, "e"), mode="x")                                       # 9
+        (REPO_ROOT / "f").open("w")                                                        # 10
+        shutil.copy2(src, REPO_ROOT / "g")                                                 # 11
+        shutil.copytree(src, dst=f"{REPO_ROOT}/h")                                         # 12
+        os.replace(src, REPO_ROOT / "i")                                                   # 13
+        Path(src).rename(REPO_ROOT / "j")                                                  # 14
 
 
 class TestReaders(unittest.TestCase):
     def test_none(self):
-        subprocess.run([sys.executable, str(REPO_ROOT / "tools" / "migrate.py"), "--check"])
-        subprocess.run([sys.executable, str(REPO_ROOT / "tools" / "build_release.py"),
-                        "--overlay", "x", "--check"])
         install.bootstrap(Path(tmp) / "target", release)
-        shutil.copytree(REPO_ROOT / "distribution" / "workflow", dest)   # damaged_copy's shape
-        shutil.copy(DIST / "x", Path(tmp) / "x")
+        shutil.copytree(REPO_ROOT / "tools" / "release", dest)   # a copy out of the tree
+        shutil.copy(TOOLS / "x", Path(tmp) / "x")
         (REPO_ROOT / "README.md").read_text()
         open(REPO_ROOT / "README.md")
         open(REPO_ROOT / "README.md", "rb")
@@ -3583,7 +3571,7 @@ class TestReaders(unittest.TestCase):
 
 
 def helper():
-    shutil.rmtree(REPO_ROOT / "k")                                                         # 19
+    shutil.rmtree(REPO_ROOT / "k")                                                         # 15
 '''
 
 
@@ -3601,7 +3589,7 @@ class TestStaticLint(unittest.TestCase):
     def test_a_declared_unit_is_exempt(self):
         declared = resources.parse({
             "schema_version": 1,
-            "resources": {"r": {"paths": ["distribution/"], "description": "d"}},
+            "resources": {"r": {"paths": ["tools/"], "description": "d"}},
             "exclusive": {"host:test_lint.py::TestWriters": {"resources": ["r"], "reason": "x"}},
         }, ["host:test_lint.py::TestWriters"])
         with tempfile.TemporaryDirectory() as tmp:
@@ -3610,13 +3598,12 @@ class TestStaticLint(unittest.TestCase):
             findings = isolation.lint_tests(Path(tmp), declared)
         self.assertEqual([f.unit for f in findings], [None])
 
-    def test_todays_tests_are_clean_apart_from_the_declared_unit(self):
+    def test_todays_tests_are_lint_clean(self):
+        """Against the committed declaration, which declares no exclusive unit."""
         inv = inventory.discover(REPO_ROOT)
         declared = resources.load(REPO_ROOT, list(inv.host), orphan_unit_ids=inv.unit_ids())
+        self.assertEqual(declared.exclusive_units(), ())
         self.assertEqual([str(f) for f in isolation.lint_tests(REPO_ROOT, declared)], [])
-        raw = isolation.lint_source(
-            (TESTS_DIR / "test_amendment_update_path.py").read_text(), "test_amendment_update_path.py")
-        self.assertEqual({f.unit for f in raw}, {EXCLUSIVE_UNIT})
 
 
 
@@ -3961,33 +3948,30 @@ class TestPathFlagsStayOutsideTheRepository(_CliCase):
         self.assertFalse(isolation.state_dir(scratch).exists(), "a pre-lock refusal took the lock")
 
 
-# -- T-EXE-5: `--fast` (D-Fast-Flag) and the unchanged direct entry points ----------------
+# -- T-EXE-5: the runner without the retired alias, and the direct entry points ---------
 
-class TestFastAliasAndDirectEntryPoints(_CliCase):
+class TestDirectEntryPoints(_CliCase):
 
-    def test_fast_is_a_deprecated_alias_for_a_targeted_selection(self):
-        modules = {name: _trivial_module(name[5:-3].title().replace("_", ""), 1)
-                   for name in cli.FAST_ALIAS_SELECTION}
-        modules["test_scratch_extra.py"] = _trivial_module("Extra", 1)
-        scratch = scratch_checkout(self.tmp / "scratch", modules=modules)
-        proc = run_cli(scratch, "--fast", "--results", self.tmp / "r", env=self.env)
-        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
-        self.assertIn(report.FAST_NOTE, proc.stderr)
-        ran_modules = {u.split("::")[0][len("host:"):] for u in _results(self.tmp / "r")}
-        self.assertEqual(ran_modules, set(cli.FAST_ALIAS_SELECTION))
-        both = run_cli(scratch, "--fast", "--select", "test_scratch_extra.py", env=self.env)
-        self.assertEqual(both.returncode, 2)
-        self.assertIn("usage:", both.stderr)
+    def test_an_ordinary_run_succeeds(self):
+        """`validate()` and the selection line, with the alias gone (CP6)."""
+        scratch = scratch_checkout(self.tmp / "scratch",
+                                   modules={"test_scratch_extra.py": _trivial_module("Extra", 1)})
+        for argv in ((), ("--select", "test_scratch_extra.py")):
+            with self.subTest(argv=argv):
+                results = self.tmp / f"r{len(argv)}"
+                proc = run_cli(scratch, *argv, "--results", results, env=self.env)
+                self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+                self.assertTrue(_results(results))
 
-    def test_the_alias_resolves_through_the_selector_over_the_real_inventory(self):
-        host = inventory.discover_host(REPO_ROOT)
-        selection = inventory.select(host, list(cli.FAST_ALIAS_SELECTION))
-        modules = {inventory.split_host_unit_id(u)[0] for u in selection.unit_ids()}
-        self.assertEqual(modules, set(cli.FAST_ALIAS_SELECTION))
+    def test_the_retired_alias_is_refused(self):
+        scratch = scratch_checkout(self.tmp / "scratch")
+        proc = run_cli(scratch, "--fast", env=self.env)
+        self.assertEqual(proc.returncode, 2, proc.stdout + proc.stderr)
+        self.assertIn("unrecognized arguments: --fast", proc.stderr)
 
     def test_direct_module_runs_still_work(self):
-        for argv in ([sys.executable, "test_templates.py"],
-                     [sys.executable, "-m", "unittest", "test_templates.TestGitignoreFragment"]):
+        for argv in ([sys.executable, "test_bootstrap.py", "TestInstallationRecord"],
+                     [sys.executable, "-m", "unittest", "test_bootstrap.TestInstallationRecord"]):
             with self.subTest(argv=argv):
                 proc = subprocess.run(argv, cwd=str(TESTS_DIR), capture_output=True, text=True,
                                       env=dict(self.env, PYTHONDONTWRITEBYTECODE="1"))
@@ -4709,9 +4693,12 @@ CI_CONCURRENCY_GROUP = ("workflow-manager-verify-${{ github.event_name }}-${{ gi
 #: The aggregate's first step, which fails it when `plan` or `package` did not succeed.
 CI_NEEDS_STEP = "needs"
 CI_MATRIX = "${{ fromJSON(needs.plan.outputs.shards) }}"
-#: The frozen upstream commit the fetch must pin (T-CI-1), spelled out.
-CI_UPSTREAM_COMMIT = "1f954fbb6c689ec690fefe5a2f27b1e4a0ca6db6"
-CI_UPSTREAM_DIR = "$HOME/Workspace/repflow-android"
+#: The release cache every test job primes (plan 7.1, 7.3): its directory, and
+#: the `actions/cache` inputs that restore it, keyed on the pins.
+CI_RELEASE_CACHE = "${{ runner.temp }}/workflow-manager-releases"
+CI_RELEASE_CACHE_INPUTS = {
+    "path": CI_RELEASE_CACHE,
+    "key": "workflow-releases-${{ hashFiles('src/workflow_manager/published_releases.json') }}"}
 #: `run_all.py`'s path flags, each of which must name a path under `$RUNNER_TEMP`.
 CI_PATH_FLAG_RE = re.compile(r'(--(?:out|plan|results|aggregate))\s+("[^"]*"|\S+)')
 _YAML_KEY_RE = re.compile(r"([A-Za-z0-9_.-]+):(?: +(.*))?$")
@@ -4884,11 +4871,7 @@ def ci_workflow_problems(doc: dict) -> list[str]:
          f"the concurrency group is {concurrency.get('group')!r}, not the per-commit one of main")
     need(concurrency.get("cancel-in-progress") == "${{ github.event_name == 'pull_request' }}",
          "cancel-in-progress is not limited to pull requests")
-    env = doc.get("env") or {}
-    need(env.get("UPSTREAM_COMMIT") == CI_UPSTREAM_COMMIT,
-         f"the upstream fetch pins {env.get('UPSTREAM_COMMIT')!r}, not {CI_UPSTREAM_COMMIT}")
-    need(env.get("UPSTREAM_TAG") == support.CLASSIFICATION["upstream"]["tag"],
-         f"the upstream tag is {env.get('UPSTREAM_TAG')!r}")
+    need("env" not in doc, "the workflow has a global env (M2 removed the upstream fetch's)")
 
     jobs = doc.get("jobs") or {}
     need(set(CI_JOBS) | {CI_PACKAGE_JOB} <= set(jobs),
@@ -4913,16 +4896,24 @@ def ci_workflow_problems(doc: dict) -> list[str]:
     need(aggregate.get("if") == "always()", "aggregate does not run if: always()")
 
     modes = {"plan": "--plan-only --profile ci", "shard": "--run-shard", "aggregate": "--aggregate"}
-    fetches = {}
     for name in CI_JOBS:
-        steps = ci_job_steps(jobs.get(name) or {})
+        job = jobs.get(name) or {}
+        steps = ci_job_steps(job)
         need([s.get("uses") for s in steps[:2]] == ["actions/checkout@v4", "actions/setup-python@v5"],
              f"{name}: does not start with checkout and setup-python")
         need(len(steps) > 1 and steps[1].get("with") == {"python-version": "3.12"},
              f"{name}: python is not 3.12")
-        need(bool(steps) and steps[0].get("with") == {"fetch-depth": 0},
-             f"{name}: the checkout is shallow (TestAuthoredReleaseOverlayCommitIsReachable "
-             f"needs history)")
+        need(bool(steps) and "with" not in steps[0],
+             f"{name}: the checkout is configured (no test needs history since M2)")
+        need((job.get("env") or {}).get("WORKFLOW_MANAGER_RELEASE_CACHE") == CI_RELEASE_CACHE,
+             f"{name}: WORKFLOW_MANAGER_RELEASE_CACHE is not {CI_RELEASE_CACHE} at job level")
+        restores = [i for i, s in enumerate(steps)
+                    if (s.get("uses") or "").split("@")[0] == "actions/cache"]
+        runners = [i for i, s in enumerate(steps) if "tests/run_all.py" in (s.get("run") or "")]
+        need(len(restores) == 1 and steps[restores[0]].get("with") == CI_RELEASE_CACHE_INPUTS,
+             f"{name}: the release cache is not restored exactly once, keyed on the pins")
+        need(bool(restores) and bool(runners) and restores[0] < runners[0],
+             f"{name}: the release cache is not restored before run_all.py primes it")
         runs = [s.get("run") or "" for s in steps]
         invocations = [line for run in runs for line in run.splitlines()
                        if "tests/run_all.py" in line]
@@ -4942,17 +4933,15 @@ def ci_workflow_problems(doc: dict) -> list[str]:
                                                         "actions/download-artifact"):
                 need(str((step.get("with") or {}).get("path", "")).startswith("${{ runner.temp }}"),
                      f"{name}: artifact path {step.get('with')} is not under runner.temp")
-        fetches[name] = [run for run in runs if "UPSTREAM_URL" in run]
+        need(not any("UPSTREAM" in run for run in runs), f"{name}: fetches an upstream")
 
-    for name in ("plan", "shard"):
-        need(len(fetches[name]) == 1, f"{name}: does not fetch the upstream exactly once")
-    need(fetches["aggregate"] == [], "aggregate fetches the upstream (phase B never reads it)")
-    for run in fetches["plan"] + fetches["shard"]:
-        need(f'upstream="{CI_UPSTREAM_DIR}"' in run and 'git init -q "$upstream"' in run,
-             f"the upstream is not fetched into {CI_UPSTREAM_DIR}")
-        need('rev-parse "$UPSTREAM_TAG^{commit}")" = "$UPSTREAM_COMMIT"' in run,
-             "the fetched tag is not checked against the pinned commit")
-    need(len(set(fetches["plan"] + fetches["shard"])) <= 1, "plan and shard fetch differently")
+    # The single CI profile (M2 removed the pull-request stopgap).
+    need(sorted(jobs) == sorted(CI_JOBS + (CI_PACKAGE_JOB,)),
+         f"jobs are {sorted(jobs)}, not exactly plan, shard, package and aggregate")
+    need(sorted(plan.get("outputs") or {}) == ["shards"], "the plan job exports more than shards")
+    need("permissions" not in plan, "the plan job has its own permissions")
+    need(len(plan.get("steps") or []) == 5,
+         "the plan job is not checkout, python, cache, plan and upload")
 
     plan_steps = [s for s in plan.get("steps") or [] if s.get("id") == "plan"]
     need(len(plan_steps) == 1 and '"shards=' in plan_steps[0].get("run", "")
@@ -5014,7 +5003,6 @@ class TestCiWorkflowStructure(unittest.TestCase):
 
     def test_the_workflow_file_holds_every_structural_rule(self):
         self.assertEqual(ci_workflow_problems(ci_workflow()), [])
-        self.assertEqual(support.FROZEN_COMMIT, CI_UPSTREAM_COMMIT)
 
     def test_each_mutation_is_caught(self):
         text = CI_WORKFLOW.read_text(encoding="utf-8")
@@ -5033,11 +5021,22 @@ class TestCiWorkflowStructure(unittest.TestCase):
             "a results dir in the checkout": ('--results "$RUNNER_TEMP/out/"', "--results out/"),
             "a plan in the checkout": ('--out "$RUNNER_TEMP/plan.json"', "--out plan.json"),
             "TMPDIR left at /tmp": (re.compile(r'^ *export TMPDIR="\$RUNNER_TEMP/tmp"\n', re.M), ""),
-            "another upstream commit": (f"UPSTREAM_COMMIT: {CI_UPSTREAM_COMMIT}",
-                                        "UPSTREAM_COMMIT: " + "0" * 40),
-            "no commit check": (re.compile(r'^ *test "\$\(git .*\n', re.M), ""),
+            "an upstream again": ("\njobs:\n", "\nenv:\n  UPSTREAM_URL: x\n\njobs:\n"),
+            "a job without the release cache": (
+                re.compile(r"^    env:\n      WORKFLOW_MANAGER_RELEASE_CACHE: .*\n", re.M), ""),
+            "a cache key off the pins": ("hashFiles('src/workflow_manager/published_releases.json')",
+                                         "hashFiles('pyproject.toml')"),
+            "no cache restore before a run": (
+                re.compile(r"^      - name: Restore the release cache\n(?:        .*\n)+", re.M), ""),
+            "a nightly alarm again": ("\n  aggregate:\n", "\n  nightly-alarm:\n    runs-on: x\n"
+                                      "\n  aggregate:\n"),
+            "a profile output again": ("      shards: ${{ steps.plan.outputs.shards }}\n",
+                                       "      shards: ${{ steps.plan.outputs.shards }}\n"
+                                       "      profile: x\n"),
             "a push to any branch": ("    branches: [main]\n", ""),
-            "a shallow checkout": ("          fetch-depth: 0\n", "          fetch-depth: 1\n"),
+            "a full-history checkout": ("      - uses: actions/checkout@v4\n      - uses",
+                                        "      - uses: actions/checkout@v4\n        with:\n"
+                                        "          fetch-depth: 0\n      - uses"),
             "an artifact path in the workspace": ("path: ${{ runner.temp }}/out/\n",
                                                   "path: out/\n"),
             # Review O9.
@@ -5166,7 +5165,7 @@ class TestCiTreeIdentity(_CliCase):
         temp.mkdir()
         github_output = temp / "github-output"
         proc = run_ci_step(plan_job, "plan", runner_temp=temp, env=self.env,
-                           step_env={"SHARDS": "2", "NEWEST": ""}, github_env={"GITHUB_OUTPUT": str(github_output)})
+                           step_env={"SHARDS": "2"}, github_env={"GITHUB_OUTPUT": str(github_output)})
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
         plan = json.loads((temp / "plan.json").read_text())
         self.assertEqual(plan["tree_digest"], tree.tree_digest(plan_job))
@@ -5208,7 +5207,7 @@ class TestCiTreeIdentity(_CliCase):
         job = scratch_clone(scratch)
         inside = job / "runner-temp"
         inside.mkdir()
-        proc = run_ci_step(job, "plan", runner_temp=inside, env=self.env, step_env={"SHARDS": "", "NEWEST": ""},
+        proc = run_ci_step(job, "plan", runner_temp=inside, env=self.env, step_env={"SHARDS": ""},
                            github_env={"GITHUB_OUTPUT": str(self.tmp / "github-output")})
         assert_refusal(self, proc.returncode, proc.stderr, "PathInsideRepositoryError")
         self.assertFalse((inside / "plan.json").exists())
@@ -5216,7 +5215,7 @@ class TestCiTreeIdentity(_CliCase):
         outside = self.tmp / "rt"
         outside.mkdir()
         proc = run_ci_step(scratch, "plan", runner_temp=outside, env=self.env,
-                           step_env={"SHARDS": "", "NEWEST": ""},
+                           step_env={"SHARDS": ""},
                            github_env={"GITHUB_OUTPUT": str(self.tmp / "github-output")})
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
         shutil.copy2(outside / "plan.json", inside / "plan.json")

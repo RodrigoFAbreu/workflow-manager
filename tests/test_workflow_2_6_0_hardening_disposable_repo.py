@@ -942,8 +942,9 @@ def take_over_and_complete(item):
 
 #: A `2.5.1` checkout's own `/request-plan-amendment` (no lock, no
 #: witness) and its own `/approve-review plan` resolution of the open
-#: amendment -- `2.5.1`'s harness predates both, so these follow
-#: `tests/test_amendment_update_path.py`'s scripted 2.4.0-era sequence.
+#: amendment -- `2.5.1`'s harness predates both, so these follow the
+#: scripted 2.4.0-era update-path sequence (`2.4.0`'s own acceptance
+#: evidence, retired by M2; `docs/MIGRATION.md`).
 _WORKFLOW_251_HELPERS = """
 def request_amendment_251(item, reason):
     item.tx(lambda state: ws.request_plan_amendment(
@@ -1422,19 +1423,16 @@ class TestClosedDefectCensus(_InstalledRepoCase):
         self.assertEqual(expected_portability_exceptions("2.6.0"), {})
         self.assertIn("TestBootstrappedTarget",
                       _defined_names(REPO_ROOT / "tests" / "test_conformance_suite.py"))
-        # v2.3.1-002: this suite is in the full inventory, so every gate run
-        # executes it, and in `parallel.cli.FAST_ALIAS_SELECTION`, so the
-        # deprecated `--fast` alias runs it too.
-        from parallel import cli, inventory
+        # v2.3.1-002, retargeted by M2 (`OD-M2-5`): the update-path suite
+        # that follows the pins has host units, and every gate run executes
+        # all of them.
+        from parallel import inventory
         found = inventory.discover(REPO_ROOT)
         update_path = {unit for unit in found.host
-                       if inventory.split_host_unit_id(unit)[0] == "test_amendment_update_path.py"}
-        self.assertTrue(update_path, "test_amendment_update_path.py has no host class")
+                       if inventory.split_host_unit_id(unit)[0] == "test_update_path.py"}
+        self.assertTrue(update_path, "test_update_path.py has no host class")
         full = set(inventory.select(found.host, [], found.frozen).unit_ids())
         self.assertLessEqual(update_path, full)
-        alias = set(inventory.select(found.host, list(cli.FAST_ALIAS_SELECTION),
-                                     found.frozen).unit_ids())
-        self.assertLessEqual(update_path, alias)
 
     def test_v2_3_1_003_first_approval_with_no_state_at_head_through_the_new_verifier(self):
         _git(self.root, "rm", "-q", "--cached", STATE_PATH)

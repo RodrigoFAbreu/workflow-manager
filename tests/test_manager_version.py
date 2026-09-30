@@ -240,8 +240,8 @@ class VersionFlagTest(unittest.TestCase):
 
 
 class MissingDistributionHintTest(_Tmp):
-    """Where the Manager has no release to use -- a wheel install, so no
-    checkout fallback -- every command that needs one names why and the fix
+    """Where the Manager has no release to use, every command that needs one
+    names why and the fix
     (plan 5.5): an unpublished version needs `--release-dir`, and a published
     one that cannot be fetched names the cache and source options. Both exit 1.
     """
@@ -250,10 +250,9 @@ class MissingDistributionHintTest(_Tmp):
         super().setUp()
         self.pins = self.tmp / "published_releases.json"
         self.write_pins({})
-        for patcher in (mock.patch.object(cli.release_source, "PINS_PATH", self.pins),
-                        mock.patch.object(cli, "MANAGER_ROOT", self.tmp / "site-packages")):
-            patcher.start()
-            self.addCleanup(patcher.stop)
+        patcher = mock.patch.object(cli.release_source, "PINS_PATH", self.pins)
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def write_pins(self, releases):
         self.pins.write_text(json.dumps({"schema_version": 1, "repository": "example/workflow",
@@ -313,11 +312,17 @@ class MissingDistributionHintTest(_Tmp):
         self.assertEqual(code, 0)
         self.assertEqual(err, "")
 
-    def test_the_checkout_itself_still_lists_its_releases(self):
-        out = io.StringIO()
-        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
-            self.assertEqual(cli.main(["--manager-root", str(REPO_ROOT), "releases"]), 0)
-        self.assertIn("2.6.0", out.getvalue())
+    def test_the_alias_on_a_checkout_without_releases_lists_the_pins(self):
+        """5.5: after M2 no checkout holds releases; the deprecated alias still
+        works, says it is deprecated, and falls through to the pins."""
+        self.assertFalse((REPO_ROOT / "distribution").exists())
+        pin = {"sha256": "0" * 64, "manifest_sha256": "1" * 64}
+        self.write_pins({"2.5.1": dict(pin, archive="workflow-2.5.1.tar.gz"),
+                         "2.6.0": dict(pin, archive="workflow-2.6.0.tar.gz")})
+        code, out, err = self.run_cli("--manager-root", str(REPO_ROOT), "releases")
+        self.assertEqual(code, 0, err)
+        self.assertIn(cli.MANAGER_ROOT_DEPRECATION, err)
+        self.assertEqual([line.split()[0] for line in out.splitlines()], ["2.5.1", "2.6.0"])
 
 
 class PackageCopySetTest(_Tmp):

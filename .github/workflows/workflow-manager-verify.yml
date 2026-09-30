@@ -1,11 +1,10 @@
 # workflow-manager's own verification: the full test selection
 # (`python3 tests/run_all.py`), split across a matrix of shards that the
-# planner computes -- there is no shard list in this file. A pull request may
-# run the newest-release selection instead (the stopgap profile, below);
-# `main` pushes, the nightly run and dispatches always run the full one.
+# planner computes -- there is no shard list in this file. Pull requests,
+# `main` pushes, the nightly run and dispatches all run the same selection.
 #
-#   plan       chooses the profile, discovers the inventory and writes
-#              plan.json; its shard list becomes the matrix.
+#   plan       discovers the inventory and writes plan.json; its shard list
+#              becomes the matrix.
 #   shard      runs one shard of the plan (phase A) and uploads its results.
 #   package    builds and proves the Manager's release assets, as the release
 #              does (tools/release/package.py).
@@ -18,7 +17,9 @@
 # this workflow, and requires that run's plan to be the full selection.
 #
 # Every file the tooling writes lives under $RUNNER_TEMP, never in the
-# checkout, so each job's tree digest equals the plan job's. This workflow is
+# checkout, so each job's tree digest equals the plan job's. Every job that
+# runs tests primes the Workflow release cache first; each restores the same
+# cache directory, keyed by the pin file, so a normal run downloads nothing. This workflow is
 # not managed by workflow-manager; workflow-conformance.yml is, and stays as
 # installed. See docs/ARCHITECTURE.md, "Verification execution".
 name: Workflow manager verification
@@ -47,14 +48,6 @@ concurrency:
 permissions:
   contents: read
 
-env:
-  # The frozen upstream the upstream-comparison tests read, at the pinned
-  # commit (tests/support.py's UPSTREAM and tools/migrate.py's
-  # DEFAULT_UPSTREAM both default to $HOME/Workspace/repflow-android).
-  UPSTREAM_URL: https://github.com/RodrigoFAbreu/repflow-android.git
-  UPSTREAM_TAG: workflow-v2.3.1
-  UPSTREAM_COMMIT: 1f954fbb6c689ec690fefe5a2f27b1e4a0ca6db6
-
 jobs:
   # Job timeouts bound a hung job well below GitHub's 360-minute default.
   # Each chunk has its own timeout too; the shard's allows the single-shard
@@ -62,48 +55,28 @@ jobs:
   plan:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    # actions: read lets the profile chooser read main's run history.
-    permissions:
-      contents: read
-      actions: read
+    env:
+      WORKFLOW_MANAGER_RELEASE_CACHE: ${{ runner.temp }}/workflow-manager-releases
     outputs:
       shards: ${{ steps.plan.outputs.shards }}
-      profile: ${{ steps.profile.outputs.profile }}
     steps:
-      # Full history: TestAuthoredReleaseOverlayCommitIsReachable checks that
-      # each authored release's overlay commit is an ancestor of HEAD.
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Fetch the frozen upstream
-        run: |
-          upstream="$HOME/Workspace/repflow-android"
-          git init -q "$upstream"
-          git -C "$upstream" fetch -q --depth 1 "$UPSTREAM_URL" "+refs/tags/$UPSTREAM_TAG:refs/tags/$UPSTREAM_TAG"
-          test "$(git -C "$upstream" rev-parse "$UPSTREAM_TAG^{commit}")" = "$UPSTREAM_COMMIT"
-      # STOPGAP(M2): the pull-request profile chooser; see docs/ARCHITECTURE.md's
-      # "Stopgap test profile". It writes profile=full or profile=newest-release
-      # and its reasons to the job summary; every undecidable input is full.
-      - name: Choose the test profile
-        id: profile
-        env:
-          GH_TOKEN: ${{ github.token }}
-          EVENT: ${{ github.event_name }}
-          REPO: ${{ github.repository }}
-        run: python3 tools/ci/choose_profile.py --event "$EVENT" --repo "$REPO"
-      # STOPGAP(M2): NEWEST selects --newest-release-only from the chosen profile.
+      - name: Restore the release cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/workflow-manager-releases
+          key: workflow-releases-${{ hashFiles('src/workflow_manager/published_releases.json') }}
       - name: Plan
         id: plan
         env:
           SHARDS: ${{ inputs.shards }}
-          NEWEST: ${{ steps.profile.outputs.profile == 'newest-release' && '1' || '' }}
         run: |
           mkdir -p "$RUNNER_TEMP/tmp"
           export TMPDIR="$RUNNER_TEMP/tmp"
-          python3 tests/run_all.py --plan-only --profile ci --out "$RUNNER_TEMP/plan.json" ${SHARDS:+--shards "$SHARDS"} ${NEWEST:+--newest-release-only}
+          python3 tests/run_all.py --plan-only --profile ci --out "$RUNNER_TEMP/plan.json" ${SHARDS:+--shards "$SHARDS"}
           python3 -c 'import json, sys; n = json.load(open(sys.argv[1]))["n"]; print("shards=" + json.dumps(list(range(n)), separators=(",", ":")))' "$RUNNER_TEMP/plan.json" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v4
         with:
@@ -120,21 +93,18 @@ jobs:
       fail-fast: false
       matrix:
         shard: ${{ fromJSON(needs.plan.outputs.shards) }}
+    env:
+      WORKFLOW_MANAGER_RELEASE_CACHE: ${{ runner.temp }}/workflow-manager-releases
     steps:
-      # Full history: TestAuthoredReleaseOverlayCommitIsReachable checks that
-      # each authored release's overlay commit is an ancestor of HEAD.
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Fetch the frozen upstream
-        run: |
-          upstream="$HOME/Workspace/repflow-android"
-          git init -q "$upstream"
-          git -C "$upstream" fetch -q --depth 1 "$UPSTREAM_URL" "+refs/tags/$UPSTREAM_TAG:refs/tags/$UPSTREAM_TAG"
-          test "$(git -C "$upstream" rev-parse "$UPSTREAM_TAG^{commit}")" = "$UPSTREAM_COMMIT"
+      - name: Restore the release cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/workflow-manager-releases
+          key: workflow-releases-${{ hashFiles('src/workflow_manager/published_releases.json') }}
       - uses: actions/download-artifact@v4
         with:
           name: plan
@@ -156,8 +126,7 @@ jobs:
           if-no-files-found: ignore
 
   # The release's own build-and-verify path, on every run, so a packaging
-  # break is caught on the pull request and not at release time. It needs no
-  # upstream: `releases` lists the wheel's pins, and `verify` resolves the
+  # break is caught on the pull request and not at release time. `releases` lists the wheel's pins, and `verify` resolves the
   # checkout's recorded release through the release cache, downloading it
   # from the published source only on a cache miss.
   package:
@@ -187,6 +156,8 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    env:
+      WORKFLOW_MANAGER_RELEASE_CACHE: ${{ runner.temp }}/workflow-manager-releases
     steps:
       - name: Require the plan and package jobs
         id: needs
@@ -198,14 +169,15 @@ jobs:
           if [ "$PLAN_RESULT" != success ]; then echo "::error::the plan job concluded $PLAN_RESULT"; status=1; fi
           if [ "$PACKAGE_RESULT" != success ]; then echo "::error::the package job concluded $PACKAGE_RESULT"; status=1; fi
           exit "$status"
-      # Full history: TestAuthoredReleaseOverlayCommitIsReachable checks that
-      # each authored release's overlay commit is an ancestor of HEAD.
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Restore the release cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/workflow-manager-releases
+          key: workflow-releases-${{ hashFiles('src/workflow_manager/published_releases.json') }}
       - uses: actions/download-artifact@v4
         with:
           name: plan
@@ -226,25 +198,3 @@ jobs:
           name: results-aggregate
           path: ${{ runner.temp }}/tmp/wm-run-*/
           if-no-files-found: ignore
-
-  # STOPGAP(M2): the nightly full run's alarm (rule 5, "loud"); see
-  # docs/ARCHITECTURE.md's "Stopgap test profile". A red nightly opens or
-  # comments on a nightly-red issue; a green one closes it.
-  nightly-alarm:
-    needs: aggregate
-    if: always() && github.event_name == 'schedule'
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      contents: read
-      issues: write
-    steps:
-      - uses: actions/checkout@v4
-      - name: Raise or clear the nightly alarm
-        env:
-          GH_TOKEN: ${{ github.token }}
-          EVENT: ${{ github.event_name }}
-          RESULT: ${{ needs.aggregate.result }}
-          REPO: ${{ github.repository }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: python3 tools/ci/nightly_alarm.py --event "$EVENT" --result "$RESULT" --repo "$REPO" --run-url "$RUN_URL"

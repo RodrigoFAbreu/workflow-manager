@@ -51,9 +51,6 @@ from workflow_manager.release import (
     RELEASE_TEMPLATES,
     Release,
     ReleaseIntegrityError,
-    available_versions,
-    find_release,
-    release_root,
     sha256,
 )
 
@@ -625,7 +622,7 @@ def damaged_copy(release: Release, dest: Path, location: str) -> Release:
 class TestReleaseContentIsCheckedBeforeItIsInstalled(BootstrapCase):
     """Installing is where a release asserts its identity to a repository.
 
-    A `distribution/` that was damaged, half checked out, or edited must not be
+    A release directory that was damaged, half copied, or edited must not be
     able to hand a target non-canonical bytes under a canonical version label.
     """
 
@@ -966,13 +963,10 @@ class TestTheConformanceCiIsReleaseOwned(BootstrapCase):
 class _PackagedReleases(BootstrapCase):
     """Synthetic published releases, served from a local source directory
     (plan 5.5, CP3): `7.0.0` and `7.0.1` are packaged and pinned in a pin file
-    of this class's own; `7.1.0` is an unpinned release in this class's own
-    stand-in for the Manager checkout, so the checkout fallback serves it.
-    Every CLI call names this class's source and its own per-test cache, and
-    the real pin file and checkout are never consulted."""
+    of this class's own. Every CLI call names this class's source and its own
+    per-test cache, and the real pin file is never consulted."""
 
     PINNED = ("7.0.0", "7.0.1")
-    UNPINNED = "7.1.0"
 
     @classmethod
     def setUpClass(cls):
@@ -993,8 +987,6 @@ class _PackagedReleases(BootstrapCase):
         cls.pins_path.write_text(json.dumps({"schema_version": 1,
                                              "repository": "example/workflow",
                                              "releases": releases}))
-        cls.checkout = root / "manager"
-        synthesize_next_release(base, release_root(cls.checkout) / cls.UNPINNED, cls.UNPINNED)
 
     @classmethod
     def tearDownClass(cls):
@@ -1004,10 +996,9 @@ class _PackagedReleases(BootstrapCase):
     def setUp(self):
         super().setUp()
         self.cache = Path(self._tmp.name) / "cache"
-        for patcher in (mock.patch.object(release_source, "PINS_PATH", self.pins_path),
-                        mock.patch.object(cli_module, "MANAGER_ROOT", self.checkout)):
-            patcher.start()
-            self.addCleanup(patcher.stop)
+        patcher = mock.patch.object(release_source, "PINS_PATH", self.pins_path)
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def _cli(self, *args, source_dir=None):
         """The CLI in-process, with its report captured rather than printed."""
@@ -1023,7 +1014,7 @@ class _PackagedReleases(BootstrapCase):
 
 class TestReleaseResolution(_PackagedReleases):
     """What `bootstrap`, `update`, `status` and `verify` mean by "the release":
-    the pins through the cache, `--release-dir`, and the checkout fallback."""
+    the pins through the cache, and `--release-dir`."""
 
     def test_bootstrap_installs_the_newest_pinned_and_records_its_package(self):
         self.assertEqual(self._cli("bootstrap", str(self.target)), 0, self.cli_output)
@@ -1142,29 +1133,29 @@ class TestReleaseResolution(_PackagedReleases):
                                    str(self.target)), 1)
         self.assertIn("not the requested 7.0.1", self.cli_stderr)
 
-    def test_the_checkout_fallback_serves_an_unpinned_version(self):
-        """CP3 to CP6 only: an unpinned version the checkout holds installs
-        from it as a local release, with a note."""
-        self.assertEqual(self._cli("--release-version", self.UNPINNED, "bootstrap",
-                                   str(self.target)), 0, self.cli_output)
-        self.assertIn(f"release {self.UNPINNED} is not published", self.cli_stderr)
-        self.assertEqual(Installation.read(self.target).source, {"kind": "local"})
-        self.assertEqual(self._cli("verify", str(self.target)), 0, self.cli_output)
+    def test_an_unpinned_version_without_release_dir_is_not_published(self):
+        """CP6: with the checkout fallback gone, an unpinned version installs
+        only from a local directory."""
+        self.assertEqual(self._cli("--release-version", "7.1.0", "bootstrap",
+                                   str(self.target)), 1)
+        self.assertIn("release 7.1.0 is not published", self.cli_stderr)
+        self.assertIn("--release-dir", self.cli_stderr)
+        self.assertFalse(is_managed(self.target))
 
-    def test_without_pins_the_default_is_the_newest_fallback_version(self):
+    def test_without_pins_there_is_no_default_release(self):
         empty = Path(self._tmp.name) / "no-pins.json"
         empty.write_text('{"schema_version": 1, "repository": "example/workflow", '
                          '"releases": {}}')
         with mock.patch.object(release_source, "PINS_PATH", empty):
-            self.assertEqual(self._cli("bootstrap", str(self.target)), 0, self.cli_output)
-        self.assertEqual(Installation.read(self.target).workflow_version, self.UNPINNED)
+            self.assertEqual(self._cli("bootstrap", str(self.target)), 1)
+        self.assertIn("no Workflow release is published", self.cli_stderr)
+        self.assertFalse(is_managed(self.target))
 
-    def test_releases_lists_the_pins_and_the_fallback(self):
+    def test_releases_lists_the_pins(self):
         self.assertEqual(self._cli("releases"), 0, self.cli_output)
         lines = self.cli_stdout.splitlines()
-        self.assertEqual([line.split()[0] for line in lines], ["7.0.0", "7.0.1", self.UNPINNED])
+        self.assertEqual([line.split()[0] for line in lines], ["7.0.0", "7.0.1"])
         self.assertIn("[not cached]", lines[0])
-        self.assertIn(f"{self.UNPINNED}  (checkout, unpublished)", lines[2])
         self._cli("--release-version", "7.0.0", "bootstrap", str(self.target))
         self._cli("releases")
         self.assertIn("[cached]", self.cli_stdout.splitlines()[0])
@@ -1176,15 +1167,15 @@ class TestReleaseResolution(_PackagedReleases):
 
 class TestManagerRootAlias(_PackagedReleases):
     """The deprecated `--manager-root` alias (5.5), on a temporary checkout
-    this class lays out itself, so it does not depend on the repository's own
-    `distribution/` and runs unchanged after it is removed."""
+    this class lays out itself in the alias's old release-directory layout."""
 
     def setUp(self):
         super().setUp()
         self.alias = Path(self._tmp.name) / "old-checkout"
+        self.alias_releases = self.alias / "distribution" / "workflow"
 
     def test_an_unpinned_checkout_release_is_used_as_a_release_dir(self):
-        synthesize_next_release(self.release, release_root(self.alias) / "6.0.0", "6.0.0")
+        synthesize_next_release(self.release, self.alias_releases / "6.0.0", "6.0.0")
         self.assertEqual(self._cli("--manager-root", str(self.alias), "--release-version",
                                    "6.0.0", "bootstrap", str(self.target)), 0, self.cli_output)
         self.assertIn("--manager-root is deprecated", self.cli_stderr)
@@ -1192,7 +1183,7 @@ class TestManagerRootAlias(_PackagedReleases):
         self.assertEqual((record.workflow_version, record.source), ("6.0.0", {"kind": "local"}))
 
     def test_an_altered_pinned_checkout_release_is_refused(self):
-        altered = release_root(self.alias) / "7.0.0"
+        altered = self.alias_releases / "7.0.0"
         shutil.copytree(self.trees / "7.0.0", altered)
         _alter_consistently(altered)
         self.assertEqual(Release(altered).verify(), [])
@@ -1210,7 +1201,7 @@ class TestManagerRootAlias(_PackagedReleases):
         self.assertEqual(Installation.read(self.target).source["kind"], "package")
 
     def test_releases_adds_the_checkout_versions(self):
-        synthesize_next_release(self.release, release_root(self.alias) / "6.0.0", "6.0.0")
+        synthesize_next_release(self.release, self.alias_releases / "6.0.0", "6.0.0")
         self.assertEqual(self._cli("--manager-root", str(self.alias), "releases"), 0)
         self.assertEqual([line.split()[0] for line in self.cli_stdout.splitlines()],
                          ["7.0.0", "7.0.1", "6.0.0"])
@@ -1268,27 +1259,6 @@ class TestSourceRecord(unittest.TestCase):
                 Installation.read(target)
 
 
-class TestDiscoveryApi(BootstrapCase):
-    """`release.py`'s discovery API, which serves only the checkout fallback,
-    the alias and CP4's builder until CP6 removes it."""
-
-    def setUp(self):
-        super().setUp()
-        self.manager_root = Path(self._tmp.name) / "manager"
-        base = release_root(self.manager_root)
-        base.mkdir(parents=True)
-        (base / NEWEST_RELEASE).symlink_to(self.release.root)
-        synthesize_next_release(self.release, base / NEXT_RELEASE, NEXT_RELEASE)
-
-    def test_available_versions_are_ordered_oldest_first(self):
-        self.assertEqual(available_versions(self.manager_root), [NEWEST_RELEASE, NEXT_RELEASE])
-
-    def test_an_unpinned_release_means_the_newest(self):
-        self.assertEqual(find_release(self.manager_root).version, NEXT_RELEASE)
-        self.assertEqual(find_release(self.manager_root, NEWEST_RELEASE).version,
-                         NEWEST_RELEASE)
-
-
 class TestStatusNeverClaimsCleanWithoutLooking(BootstrapCase):
     def test_an_unverified_installation_does_not_say_clean(self):
         bootstrap(self.target, self.release, now=FIXED_NOW)
@@ -1308,10 +1278,9 @@ class TestStatusNeverClaimsCleanWithoutLooking(BootstrapCase):
 class TestNoRuntimeDependencyOnTheUpstreamRepository(BootstrapCase):
     """The bootstrapper must work on a machine that has never held RepFlow.
 
-    `tools/migrate.py` reads the upstream tag; nothing else may. Grepping the
-    distribution proves the *content* is clean (see `test_payload_bytes.py`);
-    this proves the *code path* is, by running it where the upstream checkout's
-    default location cannot exist.
+    No Manager code path may read the upstream repository. This proves it by
+    running the code where the upstream checkout's default location cannot
+    exist.
     """
 
     MANAGER_SOURCES = sorted((REPO_ROOT / "src" / "workflow_manager").glob("*.py"))

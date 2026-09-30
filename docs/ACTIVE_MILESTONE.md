@@ -15,8 +15,8 @@ Full plan: `docs/ai-workflow/WORKFLOW_MANAGER_PACKAGED_DISTRIBUTION_PLAN.md`.
 
 CP1 (package format), CP2 (release source, pins and verified cache), CP3
 (CLI and install record), CP4 (the five packages, the pins and Manager
-packaging) and CP5 (the test suite on the release cache) are complete.
-Next: CP6 (removal).
+packaging), CP5 (the test suite on the release cache) and CP6 (removal)
+are complete. Next: CP7 (documentation and evidence).
 
 ## Current blockers
 
@@ -31,7 +31,7 @@ revision 9. Registry:
 
 ## Next action
 
-`/milestone-implement workflow-manager-packaged-distribution` for CP6.
+`/milestone-implement workflow-manager-packaged-distribution` for CP7.
 
 ## Checkpoint log
 
@@ -362,6 +362,89 @@ revision 9. Registry:
   60425a69...`, verdict exit 0, wall 274 s (9 declared orphan-source chunks
   tolerated). `distribution/` is still present and now read only by the
   modules on CP6's deletion list.
+
+### CP6 -- removal (complete)
+
+- **Deleted whole:** `distribution/`, `migration/`, `tools/migrate.py`,
+  `tools/build_release.py`, the stopgap's `tools/ci/` (`choose_profile.py`,
+  `nightly_alarm.py`, `pr_profile_paths.json`, and the now-empty package's
+  `__init__.py`), and the nine retired test modules on the plan's list.
+  `tools/workflow_packages.py` stays: it builds from `git archive <commit>`,
+  never from the working tree.
+- **Stopgap:** every `STOPGAP(M2)` block under `tests/parallel/` (and the
+  `--newest-release-only` flag with them); in
+  `workflow-manager-verify.yml` the profile step, the `NEWEST` wiring, the
+  `profile` output, `actions: read` and the `nightly-alarm` job (the nightly
+  schedule stays). `TestAssertFullPlanRefusesTheStopgap` moved to
+  `test_release_versioning.py`: with the flag gone it relabels a real full
+  plan `newest-release` (re-digested, so it still loads) and requires
+  `assert-full-plan` to refuse it, and requires the runner to reject the
+  flag as an unrecognized argument.
+- **Checkout fallback and discovery API:** `release.py`'s `release_root`,
+  `available_versions` and `find_release` are gone, with `__init__.py`'s
+  re-exports; its docstring now describes packages, pins and the cache.
+  `cli.py` resolves `--release-dir`, then the `--manager-root` alias (now a
+  plain path join, `_checkout_releases`), then the pins; an unpinned version
+  without `--release-dir` is `ReleaseNotPublishedError` (new test
+  `test_an_unpinned_version_without_release_dir_is_not_published`), and with
+  no pin there is no default. `release.py`'s damaged-release message no
+  longer names `tools/migrate.py`. `TestReleaseResolution` lost the
+  fallback tests, `TestDiscoveryApi` is gone, and `TestManagerRootAlias`
+  builds the alias layout itself.
+- **Runner:** `GUARDED_TREES` is `("src/", "tools/")`; the barrier message
+  follows. `resources.json` is `resources: {}`, `exclusive: {}` and the nine
+  orphan sources (five `host:`, four `2.6.0` `TestStateLock`).
+  `isolation.py`'s `TOOL_SCRIPTS`/`TOOL_ENTRY_POINTS` and their lint
+  branches are gone; the lint fixture is rebased on `REPO_ROOT / "tools"`.
+  `--fast` is removed with every reference (`FAST_ALIAS_SELECTION`,
+  `FAST_NOTE`, `ALLOWED`, `_DEFAULTS`, the refusal, the selection line, the
+  note).
+- **Tests rewritten (7.2):** `test_parallel_runner.py`: `EXCLUSIVE_UNIT`
+  gone; the committed declaration declares no resource or exclusive unit,
+  every orphan source is a discovered unit and every `frozen:` one is
+  `NEWEST_RELEASE`'s; the real plan drops its A0 check;
+  `test_todays_tests_are_lint_clean`; the real-inventory tests target
+  `test_bootstrap.py`; synthetic resources use `tools/`/`src/`;
+  `TestDirectEntryPoints` (an ordinary run, and `--select`, exit 0; the
+  alias exits 2 as an unrecognized argument; direct runs of
+  `test_bootstrap.TestInstallationRecord`); the CI checker drops the upstream
+  and `fetch-depth` rules and requires, per test job, the job-level cache
+  env and one pin-keyed `actions/cache` restore before `run_all.py`, plus
+  exactly four jobs and a `shards`-only plan output (new mutants for each).
+  `test_release_workflows.py` drops the upstream fetch (and gains an
+  "upstream again" mutant). `support.py` drops `CLASSIFICATION`,
+  `FROZEN_COMMIT`, `FROZEN_TAG`, `UPSTREAM` and the upstream helpers; the
+  scratch checkouts write no `migration/`. `test_manager_version.py`: the
+  alias on this checkout, which has no `distribution/`, prints the
+  deprecation notice and lists the pins. The hardening test's v2.3.1-002
+  guard is retargeted to `test_update_path.py` (narrower: it proves the
+  pinned update path runs in the full selection; recorded for CP7's
+  `MIGRATION.md`), and its `:946` comment no longer names the retired
+  module.
+- **Retired-name assertion:** `test_internal_references.py`'s
+  `TestNoTestNamesARetiredModule` scans every `tests/**/*.py` for the nine
+  retired module names and the alias identifiers; its only exemptions are
+  its own two lists and `TestDirectEntryPoints.test_the_retired_alias_is_refused`.
+  The layout scan now covers every test file, and its two `until CP6`
+  exemptions are gone; `TestManagerRootAlias` is exempt `while the alias
+  exists`, because it now names the alias's layout itself.
+- **CI (7.3):** `plan`, `shard` and `aggregate` set
+  `WORKFLOW_MANAGER_RELEASE_CACHE` at job level and restore it before
+  `run_all.py` (every runner mode primes); the repflow clone, its env and
+  `fetch-depth: 0` are gone (no remaining test reads history).
+  `release.yml` loses its upstream fetch step and env.
+- **Observations, not changed here:** `release.yml`'s `assert-full-plan`
+  rediscovers the inventory, which reads `NEWEST_RELEASE` through the cache,
+  and runs before the job's cache restore (5.6's order), so on a release
+  run it downloads that one package from the published source (after the
+  cutover's `K2`). `tools/workflow_packages.py` has no test module after
+  `test_package_round_trip.py`'s planned deletion. Documentation still
+  describes the removed trees and the stopgap; that is CP7.
+- **Verified (gate):** `python3 tests/run_all.py`: full selection, local,
+  8 workers, head `9255a34` plus this checkpoint's working tree, 1409/1409
+  units, 8,737 tests, `selection_digest a1ba7718...`, `tests_digest
+  69d9fb85...`, `tree_digest 03bf4446...`, verdict exit 0, wall 259 s (9
+  declared orphan-source chunks tolerated).
 
 ## Previous milestone
 

@@ -16,22 +16,15 @@ from collections import Counter
 
 from . import canonical_json
 from .inventory import FROZEN_PREFIX, split_frozen_unit_id, split_host_unit_id
-# STOPGAP(M2): the newest-release selection; see docs/ARCHITECTURE.md's
-# "Stopgap test profile".
-from .inventory import NEWEST_RELEASE_KIND
-# End of the STOPGAP(M2) block.
 
 OUTPUT_TAIL = 6000
 RUN_ALL = "python3 tests/run_all.py"
 
 BARRIER_NOTE = (
-    "write barrier applied: distribution/, migration/, src/ and tools/ are read-only until "
-    "this run ends (saving a new file there, an editor's atomic save, or a git checkout/"
+    "write barrier applied: src/ and tools/ are read-only until this run ends "
+    "(saving a new file there, an editor's atomic save, or a git checkout/"
     "switch/stash/pull touching them fails with EACCES meanwhile); if the run is killed, "
     "`python3 tests/run_all.py --restore-barrier` restores them")
-
-FAST_NOTE = ("run_all: --fast is a deprecated alias for a targeted --select of eight modules: "
-             "targeted selection -- not a verification gate; gates run `python3 tests/run_all.py`")
 
 
 def _q(text: str) -> str:
@@ -206,12 +199,6 @@ def evidence_identity(plan: dict, results, frozen_classes: dict, *, head: str,
     full = set(selection) == set(inventory_unit_ids) and \
         all(v is None for v in selection.values())
     kind = "full" if full else "targeted"
-    # STOPGAP(M2): the newest-release evidence label; see docs/ARCHITECTURE.md's
-    # "Stopgap test profile". A `--newest-release-only` plan that is not full
-    # says `newest-release`, never full-suite evidence either.
-    if not full and plan.get("selection_kind") == NEWEST_RELEASE_KIND:
-        kind = NEWEST_RELEASE_KIND
-    # End of the STOPGAP(M2) block.
     return {"selection": kind, "scope": scope, "head": head,
             "tree_digest": plan["tree_digest"], "selection_digest": plan["selection_digest"],
             "selected_units": len(selection), "reported_units": len(units),

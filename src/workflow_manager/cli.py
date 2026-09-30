@@ -53,8 +53,6 @@ from .release import (
     Release,
     ReleaseIntegrityError,
     _version_key,
-    available_versions,
-    release_root,
 )
 from .source import (
     ReleaseCache,
@@ -179,53 +177,42 @@ def _cache(args, pins) -> ReleaseCache:
 
 
 def _checkout_releases(checkout: Path) -> dict[str, Path]:
-    """`<checkout>/distribution/workflow/<v>/` for every `v` present."""
-    return {v: release_root(checkout) / v for v in available_versions(checkout)}
+    """`<checkout>/distribution/workflow/<v>/` for every `v` present -- the
+    deprecated `--manager-root` alias's layout, a plain path join."""
+    base = Path(checkout) / "distribution" / "workflow"
+    if not base.is_dir():
+        return {}
+    return {p.name: p for p in sorted(base.iterdir(), key=lambda p: _version_key(p.name))
+            if (p / "manifest.json").is_file()}
 
 
-def _fallback_releases(pins) -> dict[str, Path]:
-    """The checkout fallback (CP3 to CP6 only): this Manager's own checkout's
-    `distribution/workflow/<v>/`, for every `v` that is not pinned."""
-    return {v: path for v, path in _checkout_releases(MANAGER_ROOT).items()
-            if pins.get(v) is None}
-
-
-def _local_candidates(args, pins) -> tuple[dict[str, Path], str]:
-    """Local release directories a version may resolve to, and what they are:
-    the `--manager-root` alias's checkout, else the checkout fallback."""
-    if args.manager_root is not None:
-        return _checkout_releases(args.manager_root), "--manager-root"
-    return _fallback_releases(pins), "checkout"
+def _alias_releases(args) -> dict[str, Path]:
+    """The `--manager-root` alias's checkout releases; none without the alias."""
+    return {} if args.manager_root is None else _checkout_releases(args.manager_root)
 
 
 def _default_version(args, pins) -> str:
-    """The newest pinned version, else the newest local candidate."""
-    versions = pins.versions()
-    if not versions:
-        versions = sorted(_local_candidates(args, pins)[0], key=_version_key)
+    """The newest pinned version, else the newest alias checkout version."""
+    versions = pins.versions() or list(_alias_releases(args))
     if not versions:
         raise ReleaseNotPublishedError(
-            "no Workflow release is published: this Manager pins none, and none is "
-            "available locally. Install an unpackaged release with --release-dir <dir>.")
+            "no Workflow release is published: this Manager pins none. Install an "
+            "unpackaged release with --release-dir <dir>.")
     return versions[-1]
 
 
 def _resolve(args, version: str | None):
     """The release `version` (default: the newest) as a verified private
     snapshot. Precedence: `--release-dir`, the `--manager-root` alias when its
-    checkout holds the version, the pins through the cache, and last the
-    checkout fallback for an unpinned version."""
+    checkout holds the version, then the pins through the cache, which refuse
+    an unpinned version."""
     pins = _pins()
     if args.release_dir is not None:
         return local_release(args.release_dir, version, pins)
     if version is None:
         version = _default_version(args, pins)
-    candidates, _ = _local_candidates(args, pins)
-    if args.manager_root is not None and version in candidates:
-        return local_release(candidates[version], version, pins)
-    if pins.get(version) is None and version in candidates:
-        print(f"workflow-manager: release {version} is not published; using the "
-              f"checkout's unpublished copy at {candidates[version]}", file=sys.stderr)
+    candidates = _alias_releases(args)
+    if version in candidates:
         return local_release(candidates[version], version, pins)
     return _cache(args, pins).resolve(version)
 
@@ -273,17 +260,17 @@ def cmd_releases(args) -> int:
         pin = pins.get(version)
         state = "cached" if cache.cached(version) else "not cached"
         print(f"{version}  {pin.archive}  sha256 {pin.sha256}  [{state}]")
-    candidates, kind = _local_candidates(args, pins)
-    for version in sorted(candidates, key=_version_key):
+    candidates = _alias_releases(args)
+    for version in candidates:
         if pins.get(version) is not None:
             continue
         release = Release(candidates[version])
-        print(f"{release.version}  ({kind}, unpublished)  from {release.upstream['tag']} "
+        print(f"{release.version}  (--manager-root, unpublished)  from {release.upstream['tag']} "
               f"({release.upstream['commit'][:12]})  "
               f"[{release.provenance['origin']}]  "
               f"{len(release.installable(INSTALL_PROFILE_FULL))} files")
     if not pins.versions() and not candidates:
-        print("workflow-manager: no Workflow release is published or available locally",
+        print("workflow-manager: no Workflow release is published",
               file=sys.stderr)
     return 0
 

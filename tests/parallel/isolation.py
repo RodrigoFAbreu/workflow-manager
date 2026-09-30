@@ -1026,10 +1026,6 @@ def attribute_integrity_diff(repo_root: Path, diffs, windows, *, run_started: fl
 # -- the static writer lint (5.9) ---------------------------------------------------------
 
 ROOT_NAME = "REPO_ROOT"
-TOOL_SCRIPTS = ("migrate.py", "build_release.py")
-#: `tools` functions that write the tree they are given.
-TOOL_ENTRY_POINTS = {("migrate", "migrate"), ("migrate", "write_file"), ("migrate", "main"),
-                     ("build_release", "build"), ("build_release", "main")}
 INSTALL_WRITERS = ("bootstrap", "update")
 REMOVERS = {("shutil", "rmtree"), ("os", "remove"), ("os", "unlink"), ("os", "rmdir"),
             ("os", "removedirs")}
@@ -1179,21 +1175,6 @@ class _Linter(ast.NodeVisitor):
         self.findings.append(LintFinding(self.module, node.lineno, unit, pattern,
                                          " ".join(segment.split())[:200]))
 
-    def visit_List(self, node):
-        self._check_tool_argv(node)
-        self.generic_visit(node)
-
-    def visit_Tuple(self, node):
-        self._check_tool_argv(node)
-        self.generic_visit(node)
-
-    def _check_tool_argv(self, node) -> None:
-        # A nested literal is checked on its own visit.
-        strings = [c.value for e in node.elts if not isinstance(e, (ast.List, ast.Tuple))
-                   for c in ast.walk(e) if isinstance(c, ast.Constant) and isinstance(c.value, str)]
-        if any(s.rsplit("/", 1)[-1] in TOOL_SCRIPTS for s in strings) and "--check" not in strings:
-            self.flag(node, "tools script without --check")
-
     def visit_Call(self, node):
         name = _dotted(node.func)
         func = node.func
@@ -1204,9 +1185,6 @@ class _Linter(ast.NodeVisitor):
             target = args[0] if args else kwargs.get("target")
             if target is not None and self.rooted(target):
                 self.flag(node, f"install.{name[-1]} into REPO_ROOT")
-        if name and len(name) >= 2 and (name[-2], name[-1]) in TOOL_ENTRY_POINTS:
-            if any(self.rooted_anywhere(a) for a in args + list(kwargs.values())):
-                self.flag(node, f"{name[-2]}.{name[-1]} on REPO_ROOT")
         if name and len(name) >= 2 and (name[-2], name[-1]) in REMOVERS:
             path = args[0] if args else kwargs.get("path")
             if path is not None and self.rooted(path):

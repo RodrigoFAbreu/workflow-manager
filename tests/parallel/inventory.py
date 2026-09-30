@@ -357,10 +357,6 @@ PARTIAL_FROZEN_NOTE = "partial frozen selection: host matrix assertions not eval
 class Spec:
     text: str
     kind: str  # "host" or "frozen"
-    # STOPGAP(M2): the newest-release selection; see docs/ARCHITECTURE.md's
-    # "Stopgap test profile". Or `NEWEST_RELEASE_KIND`, for
-    # `--newest-release-only`, which selects in place of the specs.
-    # End of the STOPGAP(M2) block.
     module: str | None = None
     cls: str | None = None
     test: str | None = None
@@ -384,47 +380,8 @@ def parse_spec(text: str) -> Spec:
         f"frozen:<version>/<fixture>/<suite>.py::Class")
 
 
-# STOPGAP(M2): the newest-release selection; see docs/ARCHITECTURE.md's
-# "Stopgap test profile".
-#: `Spec.kind` of the `--newest-release-only` selection, and its
-#: `Selection.kind`.
-NEWEST_RELEASE_KIND = "newest-release"
-#: The spec `--newest-release-only` passes where `--select` passes its specs;
-#: never combined with another spec.
-NEWEST_RELEASE = Spec("--newest-release-only", NEWEST_RELEASE_KIND)
-
-
-def version_key(version: str) -> tuple[int, ...]:
-    """Numeric version order: `2.10.0` sorts after `2.9.0`."""
-    return tuple(int(part) for part in version.split("."))
-
-
-def newest_release(frozen: FrozenInventory) -> str | None:
-    """The highest version in `CI_SUITES` by numeric order, or None when no
-    release is in the inventory."""
-    return max(frozen.ci_suites, key=version_key, default=None)
-
-
-def _select_newest_release(host_inventory: dict[str, list[str]],
-                           frozen: FrozenInventory | None) -> "Selection":
-    """Every host unit except the other releases' matrix host classes, plus
-    the newest release's frozen units -- which its own matrix host classes,
-    kept, bring in whole. So no frozen unit is partial, and with a single
-    release this is the full selection."""
-    units = dict.fromkeys(host_inventory)
-    if frozen is not None:
-        newest = newest_release(frozen)
-        for unit, (version, _) in frozen.matrix.items():
-            if version != newest:
-                units.pop(unit, None)
-        units.update(dict.fromkeys(u for u in frozen.units()
-                                   if split_frozen_unit_id(u)[0] == newest))
-    return Selection(dict(sorted(units.items())), kind=NEWEST_RELEASE_KIND)
-
-
-# End of the STOPGAP(M2) block.
 #: `Selection.kind` of the whole inventory (no selection flag) and of a
-#: `--select`/`--fast` selection.
+#: `--select` selection.
 FULL_KIND = "full"
 TARGETED_KIND = "targeted"
 
@@ -439,13 +396,10 @@ class Selection:
     #: matrix assertions over them are not evaluated -- a debugging aid,
     #: never a gate (`PARTIAL_FROZEN_NOTE`).
     partial_frozen: bool = False
-    #: Which flags made it: `full` (none) or `targeted` (`--select`/`--fast`).
+    #: Which flags made it: `full` (none) or `targeted` (`--select`).
     #: Derived from the flags, never from the unit set, and outside
     #: `to_json`, so `selection_digest` covers the units alone. A selection
     #: built by hand claims the least: `targeted`.
-    # STOPGAP(M2): the newest-release selection; see docs/ARCHITECTURE.md's
-    # "Stopgap test profile". Or `newest-release`, for `--newest-release-only`.
-    # End of the STOPGAP(M2) block.
     kind: str = TARGETED_KIND
 
     def unit_ids(self) -> list[str]:
@@ -474,13 +428,6 @@ def select(host_inventory: dict[str, list[str]], specs,
         units = {unit: None for unit in host_inventory}
         units.update({unit: None for unit in (frozen.units() if frozen else ())})
         return Selection(dict(sorted(units.items())), kind=FULL_KIND)
-    # STOPGAP(M2): the newest-release selection; see docs/ARCHITECTURE.md's
-    # "Stopgap test profile".
-    if any(spec.kind == NEWEST_RELEASE_KIND for spec in parsed):
-        if len(parsed) != 1:
-            raise SelectSyntaxError("--newest-release-only cannot be combined with --select")
-        return _select_newest_release(host_inventory, frozen)
-    # End of the STOPGAP(M2) block.
 
     by_module: dict[str, list[str]] = {}
     for unit in host_inventory:

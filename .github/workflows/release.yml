@@ -23,13 +23,6 @@ on:
 permissions:
   contents: read
 
-env:
-  # The frozen upstream, as the verification workflow's plan job fetches it:
-  # the inventory rediscovery reads it.
-  UPSTREAM_URL: https://github.com/RodrigoFAbreu/repflow-android.git
-  UPSTREAM_TAG: workflow-v2.3.1
-  UPSTREAM_COMMIT: 1f954fbb6c689ec690fefe5a2f27b1e4a0ca6db6
-
 jobs:
   release:
     if: github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success'
@@ -62,12 +55,6 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Fetch the frozen upstream
-        run: |
-          upstream="$HOME/Workspace/repflow-android"
-          git init -q "$upstream"
-          git -C "$upstream" fetch -q --depth 1 "$UPSTREAM_URL" "+refs/tags/$UPSTREAM_TAG:refs/tags/$UPSTREAM_TAG"
-          test "$(git -C "$upstream" rev-parse "$UPSTREAM_TAG^{commit}")" = "$UPSTREAM_COMMIT"
       - uses: actions/download-artifact@v4
         with:
           name: plan
