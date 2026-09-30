@@ -1,12 +1,12 @@
 # Architecture
 
-Workflow Manager distributes a frozen Workflow release into other
+Workflow Manager installs a published Workflow release into other
 repositories. Two things must never blur together, and the whole design is
 arranged around keeping them apart:
 
-- **Canonical distribution content** — immutable, versioned, byte-identical to
-  a frozen upstream release. Lives in `distribution/`. Nothing writes to it
-  except `tools/migrate.py`.
+- **Canonical release content** — immutable, versioned, byte-identical to a
+  published package whose digest the Manager pins. It reaches a machine as a
+  download, lives in a verified per-user cache, and is never edited.
 - **Target-repository state** — mutable, repository-local, owned by whoever
   runs the Workflow. Work items, approvals, bundles, checkpoints. Workflow
   Manager creates it once and afterwards never overwrites it.
@@ -14,51 +14,112 @@ arranged around keeping them apart:
 An update replaces the first and preserves the second. That single sentence is
 the reason for most of the structure below.
 
+## Packages, pins, source and cache
+
+Since M2 (`docs/ai-workflow/WORKFLOW_MANAGER_PACKAGED_DISTRIBUTION_PLAN.md`)
+this repository holds no Workflow release. The release boundary is four
+pieces, each with one job:
+
+- **The package** (`src/workflow_manager/package.py`, `D-Package-Format`).
+  Version `V` is three assets: `workflow-V.tar.gz`, whose single top-level
+  `workflow-V/` directory holds exactly the release directory
+  (`manifest.json`, `payload/`, `fixtures/`, `templates/`);
+  `workflow-V.manifest.json`, a byte copy of that manifest; and
+  `SHA256SUMS`. The archive is deterministic: members come from the manifest,
+  never from a directory walk, sorted, with `mtime 0`, `0:0`, and modes
+  `0755`/`0644` from the manifest's `executable` flag. Extraction accepts
+  only regular files and directories under `workflow-V/`, requires the file
+  set, digests, sizes and modes to equal the manifest's, stages the tree in a
+  temporary sibling and publishes it by `rename`. Anything else is
+  `ReleaseIntegrityError`, and nothing is left behind.
+- **The pins** (`src/workflow_manager/published_releases.json`, `D-Pins`),
+  shipped in the wheel. They are the trust root: for each published version,
+  the archive name, its sha256 and the sha256 of its `manifest.json`. Only a
+  pinned version installs from a package. A download is accepted only when
+  the archive matches the pin **and** the published `SHA256SUMS`, and the
+  manifest asset matches `manifest_sha256`, so a re-published asset is
+  detected even when it agrees with a re-published `SHA256SUMS`.
+- **The source** (`D-Release-Source`): `--release-source`, else
+  `WORKFLOW_MANAGER_RELEASE_SOURCE`, else
+  `https://github.com/RodrigoFAbreu/workflow/releases/download/v{version}/`.
+  A URL template (`https://`; `file://`; `http://` only to a loopback host)
+  or a local directory of `<version>/` subdirectories. Redirects never
+  downgrade the scheme. Integrity never rests on the transport; the pins
+  carry it.
+- **The cache** (`D-Release-Cache`): `--release-cache`, else
+  `WORKFLOW_MANAGER_RELEASE_CACHE`, else
+  `$XDG_CACHE_HOME/workflow-manager/releases`, else
+  `~/.cache/workflow-manager/releases`. An entry `<cache>/<V>/` holds the three
+  assets, the extracted `tree/` and a `complete` marker written last. Under an
+  `fcntl` lock on `<cache>/<V>.lock`, an entry is a hit only when `complete`
+  names the pinned digest, the archive hashes to it, `tree/manifest.json`
+  hashes to the pin's `manifest_sha256`, the manifest's version is `V`, and
+  `Release(tree).verify()` passes. A hit does no network I/O. A miss or a
+  broken entry is discarded (`discarding cache entry …` on stderr) and
+  refetched; a broken entry is never used.
+
+`ReleaseCache.resolve(V)` then copies the manifest-enumerated files into a
+private snapshot (`mkdtemp`, `0700`), verifies **the snapshot** against the
+pin, and returns a `Release` over it. Nothing after that reads the shared
+cache, and every installed byte is read through `read_verified` against the
+snapshot's manifest, so a writer that changes the cache after the lock is
+released cannot reach a target. `ReleaseCache.ensure(V)` is the same without
+the snapshot; the test runner's priming uses it.
+
+A local, unpackaged directory (`--release-dir`, or the deprecated
+`--manager-root` alias pointing at an old checkout's
+`distribution/workflow/<V>/`) goes through `source.local_release`: a
+directory claiming a **pinned** version must hash to that pin's
+`manifest_sha256` or is refused, so an altered `2.6.0` is never installed as
+`2.6.0`; a directory claiming an **unpinned** version is a release in
+development, checked by `Release.verify()` only and recorded as
+`source.kind: "local"`. Either way it is snapshotted first.
+
+The installation record carries an optional `source` object, `{"kind":
+"package", "repository", "archive", "sha256"}` or `{"kind": "local"}`.
+Records written before M2 lack it and still read; `SCHEMA_VERSION` stays `1`.
+
 ## Repository layout
 
 ```
-migration/
-  classification.json          ordered, first-match-wins ruleset over the frozen tree
-  portability_exceptions.json  frozen tests a clean target cannot pass, with reasons
-  overlays/<version>/           hand-authored delta for an authored release (see below)
-    classification.json         same ruleset shape, scoped to the overlay's own files
-    payload/                     new files, plus full replacements of base payload files
-tools/
-  migrate.py                   frozen upstream -> distribution/  (Phase A)
-  build_release.py             base release + overlay -> distribution/  (an authored release)
-  release/                     the Manager's own releases: titles, versions, packaging
-  ci/                          the stopgap pull-request profile and nightly alarm (M2 removes it)
-distribution/
-  workflow/<version>/
-    manifest.json              every upstream path's disposition, with digests
-                               (an authored release's manifest also carries `provenance`
-                               and, per replaced file, `overlay_delta` -- see below)
-    payload/                   Workflow files, byte-identical, target-relative paths
-    fixtures/                  host documents the frozen suite asserts on
-    templates/                 clean repository-local initial state, and the
-                               release-owned files migration renders rather
-                               than copies
 src/workflow_manager/
   release.py                   read and verify a release from its own manifest
+  package.py                   build, verify and safely extract a release package
+  source.py                    pins, release source, verified release cache, local directories
+  published_releases.json      the pins: the trust root, shipped in the wheel
   fixture.py                   build disposable repositories from a release
-  install.py                   bootstrap, update, drift  (Phase B)
+  install.py                   bootstrap, update, drift
   installation.py              the installed-version record in a target
   cli.py                       command-line entry point
+tools/
+  workflow_packages.py         build and prove packages from a committed release tree
+  release/                     the Manager's own releases: titles, versions, packaging
 tests/                         stdlib unittest, no third-party dependencies
+  portability_exceptions.json  frozen tests a clean target cannot pass, per pinned version
 docs/
-  MIGRATION.md                 the Phase-A record and its evidence, plus each
-                               authored release's own provenance record
+  MIGRATION.md                 the Phase-A record, each authored release's record,
+                               and the M2 packaging and removal record
   ARCHITECTURE.md              this file
   defects/                     upstream defects found, documented, not repaired
-  RELEASING.md                 how the Manager is released
+  RELEASING.md                 how the Manager is released, and how a pin is added
 .github/
   workflows/                   verification, PR title, release, and the managed conformance check
   repository/                  merge settings and the `main` ruleset, as reviewed data
 ```
 
+A release directory, inside a package or a cache entry's `tree/`, is:
+
+```
+manifest.json                  every path's disposition, with digests
+payload/                       Workflow files, byte-identical, target-relative paths
+fixtures/                      host documents the frozen suite asserts on
+templates/                     clean repository-local initial state, and the
+                               release-owned files rendered rather than copied
+```
+
 ## Why payload paths are target-relative
 
-`distribution/workflow/2.3.1/payload/scripts/workflow_state.py` installs to
+A release's `payload/scripts/workflow_state.py` installs to
 `<target>/scripts/workflow_state.py`. No rewriting, no path mapping.
 
 That is not laziness. Frozen v2.3.1 has two hard layout dependencies:
@@ -172,31 +233,45 @@ path; going back is the one that asks first.
 ## Release integrity
 
 Installing is the moment a release asserts its identity to a repository, so
-nothing is copied out of `distribution/` without being checked against the
-manifest digest first. A `distribution/` that was damaged, partially checked
-out, or edited fails the install rather than handing a target non-canonical
-bytes under a canonical version label — which would also leave the record
-describing files that are not there.
+nothing is installed that was not checked first, at every hop: the downloaded
+archive against its pin and `SHA256SUMS`, the extracted tree against its
+manifest, the cache entry against the pin on every hit, the private snapshot
+against the pin again, and each file against the snapshot's manifest digest as
+it is copied. A package that was re-published, corrupted in transit, damaged
+in the cache or edited fails the install (`ReleaseIntegrityError`, exit `1`)
+before anything is written to the target, rather than handing it
+non-canonical bytes under a canonical version label — which would also leave
+the record describing files that are not there.
+
+A release that cannot be obtained fails as loudly. An unpinned version with no
+`--release-dir` is `ReleaseNotPublishedError`; a pinned version that is not
+cached and cannot be fetched is `ReleaseUnavailableError`, naming the version,
+the source URL and the cache directory. Both exit `1`. With the cache primed,
+every command works offline.
 
 ## Which release a command means
 
-`distribution/` may hold several releases at once, and the two kinds of
-command mean different things by "the release":
+Several releases are pinned at once, and the two kinds of command mean
+different things by "the release":
 
 | Command | Default | Why |
 |---|---|---|
-| `bootstrap`, `update` | the newest release present | These *choose* which release a repository is on; "the current one" is the only sensible default, and `--release-version` pins. |
+| `bootstrap`, `update` | the newest pinned release | These *choose* which release a repository is on; "the current one" is the only sensible default, and `--release-version` pins. |
 | `status`, `verify` | the release the target's own record names | These *report on* an installation. Grading a repository against a release it was never installed from would make every target look broken the moment a newer one landed. |
 
 `status` never reports an installation it did not check. If no release is
 available to compare against it says so; it cannot say "clean" without having
-looked.
+looked. A target recording an unpinned version needs `--release-dir` for
+`status` and `verify`; `status` still prints what it knows without it (the
+recorded version, profile, `source` and install time).
 
 ## Boundaries this design keeps
 
-- Nothing in `distribution/` reads outside `distribution/`.
+- Nothing in a release reads outside its own tree.
 - Nothing in a release names the upstream checkout, except the manifest's
-  provenance record and two lines of frozen design prose, both pinned by test.
+  provenance record and two lines of frozen design prose.
+- Nothing in this repository composes a Workflow release. Releases are built
+  and published from the `workflow` repository; this repository pins them.
 - The bootstrapper is verified against disposable repositories only. It has no
   notion of a "real" consumer, and nothing here touches one.
 - Controller orchestration is deliberately absent. The installation record and
@@ -209,37 +284,65 @@ would fail if the claim were false:
 
 | Claim | What would catch it being false |
 |---|---|
-| The inventory is closed | An unclassified upstream path is a hard error in `tools/migrate.py`, not a warning. `test_migration_inventory.py` re-reads the frozen tree independently and compares. |
-| Migrated bytes are the frozen bytes | Compared against `git show <commit>:<path>`, not against the manifest that was written from the same read. |
-| The extraction is reproducible | `tools/migrate.py --check` re-derives into a temporary tree and diffs, including file modes. |
-| Templates are deterministic | Generated twice and compared; a full re-extraction is compared digest-for-digest. |
-| Templates satisfy the frozen contracts | Validated by the *migrated* `workflow_state` module, imported out of the payload. |
-| Semantics are equivalent to frozen v2.3.1 | The frozen suite runs unchanged against a fixture built only from `distribution/`, and the test *counts* are asserted against the upstream baseline — a vanished or silently skipped test fails. |
-| Nothing reaches back into RepFlow | No functional file in the release may name the upstream checkout; the two frozen prose lines that do are pinned by exact location and count. |
-| No live state crossed over | `.ai-review/`, locks, journals, approvals and RepFlow product work items are each asserted absent. |
-| A clean target behaves like v2.3.1 | The bootstrapper's own output runs the frozen suite; its failure set must *equal* the documented exception list — a new unportable test fails the build rather than being absorbed. |
+| A package is deterministic | `test_release_source.py`'s `TestDeterministicBuild`: two builds are byte-identical, members are manifest-enumerated, and bytecode or debris in the release directory changes nothing. |
+| A package reproduces its release | `TestRoundTrip` extracts a build and compares file set, bytes and modes. For the five published releases this was proved once, when they were built, against the committed trees at `ec38979`; `docs/MIGRATION.md` records it. |
+| Extraction cannot escape or smuggle | `TestSafeExtraction`: links, devices, absolute paths, `..`, duplicates, extra or missing files, wrong digests, sizes or modes, and oversize archives are each refused, with nothing left behind. |
+| A published package is the pinned one | `TestPinChecks`: an archive that differs from its pin or from `SHA256SUMS`, or a manifest asset that differs from `manifest_sha256`, is refused, including a re-published pair that agree with each other. `test_published_packages.py`'s `TestPinnedPackagesVerify` re-verifies every pinned package, through the cache, on every run. |
+| A cache entry is never trusted | `TestCache`, `TestSnapshots`, `TestLocking`: a damaged, foreign or half-written entry is discarded and refetched; a tree altered during the snapshot is caught; a change after the snapshot reaches nothing; offline with nothing cached is a named `ReleaseUnavailableError`. |
+| A local directory cannot impersonate a published release | `TestLocalRelease`: a directory claiming a pinned version must hash to the pin; an unpinned one installs as `source.kind: "local"`. |
+| Semantics of the newest release are intact | The newest pinned release's frozen suites run unchanged in four fixtures (conformance, clean target, bootstrapped, and updated from the release below it), and the test *counts* are asserted against `tests/support.py`'s `CI_SUITES` — a vanished or silently skipped test fails. |
+| A clean target behaves like the release | The bootstrapper's own output runs the frozen suite; its failure set must *equal* `tests/portability_exceptions.json`'s entry for that version — a new unportable test fails the build rather than being absorbed. |
+| Every pinned version carries its records | `TestPinnedVersionsCarryTheirRecords`: the pins, `CI_SUITES`' keys and the exceptions' `by_version` keys are the same set, so a new pin cannot land without its counts and exceptions. |
+| The real update path works | `test_update_path.py` bootstraps the release below the newest, updates it through the CLI, and runs the newest frozen suites in the result (the `updated` fixture). |
 | Updates preserve local work | A second release is synthesized so the release-to-release path is exercised for real: added, changed and dropped files, with live work-item state written through the installed module and compared byte-for-byte afterwards. |
 | A damaged release cannot be installed | A release copy is tampered with and every install path is asserted to refuse it, with the target left untouched. |
 | A bootstrap does not overwrite the repository's own files | A target is given its own file at a release path; the bootstrap must refuse and leave it byte-identical. |
 | An interrupted operation is repairable by re-running it | `_write` is made to fail at each point in a bootstrap and at the first write of an update; the re-run must converge to a clean, verified installation with repository-local state intact. |
-| A report is never given without a check | `status` on an unverified installation must not contain the word "clean"; with several releases present, `status` and `verify` must still grade a target against its own recorded version. |
+| A report is never given without a check | `status` on an unverified installation must not contain the word "clean"; with several releases pinned, `status` and `verify` must still grade a target against its own recorded version. |
 | A merged file that lost the installer's section is not "clean" | The Workflow's ignore lines and the managed `CLAUDE.md` section are each deleted; `verify` must report both, an update must restore both, and the repository's own content in either file must survive and never be reported as drift. |
+| No test reaches a release around the pins | `test_internal_references.py`'s `TestNoTestResolvesAReleaseThroughTheLayout` fails any test that names the old release-directory layout or imports the retired discovery API, and `TestNoLiteralCliEnvironment` any subprocess environment that would drop the primed cache. |
 
-The dependency closure itself was derived by ablation rather than by reading:
-each candidate file was removed from a disposable repository and the frozen
-suites re-run. `docs/MIGRATION.md` records what that found.
+The dependency closure of `2.3.1` was derived by ablation rather than by
+reading: each candidate file was removed from a disposable repository and the
+frozen suites re-run. `docs/MIGRATION.md` records what that found, and the
+migration-era checks (inventory closure, byte identity with the upstream tag,
+reproducible extraction and authored-overlay composition) that ran until M2
+retired them with the trees they checked.
 
 ## Verification execution
 
 `python3 tests/run_all.py` is a thin shim over `tests/parallel/cli.py`. It
 runs the full selection in parallel and is the one gate command. `--select`
-narrows a run for development, but a targeted run is never a gate. One
-reduced selection is a gate, in one place only: see "One reduced selection
-is a gate, in one place" below. The design record is
+narrows a run for development, but a targeted run is never a gate. There is
+no other selection: pull requests, `main` pushes, the nightly run and every
+Workflow gate run the same full one. The design record is
 `docs/ai-workflow/WORKFLOW_MANAGER_ADAPTIVE_TEST_SHARDING_PLAN.md`; the
 trunk model's changes are recorded in
-`docs/ai-workflow/WORKFLOW_MANAGER_TRUNK_MODEL_PLAN.md`.
+`docs/ai-workflow/WORKFLOW_MANAGER_TRUNK_MODEL_PLAN.md`, and M2's (priming,
+the tested releases, one selection) in
+`docs/ai-workflow/WORKFLOW_MANAGER_PACKAGED_DISTRIBUTION_PLAN.md`, 7.
 
+- **Priming.** Every mode but `--restore-barrier` first resolves **every
+  pinned version** of the checkout under test into the release cache
+  (`tests/parallel/priming.py`, `ReleaseCache.ensure`), in a subprocess that
+  imports the checkout's own `src/` and reads its own pins, then exports the
+  resolved directory as `WORKFLOW_MANAGER_RELEASE_CACHE` to discovery and to
+  every unit. A version that cannot be put in the cache is `PrimingError`
+  (exit `2`), naming the cache directory and the source. After priming, a run
+  needs no network. `support.cli_env()` carries the cache (and
+  `WORKFLOW_MANAGER_RELEASE_SOURCE`, when set) into every from-scratch
+  subprocess environment, so a test that moves `HOME` still reads the primed
+  cache; a scratch checkout passes its own private source and cache the same
+  way and never touches the real one.
+- **Tested releases.** `tests/support.py` derives `NEWEST_RELEASE` (the
+  highest pin) and `UPGRADE_FROM` (the one below it, or `None` with one pin)
+  from the pins, and `support.release(v)` returns a verified snapshot through
+  the cache, memoized per process. Only `NEWEST_RELEASE`'s frozen suites run,
+  in four fixtures: `conformance`, `target`, `bootstrapped`, and `updated`
+  (bootstrap `UPGRADE_FROM`, commit, `update` to the newest, commit). Every
+  older pinned release is immutable and was tested once, when it was built;
+  its `CI_SUITES` counts and portability exceptions stay as frozen records.
+  A new pin moves the matrix to the new release with no renamed class.
 - **Inventory.** The atomic units are host test classes
   (`test_x.py::Class`) and, for the frozen conformance matrix, frozen
   classes (`frozen:<version>/<fixture>/<suite>.py::Class`). Discovery is
@@ -254,8 +357,8 @@ trunk model's changes are recorded in
   and the partition is checked when the plan is written, when a shard
   runs, and when results are aggregated.
 - **Phases.** Phase A runs every shard's chunks. It starts with A0: each
-  declared exclusive unit alone, one at a time. Phase B then runs the 15
-  matrix host classes in merged mode. They assert over the frozen chunks'
+  declared exclusive unit alone, one at a time. Phase B then runs the four
+  matrix host classes (one per fixture) in merged mode. They assert over the frozen chunks'
   records, merged against a context built from the plan and never from the
   records. A merge that is incomplete, duplicated or foreign is refused.
   One implicit check does not carry over. In direct mode,
@@ -263,14 +366,14 @@ trunk model's changes are recorded in
   `test_the_target_carries_no_upstream_host_document` read the fixture
   after all seven suites ran in it, so they also caught a suite writing
   into its state file or host documents. In merged mode they read a fresh
-  repository, and per-chunk residue is measured only for `bootstrapped`.
+  repository, and per-chunk residue is measured only for `bootstrapped` and
+  `updated`.
   The plan's E-MRG-3 measured every suite's full residue at CP2 and found
   none unclassified, but nothing re-checks it on later runs.
 - **Resources.** `tests/parallel/resources.json` declares the units that
-  must not overlap anything (today, only
-  `TestMigrateDoesNotDeleteASiblingAuthoredRelease`, which rewrites
-  `distribution/workflow/2.3.1/`) and the guarded trees each one may
-  write.
+  must not overlap anything and the guarded trees each one may write. Today
+  it declares none (`resources: {}`, `exclusive: {}`); its `orphan_sources`
+  are described below.
 - **Timing data is not Workflow state.** `timings.json` only orders and
   balances work. It never selects, adds or drops a test. Observed timings
   go to a per-user cache outside the checkout.
@@ -295,19 +398,20 @@ plan's shard list becomes the `shard` matrix; nothing in the file names a
 shard. Each shard job runs one shard (`--run-shard`) and uploads its
 results. The `aggregate` job verifies every result against the plan, runs
 phase B and reports. Every file the tooling writes lives under
-`$RUNNER_TEMP`, and every job checks out full history. The dispatch input
+`$RUNNER_TEMP`. Every job that runs tests, and the `package` job, sets
+`WORKFLOW_MANAGER_RELEASE_CACHE` to `${{ runner.temp }}/workflow-manager-releases`
+and restores that directory with `actions/cache`, keyed on the hash of
+`src/workflow_manager/published_releases.json`, before priming; a normal run
+downloads nothing. The dispatch input
 `shards` overrides the count, so `shards=1` is the single-shard reference,
 which the policy below restricts. The managed `workflow-conformance.yml` is
 a separate, installed file, and it is not a required check: `workflow-manager
 update` owns it and may rename its job.
 
-- **Profiles.** `push`, `schedule` and `workflow_dispatch` runs always plan
-  the full selection. A pull request's `plan` job first runs
-  `tools/ci/choose_profile.py`, which picks `full` or `newest-release`
-  (`--newest-release-only`) and writes its reasons to the job summary; see
-  "Stopgap test profile" below.
+- **One selection.** Every event plans the full selection; the `plan` job's
+  only output is the shard list.
 - **One required test check.** `aggregate` keeps its name whatever the shard
-  count and whatever the profile. It needs `plan`, every `shard` and the
+  count. It needs `plan`, every `shard` and the
   `package` job, runs `if: always()`, and its first step fails, naming the
   job, when `plan` or `package` did not succeed. Its exit code is the
   verdict. The repository's required checks are `aggregate` and `PR title`'s
@@ -323,32 +427,17 @@ update` owns it and may rename its job.
   cancels its stale run; a `main` push, a nightly or a dispatch run gets its
   own per-commit group and is never cancelled.
 - **Nightly.** The `schedule` run is the full selection of the default
-  branch. Its `nightly-alarm` job opens (or comments on) a `nightly-red`
-  issue when `aggregate` did not succeed, and closes it on the next green
-  nightly.
+  branch. A red nightly shows on the README's badge and in the Actions tab;
+  nothing opens an issue.
 - **Release.** `.github/workflows/release.yml` publishes the Manager package
   from `main` after `main`'s full run is green; see `docs/RELEASING.md`.
 
-**One reduced selection is a gate, in one place.** The newest-release
-selection (`--newest-release-only`) is the pull-request profile of
-`workflow-manager-verify.yml`. There it is the required `aggregate` check, a
-merge gate for pull requests, and nothing else.
-
-- It applies only when `choose_profile.py` finds no full-matrix path and a
-  green `main`. Otherwise the pull request runs the full selection.
-- `main` pushes and the nightly run always run the full selection.
-- The Manager release requires `main`'s full run for the released commit.
-- Every Workflow gate in this repository (checkpoint verification,
-  implementation review, acceptance) still runs `python3 tests/run_all.py`,
-  the full selection.
-- A newest-release run is never cited as full-suite evidence; its evidence
-  line says `newest-release selection`.
-- `--select` and `--fast` remain targeted runs, which are never a gate.
-
-This exception is a stopgap: M2 removes it (see "Stopgap test profile").
-
-**Measured (CP7, and at the post-review head `2b4c0fd`, 2026-09-27).** 16
-CPUs locally, `ubuntu-latest` with Python 3.12 in CI.
+**Measured before M2 (the sharding milestone's CP7, and at its post-review
+head `2b4c0fd`, 2026-09-27),** when the full selection re-ran the frozen
+suites of all five releases (about 25,700 tests). 16 CPUs locally,
+`ubuntu-latest` with Python 3.12 in CI. After M2's removal the full
+selection is 1,409 units and 8,737 tests, 259 s locally at 8 workers (M2's
+CP6 gate); the table below is kept as the sharding milestone's record.
 
 | run | wall |
 | --- | --- |
@@ -391,8 +480,7 @@ minutes), against 112 for the single-shard reference.
 **Serial and single-shard runs are exceptional evidence.** Normal
 full-suite verification, every gate included, uses the default sharded path:
 `python3 tests/run_all.py` locally, and the `workflow-manager-verify.yml`
-pipeline at its configured shard count in CI (for a pull request, at the
-profile `choose_profile.py` picks, under the exception above). Forcing one worker or one
+pipeline at its configured shard count in CI. Forcing one worker or one
 shard for the full suite, with `--jobs 1`, `--plan-only --shards 1`, the CI
 dispatch input `shards=1` or anything equivalent, adds no coverage. It runs
 the same selection under the same exit contract, only slower (about 40 min
@@ -418,8 +506,9 @@ run. The two are equivalent when all of these hold:
   for a green gate). Neither digest records a verdict: a red run and a
   green run of the same selection carry identical digests;
 - nothing that affects what the suite tests or how it runs has changed
-  between the two `head` commits. That means `src/`, `tools/`,
-  `distribution/`, `migration/`, `scripts/`, the test modules, and the
+  between the two `head` commits. That means `src/` (the pins included,
+  which fix the releases tested), `tools/`, `scripts/`, the test modules and
+  their data (`tests/portability_exceptions.json`), and the
   runner itself (`tests/run_all.py`, `tests/parallel/`, `tests/support.py`,
   `tests/frozen_runs.py`), plus, for CI evidence,
   `.github/workflows/workflow-manager-verify.yml`. Check with
@@ -467,7 +556,7 @@ path, nor the sharded path for it.
 **The guarded trees are read-only while a run is live.** Every mode takes a
 per-worktree run lock (`<git dir>/wm-verify/run.lock`). A run that
 executes tests also removes write permission from every directory under
-`distribution/`, `migration/`, `src/` and `tools/`. File modes are never
+`src/` and `tools/`. File modes are never
 touched. This makes an undeclared test that creates, deletes or renames
 something there fail by name. It also makes those trees read-only to you
 until the run ends. Saving a new file there fails with `EACCES`, and so
@@ -477,6 +566,14 @@ run restores the original modes when it ends, including on `SIGINT` and
 `SIGTERM`. After a `SIGKILL`, the next run restores them first. Or run
 `python3 tests/run_all.py --restore-barrier`, which refuses while any
 process of the killed run is still alive.
+
+The release cache lives outside the checkout, is shared by every checkout on
+the machine and must stay writable for priming, so the barrier does not cover
+it. Its integrity does not rest on the barrier: no test writes the shared
+cache (the cache tests each use a temporary one), every hit re-verifies
+against the pins, and every use goes through a verified snapshot. The worst
+case of a mutated entry is a discarded entry and a refetch, or offline a loud
+`ReleaseUnavailableError`, never a run on wrong bytes.
 
 A before/after snapshot of the tree, ignored files under the guarded trees
 and `tests/` included, catches persistent changes. A static lint over
@@ -566,9 +663,9 @@ orphans something.
   is to fix an orphan from this repository's own code at the source, and to
   declare it only when orphaning is the test's subject. An orphan from
   frozen code is declared with its class named. A declaration that
-  tolerated nothing in a run is listed as unused. Today there are 20
+  tolerated nothing in a run is listed as unused. Today there are nine
   declarations: five host classes that kill chunk groups on purpose, and
-  the frozen `TestStateLock` in all 15 release and fixture pairs, whose
+  the frozen `TestStateLock` in the newest release's four fixtures, whose
   `multiprocessing` forkserver (the default on Python 3.14) outlives its
   chunk.
 - **Whole-run use.** The same wrapper measures a whole run:
@@ -592,82 +689,6 @@ orphans something.
   exists in this repository's code, and the leak check fails the run if a
   frozen one ever orphans. The managed `workflow-conformance.yml` runs the
   installed suites outside the runner, in CI only.
-
-### Stopgap test profile
-
-About 96% of the full selection re-runs the frozen suites of every
-Workflow release in `distribution/`, in three fixtures each. Until M2 moves
-the releases out of this repository (`docs/ROADMAP.md` 10.2), a pull request
-may run a reduced selection instead: every host unit plus the newest
-release's frozen units (`--newest-release-only`). It is a gate only as the
-exception above states.
-
-`tools/ci/choose_profile.py` decides, and any doubt means `full`:
-
-- any event but `pull_request` is `full`;
-- **rule 1:** every path of the merge ref's diff against its base (both
-  sides of a rename, deletions too) is classified by the longest matching
-  rule in `tools/ci/pr_profile_paths.json`. `distribution/`, `migration/`,
-  `tools/`, `src/`, the shared test infrastructure, the matrix host modules,
-  `.github/` and `pyproject.toml` are `full`; documentation, the installed
-  Workflow copy and each other host test module (by exact path) are
-  `newest-release`. An unmatched path is `full`, and a test proves every
-  path of the tree, tracked and untracked, matches an explicit rule, so a
-  new top-level path or test module must be classified in its own pull
-  request, which then runs `full` because it edits `tools/`;
-- **rule 5:** otherwise the newest completed `push` or `schedule` run of
-  the verification workflow on `main` must be green; a red, cancelled or
-  missing run, or an API failure, is `full`;
-- a git failure, or a head that is not a two-parent merge, is `full`.
-
-The other rules are enforced elsewhere: the release waits for `main`'s full
-run (`release.py assert-full-plan`, rule 2), `aggregate` is the one required
-test check (rule 3), the gate policy is the exception above (rule 4), and a
-red nightly opens an issue (rule 5).
-
-**Where M2 finds it (rule 6).** Stopgap code and data carry the marker
-`STOPGAP(M2)` in one of two forms only: a line-leading comment (`#
-STOPGAP(M2)`, the first token on its line in Python, or a line matching
-`^\s*# STOPGAP\(M2\)` in YAML), or a JSON `"_comment"` value that starts with
-`STOPGAP(M2)`. Documentation (`docs/` and every `*.md`) is never scanned.
-The marked files are exactly:
-
-<!-- stopgap-marked-files:begin -->
-- `.github/workflows/workflow-manager-verify.yml`
-- `tests/parallel/cli.py`
-- `tests/parallel/inventory.py`
-- `tests/parallel/planner.py`
-- `tests/parallel/report.py`
-- `tests/test_stopgap_profile.py`
-- `tools/ci/choose_profile.py`
-- `tools/ci/nightly_alarm.py`
-- `tools/ci/pr_profile_paths.json`
-<!-- stopgap-marked-files:end -->
-
-M2 deletes `tools/ci/choose_profile.py`, `tools/ci/nightly_alarm.py`,
-`tools/ci/pr_profile_paths.json` and `tests/test_stopgap_profile.py` whole,
-and in the other files removes each block that opens with the marker (in
-`tests/parallel/`, down to its `End of the STOPGAP(M2) block.` line). Every
-reference the runner's stopgap depends on sits inside such a block,
-including the `NEWEST_RELEASE_KIND` import, the `newest_release_only`
-entries of the mode tables, the `--newest-release-only` help text and the
-comments that name its selection kind, so that removal alone leaves a
-working runner. That restores the single CI profile: the `choose_profile`
-step and the `NEWEST` wiring leave the `plan` job, the `nightly-alarm` job
-leaves the workflow (the nightly run itself may stay), and `plan`'s
-`profile` output and `actions: read` go with them. M2 also deletes the
-exception "One reduced selection is a gate, in one place" above and this
-subsection. `tests/test_stopgap_profile.py` proves the list above equals the
-marked files, and that every file that names a stopgap identifier
-(`newest-release`, `newest_release`, `NEWEST_RELEASE`, `choose_profile`,
-`nightly_alarm`, `nightly-alarm`, `nightly-red`, `pr_profile_paths`) is
-marked, so a stopgap block left in an unlisted file fails the suite. It also
-carries the removal out on a scratch checkout: after deleting every marked
-block under `tests/parallel/`, no file there names a stopgap identifier, and
-the runner's `--help`, `--list`, `--plan-only` and a real run succeed while
-`--newest-release-only` is an unknown argument.
-`selection_kind` in `tests/parallel/planner.py` and `release.py
-assert-full-plan` are permanent and stay.
 
 ## Squash merges and the installed Workflow
 
@@ -712,9 +733,10 @@ than reaching into the internals:
 
 | Seam | What it gives a caller |
 |---|---|
-| `Release` | A migrated release, addressed by version, verifiable from its own manifest. Adding a second release is adding a directory, not changing code. |
+| `Release` | A release tree, verifiable from its own manifest. Every `Release` a command installs from is a private, pin-verified snapshot. |
 | `Release.installable(profile)` | The install set — payload plus release-owned templates. `bootstrap`, `update` and `drift()` all read it, so they cannot disagree about what the release owns. A new profile is one entry in `_PROFILE_CATEGORIES`. |
-| `available_versions()` / `find_release()` | Which releases exist and which one a command means. Adding a release is adding a directory. |
+| `load_pins()` / `ReleaseCache.resolve()` / `local_release()` | Which releases are published, and a verified `Release` for one of them, from the cache or from a local directory. Adding a release is adding a pin. |
+| `build_package()` / `extract_package()` | The package format, for any producer of releases; `workflow-manager package build`/`verify` expose it to the `workflow` repository's own release job. |
 | `Installation` | What a repository has, as data. A Controller asking "which of my repositories are on which release" reads these files; it does not need to inspect trees. |
 | `drift()` / `verify()` | A structured answer (`Drift(path, kind, detail)`), not a printed report, covering release-owned, generated and merged content alike. Fleet-wide health is a loop over targets. |
 | `Status.verified` | Whether a report was actually measured against a release. A fleet view that treats "unverified" as "healthy" is the bug this field exists to prevent. |
@@ -726,91 +748,55 @@ history beyond `update()`'s symmetry, and any notion of a "real" consumer.
 Those are Controller concerns, and building them here would fix decisions that
 should stay open.
 
-### What a second upstream release needs
+### What a new Workflow release needs
 
-1. A classification entry for its tag and commit.
-2. `python3 tools/migrate.py`, producing `distribution/workflow/<version>/`.
-3. `python3 tests/run_all.py` — the conformance fixture must be green, and the
-   clean target's failure set must equal the documented exceptions.
+A Workflow release is built, tested and published in the `workflow`
+repository (`RodrigoFAbreu/workflow`), as three release assets per version
+(see "Packages, pins, source and cache" above). The Manager learns of it
+through one `feat:` pull request here:
 
-Nothing else. `bootstrap` and `update` already mean the newest release, and
-`status` and `verify` already resolve a target's own version, so a second
-release changes no code and no command line.
+1. Add its pin to `src/workflow_manager/published_releases.json`: the archive
+   name, the archive's sha256 and its `manifest.json`'s sha256, taken from the
+   published assets and checked with `sha256sum -c SHA256SUMS`.
+2. Add its frozen suite counts to `tests/support.py`'s `CI_SUITES` and its
+   (possibly empty) entry to `tests/portability_exceptions.json`'s
+   `by_version`; `TestPinnedVersionsCarryTheirRecords` fails until both
+   exist.
+3. `python3 tests/run_all.py`. Priming fetches the new package once; the
+   matrix moves to it (`NEWEST_RELEASE`) and the `updated` fixture updates to
+   it from the previous release (`UPGRADE_FROM`). The conformance fixture must
+   be green, and the clean target's failure set must equal the documented
+   exceptions.
+
+Nothing else. `bootstrap` and `update` already mean the newest pinned release,
+and `status` and `verify` already resolve a target's own version, so a new
+release changes no code and no command line. `docs/RELEASING.md` has the
+operator steps.
 
 `update()` already handles files added, changed, and dropped between releases;
 `tests/test_bootstrap.py::TestReleaseToReleaseUpdate` proves that against a
-synthesized second release rather than waiting for a real one, and
-`TestReleaseResolution` proves the resolution rules against a `distribution/`
-holding two.
+synthesized second release, and `TestReleaseResolution` proves the
+resolution rules against a set of packaged releases.
 
-## Authored releases
+## Authored releases (history)
 
-Not every new release is a new upstream tag. `2.4.0` (the plan-amendment
-mechanism, `docs/ai-workflow/PLAN_AMENDMENT_MECHANISM_PLAN.md`) originates in
-*this* repository: a small, hand-written change to Workflow behavior that has
-no upstream commit to extract it from. `tools/build_release.py` is a second,
-separate producer of a `distribution/workflow/<version>/` tree, kept apart
-from `tools/migrate.py` (whose "frozen upstream tag -> `distribution/`"
-contract stays untouched) precisely because the two trust boundaries differ:
-`migrate.py` only ever copies bytes it can check against `git show
-<commit>:<path>`; `build_release.py` composes bytes this repository itself
-authored.
+`2.3.1` was extracted from a frozen upstream tag; `2.4.0`, `2.5.0`, `2.5.1`
+and `2.6.0` were authored in this repository, each as a base release plus a
+hand-written overlay composed by `tools/build_release.py`, with every
+replaced file recording an `overlay_delta` (the base file's sha256 plus the
+sha256 of a unified diff against it) and `manifest.json` recording a
+`provenance` of `{"origin": "authored", "base_release", "overlay_commit"}`
+next to the base's `upstream` triple. Those manifests are part of the
+published packages and are unchanged, and `Installation` still copies
+`provenance` into a target's record.
 
-**The composition.** A base release (already migrated, already verified
-against its own manifest) plus an overlay
-(`migration/overlays/<version>/payload/` at the same target-relative paths
-`distribution/workflow/<version>/payload/` uses, classified by
-`migration/overlays/<version>/classification.json`, the same ruleset shape
-`migration/classification.json` uses): every base file the overlay does not
-name is copied forward byte-for-byte; every file it names either adds a new
-path or replaces a base one, cross-checked against the base release's own
-manifest rather than trusted blindly.
+The composition tooling (`migration/`, `tools/migrate.py`,
+`tools/build_release.py`) and the `distribution/` trees it produced were
+retired by M2 (`OD-M2-4`). They remain in Git history at `ec38979`, the last
+commit that carries them, and `docs/MIGRATION.md` records each release's
+evidence. From `2.7` on, a release is authored in the `workflow` repository,
+whose tree is the release: there is no overlay mechanism.
 
-**Byte-level provenance for the authored half.** `tools/migrate.py`'s
-manifest already gives the upstream half of a release "this exact file, this
-exact upstream commit." An authored release needs the same discipline for
-the half nothing upstream can vouch for: every file the overlay *replaces*
-(not merely adds) gets an additive `overlay_delta` field —
-`{"base_sha256": "<the base file's own hash>", "diff_sha256": "<sha256 of a
-unified diff between the base file and the overlay file>"}` — so a full-file
-replacement carries a record of *what changed*, not only what it changed to.
-`tools/build_release.py --check` re-derives the whole tree from the base
-release plus the overlay and diffs it against what is committed, exactly
-`tools/migrate.py --check`'s own contract adapted to a base+overlay input;
-`TestAuthoredReleaseOverlayDelta` additionally reproduces every recorded
-`overlay_delta` from `base payload + diff` alone.
-
-**`manifest.json.provenance`** is the field that distinguishes an authored
-release from an extracted one: `{"origin": "upstream"}` (the default a
-manifest predating this field reads as) for one `tools/migrate.py` produced,
-or `{"origin": "authored", "base_release": "<version>", "overlay_commit":
-"<this repository's own commit at build time>"}` for one
-`tools/build_release.py` produced. It sits *alongside* the existing
-`upstream` key, never replacing it — `Release.__init__`, `cli.py`,
-`install.py` and `installation.py` all read `manifest["upstream"]`
-unconditionally, so an authored release's manifest keeps the base release's
-own upstream triple, copied forward: an authored release is still,
-transitively, provenanced from that upstream tag, just not *directly*.
-`Installation` persists the same `provenance` into a bootstrapped target's
-own record, additively, so `status` can report which kind of release a
-target was bootstrapped from without a schema bump on either side.
-
-**Nothing about installing, updating, or reporting on a release changes.**
-`Release.installable(profile)`, `bootstrap`, `update`, `drift()`, `status`
-and `verify` all read a release through the same manifest/payload shape
-regardless of how it was produced — an authored release is exactly as
-installable as an extracted one, because by the time it is committed under
-`distribution/workflow/<version>/` the two are the same shape of tree. The
-per-release conformance matrix (`tests/support.py`'s `CI_SUITES` and
-`migration/portability_exceptions.json`'s `by_version`, both keyed by
-`workflow_version` since `2.4.0`) is what actually proves that: each
-release's own frozen/authored suite runs, and passes or documents its own
-exceptions, independently of any other release present in the same
-`distribution/`.
-
-See `docs/MIGRATION.md`'s "Workflow v2.4.0" section for the concrete record
-— what was authored, the exact provenance values, and the evidence — and
-`CLAUDE.md`'s "Adding an authored Workflow release" for the operator
-procedure, including the downgrade posture an authored release that widens a
-closed vocabulary (a new `CHECKPOINT_STATUSES`/`APPROVAL_STATUSES` member, for
-instance) creates.
+The downgrade posture an authored release that widens closed state vocabulary
+creates is unchanged; `CLAUDE.md`'s "Adding a Workflow release" states it as an
+operator instruction.

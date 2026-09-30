@@ -7,11 +7,17 @@
 Distribution, bootstrap, and update tooling for the reusable AI development
 Workflow.
 
-Workflow Manager holds one immutable, byte-verified copy of each frozen
-Workflow release and installs it into other repositories — without ever
-overwriting the work-item state those repositories accumulate.
+Workflow Manager installs published Workflow releases into other
+repositories — without ever overwriting the work-item state those
+repositories accumulate. A Workflow release is an immutable package,
+published by the [`workflow`](https://github.com/RodrigoFAbreu/workflow)
+repository and pinned here by digest; the Manager downloads it, verifies it
+against the pin, and caches it.
 
 ## Status
+
+The pinned Workflow releases, and their suites as recorded when each was
+built:
 
 | Release | Origin | Frozen/authored suite against the fixture | Bootstrapped repository |
 |---|---|---|---|
@@ -21,41 +27,33 @@ overwriting the work-item state those repositories accumulate.
 | `2.5.1` | authored in this repository — `2.5.0` base plus the workflow-2-5-1-checkpoint-id-compatibility overlay | 7/7 suites, 1681 tests — same suite set as `2.5.0`, plus 12 new cases | 1681 of 1681 |
 | `2.6.0` | authored in this repository — `2.5.1` base plus the workflow-review-artifact-and-concurrency-hardening overlay | 7/7 suites, 2002 tests — same suite set as `2.5.1`, plus 321 new cases | 2002 of 2002 |
 
-`workflow_manager releases` prints every release present, each release's own
-`provenance` distinguishing an upstream extraction from an authored one; both
-kinds install, update, and verify through the same commands below.
+`workflow-manager releases` prints every pinned release with its archive
+digest and whether it is cached. Every one installs, updates and verifies
+through the same commands below. The full test selection runs the newest
+pinned release's frozen suites; each older release was tested once, when it
+was built ([`docs/MIGRATION.md`](docs/MIGRATION.md)).
 
 ## Layout
 
 ```
-migration/           classification ruleset, portability exceptions, and
-                     any authored release's own overlay
-tools/migrate.py     frozen upstream release -> distribution/
-tools/build_release.py  base release + overlay -> distribution/ (authored)
-distribution/        the canonical, immutable release content
-src/                 the bootstrapper
+src/workflow_manager/  the Manager: packages, pins, source and cache, installer, CLI
+  published_releases.json  the pins: the digest of every published Workflow release
+tools/               the package builder, and the Manager's own release tooling
 tests/               stdlib unittest, no third-party dependencies
-docs/                the migration record, the architecture, and upstream defects
+docs/                the architecture, the migration and packaging record, releasing,
+                     and upstream defects
 ```
 
 ## Install
 
-Until the Workflow releases move out of this repository (M2), the Manager
-needs a checkout that holds them. Either run it from a checkout at a release
-tag:
+Install a release wheel; no checkout is needed:
 
 ```bash
-git clone --branch v1.1.0 https://github.com/RodrigoFAbreu/workflow-manager.git
-cd workflow-manager && python3 -m workflow_manager --version   # workflow-manager 1.1.0 (checkout at v1.1.0)
-```
-
-or install the release wheel and point it at such a checkout:
-
-```bash
-gh release download v1.1.0 --repo RodrigoFAbreu/workflow-manager --dir wm-1.1.0
-(cd wm-1.1.0 && sha256sum -c SHA256SUMS)
-pipx install ./wm-1.1.0/workflow_manager-1.1.0-py3-none-any.whl
-workflow-manager --manager-root /path/to/workflow-manager-at-v1.1.0 releases
+v=X.Y.Z   # see the releases page
+gh release download "v$v" --repo RodrigoFAbreu/workflow-manager --dir "wm-$v"
+(cd "wm-$v" && sha256sum -c SHA256SUMS)
+pipx install "./wm-$v/workflow_manager-$v-py3-none-any.whl"
+workflow-manager --version
 ```
 
 Releases are published automatically from `main`; see
@@ -65,115 +63,107 @@ Releases are published automatically from `main`; see
 ## Use
 
 ```bash
-python3 -m workflow_manager releases                  # what is available
-python3 -m workflow_manager status    /path/to/repo   # is it managed, is it clean
-python3 -m workflow_manager bootstrap /path/to/repo   # install into a fresh repo
-python3 -m workflow_manager verify    /path/to/repo   # drift against canonical
-python3 -m workflow_manager update    /path/to/repo   # move to another release
-python3 -m workflow_manager --version                 # the Manager's own version
+workflow-manager releases                  # the pinned releases, and which are cached
+workflow-manager status    /path/to/repo   # is it managed, is it clean
+workflow-manager bootstrap /path/to/repo   # install into a fresh repo
+workflow-manager verify    /path/to/repo   # drift against canonical
+workflow-manager update    /path/to/repo   # move to another release
+workflow-manager --version                 # the Manager's own version
 ```
+
+From a checkout, `PYTHONPATH=src python3 -m workflow_manager` is the same
+command.
 
 The Git tag is the Manager's only version authority; `pyproject.toml` holds a
 placeholder. `--version` reports the installed release, a clean checkout at a
 release tag as that release, and anything else as a development build. An
 existing `pipx install --editable` keeps the metadata it was installed with
 (`1.0.0`), so run `pipx reinstall workflow-manager` once after updating past
-this change. A Manager installed from a release wheel has no `distribution/`
-of its own: pass `--manager-root <workflow-manager checkout at the matching
-tag>`.
+the trunk model.
 
 `bootstrap` installs everything the release owns, writes clean state from
 templates, merges its section into `.gitignore` and `CLAUDE.md`, and records
-everything in `.workflow-manager/installation.json`. It refuses if the
-repository already keeps its own file where a release file goes — `scripts/`
-and `.claude/commands/` are ordinary names — and lists what collided;
-`--force` overwrites.
+everything, including where the release came from, in
+`.workflow-manager/installation.json`. It refuses if the repository already
+keeps its own file where a release file goes — `scripts/` and
+`.claude/commands/` are ordinary names — and lists what collided; `--force`
+overwrites.
 
 `update` replaces release-owned files and leaves `WORKFLOW_STATE.json`,
 `docs/ACTIVE_MILESTONE.md` and `.ai-review/` untouched. It refuses to run if a
 release file was edited locally, so an intentional edit is seen rather than
 discarded; `--force` overrides.
 
-Nothing is copied out of `distribution/` without being checked against the
-release manifest first, so a damaged distribution fails the install instead of
-installing something else under its version number.
+Nothing is installed unchecked. A downloaded package must match its pin and
+its published `SHA256SUMS`, the cached tree is re-verified against the pin on
+every use, and each file is checked against the release manifest as it is
+copied, so a re-published, corrupted or edited release fails the install
+instead of installing something else under its version number.
+
+The first use of a release downloads it into
+`~/.cache/workflow-manager/releases`; after that every command works offline.
+`--release-source` (a mirror directory or URL template), `--release-cache`
+and `--release-dir` (an unpackaged release in development) change where a
+release comes from; see
+[`docs/RELEASING.md`](docs/RELEASING.md#installing-a-release-without-a-checkout).
 
 Neither operation is atomic; both are re-runnable. An interrupted bootstrap or
 update is repaired by running the same command again — see
 [the interruption contract](docs/ARCHITECTURE.md#interruption).
 
-With more than one release in `distribution/`, `bootstrap` and `update` mean
-the newest and take `--release-version` to pin one, while `status` and
-`verify` measure a target against the release its own record names.
+`bootstrap` and `update` mean the newest pinned release and take
+`--release-version` to pick another, while `status` and `verify` measure a
+target against the release its own record names.
 
-## Re-deriving the distribution
+## Workflow releases
 
-```bash
-python3 tools/migrate.py            # rebuild distribution/ from the frozen tag
-python3 tools/migrate.py --check    # prove the committed tree is reproducible
-```
-
-Both read the upstream repository through `git show` only. Nothing here ever
-writes to it.
-
-An authored release (`2.4.0`, `2.5.0`, `2.5.1`, `2.6.0`) is re-derived the
-same way, from its own base release and overlay instead of an upstream tag:
-
-```bash
-python3 tools/build_release.py --overlay migration/overlays/2.4.0            # rebuild
-python3 tools/build_release.py --overlay migration/overlays/2.4.0 --check    # prove it reproduces
-python3 tools/build_release.py --overlay migration/overlays/2.5.0            # same, for 2.5.0
-python3 tools/build_release.py --overlay migration/overlays/2.5.0 --check    # prove it reproduces
-python3 tools/build_release.py --overlay migration/overlays/2.5.1            # same, for 2.5.1
-python3 tools/build_release.py --overlay migration/overlays/2.5.1 --check    # prove it reproduces
-python3 tools/build_release.py --overlay migration/overlays/2.6.0            # same, for 2.6.0
-python3 tools/build_release.py --overlay migration/overlays/2.6.0 --check    # prove it reproduces
-```
-
-See [`docs/ARCHITECTURE.md`'s "Authored releases"](docs/ARCHITECTURE.md#authored-releases)
-for the mechanism and [`CLAUDE.md`](CLAUDE.md) for the operator procedure for
-adding either kind of release, including the downgrade posture an authored
-release that widens closed state vocabulary creates.
+Workflow releases are authored, built and published in the `workflow`
+repository. The Manager learns of a new one through a pull request that adds
+its pin; [`docs/RELEASING.md`](docs/RELEASING.md#workflow-packages-adding-a-pin)
+has the steps and
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md#packages-pins-source-and-cache)
+the design. The five releases above were extracted (`2.3.1`) or authored
+(`2.4.0` to `2.6.0`) in this repository before M2 moved them out; their
+records are in [`docs/MIGRATION.md`](docs/MIGRATION.md), and
+[`CLAUDE.md`](CLAUDE.md) keeps the downgrade posture an authored release
+that widens closed state vocabulary creates.
 
 ## Tests
 
 ```bash
-python3 tests/run_all.py                      # the gate: everything, in parallel (~7 minutes)
+python3 tests/run_all.py                      # the gate: everything, in parallel (~5 minutes)
 python3 tests/run_all.py --select test_x.py   # run what you touched -- never a gate
-python3 tests/run_all.py --jobs 1             # serial reference (~40 minutes) -- exceptional evidence only
+python3 tests/run_all.py --jobs 1             # serial reference (slow) -- exceptional evidence only
 python3 tests/run_all.py --help               # every mode, flag and exit code
 ```
 
-CI runs the full selection on every push to `main` and nightly. A pull
-request runs the host tests plus the newest release only, unless it touches
-the installer, the test infrastructure, `distribution/` or CI, or `main`'s
-latest full run is not green; that reduced profile is a stopgap until M2
-(see [`docs/ARCHITECTURE.md`'s "Stopgap test profile"](docs/ARCHITECTURE.md#stopgap-test-profile)).
+CI runs the same full selection on every pull request, every push to
+`main` and nightly. It runs the Manager's own tests, and the newest pinned
+release's frozen suites in four fixtures, one of them a repository updated
+from the release below it.
 
-Run what you touched with `--select`; gates run `python3 tests/run_all.py`.
-`--fast` is a deprecated alias for a targeted `--select` of eight modules, not
-a verification gate. A full-suite `--jobs 1` (or single-shard) run is
-exceptional evidence, run only when a plan requires it or to debug a
-serial/sharded difference. An equivalent earlier run is cited, not repeated,
-using the `evidence:` line every run prints. While a run is live, `distribution/`, `migration/`,
-`src/` and `tools/` are read-only; see
+Every run first primes the release cache with every pinned version (the
+first time, from the network), then runs offline. Run what you touched with
+`--select`; gates run `python3 tests/run_all.py`. A full-suite `--jobs 1`
+(or single-shard) run is exceptional evidence, run only when a plan requires
+it or to debug a serial/sharded difference. An equivalent earlier run is
+cited, not repeated, using the `evidence:` line every run prints. While a run
+is live, `src/` and `tools/` are read-only; see
 [`docs/ARCHITECTURE.md`'s "Verification execution"](docs/ARCHITECTURE.md#verification-execution).
-
-The upstream-comparison tests skip cleanly when the upstream repository is not
-present: a migrated release is verifiable from its own manifest alone.
 
 ## Reading order
 
-1. [`docs/MIGRATION.md`](docs/MIGRATION.md) — what was extracted from `2.3.1`
-   and how the dependency closure was derived, plus `2.4.0`'s own authored
-   provenance record, both with their evidence.
-2. [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — the distribution/state
-   boundary, why the layout is what it is, and how an authored release is
-   composed and verified.
-3. [`docs/defects/`](docs/defects/) — upstream defects found during migration,
-   documented rather than repaired.
-4. [`docs/RELEASING.md`](docs/RELEASING.md) — how the Manager itself is
-   versioned and released.
+1. [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — the release/state
+   boundary: packages, pins, source and cache, what the installer owns, and
+   how the suite runs.
+2. [`docs/RELEASING.md`](docs/RELEASING.md) — how the Manager itself is
+   versioned and released, how a Workflow release is pinned, and installing
+   without a checkout.
+3. [`docs/MIGRATION.md`](docs/MIGRATION.md) — the historical record: what was
+   extracted from `2.3.1` and how, each authored release's provenance, the
+   five packages' evidence, and M2's removal of the in-repository trees.
+4. [`docs/defects/`](docs/defects/) — upstream defects found, documented
+   rather than repaired.
 
 For the plan-amendment mechanism itself — a work item's operator reopening
 its own approved plan mid-`IMPLEMENTING`/`SELF_REVIEWING_IMPLEMENTATION` via

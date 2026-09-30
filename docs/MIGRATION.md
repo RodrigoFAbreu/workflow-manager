@@ -4,6 +4,15 @@ This is the Phase-A record: what was extracted from the frozen upstream
 release, what was not, and how that is proven. It is written to be read
 without any conversation context.
 
+It is a historical record. M2 (`workflow-manager-packaged-distribution`)
+turned every release below into a published, pinned package and removed
+`distribution/`, `migration/`, `tools/migrate.py`, `tools/build_release.py`
+and the tests that checked them; see "M2 -- the trees leave this repository"
+at the end. Every path this record names under those trees, and every
+retired test module it cites, is in Git at `ec38979`, the last commit that
+carries them (`git show ec38979:<path>`). `migration/portability_exceptions.json`
+lives on, unchanged, as `tests/portability_exceptions.json`.
+
 ## The frozen source
 
 | | |
@@ -323,10 +332,72 @@ output directories (`diff -r`).
 "files" counts every file in the release, `manifest.json` included. The
 uncompressed-tar digest is the sha256 of the gunzipped archive.
 
-`tests/test_package_round_trip.py` re-proves this from the same
-`git archive` extraction on every run, until CP6 deletes it with
-`distribution/`. It covers the round trip, the byte-identical rebuild, the
-pins, and `TestCheckoutReleasesArePinned`. `tests/test_published_packages.py`'s
-`TestPinnedPackagesVerify` is the permanent check: each pinned package,
-obtained through the cache, re-verifies against its pin and its own
-manifest.
+`tests/test_package_round_trip.py` re-proved this from the same
+`git archive` extraction on every run from CP4 until CP6 deleted it with
+`distribution/` (the round trip, the byte-identical rebuild, the pins, and
+`TestCheckoutReleasesArePinned`); its last green run is CP5's gate below. Old
+releases are tested once, when they are built.
+`tests/test_published_packages.py`'s `TestPinnedPackagesVerify` is the
+permanent check: each pinned package, obtained through the cache,
+re-verifies against its pin and its own manifest on every run.
+`tools/workflow_packages.py` stays, and can rebuild and re-check the five
+packages from the same commit at any time:
+
+    python3 tools/workflow_packages.py build --commit ec38979 --out <dir> \
+        --pins src/workflow_manager/published_releases.json --check
+
+## M2 -- the trees leave this repository
+
+Plan: `docs/ai-workflow/WORKFLOW_MANAGER_PACKAGED_DISTRIBUTION_PLAN.md`
+(revision 9, approved in `e341c90`), checkpoint CP6.
+
+**`ec38979` is the last commit carrying `distribution/`.** It is M2's base,
+the tree `git archive ec38979 distribution/workflow` packs, and the commit to
+read for any path the records above name. CP6 deleted, in one commit:
+
+- `distribution/` (the five releases) and `migration/` (the classification
+  rulesets and the authored overlays; `portability_exceptions.json` had
+  moved to `tests/` in CP5, every entry unchanged);
+- `tools/migrate.py` and `tools/build_release.py` (`OD-M2-4`). Releases are
+  authored and built in the `workflow` repository from now on, whose tree is
+  the release; it has no overlay mechanism;
+- the stopgap pull-request profile (`tools/ci/`, every `STOPGAP(M2)` block,
+  the verify workflow's profile step, `profile` output and `nightly-alarm`
+  job), and the deprecated `--fast` runner alias;
+- the nine retired test modules: `test_payload_bytes.py`, `test_templates.py`,
+  `test_migration_inventory.py`, `test_no_live_state_imported.py`,
+  `test_amendment_update_path.py`,
+  `test_implementation_review_two_stage_disposable_repo.py`,
+  `test_stopgap_profile.py`, `test_authored_release_tools.py` and
+  `test_package_round_trip.py`. The Phase-A gate table and the authored
+  releases' reproducibility rows above cite several of them; they proved
+  their claims against the committed trees on every run up to CP5, and the
+  claims are about immutable bytes, so the proofs stand.
+
+**Old releases are tested once (`OD-M2-5`).** The full selection now runs
+only the newest pinned release's frozen suites, in the conformance, target
+and bootstrapped fixtures plus a new `updated` fixture (bootstrap the release
+below it, then `update`). The `2.3.1`→`2.4.0` and `2.4.0`→`2.5.0`
+disposable-repository tests are retired with their modules. The `2.6.0`
+hardening test stays, and `test_update_path.py` adds the `2.5.1`→`2.6.0`
+update path.
+
+**v2.3.1-002's repository-level guard is retargeted, not retired.** The
+hardening test's `test_the_repository_level_guards_are_still_registered`
+asserted that `test_amendment_update_path.py`, the `2.3.1`→`2.4.0` update
+suite, is always run. It now asserts the same of `test_update_path.py`, the
+update-path suite that follows the pins: it has host units, and every one of
+them is in the full selection. **The retargeted guard is narrower.** It
+proves the pinned update path (today `2.5.1`→`2.6.0`) runs in the full
+selection, and it no longer covers the `2.3.1`→`2.4.0` suite, which is
+retired. The payload-level v2.3.1-002 regression tests, inside the frozen
+suites, are untouched.
+
+| gate | head | units | tests | wall (local, 8 workers) |
+| --- | --- | --- | --- | --- |
+| base (`ec38979`), for comparison | `ec38979` | | 25,688 | |
+| CP5, the last run with `distribution/` present | `ce03624` + CP5 (committed as `9255a34`) | 1,467 | 8,925 | 274 s |
+| CP6, after the removal | `9255a34` + CP6 (committed as `17a5133`) | 1,409 | 8,737 | 259 s |
+
+Each gate was `python3 tests/run_all.py`, the full selection, exit 0
+(`docs/ACTIVE_MILESTONE.md`, CP5 and CP6).

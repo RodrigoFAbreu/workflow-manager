@@ -13,10 +13,10 @@ Full plan: `docs/ai-workflow/WORKFLOW_MANAGER_PACKAGED_DISTRIBUTION_PLAN.md`.
 
 ## Current checkpoint
 
-CP1 (package format), CP2 (release source, pins and verified cache), CP3
-(CLI and install record), CP4 (the five packages, the pins and Manager
-packaging), CP5 (the test suite on the release cache) and CP6 (removal)
-are complete. Next: CP7 (documentation and evidence).
+CP1-CP7 are complete: package format, release source/pins/cache, CLI and
+install record, the five packages, the test suite on the release cache,
+removal, and documentation. Next: self-review and the full gate
+(`SELF_REVIEWING_IMPLEMENTATION`).
 
 ## Current blockers
 
@@ -31,7 +31,10 @@ revision 9. Registry:
 
 ## Next action
 
-`/milestone-implement workflow-manager-packaged-distribution` for CP7.
+`/milestone-implement workflow-manager-packaged-distribution` again: every
+checkpoint is complete, so it enters step 2 (self-review of the full
+milestone diff), runs the full gate and generates the implementation bundle
+for `LOCAL_MODEL_IMPLEMENTATION_REVIEW`.
 
 ## Checkpoint log
 
@@ -445,6 +448,81 @@ revision 9. Registry:
   units, 8,737 tests, `selection_digest a1ba7718...`, `tests_digest
   69d9fb85...`, `tree_digest 03bf4446...`, verdict exit 0, wall 259 s (9
   declared orphan-source chunks tolerated).
+
+### CP7 -- documentation and evidence (complete)
+
+- **`docs/ARCHITECTURE.md`:** the distribution/state boundary is now the
+  release/state boundary, with a new "Packages, pins, source and cache"
+  section (package format, pins as the trust root, source and cache
+  precedence, the hit rule, snapshots, local directories, the record's
+  `source`). The layout, "Release integrity" (every verification hop, and
+  `ReleaseNotPublishedError`/`ReleaseUnavailableError`), "Which release a
+  command means" (the newest pin) and "Boundaries" follow. The verification
+  table is rewritten around the package, pin, cache and update-path tests
+  (every cited class exists); the retired migration checks are named as
+  history. "Verification execution" gains "Priming" and "Tested releases"
+  bullets, phase B's four matrix classes, no exclusive unit, the CI cache
+  (no full-history checkout), one selection, no nightly alarm, the barrier on
+  `src/` and `tools/` only and why the cache is outside it, nine orphan
+  declarations, and the post-M2 total beside the sharding milestone's
+  measurements. "One reduced selection is a gate, in one place" and
+  "Stopgap test profile" are removed, with the `--fast` mention. The
+  extension-point table swaps `available_versions()`/`find_release()` for
+  `load_pins()`/`ReleaseCache.resolve()`/`local_release()` and adds
+  `build_package()`/`extract_package()`. "What a second upstream release
+  needs" becomes "What a new Workflow release needs" (a pin pull request),
+  and "Authored releases" becomes a short history pointing at `ec38979`.
+- **`docs/MIGRATION.md`:** a header note that the record is historical and
+  that every path under the removed trees is read at `ec38979`; the CP4
+  section in the past tense, with the `--check` rebuild command (run: exit
+  0, all five "identical"); and the M2 record "M2 -- the trees leave this
+  repository": `ec38979` as the last commit carrying `distribution/`, what
+  CP6 deleted, "old releases are tested once" (`OD-M2-5`), and
+  v2.3.1-002's repository-level guard retargeted to `test_update_path.py`,
+  stated as narrower (it proves the pinned update path runs in the full
+  selection and no longer covers `2.3.1`→`2.4.0`), with the base/CP5/CP6
+  gate totals.
+- **`docs/RELEASING.md`:** the intro names the `workflow` repository; the
+  release job's smoke check (pins in the wheel, `releases`, `verify` through
+  the cache); "Installing a release, without a checkout" (the source, cache,
+  offline, air-gapped, `--release-dir` and the `--manager-root` alias);
+  "Workflow packages: adding a pin" (download, `sha256sum -c`, `package
+  verify`, the pin, `CI_SUITES` and exceptions, the gate, a `feat:` title,
+  pins never edited); the nightly without an issue; and "Cutover: M2" with
+  K1-K5 as commands. K2's seed loop and its per-tag check were dry-run in a
+  temporary repository (no push): five commits, each tag's tree equal to its
+  release at `ec38979` plus `README.md`. The trunk-model cutover is kept as
+  history, noting that its `newest-release` probe no longer applies.
+- **`README.md`:** the intro, layout, install (wheel, no checkout), use
+  (`workflow-manager`), integrity and cache paragraphs, a "Workflow
+  releases" section in place of "Re-deriving the distribution", the tests
+  paragraph (one selection, priming, barrier on `src/` and `tools/`, no
+  `--fast`, no stopgap) and the reading order. The Status table is unchanged
+  (pinned by `test_internal_references.py`).
+- **`CLAUDE.md`, below the managed marker only:** what the repository is;
+  the hard rules (release and pin immutability replaces "generated, not
+  edited"; defects stay write-ups); "Before changing anything" (one selection
+  everywhere, priming, no `--fast`, barrier on `src/` and `tools/`, the
+  `migrate.py --check` paragraph gone); "Where things are"; one "Adding a
+  Workflow release" section (a pin pull request) in place of the upstream and
+  authored procedures; the downgrade posture kept whole, its two
+  `distribution/…` paths now the published packages' `payload/scripts/`.
+  The managed part is byte-identical, and `workflow-manager verify .`
+  reports `installation matches workflow 2.6.0`.
+- **Left as they are:** `docs/ROADMAP.md` (not edited during a milestone),
+  `docs/defects/` and the plan documents (records), and the code comments
+  that name `distribution/workflow` on purpose (the alias in `cli.py`,
+  `tools/workflow_packages.py --commit`).
+- **Observation, not changed:** the real release cache holds an empty
+  `0.0.1.lock` (a scratch-only version) dated 13:36 today, before CP5's
+  commit; `TestScratchReleaseIsolation` checks that the listing is unchanged
+  by a scratch run, so it is a leftover from CP5's development, not a
+  recurring leak.
+- **Verified (targeted):** `python3 tests/run_all.py --select
+  test_internal_references.py --select
+  test_parallel_runner.py::TestSerialEvidencePolicyIsDocumented --select
+  test_manager_version.py --select test_release_workflows.py`: 26/26 units,
+  105 tests, exit 0. The full gate runs at self-review (step 3).
 
 ## Previous milestone
 
