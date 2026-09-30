@@ -15,8 +15,9 @@ Full plan: `docs/ai-workflow/WORKFLOW_MANAGER_PACKAGED_DISTRIBUTION_PLAN.md`.
 
 CP1-CP7 are complete: package format, release source/pins/cache, CLI and
 install record, the five packages, the test suite on the release cache,
-removal, and documentation. Next: self-review and the full gate
-(`SELF_REVIEWING_IMPLEMENTATION`).
+removal, and documentation. The self-review and the full gate are done
+(below). Next: the local implementation review
+(`AWAITING_LOCAL_IMPLEMENTATION_REVIEW`).
 
 ## Current blockers
 
@@ -31,10 +32,10 @@ revision 9. Registry:
 
 ## Next action
 
-`/milestone-implement workflow-manager-packaged-distribution` again: every
-checkpoint is complete, so it enters step 2 (self-review of the full
-milestone diff), runs the full gate and generates the implementation bundle
-for `LOCAL_MODEL_IMPLEMENTATION_REVIEW`.
+The implementation bundle (`implementation_revision: 1`) is generated.
+Next: `/review-implementation workflow-manager-packaged-distribution` (the
+local stage, `LOCAL_MODEL_IMPLEMENTATION_REVIEW`), then the manual external
+stage.
 
 ## Checkpoint log
 
@@ -523,6 +524,55 @@ for `LOCAL_MODEL_IMPLEMENTATION_REVIEW`.
   test_parallel_runner.py::TestSerialEvidencePolicyIsDocumented --select
   test_manager_version.py --select test_release_workflows.py`: 26/26 units,
   105 tests, exit 0. The full gate runs at self-review (step 3).
+
+### Self-review of the milestone diff and the full gate (`SELF_REVIEWING_IMPLEMENTATION`)
+
+- `enter_self_reviewing_implementation` was a no-op. CP7's
+  `complete_checkpoint` had already written the phase.
+- The whole `ec38979..9247089` diff was reviewed:
+  - `package.py`: deterministic members and headers, `_read_checked`'s
+    link/escape refusal, `extract_package`'s member rules (single top,
+    duplicates, types, modes, size cap, manifest-exact file and directory
+    sets, digests), staging and `rename`;
+  - `source.py`: pin-file shape, the scheme and redirect rules, the capped
+    fetch, the double pin/`SHA256SUMS` check, the hit rule, `_discard`,
+    `_fetch`'s staging, `resolve`'s snapshot-under-lock and single refetch,
+    and `local_release`'s pinned/unpinned branches;
+  - `cli.py`, `install.py`, `installation.py`: `_resolve`'s precedence,
+    the `with` scopes around every snapshot, exit 1 for the three release
+    errors, `status` with an unresolvable release, and the additive
+    `source`;
+  - `tools/workflow_packages.py`, `tools/release/package.py`,
+    `tests/parallel/priming.py`, both workflows, and the test and doc
+    changes.
+- No finding was blocking or important, and nothing was changed. Two minor
+  cases were checked and left as they are:
+  - `releases` with the deprecated `--manager-root` pointing at a checkout
+    whose manifest lacks `upstream.tag` raises a traceback (a `KeyError`
+    the CLI does not map). It is reachable only through the deprecated
+    alias and a malformed checkout;
+  - an `OSError` from `shutil.rmtree` in `ReleaseCache._discard` (a cache
+    entry the user cannot delete) escapes unwrapped rather than as
+    `ReleaseUnavailableError`. The command still fails, only without the
+    named error.
+- INV checks: `git diff --stat ec38979 HEAD -- scripts .claude/commands
+  .github/workflows/workflow-conformance.yml
+  docs/ai-workflow/WORKFLOW_CONFIG.json` is empty; `CLAUDE.md` up to
+  `<!-- workflow-manager:end -->` is byte-identical to the base;
+  `PYTHONPATH=src python3 -m workflow_manager verify .` reports
+  `installation matches workflow 2.6.0` (through the primed cache).
+- **The full gate**, `python3 tests/run_all.py` at `9247089`, 2026-09-30
+  (263.2 s wall, 8 workers):
+  - `evidence: full selection, local, 8 worker(s), head 9247089e3a9e32829bc31c45a03a6a1deed85866,
+    1409/1409 units, 8737 tests, selection_digest
+    a1ba771858aa45abbadb14526fab4fcd48a32ba0cb4d0229669727ac182f793c,
+    tests_digest 69d9fb85ff68b701113c9d664726fcd1e5f217365a926a84488ecec5c6297a34,
+    tree_digest 11e4c4cb5ebfb964dcad8debd6fbb87c362d8e6895705a64e44e07887d42a9ec`,
+    `verdict: exit 0`;
+  - `orphan check: on`. Orphans were tolerated only in the nine declared
+    `orphan_sources` chunks, none undeclared and none a Git process;
+  - the selection and tests digests equal CP6's gate: CP7 changed only
+    documentation.
 
 ## Previous milestone
 
