@@ -25,6 +25,7 @@ import importlib.util
 import io
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -267,6 +268,73 @@ def _capture(main, argv) -> tuple[int, str]:
     with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
         code = main(argv)
     return code, out.getvalue()
+
+
+# -- Expression contexts in workflow-level and job-level `env` -----------------------------
+
+#: The contexts GitHub Actions admits in a workflow-level and a job-level
+#: `env` (its "Context availability" table). `runner`, `steps`, `job` and
+#: `env` exist only inside a step. A workflow that uses one of them there is
+#: rejected whole and runs no job: that is how the verification workflow lost
+#: its required `aggregate` check on pull request #11 (functional finding F1
+#: of `workflow-manager-packaged-distribution`).
+WORKFLOW_ENV_CONTEXTS = frozenset({"github", "secrets", "inputs", "vars"})
+JOB_ENV_CONTEXTS = frozenset({"github", "needs", "strategy", "matrix", "vars", "secrets", "inputs"})
+_EXPRESSION = re.compile(r"\$\{\{(.*?)\}\}", re.S)
+_STRING_LITERAL = re.compile(r"'(?:[^']|'')*'")
+_CONTEXT_ROOT = re.compile(r"(?<![\w.])([A-Za-z_][\w-]*)\s*(?=[.\[])")
+
+
+def _contexts(value) -> set[str]:
+    """The context names an `env` value's `${{ }}` expressions dereference."""
+    roots: set[str] = set()
+    for expression in _EXPRESSION.findall(str(value)):
+        roots.update(_CONTEXT_ROOT.findall(_STRING_LITERAL.sub("''", expression)))
+    return roots
+
+
+def env_context_violations(workflow: dict) -> list[str]:
+    """Every workflow-level or job-level `env` entry using a context GitHub does not admit there."""
+    found = []
+    for name, value in (workflow.get("env") or {}).items():
+        for context in sorted(_contexts(value) - WORKFLOW_ENV_CONTEXTS):
+            found.append(f"env.{name}: {context}")
+    for job_id, job in (workflow.get("jobs") or {}).items():
+        for name, value in (job.get("env") or {}).items():
+            for context in sorted(_contexts(value) - JOB_ENV_CONTEXTS):
+                found.append(f"jobs.{job_id}.env.{name}: {context}")
+    return found
+
+
+class TestEnvExpressionContexts(unittest.TestCase):
+    def test_every_workflow_uses_only_admitted_contexts_in_workflow_and_job_env(self):
+        workflows = sorted(WORKFLOWS.glob("*.yml"))
+        self.assertTrue(workflows)
+        for path in workflows:
+            with self.subTest(workflow=path.name):
+                self.assertEqual(env_context_violations(_workflow(path)), [])
+
+    def test_a_runner_context_in_a_job_env_is_reported(self):
+        text = VERIFY_WORKFLOW.read_text(encoding="utf-8")
+        marker = "  plan:\n    runs-on: ubuntu-latest\n"
+        self.assertIn(marker, text)
+        mutated = text.replace(marker, marker + "    env:\n      CACHE: ${{ runner.temp }}/cache\n", 1)
+        self.assertEqual(env_context_violations(runner_tests.load_workflow_yaml(mutated)),
+                         ["jobs.plan.env.CACHE: runner"])
+
+    def test_admitted_contexts_and_string_literals_are_not_reported(self):
+        workflow = {
+            "env": {"A": "${{ github.sha }}", "B": "${{ vars.X || 'runner.temp' }}"},
+            "jobs": {"j": {"env": {"C": "${{ matrix.shard }}-${{ needs.plan.outputs.shards }}",
+                                   "D": "${{ hashFiles('a/b.json') }}", "E": "plain"}}},
+        }
+        self.assertEqual(env_context_violations(workflow), [])
+
+    def test_step_only_contexts_are_reported_at_both_levels(self):
+        workflow = {"env": {"A": "${{ runner.os }}"},
+                    "jobs": {"j": {"env": {"B": "${{ steps.x.outputs.y }}", "C": "${{ env.Z }}"}}}}
+        self.assertEqual(env_context_violations(workflow),
+                         ["env.A: runner", "jobs.j.env.B: steps", "jobs.j.env.C: env"])
 
 
 # -- T-PRT-1: the title workflow ------------------------------------------------------------

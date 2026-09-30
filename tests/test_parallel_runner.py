@@ -4905,8 +4905,15 @@ def ci_workflow_problems(doc: dict) -> list[str]:
              f"{name}: python is not 3.12")
         need(bool(steps) and "with" not in steps[0],
              f"{name}: the checkout is configured (no test needs history since M2)")
-        need((job.get("env") or {}).get("WORKFLOW_MANAGER_RELEASE_CACHE") == CI_RELEASE_CACHE,
-             f"{name}: WORKFLOW_MANAGER_RELEASE_CACHE is not {CI_RELEASE_CACHE} at job level")
+        # GitHub has no `runner` context in a job-level `env`: a job that sets
+        # the cache there is rejected with the whole workflow (functional
+        # finding F1). The step that runs the tests sets it instead.
+        need("WORKFLOW_MANAGER_RELEASE_CACHE" not in (job.get("env") or {}),
+             f"{name}: WORKFLOW_MANAGER_RELEASE_CACHE is set at job level, where GitHub has no runner context")
+        test_steps = [s for s in steps if "tests/run_all.py" in (s.get("run") or "")]
+        need(bool(test_steps) and all((s.get("env") or {}).get("WORKFLOW_MANAGER_RELEASE_CACHE")
+                                      == CI_RELEASE_CACHE for s in test_steps),
+             f"{name}: the run_all.py step does not set WORKFLOW_MANAGER_RELEASE_CACHE to {CI_RELEASE_CACHE}")
         restores = [i for i, s in enumerate(steps)
                     if (s.get("uses") or "").split("@")[0] == "actions/cache"]
         runners = [i for i, s in enumerate(steps) if "tests/run_all.py" in (s.get("run") or "")]
@@ -4967,12 +4974,14 @@ def run_ci_step(scratch_root, job: str, *, runner_temp: Path, env: dict, step_en
     """Run the real workflow's `run_all.py` step of `job` verbatim, the way
     GitHub runs a `run:` step (`bash -e` with pipefail, in the checkout), in a
     scratch checkout with `runner_temp` standing in for `$RUNNER_TEMP`.
-    `step_env` supplies the step's own `env:` values, key for key."""
+    `step_env` supplies the step's own `env:` values, key for key, except
+    `WORKFLOW_MANAGER_RELEASE_CACHE`: the scratch checkout's private cache
+    (`scratch_release_env`) always stands in for it."""
     scratch_root = Path(scratch_root)
     if _same_checkout_as_real(scratch_root):
         raise ValueError(f"run_ci_step refuses the real checkout: {scratch_root}")
     step = ci_run_all_step(ci_workflow(), job)
-    if set(step_env) != set(step.get("env") or {}):
+    if set(step_env) != set(step.get("env") or {}) - {release_source.CACHE_ENV}:
         raise AssertionError(f"{job}: the step's env is {sorted(step.get('env') or {})}, "
                              f"the test supplies {sorted(step_env)}")
     bin_dir = _python3_on_path(Path(runner_temp).parent / "bin")
@@ -5023,7 +5032,13 @@ class TestCiWorkflowStructure(unittest.TestCase):
             "TMPDIR left at /tmp": (re.compile(r'^ *export TMPDIR="\$RUNNER_TEMP/tmp"\n', re.M), ""),
             "an upstream again": ("\njobs:\n", "\nenv:\n  UPSTREAM_URL: x\n\njobs:\n"),
             "a job without the release cache": (
-                re.compile(r"^    env:\n      WORKFLOW_MANAGER_RELEASE_CACHE: .*\n", re.M), ""),
+                "SHARDS: ${{ inputs.shards }}\n"
+                "          WORKFLOW_MANAGER_RELEASE_CACHE: ${{ runner.temp }}/workflow-manager-releases\n",
+                "SHARDS: ${{ inputs.shards }}\n"),
+            "the release cache at job level again": (
+                "  plan:\n    runs-on: ubuntu-latest\n",
+                "  plan:\n    runs-on: ubuntu-latest\n    env:\n"
+                "      WORKFLOW_MANAGER_RELEASE_CACHE: ${{ runner.temp }}/workflow-manager-releases\n"),
             "a cache key off the pins": ("hashFiles('src/workflow_manager/published_releases.json')",
                                          "hashFiles('pyproject.toml')"),
             "no cache restore before a run": (

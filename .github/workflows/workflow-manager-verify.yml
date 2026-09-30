@@ -55,8 +55,6 @@ jobs:
   plan:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    env:
-      WORKFLOW_MANAGER_RELEASE_CACHE: ${{ runner.temp }}/workflow-manager-releases
     outputs:
       shards: ${{ steps.plan.outputs.shards }}
     steps:
@@ -73,6 +71,7 @@ jobs:
         id: plan
         env:
           SHARDS: ${{ inputs.shards }}
+          WORKFLOW_MANAGER_RELEASE_CACHE: ${{ runner.temp }}/workflow-manager-releases
         run: |
           mkdir -p "$RUNNER_TEMP/tmp"
           export TMPDIR="$RUNNER_TEMP/tmp"
@@ -93,8 +92,6 @@ jobs:
       fail-fast: false
       matrix:
         shard: ${{ fromJSON(needs.plan.outputs.shards) }}
-    env:
-      WORKFLOW_MANAGER_RELEASE_CACHE: ${{ runner.temp }}/workflow-manager-releases
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -112,6 +109,7 @@ jobs:
       - name: Run shard
         env:
           SHARD: ${{ matrix.shard }}
+          WORKFLOW_MANAGER_RELEASE_CACHE: ${{ runner.temp }}/workflow-manager-releases
         run: |
           mkdir -p "$RUNNER_TEMP/tmp"
           export TMPDIR="$RUNNER_TEMP/tmp"
@@ -156,8 +154,6 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    env:
-      WORKFLOW_MANAGER_RELEASE_CACHE: ${{ runner.temp }}/workflow-manager-releases
     steps:
       - name: Require the plan and package jobs
         id: needs
@@ -187,6 +183,8 @@ jobs:
           pattern: results-shard-*
           path: ${{ runner.temp }}/out/
       - name: Aggregate
+        env:
+          WORKFLOW_MANAGER_RELEASE_CACHE: ${{ runner.temp }}/workflow-manager-releases
         run: |
           mkdir -p "$RUNNER_TEMP/tmp"
           export TMPDIR="$RUNNER_TEMP/tmp"

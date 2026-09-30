@@ -398,9 +398,11 @@ plan's shard list becomes the `shard` matrix; nothing in the file names a
 shard. Each shard job runs one shard (`--run-shard`) and uploads its
 results. The `aggregate` job verifies every result against the plan, runs
 phase B and reports. Every file the tooling writes lives under
-`$RUNNER_TEMP`. Every job that runs tests, and the `package` job, sets
-`WORKFLOW_MANAGER_RELEASE_CACHE` to `${{ runner.temp }}/workflow-manager-releases`
-and restores that directory with `actions/cache`, keyed on the hash of
+`$RUNNER_TEMP`. In every job that runs tests, and in the `package` job, the
+step that runs them sets `WORKFLOW_MANAGER_RELEASE_CACHE` to
+`${{ runner.temp }}/workflow-manager-releases` (a step-level `env`: GitHub has
+no `runner` context in a job-level one, and rejects the whole workflow for
+it), and the job restores that directory with `actions/cache`, keyed on the hash of
 `src/workflow_manager/published_releases.json`, before priming; a normal run
 downloads nothing. The dispatch input
 `shards` overrides the count, so `shards=1` is the single-shard reference,
