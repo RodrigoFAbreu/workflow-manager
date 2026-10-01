@@ -31,7 +31,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-import support  # noqa: F401 -- puts src/ on sys.path, bytecode off
+import support  # puts src/ on sys.path, bytecode off
 from support import REPO_ROOT
 
 import test_parallel_runner as tpr
@@ -42,7 +42,12 @@ from workflow_manager.fixture import (
     init_git_repo,
 )
 
-FROZEN_260_SCRIPTS = REPO_ROOT / "distribution" / "workflow" / "2.6.0" / "payload" / "scripts"
+FROZEN_VERSION = "2.6.0"
+
+
+def _frozen_scripts() -> Path:
+    """The pinned release's `payload/scripts/`, from its verified snapshot."""
+    return support.release(FROZEN_VERSION).root / "payload" / "scripts"
 
 #: What neutralises every inherited Git setting a test must not see: the
 #: operator's `GIT_CONFIG_*` series and `-c` parameters, a template, and the
@@ -372,7 +377,7 @@ class _FrozenCloneCase(_Tmp):
                 del os.environ[name]
             os.environ.update(overrides)
             out = subprocess.run(
-                [sys.executable, "-B", "-c", _MATERIALIZE, str(FROZEN_260_SCRIPTS),
+                [sys.executable, "-B", "-c", _MATERIALIZE, str(_frozen_scripts()),
                  str(self.source), self.commit],
                 check=True, capture_output=True, text=True, cwd=str(self.tmp)).stdout
         clone = Path(out.strip().splitlines()[-1])
@@ -401,11 +406,10 @@ class TestFrozenEvidenceClone(_FrozenCloneCase):
         self.assertEqual(without, {key: None for key in THROWAWAY_GIT_CONFIG})
 
     def test_the_frozen_payload_is_untouched(self):
-        before = _tree(FROZEN_260_SCRIPTS)
+        before = _tree(_frozen_scripts())
         self.materialize(self.template)
-        self.assertEqual(_tree(FROZEN_260_SCRIPTS), before)
-        status = git(REPO_ROOT, "status", "--porcelain", "--", str(FROZEN_260_SCRIPTS)).stdout
-        self.assertEqual(status, "")
+        self.assertEqual(_tree(_frozen_scripts()), before)
+        self.assertEqual(support.release(FROZEN_VERSION).verify(), [])
 
 
 # -- T-QG-4: the static routing check ---------------------------------------------------------
@@ -1378,7 +1382,8 @@ class TestFrozenDeclarationThroughTheModes(_ModesCase):
         unit = f"{tpr.SCRATCH_FROZEN_SUITE}::TestBeta"
         scratch = tpr.scratch_checkout(self.tmp / "scratch",
                                        resources=_scratch_resources(**{unit: "r"}))
-        inv = inventory.discover(scratch)
+        with mock.patch.dict(os.environ, tpr.scratch_release_env(scratch)):
+            inv = inventory.discover(scratch)
         self.assertIn(unit, inv.unit_ids())
         plan = planner.plan_checkout(scratch, inv, inventory.select(inv.host, [unit], inv.frozen),
                                      profile="local")

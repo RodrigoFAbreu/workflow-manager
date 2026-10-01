@@ -6,9 +6,9 @@ directly from the release. This suite runs it against a repository produced by
 `install.bootstrap` -- the code a real consumer would run -- and then puts that
 repository through an update cycle with live work-item state in it.
 
-Slow (~2 minutes per release): `TestBootstrappedRepositorySatisfiesTheFrozen
-Suite231`/`240` (CP6) each drive the frozen acceptance matrix once, against a
-repository bootstrapped from `2.3.1` and from `2.4.0` respectively.
+Slow (~2 minutes): `TestBootstrappedRepositorySatisfiesTheFrozenSuite`
+drives the frozen acceptance matrix once, against a repository bootstrapped
+from `NEWEST_RELEASE`, the newest pinned release (plan 7.1).
 
 The matrix classes' frozen-suite results come from `tests/frozen_runs.py`:
 run here in `setUpClass`, one repository, every suite in order (direct mode,
@@ -26,13 +26,20 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from support import CI_SUITES, REPO_ROOT, expected_portability_exceptions
+import support
+from support import (
+    CI_SUITES,
+    NEWEST_RELEASE,
+    REPO_ROOT,
+    cli_env,
+    expected_portability_exceptions,
+)
 
 from frozen_runs import FIXED_NOW, open_matrix_run
 from frozen_runs import empty_repo as _empty_repo
 from workflow_manager.install import bootstrap, update, verify
 from workflow_manager.installation import Installation
-from workflow_manager.release import find_release, sha256
+from workflow_manager.release import sha256
 
 
 def _git(repo: Path, *args: str) -> str:
@@ -42,12 +49,15 @@ def _git(repo: Path, *args: str) -> str:
 
 class _BootstrappedRepositorySatisfiesTheFrozenSuiteAssertions:
     """Shared assertions for `TestBootstrappedRepositorySatisfiesTheFrozen
-    Suite*`, parameterized per release by `WORKFLOW_VERSION` -- mirrors
+    Suite` and `test_update_path.py`'s `TestUpdatedRepositorySatisfiesThe
+    FrozenSuite`, parameterized by `WORKFLOW_VERSION` and `FIXTURE` -- mirrors
     `test_conformance_suite.py`'s own mixin shape and reasoning (a plain
     mixin, never itself a `unittest.TestCase`, so the shared body is never
     discovered and run on its own with no `WORKFLOW_VERSION` to bootstrap)."""
 
     WORKFLOW_VERSION: str
+    #: The `frozen_runs.FIXTURE_BUILDERS` entry that builds the repository.
+    FIXTURE = "bootstrapped"
 
     @classmethod
     def setUpClass(cls):
@@ -56,7 +66,7 @@ class _BootstrappedRepositorySatisfiesTheFrozenSuiteAssertions:
         # `frozen_runs.MergedResult`, run here (direct mode) or merged from
         # chunk records (merged mode), and the post-run residue and drift
         # travel with each suite's result.
-        cls.matrix_run = open_matrix_run(cls.WORKFLOW_VERSION, "bootstrapped")
+        cls.matrix_run = open_matrix_run(cls.WORKFLOW_VERSION, cls.FIXTURE)
         cls.release = cls.matrix_run.release
         cls.target = cls.matrix_run.root
         cls.results = cls.matrix_run.results
@@ -127,66 +137,23 @@ class _BootstrappedRepositorySatisfiesTheFrozenSuiteAssertions:
         self.assertEqual(ignorable, [])
 
 
-class TestBootstrappedRepositorySatisfiesTheFrozenSuite231(
+class TestBootstrappedRepositorySatisfiesTheFrozenSuite(
     _BootstrappedRepositorySatisfiesTheFrozenSuiteAssertions, unittest.TestCase,
 ):
-    """The gate: what the bootstrapper produces behaves like frozen v2.3.1.
-    Unchanged by CP6."""
+    """The gate: what the bootstrapper produces from the newest pinned
+    release behaves like that frozen release."""
 
-    WORKFLOW_VERSION = "2.3.1"
-
-
-class TestBootstrappedRepositorySatisfiesTheFrozenSuite240(
-    _BootstrappedRepositorySatisfiesTheFrozenSuiteAssertions, unittest.TestCase,
-):
-    """CP6's own explicit obligation: the same bootstrapped-repository gate,
-    a second time, against `2.4.0`'s own authored release -- `bootstrap()`
-    against an authored (not merely upstream-extracted) manifest is itself
-    part of what this proves (D-Authored-Release-5)."""
-
-    WORKFLOW_VERSION = "2.4.0"
-
-
-class TestBootstrappedRepositorySatisfiesTheFrozenSuite250(
-    _BootstrappedRepositorySatisfiesTheFrozenSuiteAssertions, unittest.TestCase,
-):
-    """workflow-2.5.0's own CP11 obligation, mirroring `TestBootstrappedRepository
-    SatisfiesTheFrozenSuite240` exactly: the same bootstrapped-repository
-    gate, a third time, against `2.5.0`'s own authored release."""
-
-    WORKFLOW_VERSION = "2.5.0"
-
-
-class TestBootstrappedRepositorySatisfiesTheFrozenSuite251(
-    _BootstrappedRepositorySatisfiesTheFrozenSuiteAssertions, unittest.TestCase,
-):
-    """workflow-2.5.1's own CP2 obligation
-    (`D-Checkpoint-Id-Anchor-Grammar-Widening`), mirroring `TestBootstrappedRepository
-    SatisfiesTheFrozenSuite250` exactly: the same bootstrapped-repository
-    gate, a fourth time, against `2.5.1`'s own authored release."""
-
-    WORKFLOW_VERSION = "2.5.1"
-
-
-class TestBootstrappedRepositorySatisfiesTheFrozenSuite260(
-    _BootstrappedRepositorySatisfiesTheFrozenSuiteAssertions, unittest.TestCase,
-):
-    """workflow-2.6.0's own CP7 obligation
-    (workflow-review-artifact-and-concurrency-hardening), mirroring
-    `TestBootstrappedRepositorySatisfiesTheFrozenSuite251` exactly: the same
-    bootstrapped-repository gate, a fifth time, against `2.6.0`'s own
-    authored release."""
-
-    WORKFLOW_VERSION = "2.6.0"
+    WORKFLOW_VERSION = NEWEST_RELEASE
 
 
 class TestUpdatePreservesLiveWorkItemState(unittest.TestCase):
-    """An update must not cost a repository its work."""
+    """An update must not cost a repository its work. A Manager behaviour,
+    not an old release's, so it follows the newest pin."""
 
     @classmethod
     def setUpClass(cls):
         cls._tmp = tempfile.TemporaryDirectory()
-        cls.release = find_release(REPO_ROOT, "2.3.1")
+        cls.release = support.release(NEWEST_RELEASE)
         cls.target = _empty_repo(Path(cls._tmp.name) / "consumer")
         bootstrap(cls.target, cls.release, now=FIXED_NOW)
 
@@ -199,7 +166,7 @@ class TestUpdatePreservesLiveWorkItemState(unittest.TestCase):
 
     def _write_live_state(self) -> str:
         """A work item written through the *installed* module, so the bytes are
-        whatever frozen v2.3.1 would really produce."""
+        whatever the installed frozen release would really produce."""
         scripts = str(self.target / "scripts")
         script = (
             "import sys, json\n"
@@ -269,24 +236,18 @@ class TestCliDrivesTheSameOperations(unittest.TestCase):
     def _cli(self, *args):
         return subprocess.run(
             [sys.executable, "-m", "workflow_manager", *args],
-            cwd=str(REPO_ROOT), capture_output=True, text=True,
-            env={"PYTHONPATH": str(REPO_ROOT / "src"), "PATH": "/usr/bin:/bin",
-                 "HOME": str(Path.home())},
+            cwd=str(REPO_ROOT), capture_output=True, text=True, env=cli_env(),
         )
 
     def test_status_bootstrap_verify_uninstall_round_trip(self):
         before = self._cli("status", str(self.target))
         self.assertIn("not a managed repository", before.stdout)
 
-        # `find_release`'s own documented contract: an unpinned `bootstrap`
-        # means "the current release" -- the newest one present, not a
-        # literal pinned to whatever was newest when this test was written
-        # (CP6, D-Authored-Release-4: adding `distribution/workflow/2.4.0/`
-        # is exactly the kind of "just add a directory" change this
-        # defaulting exists to absorb without a test edit here -- so this
-        # asserts against the same live default the CLI itself resolves,
-        # not a second, drifting copy of it).
-        default_version = find_release(REPO_ROOT).version
+        # A `bootstrap` with no `--release-version` installs the newest
+        # pinned release (plan 5.5), not a literal pinned to whatever was
+        # newest when this test was written: pinning a new release is
+        # absorbed here with no edit.
+        default_version = NEWEST_RELEASE
         created = self._cli("bootstrap", str(self.target))
         self.assertEqual(created.returncode, 0, created.stderr)
         self.assertIn(f"bootstrapped workflow {default_version}", created.stdout)

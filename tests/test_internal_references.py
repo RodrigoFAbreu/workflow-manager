@@ -16,9 +16,10 @@ import json
 import re
 import unittest
 
+import support
 from support import CI_SUITES, REPO_ROOT, expected_portability_exceptions
 
-from workflow_manager.release import STATE_TEMPLATES, find_release, sha256
+from workflow_manager.release import STATE_TEMPLATES, sha256
 
 #: Paths the Workflow creates at run time. Absent from a fresh install by
 #: design -- `.ai-review/` is git-ignored, and per-work-item declarations are
@@ -95,7 +96,7 @@ NARRATIVE_DOCS_EXCLUDED_FROM_RESOLUTION = tuple(
 
 class ReferenceCase(unittest.TestCase):
     def setUp(self):
-        self.release = find_release(REPO_ROOT, "2.3.1")
+        self.release = support.release("2.3.1")
         self.shipped = {a.target_path for a in self.release.payload_artifacts("full")}
         self.generated = {t["target_path"] for t in self.release.templates()}
         self.generated |= set(STATE_TEMPLATES)
@@ -365,9 +366,7 @@ class TestMigrationEvidenceManifestFieldsMatchShippedManifest(unittest.TestCase)
         return (REPO_ROOT / "docs" / "MIGRATION.md").read_text()
 
     def _manifest(self) -> dict:
-        return json.loads(
-            (REPO_ROOT / "distribution/workflow/2.4.0/manifest.json").read_text()
-        )
+        return json.loads(support.release("2.4.0").read("manifest.json"))
 
     def test_provenance_row_matches_shipped_manifest(self):
         match = self._PROVENANCE_ROW_RE.search(self._migration_text())
@@ -426,9 +425,7 @@ class TestAuthoredReleaseMigrationRecordMatchesShippedEvidence(unittest.TestCase
         return match
 
     def _manifest(self, version: str) -> dict:
-        return json.loads(
-            (REPO_ROOT / "distribution" / "workflow" / version / "manifest.json").read_text()
-        )
+        return json.loads(support.release(version).read("manifest.json"))
 
     def test_base_release_row_matches_shipped_manifest(self):
         for version in self.RELEASES:
@@ -685,6 +682,228 @@ _STDLIB = frozenset(
     "stat", "subprocess", "sys", "tarfile", "tempfile", "threading", "time",
     "types", "typing", "unittest", "uuid", "xml",
 })
+
+
+
+#: Test modules M2's CP6 deleted, with `distribution/` and `migration/`
+#: (plan 10, CP6). No kept test names one (`TestNoTestNamesARetiredModule`).
+RETIRED_MODULES = frozenset({
+    "test_payload_bytes.py", "test_templates.py", "test_migration_inventory.py",
+    "test_no_live_state_imported.py", "test_amendment_update_path.py",
+    "test_implementation_review_two_stage_disposable_repo.py", "test_stopgap_profile.py",
+    "test_authored_release_tools.py", "test_package_round_trip.py",
+})
+#: The deprecated runner alias's identifiers, which CP6 removed with it.
+RETIRED_FAST_IDENTIFIERS = ("FAST_ALIAS_SELECTION", "FAST_NOTE", "args.fast", "--fast")
+
+#: `(module, top-level class or assignment, lifetime)`: the only places a
+#: scanned module may name the layout. A stale entry fails the test.
+LAYOUT_EXEMPTIONS = (
+    # The deprecated `--manager-root` alias reads a checkout's old layout; its
+    # tests build that layout themselves.
+    ("test_bootstrap.py", "TestManagerRootAlias", "while the alias exists"),
+    # Regexes over `docs/MIGRATION.md`'s historical text, not lookups.
+    ("test_internal_references.py", "TestMigrationEvidenceManifestFieldsMatchShippedManifest",
+     "permanent"),
+    ("test_internal_references.py", "TestAuthoredReleaseMigrationRecordMatchesShippedEvidence",
+     "permanent"),
+)
+
+LAYOUT_API = ("find_release", "available_versions", "release_root")
+#: Built, not written, so this module's own text never names the layout.
+LAYOUT_TEXT = "/".join(["distribution"] + ["workflow"])
+LAYOUT_COMPONENTS = re.compile(r"""["']distribution["']\s*[/,]\s*["']workflow["']""")
+
+
+def _scanned_test_files() -> list[Path]:
+    """Every `tests/**/*.py`, the infrastructure included."""
+    return [path for path in sorted((REPO_ROOT / "tests").rglob("*.py"))
+            if "__pycache__" not in path.parts]
+
+
+def _layout_scopes(tree: ast.Module) -> dict[str, tuple[int, int]]:
+    """`{scope name: (first line, last line)}` for every top-level class,
+    top-level assignment, and `from <module> import ...` (as
+    `import:<module>`)."""
+    scopes = {}
+    for node in tree.body:
+        if isinstance(node, ast.ClassDef):
+            scopes[node.name] = (node.lineno, node.end_lineno)
+        elif isinstance(node, ast.Assign):
+            for target in node.targets:
+                if isinstance(target, ast.Name):
+                    scopes[target.id] = (node.lineno, node.end_lineno)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            scopes[f"import:{node.module}"] = (node.lineno, node.end_lineno)
+    return scopes
+
+
+def layout_references(text: str) -> list[tuple[int, str]]:
+    """`(line, what)` for every way `text` resolves a release through the
+    checkout layout: importing the discovery API, or naming the release
+    directory, as a path string or as path components, comments included."""
+    found = []
+    for number, line in enumerate(text.splitlines(), 1):
+        if LAYOUT_TEXT in line or LAYOUT_COMPONENTS.search(line):
+            found.append((number, "names the release-directory layout"))
+    for node in ast.walk(ast.parse(text)):
+        if isinstance(node, ast.ImportFrom):
+            for alias in node.names:
+                if alias.name in LAYOUT_API:
+                    found.append((node.lineno, f"imports {alias.name}"))
+    return sorted(found)
+
+
+class TestNoTestResolvesAReleaseThroughTheLayout(unittest.TestCase):
+    """M2's CP5 (plan 10): every test obtains a release through the pins and
+    the cache (`support.release`), never through the checkout's release
+    directories.
+    Scans every `tests/**/*.py`."""
+
+    def scanned(self):
+        return _scanned_test_files()
+
+    def test_no_scanned_module_names_the_layout_outside_its_exemptions(self):
+        exempt: dict[str, list[str]] = {}
+        for module, scope, _lifetime in LAYOUT_EXEMPTIONS:
+            exempt.setdefault(module, []).append(scope)
+        violations = []
+        for path in self.scanned():
+            text = path.read_text(encoding="utf-8")
+            scopes = _layout_scopes(ast.parse(text))
+            spans = [scopes[s] for s in exempt.get(path.name, ()) if s in scopes]
+            for line, what in layout_references(text):
+                if not any(first <= line <= last for first, last in spans):
+                    violations.append(f"{path.relative_to(REPO_ROOT)}:{line}: {what}")
+        self.assertEqual(violations, [])
+
+    def test_every_exemption_names_something_that_exists_and_still_needs_it(self):
+        for module, scope, lifetime in LAYOUT_EXEMPTIONS:
+            with self.subTest(module=module, scope=scope):
+                self.assertIn(lifetime, ("while the alias exists", "permanent"))
+                text = (REPO_ROOT / "tests" / module).read_text(encoding="utf-8")
+                scopes = _layout_scopes(ast.parse(text))
+                self.assertIn(scope, scopes, "stale exemption: nothing by that name")
+                first, last = scopes[scope]
+                self.assertTrue(any(first <= line <= last
+                                    for line, _ in layout_references(text)),
+                                "stale exemption: its scope no longer names the layout")
+
+    def test_the_scan_catches_each_form(self):
+        cases = {
+            "from workflow_manager.release import find_release\n": "imports find_release",
+            "from workflow_manager.release import (\n    Release,\n    release_root,\n)\n":
+                "imports release_root",
+            f"# see {LAYOUT_TEXT}/2.6.0\n": "names the release-directory layout",
+            f"p = ROOT / {'distribution'!r} / {'workflow'!r}\n":
+                "names the release-directory layout",
+            f"p = os.path.join(ROOT, {'distribution'!r}, {'workflow'!r})\n":
+                "names the release-directory layout",
+        }
+        for text, what in cases.items():
+            with self.subTest(text=text):
+                self.assertIn(what, [w for _, w in layout_references(text)])
+        self.assertEqual(layout_references("support.release(NEWEST_RELEASE)\n"), [])
+
+    def test_the_scan_covers_the_infrastructure(self):
+        names = {path.relative_to(REPO_ROOT / "tests").as_posix() for path in self.scanned()}
+        for required in ("support.py", "frozen_runs.py", "parallel/inventory.py",
+                         "parallel/matrix.py", "test_parallel_runner.py"):
+            self.assertIn(required, names)
+
+
+#: `(module, scope)`: the only places a kept test may name a retired module or
+#: an identifier of the retired runner alias. A scope is a top-level name, or
+#: `Class.method` for a method. A stale entry fails the test.
+RETIRED_NAME_EXEMPTIONS = (
+    # The lists themselves.
+    ("test_internal_references.py", "RETIRED_MODULES"),
+    ("test_internal_references.py", "RETIRED_FAST_IDENTIFIERS"),
+    # The runner test that the flag is now an unrecognized argument.
+    ("test_parallel_runner.py", "TestDirectEntryPoints.test_the_retired_alias_is_refused"),
+)
+
+
+def _retired_name_scopes(tree: ast.Module) -> dict[str, tuple[int, int]]:
+    """`_layout_scopes`, plus `Class.method` for every top-level class's methods."""
+    scopes = _layout_scopes(tree)
+    for node in tree.body:
+        if isinstance(node, ast.ClassDef):
+            for item in node.body:
+                if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    scopes[f"{node.name}.{item.name}"] = (item.lineno, item.end_lineno)
+    return scopes
+
+
+def retired_name_references(text: str) -> list[tuple[int, str]]:
+    """`(line, name)` for every retired module or retired alias identifier `text`
+    names, in code or comments."""
+    names = sorted(RETIRED_MODULES) + list(RETIRED_FAST_IDENTIFIERS)
+    return [(number, name) for number, line in enumerate(text.splitlines(), 1)
+            for name in names if name in line]
+
+
+class TestNoTestNamesARetiredModule(unittest.TestCase):
+    """M2's CP6 (plan 10): no kept `tests/**/*.py` names, in code or comments,
+    a module CP6 deleted or an identifier of the runner alias it removed, so a
+    missed reference fails here by name."""
+
+    def test_no_kept_test_names_a_retired_module_or_identifier(self):
+        exempt: dict[str, list[str]] = {}
+        for module, scope in RETIRED_NAME_EXEMPTIONS:
+            exempt.setdefault(module, []).append(scope)
+        violations = []
+        for path in _scanned_test_files():
+            text = path.read_text(encoding="utf-8")
+            scopes = _retired_name_scopes(ast.parse(text))
+            spans = [scopes[s] for s in exempt.get(path.name, ()) if s in scopes]
+            for line, name in retired_name_references(text):
+                if not any(first <= line <= last for first, last in spans):
+                    violations.append(f"{path.relative_to(REPO_ROOT)}:{line}: {name}")
+        self.assertEqual(violations, [])
+
+    def test_the_retired_modules_are_gone(self):
+        for name in sorted(RETIRED_MODULES):
+            with self.subTest(module=name):
+                self.assertEqual(list((REPO_ROOT / "tests").rglob(name)), [])
+
+    def test_every_exemption_names_something_that_still_needs_it(self):
+        for module, scope in RETIRED_NAME_EXEMPTIONS:
+            with self.subTest(module=module, scope=scope):
+                text = (REPO_ROOT / "tests" / module).read_text(encoding="utf-8")
+                scopes = _retired_name_scopes(ast.parse(text))
+                self.assertIn(scope, scopes, "stale exemption: nothing by that name")
+                first, last = scopes[scope]
+                self.assertTrue(any(first <= line <= last
+                                    for line, _ in retired_name_references(text)),
+                                "stale exemption: its scope no longer names a retired name")
+
+    def test_the_scan_catches_a_module_and_each_identifier(self):
+        module = sorted(RETIRED_MODULES)[0]
+        self.assertEqual(retired_name_references(f"# see {module}\n"), [(1, module)])
+        for name in RETIRED_FAST_IDENTIFIERS:
+            with self.subTest(name=name):
+                self.assertIn(name, [n for _, n in retired_name_references(f"x = {name!r}\n")])
+        self.assertEqual(retired_name_references("run_all.py --select test_bootstrap.py\n"), [])
+
+
+class TestNoLiteralCliEnvironment(unittest.TestCase):
+    """Plan 7.1: a test that starts a `workflow_manager` subprocess takes its
+    environment from `support.cli_env`, which always names the primed release
+    cache -- never a literal `env={...}`, which would drop it."""
+
+    def test_no_workflow_manager_subprocess_gets_a_literal_env(self):
+        offenders = []
+        for path in sorted((REPO_ROOT / "tests").glob("test_*.py")):
+            text = path.read_text(encoding="utf-8")
+            for node in ast.walk(ast.parse(text)):
+                if not isinstance(node, ast.Call):
+                    continue
+                env = next((k.value for k in node.keywords if k.arg == "env"), None)
+                if isinstance(env, ast.Dict) and \
+                        "workflow_manager" in (ast.get_source_segment(text, node) or ""):
+                    offenders.append(f"{path.name}:{node.lineno}")
+        self.assertEqual(offenders, [])
 
 
 if __name__ == "__main__":

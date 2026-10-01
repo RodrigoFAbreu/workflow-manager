@@ -4,6 +4,15 @@ This is the Phase-A record: what was extracted from the frozen upstream
 release, what was not, and how that is proven. It is written to be read
 without any conversation context.
 
+It is a historical record. M2 (`workflow-manager-packaged-distribution`)
+turned every release below into a published, pinned package and removed
+`distribution/`, `migration/`, `tools/migrate.py`, `tools/build_release.py`
+and the tests that checked them; see "M2 -- the trees leave this repository"
+at the end. Every path this record names under those trees, and every
+retired test module it cites, is in Git at `ec38979`, the last commit that
+carries them (`git show ec38979:<path>`). `migration/portability_exceptions.json`
+lives on, unchanged, as `tests/portability_exceptions.json`.
+
 ## The frozen source
 
 | | |
@@ -286,3 +295,109 @@ git dir), so a downgrade fails silently, not loudly. Running mixed
 releases across linked worktrees is unsupported for the same reason.
 `CLAUDE.md`'s "Adding an authored Workflow release" states both as operator
 instructions.
+
+## Packaged releases -- the five packages (M2, CP4)
+
+Every release above is published as a package (plan
+`docs/ai-workflow/WORKFLOW_MANAGER_PACKAGED_DISTRIBUTION_PLAN.md`, 5.1 and
+6): `workflow-<v>.tar.gz`, `workflow-<v>.manifest.json` and
+`SHA256SUMS`. The packages were built from the base's **committed** tree,
+never the working tree:
+
+    python3 tools/workflow_packages.py build --commit ec38979 --out <dir> \
+        --pins src/workflow_manager/published_releases.json --prime
+
+`--commit ec38979` extracts `git archive ec38979 distribution/workflow`
+into a scratch directory. Each package was built twice, and the two builds'
+three assets were byte-identical. Each was then extracted and compared with
+its committed `distribution/workflow/<v>/` tree: the same file set, the same
+bytes and the same modes, nothing more and nothing less (INV-1). The archive
+and manifest digests are the Manager's pins
+(`src/workflow_manager/published_releases.json`, `D-Pins`), and
+`sha256sum -c --strict SHA256SUMS` passes in every package directory.
+`--prime` filled the default release cache
+(`~/.cache/workflow-manager/releases`) from the built packages through
+`ReleaseCache.ensure`, so every entry passed the same pin and
+`SHA256SUMS` checks as a download. These cached assets are the ones the
+cutover publishes (plan 9, `K2`). Two consecutive builds gave identical
+output directories (`diff -r`).
+
+| version | files | archive sha256 | manifest sha256 | uncompressed tar sha256 | round trip |
+| --- | --- | --- | --- | --- | --- |
+| 2.3.1 | 67 | `1e732b957dd8cc8119d1f05b197ac96f6d9278877764cb2d9e9acdaae9f6dbd3` | `f9e14159e0f2db11366d526d7e01d7da6de152b2034227e178b6c7768302d32e` | `c1418a367d5801625ed557173f05c2e9b2325846765b7fbb10e4934095ec20d0` | identical |
+| 2.4.0 | 68 | `097fb7145dd56091529aa2cf7bf0303345776fd00e11c04b0df6bfbc11f4f7d2` | `84b6407aa2c3d70c0cfd7270c180b3ecd3286629e5273632e17c3510ddbd707a` | `845c2e6cf27ca63abdc17678b56f60d6140d75fca2a4d222b45a3a6db66aac2e` | identical |
+| 2.5.0 | 70 | `d1112f852216e5506290a46c5186d412fc0195619bbce493ede8cb32b430392f` | `3886c7f7e62c4ef00d910fc0f66976c3d9d96d5e16a4af09e1e7a97b0c43ff19` | `1fdc7f10edffe285b2d153cfd50cc8c7d67ab20aca526646c4c482987b37b69d` | identical |
+| 2.5.1 | 70 | `8427d895e2e6f9f77e18042128342e95d22b2469bab43a49baa3d8043f948b4e` | `917a1b00fd699cec57eebdb34548dc96c2b258482ca13c6fcebf37a08fcb8e73` | `8d4abcecfa2c97877736c4bbd2fb708c548d76fac807b9af8c6165e9731e8be2` | identical |
+| 2.6.0 | 70 | `dc86a7965949c5da9cb7a9d8f2999b138828245aa835bf7c79887e7352e99f61` | `d92517a27a9287b3edc40636d427a6935954f7090a2578ad055979620f84fc2e` | `1b8a3e790dee2ffc03782c6b2138780aa041b7f59de34864026bb2bdc70ce348` | identical |
+"files" counts every file in the release, `manifest.json` included. The
+uncompressed-tar digest is the sha256 of the gunzipped archive.
+
+`tests/test_package_round_trip.py` re-proved this from the same
+`git archive` extraction on every run from CP4 until CP6 deleted it with
+`distribution/` (the round trip, the byte-identical rebuild, the pins, and
+`TestCheckoutReleasesArePinned`); its last green run is CP5's gate below. Old
+releases are tested once, when they are built.
+`tests/test_published_packages.py`'s `TestPinnedPackagesVerify` is the
+permanent check: each pinned package, obtained through the cache,
+re-verifies against its pin and its own manifest on every run.
+`tools/workflow_packages.py` stays, and can rebuild and re-check the five
+packages from the same commit at any time:
+
+    python3 tools/workflow_packages.py build --commit ec38979 --out <dir> \
+        --pins src/workflow_manager/published_releases.json --check
+
+## M2 -- the trees leave this repository
+
+Plan: `docs/ai-workflow/WORKFLOW_MANAGER_PACKAGED_DISTRIBUTION_PLAN.md`
+(revision 9, approved in `e341c90`), checkpoint CP6.
+
+**`ec38979` is the last commit carrying `distribution/`.** It is M2's base,
+the tree `git archive ec38979 distribution/workflow` packs, and the commit to
+read for any path the records above name. CP6 deleted, in one commit:
+
+- `distribution/` (the five releases) and `migration/` (the classification
+  rulesets and the authored overlays; `portability_exceptions.json` had
+  moved to `tests/` in CP5, every entry unchanged);
+- `tools/migrate.py` and `tools/build_release.py` (`OD-M2-4`). Releases are
+  authored and built in the `workflow` repository from now on, whose tree is
+  the release; it has no overlay mechanism;
+- the stopgap pull-request profile (`tools/ci/`, every `STOPGAP(M2)` block,
+  the verify workflow's profile step, `profile` output and `nightly-alarm`
+  job), and the deprecated `--fast` runner alias;
+- the nine retired test modules: `test_payload_bytes.py`, `test_templates.py`,
+  `test_migration_inventory.py`, `test_no_live_state_imported.py`,
+  `test_amendment_update_path.py`,
+  `test_implementation_review_two_stage_disposable_repo.py`,
+  `test_stopgap_profile.py`, `test_authored_release_tools.py` and
+  `test_package_round_trip.py`. The Phase-A gate table and the authored
+  releases' reproducibility rows above cite several of them; they proved
+  their claims against the committed trees on every run up to CP5, and the
+  claims are about immutable bytes, so the proofs stand.
+
+**Old releases are tested once (`OD-M2-5`).** The full selection now runs
+only the newest pinned release's frozen suites, in the conformance, target
+and bootstrapped fixtures plus a new `updated` fixture (bootstrap the release
+below it, then `update`). The `2.3.1`→`2.4.0` and `2.4.0`→`2.5.0`
+disposable-repository tests are retired with their modules. The `2.6.0`
+hardening test stays, and `test_update_path.py` adds the `2.5.1`→`2.6.0`
+update path.
+
+**v2.3.1-002's repository-level guard is retargeted, not retired.** The
+hardening test's `test_the_repository_level_guards_are_still_registered`
+asserted that `test_amendment_update_path.py`, the `2.3.1`→`2.4.0` update
+suite, is always run. It now asserts the same of `test_update_path.py`, the
+update-path suite that follows the pins: it has host units, and every one of
+them is in the full selection. **The retargeted guard is narrower.** It
+proves the pinned update path (today `2.5.1`→`2.6.0`) runs in the full
+selection, and it no longer covers the `2.3.1`→`2.4.0` suite, which is
+retired. The payload-level v2.3.1-002 regression tests, inside the frozen
+suites, are untouched.
+
+| gate | head | units | tests | wall (local, 8 workers) |
+| --- | --- | --- | --- | --- |
+| base (`ec38979`), for comparison | `ec38979` | | 25,688 | |
+| CP5, the last run with `distribution/` present | `ce03624` + CP5 (committed as `9255a34`) | 1,467 | 8,925 | 274 s |
+| CP6, after the removal | `9255a34` + CP6 (committed as `17a5133`) | 1,409 | 8,737 | 259 s |
+
+Each gate was `python3 tests/run_all.py`, the full selection, exit 0
+(`docs/ACTIVE_MILESTONE.md`, CP5 and CP6).

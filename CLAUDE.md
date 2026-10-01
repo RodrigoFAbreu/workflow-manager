@@ -43,24 +43,32 @@ Guidance for Claude Code in the **workflow-manager** repository.
 
 ## What this repository is
 
-Distribution and bootstrap tooling for the reusable AI development Workflow.
-It is *not* RepFlow, and no RepFlow product work belongs here.
+Installer, bootstrap and update tooling for the reusable AI development
+Workflow. Workflow releases are authored, built and published as packages in
+the `workflow` repository (`RodrigoFAbreu/workflow`); this repository pins
+them by digest and installs them. It is *not* RepFlow, and no RepFlow
+product work belongs here.
 
 ## Hard rules
 
-- **`~/Workspace/repflow-android` is read-only.** Read it through
-  `git show <commit>:<path>` against the frozen tag `workflow-v2.3.1`
+- **`~/Workspace/repflow-android` is read-only.** `2.3.1`'s origin: if
+  history ever needs it, read it through `git show <commit>:<path>` against
+  the frozen tag `workflow-v2.3.1`
   (`1f954fbb6c689ec690fefe5a2f27b1e4a0ca6db6`). Never write to it, never
   create a worktree in it, never rely on its working tree — it carries an
   unrelated in-flight branch.
-- **Each `distribution/workflow/<version>/` is generated, not edited.**
-  `2.3.1` is byte-identical to the frozen upstream release; a later authored
-  release is byte-identical to its own recorded base-plus-overlay
-  composition. Change `migration/classification.json` or `tools/migrate.py`
-  and re-run `python3 tools/migrate.py`.
-- **Never modify frozen Workflow semantics.** If migration surfaces a genuine
-  upstream defect, write it up under `docs/defects/` and stop there. Repairing
-  it is a Workflow release's job, not this repository's.
+- **A published Workflow release is immutable, and so is its pin.** This
+  repository never builds, edits or re-publishes a Workflow release. A pin in
+  `src/workflow_manager/published_releases.json` is added only for a release
+  the `workflow` repository has published, with its digests checked against
+  the published assets (`docs/RELEASING.md`, "Workflow packages: adding a
+  pin"), and an existing pin is never changed. `distribution/`, `migration/`,
+  `tools/migrate.py` and `tools/build_release.py` are gone since M2; read
+  them at `ec38979` if history needs them.
+- **Never modify frozen Workflow semantics.** If testing a release surfaces a
+  genuine defect, write it up under `docs/defects/` and stop there. Repairing
+  it is a Workflow release's job, in the `workflow` repository, not this
+  repository's.
 - **Never migrate live work-item state.** Active `WORKFLOW_STATE` entries,
   `.ai-review/`, approvals, registries and mappings for someone else's work
   items are not defaults. Targets get clean templates.
@@ -68,20 +76,19 @@ It is *not* RepFlow, and no RepFlow product work belongs here.
 ## Before changing anything
 
 ```bash
-python3 tests/run_all.py                          # the gate: full selection, in parallel (~7min)
+python3 tests/run_all.py                          # the gate: full selection, in parallel (~5min)
 python3 tests/run_all.py --select test_x.py       # run what you touched -- never a gate
-python3 tests/run_all.py --jobs 1                 # serial reference (~40min) -- exceptional evidence only
+python3 tests/run_all.py --jobs 1                 # serial reference (slow) -- exceptional evidence only
 ```
 
 Run what you touched with `--select`; gates run `python3 tests/run_all.py`.
 Every Workflow gate here (checkpoint, implementation review, acceptance)
-runs the full selection. The one reduced selection that is a gate is CI's
-pull-request profile (`--newest-release-only`, chosen by
-`tools/ci/choose_profile.py`), and only as the required `aggregate` check;
-a newest-release run is never full-suite evidence. It is a stopgap M2
-removes: see `docs/ARCHITECTURE.md`'s "One reduced selection is a gate, in
-one place" and "Stopgap test profile". A new top-level path or test module
-needs its own rule in `tools/ci/pr_profile_paths.json`, or the suite fails.
+and every CI run (pull request, `main` push, nightly) runs the same full
+selection: the host tests plus the newest pinned release's frozen suites in
+four fixtures. Every run first primes the release cache with every pinned
+version and then runs offline; a version it cannot cache is `PrimingError`
+(exit 2). The first run on a machine needs the network, or a
+`WORKFLOW_MANAGER_RELEASE_SOURCE` mirror.
 A full-suite serial or single-shard run (`--jobs 1`, `--shards 1`, CI
 `shards=1`) is exceptional evidence, not a confidence rerun. Run one only
 when the approved plan or an acceptance criterion requires it, or to debug
@@ -91,23 +98,12 @@ the gate needs, and no change since its `head` to code, tests or the runner
 (for CI evidence, the verify workflow too). Docs and workflow-state commits
 don't count as changes. See `docs/ARCHITECTURE.md`'s "Verification execution"
 for the equivalence and staleness rules and what to record.
-`--fast` survives one release as a deprecated alias for a targeted
-`--select` of eight modules -- targeted selection, not a verification gate.
-A run makes `distribution/`, `migration/`, `src/` and `tools/` read-only
-until it ends; see `docs/ARCHITECTURE.md`'s "Verification execution".
+A run makes `src/` and `tools/` read-only until it ends; see
+`docs/ARCHITECTURE.md`'s "Verification execution".
 A run fails (exit 2, `OrphanProcessError`) when a test leaves an orphaned
 process behind. A test that orphans on purpose is declared, with a reason,
 in `tests/parallel/resources.json`'s `orphan_sources`; see
 `docs/ARCHITECTURE.md`'s "Orphaned processes".
-
-`tools/migrate.py --check` proves each upstream-derived
-`distribution/workflow/<version>/` (today, `2.3.1`) still reproduces from a
-fresh extraction; it does not by itself prove no unrelated file exists
-directly under `distribution/` outside every release directory. An authored
-release (today, `2.4.0`, `2.5.0`, `2.5.1`, and `2.6.0`) is proved
-reproducible separately, by `python3 tools/build_release.py --overlay
-migration/overlays/<version> --check`, from its own base release plus its
-own overlay -- `migrate.py --check` does not cover it.
 
 ## Branches, pull requests and releases
 
@@ -138,52 +134,39 @@ own overlay -- `migrate.py --check` does not cover it.
 
 ## Where things are
 
-- The migration record and its evidence: `docs/MIGRATION.md`
-- The distribution/state boundary: `docs/ARCHITECTURE.md`
-- How the Manager is released, and the settings commands: `docs/RELEASING.md`
-- Classification ruleset: `migration/classification.json`
+- The release/state boundary (packages, pins, source, cache):
+  `docs/ARCHITECTURE.md`
+- How the Manager is released, how a Workflow release is pinned, the
+  settings commands and M2's cutover (K1-K5): `docs/RELEASING.md`
+- The migration and packaging record and its evidence: `docs/MIGRATION.md`
+- The pins: `src/workflow_manager/published_releases.json`
+- Frozen suite counts per pinned version: `tests/support.py`'s `CI_SUITES`
 - Frozen tests a clean target cannot pass, with reasons:
-  `migration/portability_exceptions.json`
+  `tests/portability_exceptions.json`
 
-## Adding an upstream Workflow release
+## Adding a Workflow release
 
-Use this when the new release is a fresh upstream tag (frozen content this
-repository only extracts, never authors) -- `2.3.1` is the instance.
+A Workflow release is authored, built and published in the `workflow`
+repository, never here. This repository adds its pin in one `feat:` pull
+request (`docs/RELEASING.md`, "Workflow packages: adding a pin"):
 
-1. Add the new tag/commit to `migration/classification.json` (or a second
-   classification file if the tree shape changed).
-2. Run `python3 tools/migrate.py`, then `python3 tests/run_all.py`.
-3. The conformance suite must be green against the fixture, and the clean
-   target's failure set must equal the documented exceptions — no more, no
-   fewer.
+1. Download the published assets and check them (`sha256sum -c
+   SHA256SUMS`, `workflow-manager package verify <archive> --sha256 <digest>`).
+2. Add the pin (`archive`, `sha256`, `manifest_sha256`) to
+   `src/workflow_manager/published_releases.json`.
+3. Add the version's frozen suite counts to `tests/support.py`'s
+   `CI_SUITES` and its entry, possibly empty, to
+   `tests/portability_exceptions.json`'s `by_version`, then run `python3
+   tests/run_all.py`. The matrix moves to the new release and the `updated`
+   fixture updates the previous one to it. The conformance suite must be
+   green against the fixture, and the clean target's failure set must equal
+   the documented exceptions — no more, no fewer.
 
-## Adding an authored Workflow release
-
-Use this instead when the new release's content originates in this
-repository -- a base release plus a hand-written overlay, never a new
-upstream tag -- `2.4.0` (the plan-amendment mechanism) is the first instance.
-See `docs/ARCHITECTURE.md`'s "Authored releases" and `docs/MIGRATION.md`'s
-`2.4.0` record for the full mechanics and evidence.
-
-1. Author `migration/overlays/<version>/payload/` (new files, plus full
-   replacements of every base-release payload file the release changes) and
-   `migration/overlays/<version>/classification.json` (the same ruleset shape
-   as `migration/classification.json`, scoped to the overlay's own delta
-   files).
-2. Run `python3 tools/build_release.py --overlay migration/overlays/<version>`,
-   then `python3 tools/build_release.py --overlay migration/overlays/<version>
-   --check` — the committed `distribution/workflow/<version>/` must reproduce
-   exactly from the base release plus the overlay alone, and every replaced
-   file's recorded `overlay_delta` must reproduce from the base payload plus
-   the recorded diff.
-3. Add the new version to `tests/support.py`'s per-release `CI_SUITES` and,
-   if it needs one, `migration/portability_exceptions.json`'s `by_version`,
-   then run `python3 tests/run_all.py`. The conformance suite must be green
-   against the fixture, the clean target's failure set must equal the
-   documented exceptions, and any obligation the release's own checkpoints
-   declare (a compatibility audit against the finished overlay diff, for
-   instance) must actually be discharged, not merely inferred from suite
-   totals.
+The five releases pinned today were extracted (`2.3.1`) or authored as a
+base plus an overlay (`2.4.0` to `2.6.0`) in this repository before M2;
+`docs/MIGRATION.md` records each, and `docs/ARCHITECTURE.md`'s "Authored
+releases (history)" the mechanism. The downgrade posture below still governs
+every one of them.
 
 **Downgrade posture.** Once a repository has run `workflow_manager update` to
 an authored release that introduces vocabulary an older release's
@@ -249,8 +232,8 @@ outright — only `2.5.1` can move a work item carrying such an id into
 plan` → `apply_plan_approval` → `validate_post_anchor_coverage`) calls
 into the older release's own narrower grammar, which still raises
 `AmendmentCheckpointIdShapeError` for that same id (reproduced directly
-against `distribution/workflow/2.5.0/payload/scripts/workflow_state.py`'s
-own `validate_post_anchor_coverage`) — wedging the item with no in-band
+against the published `2.5.0` package's
+`payload/scripts/workflow_state.py`'s own `validate_post_anchor_coverage`) — wedging the item with no in-band
 exit; the error's own suggested repair, "rename it via another
 `/milestone-plan` round", is exactly the renaming `2.5.1` exists to avoid.
 Never run `workflow_manager update --release-version <older than 2.5.1>`
@@ -261,8 +244,8 @@ checkpoint id.
 `2.6.0` adds its own downgrade constraints on top of (not instead of) the
 paragraphs above. It adds no new phase, governing version or
 checkpoint status. The difference is that `≤2.5.1` fails **silently**
-rather than wedging: CP3 and CP6 ran it mechanically against
-`distribution/workflow/2.5.1/payload/scripts/` and found that `2.5.1`'s
+rather than wedging: CP3 and CP6 ran it mechanically against the published
+`2.5.1` package's `payload/scripts/` and found that `2.5.1`'s
 `validate_state` has no work-item or `amendment_history` key allowlist. So
 every new persisted key below is *ignored, not rejected*, and a downgraded
 repository keeps running with none of `2.6.0`'s guarantees and no error to

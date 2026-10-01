@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "work_item_id": "workflow-manager-packaged-distribution",
+  "requirements": {
+    "REQ-1": {
+      "description": "a Workflow release is a deterministic tar.gz package plus manifest and SHA256SUMS, extracted only through a safe, manifest-exact verifier",
+      "checkpoint_ids": [
+        "CP1",
+        "CP4"
+      ]
+    },
+    "REQ-2": {
+      "description": "packages come from a configurable source and are accepted only when the archive digest equals both the Manager-shipped pin and the published SHA256SUMS; a local directory holding a pinned version must match its pin; an unpinned version installs only from a local directory, as unpublished, and otherwise refuses",
+      "checkpoint_ids": [
+        "CP2",
+        "CP3"
+      ]
+    },
+    "REQ-3": {
+      "description": "downloaded packages are cached, re-verified on every hit, discarded when broken, safe under concurrency, and usable offline; every install reads a private snapshot verified against the pin under the cache lock",
+      "checkpoint_ids": [
+        "CP2",
+        "CP5"
+      ]
+    },
+    "REQ-4": {
+      "description": "bootstrap/update/status/verify/releases work from an installed wheel with no checkout; --release-dir for unpublished trees; --manager-root a deprecated alias; the installation record names its source",
+      "checkpoint_ids": [
+        "CP3",
+        "CP4"
+      ]
+    },
+    "REQ-5": {
+      "description": "each of 2.3.1-2.6.0 is packaged and proved byte-for-byte identical to its distribution/ tree before removal, with the digests pinned and recorded",
+      "checkpoint_ids": [
+        "CP4",
+        "CP7"
+      ]
+    },
+    "REQ-6": {
+      "description": "tests cover the Manager, the newest pinned release in its three fixtures and the update path from the release before it; old releases are not re-tested",
+      "checkpoint_ids": [
+        "CP5",
+        "CP6"
+      ]
+    },
+    "REQ-7": {
+      "description": "distribution/, migration/, tools/migrate.py and tools/build_release.py leave the repository",
+      "checkpoint_ids": [
+        "CP6"
+      ]
+    },
+    "REQ-8": {
+      "description": "the STOPGAP(M2) profile and its gate-policy exception are removed; every CI event runs the full selection",
+      "checkpoint_ids": [
+        "CP6",
+        "CP7"
+      ]
+    },
+    "REQ-9": {
+      "description": "documentation and the K1-K5 cutover runbook describe packages, pins, cache and the workflow repository",
+      "checkpoint_ids": [
+        "CP7"
+      ]
+    }
+  }
+}

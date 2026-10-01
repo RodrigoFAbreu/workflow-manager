@@ -1,15 +1,16 @@
-"""Reading a migrated Workflow release from `distribution/`.
+"""Reading one Workflow release directory.
 
-A *release* is one immutable directory tree produced by `tools/migrate.py`:
+A *release* is one immutable directory tree, the unpacked `tree/` of a
+Workflow release package (`package.py`) or an unpackaged `--release-dir`:
 
-    distribution/workflow/<version>/
-        manifest.json   every frozen upstream path's disposition
-        payload/        Workflow files, byte-identical to the frozen release
+    <release>/
+        manifest.json   every release file's location, digest and disposition
+        payload/        Workflow files
         fixtures/       host documents the frozen conformance suite asserts on
         templates/      clean repository-local initial state
 
-Nothing here reaches outside `distribution/`; a release is self-contained and
-verifiable from its own manifest without access to the upstream repository.
+A release is self-contained and verifiable from its own manifest. Where one
+comes from, and which versions are published, is `source.py`'s business.
 """
 
 from __future__ import annotations
@@ -167,8 +168,8 @@ class Release:
         """Release bytes, checked against the manifest before they are used.
 
         Installing is the moment the release's identity is asserted to a target
-        repository. A `distribution/` that was damaged, partially checked out,
-        or edited must not be able to pass itself off as the release it claims
+        repository. A release directory that was damaged, partially copied, or
+        edited must not be able to pass itself off as the release it claims
         to be, so nothing is copied out of one without this check.
         """
         data = self.read(location)
@@ -177,7 +178,7 @@ class Release:
             raise ReleaseIntegrityError(
                 f"release {self.version} is damaged: {location} has digest {actual[:12]}, "
                 f"its manifest records {expected_sha256[:12]}. "
-                f"Re-derive it with tools/migrate.py before installing."
+                f"Refetch it, or rebuild the release directory, before installing."
             )
         return data
 
@@ -222,33 +223,3 @@ def _version_key(name: str) -> tuple:
         for part in re.split(r"[.\-_]", name)
     )
 
-
-def release_root(repo_root: Path) -> Path:
-    return Path(repo_root) / "distribution" / "workflow"
-
-
-def available_versions(repo_root: Path) -> list[str]:
-    """Every migrated release present, oldest first. Empty if there are none."""
-    base = release_root(repo_root)
-    if not base.is_dir():
-        return []
-    names = [p.name for p in base.iterdir() if (p / "manifest.json").exists()]
-    return sorted(names, key=_version_key)
-
-
-def find_release(repo_root: Path, version: str | None = None) -> Release:
-    """The release directory for `version`, or the newest one present.
-
-    Defaulting to the newest is what makes adding a second release a matter of
-    adding a directory: `bootstrap` and `update` mean "the current release"
-    unless an operator pins one. Commands that must speak about a *particular*
-    installation resolve the version from the target's own record instead --
-    see `cli._release_for_target`.
-    """
-    base = release_root(repo_root)
-    if version is not None:
-        return Release(base / version)
-    versions = available_versions(repo_root)
-    if not versions:
-        raise ValueError(f"no migrated release under {base} -- run tools/migrate.py first")
-    return Release(base / versions[-1])

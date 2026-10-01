@@ -45,7 +45,7 @@ Workflow 2.7 (W1) and 2.8 (W2).
 |---|---|---|---|
 | M1 | Trunk model, plus the stopgap test profile until M2 (COMPLETE) | Workflow Manager | [10.1](#101-m1-trunk-model-and-the-stopgap-test-profile) |
 | M1b | Test cleanup: throwaway test repositories leave no orphaned Git processes, and a leak check (COMPLETE) | Workflow Manager | [10.1b](#101b-m1b-test-cleanup-no-orphaned-git-processes) |
-| M2 | Distribution rework: Workflow in its own repository, released as downloadable packages | Workflow Manager, `workflow` | [10.2](#102-m2-distribution-rework-packaged-workflow-releases) |
+| M2 | Distribution rework: Workflow in its own repository, released as downloadable packages (COMPLETE) | Workflow Manager, `workflow` | [10.2](#102-m2-distribution-rework-packaged-workflow-releases) |
 | W1 | Workflow 2.7, the first packaged release: Orchestration Protocol v1, and the `v2.6.0-001` and `v2.6.0-002` follow-ups | `workflow` | [1.9](#19-post-26-controller-integration-and-workflow-orchestration-protocol-foundation) |
 | W2 | Workflow 2.8: declarative gate policy, and a red or changes-requested pull request reopening the same work item | `workflow` | [1.9](#19-post-26-controller-integration-and-workflow-orchestration-protocol-foundation) |
 | M3 | This repository and `workflow` driven by the Controller's loop | both | [10.3](#103-m3-driven-by-the-controllers-loop) |
@@ -1061,7 +1061,14 @@ drop `--max-steps 1` from this lane's Controller runs.
 
 ## 10.2 M2: distribution rework, packaged Workflow releases
 
-**Priority:** after M1b.
+**Status:** COMPLETE. Accepted as milestone `workflow-manager-packaged-distribution` on
+2026-10-01, from `milestone/workflow-manager-packaged-distribution` (pull request #11, titled
+`feat: Workflow releases are downloaded, verified packages`, which releases the Manager's
+`v1.2.0`). Design: `docs/ai-workflow/WORKFLOW_MANAGER_PACKAGED_DISTRIBUTION_PLAN.md`; the record
+and its evidence: `docs/MIGRATION.md`. The five releases `2.3.1` to `2.6.0` are published as
+immutable packages in `RodrigoFAbreu/workflow`. Follow-ups, not done there: each new Workflow
+release still needs a small Manager pull request that adds its pin (`OD-M2-2`), and
+`--manager-root` survives one release as a deprecated alias.
 
 - **Workflow moves to its own repository** (`workflow`). It holds only the release in development,
   with its own version and release stream: one product per repository.

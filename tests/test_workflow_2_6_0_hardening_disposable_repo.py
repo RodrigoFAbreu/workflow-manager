@@ -58,12 +58,12 @@ import textwrap
 import unittest
 from pathlib import Path
 
-from support import REPO_ROOT
+import support
+from support import REPO_ROOT, expected_portability_exceptions
 
 from workflow_manager.fixture import drive_synthetic_work_item_through_checkpoints, init_git_repo
 from workflow_manager.install import bootstrap, drift, update
 from workflow_manager.installation import Installation
-from workflow_manager.release import find_release
 
 FIXED_NOW = "2026-01-01T00:00:00Z"
 UPDATED_NOW = "2026-02-01T00:00:00Z"
@@ -233,7 +233,7 @@ class _InstalledRepoCase(unittest.TestCase):
         _git(self.root, "config", "user.email", "cp8@example.invalid")
         _git(self.root, "config", "user.name", "CP8 Hardening")
         _git(self.root, "config", "commit.gpgsign", "false")
-        bootstrap(self.root, find_release(REPO_ROOT, self.BASE_VERSION), now=FIXED_NOW)
+        bootstrap(self.root, support.release(self.BASE_VERSION), now=FIXED_NOW)
         _git(self.root, "add", "-A")
         _git(self.root, "commit", "-q", "-m", f"bootstrap workflow {self.BASE_VERSION}")
         self._clock = 0
@@ -257,7 +257,7 @@ class _InstalledRepoCase(unittest.TestCase):
         `WORKFLOW_STATE.json` must be byte-identical across the update
         (INV-7: no update rewrites committed state)."""
         checkout = checkout or self.root
-        release = find_release(REPO_ROOT, version)
+        release = support.release(version)
         before = Installation.read(checkout)
         state_before = (checkout / STATE_PATH).read_bytes()
         _, changes = update(checkout, release, now=UPDATED_NOW)
@@ -621,7 +621,7 @@ class _Scenario4:
 
         # Control arm: the base release's own bytes, same committed history.
         control = self._digests(
-            scripts=REPO_ROOT / "distribution" / "workflow" / self.BASE_VERSION / "payload" / "scripts")
+            scripts=support.release(self.BASE_VERSION).root / "payload" / "scripts")
         self.assertEqual(control["reachable"], self.CONTROL_REACHABLE)
         self.assertEqual(control["implementation"], "UnclassifiedPathError")
 
@@ -942,8 +942,9 @@ def take_over_and_complete(item):
 
 #: A `2.5.1` checkout's own `/request-plan-amendment` (no lock, no
 #: witness) and its own `/approve-review plan` resolution of the open
-#: amendment -- `2.5.1`'s harness predates both, so these follow
-#: `tests/test_amendment_update_path.py`'s scripted 2.4.0-era sequence.
+#: amendment -- `2.5.1`'s harness predates both, so these follow the
+#: scripted 2.4.0-era update-path sequence (`2.4.0`'s own acceptance
+#: evidence, retired by M2; `docs/MIGRATION.md`).
 _WORKFLOW_251_HELPERS = """
 def request_amendment_251(item, reason):
     item.tx(lambda state: ws.request_plan_amendment(
@@ -1346,7 +1347,10 @@ class TestScenario9UpdateWithItemsInFlight(_InstalledRepoCase):
 # ===========================================================================
 
 
-PAYLOAD_260 = REPO_ROOT / "distribution" / "workflow" / "2.6.0" / "payload"
+def _payload_260() -> Path:
+    """The pinned `2.6.0` release's `payload/`, from its verified snapshot."""
+    return support.release("2.6.0").root / "payload"
+
 
 #: Section 3.8's named regression tests, per closed defect: `(module,
 #: [Class or Class.test_method, ...])`, all in `payload/scripts/`.
@@ -1386,7 +1390,7 @@ class TestClosedDefectCensus(_InstalledRepoCase):
     def test_the_named_regression_tests_exist_in_the_2_6_0_payload(self):
         for defect, modules in CLOSED_DEFECT_TESTS.items():
             for module, names in modules:
-                defined = _defined_names(PAYLOAD_260 / "scripts" / f"{module}.py")
+                defined = _defined_names(_payload_260() / "scripts" / f"{module}.py")
                 for name in names:
                     with self.subTest(defect=defect, test=f"{module}.{name}"):
                         self.assertIn(name, defined)
@@ -1396,7 +1400,7 @@ class TestClosedDefectCensus(_InstalledRepoCase):
                for module, names in modules for name in names]
         for module in {m for modules in CLOSED_DEFECT_TESTS.values() for m, _ in modules}:
             self.assertEqual((self.root / "scripts" / f"{module}.py").read_bytes(),
-                             (PAYLOAD_260 / "scripts" / f"{module}.py").read_bytes())
+                             (_payload_260() / "scripts" / f"{module}.py").read_bytes())
         env = dict(os.environ)
         env.pop("PYTHONPATH", None)
         env.update(PYTHONDONTWRITEBYTECODE="1", PYTHON_COLORS="0",
@@ -1415,24 +1419,20 @@ class TestClosedDefectCensus(_InstalledRepoCase):
 
     def test_the_repository_level_guards_are_still_registered(self):
         # v2.3.1-001: a clean 2.6.0 target has no documented exception, and
-        # the per-release bootstrapped-target class asserts exactly that.
-        self.assertEqual(json.loads((REPO_ROOT / "migration" / "portability_exceptions.json")
-                                    .read_text())["by_version"]["2.6.0"], {"exceptions": []})
-        self.assertIn("TestBootstrappedTarget260",
+        # the bootstrapped-target class asserts exactly that.
+        self.assertEqual(expected_portability_exceptions("2.6.0"), {})
+        self.assertIn("TestBootstrappedTarget",
                       _defined_names(REPO_ROOT / "tests" / "test_conformance_suite.py"))
-        # v2.3.1-002: this suite is in the full inventory, so every gate run
-        # executes it, and in `parallel.cli.FAST_ALIAS_SELECTION`, so the
-        # deprecated `--fast` alias runs it too.
-        from parallel import cli, inventory
+        # v2.3.1-002, retargeted by M2 (`OD-M2-5`): the update-path suite
+        # that follows the pins has host units, and every gate run executes
+        # all of them.
+        from parallel import inventory
         found = inventory.discover(REPO_ROOT)
         update_path = {unit for unit in found.host
-                       if inventory.split_host_unit_id(unit)[0] == "test_amendment_update_path.py"}
-        self.assertTrue(update_path, "test_amendment_update_path.py has no host class")
+                       if inventory.split_host_unit_id(unit)[0] == "test_update_path.py"}
+        self.assertTrue(update_path, "test_update_path.py has no host class")
         full = set(inventory.select(found.host, [], found.frozen).unit_ids())
         self.assertLessEqual(update_path, full)
-        alias = set(inventory.select(found.host, list(cli.FAST_ALIAS_SELECTION),
-                                     found.frozen).unit_ids())
-        self.assertLessEqual(update_path, alias)
 
     def test_v2_3_1_003_first_approval_with_no_state_at_head_through_the_new_verifier(self):
         _git(self.root, "rm", "-q", "--cached", STATE_PATH)

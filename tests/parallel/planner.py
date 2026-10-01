@@ -331,9 +331,6 @@ def build_plan(selection: Selection, *, inventory_unit_ids, matrix_units, timing
         "selection_digest": hashlib.sha256(selection.to_json().encode("utf-8")).hexdigest(),
         # `full` or `targeted`: which flags made the selection.
         # `release.py assert-full-plan` needs `full`.
-        # STOPGAP(M2): the newest-release selection; see docs/ARCHITECTURE.md's
-        # "Stopgap test profile". Its plans say `newest-release`.
-        # End of the STOPGAP(M2) block.
         "selection_kind": selection.kind,
         "partial_frozen": selection.partial_frozen,
         "bounds": {**config, "cpu_count": cpu_count,

@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "work_item_id": "workflow-manager-packaged-distribution",
+  "plan_revision": 9,
+  "checkpoints": [
+    {
+      "id": "CP1",
+      "name": "Package format: deterministic build, safe verified extraction, shared SHA256SUMS writer",
+      "depends_on": [],
+      "complexity": 2,
+      "session_target": 1
+    },
+    {
+      "id": "CP2",
+      "name": "Release source, pins and verified cache: fetch, pin and SHA256SUMS checks, locking, offline behaviour, named errors",
+      "depends_on": [
+        "CP1"
+      ],
+      "complexity": 3,
+      "session_target": 1
+    },
+    {
+      "id": "CP3",
+      "name": "CLI and install record: package-backed bootstrap/update/status/verify/releases, --release-source/--release-cache/--release-dir, package subcommand, deprecated --manager-root with pinned fall-through, checkout fallback, source field",
+      "depends_on": [
+        "CP2"
+      ],
+      "complexity": 3,
+      "session_target": 1
+    },
+    {
+      "id": "CP4",
+      "name": "Build and prove the five packages from the committed distribution/ tree, write the pins, prime the cache, record the evidence; Manager packaging and both workflows' package steps on the pins",
+      "depends_on": [
+        "CP3"
+      ],
+      "complexity": 2,
+      "session_target": 1
+    },
+    {
+      "id": "CP5",
+      "name": "Test suite on the release cache: NEWEST_RELEASE/UPGRADE_FROM, priming of every pinned version, four-class frozen matrix with the updated fixture, update-path test, module rework",
+      "depends_on": [
+        "CP4"
+      ],
+      "complexity": 4,
+      "session_target": 1
+    },
+    {
+      "id": "CP6",
+      "name": "Removal: distribution/, migration/, migration tooling, retired tests and the STOPGAP(M2) profile; CI on the release cache",
+      "depends_on": [
+        "CP5"
+      ],
+      "complexity": 3,
+      "session_target": 1
+    },
+    {
+      "id": "CP7",
+      "name": "Documentation, migration record and cutover runbook",
+      "depends_on": [
+        "CP6"
+      ],
+      "complexity": 2,
+      "session_target": 1
+    }
+  ]
+}

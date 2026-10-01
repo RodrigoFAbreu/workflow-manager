@@ -23,17 +23,16 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from support import REPO_ROOT
+import support
 
 from workflow_manager.fixture import build_target_repo, drive_synthetic_work_item_through_checkpoints
-from workflow_manager.release import find_release
 
 
 class _DisposableRepoFixtureTestCase(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
-        self.release = find_release(REPO_ROOT, "2.3.1")
+        self.release = support.release("2.3.1")
         self.root = build_target_repo(self.release, Path(self._tmp.name) / "repo")
 
     def _entry(self, work_item_id: str) -> dict:

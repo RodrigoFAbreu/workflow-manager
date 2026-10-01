@@ -25,6 +25,7 @@ import importlib.util
 import io
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -127,7 +128,6 @@ def release_workflow_problems(doc: dict, verify_name: str) -> list[str]:
                            if (steps[i].get("with") or {}).get("ref")
                            == "${{ steps.target.outputs.target_sha }}"]
         python = _step_index(steps, lambda s: _uses(s, "actions/setup-python"), "set up python")
-        fetch = _step_index(steps, lambda s: _runs(s, "UPSTREAM_URL"), "fetch the upstream")
         download = _step_index(steps, lambda s: _uses(s, "actions/download-artifact"),
                                "download the plan")
         full_plan = _step_index(steps, lambda s: _runs(s, "release.py assert-full-plan"),
@@ -138,6 +138,8 @@ def release_workflow_problems(doc: dict, verify_name: str) -> list[str]:
                                  "assert not superseded")
         package = _step_index(steps, lambda s: _runs(s, "tools/release/package.py"),
                               "build the package")
+        cache = _step_index(steps, lambda s: _uses(s, "actions/cache"),
+                            "restore the release cache")
         publish = _step_index(steps, lambda s: _runs(s, "gh release create"), "publish")
     except AssertionError as exc:
         return problems + [str(exc)]
@@ -150,12 +152,11 @@ def release_workflow_problems(doc: dict, verify_name: str) -> list[str]:
         need(resolve < target_checkout[0], "the target is checked out before it is resolved")
         need((steps[target_checkout[0]].get("with") or {}).get("fetch-depth") == 0,
              "the target checkout is shallow: next-version reads tags and history")
-        need(target_checkout[0] < python < full_plan and target_checkout[0] < fetch < full_plan,
-             "python 3.12 and the upstream are not set up between the target checkout and "
-             "assert-full-plan")
+        need(target_checkout[0] < python < full_plan,
+             "python 3.12 is not set up between the target checkout and assert-full-plan")
     need((steps[python].get("with") or {}) == {"python-version": "3.12"}, "python is not 3.12")
-    need('rev-parse "$UPSTREAM_TAG^{commit}")" = "$UPSTREAM_COMMIT"' in steps[fetch]["run"],
-         "the fetched upstream tag is not checked against the pinned commit")
+    need(not any("UPSTREAM" in (s.get("run") or "") for s in steps) and "env" not in doc,
+         "the release still fetches an upstream: every release comes through the pins")
     artifact = steps[download].get("with") or {}
     need(artifact.get("run-id") == "${{ steps.target.outputs.target_run }}",
          f"the plan is downloaded from {artifact.get('run-id')!r}, not the target's run")
@@ -170,11 +171,26 @@ def release_workflow_problems(doc: dict, verify_name: str) -> list[str]:
     need(full_plan < version < superseded < package < publish,
          "the order is not assert-full-plan, next-version, assert-not-superseded, package, "
          "gh release create")
+    # The release cache (plan 5.6): restored just before the build and named
+    # to it, so the wheel's `verify` downloads only on a cache miss.
+    cache_dir = "${{ runner.temp }}/workflow-manager-releases"
+    need(superseded < cache < package, "the release cache is not restored before the build")
+    need((steps[cache].get("with") or {}) == {
+        "path": cache_dir,
+        "key": "workflow-releases-${{ hashFiles('src/workflow_manager/published_releases.json') }}"},
+        "the release cache is not keyed on the pins")
+    need((steps[package].get("env") or {}).get("WORKFLOW_MANAGER_RELEASE_CACHE") == cache_dir,
+         "the build does not use the restored release cache")
+    need("--manager-root" not in steps[package]["run"],
+         "the build names a checkout: the wheel resolves releases through its pins")
+    need("published_releases.json" in steps[publish]["run"]
+         and "distribution/" not in steps[publish]["run"],
+         "the release notes do not list the pinned Workflow releases")
     need("--target \"$TARGET_SHA\"" in steps[publish]["run"],
          "the release is not created at the resolved target")
     need((steps[publish].get("env") or {}).get("TARGET_SHA")
          == "${{ steps.target.outputs.target_sha }}", "TARGET_SHA is not the resolved target")
-    for index in (package, publish):
+    for index in (cache, package, publish):
         need("steps.superseded.outputs.superseded != 'true'" in (steps[index].get("if") or "")
              and "steps.version.outputs.version != ''" in (steps[index].get("if") or ""),
              f"step {index} runs with nothing to release or when superseded")
@@ -216,6 +232,13 @@ class TestReleaseWorkflow(unittest.TestCase):
                                     "          GH_TOKEN",
                                     "        env:\n          GH_TOKEN"),
             "python 3.11": ('python-version: "3.12"', 'python-version: "3.11"'),
+            "no release cache": ("          WORKFLOW_MANAGER_RELEASE_CACHE: "
+                                 "${{ runner.temp }}/workflow-manager-releases\n", ""),
+            "a cache key off the pins": ("hashFiles('src/workflow_manager/published_releases.json')",
+                                         "hashFiles('pyproject.toml')"),
+            "a checkout's releases": ('--out "$RUNNER_TEMP/assets"',
+                                      '--out "$RUNNER_TEMP/assets" --manager-root "$GITHUB_WORKSPACE"'),
+            "an upstream again": ("\njobs:\n", "\nenv:\n  UPSTREAM_URL: x\n\njobs:\n"),
         }
         for label, (old, new) in mutants.items():
             with self.subTest(mutation=label):
@@ -245,6 +268,107 @@ def _capture(main, argv) -> tuple[int, str]:
     with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
         code = main(argv)
     return code, out.getvalue()
+
+
+# -- Expression contexts in workflow-level and job-level `env` -----------------------------
+
+#: The contexts GitHub Actions admits in a workflow-level and a job-level
+#: `env` (its "Context availability" table). `runner`, `steps`, `job` and
+#: `env` exist only inside a step. A workflow that uses one of them there is
+#: rejected whole and runs no job: that is how the verification workflow lost
+#: its required `aggregate` check on pull request #11 (functional finding F1
+#: of `workflow-manager-packaged-distribution`).
+WORKFLOW_ENV_CONTEXTS = frozenset({"github", "secrets", "inputs", "vars"})
+JOB_ENV_CONTEXTS = frozenset({"github", "needs", "strategy", "matrix", "vars", "secrets", "inputs"})
+_STRING_LITERAL = re.compile(r"'(?:[^']|'')*'")
+#: A bare identifier: not a property (`.name`), not a function call
+#: (`name(`), so a context root whether dereferenced or used whole.
+_IDENTIFIER = re.compile(r"(?<![\w.-])([A-Za-z_][\w-]*)(?![\w-])(?!\s*\()")
+_LITERALS = frozenset({"true", "false", "null", "NaN", "Infinity"})
+
+
+def _expressions(text: str) -> list[str]:
+    """Each `${{ }}` body, with its string literals blanked. A `}}` inside a
+    string literal does not end the expression."""
+    bodies, i = [], 0
+    while (start := text.find("${{", i)) != -1:
+        j = start + 3
+        while j < len(text) and not text.startswith("}}", j):
+            literal = _STRING_LITERAL.match(text, j)
+            j = literal.end() if literal else j + 1
+        bodies.append(_STRING_LITERAL.sub("''", text[start + 3:j]))
+        i = j + 2
+    return bodies
+
+
+def _contexts(value) -> set[str]:
+    """The context names an `env` value's `${{ }}` expressions use."""
+    roots: set[str] = set()
+    for expression in _expressions(str(value)):
+        roots.update(_IDENTIFIER.findall(expression))
+    return roots - _LITERALS
+
+
+def env_context_violations(workflow: dict) -> list[str]:
+    """Every workflow-level or job-level `env` entry using a context GitHub does not admit there."""
+    found = []
+    for name, value in (workflow.get("env") or {}).items():
+        for context in sorted(_contexts(value) - WORKFLOW_ENV_CONTEXTS):
+            found.append(f"env.{name}: {context}")
+    for job_id, job in (workflow.get("jobs") or {}).items():
+        for name, value in (job.get("env") or {}).items():
+            for context in sorted(_contexts(value) - JOB_ENV_CONTEXTS):
+                found.append(f"jobs.{job_id}.env.{name}: {context}")
+    return found
+
+
+class TestEnvExpressionContexts(unittest.TestCase):
+    def test_every_workflow_uses_only_admitted_contexts_in_workflow_and_job_env(self):
+        workflows = sorted(WORKFLOWS.glob("*.yml"))
+        self.assertTrue(workflows)
+        for path in workflows:
+            with self.subTest(workflow=path.name):
+                self.assertEqual(env_context_violations(_workflow(path)), [])
+
+    def test_a_runner_context_in_a_job_env_is_reported(self):
+        text = VERIFY_WORKFLOW.read_text(encoding="utf-8")
+        marker = "  plan:\n    runs-on: ubuntu-latest\n"
+        self.assertIn(marker, text)
+        mutated = text.replace(marker, marker + "    env:\n      CACHE: ${{ runner.temp }}/cache\n", 1)
+        self.assertEqual(env_context_violations(runner_tests.load_workflow_yaml(mutated)),
+                         ["jobs.plan.env.CACHE: runner"])
+
+    def test_admitted_contexts_and_string_literals_are_not_reported(self):
+        workflow = {
+            "env": {"A": "${{ github.sha }}", "B": "${{ vars.X || 'runner.temp' }}"},
+            "jobs": {"j": {"env": {"C": "${{ matrix.shard }}-${{ needs.plan.outputs.shards }}",
+                                   "D": "${{ hashFiles('a/b.json') }}", "E": "plain"}}},
+        }
+        self.assertEqual(env_context_violations(workflow), [])
+
+    def test_a_bare_context_is_reported(self):
+        workflow = {"jobs": {"j": {"env": {"A": "${{ toJSON(runner) }}", "B": "${{ job }}",
+                                           "C": "${{ fromJSON(steps)[0] }}"}}}}
+        self.assertEqual(env_context_violations(workflow),
+                         ["jobs.j.env.A: runner", "jobs.j.env.B: job", "jobs.j.env.C: steps"])
+
+    def test_a_closing_brace_pair_in_a_string_does_not_end_the_expression(self):
+        workflow = {"env": {"A": "${{ format('}}{0}', runner.temp) }}"},
+                    "jobs": {"j": {"env": {"B": "x-${{ format('{{}}', env.Z) }}-${{ github.sha }}"}}}}
+        self.assertEqual(env_context_violations(workflow), ["env.A: runner", "jobs.j.env.B: env"])
+
+    def test_literals_function_names_and_properties_are_not_contexts(self):
+        workflow = {"jobs": {"j": {"env": {
+            "A": "${{ true && null || false }}", "B": "${{ contains(github.ref, 'runner') }}",
+            "C": "${{ github.event.runner.job }}", "D": "${{ 1.5e3 }}-${{ 0xff }}",
+            "E": "${{ matrix['runner'] }}"}}}}
+        self.assertEqual(env_context_violations(workflow), [])
+
+    def test_step_only_contexts_are_reported_at_both_levels(self):
+        workflow = {"env": {"A": "${{ runner.os }}"},
+                    "jobs": {"j": {"env": {"B": "${{ steps.x.outputs.y }}", "C": "${{ env.Z }}"}}}}
+        self.assertEqual(env_context_violations(workflow),
+                         ["env.A: runner", "jobs.j.env.B: steps", "jobs.j.env.C: env"])
 
 
 # -- T-PRT-1: the title workflow ------------------------------------------------------------
@@ -363,7 +487,8 @@ def run_assert_full_plan(scratch: Path, plan: Path, env: dict) -> subprocess.Com
     with `scratch`'s own runner."""
     return subprocess.run([sys.executable, str(RELEASE_PY), "assert-full-plan", "--repo-dir",
                            str(scratch), str(plan)], cwd=str(scratch), capture_output=True,
-                          text=True, env=env, timeout=600)
+                          text=True, env={**env, **runner_tests.scratch_release_env(scratch)},
+                          timeout=600)
 
 
 def full_plan_units(plan: Path) -> dict:

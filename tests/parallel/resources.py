@@ -20,7 +20,7 @@ SCHEMA_VERSION = 1
 #: The one list of trees the write barrier covers (plan 5.9). A resource's
 #: `paths` entries must each be exactly one of these -- the barrier locks and
 #: lifts whole trees, so no sub-path form exists.
-GUARDED_TREES = ("distribution/", "migration/", "src/", "tools/")
+GUARDED_TREES = ("src/", "tools/")
 
 
 class ResourcesFileError(Exception):

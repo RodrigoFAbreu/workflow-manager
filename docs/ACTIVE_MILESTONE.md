@@ -2,6 +2,721 @@
 
 ## Milestone
 
+`workflow-manager-packaged-distribution` (M2; `governing_workflow_version:
+"2.2"`, `process`, plan revision 9 approved in `e341c90` on basis
+`EXTERNAL_APPROVE`, base `ec38979`, branch
+`milestone/workflow-manager-packaged-distribution`): a Workflow release
+becomes a versioned, checksummed, immutable package that the Manager
+downloads, verifies, caches and installs; `distribution/`, `migration/`,
+the migration tooling and the stopgap test profile leave this repository.
+Full plan: `docs/ai-workflow/WORKFLOW_MANAGER_PACKAGED_DISTRIBUTION_PLAN.md`.
+
+## Current checkpoint
+
+**Milestone complete.** `workflow-manager-packaged-distribution` reached
+`MILESTONE_COMPLETE` through `/accept-milestone` on 2026-10-01, with the
+user's confirmation, and `active_work_item_id` is cleared.
+- **Checkpoints:** CP1-CP7 are complete.
+- **Technical approval:** commit `2216d5a`, implementation revision 4.
+  Both implementation-review stages approved it. External round 1 found an
+  undiscardable cache entry escaping as `PermissionError` (fixed in
+  `df5ecc6`), and external round 3 asked for a stronger regression scanner
+  (`6bbd8ec`).
+- **Automated verification:** the full gate passed on the final code
+  (1410/1410 units, 8,746 tests, verdict 0, recorded at `2f817cc`). Only
+  docs and state commits have landed since.
+- **Functional review:** round 1 (revision 2) passed flows 1-8 and cutover
+  K1-K3. K4 found F1 (the verification workflow used the `runner` context
+  in a job-level `env`), fixed through the bounded branch in `3e90d7b`.
+  Round 2 (revision 4, checklist `69da8f7`) passed. The user accepted it
+  with no findings filed. The round 2 evidence is recorded under the
+  cutover below.
+
+The checkpoint log below is this milestone's permanent record.
+
+## Current blockers
+
+None. What remains after acceptance:
+- cutover K5: squash-merge pull request #11 under its title `feat: Workflow
+  releases are downloaded, verified packages` (a `feat:` title, so it
+  releases the Manager's `v1.2.0`), check that `main`'s full run is green
+  and `v1.2.0` is published, then `pipx install` its wheel into a scratch
+  environment and bootstrap a scratch repository with no checkout;
+- between milestones, install Workflow Controller 1.4.2.
+
+## Active plan
+
+None, because the milestone is complete. The plan document stays at
+`docs/ai-workflow/WORKFLOW_MANAGER_PACKAGED_DISTRIBUTION_PLAN.md`
+(revision 9) instead of being archived: `docs/ARCHITECTURE.md`,
+`docs/MIGRATION.md` and `docs/RELEASING.md` cite it as the design record.
+
+## Next action
+
+`workflow-manager-packaged-distribution` is complete. Next, once cutover K5
+is done, run `/milestone-plan` for the next incomplete milestone in
+`docs/ROADMAP.md`: W1, "Workflow 2.7, the first packaged release"
+(section 1.9). It is authored in the `workflow` repository, and this
+repository then adds its pin.
+
+## Checkpoint log
+
+### CP1 -- package format (complete)
+
+- **`D-Package-Format`** (`src/workflow_manager/package.py`):
+  `build_package(release_dir, out_dir)` writes the three assets
+  (`workflow-V.tar.gz`, `workflow-V.manifest.json`, `SHA256SUMS`) and
+  returns them as a `Package`. It refuses a tree that fails
+  `Release.verify()`, a manifest location that is unsafe or repeated, and a
+  linked file or one that lies outside the release; each file's bytes are
+  re-checked against the manifest as they are packed. Members come from
+  the manifest (`manifest.json`, every location, every parent directory),
+  sorted, `mtime 0`, `0:0`, no owner names, `0755`/`0644`; the tar is
+  `PAX_FORMAT`, which writes a plain USTAR header for every member that
+  fits one and a PAX header only for a path that does not; the gzip header
+  has `mtime 0` and no name.
+- `extract_package(archive, dest, version=None)` accepts only regular files
+  and directories under the single top-level `workflow-V/` (`V` the carried
+  manifest's version, and the requested one when given), with relative
+  paths and no `..`; it refuses links, devices, FIFOs, duplicates, absolute
+  paths, extra files or directories, missing files, a wrong digest or size,
+  any file mode other than the manifest's `0644`/`0755`, a directory mode
+  other than `0755`, a malformed manifest, and more than
+  `MAX_UNPACKED_BYTES` (256 MiB) unpacked. It stages the tree in a
+  temporary sibling of `dest`, re-runs `Release.verify()` there, and
+  publishes by `rename`; every failure raises `ReleaseIntegrityError` and
+  leaves nothing behind. It never calls `tarfile`'s own extraction.
+- **Shared SHA256SUMS writer:** `package.sha256sums_text(files)`.
+  `tools/release/package.py`'s `sha256sums_text(directory)` keeps its
+  signature and its empty-directory refusal and delegates the format to it
+  (it now puts `src/` on `sys.path`).
+- **Tests:** `tests/test_release_source.py` (new; CP2 extends it with
+  5.2-5.4): `TestDeterministicBuild`, `TestRoundTrip`, `TestSafeExtraction`,
+  `TestSha256Sums` (36 tests, synthetic releases only).
+  `tools/ci/pr_profile_paths.json` gains the module's own `full` rule
+  (plan 13).
+- **Verified:** `python3 tests/run_all.py --select test_release_source.py
+  --select test_manager_version.py --select
+  test_stopgap_profile.py::TestPathRulesAreComplete` -- 14/14 units, 84
+  tests, exit 0. A scratch smoke check (not a test, not recorded as
+  evidence; CP4 does it properly) built each of the five releases from
+  `git archive ec38979 distribution/workflow` twice and extracted it: all
+  five archives were byte-identical across builds and extracted to their
+  source trees exactly.
+
+### CP2 -- source, pins and cache (complete)
+
+- **`D-Release-Source`** (`src/workflow_manager/source.py`):
+  `ReleaseSource.select(option, environ)` takes `--release-source`, else
+  `WORKFLOW_MANAGER_RELEASE_SOURCE`, else the `RodrigoFAbreu/workflow`
+  release-download template. A value with `://` is a URL template, which
+  must carry `{version}` and be `https://`, `file://`, or `http://` to a
+  loopback host; anything else is a local directory of `<version>/`
+  folders. Fetching uses `urllib.request` with a 60-second timeout, reads
+  `SHA256SUMS` first, then the archive and the manifest asset, and caps
+  each asset at 64 MiB. Redirects: at most five, to any host, never from
+  `https` to anything else, and every hop must pass the scheme rule. Any
+  failure to obtain an asset is `ReleaseUnavailableError`.
+- **`D-Pins`:** `src/workflow_manager/published_releases.json` (empty
+  `releases` until CP4) ships as package data (`pyproject.toml`'s new
+  `[tool.setuptools.package-data]`). `load_pins` refuses a malformed pin
+  file (schema, repository, archive name, digest shape) with
+  `ReleaseIntegrityError`. A download is accepted only when the archive
+  hashes to the pin **and** to its `SHA256SUMS` line, and the manifest
+  asset hashes to `manifest_sha256` and to its line.
+- **`D-Release-Cache`:** `cache_root(option, environ)` takes
+  `--release-cache`, `WORKFLOW_MANAGER_RELEASE_CACHE`, `$XDG_CACHE_HOME`,
+  then `~/.cache`. `ReleaseCache.ensure(version)` (5.4 steps 1-4, for
+  priming) and `resolve(version)` (steps 1-6) work under an `fcntl` lock
+  on `<cache>/<version>.lock`. A hit needs `complete` naming the pin, the
+  cached archive hashing to it, `tree/manifest.json` hashing to
+  `manifest_sha256`, the manifest naming the requested version and
+  `Release.verify()`; anything else is logged (`discarding cache entry
+  ...`), removed and refetched into a temporary sibling that is renamed
+  into place, with `complete` written last. `resolve` then copies the
+  manifest-enumerated files into a private `0700` directory and checks the
+  copy against the pin; a failed copy discards the entry and refetches
+  once (`ReleaseUnavailableError` if that cannot be done,
+  `ReleaseIntegrityError` if the new copy fails too). It returns a
+  `SnapshotRelease` (a `Release` subclass carrying the record's `source`),
+  removed by `close()`/`with` and by an `atexit` backstop. An unpinned
+  version is `ReleaseNotPublishedError`; an unusable cache directory is
+  `ReleaseUnavailableError`. Both new errors subclass `InstallError`, so
+  CP3's CLI reports them through its existing handling.
+- **`local_release(dir, requested_version, pins)`** (5.5): refuses a
+  directory whose manifest version differs from the requested one; a
+  pinned version must match `manifest_sha256` (the error names the
+  version, the directory and both digests) and is recorded as the package
+  (`source.kind: "package"`, with a stderr note); an unpinned one is
+  checked by its own manifest and recorded as `{"kind": "local"}`. Either
+  way it is used through a verified snapshot, without a lock.
+- **Tests** (`tests/test_release_source.py`, +58): `TestPins`,
+  `TestSourceSelection`, `TestFetch` (local `http.server` on 127.0.0.1,
+  `file://`, local directory; redirects, the five-hop limit, `https`->`http`
+  and off-loopback `http` redirects, the size cap), `TestPinChecks`
+  (republished archive with agreeing sums, sums or manifest asset against
+  the pin, another version in the archive, unpinned), `TestCache` (entry
+  layout, `ensure` takes no snapshot, offline hit and miss, seven kinds of
+  broken entry each discarded and refetched, or `ReleaseUnavailableError`
+  offline), `TestSnapshots` (private `0700` copy, the resolve/install
+  boundary through `install.bootstrap`, the lock-ignoring writer seam
+  online, offline and twice, `close`/`with`, the `atexit` backstop in a
+  child process), `TestLocking` (four concurrent resolves fetch once;
+  `resolve` waits for a held lock) and `TestLocalRelease`. Each test sets
+  `WORKFLOW_MANAGER_RELEASE_CACHE` to its own temporary cache and asserts
+  `cache_root()` resolves to it. The `--manager-root` alias's own
+  local-directory test is CP3's, where the alias is wired.
+- **Verified:** `python3 tests/run_all.py --select test_release_source.py`
+  -- 12/12 units, 94 tests, exit 0; `--select test_manager_version.py
+  --select test_stopgap_profile.py` -- 107 tests, exit 0; `--select
+  test_orphan_processes.py --select test_release_versioning.py` -- 118
+  tests, exit 0.
+
+### CP3 -- CLI and install record (complete)
+
+- **`D-CLI`** (`src/workflow_manager/cli.py`): `bootstrap`, `update`,
+  `status` and `verify` resolve a release in one function, `_resolve`:
+  `--release-dir` (through `local_release`), then the `--manager-root`
+  alias when its checkout holds the version, then the pins through the
+  cache (`ReleaseCache.resolve`), and last the **checkout fallback** --
+  an unpinned version this Manager's own checkout holds under
+  `distribution/workflow/<v>/`, used as a local release with a stderr note
+  (CP3 to CP6 only). The default version is the newest pinned one, else the
+  newest local candidate. Every release is used as a snapshot inside a
+  `with` block. New global options: `--release-source`, `--release-cache`,
+  `--release-dir`. `--manager-root` defaults to nothing, always prints a
+  deprecation notice, and falls through to the pins when its checkout lacks
+  the version. `missing_distribution_message` and `_require_distribution`
+  are gone; `cli.py` no longer imports `find_release`.
+- **Exit codes:** `ReleaseNotPublishedError`, `ReleaseUnavailableError` and
+  `ReleaseIntegrityError` exit **1** with `error: ...` (plan 5.5, "All of
+  them exit 1"). This changes `ReleaseIntegrityError`'s CLI exit from 2 to
+  1; every other refusal still exits 2.
+- `status` of a managed target prints a `source:` line (`package <archive>
+  from <repository> (sha256 ...)`, `(local, unpublished)`, or `not
+  recorded`); when the release cannot be resolved it first prints the
+  recorded version, profile, source and install times, then the error,
+  which names `--release-dir`.
+- `releases` lists every pinned version (`<v>  <archive>  sha256 <digest>
+  [cached|not cached]`, no network), then each unpinned local candidate as
+  `<v>  (checkout, unpublished)  ...` (`(--manager-root, unpublished)` with
+  the alias). It exits 0 with nothing pinned, noting that on stderr.
+- `package build <release-dir> --out <dir>` and `package verify <archive>
+  [--sha256 H]` wrap `build_package`/`extract_package`.
+- **Install record** (`installation.py`, `install.py`): an optional
+  `source` (the `SnapshotRelease.source` the resolver attached), written
+  after `provenance` and omitted when absent, so a pre-M2 record round-trips
+  byte for byte; a non-object `source` is a corrupt record.
+  `SCHEMA_VERSION` stays 1.
+- **Tests:** `tests/support.py` gains `cli_env(**extra)` (7.1), now used by
+  `test_bootstrap_e2e.py`, `test_amendment_update_path.py` and the
+  empty-`HOME` lifecycle test. `test_bootstrap.py`: `TestReleaseResolution`
+  rebuilt on two synthetic packaged, pinned releases served from a local
+  directory plus an unpinned checkout-fallback release (newest pinned
+  default, INV-4 install bytes, cache hit without a source, discard and
+  refetch, unavailable exit 1, update, reports against the recorded
+  release, unpublished record needing `--release-dir`, `--release-dir`
+  local/pinned/altered/wrong version, fallback, no-pin default,
+  `releases`); new `TestManagerRootAlias` (unpinned positive branch with
+  the notice, consistently altered pinned copy refused with nothing
+  written, fall-through, `releases`), `TestSourceRecord` and
+  `TestDiscoveryApi` (the `available_versions`/`find_release` tests, kept
+  until CP6). `test_manager_version.py`: `MissingDistributionHintTest` now
+  models a wheel install (no fallback, empty pins) and asserts the
+  unpublished and unavailable messages and exit 1. `test_release_source.py`:
+  `TestPackageCommand`.
+- **INV-3:** `python3 -m workflow_manager verify .` -> exit 0 through the
+  fallback ("release 2.6.0 is not published; using the checkout's
+  unpublished copy"), and with `--release-dir distribution/workflow/2.6.0`
+  -> exit 0; `status .` -> clean, `source: not recorded`.
+- **Verified:** `python3 tests/run_all.py --select test_bootstrap.py
+  --select test_manager_version.py --select test_bootstrap_e2e.py --select
+  test_amendment_update_path.py --select test_squash_merge_compat.py
+  --select test_release_source.py` -- 1352/1352 units, 8599 tests, exit 0
+  (head `8e0042b` plus this checkpoint's first working tree); after the
+  `package` tests and the diff review (import order, one digest read in
+  `package verify`), the same selection -- 1353/1353 units, 8604 tests,
+  exit 0 (`selection_digest f43674d9...`, `tests_digest d0151f3d...`).
+  Targeted selections, not a gate.
+
+### CP4 -- build and prove the five packages (complete)
+
+- **`tools/workflow_packages.py build (--from DIR | --commit SHA) --out DIR
+  [--pins FILE [--check]] [--prime]`** (plan 6): one package per release
+  into `<out>/<v>/` (a `--release-source` directory layout); each built
+  twice and compared byte for byte, then extracted and compared with its
+  source tree (file set, bytes, modes); `--commit` extracts `git archive
+  <sha> distribution/workflow`, never the working tree; `--pins` writes the
+  pin file canonically (or `--check`s it); `--prime` fills the default
+  cache through `ReleaseCache.ensure`. Prints the evidence table.
+- **Run:** `build --commit ec38979 --out /tmp/m2-cp4/assets --pins
+  src/workflow_manager/published_releases.json --prime`. All five round
+  trips identical; two full runs `diff -r` identical; `sha256sum -c
+  --strict` OK in every package directory. The evidence table is in
+  `docs/MIGRATION.md` ("Packaged releases -- the five packages"). The pins
+  now publish `2.3.1`-`2.6.0`; `~/.cache/workflow-manager/releases` holds
+  all five.
+- **Manager packaging (5.6):** `tools/release/package.py` loses
+  `--manager-root`; the expected `releases` list is the checkout's pins;
+  the wheel must carry `workflow_manager/published_releases.json`; the smoke
+  check always runs `releases` and `verify <checkout>` from the wheel with
+  the caller's environment. `workflow-manager-verify.yml`'s `package` job
+  and `release.yml`'s build step gain an `actions/cache@v4` restore of
+  `${{ runner.temp }}/workflow-manager-releases` keyed on
+  `hashFiles('src/workflow_manager/published_releases.json')` and
+  `WORKFLOW_MANAGER_RELEASE_CACHE`; the notes line lists the pinned
+  versions. Smoke (outside the suite): `package.py --version 0.0.0+ci`
+  from a scratch venv with `WORKFLOW_MANAGER_RELEASE_SOURCE=/nonexistent`
+  -> exit 0 (wheel, sdist, SHA256SUMS; `releases` and `verify` through the
+  primed cache, offline).
+- **Tests:** new `tests/test_package_round_trip.py` (deleted in CP6):
+  `TestPackagesReproduceTheDistributionTree` (round trip against the
+  `git archive ec38979` extraction with an independent file comparison,
+  byte-identical rebuild, pins reproduce byte for byte),
+  `TestCheckoutReleasesArePinned` (every committed release is pinned and
+  its manifest hashes to the pin; the working tree's manifests too), and
+  `TestWorkflowPackagesTool` (the tool on synthetic releases: pins
+  write/check, prime, `__pycache__` debris fails the round trip, mode
+  difference, refusals, usage errors). New `tests/test_published_packages.py`:
+  `TestPinnedPackagesVerify` (permanent: each pin's cached assets and
+  `SHA256SUMS`, re-extraction, verified snapshot). Edited:
+  `test_parallel_runner.py` (package job command, cache step and env),
+  `test_release_workflows.py` (cache step before the build, keyed on the
+  pins, no `--manager-root`, notes from the pins; three new mutants),
+  `test_manager_version.py` (`test_the_live_release_set` on the pins
+  without `--manager-root`; expected list = pins; wheel must carry the
+  pins; `--manager-root` now a usage error). Both new modules have `full`
+  rules in `tools/ci/pr_profile_paths.json`.
+- **INV-3:** `python3 -m workflow_manager verify .` with
+  `WORKFLOW_MANAGER_RELEASE_SOURCE=/nonexistent` -> exit 0 through the
+  primed cache, offline; `releases` lists all five `[cached]`.
+- **CI note:** `TestPinnedPackagesVerify` and every CLI test that resolves
+  a pinned version read the cache. CI's shard jobs have no primed cache
+  until CP5 (runner priming) and CP6 (cache restore); the packaging jobs
+  download on a miss, which needs the cutover's `K2`. No implementation
+  gate depends on CI (plan 9, INV-5).
+- **Verified (gate):** `python3 tests/run_all.py` -- full selection, local,
+  8 workers, head `92ef881` plus this checkpoint's working tree, 4122/4122
+  units, 25,828 tests, `selection_digest f66d59fe...`, `tests_digest
+  be0b5900...`, verdict exit 0, wall 398 s (20 declared orphan-source
+  chunks tolerated).
+
+### CP5 -- the test suite on the release cache (complete)
+
+- **Tested releases (7.1):** `tests/support.py` computes `PINNED_VERSIONS`,
+  `NEWEST_RELEASE` (`2.6.0`) and `UPGRADE_FROM` (`2.5.1`; `None` with one
+  pin) from the pin file at import, and `release(v)` resolves a pinned
+  release through the cache as a verified snapshot, memoized per process;
+  `next_version(v)` gives the synthetic next release. `CI_SUITES` and
+  `tests/portability_exceptions.json` (moved from `migration/`, every
+  entry unchanged) keep all five versions as frozen records.
+- **Matrix:** `tests/parallel/matrix.py` names four unversioned classes, all
+  on `NEWEST_RELEASE`: `TestConformanceFixture`, `TestBootstrappedTarget`,
+  `TestBootstrappedRepositorySatisfiesTheFrozenSuite` and the new
+  `test_update_path.py::TestUpdatedRepositorySatisfiesTheFrozenSuite`
+  (omitted with one pin). `frozen_runs.py` gains the `updated` fixture
+  (`build_updated_repo`: bootstrap `UPGRADE_FROM`, commit, `update`,
+  commit; `NoUpgradeSourceError` with one pin), post-run residue/drift for
+  it, and reads every release and `release_digest(version)` through
+  `support.release`. Frozen discovery loads suites from the snapshot.
+  1,244 frozen units (4 x 311).
+- **Priming:** new `tests/parallel/priming.py`. Every mode except
+  `--restore-barrier` resolves every pinned version with
+  `ReleaseCache.ensure` in a subprocess on the checkout's own `src/` and pins,
+  then exports `WORKFLOW_MANAGER_RELEASE_CACHE` for discovery and every
+  unit. A failure is `PrimingError`, exit 2, naming the cache and the source.
+- **Module rework (7.2):** `test_conformance_suite.py` split: the matrix
+  classes plus `TestAuthoredReleaseCiTemplateSuiteNames` (every pinned
+  version except `2.3.1`, through `support.release`), the new
+  `TestPinnedVersionsCarryTheirRecords` (pins = `CI_SUITES` keys = exception
+  keys) and `TestPortabilityExceptions250RequiredEmptyEntry` stay; the tool
+  classes moved to the new `tests/test_authored_release_tools.py` (CP6
+  deletes it). `test_bootstrap.py` runs on `NEWEST_RELEASE`, with
+  `NEXT_RELEASE` as the synthetic next release. `test_bootstrap_e2e.py`
+  (mixin gains `FIXTURE`; live-state update on the newest pin; the default
+  is the newest pin). `test_internal_references.py`,
+  `test_disposable_repo_fixtures.py`, `test_squash_merge_compat.py` (no
+  `--manager-root`), `test_orphan_processes.py` and
+  `test_workflow_2_6_0_hardening_disposable_repo.py` (guard names
+  `TestBootstrappedTarget`, reads the moved exceptions) read releases through
+  `support.release`. `resources.json`'s `frozen:` orphan sources keep
+  `2.6.0` plus the `updated` fixture; the five `host:` entries and
+  `repo:distribution` are unchanged. `timings.json` gains an `updated` group
+  overhead (twice `bootstrapped`'s, an estimate until the next refresh).
+- **Scratch checkout (7.2.1):** the scratch's `0.0.1` is a real package
+  (`publish_synthetic_release`, `build_package`) served from and cached in a
+  sibling `<scratch>.releases/` directory, and it is the scratch's one pin.
+  `scratch_release_env` overrides the source and cache for `run_cli`,
+  `start_cli`, `run_reproduction`, `main_in_process`, `run_ci_step`,
+  `release_tests.run_assert_full_plan` and in-process discovery. Worktrees
+  and clones map back to their scratch by name. `builder_raises` now uses a
+  package whose manifest has no `.gitignore` fragment. The exclusive lock
+  moved to `repo:tools` over the scratch's `tools/scratch/lib/bin/`, and the
+  integrity tests use that tree. The `:344` sub-path case is now
+  `src/workflow_manager/`. `TestFrozenInventoryCountRefusal`'s layout is a
+  one-pin package too. The stopgap test's three-release scratch publishes
+  `0.0.9`/`0.0.10` packages.
+- **New tests:** `test_update_path.py` (the matrix class, the real pins
+  define an update path, and a CLI bootstrap of `UPGRADE_FROM` then `update`:
+  record, `source`, newest bytes, `verify`).
+  `TestScratchReleaseIsolation`: a scratch run primes and tests only
+  `0.0.1`, and the real cache is unchanged; an unprimable pin is
+  `PrimingError`; the lock is on `tools/`. `TestTestTreeHygiene` resolves
+  `0.0.1` with `support.release` in the scratch's environment.
+  `test_internal_references.py`: `TestNoTestResolvesAReleaseThroughTheLayout`
+  (imports of `find_release`/`available_versions`/`release_root`, the
+  layout string or path components, comments included; scans
+  `tests/**/*.py` minus CP6's deletion list; stale exemptions fail) and
+  `TestNoLiteralCliEnvironment`.
+- **Deviations, recorded:** the layout scan has four exemptions, not six.
+  `TestReleaseResolution` and `TestManagerRootAlias` reach the layout only
+  through calls (`release_root(...)`), which the scan does not flag. Listing
+  them would trip the stale-exemption check. The remaining four are the
+  `workflow_manager.release` import (until CP6), the two `MIGRATION.md`
+  regex classes and `LINT_MODULE`.
+  Scratch runs take the source/cache override as extra keys over the
+  caller's environment, not through `support.cli_env`: `cli_env` resets
+  `PYTHONPATH`/`PATH`/`HOME` to the real checkout's. The stopgap test's
+  `STOPGAP_IDENTIFIERS` now match the stopgap's qualified names
+  (`inventory.NEWEST_RELEASE`, `NEWEST_RELEASE_KIND`, `newest_release(`,
+  ...), because the plan makes `support.NEWEST_RELEASE` permanent.
+  `test_release_workflows.py`'s notes check says `distribution/` rather
+  than the layout string.
+- **Verified (gate):** `python3 tests/run_all.py`: full selection, local,
+  8 workers, head `ce03624` plus this checkpoint's working tree, 1467/1467
+  units, 8,925 tests, `selection_digest bc62a9da...`, `tests_digest
+  60425a69...`, verdict exit 0, wall 274 s (9 declared orphan-source chunks
+  tolerated). `distribution/` is still present and now read only by the
+  modules on CP6's deletion list.
+
+### CP6 -- removal (complete)
+
+- **Deleted whole:** `distribution/`, `migration/`, `tools/migrate.py`,
+  `tools/build_release.py`, the stopgap's `tools/ci/` (`choose_profile.py`,
+  `nightly_alarm.py`, `pr_profile_paths.json`, and the now-empty package's
+  `__init__.py`), and the nine retired test modules on the plan's list.
+  `tools/workflow_packages.py` stays: it builds from `git archive <commit>`,
+  never from the working tree.
+- **Stopgap:** every `STOPGAP(M2)` block under `tests/parallel/` (and the
+  `--newest-release-only` flag with them); in
+  `workflow-manager-verify.yml` the profile step, the `NEWEST` wiring, the
+  `profile` output, `actions: read` and the `nightly-alarm` job (the nightly
+  schedule stays). `TestAssertFullPlanRefusesTheStopgap` moved to
+  `test_release_versioning.py`: with the flag gone it relabels a real full
+  plan `newest-release` (re-digested, so it still loads) and requires
+  `assert-full-plan` to refuse it, and requires the runner to reject the
+  flag as an unrecognized argument.
+- **Checkout fallback and discovery API:** `release.py`'s `release_root`,
+  `available_versions` and `find_release` are gone, with `__init__.py`'s
+  re-exports; its docstring now describes packages, pins and the cache.
+  `cli.py` resolves `--release-dir`, then the `--manager-root` alias (now a
+  plain path join, `_checkout_releases`), then the pins; an unpinned version
+  without `--release-dir` is `ReleaseNotPublishedError` (new test
+  `test_an_unpinned_version_without_release_dir_is_not_published`), and with
+  no pin there is no default. `release.py`'s damaged-release message no
+  longer names `tools/migrate.py`. `TestReleaseResolution` lost the
+  fallback tests, `TestDiscoveryApi` is gone, and `TestManagerRootAlias`
+  builds the alias layout itself.
+- **Runner:** `GUARDED_TREES` is `("src/", "tools/")`; the barrier message
+  follows. `resources.json` is `resources: {}`, `exclusive: {}` and the nine
+  orphan sources (five `host:`, four `2.6.0` `TestStateLock`).
+  `isolation.py`'s `TOOL_SCRIPTS`/`TOOL_ENTRY_POINTS` and their lint
+  branches are gone; the lint fixture is rebased on `REPO_ROOT / "tools"`.
+  `--fast` is removed with every reference (`FAST_ALIAS_SELECTION`,
+  `FAST_NOTE`, `ALLOWED`, `_DEFAULTS`, the refusal, the selection line, the
+  note).
+- **Tests rewritten (7.2):** `test_parallel_runner.py`: `EXCLUSIVE_UNIT`
+  gone; the committed declaration declares no resource or exclusive unit,
+  every orphan source is a discovered unit and every `frozen:` one is
+  `NEWEST_RELEASE`'s; the real plan drops its A0 check;
+  `test_todays_tests_are_lint_clean`; the real-inventory tests target
+  `test_bootstrap.py`; synthetic resources use `tools/`/`src/`;
+  `TestDirectEntryPoints` (an ordinary run, and `--select`, exit 0; the
+  alias exits 2 as an unrecognized argument; direct runs of
+  `test_bootstrap.TestInstallationRecord`); the CI checker drops the upstream
+  and `fetch-depth` rules and requires, per test job, the job-level cache
+  env and one pin-keyed `actions/cache` restore before `run_all.py`, plus
+  exactly four jobs and a `shards`-only plan output (new mutants for each).
+  `test_release_workflows.py` drops the upstream fetch (and gains an
+  "upstream again" mutant). `support.py` drops `CLASSIFICATION`,
+  `FROZEN_COMMIT`, `FROZEN_TAG`, `UPSTREAM` and the upstream helpers; the
+  scratch checkouts write no `migration/`. `test_manager_version.py`: the
+  alias on this checkout, which has no `distribution/`, prints the
+  deprecation notice and lists the pins. The hardening test's v2.3.1-002
+  guard is retargeted to `test_update_path.py` (narrower: it proves the
+  pinned update path runs in the full selection; recorded for CP7's
+  `MIGRATION.md`), and its `:946` comment no longer names the retired
+  module.
+- **Retired-name assertion:** `test_internal_references.py`'s
+  `TestNoTestNamesARetiredModule` scans every `tests/**/*.py` for the nine
+  retired module names and the alias identifiers; its only exemptions are
+  its own two lists and `TestDirectEntryPoints.test_the_retired_alias_is_refused`.
+  The layout scan now covers every test file, and its two `until CP6`
+  exemptions are gone; `TestManagerRootAlias` is exempt `while the alias
+  exists`, because it now names the alias's layout itself.
+- **CI (7.3):** `plan`, `shard` and `aggregate` set
+  `WORKFLOW_MANAGER_RELEASE_CACHE` at job level and restore it before
+  `run_all.py` (every runner mode primes); the repflow clone, its env and
+  `fetch-depth: 0` are gone (no remaining test reads history).
+  `release.yml` loses its upstream fetch step and env.
+- **Observations, not changed here:** `release.yml`'s `assert-full-plan`
+  rediscovers the inventory, which reads `NEWEST_RELEASE` through the cache,
+  and runs before the job's cache restore (5.6's order), so on a release
+  run it downloads that one package from the published source (after the
+  cutover's `K2`). `tools/workflow_packages.py` has no test module after
+  `test_package_round_trip.py`'s planned deletion. Documentation still
+  describes the removed trees and the stopgap; that is CP7.
+- **Verified (gate):** `python3 tests/run_all.py`: full selection, local,
+  8 workers, head `9255a34` plus this checkpoint's working tree, 1409/1409
+  units, 8,737 tests, `selection_digest a1ba7718...`, `tests_digest
+  69d9fb85...`, `tree_digest 03bf4446...`, verdict exit 0, wall 259 s (9
+  declared orphan-source chunks tolerated).
+
+### CP7 -- documentation and evidence (complete)
+
+- **`docs/ARCHITECTURE.md`:** the distribution/state boundary is now the
+  release/state boundary, with a new "Packages, pins, source and cache"
+  section (package format, pins as the trust root, source and cache
+  precedence, the hit rule, snapshots, local directories, the record's
+  `source`). The layout, "Release integrity" (every verification hop, and
+  `ReleaseNotPublishedError`/`ReleaseUnavailableError`), "Which release a
+  command means" (the newest pin) and "Boundaries" follow. The verification
+  table is rewritten around the package, pin, cache and update-path tests
+  (every cited class exists); the retired migration checks are named as
+  history. "Verification execution" gains "Priming" and "Tested releases"
+  bullets, phase B's four matrix classes, no exclusive unit, the CI cache
+  (no full-history checkout), one selection, no nightly alarm, the barrier on
+  `src/` and `tools/` only and why the cache is outside it, nine orphan
+  declarations, and the post-M2 total beside the sharding milestone's
+  measurements. "One reduced selection is a gate, in one place" and
+  "Stopgap test profile" are removed, with the `--fast` mention. The
+  extension-point table swaps `available_versions()`/`find_release()` for
+  `load_pins()`/`ReleaseCache.resolve()`/`local_release()` and adds
+  `build_package()`/`extract_package()`. "What a second upstream release
+  needs" becomes "What a new Workflow release needs" (a pin pull request),
+  and "Authored releases" becomes a short history pointing at `ec38979`.
+- **`docs/MIGRATION.md`:** a header note that the record is historical and
+  that every path under the removed trees is read at `ec38979`; the CP4
+  section in the past tense, with the `--check` rebuild command (run: exit
+  0, all five "identical"); and the M2 record "M2 -- the trees leave this
+  repository": `ec38979` as the last commit carrying `distribution/`, what
+  CP6 deleted, "old releases are tested once" (`OD-M2-5`), and
+  v2.3.1-002's repository-level guard retargeted to `test_update_path.py`,
+  stated as narrower (it proves the pinned update path runs in the full
+  selection and no longer covers `2.3.1`→`2.4.0`), with the base/CP5/CP6
+  gate totals.
+- **`docs/RELEASING.md`:** the intro names the `workflow` repository; the
+  release job's smoke check (pins in the wheel, `releases`, `verify` through
+  the cache); "Installing a release, without a checkout" (the source, cache,
+  offline, air-gapped, `--release-dir` and the `--manager-root` alias);
+  "Workflow packages: adding a pin" (download, `sha256sum -c`, `package
+  verify`, the pin, `CI_SUITES` and exceptions, the gate, a `feat:` title,
+  pins never edited); the nightly without an issue; and "Cutover: M2" with
+  K1-K5 as commands. K2's seed loop and its per-tag check were dry-run in a
+  temporary repository (no push): five commits, each tag's tree equal to its
+  release at `ec38979` plus `README.md`. The trunk-model cutover is kept as
+  history, noting that its `newest-release` probe no longer applies.
+- **`README.md`:** the intro, layout, install (wheel, no checkout), use
+  (`workflow-manager`), integrity and cache paragraphs, a "Workflow
+  releases" section in place of "Re-deriving the distribution", the tests
+  paragraph (one selection, priming, barrier on `src/` and `tools/`, no
+  `--fast`, no stopgap) and the reading order. The Status table is unchanged
+  (pinned by `test_internal_references.py`).
+- **`CLAUDE.md`, below the managed marker only:** what the repository is;
+  the hard rules (release and pin immutability replaces "generated, not
+  edited"; defects stay write-ups); "Before changing anything" (one selection
+  everywhere, priming, no `--fast`, barrier on `src/` and `tools/`, the
+  `migrate.py --check` paragraph gone); "Where things are"; one "Adding a
+  Workflow release" section (a pin pull request) in place of the upstream and
+  authored procedures; the downgrade posture kept whole, its two
+  `distribution/…` paths now the published packages' `payload/scripts/`.
+  The managed part is byte-identical, and `workflow-manager verify .`
+  reports `installation matches workflow 2.6.0`.
+- **Left as they are:** `docs/ROADMAP.md` (not edited during a milestone),
+  `docs/defects/` and the plan documents (records), and the code comments
+  that name `distribution/workflow` on purpose (the alias in `cli.py`,
+  `tools/workflow_packages.py --commit`).
+- **Observation, not changed:** the real release cache holds an empty
+  `0.0.1.lock` (a scratch-only version) dated 13:36 today, before CP5's
+  commit; `TestScratchReleaseIsolation` checks that the listing is unchanged
+  by a scratch run, so it is a leftover from CP5's development, not a
+  recurring leak.
+- **Verified (targeted):** `python3 tests/run_all.py --select
+  test_internal_references.py --select
+  test_parallel_runner.py::TestSerialEvidencePolicyIsDocumented --select
+  test_manager_version.py --select test_release_workflows.py`: 26/26 units,
+  105 tests, exit 0. The full gate runs at self-review (step 3).
+
+### Self-review of the milestone diff and the full gate (`SELF_REVIEWING_IMPLEMENTATION`)
+
+- `enter_self_reviewing_implementation` was a no-op. CP7's
+  `complete_checkpoint` had already written the phase.
+- The whole `ec38979..9247089` diff was reviewed:
+  - `package.py`: deterministic members and headers, `_read_checked`'s
+    link/escape refusal, `extract_package`'s member rules (single top,
+    duplicates, types, modes, size cap, manifest-exact file and directory
+    sets, digests), staging and `rename`;
+  - `source.py`: pin-file shape, the scheme and redirect rules, the capped
+    fetch, the double pin/`SHA256SUMS` check, the hit rule, `_discard`,
+    `_fetch`'s staging, `resolve`'s snapshot-under-lock and single refetch,
+    and `local_release`'s pinned/unpinned branches;
+  - `cli.py`, `install.py`, `installation.py`: `_resolve`'s precedence,
+    the `with` scopes around every snapshot, exit 1 for the three release
+    errors, `status` with an unresolvable release, and the additive
+    `source`;
+  - `tools/workflow_packages.py`, `tools/release/package.py`,
+    `tests/parallel/priming.py`, both workflows, and the test and doc
+    changes.
+- No finding was blocking or important, and nothing was changed. Two minor
+  cases were checked and left as they are:
+  - `releases` with the deprecated `--manager-root` pointing at a checkout
+    whose manifest lacks `upstream.tag` raises a traceback (a `KeyError`
+    the CLI does not map). It is reachable only through the deprecated
+    alias and a malformed checkout;
+  - an `OSError` from `shutil.rmtree` in `ReleaseCache._discard` (a cache
+    entry the user cannot delete) escapes unwrapped rather than as
+    `ReleaseUnavailableError`. The command still fails, only without the
+    named error.
+- INV checks: `git diff --stat ec38979 HEAD -- scripts .claude/commands
+  .github/workflows/workflow-conformance.yml
+  docs/ai-workflow/WORKFLOW_CONFIG.json` is empty; `CLAUDE.md` up to
+  `<!-- workflow-manager:end -->` is byte-identical to the base;
+  `PYTHONPATH=src python3 -m workflow_manager verify .` reports
+  `installation matches workflow 2.6.0` (through the primed cache).
+- **The full gate**, `python3 tests/run_all.py` at `9247089`, 2026-09-30
+  (263.2 s wall, 8 workers):
+  - `evidence: full selection, local, 8 worker(s), head 9247089e3a9e32829bc31c45a03a6a1deed85866,
+    1409/1409 units, 8737 tests, selection_digest
+    a1ba771858aa45abbadb14526fab4fcd48a32ba0cb4d0229669727ac182f793c,
+    tests_digest 69d9fb85ff68b701113c9d664726fcd1e5f217365a926a84488ecec5c6297a34,
+    tree_digest 11e4c4cb5ebfb964dcad8debd6fbb87c362d8e6895705a64e44e07887d42a9ec`,
+    `verdict: exit 0`;
+  - `orphan check: on`. Orphans were tolerated only in the nine declared
+    `orphan_sources` chunks, none undeclared and none a Git process;
+  - the selection and tests digests equal CP6's gate: CP7 changed only
+    documentation.
+
+## Functional review checklist
+
+You are testing the Manager as an operator uses it after M2: releases come
+from verified packages in a cache, never from a checkout's `distribution/`.
+- **Round 2** (implementation revision 4). Round 1 (revision 2) passed flows
+  1-8 and K1-K3. It found F1 in K4, which was fixed in `3e90d7b`, with its
+  regression scanner hardened in `6bbd8ec`. Revisions 3 and 4 changed only
+  `.github/workflows/workflow-manager-verify.yml`, two test modules and one
+  `docs/ARCHITECTURE.md` paragraph, with no Manager code. Re-test K4 (the CI
+  run) and flow 8's targeted run. Flows 1-7 exercise unchanged code (all
+  passed in round 1) and are optional.
+- **Technical approval:** commit `2216d5a`, implementation revision 4.
+- **Where findings go:**
+  `.ai-review/workflow-manager-packaged-distribution/feedback/FUNCTIONAL_REVIEW.md`.
+- **Automated verification:** already current. The full gate passed on the
+  final code (recorded at `4f42956` with the fix's tree: 1410/1410 units,
+  8,746 tests, verdict 0). Only state commits have landed since.
+
+**Setup.**
+- Linux, Python 3.12 or later, Git, and an authenticated `gh` (cutover
+  only).
+- Run every flow offline against a PRIVATE copy of the release cache, so
+  that nothing touches your real cache, with a release source that cannot
+  be reached (a closed loopback port), so any unexpected download fails
+  loudly:
+
+```bash
+export M=~/Workspace/workflow-manager T=$(mktemp -d)
+cp -a ~/.cache/workflow-manager/releases "$T/cache"
+export WORKFLOW_MANAGER_RELEASE_CACHE="$T/cache"
+export WORKFLOW_MANAGER_RELEASE_SOURCE='http://127.0.0.1:9/{version}/'
+wm() { PYTHONPATH="$M/src" python3 -m workflow_manager "$@"; }
+newrepo() { git init -q "$1" && git -C "$1" commit -q --allow-empty -m init; }
+```
+
+**Test data.** Scratch Git repositories under `$T`, created by the flows.
+
+**Flows.**
+
+1. **The pinned releases.** `wm releases`. Expected: exactly `2.3.1`,
+   `2.4.0`, `2.5.0`, `2.5.1` and `2.6.0`, each with its archive name, its
+   pinned sha256, and `[cached]`.
+2. **A fresh install from the cache.** `newrepo "$T/r1"; wm bootstrap
+   "$T/r1"; wm verify "$T/r1"; wm status "$T/r1"`. Expected: `2.6.0`, the
+   newest pin, is installed, and `verify` reports a clean installation.
+   The installation record (`.workflow-manager/installation.json`) carries
+   a `source` object naming the package and its digest.
+3. **The update path.** `newrepo "$T/r2"; wm --release-version 2.5.1
+   bootstrap "$T/r2"`, commit the result, then `wm update "$T/r2"; wm
+   verify "$T/r2"`. Expected: the repository moves from `2.5.1` to `2.6.0`,
+   and `verify` is clean.
+4. **A damaged cache entry is never installed.** Change one byte of a file
+   under `$T/cache/2.6.0/tree/`, then `newrepo "$T/r3"; wm bootstrap
+   "$T/r3"; echo "rc=$?"`. Expected: the entry fails its check against the
+   pin and is discarded. The refetch cannot reach the source, so the
+   command fails with the named `ReleaseUnavailableError` and `rc=1`, and
+   `$T/r3` gets no Workflow files. Restore with `rm -rf "$T/cache/2.6.0"`
+   and copy it from the real cache again.
+5. **An unpublished version is refused.** `wm --release-version 9.9.9
+   bootstrap "$T/r3"; echo "rc=$?"`. Expected: `ReleaseNotPublishedError`
+   and `rc=1`.
+6. **A local directory for a pinned version must match its pin.** Copy
+   `$T/cache/2.6.0/tree` to `$T/alt`, change one byte of a payload file,
+   then `wm --release-dir "$T/alt" bootstrap "$T/r3"; echo "rc=$?"`.
+   Expected: a named integrity refusal, `rc=1`, and nothing installed.
+7. **The packages reproduce their pins.** `wm package build
+   "$T/cache/2.6.0/tree" --out "$T/pkg"`, then `wm package verify
+   "$T/pkg/workflow-2.6.0.tar.gz" --sha256 <2.6.0's pin from flow 1>`.
+   Expected: the rebuilt archive verifies, and its digest equals the pin.
+8. **The removals.** In `$M`: `distribution/`, `migration/`,
+   `tools/migrate.py` and `tools/build_release.py` no longer exist.
+   `python3 tests/run_all.py --fast` is rejected as an unknown option.
+   `python3 tests/run_all.py --select test_release_source.py` passes with
+   `verdict: exit 0`.
+
+**The cutover (after this checklist; network; each step on the user's
+go-ahead).**
+- **K1 (done 2026-09-30).** `RodrigoFAbreu/workflow` was created public,
+  release immutability is on (`immutable-releases`: `enabled: true`), and
+  it is cloned empty at `~/Workspace/workflow`.
+- **K2.** Push the five seed commits with tags `v2.3.1` to `v2.6.0`, and
+  publish the five releases with their archive, manifest and `SHA256SUMS`
+  assets.
+- **K3.** With an empty temporary cache and the default source:
+  `releases`, then `bootstrap`/`verify` of a scratch repository for each
+  pinned version. `sha256sum -c SHA256SUMS` passes on each download, and
+  every digest equals its pin.
+- **K4.** Push the branch and open the pull request titled `feat: Workflow
+  releases are downloaded, verified packages`. The full selection is green
+  in CI; its first run downloads the K2 packages. Round 1: pull request #11
+  was opened, and its verification workflow was rejected (run 36767970166;
+  F1). Revision 3's run was green, starting from an empty CI cache (the
+  first real download). Revision 4's run
+  (https://github.com/RodrigoFAbreu/workflow-manager/actions/runs/36774307005)
+  is green: 21 checks, `CLEAN`.
+- **K5.** Squash-merge, check that `main`'s full run is green and that
+  Manager `v1.2.0` is published, then `pipx install` its wheel into a
+  scratch environment and bootstrap a scratch repository with no checkout.
+
+A problem found in K2-K5 goes back through `/apply-functional-review`.
+
+**Round 2 results (2026-10-01, revision 4, checklist `69da8f7`).**
+- **K4:** pull request #11's CI on revision 4 is green: 21 checks, `CLEAN`
+  ([run 36774307005](https://github.com/RodrigoFAbreu/workflow-manager/actions/runs/36774307005)).
+  The verification run on the checklist head `69da8f7`
+  ([run 36788937581](https://github.com/RodrigoFAbreu/workflow-manager/actions/runs/36788937581))
+  is green too.
+- **Flow 8's targeted run:** 19/19 units, 127 tests, `verdict: exit 0`.
+- Flows 1-7 exercise code unchanged since round 1, where they all passed.
+
+**Known limitations (out of scope here).**
+- The network download path is proven only by K3 and K4, after this
+  checklist.
+- Archives are deterministic per machine, not across zlib versions. The
+  pins name the published archives.
+- Each new Workflow release needs a small Manager pull request that adds
+  its pin (`OD-M2-2`).
+- `--manager-root` survives one release as a deprecated alias.
+
+## Previous milestone
+
 `workflow-manager-test-cleanup` (M1b; `governing_workflow_version: "2.2"`,
 `process`, plan revision 5 approved in `5446584` on basis
 `EXTERNAL_APPROVE`, base `7dabd2e`, branch

@@ -1,8 +1,8 @@
 """Deterministic inventory, planning and execution of this repository's own
 verification suite (`tests/`). Stdlib only.
 
-Nothing here is Workflow state: no module under `scripts/` or
-`distribution/` reads it, and no timing data ever decides whether a test
+Nothing here is Workflow state: no module under `scripts/` or in a
+Workflow release reads it, and no timing data ever decides whether a test
 runs. Every entry point takes `repo_root` as an argument -- nothing in this
 package reads a module-level repository root.
 """

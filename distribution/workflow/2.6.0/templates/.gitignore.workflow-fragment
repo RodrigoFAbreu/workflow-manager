@@ -1,4 +1,0 @@
-# --- AI Workflow (managed by workflow-manager) ---
-.ai-review/
-__pycache__/
-*.pyc

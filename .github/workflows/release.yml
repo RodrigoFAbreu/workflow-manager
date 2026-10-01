@@ -23,13 +23,6 @@ on:
 permissions:
   contents: read
 
-env:
-  # The frozen upstream, as the verification workflow's plan job fetches it:
-  # the inventory rediscovery reads it.
-  UPSTREAM_URL: https://github.com/RodrigoFAbreu/repflow-android.git
-  UPSTREAM_TAG: workflow-v2.3.1
-  UPSTREAM_COMMIT: 1f954fbb6c689ec690fefe5a2f27b1e4a0ca6db6
-
 jobs:
   release:
     if: github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success'
@@ -62,12 +55,6 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Fetch the frozen upstream
-        run: |
-          upstream="$HOME/Workspace/repflow-android"
-          git init -q "$upstream"
-          git -C "$upstream" fetch -q --depth 1 "$UPSTREAM_URL" "+refs/tags/$UPSTREAM_TAG:refs/tags/$UPSTREAM_TAG"
-          test "$(git -C "$upstream" rev-parse "$UPSTREAM_TAG^{commit}")" = "$UPSTREAM_COMMIT"
       - uses: actions/download-artifact@v4
         with:
           name: plan
@@ -97,13 +84,20 @@ jobs:
             exit 0
           fi
           exit "$status"
+      - name: Restore the release cache
+        if: steps.version.outputs.version != '' && steps.superseded.outputs.superseded != 'true'
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/workflow-manager-releases
+          key: workflow-releases-${{ hashFiles('src/workflow_manager/published_releases.json') }}
       - name: Build and verify the package
         if: steps.version.outputs.version != '' && steps.superseded.outputs.superseded != 'true'
         env:
           VERSION: ${{ steps.version.outputs.version }}
+          WORKFLOW_MANAGER_RELEASE_CACHE: ${{ runner.temp }}/workflow-manager-releases
         run: |
           python3 -m pip install -r .github/tools/requirements.txt
-          python3 tools/release/package.py --version "$VERSION" --out "$RUNNER_TEMP/assets" --manager-root "$GITHUB_WORKSPACE"
+          python3 tools/release/package.py --version "$VERSION" --out "$RUNNER_TEMP/assets"
       - name: Publish the release
         if: steps.version.outputs.version != '' && steps.superseded.outputs.superseded != 'true'
         env:
@@ -111,10 +105,10 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
           TARGET_SHA: ${{ steps.target.outputs.target_sha }}
         run: |
-          releases="$(ls distribution/workflow | sort -V | paste -sd, - | sed 's/,/, /g')"
+          releases="$(python3 -c 'import json; print(", ".join(sorted(json.load(open("src/workflow_manager/published_releases.json"))["releases"], key=lambda v: tuple(map(int, v.split("."))))))')"
           {
             echo "The Workflow Manager's own package: a wheel, an sdist and SHA256SUMS."
             echo
-            echo "This release contains no Workflow release. At this tag, distribution/workflow/ holds: $releases."
+            echo "This release contains no Workflow release. It installs the published Workflow releases it pins: $releases."
           } > "$RUNNER_TEMP/notes.md"
           gh release create "v$VERSION" --target "$TARGET_SHA" --title "v$VERSION" --notes-file "$RUNNER_TEMP/notes.md" --generate-notes "$RUNNER_TEMP"/assets/*

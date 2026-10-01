@@ -15,6 +15,7 @@ import contextlib
 import hashlib
 import importlib.util
 import io
+import json
 import subprocess
 import sys
 import tempfile
@@ -239,26 +240,41 @@ class VersionFlagTest(unittest.TestCase):
 
 
 class MissingDistributionHintTest(_Tmp):
-    """Without `distribution/workflow/`, every command that needs a release
-    names the likely cause (a wheel install) and the fix (`--manager-root`)."""
+    """Where the Manager has no release to use, every command that needs one
+    names why and the fix
+    (plan 5.5): an unpublished version needs `--release-dir`, and a published
+    one that cannot be fetched names the cache and source options. Both exit 1.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.pins = self.tmp / "published_releases.json"
+        self.write_pins({})
+        patcher = mock.patch.object(cli.release_source, "PINS_PATH", self.pins)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def write_pins(self, releases):
+        self.pins.write_text(json.dumps({"schema_version": 1, "repository": "example/workflow",
+                                         "releases": releases}))
 
     def run_cli(self, *argv):
         out, err = io.StringIO(), io.StringIO()
         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
-            code = cli.main(["--manager-root", str(self.tmp), *argv])
+            code = cli.main(["--release-cache", str(self.tmp / "cache"),
+                             "--release-source", str(self.tmp / "no-source"), *argv])
         return code, out.getvalue(), err.getvalue()
 
     def assert_hint(self, err):
-        self.assertIn(f"no Workflow releases at {self.tmp / 'distribution' / 'workflow'}", err)
-        self.assertIn("installed from a wheel, not run from a checkout", err)
-        self.assertIn("--manager-root <workflow-manager checkout at the matching tag>", err)
+        self.assertIn("--release-dir", err)
         self.assertNotIn("migrate.py", err)
+        self.assertNotIn("Until M2", err)
 
     def test_releases(self):
         code, out, err = self.run_cli("releases")
-        self.assertEqual(code, 1)
+        self.assertEqual(code, 0)
         self.assertEqual(out, "")
-        self.assert_hint(err)
+        self.assertIn("no Workflow release is published", err)
 
     def test_bootstrap_and_update(self):
         target = self.tmp / "target"
@@ -266,31 +282,47 @@ class MissingDistributionHintTest(_Tmp):
         for command in ("bootstrap", "update"):
             with self.subTest(command=command):
                 code, _, err = self.run_cli(command, str(target))
-                self.assertEqual(code, 2)
+                self.assertEqual(code, 1)
+                self.assertIn("no Workflow release is published", err)
                 self.assert_hint(err)
 
     def test_verify_and_status_of_a_managed_target(self):
         for command in ("verify", "status"):
             with self.subTest(command=command):
                 code, _, err = self.run_cli(command, str(REPO_ROOT))
-                self.assertEqual(code, 2)
+                self.assertEqual(code, 1)
+                self.assertIn("is not published", err)
                 self.assert_hint(err)
 
-    def test_a_pinned_release_version(self):
+    def test_a_requested_release_version(self):
         code, _, err = self.run_cli("--release-version", "2.6.0", "status", str(self.tmp))
-        self.assertEqual(code, 2)
+        self.assertEqual(code, 1)
+        self.assertIn("release 2.6.0 is not published", err)
         self.assert_hint(err)
+
+    def test_a_published_release_that_cannot_be_fetched(self):
+        self.write_pins({"2.6.0": {"archive": "workflow-2.6.0.tar.gz", "sha256": "0" * 64,
+                                   "manifest_sha256": "1" * 64}})
+        code, _, err = self.run_cli("--release-version", "2.6.0", "status", str(self.tmp))
+        self.assertEqual(code, 1)
+        self.assertIn("cannot fetch", err)
 
     def test_status_of_an_unmanaged_target_needs_no_release(self):
         code, out, err = self.run_cli("status", str(self.tmp))
         self.assertEqual(code, 0)
         self.assertEqual(err, "")
 
-    def test_the_checkout_itself_still_lists_its_releases(self):
-        out = io.StringIO()
-        with contextlib.redirect_stdout(out):
-            self.assertEqual(cli.main(["--manager-root", str(REPO_ROOT), "releases"]), 0)
-        self.assertIn("2.6.0", out.getvalue())
+    def test_the_alias_on_a_checkout_without_releases_lists_the_pins(self):
+        """5.5: after M2 no checkout holds releases; the deprecated alias still
+        works, says it is deprecated, and falls through to the pins."""
+        self.assertFalse((REPO_ROOT / "distribution").exists())
+        pin = {"sha256": "0" * 64, "manifest_sha256": "1" * 64}
+        self.write_pins({"2.5.1": dict(pin, archive="workflow-2.5.1.tar.gz"),
+                         "2.6.0": dict(pin, archive="workflow-2.6.0.tar.gz")})
+        code, out, err = self.run_cli("--manager-root", str(REPO_ROOT), "releases")
+        self.assertEqual(code, 0, err)
+        self.assertIn(cli.MANAGER_ROOT_DEPRECATION, err)
+        self.assertEqual([line.split()[0] for line in out.splitlines()], ["2.5.1", "2.6.0"])
 
 
 class PackageCopySetTest(_Tmp):
@@ -374,7 +406,7 @@ class Sha256SumsTest(_Tmp):
             package.sha256sums_text(self.tmp)
 
 
-class VersionOutputCheckTest(unittest.TestCase):
+class VersionOutputCheckTest(_Tmp):
     def test_exact_match(self):
         package.check_version_output("workflow-manager 1.2.3\n", "1.2.3")
 
@@ -394,13 +426,43 @@ class VersionOutputCheckTest(unittest.TestCase):
         with self.assertRaises(package.PackageError):
             package.check_releases_output("", ["2.3.1"])
 
+    def test_the_expected_list_is_the_pins(self):
+        """What the smoke check requires `releases` to list is exactly the
+        versions the checkout's pin file publishes (plan 5.6)."""
+        pins = json.loads((REPO_ROOT / "src/workflow_manager/published_releases.json")
+                          .read_text())
+        self.assertEqual(package.expected_release_versions(REPO_ROOT), sorted(pins["releases"]))
+        self.assertEqual(package.PINS_PATH.as_posix(), "src/workflow_manager/published_releases.json")
+        self.assertEqual(package.PINS_IN_WHEEL, "workflow_manager/published_releases.json")
+
+    def test_the_expected_list_refuses_an_unreadable_pin_file(self):
+        with self.assertRaisesRegex(package.PackageError, "cannot read the pins"):
+            package.expected_release_versions(self.tmp)
+        (self.tmp / package.PINS_PATH).parent.mkdir(parents=True)
+        (self.tmp / package.PINS_PATH).write_text('{"releases": []}')
+        with self.assertRaisesRegex(package.PackageError, "not a mapping"):
+            package.expected_release_versions(self.tmp)
+
     def test_the_live_release_set(self):
+        """`releases`, with no checkout named, lists exactly the pins: the
+        comparison the smoke check makes from the installed wheel."""
         versions = package.expected_release_versions(REPO_ROOT)
         self.assertIn("2.6.0", versions)
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
-            cli.main(["--manager-root", str(REPO_ROOT), "releases"])
+            self.assertEqual(cli.main(["releases"]), 0)
         package.check_releases_output(out.getvalue(), versions)
+
+    def test_a_wheel_without_the_pins_is_refused(self):
+        import zipfile
+        wheel = self.tmp / "workflow_manager-1.2.3-py3-none-any.whl"
+        with zipfile.ZipFile(wheel, "w") as archive:
+            archive.writestr("workflow_manager/__init__.py", "")
+        with self.assertRaisesRegex(package.PackageError, "does not carry"):
+            package.check_wheel_carries_pins(wheel)
+        with zipfile.ZipFile(wheel, "a") as archive:
+            archive.writestr(package.PINS_IN_WHEEL, "{}")
+        package.check_wheel_carries_pins(wheel)
 
 
 class PackageCliTest(_Tmp):
@@ -426,6 +488,11 @@ class PackageCliTest(_Tmp):
 
     def test_usage_errors_exit_2(self):
         self.assertEqual(self.run_tool("--out", str(self.tmp)).returncode, 2)
+        # `--manager-root` is gone (plan 5.6): the wheel reads its own pins.
+        proc = self.run_tool("--version", "1.2.3", "--out", str(self.tmp / "out"),
+                             "--manager-root", str(REPO_ROOT))
+        self.assertEqual(proc.returncode, 2)
+        self.assertIn("--manager-root", proc.stderr)
 
 
 if __name__ == "__main__":

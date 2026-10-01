@@ -12,6 +12,7 @@ history is a real temporary git repository under `$TMPDIR`.
 from __future__ import annotations
 
 import importlib.util
+import json
 import shutil
 import subprocess
 import sys
@@ -21,6 +22,9 @@ from pathlib import Path
 
 from support import REPO_ROOT
 
+import test_parallel_runner as runner_tests
+import test_release_workflows as release_tests
+from parallel import canonical_json, planner
 from workflow_manager.fixture import init_git_repo
 
 RELEASE_PY = REPO_ROOT / "tools" / "release" / "release.py"
@@ -529,6 +533,47 @@ class TestPyprojectHoldsOnlyThePlaceholder(unittest.TestCase):
         versions = [line for line in lines if line.startswith("version")]
         self.assertEqual(versions, [release.PLACEHOLDER_LINE])
         self.assertEqual(release.PLACEHOLDER_LINE, 'version = "0.0.0.dev0"')
+
+
+# -- assert-full-plan against the retired pull-request profile ---------------------
+
+
+class TestAssertFullPlanRefusesTheStopgap(runner_tests._CliCase):  # noqa: SLF001
+    """`release.py assert-full-plan` never rests a release on a plan the retired
+    pull-request profile (`--newest-release-only`, removed by M2) made. Such a
+    plan said `selection_kind: "newest-release"`; on a one-release scratch its
+    selection equals the full one, so only the label can refuse it."""
+
+    def relabelled(self, plan: Path, kind: str) -> Path:
+        """`plan` with `selection_kind` set to `kind` and its `plan_digest`
+        recomputed, so it still loads as a runnable plan."""
+        doc = json.loads(plan.read_text())
+        doc["selection_kind"] = kind
+        doc["plan_digest"] = planner.plan_digest(doc)
+        out = plan.with_name(f"{kind}-{plan.name}")
+        out.write_text(canonical_json(doc))
+        return out
+
+    def test_a_newest_release_plan_is_refused_though_its_selection_is_full(self):
+        scratch = runner_tests.scratch_checkout(self.tmp / "scratch")
+        full = runner_tests._plan_only(self, scratch, "--profile", "ci")  # noqa: SLF001
+        proc = release_tests.run_assert_full_plan(scratch, full, self.env)
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+
+        newest = self.relabelled(full, "newest-release")
+        self.assertEqual(json.loads(newest.read_text())["selection"],
+                         json.loads(full.read_text())["selection"])
+        proc = release_tests.run_assert_full_plan(scratch, newest, self.env)
+        self.assertEqual(proc.returncode, 1, proc.stdout + proc.stderr)
+        self.assertIn("selection_kind is 'newest-release'", proc.stderr)
+        self.assertNotIn("not runnable", proc.stderr)
+
+    def test_the_runner_no_longer_makes_one(self):
+        scratch = runner_tests.scratch_checkout(self.tmp / "scratch")
+        proc = runner_tests.run_cli(scratch, "--plan-only", "--newest-release-only",
+                                    "--out", str(self.tmp / "plan.json"), env=self.env)
+        self.assertEqual(proc.returncode, 2, proc.stdout + proc.stderr)
+        self.assertIn("unrecognized arguments: --newest-release-only", proc.stderr)
 
 
 if __name__ == "__main__":

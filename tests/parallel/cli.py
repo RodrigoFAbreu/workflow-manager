@@ -23,7 +23,8 @@ chunk that left undeclared orphaned processes (`OrphanProcessError`), a Linux
 chunk without the orphan check (`OrphanCheckUnavailableError`), a declared
 frozen orphan source sharing a chunk (`OrphanDeclarationError`), a
 repository-integrity violation, another run holding this checkout's run
-lock, a refused root run) or a usage error (among them an inherited
+lock, a refused root run, a pinned release that cannot be put in the release
+cache (`PrimingError`)) or a usage error (among them an inherited
 `GIT_CONFIG_*` environment the chunk environment cannot extend,
 `GitConfigEnvError`, refused before any chunk starts). Every exit-2 refusal prints
 `run_all: error[<ErrorName>]: ...` as its first stderr line.
@@ -32,7 +33,9 @@ Order: arguments, path flags (never inside the repository) and `--select`
 syntax are checked first, reading nothing but argv and `git rev-parse`; only
 then is the checkout run lock taken (every mode takes it), and a barrier a
 dead run left behind recovered; everything after that happens under the
-lock.
+lock. Every mode but `--restore-barrier` then primes the release cache with
+every pinned version and exports it to discovery and to every unit (plan
+7.1).
 """
 
 from __future__ import annotations
@@ -43,27 +46,14 @@ import sys
 import traceback
 from pathlib import Path
 
-from . import executor, inventory, isolation, planner, report
+from . import executor, inventory, isolation, planner, priming, report
 from . import resources as resources_mod
 from .timings import PROFILES
-
-#: The deprecated `--fast` alias's selection (`D-Fast-Flag`): the eight modules
-#: the old `--fast` tier ran, resolved through the ordinary selector.
-FAST_ALIAS_SELECTION = (
-    "test_migration_inventory.py",
-    "test_payload_bytes.py",
-    "test_templates.py",
-    "test_no_live_state_imported.py",
-    "test_internal_references.py",
-    "test_bootstrap.py",
-    "test_disposable_repo_fixtures.py",
-    "test_amendment_update_path.py",
-)
 
 #: Exceptions reported as tagged exit-2 refusals.
 REFUSALS = (inventory.SelectSyntaxError, inventory.UnknownSelectorError,
             inventory.InventoryError, planner.PlanError, resources_mod.ResourcesFileError,
-            isolation.IsolationError, executor.ExecutorError)
+            isolation.IsolationError, executor.ExecutorError, priming.PrimingError)
 
 
 class PathInsideRepositoryError(ValueError):
@@ -124,21 +114,6 @@ def build_parser() -> argparse.ArgumentParser:
                        help="restore a write barrier a killed run left behind, and exit")
     parser.add_argument("--select", action="append", default=[], metavar="SPEC",
                         help="targeted selection (repeatable); not a verification gate")
-    # STOPGAP(M2): the newest-release selection; see docs/ARCHITECTURE.md's
-    # "Stopgap test profile".
-    parser.add_argument("--newest-release-only", action="store_true",
-                        help="host classes plus the newest release's frozen suites only "
-                             "(the pull-request stopgap profile); not full-suite evidence")
-    parser.epilog = (
-        "--newest-release-only (the pull-request profile's stopgap, removed by M2) selects "
-        "every host class except the other releases' frozen-matrix classes, plus every "
-        "frozen unit of the newest release in CI_SUITES. It excludes --select and --fast, "
-        "and also takes --list and --plan-only. Its evidence line says `newest-release "
-        "selection`, never full-suite evidence.")
-    # End of the STOPGAP(M2) block.
-    parser.add_argument("--fast", action="store_true",
-                        help="deprecated alias for a targeted --select of eight modules; "
-                             "not a verification gate")
     parser.add_argument("--jobs", type=_jobs, default=None, metavar="N|auto",
                         help="local workers (default auto; 1 is the serial reference)")
     parser.add_argument("--profile", choices=PROFILES, help="timing profile (default local)")
@@ -172,7 +147,7 @@ def _mode(args) -> str:
 
 #: Which options each mode accepts, beyond the mode flag itself.
 ALLOWED = {
-    "run": {"select", "fast", "jobs", "results", "whole_groups", "shuffle_seed", "allow_root"},
+    "run": {"select", "jobs", "results", "whole_groups", "shuffle_seed", "allow_root"},
     "list": {"select"},
     "plan_only": {"select", "profile", "shards", "out", "whole_groups"},
     "run_shard": {"plan", "results", "allow_root"},
@@ -182,14 +157,8 @@ ALLOWED = {
 }
 #: GitHub Actions' ceiling on the jobs one matrix may generate.
 CI_MATRIX_LIMIT = 256
-_DEFAULTS = {"select": [], "sources": [], "fast": False, "whole_groups": False,
+_DEFAULTS = {"select": [], "sources": [], "whole_groups": False,
              "allow_root": False}
-# STOPGAP(M2): the newest-release selection; see docs/ARCHITECTURE.md's
-# "Stopgap test profile".
-for _mode_name in ("run", "list", "plan_only"):
-    ALLOWED[_mode_name].add("newest_release_only")
-_DEFAULTS["newest_release_only"] = False
-# End of the STOPGAP(M2) block.
 
 
 def validate(parser, args) -> str:
@@ -201,14 +170,6 @@ def validate(parser, args) -> str:
         flags = ", ".join("--" + e.replace("_", "-").replace("sources", "from") for e in extra)
         parser.error(f"{flags} cannot be used with "
                      f"{'a local run' if mode == 'run' else '--' + mode.replace('_', '-')}")
-    if args.fast and args.select:
-        parser.error("--fast cannot be combined with --select (it is one)")
-    # STOPGAP(M2): the newest-release selection; see docs/ARCHITECTURE.md's
-    # "Stopgap test profile".
-    if args.newest_release_only and (args.select or args.fast):
-        parser.error("--newest-release-only cannot be combined with --select or --fast "
-                     "(each is a selection)")
-    # End of the STOPGAP(M2) block.
     if mode in ("run_shard", "aggregate") and args.plan is None:
         parser.error(f"--{mode.replace('_', '-')} needs --plan")
     if mode == "run_shard" and args.results is None:
@@ -269,19 +230,12 @@ def _main(argv, *, repo_root: Path) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     mode = validate(parser, args)
-    specs = list(FAST_ALIAS_SELECTION) if args.fast else list(args.select)
+    specs = list(args.select)
     try:
         check_paths(repo_root, args)
         parsed = [inventory.parse_spec(s) for s in specs]
-        # STOPGAP(M2): the newest-release selection; see docs/ARCHITECTURE.md's
-        # "Stopgap test profile".
-        if args.newest_release_only:
-            parsed = [inventory.NEWEST_RELEASE]
-        # End of the STOPGAP(M2) block.
     except (PathInsideRepositoryError, inventory.SelectSyntaxError) as exc:
         return refuse(exc)
-    if args.fast:
-        _err(report.FAST_NOTE)
 
     try:
         lock = isolation.acquire_run_lock(repo_root)
@@ -296,30 +250,37 @@ def _main(argv, *, repo_root: Path) -> int:
             if not restored:
                 _out("no write barrier to restore")
             return 0
-        if mode == "list":
-            return executor.list_units(repo_root, lock, specs=parsed, out=_out)
-        if mode == "plan_only":
-            return executor.plan_only(repo_root, lock, specs=parsed,
-                                      profile=args.profile or "local", out_path=args.out,
-                                      shards=args.shards, whole_groups=args.whole_groups,
-                                      out=_out)
-        if mode == "run_shard":
-            return executor.run_shard(repo_root, lock, index=args.run_shard,
-                                      plan_path=args.plan, results=args.results,
-                                      allow_root=args.allow_root, out=_out, err=_err)
-        if mode == "aggregate":
-            return executor.aggregate(repo_root, lock, results_root=args.aggregate,
-                                      plan_path=args.plan, allow_root=args.allow_root,
-                                      out=_out, err=_err)
-        if mode == "update_timings":
-            return executor.update_timings(repo_root, lock, profile=args.profile,
-                                           sources=args.sources, out=_out, err=_err)
-        return executor.local_run(repo_root, lock, specs=parsed, jobs=args.jobs,
-                                  shuffle_seed=args.shuffle_seed,
-                                  whole_groups=args.whole_groups, allow_root=args.allow_root,
-                                  results=args.results, out=_out, err=_err)
+        primed = priming.prime(repo_root)
+        with priming.exported(primed["cache"]):
+            return _dispatch(mode, args, parsed, repo_root, lock)
     except REFUSALS as exc:
         return refuse(exc)
     finally:
         lock.release()
+
+
+def _dispatch(mode, args, parsed, repo_root: Path, lock) -> int:
+    """Run `mode` with the release cache primed and exported."""
+    if mode == "list":
+        return executor.list_units(repo_root, lock, specs=parsed, out=_out)
+    if mode == "plan_only":
+        return executor.plan_only(repo_root, lock, specs=parsed,
+                                  profile=args.profile or "local", out_path=args.out,
+                                  shards=args.shards, whole_groups=args.whole_groups,
+                                  out=_out)
+    if mode == "run_shard":
+        return executor.run_shard(repo_root, lock, index=args.run_shard,
+                                  plan_path=args.plan, results=args.results,
+                                  allow_root=args.allow_root, out=_out, err=_err)
+    if mode == "aggregate":
+        return executor.aggregate(repo_root, lock, results_root=args.aggregate,
+                                  plan_path=args.plan, allow_root=args.allow_root,
+                                  out=_out, err=_err)
+    if mode == "update_timings":
+        return executor.update_timings(repo_root, lock, profile=args.profile,
+                                       sources=args.sources, out=_out, err=_err)
+    return executor.local_run(repo_root, lock, specs=parsed, jobs=args.jobs,
+                              shuffle_seed=args.shuffle_seed,
+                              whole_groups=args.whole_groups, allow_root=args.allow_root,
+                              results=args.results, out=_out, err=_err)
 
