@@ -53,11 +53,11 @@ None, because the milestone is complete. The plan document stays at
 
 ## Next action
 
-`workflow-manager-packaged-distribution` is complete. Next, once cutover K5
-is done, run `/milestone-plan` for the next incomplete milestone in
-`docs/ROADMAP.md`: W1, "Workflow 2.7, the first packaged release"
-(section 1.9). It is authored in the `workflow` repository, and this
-repository then adds its pin.
+`workflow-manager-packaged-distribution` is complete. The Workflow's
+roadmap now lives in the `workflow` repository's `docs/ROADMAP.md`. Its next
+item is W0 (setting that repository up for development), then W1, "Workflow
+2.7". Both are planned and built in the `workflow` repository; this
+repository adds a pin for each new release.
 
 ## Checkpoint log
 
