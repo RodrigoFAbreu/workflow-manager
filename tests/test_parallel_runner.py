@@ -1072,8 +1072,8 @@ class TestMergeContextIsIndependentProvenance(unittest.TestCase):
             records.mkdir()
             contexts.mkdir()
             foreign = frozen_runs.MergeContext.from_chunks(
-                "2.6.0", "conformance",
-                [frozen_runs.FrozenChunk("x#0", "2.6.0", "conformance", "x_test.py", ("X",))],
+                NEWEST_RELEASE, "conformance",
+                [frozen_runs.FrozenChunk("x#0", NEWEST_RELEASE, "conformance", "x_test.py", ("X",))],
                 {"x_test.py": ["X"]}, tree_digest="0" * 64, plan_digest="P")
             wrong_tree = Path(tmp) / "wrong-tree"
             frozen_runs.write_context(foreign, wrong_tree)
@@ -1082,7 +1082,7 @@ class TestMergeContextIsIndependentProvenance(unittest.TestCase):
                                               "is set but WM_FROZEN_CONTEXT is not"),
                 "no context file for (version, fixture)": (
                     {frozen_runs.RECORDS_ENV: str(records), frozen_runs.CONTEXT_ENV: str(contexts)},
-                    "no merge context for 2.6.0/conformance"),
+                    f"no merge context for {NEWEST_RELEASE}/conformance"),
                 "a context from another tree": (
                     {frozen_runs.RECORDS_ENV: str(records), frozen_runs.CONTEXT_ENV: str(wrong_tree)},
                     "is for tree " + "0" * 64),

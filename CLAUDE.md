@@ -162,8 +162,10 @@ request (`docs/RELEASING.md`, "Workflow packages: adding a pin"):
    green against the fixture, and the clean target's failure set must equal
    the documented exceptions — no more, no fewer.
 
-The five releases pinned today were extracted (`2.3.1`) or authored as a
-base plus an overlay (`2.4.0` to `2.6.0`) in this repository before M2;
+The first five releases pinned (`2.3.1` to `2.6.0`) were extracted (`2.3.1`)
+or authored as a base plus an overlay (`2.4.0` to `2.6.0`) in this repository
+before M2; `2.7.0` and later are built and published by the `workflow`
+repository;
 `docs/MIGRATION.md` records each, and `docs/ARCHITECTURE.md`'s "Authored
 releases (history)" the mechanism. The downgrade posture below still governs
 every one of them.
@@ -283,3 +285,13 @@ stated verbatim in
 `2.6.0` disposition. After updating to `2.6.0`, merge the update into every
 branch checked out in a linked worktree before driving checkpoints or
 amendments from more than one of them.
+
+`2.7.0` adds one persisted work-item key, `consumed_plan_review_content_ids`
+(`v2.6.0-001`'s durable consumed history), migrated at read time. `2.6.0`'s
+`validate_state` accepts state that carries it (checked in W1's functional
+review) but ignores it, so a downgrade fails **silently**: the guarantee that
+consumed plan content never re-binds shrinks back to `2.6.0`'s most recent
+consumption, with no error to notice. Never run `workflow_manager update
+--release-version <older than 2.7.0>` against a repository that has driven
+any work item under `2.7.0`, or that an orchestrator drives through the
+Orchestration Protocol, which `2.6.0` does not have.
