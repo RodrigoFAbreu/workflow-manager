@@ -195,6 +195,21 @@ CI_SUITES = {
         "workflow_state_completion_obligations_test.py": 106,
         "workflow_fingerprint_generalization_test.py": 105,
     },
+    #: `2.7.0` is the first release published by the `workflow` repository
+    #: (W1, Orchestration Protocol v1, built and released there, pinned
+    #: here). It adds an eighth suite, `workflow_protocol_test.py`, which
+    #: its `workflow-conformance.yml` template runs; counts pinned to what
+    #: the published package actually produces.
+    "2.7.0": {
+        "workflow_fingerprint_test.py": 256,
+        "workflow_state_test.py": 1011,
+        "workflow_test_harness_test.py": 22,
+        "workflow_integration_test.py": 267,
+        "workflow_acceptance_matrix_test.py": 291,
+        "workflow_state_completion_obligations_test.py": 106,
+        "workflow_fingerprint_generalization_test.py": 105,
+        "workflow_protocol_test.py": 217,
+    },
 }
 
 
