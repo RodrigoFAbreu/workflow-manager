@@ -5415,7 +5415,7 @@ class TestCiGuardsInAFreshCheckout(_CliCase):
 # (`docs/ARCHITECTURE.md`'s "Verification execution"). Citing needs an identity
 # every run records.
 
-POLICY_DOCS = ("CLAUDE.md", "README.md")
+POLICY_DOCS = ("CLAUDE.md", "docs/development.md")
 IDENTITY_FIELDS = ("head", "selection_digest", "tests_digest")
 
 

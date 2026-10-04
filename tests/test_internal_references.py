@@ -561,11 +561,11 @@ class TestReadmeStatusTableMatchesCiSuites(unittest.TestCase):
     )
 
     def _readme_text(self) -> str:
-        return (REPO_ROOT / "README.md").read_text()
+        return (REPO_ROOT / "docs" / "development.md").read_text()
 
     def test_2_4_0_row_matches_ci_suites(self):
         match = self._README_2_4_0_ROW_RE.search(self._readme_text())
-        self.assertIsNotNone(match, "README.md 2.4.0 Status row not found")
+        self.assertIsNotNone(match, "development.md 2.4.0 Status row not found")
         recorded_total, recorded_new, recorded_pass, recorded_of = (
             int(match.group(1)), int(match.group(2)),
             int(match.group(3)), int(match.group(4)),
@@ -587,7 +587,7 @@ class TestReadmeStatusTableMatchesCiSuites(unittest.TestCase):
 
     def test_2_3_1_row_matches_ci_suites(self):
         match = self._README_2_3_1_ROW_RE.search(self._readme_text())
-        self.assertIsNotNone(match, "README.md 2.3.1 Status row not found")
+        self.assertIsNotNone(match, "development.md 2.3.1 Status row not found")
         recorded_total, recorded_pass, recorded_of = (
             int(match.group(1)), int(match.group(2)), int(match.group(3)),
         )
@@ -604,7 +604,7 @@ class TestReadmeStatusTableMatchesCiSuites(unittest.TestCase):
         # stop, one release later. `2.5.0`'s own base is `2.4.0` (not
         # `2.3.1`), so "new cases" is measured against `2.4.0`'s own totals.
         match = self._README_2_5_0_ROW_RE.search(self._readme_text())
-        self.assertIsNotNone(match, "README.md 2.5.0 Status row not found")
+        self.assertIsNotNone(match, "development.md 2.5.0 Status row not found")
         recorded_total, recorded_new, recorded_pass, recorded_of = (
             int(match.group(1)), int(match.group(2)),
             int(match.group(3)), int(match.group(4)),
@@ -630,7 +630,7 @@ class TestReadmeStatusTableMatchesCiSuites(unittest.TestCase):
         # `2.5.0`'s own totals -- the identical drift-prevention shape this
         # class exists to enforce, one release later.
         match = self._README_2_5_1_ROW_RE.search(self._readme_text())
-        self.assertIsNotNone(match, "README.md 2.5.1 Status row not found")
+        self.assertIsNotNone(match, "development.md 2.5.1 Status row not found")
         recorded_total, recorded_new, recorded_pass, recorded_of = (
             int(match.group(1)), int(match.group(2)),
             int(match.group(3)), int(match.group(4)),
@@ -657,7 +657,7 @@ class TestReadmeStatusTableMatchesCiSuites(unittest.TestCase):
         # two-suite sum -- the same drift-prevention shape, one release
         # later.
         match = self._README_2_6_0_ROW_RE.search(self._readme_text())
-        self.assertIsNotNone(match, "README.md 2.6.0 Status row not found")
+        self.assertIsNotNone(match, "development.md 2.6.0 Status row not found")
         recorded_total, recorded_new, recorded_pass, recorded_of = (
             int(match.group(1)), int(match.group(2)),
             int(match.group(3)), int(match.group(4)),
