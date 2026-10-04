@@ -14,21 +14,28 @@ Goal: have the `workflow-manager` command on your machine and a repository that 
 
 ## Steps
 
-1. Download the latest Manager release and check it.
+1. Download the latest Manager release into a new temporary folder and check it.
 
    ```bash
-   rm -rf wm-latest
-   gh release download --repo RodrigoFAbreu/workflow-manager --dir wm-latest \
+   dl=$(mktemp -d)
+   gh release download --repo RodrigoFAbreu/workflow-manager --dir "$dl" \
      --pattern SHA256SUMS --pattern '*.whl'
-   (cd wm-latest && sha256sum --ignore-missing -c SHA256SUMS)
+   (cd "$dl" && sha256sum --ignore-missing -c SHA256SUMS)
    ```
 
-2. Install it.
+   The folder only holds the downloaded files. Nothing is installed there.
+
+2. Install it, in the same terminal, then delete the download folder.
 
    ```bash
-   pipx install ./wm-latest/workflow_manager-*-py3-none-any.whl
+   pipx install "$dl"/workflow_manager-*-py3-none-any.whl
    workflow-manager --version
+   rm -rf "$dl"
    ```
+
+   pipx keeps the Manager in its own environment (under `~/.local/share/pipx/`)
+   and puts the `workflow-manager` command in `~/.local/bin/`, so the download
+   folder is no longer needed.
 
 3. See which Workflow releases this Manager knows about.
 

@@ -35,13 +35,17 @@ The update changes no state file by itself. The Workflow's [gates page](https://
 2. If the Manager does not list the release you want, install the newest Manager release.
 
    ```bash
-   rm -rf wm-latest
-   gh release download --repo RodrigoFAbreu/workflow-manager --dir wm-latest \
+   dl=$(mktemp -d)
+   gh release download --repo RodrigoFAbreu/workflow-manager --dir "$dl" \
      --pattern SHA256SUMS --pattern '*.whl'
-   (cd wm-latest && sha256sum --ignore-missing -c SHA256SUMS)
-   pipx install --force ./wm-latest/workflow_manager-*-py3-none-any.whl
+   (cd "$dl" && sha256sum --ignore-missing -c SHA256SUMS)
+   pipx uninstall workflow-manager
+   pipx install "$dl"/workflow_manager-*-py3-none-any.whl
+   rm -rf "$dl"
    workflow-manager releases
    ```
+
+   The temporary folder only holds the download; it is deleted once pipx has installed the Manager.
 
 3. Decide about human approval gates (see above) and commit `GATE_POLICY.json` if you want it.
 
@@ -72,6 +76,6 @@ The update changes no state file by itself. The Workflow's [gates page](https://
 - The update stopped half way: run the same command again. A resumed update does not need `--force`.
 - `is not a managed repository`: use [Install](install.md) instead.
 - A download error: see [Troubleshooting](troubleshooting.md).
-- `--version` still shows an old number after updating the Manager: install the downloaded wheel again with `pipx install --force <wheel>` (`pipx reinstall` reuses the saved wheel path, which may be gone).
+- `--version` still shows an old number after updating the Manager: remove it and install the freshly downloaded wheel: `pipx uninstall workflow-manager`, then `pipx install <wheel>` (`pipx reinstall` reuses the saved wheel path, which may be gone, and `pipx install --force` can refuse with "a virtual environment already exists").
 
 Releases are listed in the [release history](releases/README.md). The design is in [`ARCHITECTURE.md`](ARCHITECTURE.md#interruption).
