@@ -21,12 +21,14 @@ About five minutes. You need Python 3.11 or newer, Git, [pipx](https://pipx.pypa
 [GitHub CLI](https://cli.github.com/) (`gh`), signed in.
 
 ```bash
-# 1. Install the latest Manager release.
-rm -rf wm-latest
-gh release download --repo RodrigoFAbreu/workflow-manager --dir wm-latest \
+# 1. Install the latest Manager release (downloaded into a temporary folder,
+#    which is deleted afterwards; pipx keeps the installed Manager).
+dl=$(mktemp -d)
+gh release download --repo RodrigoFAbreu/workflow-manager --dir "$dl" \
   --pattern SHA256SUMS --pattern '*.whl'
-(cd wm-latest && sha256sum --ignore-missing -c SHA256SUMS)
-pipx install ./wm-latest/workflow_manager-*-py3-none-any.whl
+(cd "$dl" && sha256sum --ignore-missing -c SHA256SUMS)
+pipx install "$dl"/workflow_manager-*-py3-none-any.whl
+rm -rf "$dl"
 workflow-manager --version
 
 # 2. Put the newest pinned Workflow release into a Git repository.
