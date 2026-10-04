@@ -295,3 +295,20 @@ consumption, with no error to notice. Never run `workflow_manager update
 --release-version <older than 2.7.0>` against a repository that has driven
 any work item under `2.7.0`, or that an orchestrator drives through the
 Orchestration Protocol, which `2.6.0` does not have.
+
+`2.8.0` changes the default rather than only adding vocabulary: with no
+committed `GATE_POLICY.json`, its gates are satisfied automatically by their
+evidence (human approval is off by default; `{"schema_version": 1,
+"human_approval": true}` restores the `2.7.0` gates). Updating a repository
+to `2.8.0` therefore changes how it is driven; decide its policy before the
+update, not after. Downgrading is constrained by what `2.7.0` reads (`2.8.0`'s
+published `ORCHESTRATION_PROTOCOL.md`, "Downgrade"): `2.7.0` refuses a state
+that carries the approval basis `POLICY_SATISFIED`, loudly, but accepts the
+other keys `2.8.0` adds (`gate_evidence`, `reopenings`,
+`acceptance_satisfaction`, the ledger audit keys, `gate_policy_adoption`,
+`gate_policy_floor`) **silently, without acting on them**. Because the
+automatic default writes those in ordinary operation, never run
+`workflow_manager update --release-version <older than 2.8.0>` against a
+repository that has written any of them: any automatic satisfaction, ingested
+pull-request fact or functional evidence, reopening, policy adoption or
+recorded floor.

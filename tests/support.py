@@ -210,6 +210,23 @@ CI_SUITES = {
         "workflow_fingerprint_generalization_test.py": 105,
         "workflow_protocol_test.py": 217,
     },
+    #: `2.8.0` is the second release published by the `workflow` repository
+    #: (W2, the declarative gate policy and pull-request reopening, on
+    #: Orchestration Protocol 1.1). It adds a ninth suite,
+    #: `workflow_gate_policy_test.py`, which its `workflow-conformance.yml`
+    #: template runs; counts pinned to what the published package actually
+    #: produces.
+    "2.8.0": {
+        "workflow_fingerprint_test.py": 257,
+        "workflow_state_test.py": 1011,
+        "workflow_test_harness_test.py": 22,
+        "workflow_integration_test.py": 275,
+        "workflow_acceptance_matrix_test.py": 291,
+        "workflow_state_completion_obligations_test.py": 106,
+        "workflow_fingerprint_generalization_test.py": 105,
+        "workflow_protocol_test.py": 298,
+        "workflow_gate_policy_test.py": 285,
+    },
 }
 
 
