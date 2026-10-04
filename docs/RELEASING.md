@@ -235,7 +235,7 @@ impact table as this repository, including the choices for the types the
 original brief did not name: `perf`, `refactor`, `build` and `revert`
 release a patch; `test` and `style` release nothing. A Controller repository
 policy for this repository waits for a Controller release with C1
-(`docs/ROADMAP.md`, 10.1).
+(`docs/ROADMAP.md`, "Controller repository policy for this repository").
 
 ## Cutover: M2, packaged Workflow releases (K1-K5)
 
