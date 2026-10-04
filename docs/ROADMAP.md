@@ -10,7 +10,7 @@ The full text of earlier versions is in this file's git history; the last long v
 - Status words: **Done** (merged and released), **Next** (the item to start now), **Later** (wanted, not scheduled), **Waiting on ...** (blocked until the named thing exists).
 - This file covers the Workflow Manager (the installer and updater) and the order of work across this repository and the `workflow` repository. M1, M2 and M3 are this file's milestone names.
 - The Workflow's own plans and defects are in [the Workflow roadmap](https://github.com/RodrigoFAbreu/workflow/blob/main/docs/ROADMAP.md). The Controller's are in [the Controller roadmap](https://github.com/RodrigoFAbreu/workflow-controller/blob/main/docs/ROADMAP.md). They are linked, not copied.
-- Old sections that moved to the Workflow roadmap (review artifacts, review-data simplification, multi-worktree, long-term evolution) are not repeated here.
+- Controller releases are installed into the shared Controller only between milestones, when no lane is running one.
 
 ## What's next
 
@@ -22,8 +22,9 @@ The end goal is a loop where the Controller takes the next roadmap item, plans, 
 | 2 | This roadmap clean-up | A roadmap you can read | Done once this change merges |
 | 3 | **Update ergonomics** | `workflow-manager doctor`, `update --dry-run` and a compatibility report; safer upgrades for every repository | **Next** |
 | 4 | Small Workflow fix release | The `v2.6.0-003` fix, and the latest governing version as the default for new work items; then its pin here | Later, built in the `workflow` repository; the pin follows here |
-| 5 | **M3**: this repository and `workflow` driven by the Controller's loop | Roadmap items worked, merged and released with no hand-driving | Waiting on the Controller's kanban runner (C11) |
-| 6 | Operator UX | Clearer errors and recovery steps | Later (deferred); see below |
+| 5 | Controller C10 (gate policy and automatic acceptance) | The Controller can use Workflow 2.8's gate policy | Waiting on the Controller; done in [the Controller repository](https://github.com/RodrigoFAbreu/workflow-controller/blob/main/docs/ROADMAP.md) |
+| 6 | **M3**: this repository and `workflow` driven by the Controller's loop | Roadmap items worked, merged and released with no hand-driving | Waiting on the Controller's kanban runner (C11) |
+| 7 | Operator UX | Clearer errors and recovery steps | Later (deferred); see below |
 
 ### 3. Update ergonomics (Next)
 
@@ -31,6 +32,7 @@ Make an update easy to reason about before it runs. It helps every repository th
 
 - `workflow-manager doctor` reads a repository and reports, without changing anything.
 - `workflow-manager update --dry-run` shows what an update would change, and what it would leave alone.
+- Both warn before an update when it could disturb work in flight: a `process` work item in IMPLEMENTING or later (an update rewrites its protected `scripts/` and `.claude/commands/`, the `v2.4.0-001` hazard), and any active legacy work item. This is the stronger preflight for repositories with active work items.
 - The compatibility report covers:
   - the installed release;
   - the active work items and the version that governs each;
@@ -42,9 +44,9 @@ Make an update easy to reason about before it runs. It helps every repository th
 
 ### 4. Small Workflow fix release
 
-Authored and published in the `workflow` repository, never here. It carries the `v2.6.0-003` fix (write-up in `docs/defects/`) and makes the latest governing version the default for new work items. Here it is only a `feat:` pull request that adds the pin (`docs/RELEASING.md`, "Workflow packages: adding a pin"). Plan it with the Workflow roadmap's next items so it ships once.
+Authored and published in the `workflow` repository, never here. It carries the `v2.6.0-003` fix (listed in the open-defects table of [the Workflow roadmap](https://github.com/RodrigoFAbreu/workflow/blob/main/docs/ROADMAP.md)) and makes the latest governing version the default for new work items. Here it is only a `feat:` pull request that adds the pin (`docs/RELEASING.md`, "Workflow packages: adding a pin"). Plan it with the Workflow roadmap's next items so it ships once.
 
-### 6. Operator UX (Later, deferred)
+### 7. Operator UX (Later, deferred)
 
 The documentation clean-up delivered most of this: install, update, verify and troubleshooting guides, and a documentation index. What remains is in the tool, not the docs: error messages that say what to do next, recovery instructions in output, and fewer cases where an operator has to read state JSON. Part of it lands with update ergonomics; schedule the rest after that.
 
@@ -60,8 +62,8 @@ Newest first.
 - **M1b, test cleanup** (2026-09-30, PR #10). Throwaway test repositories turn off Git's automatic maintenance, and a leak check fails a run that leaves orphaned processes. This stopped about 1,000 stray `git` processes per full run.
 - **M1, trunk model** (2026-09-29, PR #4, Manager v1.1.0). Protected `main`, one short-lived branch per milestone, squash merges, and the release version derived from the pull-request title (a Conventional Commit). The Git tag is the only version authority. See `docs/RELEASING.md`.
 - **Adaptive test sharding** (2026-09-28, PR #1). The full test run takes about 7 minutes locally instead of 36, and about 7 to 10 minutes in CI at 16 shards. Design: `docs/ARCHITECTURE.md`, "Verification execution".
-- **RepFlow upgrade** (old sections 2 and 3). RepFlow's own lane did it. RepFlow is on Workflow 2.7.0 since 2026-10-04 (repflow-android PR #5), adopted through Manager 1.3.0. Moving to 2.8.0, and using the Controller, are the owner's decisions for RepFlow. Done for this roadmap.
-- **Old sections 1, 1.9, 4, 6, 7 and 9**: moved to the Workflow roadmap (1, 1.9, 4, 7, 9) or replaced by M2 (6).
+- **RepFlow upgrade.** RepFlow's own lane did it. RepFlow is on Workflow 2.8.0 since 2026-10-04 (repflow-android PR #7), adopted through Manager 1.4.0, with an adopted gate policy that keeps every gate human. Using the Controller is the owner's decision for RepFlow. Done for this roadmap.
+- **Old sections that moved or were replaced** (review artifacts, review-data simplification, multi-worktree, long-term evolution, release quality): now in the Workflow roadmap or replaced by M2.
 
 ## Later (open items)
 
