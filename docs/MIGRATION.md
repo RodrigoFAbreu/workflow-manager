@@ -215,7 +215,7 @@ authored in this repository, to ship the plan-amendment mechanism
 (`docs/ai-workflow/PLAN_AMENDMENT_MECHANISM_PLAN.md`'s `AMENDING_PLAN` phase
 and `/request-plan-amendment`) on top of the frozen `2.3.1` base: a base
 release plus a hand-written overlay, composed by `tools/build_release.py`
-(mechanism in [`ARCHITECTURE.md`'s "Authored releases"](ARCHITECTURE.md#authored-releases)).
+(mechanism in [`ARCHITECTURE.md`'s "Authored releases"](ARCHITECTURE.md#authored-releases-history)).
 
 | | |
 |---|---|
