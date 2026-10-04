@@ -199,7 +199,8 @@ that was `"2.1"` alone through `workflow-v2-1-core`/`workflow-2.4.0`) — a
   `/milestone-plan` step 6 and `/apply-plan-review` step 7' straight after
   a successful plan-stage generation: it writes the phase only for a
   verified bundle of the content `publish_plan_revision` last published,
-  never for content already reviewed or withdrawn (`CONSUMED`).
+  never for content already reviewed or withdrawn (`CONSUMED`, or any id in
+  the work item's `consumed_plan_review_content_ids` history).
 - **Allowed actions**: run `/review-plan` (recommended in a fresh session,
   for genuine independence from the session that wrote the plan — strongly
   recommended operational guidance, not a verified precondition).
@@ -291,7 +292,11 @@ it), refuses while an open plan-approval journal names the item
 (`PlanApprovalInProgressError`), discards both recorded plan-review stages,
 and marks the withdrawn content `CONSUMED`, so it can never re-bind: only
 an edit plus a fresh publish, generation and bind returns the item to
-`AWAITING_LOCAL_PLAN_REVIEW`. It is the one sanctioned way out of a ready
+`AWAITING_LOCAL_PLAN_REVIEW`. Every consumed `review_content_id` is kept in
+the work item's `consumed_plan_review_content_ids` history
+(workflow-2.7.0), so a later withdrawal, `REVISE` or amendment never
+releases an earlier one: content restored byte for byte is refused, and
+any edit at all gives it a new id. It is the one sanctioned way out of a ready
 phase for editing without a `REVISE` verdict; `publish_plan_revision` and
 `route_work_item` refuse at a ready phase (`PlanReviewInProgressError`),
 and outside the plan-stage phases altogether
@@ -774,6 +779,30 @@ gate. The hard gate count was **6** before `workflow-2.5.0` and stays **6**
 after it. A `"1"`/`"2.1"` item's edge is unaffected; see
 `docs/ai-workflow/WORKFLOW_V2_PLAN.md` (`D-Implementation-Review-Stages`)
 for the full `"2.2"`-only mechanism.
+
+Orchestration Protocol v1 (`workflow-2.7.0`,
+`docs/ai-workflow/ORCHESTRATION_PROTOCOL.md`) reports these same gates and
+adds none. Its `next-action` names each one as a `human_gate` or
+`external_gate` disposition derived from the phase and the commands' own
+guards, and an orchestrator driving the protocol runs only `automatic`
+actions: every gate above is still exited by the same person or external
+reviewer, through the same commands and guards. The hard gate count stays
+**6**.
+
+Gate policy (`workflow-2.8.0`, `docs/ai-workflow/GATE_POLICY.md`): the plan
+approval (`AWAITING_PLAN_APPROVAL`), the technical approval
+(`AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW`'s approval) and the milestone
+acceptance (`AWAITING_FUNCTIONAL_REVIEW`'s) are **gates that a person exits
+only when the policy makes them human**. By default they are automatic: the
+Workflow satisfies each from its recorded evidence through `/satisfy-gate`, and
+a gate whose evidence is missing is blocked, never passed. A repository that
+wants every stop to be a person's sets `"human_approval": true` in
+`docs/ai-workflow/GATE_POLICY.json`, and the six points above are then stops
+exactly as described. `/approve-review` and `/accept-milestone` are the human
+path in either mode. The policy adds no phase and no seventh gate; the same
+two review stages and the same phases apply, and turning human approval on is
+the stronger mode. A pull request found red after acceptance reopens the same
+work item into remediation (`GATE_POLICY.md`, "Reopening the same work item").
 
 Between gates, Claude may work autonomously, subject to the stop conditions
 already defined in `AGENTS.md` (ambiguous product behavior, architecture
