@@ -20,15 +20,19 @@ The end goal is a loop where the Controller takes the next roadmap item, plans, 
 |---|---|---|---|
 | 1 | Documentation clean-up | Readable install, update and verify guides | Done (PR #16) |
 | 2 | This roadmap clean-up | A roadmap you can read | Done once this change merges |
-| 3 | **Update ergonomics** | `workflow-manager doctor`, `update --dry-run` and a compatibility report; safer upgrades for every repository | **Next** |
-| 4 | Small Workflow fix release | The `v2.6.0-003` fix, and the latest governing version as the default for new work items; then its pin here | Later, built in the `workflow` repository; the pin follows here |
+| 3 | **Small Workflow fix release** | The `v2.6.0-003` fix, the latest governing version as the default for new work items, and `/retire-legacy-work-item` (a user-only way to close a dormant legacy work item that was already finished, which RepFlow needs); then its pin here | **Next**: built in the `workflow` repository (moved first on 2026-10-04 to unblock RepFlow); the pin follows here |
+| 4 | **Update ergonomics** | `workflow-manager doctor`, `update --dry-run` and a compatibility report; safer upgrades for every repository | Next, after item 3 |
 | 5 | Controller C10 (gate policy and automatic acceptance) | The Controller can use Workflow 2.8's gate policy | Waiting on the Controller; done in [the Controller repository](https://github.com/RodrigoFAbreu/workflow-controller/blob/main/docs/ROADMAP.md) |
 | 6 | **M3**: this repository and `workflow` driven by the Controller's loop | Roadmap items worked, merged and released with no hand-driving | Waiting on the Controller's kanban runner (C11) |
 | 7 | Operator UX | Clearer errors and recovery steps | Later (deferred); see below |
 
-### 3. Update ergonomics (Next)
+### 3. Small Workflow fix release (Next)
 
-Make an update easy to reason about before it runs. It helps every repository that upgrades, so it comes first.
+Authored and published in the `workflow` repository, never here. It carries the `v2.6.0-003` fix (listed in the open-defects table of [the Workflow roadmap](https://github.com/RodrigoFAbreu/workflow/blob/main/docs/ROADMAP.md)) makes the latest governing version the default for new work items, and adds `/retire-legacy-work-item`, a user-only, confirmation-guarded command that closes a dormant legacy work item (already finished long ago) as complete, keeping its old approval record and leaving an auditable commit. Here it is only a `feat:` pull request that adds the pin (`docs/RELEASING.md`, "Workflow packages: adding a pin"). Plan it with the Workflow roadmap's next items so it ships once.
+
+### 4. Update ergonomics (after the fix release)
+
+Make an update easy to reason about before it runs. It helps every repository that upgrades. It follows the small fix release, which moved first to unblock RepFlow.
 
 - `workflow-manager doctor` reads a repository and reports, without changing anything.
 - `workflow-manager update --dry-run` shows what an update would change, and what it would leave alone.
@@ -41,10 +45,6 @@ Make an update easy to reason about before it runs. It helps every repository th
   - fixes that apply only to new work and not retroactively;
   - recovery instructions when something looks wrong.
 - Direction: keep the three versions distinct in the output (installed release, a work item's governing release, latest available), since mixing them up is the common confusion. Make the dry run share the real update's code path so the two cannot disagree. Print commands exactly as they parse. Never write state.
-
-### 4. Small Workflow fix release
-
-Authored and published in the `workflow` repository, never here. It carries the `v2.6.0-003` fix (listed in the open-defects table of [the Workflow roadmap](https://github.com/RodrigoFAbreu/workflow/blob/main/docs/ROADMAP.md)) and makes the latest governing version the default for new work items. Here it is only a `feat:` pull request that adds the pin (`docs/RELEASING.md`, "Workflow packages: adding a pin"). Plan it with the Workflow roadmap's next items so it ships once.
 
 ### 7. Operator UX (Later, deferred)
 
