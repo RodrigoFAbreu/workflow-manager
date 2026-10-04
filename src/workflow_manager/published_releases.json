@@ -29,6 +29,11 @@
       "archive": "workflow-2.7.0.tar.gz",
       "manifest_sha256": "f62fb2612a7d1f5a56df05836d79d94758155bff3f14a0388ab97fe4c1baef02",
       "sha256": "c287323fbeb94a7ee487847fe0f42743ca6856bfb9ab79dd90f22457605ba06c"
+    },
+    "2.8.0": {
+      "archive": "workflow-2.8.0.tar.gz",
+      "manifest_sha256": "c11fcbc45132b95585e88ff0fa126a4cb35899cd891df14259a69534159c7481",
+      "sha256": "c3c005b6b5c791ebbc726966ededf1a4c8c71e619f51f043c1d099679d1e9ab2"
     }
   },
   "repository": "RodrigoFAbreu/workflow",

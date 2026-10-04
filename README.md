@@ -27,6 +27,7 @@ built:
 | `2.5.1` | authored in this repository — `2.5.0` base plus the workflow-2-5-1-checkpoint-id-compatibility overlay | 7/7 suites, 1681 tests — same suite set as `2.5.0`, plus 12 new cases | 1681 of 1681 |
 | `2.6.0` | authored in this repository — `2.5.1` base plus the workflow-review-artifact-and-concurrency-hardening overlay | 7/7 suites, 2002 tests — same suite set as `2.5.1`, plus 321 new cases | 2002 of 2002 |
 | `2.7.0` | published by the `workflow` repository (W1: Orchestration Protocol v1, the `v2.6.0-001`/`-002` follow-ups) | 8/8 suites, 2275 tests — the `2.6.0` suite set plus `workflow_protocol_test.py` | 2275 of 2275 |
+| `2.8.0` | published by the `workflow` repository (W2: the declarative gate policy and pull-request reopening, Orchestration Protocol 1.1) | 9/9 suites, 2650 tests — the `2.7.0` suite set plus `workflow_gate_policy_test.py` | 2650 of 2650 |
 
 `workflow-manager releases` prints every pinned release with its archive
 digest and whether it is cached. Every one installs, updates and verifies
