@@ -9,7 +9,7 @@ Each problem has a one-line fix. Find the message, apply the fix, run the comman
 | What you see | Fix |
 |---|---|
 | `workflow-manager: command not found` | Run `pipx ensurepath`, then open a new terminal. |
-| `--version` prints `1.0.0` or "development build" | An editable install keeps old metadata. Run `pipx reinstall workflow-manager` once. |
+| `--version` prints `1.0.0` or "development build" | An editable install keeps old metadata. Run `pipx reinstall workflow-manager` once; if the saved wheel is gone, run `pipx install --force <wheel>` with a fresh download. |
 | `unrecognized arguments: --release-version ...` | Put the option before the command: `workflow-manager --release-version 2.8.0 update <repo>`. |
 | `is not a Git repository` | Run `git init` in the target, then retry. |
 | `is already managed; use update() to move it to another release` | The repository already has the Workflow. Use `workflow-manager update <repo>`. |

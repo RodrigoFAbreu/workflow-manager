@@ -22,6 +22,7 @@ About five minutes. You need Python 3.11 or newer, Git, [pipx](https://pipx.pypa
 
 ```bash
 # 1. Install the latest Manager release.
+rm -rf wm-latest
 gh release download --repo RodrigoFAbreu/workflow-manager --dir wm-latest \
   --pattern SHA256SUMS --pattern '*.whl'
 (cd wm-latest && sha256sum --ignore-missing -c SHA256SUMS)
@@ -76,5 +77,5 @@ workflow-manager --version                 # the Manager's own version
   or `.ai-review/`. It refuses to overwrite a release file you edited,
   unless you pass `--force`.
 - Both `bootstrap` and `update` can be re-run after an interruption.
-- Updating can change a repository's approval gates. Read
+- Updating can change a repository's approval gates (with no `GATE_POLICY.json`, plan approval and acceptance become automatic for new work items). Read
   [Update](docs/update.md) before you update to Workflow 2.8.0.

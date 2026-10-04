@@ -17,6 +17,7 @@ Goal: have the `workflow-manager` command on your machine and a repository that 
 1. Download the latest Manager release and check it.
 
    ```bash
+   rm -rf wm-latest
    gh release download --repo RodrigoFAbreu/workflow-manager --dir wm-latest \
      --pattern SHA256SUMS --pattern '*.whl'
    (cd wm-latest && sha256sum --ignore-missing -c SHA256SUMS)
@@ -64,7 +65,7 @@ Optional choices for step 4:
 
 ## Approval gates after a fresh install
 
-A new Workflow 2.8.0 installation has no `docs/ai-workflow/GATE_POLICY.json`. Without it, the Workflow satisfies its approval gates automatically from evidence. If you want a person to approve every gate, create that file with this content and commit it:
+A new Workflow 2.8.0 installation has no `docs/ai-workflow/GATE_POLICY.json`. With no policy file, plan approval and milestone acceptance are satisfied automatically, from evidence, for new work items. Implementation (technical) approval becomes automatic only for work items on governing version "2.2"; items on version "2.1" keep a person for it, and items on version "1" keep a person for plan and implementation approval. A fresh installation's `WORKFLOW_CONFIG.json` names its default version. If you want a person to approve every gate, create that file with this content and commit it:
 
 ```json
 {"schema_version": 1, "human_approval": true}

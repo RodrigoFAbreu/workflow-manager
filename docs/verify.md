@@ -23,6 +23,8 @@ Goal: confirm that every installed Workflow file is exactly the one its release 
    workflow-manager verify /path/to/your/repo
    ```
 
+   Both `status` and `verify` measure the repository against the release its own installation record names, not against the newest one. A repository on an older release is not reported as broken just because a newer release exists.
+
 3. Check the exit status.
 
    ```bash
@@ -35,8 +37,6 @@ Goal: confirm that every installed Workflow file is exactly the one its release 
    workflow-manager releases
    ```
 
-Both commands measure the repository against the release its own installation record names, not against the newest one. A repository on an older release is not reported as broken just because a newer release exists.
-
 ## What you should see
 
 - Step 1 prints `workflow 2.8.0 (full profile) — clean`, then a `source:` line naming the package and its digest.
@@ -45,7 +45,7 @@ Both commands measure the repository against the release its own installation re
 
 ## If it fails
 
-- `1 problem(s)` followed by lines such as `modified: scripts/workflow_state.py`: someone edited a release file. Undo the edit with `git checkout -- <file>`, or keep it and expect `update` to refuse until you pass `--force`. Other lines say `missing:` (a release file is gone), `unexpected:` (a file is present but was never installed) or `not-executable:`.
+- `1 problem(s)` followed by lines such as `modified: scripts/workflow_state.py`: someone edited a release file. Undo the edit with `git checkout -- <file>`, or keep it and expect `update` to refuse until you pass `--force`, which throws your local edit away. Other lines say `missing:` (a release file is gone), `unexpected:` (a file is present but was never installed) or `not-executable:`.
 - `not a managed repository`: the Manager did not install the Workflow here. See [Install](install.md).
 - An error about a missing release or the network: the release the repository names is not in the cache and cannot be downloaded. See [Troubleshooting](troubleshooting.md).
 

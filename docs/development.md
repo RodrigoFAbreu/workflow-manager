@@ -19,7 +19,7 @@ From a checkout, `PYTHONPATH=src python3 -m workflow_manager` is the same comman
 ## Tests
 
 ```bash
-python3 tests/run_all.py                      # the gate: everything, in parallel (about 7 minutes)
+python3 tests/run_all.py                      # the gate: everything, in parallel (about 5 to 7 minutes)
 python3 tests/run_all.py --select test_x.py   # run what you touched -- never a gate
 python3 tests/run_all.py --jobs 1             # serial reference (slow) -- exceptional evidence only
 python3 tests/run_all.py --help               # every mode, flag and exit code

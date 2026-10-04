@@ -10,7 +10,7 @@ One line per Workflow Manager release, newest first. The Manager's version is th
 | 1.3.0 | 2026-10-02 | Adds Workflow 2.7.0 (the protocol that lets a program drive the Workflow). | 2.3.1 to 2.7.0 |
 | 1.2.0 | 2026-10-01 | Workflow releases are downloaded, checked against their pins and cached, instead of being stored inside the Manager. | 2.3.1 to 2.6.0 |
 | 1.1.0 | 2026-09-29 | First Manager release published on GitHub, with a release process driven by Git tags. | 2.3.1 to 2.6.0 (stored inside the Manager) |
-| 1.0.0 | 2026-09-05 | First packaged Manager (a Git tag only, with no GitHub release page). | 2.3.1 (stored inside the Manager) |
+| 1.0.0 | 2026-09-05 | First packaged Manager: an unpublished local build, never released on GitHub. | 2.3.1 (stored inside the Manager) |
 
 ## Workflow releases and the Manager that first installs them
 
