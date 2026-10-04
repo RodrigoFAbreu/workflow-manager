@@ -70,6 +70,8 @@ A new Workflow 2.8.0 installation has no `docs/ai-workflow/GATE_POLICY.json`. Wi
 {"schema_version": 1, "human_approval": true}
 ```
 
+`human_approval` is the master switch for every gate. To make only some gates a person's, the policy file also accepts a per-gate switch, `gates.<gate>.human`; see the Workflow's `docs/ai-workflow/GATE_POLICY.md`, installed with the release.
+
 [Update](update.md) explains this in more detail, and the Workflow's [gates page](https://github.com/RodrigoFAbreu/workflow/blob/main/docs/gates.md) describes each gate.
 
 ## If it fails

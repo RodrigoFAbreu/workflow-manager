@@ -35,11 +35,11 @@ The documentation checks run inside the gate (`tests/test_docs.py`, using `tools
 
 | Release | Origin | Suites against the fixture | Bootstrapped repository |
 |---|---|---|---|
-| `2.3.1` | upstream, tag `workflow-v2.3.1` of the original project | 7 of 7, 1440 tests | 1439 of 1440 ([one documented exception](defects/v2.3.1-001-host-history-coupled-tests.md)) |
-| `2.4.0` | authored in this repository (plan-amendment mechanism) | 7 of 7, 1498 tests | 1497 of 1498 (the same exception) |
-| `2.5.0` | authored here (two-stage implementation review) | 7 of 7, 1669 tests | 1669 of 1669 |
-| `2.5.1` | authored here (checkpoint-id compatibility) | 7 of 7, 1681 tests | 1681 of 1681 |
-| `2.6.0` | authored here (review-artifact and concurrency hardening) | 7 of 7, 2002 tests | 2002 of 2002 |
+| `2.3.1` | upstream — the original project's tag `workflow-v2.3.1` | 7/7 suites, 1440 tests — matching the upstream baseline | 1439 of 1440 ([one documented exception](defects/v2.3.1-001-host-history-coupled-tests.md)) |
+| `2.4.0` | authored in this repository — `2.3.1` base plus the plan-amendment-mechanism overlay | 7/7 suites, 1498 tests — same suite set as `2.3.1`, plus 58 new cases | 1497 of 1498 (the same documented exception) |
+| `2.5.0` | authored in this repository — `2.4.0` base plus the implementation-review-two-stage overlay | 7/7 suites, 1669 tests — same suite set as `2.4.0`, plus 171 new cases | 1669 of 1669 |
+| `2.5.1` | authored in this repository — `2.5.0` base plus the workflow-2-5-1-checkpoint-id-compatibility overlay | 7/7 suites, 1681 tests — same suite set as `2.5.0`, plus 12 new cases | 1681 of 1681 |
+| `2.6.0` | authored in this repository — `2.5.1` base plus the workflow-review-artifact-and-concurrency-hardening overlay | 7/7 suites, 2002 tests — same suite set as `2.5.1`, plus 321 new cases | 2002 of 2002 |
 | `2.7.0` | published by the Workflow repository (orchestration protocol) | 8 of 8, 2275 tests | 2275 of 2275 |
 | `2.8.0` | published by the Workflow repository (gate policy, pull-request reopening) | 9 of 9, 2650 tests | 2650 of 2650 |
 

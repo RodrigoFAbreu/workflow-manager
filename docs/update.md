@@ -12,6 +12,8 @@ Goal: bring a repository to the newest pinned Workflow release without losing it
 {"schema_version": 1, "human_approval": true}
 ```
 
+`human_approval` is the master switch for every gate. To make only some gates a person's, the policy file also accepts a per-gate switch, `gates.<gate>.human`; see the Workflow's `docs/ai-workflow/GATE_POLICY.md`, installed with the release.
+
 The update changes no state file by itself. The Workflow's [gates page](https://github.com/RodrigoFAbreu/workflow/blob/main/docs/gates.md) explains each gate, and the [lifecycle](https://github.com/RodrigoFAbreu/workflow/blob/main/docs/overview.md#lifecycle) shows where they sit.
 
 **Going back to an older release is unsupported.** Once a repository has used a release, do not run `update` with an older `--release-version`. Newer releases add values to the repository's state files that older releases ignore or cannot read. The result can be silent loss of guarantees or a stuck work item. [`CLAUDE.md`](../CLAUDE.md) lists the exact cases under "Downgrade posture". To undo a bad update, restore the repository from Git instead.
