@@ -174,6 +174,10 @@ installs `V` only once it is pinned, through one pull request here:
    entry, possibly empty, to `tests/portability_exceptions.json`'s
    `by_version`. `TestPinnedVersionsCarryTheirRecords` fails until the pins
    and both records name the same versions.
+   Also extend the three release tables in
+   `src/workflow_manager/compatibility.py` (`DOWNGRADE_BOUNDARIES`,
+   `NEW_WORK_ONLY`, `GATE_DEFAULT_CHANGES`) with an entry for `V`, possibly
+   empty; a test fails until you do. `doctor` reads them.
 4. Run `python3 tests/run_all.py`. Priming fetches `V` once; the frozen matrix
    moves to it, and the `updated` fixture updates the previous newest release
    to it. The conformance fixture must be green, and the clean target's

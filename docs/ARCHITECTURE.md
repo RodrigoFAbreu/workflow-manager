@@ -207,6 +207,29 @@ It is replaced by `os.replace`, never written in place. A record is the one
 thing a target cannot reconstruct, and a reader must see either the previous
 one or the complete new one — never half of either.
 
+## Update planning
+
+`update` is `plan_update` (decide, write nothing) followed by `apply_update`
+(write). `UpdatePlan` carries the changes, removals, writes (including a
+repaired executable bit), what is left alone, the locally modified files a
+forced update would overwrite, and the record that would be written.
+`bootstrap` and `update` share one merge planner. `apply_update` takes the
+release only to refuse a plan made for another one, and writes in the old
+order (removals, release files, state templates, merges, record last), so the
+interruption contract below is unchanged.
+
+`workflow-manager doctor` and `update --dry-run` (`src/workflow_manager/
+compatibility.py`) use the plan to report what an update would do and which
+Workflow guarantees it would cross. They never write the repository: Git is
+run with a hermetic environment and flags, the work tree and Git directories
+are protected by path arithmetic before anything is resolved, and a partial
+clone skips the commands that would fetch. What they do write is the release
+cache (a missing release is fetched, under the cache's lock) and one
+temporary copy of the release, in a directory outside the repository. The
+release knowledge the report needs is three tables in `compatibility.py`
+(`DOWNGRADE_BOUNDARIES`, `NEW_WORK_ONLY`, `GATE_DEFAULT_CHANGES`), each with an
+entry for every pinned version, enforced by a test.
+
 ## Interruption
 
 Neither `bootstrap` nor `update` is atomic. A repository is not a database,

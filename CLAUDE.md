@@ -156,8 +156,10 @@ request (`docs/RELEASING.md`, "Workflow packages: adding a pin"):
    `src/workflow_manager/published_releases.json`.
 3. Add the version's frozen suite counts to `tests/support.py`'s
    `CI_SUITES` and its entry, possibly empty, to
-   `tests/portability_exceptions.json`'s `by_version`, then run `python3
-   tests/run_all.py`. The matrix moves to the new release and the `updated`
+   `tests/portability_exceptions.json`'s `by_version`, extend the three
+   release tables in `src/workflow_manager/compatibility.py`
+   (`DOWNGRADE_BOUNDARIES`, `NEW_WORK_ONLY`, `GATE_DEFAULT_CHANGES`; a test
+   fails until you do), then run `python3 tests/run_all.py`. The matrix moves to the new release and the `updated`
    fixture updates the previous one to it. The conformance suite must be
    green against the fixture, and the clean target's failure set must equal
    the documented exceptions — no more, no fewer.

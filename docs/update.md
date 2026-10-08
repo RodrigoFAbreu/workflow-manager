@@ -1,6 +1,6 @@
 # Update
 
-> For: someone moving a repository to a newer Workflow release, or moving the Manager itself to a newer version. Last checked with: Workflow Manager 1.5.0, Workflow 2.9.0.
+> For: someone moving a repository to a newer Workflow release, or moving the Manager itself to a newer version. Last checked with: Workflow Manager 1.6.0, Workflow 2.9.0.
 
 Goal: bring a repository to the newest pinned Workflow release without losing its work-item state.
 
@@ -25,6 +25,29 @@ Two Workflow 2.9.0 points. An update never changes the default version in your e
 - A repository the Manager installed the Workflow into ([Install](install.md)).
 - No unfinished edits to release files. Run `workflow-manager verify` first.
 - A Manager that knows the release you want. Each Manager release pins a fixed set of Workflow releases; `workflow-manager releases` lists them.
+
+## Check before you update
+
+`doctor` and `update --dry-run` read the repository and tell you what an update would do and which Workflow guarantees it would cross. Neither writes the repository. They may write the release cache (a missing release is fetched) and one temporary copy of the release outside the repository.
+
+```bash
+workflow-manager doctor /path/to/your/repo
+workflow-manager update /path/to/your/repo --dry-run
+```
+
+`doctor` measures the repository against the newest pinned release; put `--release-version` before the command to measure against another. `update --dry-run` prints the same `would ...` lines the real update prints as changes, then `left alone:` for what it keeps (your state files, for one), then the same report.
+
+Reading the report:
+
+- **Repository, Installed release, Latest available, Target of this check** are three different things. The installed release is what the record says; the target is what the check is measured against.
+- **Work items** lists each item's phase, type and governing version. The governing version is a protocol version (`1`, `2.1`, `2.2`), not a release.
+- **Findings** have a severity. `blocked`: the real update would be refused, and the refusal is quoted. `warning`: the update would proceed and could disturb something; read it before running. A warning also appears when the inspection could not finish (`incomplete-inspection`): that report is not a clean bill of health. `note`: a fix or default that reaches only new work.
+- **Fixes that apply only to new work** says what the update does not change for existing items.
+- **Recovery** prints commands for the repository's path. The line that discards uncommitted changes is printed only when the tree is known to be clean; it is an undo only if the tree was clean before the update.
+
+`doctor` exits 0 when it found no `blocked` or `warning` finding, 1 when it found one, and 2 when it could not check (not a managed repository, an unreadable record, or a target release it cannot resolve). `update --dry-run` exits 0 when the update would proceed and 2 when the real update would refuse, with the refusal's own text.
+
+The report is advisory. It looks at the current state files and a few Git facts; it does not search all of history, and it never says an update is safe.
 
 ## Steps
 
@@ -51,7 +74,7 @@ Two Workflow 2.9.0 points. An update never changes the default version in your e
 
 3. Decide about human approval gates (see above) and commit `GATE_POLICY.json` if you want it.
 
-4. Update to the newest pinned release.
+4. Read the report from "Check before you update" (`doctor`, then `update --dry-run`), then update to the newest pinned release.
 
    ```bash
    workflow-manager update /path/to/your/repo
@@ -74,6 +97,7 @@ Two Workflow 2.9.0 points. An update never changes the default version in your e
 
 ## If it fails
 
+- `workflow-manager doctor` exits 2 with `is not a managed repository` or an error naming a release: it could not check. See [Troubleshooting](troubleshooting.md).
 - `refusing to update: these release files were modified locally`: you edited a release file, and the Manager will not discard it silently. Save the edit elsewhere, then re-run with `--force` to replace the file with the release's.
 - The update stopped half way: run the same command again. A resumed update does not need `--force`.
 - `is not a managed repository`: use [Install](install.md) instead.

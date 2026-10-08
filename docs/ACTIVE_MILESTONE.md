@@ -12,7 +12,7 @@ without writing the repository. Full plan:
 
 ## Current checkpoint
 
-**CP1, CP2 and CP3 complete; CP4 is next.** CP1-CP5 are in the registry
+**CP1-CP4 complete; CP5 is next.** CP1-CP5 are in the registry
 (`docs/ai-workflow/registry/workflow-manager-update-ergonomics-registry.json`).
 
 ## Current blockers
@@ -25,7 +25,7 @@ None.
 
 ## Next action
 
-`/milestone-implement workflow-manager-update-ergonomics` for CP4.
+`/milestone-implement workflow-manager-update-ergonomics` for CP5.
 
 ## Update ergonomics -- checkpoint log
 
@@ -139,6 +139,21 @@ None.
   --select test_release_workflows.py --select test_parallel_runner.py --select
   test_orphan_processes.py` (145/145 units, 714 tests, exit 0). The full gate is
   CP5's.
+
+### CP4 -- documentation (complete)
+
+- `docs/update.md`: new "Check before you update" section (`doctor`, `update
+  --dry-run`, report reading guide, exit codes, advisory caveat), step 4 points
+  to it, a `doctor` exit-2 entry under "If it fails". `docs/troubleshooting.md`:
+  entries for `blocked`, `warning` and `incomplete-inspection`; exit-code table
+  covers `doctor` and `--dry-run`. `docs/README.md` indexes the new section.
+  `docs/ARCHITECTURE.md`: "Update planning" section. `docs/RELEASING.md` and
+  `CLAUDE.md` pin steps: extend the three `compatibility.py` tables. The `cli.py`
+  docstring was already done in CP3. Headers of the three rewritten pages moved
+  to Manager 1.6.0; `docs/ROADMAP.md` is marked at acceptance.
+- Verified: `python3 tools/check_docs.py`; `python3 tests/run_all.py --select
+  test_docs.py --select test_internal_references.py` (16/16 units, 73 tests,
+  exit 0). The full gate is CP5's.
 
 ## Checkpoint log
 
