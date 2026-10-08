@@ -1319,6 +1319,21 @@ SOURCE_ORCHESTRATOR_FORGE = "orchestrator_forge"
 CAUSES = ("content_changed", "changes_requested", "checks_failed")
 #: The phases at which a stored fact can be acted on (`D-GP-Reopen`).
 REOPENABLE_PHASES = frozenset({"AWAITING_FUNCTIONAL_REVIEW", "MILESTONE_COMPLETE"})
+
+
+def is_retired_legacy_item(work_item: object) -> bool:
+    """A legacy item retired by `/retire-legacy-work-item` (workflow-2.9.0,
+    INV-6): `MILESTONE_COMPLETE` at governing version `1` on a `LEGACY_V1`
+    technical approval. A structural, enduring predicate, never the absence of
+    gate evidence. A promotion sets the version to `2.1`, so an item promoted and
+    then accepted never matches, and no other writer produces the combination.
+    A retired item is never reopened (`reopen_retired_legacy_item`)."""
+    if not isinstance(work_item, dict):
+        return False
+    approval = work_item.get("technical_approval")
+    return (work_item.get("phase") == "MILESTONE_COMPLETE"
+            and work_item.get("governing_workflow_version") == "1"
+            and isinstance(approval, dict) and approval.get("basis") == "LEGACY_V1")
 _COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 _FUNCTIONAL_STATUSES = ("passed", "failed")

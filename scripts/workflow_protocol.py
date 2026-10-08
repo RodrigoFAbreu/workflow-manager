@@ -46,11 +46,11 @@ import workflow_state  # noqa: E402
 #: The Workflow release these bytes are. A build refuses when it differs
 #: from the manifest's `workflow_version` (CP7); it never reads the
 #: installation record.
-WORKFLOW_RELEASE = "2.8.0"
+WORKFLOW_RELEASE = "2.9.0"
 
 PROTOCOL_NAME = "workflow-orchestration"
 PROTOCOL_MAJOR = 1
-PROTOCOL_VERSION = "1.1"
+PROTOCOL_VERSION = "1.2"
 SUPPORTED_PROTOCOL_MAJORS = (PROTOCOL_MAJOR,)
 
 #: The single source of the governing versions the protocol supports
@@ -167,6 +167,15 @@ ACTIONS = {
     "pr.apply_review": _action_spec("apply-pr-review", "/apply-pr-review {id}", "applier"),
     "functional.evidence.external": _action_spec(None, None, "external"),
     "pr.review.external": _action_spec(None, None, "external"),
+    # workflow-2.9.0 (protocol 1.2, D-Retire-Protocol): retiring a dormant
+    # legacy item is a user-only alternative of blocked row 3, never an edge.
+    "legacy.retire": _action_spec(
+        "retire-legacy-work-item", "/retire-legacy-work-item {id}", "user", user_only=True),
+    # workflow-2.9.0 (protocol 1.2, D-Fix-003 (b)): the user-only way back from
+    # an outstanding checkpoint at the functional gate, an alternative of
+    # blocked row 38c, never an edge.
+    "implementation.resume": _action_spec(
+        "resume-implementation", "/resume-implementation {id}", "user", user_only=True),
 }
 
 #: The action catalogue's ids (D-OP-Next).
@@ -1143,7 +1152,9 @@ def _row_2(ctx):
 
 def _row_3(ctx):
     return _match("legacy_item_not_activated", f"{ctx.work_item_id} is a dormant legacy entry (LEGACY_READY)",
-                  "promote it (D-Legacy phase 2) before driving it")
+                  "promote it (D-Legacy phase 2) before driving it, or retire it as already finished "
+                  f"with /retire-legacy-work-item {ctx.work_item_id}",
+                  alternatives=[_alt("legacy.retire")])
 
 
 def _row_4(ctx):
@@ -1179,14 +1190,14 @@ def _row_6(ctx):
 
 
 def _row_6a(ctx):
-    failing = (
-        "the \"1\" branch of milestone-plan writes no state, so no \"1\" command publishes the plan"
-        if ctx.phase in ("PLANNING", "AMENDING_PLAN") else
-        "record_bundle_generation(stage=\"implementation\") refuses from IMPLEMENTING "
-        "(IllegalBundleGenerationSourcePhaseError)"
-    )
+    if ctx.phase == "IMPLEMENTING":
+        return _match("v1_state_not_advanced",
+                      "IMPLEMENTING at governing_workflow_version \"1\": the \"1\" /milestone-implement "
+                      "runs by hand; the orchestrator does not drive governing \"1\"",
+                      "run /milestone-implement by hand")
     return _match("v1_state_not_advanced",
-                  f"{ctx.phase} at governing_workflow_version \"1\": {failing}",
+                  f"{ctx.phase} at governing_workflow_version \"1\": the \"1\" branch of milestone-plan "
+                  f"writes no state, so no \"1\" command publishes the plan",
                   "none exists: no 2.6.0 \"1\" command advances this state (defect v2.6.0-003)")
 
 
@@ -1658,8 +1669,10 @@ def _row_38b(ctx):
     return _match(
         "v1_state_not_advanced",
         f"checkpoint {outstanding} is not COMPLETE and no \"1\" command writes checkpoint statuses, so "
-        f"/accept-milestone can never pass its pre-flight for this item (defect v2.6.0-003)",
-        "none exists in 2.6.0 (defect v2.6.0-003)", alternatives=_FUNCTIONAL_ALTERNATIVES)
+        f"the item cannot be accepted until its registry is terminal (the open residual of defect "
+        f"v2.6.0-003)",
+        "none exists: the item cannot be accepted until its registry is terminal (defect v2.6.0-003)",
+        alternatives=_FUNCTIONAL_ALTERNATIVES)
 
 
 def _row_38c(ctx):
@@ -1668,12 +1681,14 @@ def _row_38c(ctx):
         return None
     return _match(
         "registry_incomplete",
-        f"checkpoint {outstanding} is not COMPLETE at AWAITING_FUNCTIONAL_REVIEW. No 2.6.0 command completes "
+        f"checkpoint {outstanding} is not COMPLETE at AWAITING_FUNCTIONAL_REVIEW. No command completes "
         f"a checkpoint from this phase: /milestone-implement cannot start one here, /request-plan-amendment "
         f"refuses at this phase, and /accept-milestone's step 2a refuses. Ordinary flow cannot leave "
-        f"IMPLEMENTING with a checkpoint outstanding; the reachable origins are a legacy promotion "
-        f"(promote_legacy_work_item) or a hand-constructed state (defect v2.6.0-003)",
-        "none exists in 2.6.0 (defect v2.6.0-003)", alternatives=_FUNCTIONAL_ALTERNATIVES)
+        f"IMPLEMENTING with a checkpoint outstanding; the only origin is a hand-constructed or hand-edited "
+        f"state that carries a CURRENT plan approval covering its registry (defect v2.6.0-003)",
+        f"resume implementation with /resume-implementation {ctx.work_item_id} (user-only; it returns the "
+        f"item to IMPLEMENTING and marks its technical approval STALE), then run /milestone-implement",
+        alternatives=[_alt("implementation.resume")] + _FUNCTIONAL_ALTERNATIVES)
 
 
 # -- workflow-2.8.0: the rows a gate policy adds (D-GP-Rows). Each row of a gate
@@ -1740,6 +1755,8 @@ def _row_28b(ctx):
 
 
 def _row_38d(ctx):
+    if workflow_gate_policy.is_retired_legacy_item(ctx.work_item):
+        return None
     evidence = workflow_gate_policy.gate_evidence_of(ctx.work_item)
     if evidence["pr"] is None and evidence["pr_reported"] is None:
         return None
@@ -1897,7 +1914,8 @@ CATALOGUE = [
     Row("1", None, None, "automatic", "plan.start", _row_1),
     Row("1a", None, None, "blocked", None, _row_1a, unconditional=True),
     Row("2", VOCABULARY_ONLY_PHASES, ALL_VERSIONS, "blocked", None, _row_2, unconditional=True),
-    Row("3", ("LEGACY_READY",), ALL_VERSIONS, "blocked", None, _row_3, unconditional=True),
+    Row("3", ("LEGACY_READY",), ALL_VERSIONS, "blocked", None, _row_3, unconditional=True,
+        remedy_commands=("retire-legacy-work-item",)),
     Row("4", None, None, "blocked", None, _row_4, unconditional=True,
         pairs=[(phase, version) for phase, versions in ILLEGAL_PHASE_VERSIONS.items() for version in versions]),
     Row("5", TWO_STAGE_PLAN_PHASES, TWO_STAGE_VERSIONS, "blocked", None, _row_5,
@@ -1907,7 +1925,7 @@ CATALOGUE = [
         remedy_commands=lambda phase, version: (
             ("milestone-plan",) if version in TWO_STAGE_VERSIONS and phase in TWO_STAGE_PLAN_PHASES else ())),
     Row("6a", ("PLANNING", "AMENDING_PLAN", "IMPLEMENTING"), _V1, "blocked", None, _row_6a, unconditional=True,
-        remedy_commands=("none_exists",)),
+        remedy_commands=lambda phase, version: ("milestone-implement",) if phase == "IMPLEMENTING" else ("none_exists",)),
     Row("7", ("PLANNING", "AMENDING_PLAN"), TWO_STAGE_VERSIONS, "automatic", "plan.author", _row_7, unconditional=True),
     Row("7a", ("REVISING_PLAN",), TWO_STAGE_VERSIONS, "blocked", None, _row_7a,
         remedy_commands=("milestone-plan",), refusing_commands=("apply-plan-review",)),
@@ -1985,7 +2003,7 @@ CATALOGUE = [
         remedy_commands=("none_exists", "apply-functional-review", "review-functional"),
         refusing_commands=("accept-milestone",)),
     Row("38c", _AFR, TWO_STAGE_VERSIONS, "blocked", None, _row_38c,
-        remedy_commands=("none_exists", "apply-functional-review", "review-functional"),
+        remedy_commands=("resume-implementation", "apply-functional-review", "review-functional"),
         refusing_commands=("milestone-implement", "request-plan-amendment", "accept-milestone")),
     Row("38d", _AFR + ("MILESTONE_COMPLETE",), ALL_VERSIONS, "automatic", "pr.apply_review", _row_38d),
     Row("38e", _AFR, ALL_VERSIONS, "external_gate", "functional.evidence.external", _row_38e),

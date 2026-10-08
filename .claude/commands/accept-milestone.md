@@ -86,10 +86,13 @@ missing, ask for it and stop — do not proceed on an inferred "yes."
       the answer): an outstanding checkpoint cannot be completed from
       `AWAITING_FUNCTIONAL_REVIEW`. `/milestone-implement` cannot start a
       checkpoint at this phase (`transition_checkpoint_in_progress` refuses
-      outside `IMPLEMENTING`), and no 2.6.0 command completes one here
-      (defect `v2.6.0-003`): report the outstanding checkpoint and stop.
+      outside `IMPLEMENTING`), and no command completes one here (defect
+      `v2.6.0-003`): report the outstanding checkpoint and stop. For a
+      `2.1`/`2.2` item name the user-only `/resume-implementation <id>`
+      (workflow-2.9.0), which returns it to `IMPLEMENTING` with the
+      technical approval marked `STALE`; never run it on the user's behalf.
       Ordinary flow never reaches this phase with a checkpoint outstanding;
-      a legacy promotion or a hand-constructed state does. If acceptance is being
+      only a hand-constructed or hand-edited state does. If acceptance is being
       attempted early because of a functional-review finding, route that
       finding through `/apply-functional-review` instead — its bounded
       branch for a same-scope fix (which marks `technical_approval`

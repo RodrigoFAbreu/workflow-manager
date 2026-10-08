@@ -36,7 +36,8 @@ edit outside the item's own scope, or skips a step.
 Call `workflow_state.begin_pr_review(repo_root, work_item_id, now=<now>)` (one
 `state_transaction`). It is the one reopen decision, for both phases
 `next-action` row `38d` can match at (`AWAITING_FUNCTIONAL_REVIEW` and
-`MILESTONE_COMPLETE`), and it never adds a key to `applied`.
+`MILESTONE_COMPLETE`; a retired legacy item at `MILESTONE_COMPLETE` is not
+matched), and it never adds a key to `applied`.
 
 - A stored actionable key at `AWAITING_FUNCTIONAL_REVIEW`, with no armed query
   trigger, reopens without a query when the key is not yet in `reopened_for`.
@@ -60,8 +61,11 @@ Call `workflow_state.begin_pr_review(repo_root, work_item_id, now=<now>)` (one
     item; `reopen_plan_archived`: restore the plan from
     `docs/milestones/completed/` to the item's `plan_path`) and stop;
   - an exception (`forge_unavailable`, `forge_undecidable`,
-    `pr_head_unknown`, `pr_head_not_in_branch`, `reopen_phase_illegal`): stored
-    nothing, the phase is unchanged. `pr_head_not_in_branch` and
+    `pr_head_unknown`, `pr_head_not_in_branch`, `reopen_phase_illegal`,
+    `reopen_retired_legacy_item`): stored nothing, the phase is unchanged.
+    `reopen_retired_legacy_item` has no remedy: a legacy item retired by
+    `/retire-legacy-work-item` is closed by design (report and stop; start a
+    new work item for any further work). `pr_head_not_in_branch` and
     `pr_head_unknown` are cured by `git fetch` and merging the pull request
     head. Report and stop.
 

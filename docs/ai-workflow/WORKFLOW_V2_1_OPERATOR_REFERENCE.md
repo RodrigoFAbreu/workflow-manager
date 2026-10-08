@@ -890,6 +890,56 @@ test fails and is authoritative about which one moved.
   and its completion is recorded in the parent's own functional-review
   checklist instead.
 
+### `/retire-legacy-work-item <work-item-id>` — user-only
+- **When**: a dormant `LEGACY_READY` item (imported legacy, governing `1`,
+  `LEGACY_V1` approval) is finished and will never be adopted, for example
+  because its protected content changed and `/prepare-functional-review` would
+  refuse to promote it. It is reported as an alternative of `next-action` row 3
+  (`workflow-2.9.0`), never as an automatic action.
+- **Expects**: the id in `$ARGUMENTS` (never the active item) and your
+  current-turn confirmation naming the id as an exact token and the word
+  `retirement`. The writer validates it itself.
+- **Does**: `workflow_state.retire_legacy_work_item` moves the item to
+  `MILESTONE_COMPLETE` and changes only `phase`, `current_checkpoint_id`,
+  `state_revision` and `last_transition`. The `LEGACY_V1` record, the governing
+  version and the paths are untouched; no stale-approval, reconciliation or
+  promotion check runs.
+- **Writes**: one state-only commit (staged item-scoped) with a
+  `Retirement-Confirmation:` line and the `Workflow-Legacy-Retirement` and
+  `Workflow-Work-Item` trailers; `discover_legacy_retirement_commit` finds it and
+  `validate_legacy_retirement_commit` checks it.
+- **Next**: nothing. A retired item stays closed: pull-request evidence may still
+  be recorded on it but never reopens it (`reopen_retired_legacy_item`).
+- **Refuses**: a missing or wrong confirmation; an unknown id; any phase other
+  than `LEGACY_READY`; the active item; unfinished children.
+
+### `/resume-implementation <work-item-id>` — user-only
+- **When**: a `2.1`/`2.2` item sits at `AWAITING_FUNCTIONAL_REVIEW` with a registry
+  checkpoint still outstanding (`next-action` row 38c, `registry_incomplete`;
+  `v2.6.0-003`). Only a hand-constructed or hand-edited state with a `CURRENT`
+  plan approval gets there; ordinary flow cannot, and a promoted legacy item has
+  no plan approval, so the writer refuses it. It is reported as an alternative
+  of row 38c (`workflow-2.9.0`), never as an automatic action.
+- **Expects**: the id in `$ARGUMENTS` (never the active item) and your
+  current-turn confirmation naming the id as an exact token and the word
+  `resumption`. The writer validates it itself.
+- **Does**: `workflow_state.resume_implementation` holds the repository-global
+  lifecycle lock and joins the claim side of the amendment-race guard
+  (`v2.4.0-002`), then moves the item to `IMPLEMENTING` and marks its technical
+  approval `STALE`, changing only `phase`, `technical_approval.status`,
+  `state_revision` and `last_transition`. It clears nothing: earlier evidence is
+  bound to the content identity it reviewed and cannot satisfy a gate for the new
+  content. An already-`STALE` approval is accepted as it is.
+- **Writes**: one state-only commit (staged item-scoped) with a
+  `Resume-Confirmation:` line and the `Workflow-Work-Item` trailer;
+  `validate_resume_implementation_commit` checks it.
+- **Next**: `/milestone-implement <id>` runs unchanged (claim, completion,
+  self-review, bundle, both reviews, technical approval, functional review).
+- **Refuses**: a missing or wrong confirmation; an amendment in flight anywhere in
+  the repository (the claim side's lifecycle refusals); any phase other than
+  `AWAITING_FUNCTIONAL_REVIEW`; a `1` item; a missing or not `CURRENT` plan
+  approval; a terminal registry; no technical approval to stale.
+
 ### `/prepare-review <base-sha> <stage> [work-item-id]`
 - **When**: a one-off review of work that is not part of a tracked milestone
   checkpoint.
