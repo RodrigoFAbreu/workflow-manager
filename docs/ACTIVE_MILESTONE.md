@@ -2,62 +2,60 @@
 
 ## Milestone
 
-`workflow-manager-packaged-distribution` (M2; `governing_workflow_version:
-"2.2"`, `process`, plan revision 9 approved in `e341c90` on basis
-`EXTERNAL_APPROVE`, base `ec38979`, branch
-`milestone/workflow-manager-packaged-distribution`): a Workflow release
-becomes a versioned, checksummed, immutable package that the Manager
-downloads, verifies, caches and installs; `distribution/`, `migration/`,
-the migration tooling and the stopgap test profile leave this repository.
-Full plan: `docs/ai-workflow/WORKFLOW_MANAGER_PACKAGED_DISTRIBUTION_PLAN.md`.
+`workflow-manager-update-ergonomics` (`governing_workflow_version: "2.2"`,
+`process`, plan revision 6 approved by policy, base `bb54c76`, branch
+`milestone/workflow-manager-update-ergonomics`): `workflow-manager doctor`
+and `workflow-manager update --dry-run`, which read a repository and report
+what an update would do and which Workflow guarantees it would cross,
+without writing the repository. Full plan:
+`docs/ai-workflow/WORKFLOW_MANAGER_UPDATE_ERGONOMICS_PLAN.md`.
 
 ## Current checkpoint
 
-**Milestone complete.** `workflow-manager-packaged-distribution` reached
-`MILESTONE_COMPLETE` through `/accept-milestone` on 2026-10-01, with the
-user's confirmation, and `active_work_item_id` is cleared.
-- **Checkpoints:** CP1-CP7 are complete.
-- **Technical approval:** commit `2216d5a`, implementation revision 4.
-  Both implementation-review stages approved it. External round 1 found an
-  undiscardable cache entry escaping as `PermissionError` (fixed in
-  `df5ecc6`), and external round 3 asked for a stronger regression scanner
-  (`6bbd8ec`).
-- **Automated verification:** the full gate passed on the final code
-  (1410/1410 units, 8,746 tests, verdict 0, recorded at `2f817cc`). Only
-  docs and state commits have landed since.
-- **Functional review:** round 1 (revision 2) passed flows 1-8 and cutover
-  K1-K3. K4 found F1 (the verification workflow used the `runner` context
-  in a job-level `env`), fixed through the bounded branch in `3e90d7b`.
-  Round 2 (revision 4, checklist `69da8f7`) passed. The user accepted it
-  with no findings filed. The round 2 evidence is recorded under the
-  cutover below.
-
-The checkpoint log below is this milestone's permanent record.
+**CP1 complete; CP2 is next.** CP1-CP5 are in the registry
+(`docs/ai-workflow/registry/workflow-manager-update-ergonomics-registry.json`).
 
 ## Current blockers
 
-None. What remains after acceptance:
-- cutover K5: squash-merge pull request #11 under its title `feat: Workflow
-  releases are downloaded, verified packages` (a `feat:` title, so it
-  releases the Manager's `v1.2.0`), check that `main`'s full run is green
-  and `v1.2.0` is published, then `pipx install` its wheel into a scratch
-  environment and bootstrap a scratch repository with no checkout;
-- between milestones, install Workflow Controller 1.4.2.
+None.
 
 ## Active plan
 
-None, because the milestone is complete. The plan document stays at
-`docs/ai-workflow/WORKFLOW_MANAGER_PACKAGED_DISTRIBUTION_PLAN.md`
-(revision 9) instead of being archived: `docs/ARCHITECTURE.md`,
-`docs/MIGRATION.md` and `docs/RELEASING.md` cite it as the design record.
+`docs/ai-workflow/WORKFLOW_MANAGER_UPDATE_ERGONOMICS_PLAN.md` (revision 6).
 
 ## Next action
 
-`workflow-manager-packaged-distribution` is complete. The Workflow's
-roadmap now lives in the `workflow` repository's `docs/ROADMAP.md`. Its next
-item is W0 (setting that repository up for development), then W1, "Workflow
-2.7". Both are planned and built in the `workflow` repository; this
-repository adds a pin for each new release.
+`/milestone-implement workflow-manager-update-ergonomics` for CP2.
+
+## Update ergonomics -- checkpoint log
+
+### CP1 -- `plan_update` / `apply_update` (complete)
+
+- `install.update` is now `plan_update` (decide, write nothing) followed by
+  `apply_update` (write). `UpdatePlan` carries `changes`, `removals`,
+  `writes` (`PlannedWrite`, relative path, `mode_only` for a repaired
+  executable bit), `left_alone` (`LeftAlone(path, reason)`) and the record it
+  would write. Beyond the plan's sketch it also carries `overwrites`: the
+  locally modified release files a forced update discards, which the dry
+  run's `would overwrite` annotations (CP3) need and nothing else records.
+- The merges got a pure half, `_plan_merges`; `bootstrap` writes what it
+  returns, so bootstrap and update share one merge implementation
+  (`_apply_merges` is gone, it had no other caller).
+- `apply_update(plan, release)` uses `release` only to refuse a plan made
+  for another release. It writes through the module-global `_write`, once per
+  file, in the old order (removals, release files, state templates, merges,
+  record last), so the interrupt-at-every-write test counts what it did.
+- Behaviour change, as the plan allows: every artifact is read and verified
+  at plan time, so a corrupt cached artifact refuses before any write.
+- Tests: `tests/test_update_plan.py` (new) pins planning as write-free,
+  plan-then-apply equal to `update` (tree, record, change lines) for a clean
+  update, same-release no-op, deleted state, changed merged files, a lost
+  executable bit, a profile change and a forced update over a local edit,
+  and identical refusals (local edit, collision, directory in the way under
+  `--force`, unmanaged target, unknown profile).
+- Verified: `python3 tests/run_all.py --select test_update_plan.py` (exit 0),
+  and `--select test_bootstrap.py --select test_update_path.py` (453/453
+  units, 2859 tests, exit 0). The full gate is CP5's.
 
 ## Checkpoint log
 
