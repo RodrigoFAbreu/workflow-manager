@@ -39,7 +39,7 @@ workflow-manager update /path/to/your/repo --dry-run
 
 Reading the report:
 
-- **Repository, Installed release, Latest available, Target of this check** are three different things. The installed release is what the record says; the target is what the check is measured against.
+- **Installed release, Latest available, Target of this check** are three different versions. The installed release is what the record says, the latest is the newest release this Manager pins, and the target is what the check is measured against.
 - **Work items** lists each item's phase, type and governing version. The governing version is a protocol version (`1`, `2.1`, `2.2`), not a release.
 - **Findings** have a severity. `blocked`: the real update would be refused, and the refusal is quoted. `warning`: the update would proceed and could disturb something; read it before running. A warning also appears when the inspection could not finish (`incomplete-inspection`): that report is not a clean bill of health. `note`: a fix or default that reaches only new work.
 - **Fixes that apply only to new work** says what the update does not change for existing items.

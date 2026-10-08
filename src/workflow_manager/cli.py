@@ -339,13 +339,6 @@ def _readonly_destinations(args, installed: str | None) -> Destinations:
     return plan_destinations(args, os.environ, args.target, versions)
 
 
-def _installed_version_of(target: Path) -> str | None:
-    try:
-        return Installation.read(target).workflow_version
-    except (CorruptInstallationError, OSError, ValueError):
-        return None
-
-
 _DRY_VERBS = {"removed": "would remove", "added": "would add", "updated": "would update",
               "fixed": "would fix", "created": "would create"}
 
