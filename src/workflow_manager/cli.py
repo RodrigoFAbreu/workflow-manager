@@ -2,7 +2,8 @@
 
     python3 -m workflow_manager status    <target>
     python3 -m workflow_manager bootstrap <target> [--profile full|runtime] [--force]
-    python3 -m workflow_manager update    <target> [--profile ...] [--force]
+    python3 -m workflow_manager update    <target> [--profile ...] [--force] [--dry-run]
+    python3 -m workflow_manager doctor    <target>
     python3 -m workflow_manager verify    <target>
     python3 -m workflow_manager uninstall <target>
     python3 -m workflow_manager releases
@@ -19,11 +20,18 @@ Without it, the two commands that *change* which release a repository is on
 that *report on* an installation -- `status` and `verify` -- mean the release
 the target says it has, so they never quietly grade a repository against
 something it was never installed from.
+
+`doctor` and `update --dry-run` read a repository and report what an update
+would do and which Workflow guarantees it would cross; they never write the
+repository (they write the release cache and one temporary snapshot, both
+outside it). `doctor` measures against the newest pinned release, or
+`--release-version`.
 """
 
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import subprocess
 import sys
@@ -33,6 +41,13 @@ from importlib import metadata
 from pathlib import Path
 
 from . import source as release_source
+from .compatibility import (
+    Destinations,
+    plan_destinations,
+    read_repository,
+    render_report,
+    build_report,
+)
 from .install import (
     AlreadyManagedError,
     CollisionError,
@@ -40,6 +55,7 @@ from .install import (
     InstallError,
     NotManagedError,
     bootstrap,
+    plan_update,
     status,
     uninstall,
     update,
@@ -201,20 +217,26 @@ def _default_version(args, pins) -> str:
     return versions[-1]
 
 
-def _resolve(args, version: str | None):
+def _resolve(args, version: str | None, destinations: Destinations | None = None):
     """The release `version` (default: the newest) as a verified private
     snapshot. Precedence: `--release-dir`, the `--manager-root` alias when its
     checkout holds the version, then the pins through the cache, which refuse
-    an unpinned version."""
+    an unpinned version.
+
+    `destinations` is the read-only commands' (`doctor`, `update --dry-run`):
+    the validated snapshot parent and the no-follow lock leaf, threaded down so
+    no hop falls back to the default temporary directory."""
     pins = _pins()
+    parent = destinations.snapshot_parent if destinations else None
     if args.release_dir is not None:
-        return local_release(args.release_dir, version, pins)
+        return local_release(args.release_dir, version, pins, parent)
     if version is None:
         version = _default_version(args, pins)
     candidates = _alias_releases(args)
     if version in candidates:
-        return local_release(candidates[version], version, pins)
-    return _cache(args, pins).resolve(version)
+        return local_release(candidates[version], version, pins, parent)
+    return _cache(args, pins).resolve(version, snapshot_parent=parent,
+                                      read_only=destinations is not None)
 
 
 def _release(args):
@@ -302,7 +324,128 @@ def cmd_bootstrap(args) -> int:
     return 0
 
 
+def _readonly_destinations(args, installed: str | None) -> Destinations:
+    """Decide, before anything is written, where the cache and the snapshot go
+    (plan 3.6). The versions are the releases the resolver will open."""
+    pins = _pins()
+    versions = []
+    if args.release_dir is None:
+        try:
+            versions.append(args.release_version or _default_version(args, pins))
+        except ReleaseNotPublishedError:
+            pass
+    if installed:
+        versions.append(installed)
+    return plan_destinations(args, os.environ, args.target, versions)
+
+
+def _installed_version_of(target: Path) -> str | None:
+    try:
+        return Installation.read(target).workflow_version
+    except (CorruptInstallationError, OSError, ValueError):
+        return None
+
+
+_DRY_VERBS = {"removed": "would remove", "added": "would add", "updated": "would update",
+              "fixed": "would fix", "created": "would create"}
+
+
+def _would(change: str) -> str:
+    verb, _, rest = change.partition(" ")
+    return f"{_DRY_VERBS[verb]} {rest}" if verb in _DRY_VERBS else f"would {change}"
+
+
+def _print_dry_run(args, plan, release) -> None:
+    print(f"would update {args.target} from workflow {plan.current.workflow_version} to "
+          f"workflow {release.version}     (dry run: nothing written)")
+    overwrites = set(plan.overwrites)
+    for change in plan.changes:
+        note = ""
+        if change.split(" ", 1)[-1] in overwrites:
+            note = "     (discards your local edit; --force)"
+        print(f"  {_would(change)}{note}")
+    if not plan.changes:
+        print("  (no change)")
+    print("left alone:")
+    for kept in plan.left_alone:
+        print(f"  {kept.path}   {kept.reason}")
+
+
+def _compatibility_report(args, plan, refusal, release, installed_resolved: bool):
+    """The report for `release` as the target, with the facts read from `args.target`."""
+    pins = _pins()
+    versions = pins.versions()
+    try:
+        latest = _default_version(args, pins)
+    except ReleaseNotPublishedError:
+        latest = None
+    facts = read_repository(args.target)
+    return build_report(
+        facts, plan, target_version=release.version, latest_version=latest,
+        pinned_versions=versions, refusal=refusal, installed_resolved=installed_resolved,
+        target_arg=str(args.target))
+
+
+def _plan_or_refusal(args, release):
+    try:
+        return plan_update(args.target, release, args.profile, force=args.force), None
+    except (DriftError, CollisionError) as refusal:
+        return None, refusal
+
+
+def cmd_dry_run(args) -> int:
+    """`update --dry-run`: the plan `update` would apply, printed; the same
+    refusals (exit 2) as the real update, with the report printed first."""
+    if not is_managed(args.target):
+        raise NotManagedError(f"{args.target} is not a managed repository; use bootstrap() first")
+    installed = Installation.read(args.target).workflow_version
+    destinations = _readonly_destinations(args, installed)
+    with _resolve(args, args.release_version, destinations) as release:
+        plan, refusal = _plan_or_refusal(args, release)
+        installed_resolved = _installed_resolves(args, installed, destinations)
+        if plan is not None:
+            _print_dry_run(args, plan, release)
+            print()
+        report = _compatibility_report(args, plan, refusal, release, installed_resolved)
+        print(render_report(report), end="")
+    if refusal is not None:
+        raise refusal
+    return 0
+
+
+def _installed_resolves(args, installed: str, destinations: Destinations) -> bool:
+    """Whether the installed release can be resolved (`not-verified` when not)."""
+    try:
+        _cache(args, _pins()).resolve(
+            installed, snapshot_parent=destinations.snapshot_parent, read_only=True).close()
+    except RELEASE_ERRORS:
+        return False
+    return True
+
+
+def cmd_doctor(args) -> int:
+    """Report what an update would meet. Exit 0 with no blocked or warning
+    finding, 1 with one, 2 when it could not check."""
+    if not is_managed(args.target):
+        raise NotManagedError(f"{args.target} is not a managed repository; nothing to check")
+    installed = Installation.read(args.target).workflow_version
+    destinations = _readonly_destinations(args, installed)
+    try:
+        release = _resolve(args, args.release_version, destinations)
+    except RELEASE_ERRORS as error:
+        print(f"error: could not resolve the target release: {error}", file=sys.stderr)
+        return 2
+    with release:
+        plan, refusal = _plan_or_refusal(args, release)
+        installed_resolved = _installed_resolves(args, installed, destinations)
+        report = _compatibility_report(args, plan, refusal, release, installed_resolved)
+    print(render_report(report), end="")
+    return report.doctor_exit_code
+
+
 def cmd_update(args) -> int:
+    if args.dry_run:
+        return cmd_dry_run(args)
     with _release(args) as release:
         installation, changes = update(args.target, release, args.profile, force=args.force)
     print(f"updated {args.target} to workflow {installation.workflow_version}")
@@ -357,6 +500,7 @@ COMMANDS = {
     "status": cmd_status,
     "bootstrap": cmd_bootstrap,
     "update": cmd_update,
+    "doctor": cmd_doctor,
     "verify": cmd_verify,
     "uninstall": cmd_uninstall,
     "package": cmd_package,
@@ -395,6 +539,15 @@ def build_parser() -> argparse.ArgumentParser:
     q.add_argument("archive", type=Path)
     q.add_argument("--sha256", default=None)
 
+    p = sub.add_parser("doctor", help="report what an update would meet in a repository",
+                       description="Read a repository and report what an update would do and "
+                                   "which Workflow guarantees it would cross. Writes the release "
+                                   "cache and a temporary snapshot outside the repository, never "
+                                   "the repository. Exit 0: nothing found; 1: warnings; 2: could "
+                                   "not check.")
+    p.add_argument("target", type=Path)
+    p.set_defaults(profile=None, force=False)
+
     for name in ("status", "verify", "uninstall"):
         p = sub.add_parser(name)
         p.add_argument("target", type=Path)
@@ -410,6 +563,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--profile", choices=INSTALL_PROFILES, default=None)
     p.add_argument("--force", action="store_true",
                    help="overwrite managed files that were modified locally")
+    p.add_argument("--dry-run", action="store_true",
+                   help="print what the update would do and the compatibility report; writes the "
+                        "release cache and a temporary snapshot outside the repository, never "
+                        "the repository")
     return parser
 
 

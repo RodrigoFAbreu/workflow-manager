@@ -272,11 +272,15 @@ class SnapshotRelease(Release):
         self.close()
 
 
-def _copy_snapshot(tree: Path) -> Path:
+def _copy_snapshot(tree: Path, dir: Path | None = None) -> Path:
     """The manifest-enumerated files of `tree`, copied into a fresh private
     directory with the modes the manifest records. The manifest is read from
-    the copy, so the files copied are the ones the copied manifest names."""
-    snapshot = Path(tempfile.mkdtemp(prefix="workflow-release-"))
+    the copy, so the files copied are the ones the copied manifest names.
+
+    `dir` is the parent of the fresh directory. The default is `tempfile`'s own
+    choice; the read-only commands pass one they validated, so no probe file is
+    ever written where `tempfile` would have looked."""
+    snapshot = Path(tempfile.mkdtemp(prefix="workflow-release-", dir=dir))
     try:
         os.chmod(snapshot, 0o700)
         shutil.copyfile(tree / MANIFEST_NAME, snapshot / MANIFEST_NAME)
@@ -365,10 +369,16 @@ class ReleaseCache:
         return pin
 
     @contextmanager
-    def _locked(self, version: str) -> Iterator[None]:
+    def _locked(self, version: str, read_only: bool = False) -> Iterator[None]:
         try:
             self.root.mkdir(parents=True, exist_ok=True)
-            handle = open(self.root / f"{version}.lock", "a")
+            if read_only:
+                # A lock leaf that is, or becomes, a link fails (ELOOP) instead
+                # of redirecting the write.
+                flags = os.O_RDWR | os.O_CREAT | os.O_APPEND | os.O_NOFOLLOW
+                handle = os.fdopen(os.open(self.root / f"{version}.lock", flags, 0o666), "a")
+            else:
+                handle = open(self.root / f"{version}.lock", "a")
         except OSError as exc:
             raise ReleaseUnavailableError(
                 f"cannot use the release cache {self.root}: {exc} "
@@ -464,20 +474,24 @@ class ReleaseCache:
             self._ensure_locked(pin)
         return self.entry(version)
 
-    def resolve(self, version: str) -> SnapshotRelease:
+    def resolve(self, version: str, *, snapshot_parent: Path | None = None,
+                read_only: bool = False) -> SnapshotRelease:
         """The pinned release, from a private snapshot verified under the lock.
+
+        `snapshot_parent` and `read_only` are the read-only commands' (3.6):
+        the validated parent of the snapshot, and the no-follow lock leaf.
 
         A snapshot that fails its check discards the entry and refetches once:
         `ReleaseUnavailableError` when that refetch cannot be made,
         `ReleaseIntegrityError` when its snapshot fails too.
         """
         pin = self._pin(version)
-        with self._locked(version):
+        with self._locked(version, read_only):
             self._ensure_locked(pin)
             for attempt in (1, 2):
                 entry = self.entry(version)
                 try:
-                    snapshot = _copy_snapshot(entry / TREE_NAME)
+                    snapshot = _copy_snapshot(entry / TREE_NAME, snapshot_parent)
                 except ReleaseIntegrityError as exc:
                     snapshot, problems = None, [str(exc)]
                 else:
@@ -506,7 +520,8 @@ class ReleaseCache:
 # ---------------------------------------------------------------------------
 
 
-def local_release(directory: Path, requested_version: str | None, pins: Pins) -> SnapshotRelease:
+def local_release(directory: Path, requested_version: str | None, pins: Pins,
+                  snapshot_parent: Path | None = None) -> SnapshotRelease:
     """An unpackaged release directory, under the pin rule (INV-2).
 
     Its own manifest's version `V` must equal `requested_version` when one is
@@ -533,7 +548,7 @@ def local_release(directory: Path, requested_version: str | None, pins: Pins) ->
         source = pins.source_record(version)
     else:
         source = {"kind": "local"}
-    snapshot = _copy_snapshot(directory)
+    snapshot = _copy_snapshot(directory, snapshot_parent)
     problems = _snapshot_problems(snapshot, version, pin.manifest_sha256 if pin else None)
     if problems:
         shutil.rmtree(snapshot, ignore_errors=True)

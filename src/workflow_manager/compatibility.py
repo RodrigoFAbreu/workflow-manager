@@ -1244,3 +1244,119 @@ def render_report(report: Report) -> str:
         for command in step.commands:
             lines.append(f"       {command.render()}")
     return "\n".join(lines) + "\n"
+
+
+# ---------------------------------------------------------------------------
+# Read-only destinations (plan 3.6)
+# ---------------------------------------------------------------------------
+
+
+class ContainmentError(InstallError):
+    """A destination the read-only commands would write lies inside the target."""
+
+
+@dataclass(frozen=True)
+class Destinations:
+    """Where the read-only commands may write, decided before any write."""
+    snapshot_parent: Path
+    cache_root: Path
+    protected: tuple[Path, ...]
+
+
+#: `tempfile`'s documented order after the environment: the fixed directories.
+_TEMP_ENVIRONMENT = ("TMPDIR", "TEMP", "TMP")
+_TEMP_FIXED = ("/tmp", "/var/tmp", "/usr/tmp")
+
+
+def _inside(path: Path, protected: tuple[Path, ...]) -> Path | None:
+    """The protected root `path` lies in (or is), else None. Both are real paths."""
+    for root in protected:
+        if path == root or root in path.parents:
+            return root
+    return None
+
+
+def protected_set(target: Path) -> tuple[Path, ...]:
+    """The real paths of the work tree and of the actual and common Git
+    directories. Fails closed: a target with a `.git` entry whose directories
+    cannot be resolved is refused, never checked by its work tree alone."""
+    target = Path(target)
+    roots = [Path(os.path.realpath(target))]
+    dot_git = target / ".git"
+    if os.path.lexists(dot_git):
+        for flag in ("--absolute-git-dir", "--git-common-dir"):
+            result = run_git(target, "rev-parse", flag)
+            if not (result.ok and result.stdout.strip()):
+                raise ContainmentError(
+                    f"could not check containment: `git rev-parse {flag}` failed in {target}")
+            roots.append(Path(os.path.realpath(_resolve_git_path(target, result.stdout))))
+    unique = []
+    for root in roots:
+        if root not in unique:
+            unique.append(root)
+    return tuple(unique)
+
+
+def _walk_links(directory: Path) -> str | None:
+    """A symlink found inside `directory` (walked, not followed), else None."""
+    for base, dirs, files in os.walk(directory, followlinks=False):
+        for name in dirs + files:
+            if os.path.islink(os.path.join(base, name)):
+                return os.path.join(base, name)
+    return None
+
+
+def plan_destinations(options, environ, target: Path, versions=()) -> Destinations:
+    """Decide, by path arithmetic alone, where the release cache and the
+    temporary snapshot go, or refuse. Creates, opens and probes nothing: it
+    must not call `tempfile.gettempdir()` (whose first call writes a probe
+    file in the directory it picks) or `mkdtemp()` without `dir=`.
+
+    `options.release_cache` is `--release-cache`; `versions` are the releases
+    the resolver will open under the cache.
+    """
+    from .source import cache_root
+    protected = protected_set(target)
+
+    root = Path(os.path.realpath(cache_root(getattr(options, "release_cache", None), environ)))
+    if (hit := _inside(root, protected)) is not None:
+        raise ContainmentError(
+            f"the release cache {root} lies inside {hit}: the repository is never written by "
+            f"this command; choose another with --release-cache or $WORKFLOW_MANAGER_RELEASE_CACHE")
+    for version in versions:
+        for leaf in (root / f"{version}.lock", root / version):
+            real = Path(os.path.realpath(leaf))
+            if (hit := _inside(real, protected)) is not None:
+                raise ContainmentError(
+                    f"the release cache entry {leaf} resolves to {real}, inside {hit}: "
+                    f"the repository is never written by this command")
+        entry = root / version
+        if entry.is_dir() and not entry.is_symlink():
+            link = _walk_links(entry)
+            if link is not None:
+                raise ContainmentError(
+                    f"the release cache entry {entry} holds a link ({link}); remove the entry "
+                    f"or choose another cache with --release-cache")
+
+    candidates: list[tuple[str, bool]] = []
+    for name in _TEMP_ENVIRONMENT:
+        if environ.get(name):
+            candidates.append((environ[name], True))
+    candidates += [(path, False) for path in _TEMP_FIXED]
+    try:
+        candidates.append((os.getcwd(), False))
+    except OSError:
+        pass
+    parent = None
+    for candidate, named in candidates:
+        real = Path(os.path.realpath(candidate))
+        hit = _inside(real, protected)
+        if named and hit is not None:
+            raise ContainmentError(
+                f"a temporary directory named in the environment ({candidate}) lies inside "
+                f"{hit}; unset it or point it outside the repository")
+        if parent is None and hit is None and real.is_dir() and os.access(real, os.W_OK | os.X_OK):
+            parent = real
+    if parent is None:
+        raise ContainmentError("no temporary directory outside the target")
+    return Destinations(parent, root, protected)

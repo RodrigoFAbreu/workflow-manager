@@ -12,7 +12,7 @@ without writing the repository. Full plan:
 
 ## Current checkpoint
 
-**CP1 and CP2 complete; CP3 is next.** CP1-CP5 are in the registry
+**CP1, CP2 and CP3 complete; CP4 is next.** CP1-CP5 are in the registry
 (`docs/ai-workflow/registry/workflow-manager-update-ergonomics-registry.json`).
 
 ## Current blockers
@@ -25,7 +25,7 @@ None.
 
 ## Next action
 
-`/milestone-implement workflow-manager-update-ergonomics` for CP3.
+`/milestone-implement workflow-manager-update-ergonomics` for CP4.
 
 ## Update ergonomics -- checkpoint log
 
@@ -92,6 +92,53 @@ None.
   --select test_docs.py --select test_internal_references.py --select
   test_release_workflows.py --select test_parallel_runner.py` (exit 0). The
   full gate is CP5's.
+
+### CP3 -- the CLI and read-only enforcement (complete)
+
+- `workflow-manager doctor <repo>` and `workflow-manager update <repo>
+  --dry-run [--force] [--profile P]` (`cli.py`). The global `--release-version`
+  names the target for both. `doctor` exits 0 with no blocked/warning finding, 1
+  with one (an incomplete inspection is a warning), 2 when it could not check
+  (not managed, corrupt record, target release unresolvable: it handles that
+  itself so `main()`'s exit 1 stays unambiguous). An unresolvable *installed*
+  release still produces the report, with `not-verified`. `--dry-run` prints
+  `would ...` lines (one per `plan.changes` entry, `--force` annotated with the
+  edit it discards), `left alone:`, then the report; a refusal prints the
+  report, then re-raises so stderr and the exit (2, with the `--force` hint)
+  are the real update's.
+- `compatibility.plan_destinations(options, environ, target, versions)`: pure
+  path arithmetic, creates and probes nothing. Protected set = realpath of the
+  work tree and of `--absolute-git-dir`/`--git-common-dir` (relative output
+  resolved against the target; a target with a `.git` entry whose
+  directories cannot be resolved is refused). Refuses a cache root, a lock
+  leaf or version directory that resolves into it, a symlink inside an
+  existing version directory, and a `TMPDIR`/`TEMP`/`TMP` inside it; the
+  snapshot parent is the first of `tempfile`'s candidates that is an
+  accessible directory outside it. A target under `/tmp` is accepted (P3).
+- `source.py`: `_copy_snapshot(tree, dir=None)`, `ReleaseCache.resolve(version,
+  *, snapshot_parent=None, read_only=False)` (a `read_only` lock leaf is opened
+  with `O_NOFOLLOW`, so a link fails with `ELOOP`) and `local_release(...,
+  snapshot_parent=None)`; defaults leave `update`/`verify`/`bootstrap`
+  unchanged. `cli._resolve(args, version, destinations)` threads both down.
+- Tests: `tests/test_read_only.py` (25) with `tests/audit_hook.py` (the
+  write-observing audit hook, self-tested with relative and `dir_fd` paths and
+  an unresolvable event): destinations, resolver, byte/mode snapshots of the work
+  tree and both Git directories (linked worktree included), a read-only copy,
+  `core.fsmonitor` never run, a partial clone (no `status`/`log`, no fetch
+  helper, with and without `GIT_NO_LAZY_FETCH`), and a `GIT_TRACE2_EVENT`
+  trace of the Git commands run. `tests/test_doctor_cli.py` (24): exit codes,
+  headings, dry-run/real-update parity (lines, drift and collision refusals,
+  unpinned release), and every printed command validated by family (Manager
+  through `build_parser()`, Git run in a repository whose path has spaces and
+  metacharacters, slash against the release's command file), the restore line
+  withheld when dirty or unknown, and the undo command run after a real update.
+- Verified: `python3 tests/run_all.py --select test_doctor_cli.py --select
+  test_read_only.py` (7/7 units, 49 tests, exit 0); `--select test_update_plan.py
+  --select test_compatibility.py --select test_release_source.py --select
+  test_bootstrap.py --select test_docs.py --select test_internal_references.py
+  --select test_release_workflows.py --select test_parallel_runner.py --select
+  test_orphan_processes.py` (145/145 units, 714 tests, exit 0). The full gate is
+  CP5's.
 
 ## Checkpoint log
 
