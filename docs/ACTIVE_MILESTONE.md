@@ -12,7 +12,7 @@ without writing the repository. Full plan:
 
 ## Current checkpoint
 
-**CP1-CP4 complete; CP5 is next.** CP1-CP5 are in the registry
+**CP1-CP5 complete; the implementation is ready for self-review and the review bundle.** CP1-CP5 are in the registry
 (`docs/ai-workflow/registry/workflow-manager-update-ergonomics-registry.json`).
 
 ## Current blockers
@@ -25,9 +25,25 @@ None.
 
 ## Next action
 
-`/milestone-implement workflow-manager-update-ergonomics` for CP5.
+`/milestone-implement workflow-manager-update-ergonomics` for the self-review step and the implementation bundle.
 
 ## Update ergonomics -- checkpoint log
+
+### CP5 -- end-to-end evidence (complete)
+
+- `tests/test_update_ergonomics_e2e.py` (9 tests): disposable repositories built
+  from a bootstrapped `2.3.1`, with a `process` item driven to `IMPLEMENTING`
+  by `fixture.drive_synthetic_work_item_through_checkpoints`, and with a
+  dormant legacy item. Byte/mode snapshots of the work tree and `.git/` around
+  every `doctor` and `update --dry-run`. Covered: `v2.4.0-001` and
+  `gates-change` for the process item, dry-run lines matching the real update,
+  the item surviving the real update unchanged, the printed undo restoring the
+  committed tree, retirement offered for the legacy item, and downgrade to each
+  older pinned release reported and not refused.
+- Verified (gate): `python3 tests/run_all.py` -- full selection, local,
+  8 workers, head `148bd75` plus this checkpoint's working tree, 1926/1926
+  units, 11882 tests, `selection_digest 7f01bea1...`, `tests_digest 95c4ccc2...`,
+  verdict exit 0.
 
 ### CP1 -- `plan_update` / `apply_update` (complete)
 

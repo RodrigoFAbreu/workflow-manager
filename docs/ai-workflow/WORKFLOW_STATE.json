@@ -6999,14 +6999,14 @@
       "registry_path": "docs/ai-workflow/registry/workflow-manager-update-ergonomics-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/workflow-manager-update-ergonomics-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "IMPLEMENTING",
+      "phase": "SELF_REVIEWING_IMPLEMENTATION",
       "plan_revision": 6,
       "implementation_revision": null,
       "functional_review_round": null,
       "base_commit": "bb54c76d201600605ee7a58cc355b8fdfe8436af",
       "reviewed_implementation_head": null,
       "current_checkpoint_id": null,
-      "last_completed_checkpoint_id": "CP4",
+      "last_completed_checkpoint_id": "CP5",
       "checkpoints": {
         "CP1": {
           "status": "COMPLETE",
@@ -7023,6 +7023,10 @@
         "CP4": {
           "status": "COMPLETE",
           "start_commit": "d285ef9c91108e8f232214c0fc10a07ac7455ae6"
+        },
+        "CP5": {
+          "status": "COMPLETE",
+          "start_commit": "148bd75b5ed1e08a5c2c2e7c5d2b690809d0a7d1"
         }
       },
       "current_bundle_id": "12a45516f4a4ec955b527610036832702f89c037f92f0dd2a0632cec72e7e7eb",
@@ -7141,8 +7145,8 @@
       },
       "functional_acceptance_status": null,
       "blocking_decisions": [],
-      "state_revision": 31,
-      "last_transition": "2026-10-08T22:59:46Z",
+      "state_revision": 33,
+      "last_transition": "2026-10-08T23:09:04Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
