@@ -1,6 +1,6 @@
 # Release history
 
-> For: someone choosing a Manager version or wondering what changed. Last checked with: Workflow Manager 1.4.0, Workflow 2.8.0.
+> For: someone choosing a Manager version or wondering what changed. Last checked with: Workflow Manager 1.5.0, Workflow 2.9.0.
 
 One line per Workflow Manager release, newest first. The Manager's version is the Git tag, and every release is listed on the [releases page](https://github.com/RodrigoFAbreu/workflow-manager/releases). A Manager release carries no Workflow release of its own. The last column says which Workflow releases it can install.
 

@@ -1,6 +1,6 @@
 # Documentation map
 
-> For: anyone looking for the right Workflow Manager page. Last checked with: Workflow Manager 1.4.0, Workflow 2.8.0.
+> For: anyone looking for the right Workflow Manager page. Last checked with: Workflow Manager 1.5.0, Workflow 2.9.0.
 
 Start with the [project README](../README.md) for what the Manager is and a five-minute quick start. This page says where everything else is.
 

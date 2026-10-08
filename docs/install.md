@@ -1,6 +1,6 @@
 # Install
 
-> For: someone setting up the Workflow Manager and putting the Workflow into a repository for the first time. Last checked with: Workflow Manager 1.4.0, Workflow 2.8.0.
+> For: someone setting up the Workflow Manager and putting the Workflow into a repository for the first time. Last checked with: Workflow Manager 1.5.0, Workflow 2.9.0.
 
 Goal: have the `workflow-manager` command on your machine and a repository that runs the Workflow.
 
@@ -64,15 +64,15 @@ Optional choices for step 4:
 
 ## What you should see
 
-- Step 2 prints `workflow-manager 1.4.0` (or a newer number).
-- Step 3 lists one line per Workflow release, from 2.3.1 to 2.8.0, each ending in `[cached]` or `[not cached]`.
-- Step 4 prints `bootstrapped workflow 2.8.0 (full) into /path/to/your/repo` and a count of managed, state and merged files. The first run of a release downloads it, so it takes a moment.
-- Step 5 prints `installation matches workflow 2.8.0` and exits with status 0.
+- Step 2 prints `workflow-manager 1.5.0` (or a newer number).
+- Step 3 lists one line per Workflow release, from 2.3.1 to 2.9.0, each ending in `[cached]` or `[not cached]`.
+- Step 4 prints `bootstrapped workflow 2.9.0 (full) into /path/to/your/repo` and a count of managed, state and merged files. The first run of a release downloads it, so it takes a moment.
+- Step 5 prints `installation matches workflow 2.9.0` and exits with status 0.
 - The repository now has `.claude/commands/`, `scripts/`, `docs/ai-workflow/` and `.workflow-manager/installation.json` (the [installation record](glossary.md#installation-record)).
 
 ## Approval gates after a fresh install
 
-A new Workflow 2.8.0 installation has no `docs/ai-workflow/GATE_POLICY.json`. With no policy file, plan approval and milestone acceptance are satisfied automatically, from evidence, for new work items. Implementation (technical) approval becomes automatic only for work items on governing version "2.2"; items on version "2.1" keep a person for it, and items on version "1" keep a person for plan and implementation approval. A fresh installation's `WORKFLOW_CONFIG.json` names its default version. If you want a person to approve every gate, create that file with this content and commit it:
+A new installation (Workflow 2.8.0 or later) has no `docs/ai-workflow/GATE_POLICY.json`. With no policy file, plan approval and milestone acceptance are satisfied automatically, from evidence, for new work items. Implementation (technical) approval becomes automatic only for work items on governing version "2.2"; items on version "2.1" keep a person for it, and items on version "1" keep a person for plan and implementation approval. A fresh installation's `WORKFLOW_CONFIG.json` names its default version. If you want a person to approve every gate, create that file with this content and commit it:
 
 ```json
 {"schema_version": 1, "human_approval": true}
