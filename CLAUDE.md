@@ -312,3 +312,17 @@ automatic default writes those in ordinary operation, never run
 repository that has written any of them: any automatic satisfaction, ingested
 pull-request fact or functional evidence, reopening, policy adoption or
 recorded floor.
+
+`2.9.0` adds no new persisted key, phase or status: every state it writes is
+one `2.8.0` already reads as legal (its published plan, `D-Downgrade`). What a
+downgrade loses is behavior. `/retire-legacy-work-item` closes a dormant legacy
+item as `MILESTONE_COMPLETE`, and only `2.9.0` keeps it closed: `2.8.0` and
+earlier have no retired-item guard, so a red pull-request fact reported for a
+retired item can reopen it (row 38d, `/apply-pr-review`) to
+`AWAITING_FUNCTIONAL_REVIEW`, silently. A downgraded repository also meets
+`v2.6.0-003` again for a new governing-`1` implementation entry, and loses
+`/resume-implementation`. The `"2.2"` default reaches only new installations;
+an update or downgrade never touches an existing `WORKFLOW_CONFIG.json`. Never
+run `workflow_manager update --release-version <older than 2.9.0>` against a
+repository that has retired a legacy work item, unless no pull-request fact is
+ever reported for that item again.

@@ -227,6 +227,21 @@ CI_SUITES = {
         "workflow_protocol_test.py": 298,
         "workflow_gate_policy_test.py": 285,
     },
+    #: `2.9.0` is the third release published by the `workflow` repository
+    #: (W3, legacy-item retirement, the 2.2 default for new installations and
+    #: the `v2.6.0-003` fix, on Orchestration Protocol 1.2). Same nine suites;
+    #: counts pinned to what the published package actually produces.
+    "2.9.0": {
+        "workflow_fingerprint_test.py": 257,
+        "workflow_state_test.py": 1070,
+        "workflow_test_harness_test.py": 22,
+        "workflow_integration_test.py": 276,
+        "workflow_acceptance_matrix_test.py": 291,
+        "workflow_state_completion_obligations_test.py": 106,
+        "workflow_fingerprint_generalization_test.py": 105,
+        "workflow_protocol_test.py": 314,
+        "workflow_gate_policy_test.py": 292,
+    },
 }
 
 
