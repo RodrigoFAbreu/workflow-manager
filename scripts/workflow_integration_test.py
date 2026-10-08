@@ -224,6 +224,20 @@ class TestFullPassAuthorizedCommitKinds(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 
+class TestTemplateDefaultCreatesTwoPointTwoItem(unittest.TestCase):
+    def test_item_created_under_the_2_2_template_is_2_2_and_default_config_is_unchanged(self):
+        template = {"schema_version": 1, "default_workflow_version": "2.2",
+                    "supported_versions": ["1", "2.1", "2.2"]}
+        ws.validate_config(template)
+        state = ws.route_work_item(
+            {"schema_version": 1, "active_work_item_id": None, "work_items": {}},
+            template, work_item_id="wi", work_item_type="process", work_item_kind="process",
+            plan_path="p", registry_path="r", plan_revision=1, now="t",
+        )
+        self.assertEqual(state["work_items"]["wi"]["governing_workflow_version"], "2.2")
+        self.assertEqual(ws.default_config()["default_workflow_version"], "1")
+
+
 class TestSelectNextCheckpointDeterminismAlongFullWalk(unittest.TestCase):
     """Missing-test item 58: "at every point in the registry order, exactly
     one command can select and implement the next incomplete checkpoint."
@@ -1053,7 +1067,12 @@ _GOLDEN_COMMAND_FILE_SHA256 = {
     # does (one archive copy and one roadmap row, `acceptance_satisfaction`
     # overwritten, `completion_obligations_accepted` kept) -- intentional
     # content change.
-    "accept-milestone.md": "e2118ae175569e6db79bda883ba6b7c31199fedc4dedac5697d9fee1f3225f7c",
+    # accept-milestone.md further updated, workflow-2.9.0 (legacy-retire-and-
+    # default-version, CP5): step 2a's non-terminal-registry bullet names the
+    # user-only /resume-implementation for a 2.1/2.2 item and drops the wrong
+    # "legacy promotion" origin -- intentional content change, outside every
+    # "1"-inert span.
+    "accept-milestone.md": "ace07f7d4ccbe3660ef477651b11562502513bd8e55aefab5deff3ec0994d1c8",
     # prepare-functional-review.md further updated, baseline-portability
     # correctness fix (OPUS-R129-001): step 3a's checklist-evidence
     # provenance commit instruction now states the same "trailers must be
@@ -1365,7 +1384,11 @@ _GOLDEN_COMMAND_FILE_SHA256 = {
     # workflow-2.8.0 (gate-policy-and-reopening, CP5): the remediation child
     # sequence names /apply-pr-review <child-id> for a child whose pull
     # request turns red -- intentional content change.
-    "apply-functional-review.md": "46433a2781f5e27487702e7c702fb3f0a7f5d3fcb0df7e1bcc18297e645cf7ad",
+    # workflow-2.9.0 (legacy-retire-and-default-version, CP5): step 0's "An entry
+    # exists" bullet names the user-only /resume-implementation for an outstanding
+    # checkpoint at this phase -- intentional content change, outside every
+    # "1"-inert span.
+    "apply-functional-review.md": "2e1518c67823d41b3ae2a1776c5f0e95931a45d2728cf68dcd0983d94d45ead2",
 }
 
 
@@ -6584,7 +6607,7 @@ class TestRetiredScopedRemediationLeavesNoLiveSurface(unittest.TestCase):
         text = (_repo_root() / "docs/ai-workflow/WORKFLOW_V2_1_OPERATOR_REFERENCE.md").read_text()
         sections = re.findall(r"(?m)^### `/([a-z0-9-]+)", text)
         on_disk = sorted(p.stem for p in (_repo_root() / ".claude" / "commands").glob("*.md"))
-        self.assertEqual(len(on_disk), 20)
+        self.assertEqual(len(on_disk), 22)
         self.assertNotIn("accept-scoped-remediation", sections)
         self.assertNotIn("accept-scoped-remediation", on_disk)
         # Every live command has exactly one section, and vice versa.
@@ -6665,6 +6688,12 @@ def _commands_naming_a_phase_writer() -> set[str]:
 #: `test_the_single_exempt_command_says_why_it_is_exempt` below.
 _TARGETING_EXEMPT_COMMANDS = frozenset({"bootstrap-workflow-v2.md"})
 
+#: Phase-advancing commands that take a work-item id (so the targeting rule
+#: above still binds them) but are not steps of a remediation child's own
+#: lifecycle: `/retire-legacy-work-item` (workflow-2.9.0) closes a dormant
+#: `LEGACY_READY` item, and a remediation child is never a legacy item.
+_CHILD_SEQUENCE_EXEMPT_COMMANDS = frozenset({"retire-legacy-work-item.md", "resume-implementation.md"})
+
 
 class TestWorkItemTargetingContract(unittest.TestCase):
 
@@ -6740,7 +6769,7 @@ class TestWorkItemTargetingContract(unittest.TestCase):
         branch hands the operator."""
         expected = {
             filename[:-3] for filename in
-            _commands_naming_a_phase_writer() - _TARGETING_EXEMPT_COMMANDS
+            _commands_naming_a_phase_writer() - _TARGETING_EXEMPT_COMMANDS - _CHILD_SEQUENCE_EXEMPT_COMMANDS
         }
         missing = expected - _broad_branch_child_commands()
         self.assertEqual(missing, set(), f"child sequence omits: {sorted(missing)}")
@@ -7061,6 +7090,12 @@ class TestOperatorReferenceMatchesReality(unittest.TestCase):
         "plan_approval", "plan_path", "plan_review_stages", "registry_path",
         "review_content_id", "reviewed_implementation_head", "same_content",
         "state_revision", "technical_approval", "work_item_id",
+        # workflow-2.9.0, `/retire-legacy-work-item`: a state field name and a
+        # stable refusal code, not code symbols.
+        "current_checkpoint_id", "reopen_retired_legacy_item", "registry_incomplete",
+        # workflow-2.9.0, `/resume-implementation`: the technical approval's status and a stable
+        # refusal-class prefix, not code symbols.
+        "technical_approval.status",
         "work_item_kind", "work_item_type", "work_items", "worktree_root",
         "test_the_operator_reference_command_count_matches_reality",
         # workflow-2.4.0, D-Plan-Amendment-3: amendment_history entry/
@@ -7190,7 +7225,7 @@ class TestOperatorReferenceMatchesReality(unittest.TestCase):
         named = set(re.findall(r"/([a-z0-9-]+)(?: plan| implementation)? <child-id>", section))
         expected = {
             filename[:-3] for filename in
-            _commands_naming_a_phase_writer() - _TARGETING_EXEMPT_COMMANDS
+            _commands_naming_a_phase_writer() - _TARGETING_EXEMPT_COMMANDS - _CHILD_SEQUENCE_EXEMPT_COMMANDS
         }
         self.assertEqual(expected - named, set())
         self.assertIn("never `active_work_item_id`", section)

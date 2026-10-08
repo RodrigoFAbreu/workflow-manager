@@ -1932,7 +1932,8 @@ class TestCommandSentences(unittest.TestCase):
     #: `validate_bundle_generation_record_commit`), plus the adoption.
     SCOPED = {"approve-review.md", "milestone-implement.md", "apply-implementation-review.md",
               "apply-functional-review.md", "recover-implementation-provenance.md",
-              "adopt-gate-policy.md", "satisfy-gate.md", "apply-pr-review.md"}
+              "adopt-gate-policy.md", "satisfy-gate.md", "apply-pr-review.md",
+              "retire-legacy-work-item.md", "resume-implementation.md"}
     #: `bootstrap-workflow-v2.md` is the one-time driver for `workflow-v2-1-core`
     #: and is not part of any 2.8.0 flow.
     NOT_PART_OF_THE_FLOW = {"bootstrap-workflow-v2.md"}
@@ -1954,7 +1955,8 @@ class TestCommandSentences(unittest.TestCase):
             commits_generation = bool(
                 "stage exactly" in text and "WORKFLOW_STATE.json" in text
                 and re.search(r"Workflow-Bundle-Generation-Record:\s*<work_item_id>", text))
-            if commits_generation or "Workflow-Technical-Approval:" in text:
+            if (commits_generation or "Workflow-Technical-Approval:" in text
+                    or "Workflow-Legacy-Retirement:" in text or "Resume-Confirmation:" in text):
                 committing.add(path.name)
         self.assertEqual(committing - self.NOT_PART_OF_THE_FLOW - {"adopt-gate-policy.md"}, self.SCOPED - {"adopt-gate-policy.md"})
 
@@ -4519,6 +4521,86 @@ class TestReopenCommitContracts(unittest.TestCase):
             self.assertEqual(item["technical_approval"]["status"], "STALE")
 
 
+def _legacy_approval() -> dict:
+    return ws.build_approval_record(
+        basis="LEGACY_V1", stage="implementation", user_confirmation="legacy import for wi",
+        now="t0", reviewed_content_commit="a" * 40, legacy_evidence={"rounds": 4},
+        waived_guarantees=["no_bundle_id", "no_telemetry"])
+
+
+class TestRetiredLegacyItemStaysClosed(unittest.TestCase):
+    """`INV-6` (workflow-2.9.0): a retired legacy item (`MILESTONE_COMPLETE`,
+    governing `1`, `LEGACY_V1`) is closed even after pull-request evidence."""
+
+    def retired(self, ev: ReopenRepo, version: str = "1") -> None:
+        ev.red()
+        ev.set_state(phase="MILESTONE_COMPLETE", governing_workflow_version=version,
+                     technical_approval=_legacy_approval())
+
+    def test_the_predicate_is_structural(self):
+        item = {"phase": "MILESTONE_COMPLETE", "governing_workflow_version": "1",
+                "technical_approval": _legacy_approval()}
+        self.assertTrue(g.is_retired_legacy_item(item))
+        for key, value in (("phase", "AWAITING_FUNCTIONAL_REVIEW"), ("governing_workflow_version", "2.1"),
+                           ("technical_approval", None)):
+            self.assertFalse(g.is_retired_legacy_item({**item, key: value}), key)
+        self.assertFalse(g.is_retired_legacy_item(None))
+
+    def test_the_writer_output_is_matched_and_a_promoted_then_accepted_item_is_not(self):
+        state = {"schema_version": 1, "active_work_item_id": None, "work_items": {}}
+        state = ws.import_legacy_work_item(
+            state, work_item_id="m8", plan_path="p.md", registry_path=None, base_commit="b" * 40,
+            reviewed_content_commit="a" * 40, approved_review_content_id="c" * 64, legacy_evidence={},
+            user_confirmation="legacy import confirmed for m8 implementation", now="t1")
+        retired = ws.retire_legacy_work_item(state, "m8", "t2", "retire m8, retirement confirmed")
+        self.assertTrue(g.is_retired_legacy_item(retired["work_items"]["m8"]))
+        promoted = copy.deepcopy(state["work_items"]["m8"])
+        promoted.update(governing_workflow_version="2.1", phase="MILESTONE_COMPLETE")
+        self.assertFalse(g.is_retired_legacy_item(promoted))
+
+    def test_pull_request_evidence_is_recorded_but_never_reopens_a_retired_item(self):
+        with ReopenRepo() as ev:
+            self.retired(ev)
+            before = ev.state()
+            fact = ev.evidence()["pr"]
+            for call in (
+                lambda: ws.reopen_work_item(before, WI, cause="changes_requested", fact=fact, now=now(),
+                                            repo_root=ev.root),
+                lambda: ev.begin(),
+            ):
+                with self.assertRaises(g.EvidenceRefusedError) as caught:
+                    call()
+                self.assertEqual(caught.exception.code, "reopen_retired_legacy_item")
+            self.assertEqual(ev.state(), before, "nothing was written")
+            self.assertNotIn("reopenings", ev.item())
+
+    def test_the_store_time_route_stores_the_fact_and_reports_the_refusal(self):
+        with ReopenRepo() as ev:
+            self.retired(ev)
+            state, outcome = ws.reopen_for_stored_fact(ev.root, ev.state(), WI, now=now())
+            self.assertEqual((outcome["reopened"], outcome["refused"]), (False, "reopen_retired_legacy_item"))
+            item = state["work_items"][WI]
+            self.assertEqual(item["phase"], "MILESTONE_COMPLETE")
+            self.assertNotIn("reopenings", item)
+            self.assertIsNotNone(g.gate_evidence_of(item)["pr"], "the fact stays stored")
+
+    def test_decide_never_offers_the_automatic_pull_request_action_for_a_retired_item(self):
+        with ReopenRepo() as ev:
+            self.retired(ev)
+            g.clear_caches()
+            result = wp.decide(ev.root, ev.state(), WI)
+            self.assertNotEqual(result.get("action", {}) and result["action"].get("id"), "pr.apply_review")
+            self.assertNotEqual(result["row"], "38d")
+
+    def test_a_promoted_then_accepted_item_still_reopens_as_before(self):
+        with ReopenRepo() as ev:
+            self.retired(ev, version="2.1")
+            try:
+                ev.reopen()
+            except g.EvidenceRefusedError as exc:
+                self.assertNotEqual(exc.code, "reopen_retired_legacy_item")
+
+
 class TestReopenCommandText(unittest.TestCase):
     COMMANDS = REPO_ROOT / ".claude" / "commands"
 
@@ -4536,6 +4618,15 @@ class TestReopenCommandText(unittest.TestCase):
             self.assertIn(sentence, text)
         self.assertIn("state_writer: true", (self.COMMANDS / "apply-pr-review.md").read_text())
         self.assertNotIn("disable-model-invocation", (self.COMMANDS / "apply-pr-review.md").read_text())
+
+    def test_the_normative_surfaces_carry_the_retired_item_exclusion(self):
+        self.assertIn("reopen_retired_legacy_item", self.text("apply-pr-review.md"))
+        docs = REPO_ROOT / "docs" / "ai-workflow"
+        gate_policy = " ".join((docs / "GATE_POLICY.md").read_text().split())
+        self.assertIn("(never a retired legacy item)", gate_policy)
+        protocol = " ".join((docs / "ORCHESTRATION_PROTOCOL.md").read_text().split())
+        self.assertIn("except a retired legacy item (`is_retired_legacy_item`", protocol)
+        self.assertIn("reopen_retired_legacy_item", ws.reopen_work_item.__doc__)
 
     def test_accept_milestone_states_the_re_acceptance_and_complete_work_item_is_unchanged(self):
         text = self.text("accept-milestone.md")

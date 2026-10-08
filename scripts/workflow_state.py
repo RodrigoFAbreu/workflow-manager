@@ -1316,6 +1316,70 @@ class LegacyAdoptionStaleApprovalError(Exception):
     import time)."""
 
 
+class LegacyRetirementWrongPhaseError(Exception):
+    """Raised when `retire_legacy_work_item` (workflow-2.9.0) names an item
+    that does not exist or whose `phase` is not exactly `LEGACY_READY`: a
+    promoted item (`AWAITING_FUNCTIONAL_REVIEW`), one already
+    `MILESTONE_COMPLETE` (retired or finished), and every other phase."""
+
+
+class LegacyRetirementActiveItemError(Exception):
+    """Raised when `retire_legacy_work_item` names the item
+    `active_work_item_id` points at. A `LEGACY_READY` item is dormant by
+    construction, so this is a defensive guard against a hand-edited pointer."""
+
+
+class LegacyRetirementUnfinishedChildrenError(Exception):
+    """Raised when `retire_legacy_work_item` names an item that still has
+    children not at `MILESTONE_COMPLETE` (`incomplete_children`)."""
+
+
+class MalformedLegacyRetirementCommitError(Exception):
+    """Raised by `validate_legacy_retirement_commit` when a commit carrying
+    the `Workflow-Legacy-Retirement` trailer is not exactly a retirement:
+    it touches a path other than the state file, changes a field other than
+    the item's `phase`, `current_checkpoint_id`, `state_revision` and
+    `last_transition`, is not a `LEGACY_READY` -> `MILESTONE_COMPLETE`
+    transition, or records no valid `Retirement-Confirmation`."""
+
+
+class AmbiguousLegacyRetirementCommitError(Exception):
+    """Raised by `discover_legacy_retirement_commit` when more than one
+    commit reachable from the head carries the retirement trailer for the
+    same work item."""
+
+
+class ResumeImplementationWrongPhaseError(Exception):
+    """Raised when `resume_implementation_state` (workflow-2.9.0) names an
+    item that does not exist or whose `phase` is not exactly
+    `AWAITING_FUNCTIONAL_REVIEW`."""
+
+
+class ResumeImplementationUnsupportedVersionError(Exception):
+    """Raised when `resume_implementation_state` names an item whose
+    governing version is not `2.1` or `2.2`: a `1` item has no resume route
+    (the open residual of `v2.6.0-003`)."""
+
+
+class ResumeImplementationRegistryTerminalError(Exception):
+    """Raised when `resume_implementation_state` finds every registry
+    checkpoint `COMPLETE` (or no registry at all): there is nothing to resume."""
+
+
+class ResumeWithoutTechnicalApprovalError(Exception):
+    """Raised when `resume_implementation_state` finds no `technical_approval`
+    record to mark `STALE`: the resume exists to invalidate a gate that was
+    passed, and a state with no such record is not one it can vouch for."""
+
+
+class MalformedResumeImplementationCommitError(Exception):
+    """Raised by `validate_resume_implementation_commit` when a commit is not
+    exactly a resume: it touches a path other than the state file, changes a
+    field outside `RESUME_IMPLEMENTATION_FIELDS` or another item, is not an
+    `AWAITING_FUNCTIONAL_REVIEW` -> `IMPLEMENTING` transition leaving the
+    technical approval `STALE`, or records no valid `Resume-Confirmation`."""
+
+
 class InvalidBundleGenerationStageError(Exception):
     """Raised when `record_bundle_generation` is called with a `stage`
     other than `"implementation"`/`"post-fix"` -- `reviewed_implementation_head`
@@ -12645,6 +12709,34 @@ def work_item_completion_status(repo_root: Path, work_item: dict) -> tuple[bool,
     return (is_terminal and satisfied, outstanding_checkpoint_id, outstanding_obligations)
 
 
+def _incomplete_own_checkpoints_route(work_item: dict) -> str:
+    """The phase- and version-aware way forward `IncompleteOwnCheckpointsError`
+    names (`v2.6.0-003` (c), workflow-2.9.0 CP4). `complete_work_item` raises it
+    for every governing version and phase, so the text cannot always advise
+    `/milestone-implement`: that command cannot start a checkpoint once the item
+    has left `IMPLEMENTING`. Pure; writes no state."""
+    finding = (
+        "for a functional-review finding, use /apply-functional-review -- its bounded "
+        "branch for a same-scope fix, or its broad branch, which creates a "
+        "remediation child work item, for new or wider scope"
+    )
+    phase = work_item.get("phase")
+    version = work_item.get("governing_workflow_version")
+    if phase == "IMPLEMENTING":
+        return f"Finish it with /milestone-implement if it is still part of this milestone; {finding}"
+    if version == "1":
+        return (
+            "No command completes a checkpoint of a governing-\"1\" item, and the item "
+            "cannot be accepted until its registry is terminal (a residual of "
+            f"v2.6.0-003); {finding}"
+        )
+    return (
+        f"No command completes a checkpoint from {phase}, so /milestone-implement cannot "
+        f"finish it. A 2.1/2.2 item with a CURRENT plan approval can be returned to "
+        f"IMPLEMENTING with the user-only /resume-implementation; {finding}"
+    )
+
+
 def complete_work_item(state: dict, work_item_id: str, now: str, *, repo_root: Path) -> dict:
     """D1's completion/reset text: on `MILESTONE_COMPLETE` (or
     process-completion archival), the entry's phase becomes terminal and,
@@ -12695,11 +12787,8 @@ def complete_work_item(state: dict, work_item_id: str, now: str, *, repo_root: P
     if not is_terminal:
         raise IncompleteOwnCheckpointsError(
             f"{work_item_id!r} cannot reach MILESTONE_COMPLETE -- its own checkpoint "
-            f"{outstanding_checkpoint_id!r} is not COMPLETE. Finish it with "
-            f"/milestone-implement if it is still part of this milestone; for a "
-            f"functional-review finding, use /apply-functional-review -- its bounded "
-            f"branch for a same-scope fix, or its broad branch, which creates a "
-            f"remediation child work item, for new or wider scope"
+            f"{outstanding_checkpoint_id!r} is not COMPLETE. "
+            + _incomplete_own_checkpoints_route(work_item)
         )
 
     verdicts = resolve_completion_obligations(repo_root, work_item)
@@ -13270,6 +13359,51 @@ def validate_user_confirmation(text: str, *, work_item_id: str, stage: str) -> N
     if stage not in text:
         raise UserConfirmationRejectedError(
             f"user_confirmation does not name stage {stage!r}: {text!r}"
+        )
+
+
+#: The stage words of the user-only actions that are not approvals
+#: (workflow-2.9.0): `retirement` (`/retire-legacy-work-item`) and
+#: `resumption` (`/resume-implementation`). Distinct from `APPROVAL_STAGES`,
+#: which also types the approval records and is deliberately not extended.
+USER_ONLY_ACTION_STAGES = frozenset({"retirement", "resumption"})
+
+_ID_ALPHABET = "A-Za-z0-9_-"
+
+
+def validate_user_only_confirmation(text: str, *, work_item_id: str, stage: str) -> None:
+    """The confirmation check of the user-only actions that are not approvals
+    (`/retire-legacy-work-item`, `/resume-implementation`). Stricter than
+    `validate_user_confirmation` by design: that function tests
+    `work_item_id in text`, so a confirmation naming `milestone-80` would
+    authorize `milestone-8`. Here the id must appear as an exact token (not
+    adjacent to a character of the id alphabet, case-insensitively; a full
+    stop or other punctuation after it is allowed) and the stage word as a
+    whole word. Raises `UserConfirmationRejectedError`."""
+    if stage not in USER_ONLY_ACTION_STAGES:
+        raise InvalidApprovalRecordError(f"unknown user-only action stage: {stage!r}")
+    if not isinstance(text, str) or not text.strip():
+        raise UserConfirmationRejectedError(
+            f"user_confirmation is empty -- must name work_item_id {work_item_id!r} "
+            f"and the word {stage!r}"
+        )
+    id_token = re.compile(
+        rf"(?<![{_ID_ALPHABET}]){re.escape(work_item_id)}(?![{_ID_ALPHABET}])", re.IGNORECASE)
+    if not id_token.search(text):
+        raise UserConfirmationRejectedError(
+            f"user_confirmation does not name work_item_id {work_item_id!r} as an exact token: {text!r}"
+        )
+    # The stage word must stand outside every occurrence of the item id, or an
+    # id such as `legacy-retirement` would supply the word for the other action.
+    # An id that is itself the stage word (`retirement`) is masked only at its
+    # first occurrence, so a separate, explicit stage word still counts.
+    outside_id = id_token.sub(" ", text, count=1 if work_item_id.lower() == stage.lower() else 0)
+    # The stage word takes the same id-alphabet boundary as the id: a foreign
+    # compound token (`legacy-retirement`, `retirement-2`) cannot supply it.
+    if not re.search(
+            rf"(?<![{_ID_ALPHABET}]){re.escape(stage)}(?![{_ID_ALPHABET}])", outside_id, re.IGNORECASE):
+        raise UserConfirmationRejectedError(
+            f"user_confirmation does not name {stage!r} as a whole word: {text!r}"
         )
 
 
@@ -14068,7 +14202,8 @@ def record_bundle_generation(
     transition (OPUS-R101-001, widened by workflow-v2-3-followups's own
     continued scope): legality is stage-specific
     (`BUNDLE_GENERATION_LEGAL_SOURCE_PHASES_BY_STAGE`) -- `"implementation"`
-    only from `SELF_REVIEWING_IMPLEMENTATION`; `"post-fix"` from
+    only from `SELF_REVIEWING_IMPLEMENTATION` (and, for a governing-`"1"`
+    item alone, from `IMPLEMENTING`, `v2.6.0-003` (a)); `"post-fix"` from
     `APPLYING_REVIEW_FEEDBACK`, or from `AWAITING_FUNCTIONAL_REVIEW` when
     (and only when) `technical_approval.status == "STALE"`, the bounded-fix
     marker `/apply-functional-review`'s own branch writes before its first
@@ -14126,6 +14261,17 @@ def record_bundle_generation(
     work_item = new_state["work_items"][work_item_id]
     current_phase = work_item.get("phase")
     legal_phases_for_stage = BUNDLE_GENERATION_LEGAL_SOURCE_PHASES_BY_STAGE[stage]
+    # `v2.6.0-003` (a), workflow-2.9.0 CP4: the `"1"` branch of
+    # `/milestone-implement` step 4 is documented to call this from
+    # `IMPLEMENTING` (it has no `SELF_REVIEWING_IMPLEMENTATION` write), so that
+    # one source phase is legal for that one version at that one stage. Every
+    # other version and stage refuses exactly as before; the table is unchanged.
+    if (
+        stage == "implementation"
+        and current_phase == "IMPLEMENTING"
+        and work_item.get("governing_workflow_version") == "1"
+    ):
+        legal_phases_for_stage = legal_phases_for_stage | {"IMPLEMENTING"}
     if current_phase not in legal_phases_for_stage:
         raise IllegalBundleGenerationSourcePhaseError(
             f"record_bundle_generation invoked from phase {current_phase!r} for stage "
@@ -14352,7 +14498,11 @@ def _work_item_field_diff(repo_root: Path, commit: str, work_item_id: str) -> se
     before_item = before.get("work_items", {}).get(work_item_id, {})
     after_item = after.get("work_items", {}).get(work_item_id, {})
     keys = set(before_item) | set(after_item)
-    return {k for k in keys if before_item.get(k) != after_item.get(k)}
+    # A key present with a null value differs from an absent key.
+    return {
+        k for k in keys
+        if (k in before_item) != (k in after_item) or before_item.get(k) != after_item.get(k)
+    }
 
 
 def _forbidden_state_mutation(repo_root: Path, commit: str, work_item_id: str) -> str | None:
@@ -14372,7 +14522,8 @@ def _forbidden_state_mutation(repo_root: Path, commit: str, work_item_id: str) -
     before_top = {k: v for k, v in before.items() if k != "work_items"}
     after_top = {k: v for k, v in after.items() if k != "work_items"}
     changed_top = sorted(
-        k for k in set(before_top) | set(after_top) if before_top.get(k) != after_top.get(k)
+        k for k in set(before_top) | set(after_top)
+        if (k in before_top) != (k in after_top) or before_top.get(k) != after_top.get(k)
     )
     if changed_top:
         return f"top-level field(s) {changed_top}"
@@ -14380,7 +14531,9 @@ def _forbidden_state_mutation(repo_root: Path, commit: str, work_item_id: str) -
     after_items = after.get("work_items", {})
     other_ids = (set(before_items) | set(after_items)) - {work_item_id}
     changed_others = sorted(
-        wid for wid in other_ids if before_items.get(wid) != after_items.get(wid)
+        wid for wid in other_ids
+        if (wid in before_items) != (wid in after_items)
+        or before_items.get(wid) != after_items.get(wid)
     )
     if changed_others:
         return f"other work item(s) {changed_others}"
@@ -17310,6 +17463,313 @@ def promote_legacy_work_item(
 
 
 # ---------------------------------------------------------------------------
+# workflow-2.9.0: retiring a dormant legacy item (D-Retire)
+# ---------------------------------------------------------------------------
+
+LEGACY_RETIREMENT_TRAILER = "Workflow-Legacy-Retirement"
+LEGACY_RETIREMENT_CONFIRMATION_PREFIX = "Retirement-Confirmation:"
+#: The only fields of the retired item a retirement commit may change.
+LEGACY_RETIREMENT_FIELDS = frozenset({
+    "phase", "current_checkpoint_id", "state_revision", "last_transition",
+})
+
+
+def retire_legacy_work_item(state: dict, work_item_id: str, now: str, user_confirmation: str) -> dict:
+    """D-Retire (workflow-2.9.0): moves a dormant `LEGACY_READY` item to
+    `MILESTONE_COMPLETE` as already finished, for `/retire-legacy-work-item`.
+    Run inside `state_transaction`.
+
+    Refuses, writing nothing, in this order: a missing, empty or wrong
+    `user_confirmation` (`UserConfirmationRejectedError`, through
+    `validate_user_only_confirmation`, before any other check, so the writer
+    itself and not only the command file is the guard); an unknown id or a
+    phase other than exactly `LEGACY_READY`
+    (`LegacyRetirementWrongPhaseError`); the item `active_work_item_id`
+    points at (`LegacyRetirementActiveItemError`); unfinished children
+    (`LegacyRetirementUnfinishedChildrenError`).
+
+    Changes four fields of the one item (`phase`, `current_checkpoint_id`,
+    `state_revision`, `last_transition`) and nothing else: `technical_approval`
+    (basis `LEGACY_V1`), the governing version, the paths and the checkpoints
+    stay byte-identical, and no `completion_obligations_accepted` is written.
+    Never calls `complete_work_item`, `promote_legacy_work_item`,
+    `verify_legacy_branch_reconciliation` or `any_protected_path_changed_since`
+    (retirement does not adopt: no stale-approval check applies).
+
+    Deliberately outside the lifecycle-witness mechanism: it takes no
+    `lifecycle_lock`. A `LEGACY_READY` item has no checkpoints, claims or
+    amendments; a sibling's lifecycle is covered by the unfinished-children
+    refusal."""
+    validate_user_only_confirmation(
+        user_confirmation, work_item_id=work_item_id, stage="retirement")
+    work_item = (state.get("work_items") or {}).get(work_item_id)
+    if not isinstance(work_item, dict):
+        raise LegacyRetirementWrongPhaseError(f"{work_item_id!r} names no work item")
+    if work_item.get("phase") != "LEGACY_READY":
+        raise LegacyRetirementWrongPhaseError(
+            f"{work_item_id!r} is not LEGACY_READY (phase={work_item.get('phase')!r}) -- "
+            f"retirement only closes a dormant legacy entry"
+        )
+    if state.get("active_work_item_id") == work_item_id:
+        raise LegacyRetirementActiveItemError(
+            f"{work_item_id!r} is the active work item -- a dormant legacy item is never active"
+        )
+    children = incomplete_children(state, work_item_id)
+    if children:
+        raise LegacyRetirementUnfinishedChildrenError(
+            f"{work_item_id!r} has unfinished child work item(s) {children}"
+        )
+    new_state = copy.deepcopy(state)
+    new_item = new_state["work_items"][work_item_id]
+    new_item["phase"] = "MILESTONE_COMPLETE"
+    new_item["current_checkpoint_id"] = None
+    new_item["state_revision"] = new_item.get("state_revision", 1) + 1
+    new_item["last_transition"] = now
+    return new_state
+
+
+def discover_legacy_retirement_commit(
+    repo_root: Path, work_item_id: str, head: str = "HEAD",
+) -> str | None:
+    """The commit reachable from `head` carrying
+    `Workflow-Legacy-Retirement: <work_item_id>` + `Workflow-Work-Item:
+    <work_item_id>` trailers, or `None`. The audit query for a retirement
+    (the protocol's `verify` reports nothing about it). Raises
+    `AmbiguousLegacyRetirementCommitError` when more than one matches."""
+    out = _run(["git", "log", "--format=%H", head], cwd=repo_root)
+    matches = []
+    for commit in (line for line in out.splitlines() if line):
+        trailers = _commit_trailers(repo_root, commit)
+        if (trailers.get("Workflow-Work-Item") == work_item_id
+                and trailers.get(LEGACY_RETIREMENT_TRAILER) == work_item_id):
+            matches.append(commit)
+    if len(matches) > 1:
+        raise AmbiguousLegacyRetirementCommitError(
+            f"{len(matches)} commits carry {LEGACY_RETIREMENT_TRAILER}: {work_item_id} ({matches})"
+        )
+    return matches[0] if matches else None
+
+
+def _require_state_revision_step(commit: str, before_item: dict, after_item: dict, error: type) -> None:
+    """A state-writer commit advances the item's `state_revision` by exactly one."""
+    before_rev, after_rev = before_item.get("state_revision"), after_item.get("state_revision")
+    if not isinstance(before_rev, int) or after_rev != before_rev + 1:
+        raise error(f"{commit} moves state_revision from {before_rev!r} to {after_rev!r}, not by one")
+
+
+def validate_legacy_retirement_commit(repo_root: Path, commit: str, work_item_id: str) -> None:
+    """Validates a discovered retirement commit: it touches only
+    `WORKFLOW_STATE.json`; changes nothing outside `work_items[work_item_id]`
+    (no top-level field, no other item); changes only that item's `phase`,
+    `current_checkpoint_id`, `state_revision` and `last_transition`, with the
+    phase going from `LEGACY_READY` to `MILESTONE_COMPLETE`; carries both
+    trailers naming the id; and records a `Retirement-Confirmation` line that
+    passes `validate_user_only_confirmation` for the id (an exact token, so a
+    prefix-related id never validates). Raises
+    `MalformedLegacyRetirementCommitError` naming the mismatch."""
+    state_rel = DEFAULT_STATE_PATH.as_posix()
+    changed_paths = _commit_own_changed_paths(repo_root, commit)
+    if changed_paths != {state_rel}:
+        raise MalformedLegacyRetirementCommitError(
+            f"{commit} touches {sorted(changed_paths)}, not exactly {{{state_rel!r}}}")
+    outside_diff = _forbidden_state_mutation(repo_root, commit, work_item_id)
+    if outside_diff is not None:
+        raise MalformedLegacyRetirementCommitError(
+            f"{commit} also changed {outside_diff} -- a retirement commit may only change "
+            f"its own work item's fields")
+    trailers = _commit_trailers(repo_root, commit)
+    for key in (LEGACY_RETIREMENT_TRAILER, "Workflow-Work-Item"):
+        if trailers.get(key) != work_item_id:
+            raise MalformedLegacyRetirementCommitError(
+                f"{commit}'s {key} trailer is {trailers.get(key)!r}, not {work_item_id!r}")
+    field_diff = _work_item_field_diff(repo_root, commit, work_item_id)
+    if "phase" not in field_diff or not field_diff <= LEGACY_RETIREMENT_FIELDS:
+        raise MalformedLegacyRetirementCommitError(
+            f"{commit}'s own {work_item_id!r} field changes are {sorted(field_diff)}, not a set "
+            f"containing 'phase' within {sorted(LEGACY_RETIREMENT_FIELDS)}")
+    parent = _run(["git", "rev-parse", f"{commit}^"], cwd=repo_root).strip()
+    before = _read_json_at_commit_or_empty(repo_root, parent, state_rel)
+    after = _read_json_at_commit_or_empty(repo_root, commit, state_rel)
+    before_phase = before.get("work_items", {}).get(work_item_id, {}).get("phase")
+    after_phase = after.get("work_items", {}).get(work_item_id, {}).get("phase")
+    if (before_phase, after_phase) != ("LEGACY_READY", "MILESTONE_COMPLETE"):
+        raise MalformedLegacyRetirementCommitError(
+            f"{commit} moves {work_item_id!r} from {before_phase!r} to {after_phase!r}, not "
+            f"LEGACY_READY to MILESTONE_COMPLETE")
+    after_item = after.get("work_items", {}).get(work_item_id, {})
+    if after_item.get("current_checkpoint_id") is not None:
+        raise MalformedLegacyRetirementCommitError(
+            f"{commit} leaves {work_item_id!r}'s current_checkpoint_id "
+            f"{after_item.get('current_checkpoint_id')!r}, not None")
+    _require_state_revision_step(commit, before.get("work_items", {}).get(work_item_id, {}),
+                                 after_item, MalformedLegacyRetirementCommitError)
+    body = _run(["git", "log", "-1", "--format=%B", commit], cwd=repo_root)
+    recorded = [line[len(LEGACY_RETIREMENT_CONFIRMATION_PREFIX):].strip() for line in body.splitlines()
+                if line.startswith(LEGACY_RETIREMENT_CONFIRMATION_PREFIX)]
+    if len(recorded) != 1:
+        raise MalformedLegacyRetirementCommitError(
+            f"{commit} records {len(recorded)} {LEGACY_RETIREMENT_CONFIRMATION_PREFIX!r} lines, not exactly one")
+    try:
+        validate_user_only_confirmation(recorded[0], work_item_id=work_item_id, stage="retirement")
+    except UserConfirmationRejectedError as exc:
+        raise MalformedLegacyRetirementCommitError(
+            f"{commit}'s recorded confirmation is invalid: {exc}") from exc
+
+
+# ---------------------------------------------------------------------------
+# workflow-2.9.0: resuming implementation of an outstanding checkpoint (D-Fix-003 (b))
+# ---------------------------------------------------------------------------
+
+RESUME_CONFIRMATION_PREFIX = "Resume-Confirmation:"
+#: The only fields of the resumed item a resume commit may change.
+RESUME_IMPLEMENTATION_FIELDS = frozenset({
+    "phase", "technical_approval", "state_revision", "last_transition",
+})
+
+
+def resume_implementation_state(
+    state: dict, repo_root: Path, work_item_id: str, now: str, user_confirmation: str,
+) -> dict:
+    """D-Fix-003 (b) (workflow-2.9.0): the pure check-and-write of
+    `/resume-implementation`, the user-only way back from
+    `AWAITING_FUNCTIONAL_REVIEW` to `IMPLEMENTING` for a `2.1`/`2.2` item
+    with a registry checkpoint outstanding. Run inside `state_transaction`
+    (through `resume_implementation`, which adds the lifecycle check).
+
+    Refuses, writing nothing, in this order: a missing, empty, generic or
+    wrong-item confirmation (`UserConfirmationRejectedError`, through
+    `validate_user_only_confirmation` with stage `resumption`, before any
+    other check); an unknown id or a phase other than exactly
+    `AWAITING_FUNCTIONAL_REVIEW` (`ResumeImplementationWrongPhaseError`); a
+    governing version other than `2.1`/`2.2`
+    (`ResumeImplementationUnsupportedVersionError`); a missing or not
+    `CURRENT` plan approval, or a registry the approval does not cover
+    (`StalePlanApprovalRegistryReadError`, from
+    `resolve_own_registry_completion_status`, exactly as row 38a reports it);
+    a terminal registry (`ResumeImplementationRegistryTerminalError`); no
+    `technical_approval` record (`ResumeWithoutTechnicalApprovalError`).
+
+    Writes `phase` `IMPLEMENTING`, `technical_approval.status` `STALE` (an
+    already-`STALE` record is left as it is), `state_revision` and
+    `last_transition`, and nothing else: `current_checkpoint_id` stays
+    `None`, the plan approval, `gate_evidence`, `reopenings` and
+    `implementation_review_stages` are untouched (earlier evidence is
+    identity-bound and cannot satisfy a gate for the new content)."""
+    validate_user_only_confirmation(
+        user_confirmation, work_item_id=work_item_id, stage="resumption")
+    work_item = (state.get("work_items") or {}).get(work_item_id)
+    if not isinstance(work_item, dict):
+        raise ResumeImplementationWrongPhaseError(f"{work_item_id!r} names no work item")
+    if work_item.get("phase") != "AWAITING_FUNCTIONAL_REVIEW":
+        raise ResumeImplementationWrongPhaseError(
+            f"{work_item_id!r} is at phase {work_item.get('phase')!r}, not AWAITING_FUNCTIONAL_REVIEW -- "
+            f"a resume only leaves the functional gate")
+    if work_item.get("governing_workflow_version") not in TWO_STAGE_PLAN_REVIEW_VERSIONS:
+        raise ResumeImplementationUnsupportedVersionError(
+            f"{work_item_id!r} is governed by {work_item.get('governing_workflow_version')!r}; "
+            f"a resume is defined for {sorted(TWO_STAGE_PLAN_REVIEW_VERSIONS)} only")
+    terminal, outstanding = resolve_own_registry_completion_status(Path(repo_root), work_item)
+    if terminal:
+        raise ResumeImplementationRegistryTerminalError(
+            f"{work_item_id!r} has no outstanding checkpoint -- there is nothing to resume")
+    record = work_item.get("technical_approval")
+    if not isinstance(record, dict):
+        raise ResumeWithoutTechnicalApprovalError(
+            f"{work_item_id!r} has no technical_approval record to mark STALE (checkpoint "
+            f"{outstanding} is outstanding)")
+    new_state = copy.deepcopy(state)
+    new_item = new_state["work_items"][work_item_id]
+    new_item["phase"] = "IMPLEMENTING"
+    new_item["technical_approval"]["status"] = "STALE"
+    new_item["state_revision"] = new_item.get("state_revision", 1) + 1
+    new_item["last_transition"] = now
+    return new_state
+
+
+def resume_implementation(repo_root: Path, work_item_id: str, now: str, user_confirmation: str) -> dict:
+    """The public entry of `/resume-implementation` (workflow-2.9.0).
+    Validates the confirmation first, then joins the claim side of the
+    repository-global lifecycle (`v2.4.0-002`): holds `lifecycle_lock` and
+    runs `_enforce_claim_lifecycle` inside the transaction's mutator (after
+    the re-read), in the order `claim_checkpoint` uses, then performs the single
+    `state_transaction` around `resume_implementation_state`. The refusals
+    are the claim side's own, unextended: `AmendmentInFlightError`,
+    `StaleLifecycleStateError`, `LaggingWorktreeAmendmentError`,
+    `AmendmentWitnessUnavailableError` (and the rest of `LifecycleRefusalError`).
+    Returns the new state."""
+    validate_user_only_confirmation(
+        user_confirmation, work_item_id=work_item_id, stage="resumption")
+    repo_root = Path(repo_root)
+
+    def mutator(state: dict) -> dict:
+        _enforce_claim_lifecycle(repo_root, work_item_id)
+        return resume_implementation_state(state, repo_root, work_item_id, now, user_confirmation)
+
+    with lifecycle_lock(repo_root, work_item_id):
+        return state_transaction(repo_root, mutator)
+
+
+def validate_resume_implementation_commit(repo_root: Path, commit: str, work_item_id: str) -> None:
+    """Validates a `/resume-implementation` commit: it touches only
+    `WORKFLOW_STATE.json`; changes nothing outside `work_items[work_item_id]`;
+    changes only that item's `RESUME_IMPLEMENTATION_FIELDS`, including `phase`,
+    from `AWAITING_FUNCTIONAL_REVIEW` to `IMPLEMENTING` with the technical
+    approval `STALE` afterwards; carries a `Workflow-Work-Item` trailer naming
+    the id; and records exactly one `Resume-Confirmation` line that passes
+    `validate_user_only_confirmation` for the id (an exact token). Raises
+    `MalformedResumeImplementationCommitError` naming the mismatch."""
+    state_rel = DEFAULT_STATE_PATH.as_posix()
+    changed_paths = _commit_own_changed_paths(repo_root, commit)
+    if changed_paths != {state_rel}:
+        raise MalformedResumeImplementationCommitError(
+            f"{commit} touches {sorted(changed_paths)}, not exactly {{{state_rel!r}}}")
+    outside_diff = _forbidden_state_mutation(repo_root, commit, work_item_id)
+    if outside_diff is not None:
+        raise MalformedResumeImplementationCommitError(
+            f"{commit} also changed {outside_diff} -- a resume commit may only change "
+            f"its own work item's fields")
+    trailers = _commit_trailers(repo_root, commit)
+    if trailers.get("Workflow-Work-Item") != work_item_id:
+        raise MalformedResumeImplementationCommitError(
+            f"{commit}'s Workflow-Work-Item trailer is {trailers.get('Workflow-Work-Item')!r}, "
+            f"not {work_item_id!r}")
+    field_diff = _work_item_field_diff(repo_root, commit, work_item_id)
+    if "phase" not in field_diff or not field_diff <= RESUME_IMPLEMENTATION_FIELDS:
+        raise MalformedResumeImplementationCommitError(
+            f"{commit}'s own {work_item_id!r} field changes are {sorted(field_diff)}, not a set "
+            f"containing 'phase' within {sorted(RESUME_IMPLEMENTATION_FIELDS)}")
+    parent = _run(["git", "rev-parse", f"{commit}^"], cwd=repo_root).strip()
+    before = _read_json_at_commit_or_empty(repo_root, parent, state_rel)
+    after = _read_json_at_commit_or_empty(repo_root, commit, state_rel)
+    before_item = before.get("work_items", {}).get(work_item_id, {})
+    after_item = after.get("work_items", {}).get(work_item_id, {})
+    if (before_item.get("phase"), after_item.get("phase")) != ("AWAITING_FUNCTIONAL_REVIEW", "IMPLEMENTING"):
+        raise MalformedResumeImplementationCommitError(
+            f"{commit} moves {work_item_id!r} from {before_item.get('phase')!r} to "
+            f"{after_item.get('phase')!r}, not AWAITING_FUNCTIONAL_REVIEW to IMPLEMENTING")
+    before_approval = before_item.get("technical_approval")
+    if not isinstance(before_approval, dict):
+        raise MalformedResumeImplementationCommitError(
+            f"{commit}'s parent holds no technical approval record for {work_item_id!r} to mark STALE")
+    if after_item.get("technical_approval") != {**before_approval, "status": "STALE"}:
+        raise MalformedResumeImplementationCommitError(
+            f"{commit} does not leave {work_item_id!r}'s technical approval as the parent's record "
+            f"with only its status changed to STALE")
+    _require_state_revision_step(commit, before_item, after_item, MalformedResumeImplementationCommitError)
+    body = _run(["git", "log", "-1", "--format=%B", commit], cwd=repo_root)
+    recorded = [line[len(RESUME_CONFIRMATION_PREFIX):].strip() for line in body.splitlines()
+                if line.startswith(RESUME_CONFIRMATION_PREFIX)]
+    if len(recorded) != 1:
+        raise MalformedResumeImplementationCommitError(
+            f"{commit} records {len(recorded)} {RESUME_CONFIRMATION_PREFIX!r} lines, not exactly one")
+    try:
+        validate_user_only_confirmation(recorded[0], work_item_id=work_item_id, stage="resumption")
+    except UserConfirmationRejectedError as exc:
+        raise MalformedResumeImplementationCommitError(
+            f"{commit}'s recorded confirmation is invalid: {exc}") from exc
+
+
+# ---------------------------------------------------------------------------
 # WORKFLOW_STATE.json
 # ---------------------------------------------------------------------------
 
@@ -19328,7 +19788,10 @@ def reopen_work_item(state: dict, work_item_id: str, *, cause: str, fact: dict, 
     `AWAITING_FUNCTIONAL_REVIEW` item whose key already caused an entry),
     `incomplete_child`, `reopen_plan_archived` (a `MILESTONE_COMPLETE` item
     whose `plan_path` no longer resolves; restore the plan from
-    `docs/milestones/completed/`). Never touches `active_work_item_id`."""
+    `docs/milestones/completed/`), `reopen_retired_legacy_item` (a
+    `MILESTONE_COMPLETE` item with governing version `1` and a `LEGACY_V1`
+    basis, retired by `/retire-legacy-work-item`; `begin_pr_review` raises it
+    too). Never touches `active_work_item_id`."""
     repo_root = Path(repo_root)
     refuse = gate_policy.EvidenceRefusedError
     work_item = (state.get("work_items") or {}).get(work_item_id)
@@ -19338,6 +19801,9 @@ def reopen_work_item(state: dict, work_item_id: str, *, cause: str, fact: dict, 
     if phase not in gate_policy.REOPENABLE_PHASES:
         raise refuse("reopen_phase_illegal",
                      f"{work_item_id}: a reopen is legal only from {sorted(gate_policy.REOPENABLE_PHASES)}, not {phase!r}")
+    if gate_policy.is_retired_legacy_item(work_item):
+        raise refuse("reopen_retired_legacy_item",
+                     f"{work_item_id}: a retired legacy item is closed by design; start a new work item for further work")
     if not isinstance(fact, dict) or (fact.get("provenance") or {}).get("source") != gate_policy.SOURCE_WORKFLOW_GH:
         raise refuse("pr_fact_not_workflow_gh", "a reopen reads only the Workflow's own (workflow_gh) pull-request fact")
     if fact.get("state") == "merged":
@@ -19470,6 +19936,10 @@ def begin_pr_review(repo_root: Path, work_item_id: str, *, now: str, run_ref: st
             raise gate_policy.EvidenceRefusedError(
                 "reopen_phase_illegal", f"{work_item_id}: /apply-pr-review runs only from "
                 f"{sorted(gate_policy.REOPENABLE_PHASES)}, not {phase!r}")
+        if gate_policy.is_retired_legacy_item(work_item):
+            raise gate_policy.EvidenceRefusedError(
+                "reopen_retired_legacy_item",
+                f"{work_item_id}: a retired legacy item is closed by design; start a new work item for further work")
         policy = gate_policy.effective_policy(repo_root, state)["policy"]
         trigger = gate_policy.pr_query_trigger(state, work_item_id, policy)
         stored = gate_policy.actionable_pr_keys(repo_root, state, work_item_id, policy)

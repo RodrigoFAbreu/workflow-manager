@@ -301,7 +301,7 @@ toggle says; full functional validation is required once code changed.
   | phase and acceptance mode | query path with no orchestrator report |
   | --- | --- |
   | `AWAITING_FUNCTIONAL_REVIEW`, automatic acceptance | `/satisfy-gate acceptance` (rows `38f`, `38h`): stores the fact and reopens once |
-  | `AWAITING_FUNCTIONAL_REVIEW`, human acceptance, `requires_pr_approved` true | `/accept-milestone` step 2a stores the fact; a `CHANGES_REQUESTED` answer refuses it and `38d` then reopens; a failed-checks answer on an `APPROVED` pull request lets it complete, and `38d` then reopens from `MILESTONE_COMPLETE` |
+  | `AWAITING_FUNCTIONAL_REVIEW`, human acceptance, `requires_pr_approved` true | `/accept-milestone` step 2a stores the fact; a `CHANGES_REQUESTED` answer refuses it and `38d` then reopens; a failed-checks answer on an `APPROVED` pull request lets it complete, and `38d` then reopens from `MILESTONE_COMPLETE` (never a retired legacy item) |
   | `AWAITING_FUNCTIONAL_REVIEW`, human acceptance, `requires_pr_approved` false (the default) | **none**: no query runs |
   | `MILESTONE_COMPLETE`, any mode | **none**: nothing queries the forge after completion |
 

@@ -40,6 +40,11 @@ rule for an item without the field.
      also read `docs/ai-workflow/WORKFLOW_CONFIG.json`
      (`workflow_state.load_config`). Step 4 is replaced by the per-finding
      three-way branch below; steps 1-3 and 5-7 execute unchanged.
+     A finding never completes an outstanding registry checkpoint: for a
+     `2.1`/`2.2` item at this phase with one outstanding (`next-action` row
+     38c), the way back to `IMPLEMENTING` is the user-only
+     `/resume-implementation <id>` (workflow-2.9.0), which this command
+     never runs on the user's behalf.
 
 1. Read `<feedback_dir>/FUNCTIONAL_REVIEW.md`. If it does not exist,
    stop and say so, printing the exact resolved path
