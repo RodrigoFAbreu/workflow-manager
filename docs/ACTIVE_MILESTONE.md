@@ -12,7 +12,7 @@ without writing the repository. Full plan:
 
 ## Current checkpoint
 
-**CP1 complete; CP2 is next.** CP1-CP5 are in the registry
+**CP1 and CP2 complete; CP3 is next.** CP1-CP5 are in the registry
 (`docs/ai-workflow/registry/workflow-manager-update-ergonomics-registry.json`).
 
 ## Current blockers
@@ -25,7 +25,7 @@ None.
 
 ## Next action
 
-`/milestone-implement workflow-manager-update-ergonomics` for CP2.
+`/milestone-implement workflow-manager-update-ergonomics` for CP3.
 
 ## Update ergonomics -- checkpoint log
 
@@ -56,6 +56,42 @@ None.
 - Verified: `python3 tests/run_all.py --select test_update_plan.py` (exit 0),
   and `--select test_bootstrap.py --select test_update_path.py` (453/453
   units, 2859 tests, exit 0). The full gate is CP5's.
+
+### CP2 -- `compatibility.py` (complete)
+
+- New `src/workflow_manager/compatibility.py`, no CLI and no Workflow
+  imports. `run_git` is the one hermetic Git entry point (flags and
+  environment of plan 3.2; returns `GitResult(returncode, stdout)`, `None`
+  for a timeout or `OSError`). `read_repository(target)` reads the record,
+  config, gate-policy presence, state, each item's artifacts declarations and
+  registry ids, `plan-inputs/` directories, worktree count, amendment
+  witnesses in the common Git dir (relative `rev-parse` paths resolved against
+  the target), the dirty flag, and the two trailer searches (one anchored
+  `--grep` each, `HEAD` only). Partial clones are detected from config first
+  (exit 1 = key absent); a partial clone or a failed detection skips
+  `status`/`log` and records a problem. Every unreadable part is a `problems`
+  entry, never an exception.
+- Two classifier copies (`classify_plan_stage`, no protected prefixes;
+  `classify_implementation_stage`), the phase classes, `ALWAYS_HUMAN_GATES`
+  and the ambient exclusion, each compared by test with the 2.9.0 package.
+- The three tables: `DOWNGRADE_BOUNDARIES` (signals as detectors over the
+  facts, 2.7.0's undetectable orchestration hazard stated),
+  `NEW_WORK_ONLY`, `GATE_DEFAULT_CHANGES`; each has an entry per pinned
+  version, enforced by test.
+- `build_report` -> `Report` of `Finding`s (every id of plan section 4),
+  `RecoveryStep`s and `Command`s (family `manager`/`git`/`slash`, argv,
+  `render_command` = `shlex.join`). The restore line is withheld unless the
+  tree is known clean. `render_report` prints the fixed headings; the three
+  version labels never share a line. `doctor_exit_code` is 1 for any
+  `blocked`/`warning`.
+- Not here (CP3): `plan_destinations`, the CLI, `read_only`/`snapshot_parent`
+  threading, exit-2 mapping, parser/Git/slash validation of printed commands.
+- Tests: `tests/test_compatibility.py` (99 tests, synthetic state files and
+  throwaway repositories). Verified: `python3 tests/run_all.py --select
+  test_compatibility.py` (16/16 units, exit 0); `--select test_update_plan.py
+  --select test_docs.py --select test_internal_references.py --select
+  test_release_workflows.py --select test_parallel_runner.py` (exit 0). The
+  full gate is CP5's.
 
 ## Checkpoint log
 
