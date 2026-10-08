@@ -42,6 +42,7 @@ The documentation checks run inside the gate (`tests/test_docs.py`, using `tools
 | `2.6.0` | authored in this repository — `2.5.1` base plus an overlay | 7/7 suites, 2002 tests — same suite set as `2.5.1`, plus 321 new cases | 2002 of 2002 |
 | `2.7.0` | published by the Workflow repository (orchestration protocol) | 8 of 8, 2275 tests | 2275 of 2275 |
 | `2.8.0` | published by the Workflow repository (gate policy, pull-request reopening) | 9 of 9, 2650 tests | 2650 of 2650 |
+| `2.9.0` | published by the Workflow repository (legacy-item retirement, the 2.2 default for new installations, the `v2.6.0-003` fix) | 9 of 9, 2733 tests | 2733 of 2733 |
 
 The full test selection runs the newest pinned release's frozen suites; each older release was tested once, when it was built ([`MIGRATION.md`](MIGRATION.md)). Workflow releases are authored and published in the Workflow repository. The Manager learns of a new one through a pull request that adds its pin: see ["Workflow packages: adding a pin"](RELEASING.md#workflow-packages-adding-a-pin).
 
