@@ -1,6 +1,6 @@
 # Update
 
-> For: someone moving a repository to a newer Workflow release, or moving the Manager itself to a newer version. Last checked with: Workflow Manager 1.4.0, Workflow 2.8.0.
+> For: someone moving a repository to a newer Workflow release, or moving the Manager itself to a newer version. Last checked with: Workflow Manager 1.5.0, Workflow 2.9.0.
 
 Goal: bring a repository to the newest pinned Workflow release without losing its work-item state.
 
@@ -17,6 +17,8 @@ Goal: bring a repository to the newest pinned Workflow release without losing it
 The update changes no state file by itself. The Workflow's [gates page](https://github.com/RodrigoFAbreu/workflow/blob/main/docs/gates.md) explains each gate, and the [lifecycle](https://github.com/RodrigoFAbreu/workflow/blob/main/docs/overview.md#lifecycle) shows where they sit.
 
 **Going back to an older release is unsupported.** Once a repository has used a release, do not run `update` with an older `--release-version`. Newer releases add values to the repository's state files that older releases ignore or cannot read. The result can be silent loss of guarantees or a stuck work item. In short: once a repository has run on a release, never move it back to an older one. To undo a bad update, restore the repository from Git instead.
+
+Two Workflow 2.9.0 points. An update never changes the default version in your existing `docs/ai-workflow/WORKFLOW_CONFIG.json`; only a new installation starts on version 2.2. And once you have closed a legacy work item with `/retire-legacy-work-item`, staying on 2.9.0 or later matters even more: older releases have no guard that keeps a retired item closed, so a failing pull-request report could reopen it.
 
 ## Prerequisites
 
@@ -66,8 +68,8 @@ The update changes no state file by itself. The Workflow's [gates page](https://
 
 ## What you should see
 
-- Step 4 prints `updated /path/to/your/repo to workflow 2.8.0`, then one line per file: `updated`, `added` or removed. A repository already on that release prints `(no change)`.
-- Step 5 prints `installation matches workflow 2.8.0`.
+- Step 4 prints `updated /path/to/your/repo to workflow 2.9.0`, then one line per file: `updated`, `added` or removed. A repository already on that release prints `(no change)`.
+- Step 5 prints `installation matches workflow 2.9.0`.
 - `WORKFLOW_STATE.json`, `docs/ACTIVE_MILESTONE.md` and `.ai-review/` are untouched.
 
 ## If it fails

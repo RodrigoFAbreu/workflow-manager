@@ -1,6 +1,6 @@
 # Troubleshooting
 
-> For: someone who ran a Manager command and got an error. Last checked with: Workflow Manager 1.4.0, Workflow 2.8.0.
+> For: someone who ran a Manager command and got an error. Last checked with: Workflow Manager 1.5.0, Workflow 2.9.0.
 
 Each problem has a one-line fix. Find the message, apply the fix, run the command again.
 

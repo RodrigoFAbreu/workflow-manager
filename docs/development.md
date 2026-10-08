@@ -1,6 +1,6 @@
 # Development
 
-> For: people changing the Manager's own code or tests. Last checked with: Workflow Manager 1.4.0, Workflow 2.8.0.
+> For: people changing the Manager's own code or tests. Last checked with: Workflow Manager 1.5.0, Workflow 2.9.0.
 
 Everything here is for contributors. If you only want to install or update the Workflow, use [Install](install.md) and [Update](update.md).
 
