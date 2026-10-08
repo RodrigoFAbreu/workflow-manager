@@ -12,7 +12,8 @@ without writing the repository. Full plan:
 
 ## Current checkpoint
 
-**CP1-CP5 complete; the implementation is ready for self-review and the review bundle.** CP1-CP5 are in the registry
+**CP1-CP5 complete, self-review done, full gate green; implementation revision 1 is in local implementation
+review.** CP1-CP5 are in the registry
 (`docs/ai-workflow/registry/workflow-manager-update-ergonomics-registry.json`).
 
 ## Current blockers
@@ -25,7 +26,8 @@ None.
 
 ## Next action
 
-`/milestone-implement workflow-manager-update-ergonomics` for the self-review step and the implementation bundle.
+Local implementation review of the bundle in `.ai-review/workflow-manager-update-ergonomics/current/`
+(`AWAITING_LOCAL_IMPLEMENTATION_REVIEW`), then the manual external (Codex) round.
 
 ## Update ergonomics -- checkpoint log
 
@@ -170,6 +172,53 @@ None.
 - Verified: `python3 tools/check_docs.py`; `python3 tests/run_all.py --select
   test_docs.py --select test_internal_references.py` (16/16 units, 73 tests,
   exit 0). The full gate is CP5's.
+
+### Self-review of the milestone diff and the full gate (`SELF_REVIEWING_IMPLEMENTATION`)
+
+- `enter_self_reviewing_implementation` was a no-op. CP5's
+  `complete_checkpoint` had already written the phase. `implementing_entry_status`
+  reported reachable, and `resolve_checkpoint_ownership` returned `NO_CHECKPOINT`.
+- The whole `17b9202..82d30de` diff was reviewed:
+  - `install.py`: `plan_update` performs every read and refusal before the
+    first write, and `apply_update` writes in the old order;
+    `overwrites` is filled only under `--force`; `bootstrap` and `update`
+    share `_plan_merges`;
+  - `source.py`: `dir=` threaded through `_copy_snapshot`, `resolve` and
+    `local_release`, and the `O_NOFOLLOW` lock leaf under `read_only` only;
+    the defaults leave `update`/`verify`/`bootstrap` unchanged;
+  - `cli.py`: `doctor`'s exit 0/1/2 mapping, `--dry-run`'s report-then-re-raise
+    on a refusal, and destinations decided before `_resolve`;
+  - `compatibility.py`: hermetic `run_git`, the partial-clone probes, the
+    reader's problems-not-exceptions rule, both classifier copies, the three
+    tables, every finding of plan section 4, recovery (restore withheld unless
+    the tree is known clean), and `plan_destinations`' path arithmetic;
+  - the five new test files, `tests/audit_hook.py`, and the documentation.
+- Findings, fixed in `2513230` (no blocking or important finding):
+  - `cli._installed_version_of` was dead code; removed;
+  - `docs/update.md` called the four labelled header lines "three different
+    things", Repository included; it now names the three version lines.
+- One case was checked and left as it is: `render_report` prints `Target of this
+  check` even when the target equals the latest. Plan 1.3 says the target appears
+  only where it differs, but the plan's own report shape shows it equal to the
+  latest, and the fixed headings are tested. The implementation follows the
+  shape.
+- INV checks: `git diff --stat bb54c76 HEAD -- scripts .claude/commands
+  .github/workflows docs/ai-workflow/WORKFLOW_CONFIG.json
+  src/workflow_manager/published_releases.json` is empty; `CLAUDE.md` up to
+  `<!-- workflow-manager:end -->` is byte-identical to the base.
+- **The full gate**, `python3 tests/run_all.py` at `2513230`, 2026-10-08
+  (441.9 s wall, 8 workers):
+  - `evidence: full selection, local, 8 worker(s), head 2513230ff5c01a87d60487b78d658af4777e5d14,
+    1926/1926 units, 11882 tests, selection_digest
+    7f01bea1aefb7dedcb7e205e98eeaac57654c0ead084e671910839bc81935498,
+    tests_digest 95c4ccc28a0bbd62b13670cc0ea62c28a559ee3fff08d577b0ebda586e043779,
+    tree_digest 9328862642f72bdf3b9f550b6e541c8458a41a7bdf1f019e057f071ad095e568`,
+    `verdict: exit 0`;
+  - `orphan check: on`; orphans were tolerated only in the nine declared
+    `orphan_sources` chunks;
+  - an earlier attempt at the same head failed `IntegrityError` (exit 2)
+    because its log was written inside the work tree (`runs/`); the log was
+    moved out of the repository and the run repeated. Its result is not evidence.
 
 ## Checkpoint log
 
