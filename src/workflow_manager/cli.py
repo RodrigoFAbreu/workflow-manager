@@ -340,12 +340,15 @@ def _readonly_destinations(args, installed: str | None) -> Destinations:
 
 
 _DRY_VERBS = {"removed": "would remove", "added": "would add", "updated": "would update",
-              "fixed": "would fix", "created": "would create"}
+              "fixed": "would fix", "created": "would create", "appended": "would append",
+              "replaced": "would replace", "prepended": "would prepend"}
 
 
 def _would(change: str) -> str:
     verb, _, rest = change.partition(" ")
-    return f"{_DRY_VERBS[verb]} {rest}" if verb in _DRY_VERBS else f"would {change}"
+    if verb not in _DRY_VERBS:
+        raise ValueError(f"no dry-run verb for the change {change!r}; add {verb!r} to _DRY_VERBS")
+    return f"{_DRY_VERBS[verb]} {rest}"
 
 
 def _print_dry_run(args, plan, release) -> None:
@@ -407,7 +410,11 @@ def cmd_dry_run(args) -> int:
 
 
 def _installed_resolves(args, installed: str, destinations: Destinations) -> bool:
-    """Whether the installed release can be resolved (`not-verified` when not)."""
+    """Whether the installed release can be resolved (`not-verified` when not).
+
+    Always through the cache: `--release-dir` and `--manager-root` are not
+    consulted, so an offline run with them may add a `not-verified` note.
+    """
     try:
         _cache(args, _pins()).resolve(
             installed, snapshot_parent=destinations.snapshot_parent, read_only=True).close()

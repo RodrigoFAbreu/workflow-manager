@@ -161,6 +161,64 @@ class TestDryRun(Base):
         self.assertIn("left alone:", lines)
         self.assertIn("Findings --", dry.stdout)
 
+    # The oracle is literal: it must not be built from cli._would, the function under test.
+    PAST_TO_WOULD = {"removed": "would remove", "added": "would add", "updated": "would update",
+                     "fixed": "would fix", "created": "would create", "appended": "would append",
+                     "replaced": "would replace", "prepended": "would prepend"}
+
+    def literal_would(self, line: str) -> str:
+        verb, _, rest = line.strip().partition(" ")
+        return f"  {self.PAST_TO_WOULD[verb]} {rest}"
+
+    def merge_fixture(self, name, claude_md):
+        repo = self.fresh(name)
+        (repo / ".gitignore").write_text("# mine\nbuild/\n")
+        (repo / "CLAUDE.md").write_text(claude_md)
+        self.commit(repo)
+        return repo
+
+    def test_merge_changes_read_like_the_real_update(self):
+        managed = (self.pristine / "CLAUDE.md").read_text()
+        self.assertIn("<!-- workflow-manager:end -->", managed)
+        cases = {
+            "replaced": managed.replace("workflow", "wurkflow", 1) + "\nmine\n",
+            "prepended": "# my own claude file\n",
+        }
+        for expected, claude_md in cases.items():
+            with self.subTest(expected):
+                dry_repo = self.merge_fixture(f"d-{expected}", claude_md)
+                real_repo = self.merge_fixture(f"r-{expected}", claude_md)
+                dry = run("update", str(dry_repo), "--dry-run")
+                self.assertEqual(dry.returncode, 0, dry.stderr)
+                lines = dry.stdout.splitlines()
+                would = lines[1:lines.index("left alone:")]
+                real = self.real_update_lines(real_repo)
+                self.assertIn(f"  {expected} managed CLAUDE.md section", real)
+                self.assertIn("  appended .gitignore workflow entries", real)
+                self.assertEqual(would, [self.literal_would(line) for line in real])
+                self.assertIn("  would append .gitignore workflow entries", would)
+                imperative = {"replaced": "replace", "prepended": "prepend"}[expected]
+                self.assertIn(f"  would {imperative} managed CLAUDE.md section", would)
+
+    def test_every_change_verb_has_a_dry_run_verb(self):
+        # Every action a merge can report (read off its return statements) and every
+        # verb plan_update puts at the head of a change line.
+        import ast
+        import inspect
+        from workflow_manager import install
+        emitted = {"added", "updated", "removed", "fixed", "created"}
+        for func in (install.merge_gitignore, install.merge_claude_md):
+            for node in ast.walk(ast.parse(inspect.getsource(func).lstrip())):
+                if isinstance(node, ast.Return) and isinstance(node.value, ast.Tuple):
+                    emitted |= {c.value for c in ast.walk(node.value.elts[1])
+                                if isinstance(c, ast.Constant) and isinstance(c.value, str)}
+        self.assertTrue({"appended", "replaced", "prepended"} <= emitted)
+        for verb in emitted - {"unchanged"}:
+            with self.subTest(verb):
+                self.assertIn(verb, cli._DRY_VERBS)
+        with self.assertRaises(ValueError):
+            cli._would("frobnicated x")
+
     def test_a_dry_run_changes_nothing_a_real_update_would(self):
         repo = self.fresh()
         before = git(repo, "status", "--porcelain").stdout
