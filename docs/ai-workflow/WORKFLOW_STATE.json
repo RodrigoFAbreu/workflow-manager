@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_work_item_id": null,
+  "active_work_item_id": "workflow-manager-update-ergonomics",
   "work_items": {
     "plan-amendment-mechanism": {
       "work_item_type": "process",
@@ -6989,6 +6989,169 @@
           "completed_at": "2026-09-30T20:44:01Z"
         }
       }
+    },
+    "workflow-manager-update-ergonomics": {
+      "work_item_type": "process",
+      "work_item_kind": "process",
+      "work_item_id": "workflow-manager-update-ergonomics",
+      "parent_work_item_id": null,
+      "plan_path": "docs/ai-workflow/WORKFLOW_MANAGER_UPDATE_ERGONOMICS_PLAN.md",
+      "registry_path": "docs/ai-workflow/registry/workflow-manager-update-ergonomics-registry.json",
+      "mapping_path": "docs/ai-workflow/requirements/workflow-manager-update-ergonomics-mapping.json",
+      "governing_workflow_version": "2.2",
+      "phase": "IMPLEMENTING",
+      "plan_revision": 6,
+      "implementation_revision": null,
+      "functional_review_round": null,
+      "base_commit": "bb54c76d201600605ee7a58cc355b8fdfe8436af",
+      "reviewed_implementation_head": null,
+      "current_checkpoint_id": null,
+      "last_completed_checkpoint_id": null,
+      "checkpoints": {},
+      "current_bundle_id": "12a45516f4a4ec955b527610036832702f89c037f92f0dd2a0632cec72e7e7eb",
+      "plan_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "12a45516f4a4ec955b527610036832702f89c037f92f0dd2a0632cec72e7e7eb",
+        "approved_review_content_id": "7f3f0d35e9cde545b670438d7b2718a138a11f36ff45b6aa1ec8d618ea679d2b",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/WORKFLOW_MANAGER_UPDATE_ERGONOMICS_PLAN.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "bd16f34c5bd7489a33a37fa4553aa2f25c0b6a40"
+          },
+          {
+            "path": "docs/ai-workflow/registry/workflow-manager-update-ergonomics-registry.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "44906796604f128a5d8605c8df3e98a8f9ea60b1"
+          },
+          {
+            "path": "docs/ai-workflow/requirements/workflow-manager-update-ergonomics-mapping.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "cf93ff9463fb41fb460de4bf70b0b58938f3ef97"
+          }
+        ],
+        "reviewed_content_commit": null,
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-10-08T22:39:14Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "7f3f0d35e9cde545b670438d7b2718a138a11f36ff45b6aa1ec8d618ea679d2b",
+            "ledger": {
+              "local": {
+                "bundle_id": "12a45516f4a4ec955b527610036832702f89c037f92f0dd2a0632cec72e7e7eb",
+                "verdict": "APPROVE",
+                "round": 5,
+                "verdict_sha256": "610a98214a08e963f69d0c6d40efdf17fe8c5ee649f429bcc58bc7f40f5bfae5",
+                "ledger_entry_sha256": "6083dbd96c338171124a9275feb98021b29292e98cbd95f17115caae7ab8b747",
+                "run_ref": "session:local .ai-review/workflow-manager-update-ergonomics/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "12a45516f4a4ec955b527610036832702f89c037f92f0dd2a0632cec72e7e7eb",
+                "verdict": "APPROVE",
+                "round": 5,
+                "verdict_sha256": "aafc5efb26b140e8c32b669aa4cdb5a98297c44f2922704cbe1b103fd8a02a94",
+                "ledger_entry_sha256": "8f495ed0bc23a07ad8072d90c14c72d037766bcc824e5b303180aab44fd4beca",
+                "run_ref": "session:local .ai-review/workflow-manager-update-ergonomics/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-10-08T22:39:14Z",
+          "workflow_release": "2.9.0"
+        }
+      },
+      "technical_approval": null,
+      "technical_review_block_pins": [],
+      "plan_review_stages": {
+        "review_content_id": "7f3f0d35e9cde545b670438d7b2718a138a11f36ff45b6aa1ec8d618ea679d2b",
+        "LOCAL_MODEL_PLAN_REVIEW": {
+          "bundle_id": "12a45516f4a4ec955b527610036832702f89c037f92f0dd2a0632cec72e7e7eb",
+          "verdict": "APPROVE",
+          "round": 5,
+          "completed_at": "2026-10-08T22:32:55Z",
+          "verdict_sha256": "610a98214a08e963f69d0c6d40efdf17fe8c5ee649f429bcc58bc7f40f5bfae5",
+          "run_ref": "session:local .ai-review/workflow-manager-update-ergonomics/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_PLAN_REVIEW": {
+          "bundle_id": "12a45516f4a4ec955b527610036832702f89c037f92f0dd2a0632cec72e7e7eb",
+          "verdict": "APPROVE",
+          "round": 5,
+          "completed_at": "2026-10-08T22:38:30.443782+00:00",
+          "verdict_sha256": "aafc5efb26b140e8c32b669aa4cdb5a98297c44f2922704cbe1b103fd8a02a94",
+          "run_ref": "session:local .ai-review/workflow-manager-update-ergonomics/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "openai/gpt-6.1-sol"
+        }
+      },
+      "functional_acceptance_status": null,
+      "blocking_decisions": [],
+      "state_revision": 23,
+      "last_transition": "2026-10-08T22:39:14Z",
+      "feedback_layout": "scoped",
+      "plan_review_binding": {
+        "status": "BOUND",
+        "at": "2026-10-08T22:31:15Z",
+        "consumed": {
+          "review_content_id": "6f557cf5e7b5d51fa4670952ecc72699a787de24a6d2e6859dc20e09496f6f42",
+          "plan_revision": 5,
+          "legacy": false
+        },
+        "published": {
+          "review_content_id": "7f3f0d35e9cde545b670438d7b2718a138a11f36ff45b6aa1ec8d618ea679d2b",
+          "plan_revision": 6
+        },
+        "bound": {
+          "review_content_id": "7f3f0d35e9cde545b670438d7b2718a138a11f36ff45b6aa1ec8d618ea679d2b",
+          "bundle_id": "12a45516f4a4ec955b527610036832702f89c037f92f0dd2a0632cec72e7e7eb",
+          "plan_revision": 6
+        }
+      },
+      "consumed_plan_review_content_ids": [
+        "0b78946044ee926ecdc258e4a3933bd966736094ac4c74f0ec50bd2f66225700",
+        "1729840eaad69bc9000d5f78ad5e63e2f7fd4998e88885405c24ff6a4fff33bd",
+        "6f557cf5e7b5d51fa4670952ecc72699a787de24a6d2e6859dc20e09496f6f42",
+        "8e2bafe3c3dca0995760a0832da77ae289dfdb936c40ddf8f8b3f5e2ba1cf871",
+        "9e8d3a24457fb4fa6f3fac27994a28496d117563ffe607facbd9bfb7b14cf6e0"
+      ]
     }
   }
 }
