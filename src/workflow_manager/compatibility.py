@@ -163,6 +163,14 @@ _GIT_ENVIRONMENT = {
 }
 
 
+# Variables that point Git at another repository than `git -C <target>` names,
+# as a hook or wrapper exports them.
+_REPOSITORY_SELECTORS = frozenset({
+    "GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_COMMON_DIR", "GIT_OBJECT_DIRECTORY",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_NAMESPACE", "GIT_PREFIX",
+})
+
+
 @dataclass(frozen=True)
 class GitResult:
     """`returncode` is `None` when git could not be run or timed out."""
@@ -185,7 +193,7 @@ def run_git(repo: Path, *args: str) -> GitResult:
     no prompts, no optional locks, no lazy fetch. Returns the exit status with
     the output, because the partial-clone probes exit 1 for "key absent".
     """
-    env = dict(os.environ)
+    env = {k: v for k, v in os.environ.items() if k not in _REPOSITORY_SELECTORS}
     env.update(_GIT_ENVIRONMENT)
     try:
         proc = subprocess.run(git_argv(repo, *args), capture_output=True, text=True,

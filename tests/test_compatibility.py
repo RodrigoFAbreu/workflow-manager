@@ -481,6 +481,21 @@ class TestRunGit(Case):
         self.assertEqual(seen["GIT_TERMINAL_PROMPT"], "0")
         self.assertEqual(seen["GIT_NO_LAZY_FETCH"], "1")
 
+    def test_repository_selecting_variables_are_not_inherited(self):
+        seen = {}
+
+        def fake(argv, **kwargs):
+            seen.update(kwargs["env"])
+            return subprocess.CompletedProcess(argv, 0, "out", "")
+        hostile = {name: "/elsewhere" for name in comp._REPOSITORY_SELECTORS}
+        with mock.patch.dict(comp.os.environ, hostile), \
+                mock.patch.object(comp.subprocess, "run", fake):
+            comp.run_git(self.target, "status")
+        self.assertEqual(set(seen) & comp._REPOSITORY_SELECTORS, set())
+        for name in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_COMMON_DIR",
+                     "GIT_OBJECT_DIRECTORY"):
+            self.assertIn(name, comp._REPOSITORY_SELECTORS)
+
     def test_exit_status_is_returned_and_failures_are_marked(self):
         absent = comp.run_git(self.target, "config", "--get", "extensions.partialClone")
         self.assertEqual((absent.returncode, absent.stdout), (1, ""))

@@ -25,7 +25,7 @@ Each problem has a one-line fix. Find the message, apply the fix, run the comman
 | A cache that seems stale or damaged | Delete the cache folder (default `~/.cache/workflow-manager/releases`). The next command downloads again. |
 | `doctor` or `update --dry-run` reports a `blocked` finding | The real update would be refused, and the finding quotes the refusal. Apply its fix (for a locally modified file: save the edit, then `update --force`), then run the check again. |
 | `doctor` reports a `warning` finding | The update would proceed, but could disturb an in-flight work item, change gates or cross a downgrade boundary. Read the finding and its Recovery lines before you update; the finish-or-park advice is in [Update](update.md#check-before-you-update). |
-| `doctor` reports `incomplete-inspection` | Part of the repository could not be read (state file, declarations, or a Git call). The report is not a clean bill of health; fix what it names, or review those parts by hand. |
+| `doctor` reports `incomplete-inspection` | Part of the repository could not be read (state file, declarations, or a Git call). The report is not a clean bill of health; fix what it names, or review those parts by hand. An old legacy work item with no `docs/ai-workflow/registry/<id>-artifacts.json` declarations file always reports it, so `doctor` never reaches exit 0 until that item is retired; read the finding rather than chase it. |
 | A repository went wrong after an update to 2.8.0 and gates behave differently | See "Approval gates" in [Update](update.md). |
 
 ## Exit codes

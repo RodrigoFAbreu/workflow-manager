@@ -359,7 +359,9 @@ class TestCommandsDoNotWriteTheTarget(Base):
         git(self.repo, "config", "remote.origin.promisor", "true")
         git(self.repo, "config", "remote.origin.uploadpack", str(helper))
         trace = self.work / "trace2.json"
-        for extra in ({}, {"GIT_NO_LAZY_FETCH": ""}):
+        # run_git sets GIT_NO_LAZY_FETCH itself; the property without it is
+        # covered by patching _GIT_ENVIRONMENT in test_compatibility.py.
+        for extra in ({},):
             with self.subTest(env=extra):
                 trace.unlink(missing_ok=True)
                 proc, result = self.run_audited(["doctor", str(self.repo)],
