@@ -21,7 +21,7 @@ The end goal is a loop where the Controller takes the next roadmap item, plans, 
 | 1 | Documentation clean-up | Readable install, update and verify guides | Done (PR #16) |
 | 2 | This roadmap clean-up | A roadmap you can read | Done once this change merges |
 | 3 | **Small Workflow fix release** | The `v2.6.0-003` fix, the latest governing version as the default for new work items, and `/retire-legacy-work-item` (a user-only way to close a dormant legacy work item that was already finished, which RepFlow needs); then its pin here | **Next**: built in the `workflow` repository (moved first on 2026-10-04 to unblock RepFlow); the pin follows here |
-| 4 | **Update ergonomics** | `workflow-manager doctor`, `update --dry-run` and a compatibility report; safer upgrades for every repository | Next, after item 3 |
+| 4 | **Update ergonomics** | `workflow-manager doctor`, `update --dry-run` and a compatibility report; safer upgrades for every repository | Done once PR #22 merges |
 | 5 | Controller C10 (gate policy and automatic acceptance) | The Controller can use Workflow 2.8's gate policy | Waiting on the Controller; done in [the Controller repository](https://github.com/RodrigoFAbreu/workflow-controller/blob/main/docs/ROADMAP.md) |
 | 6 | **M3**: this repository and `workflow` driven by the Controller's loop | Roadmap items worked, merged and released with no hand-driving | Waiting on the Controller's kanban runner (C11) |
 | 7 | Operator UX | Clearer errors and recovery steps | Later (deferred); see below |
@@ -30,7 +30,7 @@ The end goal is a loop where the Controller takes the next roadmap item, plans, 
 
 Authored and published in the `workflow` repository, never here. It carries the `v2.6.0-003` fix (listed in the open-defects table of [the Workflow roadmap](https://github.com/RodrigoFAbreu/workflow/blob/main/docs/ROADMAP.md)) makes the latest governing version the default for new work items, and adds `/retire-legacy-work-item`, a user-only, confirmation-guarded command that closes a dormant legacy work item (already finished long ago) as complete, keeping its old approval record and leaving an auditable commit. Here it is only a `feat:` pull request that adds the pin (`docs/RELEASING.md`, "Workflow packages: adding a pin"). Plan it with the Workflow roadmap's next items so it ships once.
 
-### 4. Update ergonomics (after the fix release)
+### 4. Update ergonomics (Done once PR #22 merges)
 
 Make an update easy to reason about before it runs. It helps every repository that upgrades. It follows the small fix release, which moved first to unblock RepFlow.
 
@@ -54,6 +54,7 @@ The documentation clean-up delivered most of this: install, update, verify and t
 
 Newest first.
 
+- **Update ergonomics** (pull request #22, accepted 2026-10-09 by policy; Done once it merges). `workflow-manager doctor` and `update --dry-run` read a repository and report what an update would do and which Workflow guarantees it would cross, without writing it. Plan: `docs/ai-workflow/WORKFLOW_MANAGER_UPDATE_ERGONOMICS_PLAN.md`.
 - **Documentation clean-up** (2026-10-04, PR #16). Readable user documentation with install, update and verify guides, a troubleshooting page and a documentation index.
 - **Workflow 2.8.0 pinned, Manager v1.4.0** (PR #14), and **2.8.0 installed here** (PR #15), so this repository runs its own milestones on 2.8.0.
 - **Workflow 2.7.0 pinned, Manager v1.3.0** (PR #13).

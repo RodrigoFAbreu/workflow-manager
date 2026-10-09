@@ -12,22 +12,34 @@ without writing the repository. Full plan:
 
 ## Current checkpoint
 
-**CP1-CP5 complete, self-review done, full gate green; implementation revision 14 is technically approved
-(policy) and awaits functional review.** CP1-CP5 are in the registry
-(`docs/ai-workflow/registry/workflow-manager-update-ergonomics-registry.json`).
+**Milestone complete.** `workflow-manager-update-ergonomics` reached
+`MILESTONE_COMPLETE` through `/satisfy-gate acceptance` on 2026-10-09, by
+policy (the default gate policy; no person's decision), and
+`active_work_item_id` is cleared.
+- **Checkpoints:** CP1-CP5 are complete.
+- **Technical approval:** implementation revision 14, basis
+  `POLICY_SATISFIED`.
+- **Functional evidence:** flows ue-f1 to ue-f9, ue-ci1 and ue-ci2 passed at
+  `0695b2b` (run `manager-orchestrator:runs/ue-functional-r5`).
+- **Pull request:** #22, CI green at `0695b2b` (the Workflow's own `gh` query).
+
+The checkpoint log below is this milestone's permanent record.
 
 ## Current blockers
 
-None.
+None. What remains: squash-merge pull request #22 under a `feat:` title (the
+owner's act); `main`'s full run then releases the Manager.
 
 ## Active plan
 
-`docs/ai-workflow/WORKFLOW_MANAGER_UPDATE_ERGONOMICS_PLAN.md` (revision 6).
+None. The finished plan is
+`docs/ai-workflow/WORKFLOW_MANAGER_UPDATE_ERGONOMICS_PLAN.md` (revision 6),
+copied to `docs/milestones/completed/`.
 
 ## Next action
 
-Manual functional review against the checklist below
-(`AWAITING_FUNCTIONAL_REVIEW`), then `/accept-milestone`.
+Plan the next incomplete milestone in `docs/ROADMAP.md` with
+`/milestone-plan` once pull request #22 has merged.
 
 ## Functional review checklist
 

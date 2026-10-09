@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_work_item_id": "workflow-manager-update-ergonomics",
+  "active_work_item_id": null,
   "work_items": {
     "plan-amendment-mechanism": {
       "work_item_type": "process",
@@ -6999,7 +6999,7 @@
       "registry_path": "docs/ai-workflow/registry/workflow-manager-update-ergonomics-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/workflow-manager-update-ergonomics-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_FUNCTIONAL_REVIEW",
+      "phase": "MILESTONE_COMPLETE",
       "plan_revision": 6,
       "implementation_revision": 14,
       "functional_review_round": null,
@@ -7330,8 +7330,8 @@
       },
       "functional_acceptance_status": null,
       "blocking_decisions": [],
-      "state_revision": 82,
-      "last_transition": "2026-10-09T12:09:25Z",
+      "state_revision": 83,
+      "last_transition": "2026-10-09T12:31:00Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -7378,6 +7378,355 @@
           "run_ref": "session:local .ai-review/workflow-manager-update-ergonomics/feedback/REVIEW_FEEDBACK.md",
           "reviewer_model": "openai/gpt-6.1-sol"
         }
+      },
+      "gate_evidence": {
+        "functional": {
+          "ue-ci1": {
+            "flow_id": "ue-ci1",
+            "status": "passed",
+            "head": "0695b2bafcd68b1f8137bcee72d61c5bb22d8853",
+            "ran_at": "2026-10-09T11:35:00Z",
+            "summary": {
+              "flow": "Git LFS configured globally: unselected filter runs status, selected filter skipped, no filter runs",
+              "result": "PASS",
+              "checklist_commit": "0695b2b",
+              "results": "RESULTS.md"
+            },
+            "log_digest": "4a613f9c8d6a7d00cf577f9dac56ef133866f94562aa283be156f19eb5c45d65",
+            "run_ref": "manager-orchestrator:runs/ue-functional-r5",
+            "reporter": "manager-orchestrator (independent executor claude-opus-5-5)",
+            "identity": "9affda4d4b5d236841cd761c79316ed0fee999656e82fb605156f61e48c41c6d",
+            "recorded_at": "2026-10-09T12:14:45Z"
+          },
+          "ue-ci2": {
+            "flow_id": "ue-ci2",
+            "status": "passed",
+            "head": "0695b2bafcd68b1f8137bcee72d61c5bb22d8853",
+            "ran_at": "2026-10-09T11:35:00Z",
+            "summary": {
+              "flow": "managed repository below a parent Git root: parent-selected filter never runs",
+              "result": "PASS",
+              "checklist_commit": "0695b2b",
+              "results": "RESULTS.md"
+            },
+            "log_digest": "da8db7306c07064c9bf99f5ac973becaae97f6af566bd329823630921bf42e5b",
+            "run_ref": "manager-orchestrator:runs/ue-functional-r5",
+            "reporter": "manager-orchestrator (independent executor claude-opus-5-5)",
+            "identity": "9affda4d4b5d236841cd761c79316ed0fee999656e82fb605156f61e48c41c6d",
+            "recorded_at": "2026-10-09T12:14:45Z"
+          },
+          "ue-f1": {
+            "flow_id": "ue-f1",
+            "status": "passed",
+            "head": "0695b2bafcd68b1f8137bcee72d61c5bb22d8853",
+            "ran_at": "2026-10-09T11:35:00Z",
+            "summary": {
+              "flow": "old install, clean tree: doctor report",
+              "result": "PASS",
+              "checklist_commit": "0695b2b",
+              "results": "RESULTS.md"
+            },
+            "log_digest": "150292b0497441e3da3e4c703a5d2c028e3ed9018fa677f53d436b9005245489",
+            "run_ref": "manager-orchestrator:runs/ue-functional-r5",
+            "reporter": "manager-orchestrator (independent executor claude-opus-5-5)",
+            "identity": "9affda4d4b5d236841cd761c79316ed0fee999656e82fb605156f61e48c41c6d",
+            "recorded_at": "2026-10-09T12:14:45Z"
+          },
+          "ue-f2": {
+            "flow_id": "ue-f2",
+            "status": "passed",
+            "head": "0695b2bafcd68b1f8137bcee72d61c5bb22d8853",
+            "ran_at": "2026-10-09T11:35:00Z",
+            "summary": {
+              "flow": "dry run mirrors the real update",
+              "result": "PASS",
+              "checklist_commit": "0695b2b",
+              "results": "RESULTS.md"
+            },
+            "log_digest": "94a0d35001ebb2e6d62d0b44aa5f6eb43ec50baa5faed10c43de99fa15bbe4ec",
+            "run_ref": "manager-orchestrator:runs/ue-functional-r5",
+            "reporter": "manager-orchestrator (independent executor claude-opus-5-5)",
+            "identity": "9affda4d4b5d236841cd761c79316ed0fee999656e82fb605156f61e48c41c6d",
+            "recorded_at": "2026-10-09T12:14:45Z"
+          },
+          "ue-f3": {
+            "flow_id": "ue-f3",
+            "status": "passed",
+            "head": "0695b2bafcd68b1f8137bcee72d61c5bb22d8853",
+            "ran_at": "2026-10-09T11:35:00Z",
+            "summary": {
+              "flow": "read-only repository",
+              "result": "PASS",
+              "checklist_commit": "0695b2b",
+              "results": "RESULTS.md"
+            },
+            "log_digest": "dcc13ba52585d5f41d5bb301574360aae58ba5a85fb087a5c1891fbf94765297",
+            "run_ref": "manager-orchestrator:runs/ue-functional-r5",
+            "reporter": "manager-orchestrator (independent executor claude-opus-5-5)",
+            "identity": "9affda4d4b5d236841cd761c79316ed0fee999656e82fb605156f61e48c41c6d",
+            "recorded_at": "2026-10-09T12:14:45Z"
+          },
+          "ue-f4": {
+            "flow_id": "ue-f4",
+            "status": "passed",
+            "head": "0695b2bafcd68b1f8137bcee72d61c5bb22d8853",
+            "ran_at": "2026-10-09T11:35:00Z",
+            "summary": {
+              "flow": "refusal parity",
+              "result": "PASS",
+              "checklist_commit": "0695b2b",
+              "results": "RESULTS.md"
+            },
+            "log_digest": "9db84c59586a9082d65271fa948686d2e9f069f25f7ddf277fb656cd03a2391c",
+            "run_ref": "manager-orchestrator:runs/ue-functional-r5",
+            "reporter": "manager-orchestrator (independent executor claude-opus-5-5)",
+            "identity": "9affda4d4b5d236841cd761c79316ed0fee999656e82fb605156f61e48c41c6d",
+            "recorded_at": "2026-10-09T12:14:45Z"
+          },
+          "ue-f5": {
+            "flow_id": "ue-f5",
+            "status": "passed",
+            "head": "0695b2bafcd68b1f8137bcee72d61c5bb22d8853",
+            "ran_at": "2026-10-09T11:35:00Z",
+            "summary": {
+              "flow": "recovery honesty",
+              "result": "PASS",
+              "checklist_commit": "0695b2b",
+              "results": "RESULTS.md"
+            },
+            "log_digest": "8b84205ede8035095d6ad0a63d9d3f93f8ada775f6d903b9c1357cc8f4214c9d",
+            "run_ref": "manager-orchestrator:runs/ue-functional-r5",
+            "reporter": "manager-orchestrator (independent executor claude-opus-5-5)",
+            "identity": "9affda4d4b5d236841cd761c79316ed0fee999656e82fb605156f61e48c41c6d",
+            "recorded_at": "2026-10-09T12:14:45Z"
+          },
+          "ue-f6": {
+            "flow_id": "ue-f6",
+            "status": "passed",
+            "head": "0695b2bafcd68b1f8137bcee72d61c5bb22d8853",
+            "ran_at": "2026-10-09T11:35:00Z",
+            "summary": {
+              "flow": "errors exit 2",
+              "result": "PASS",
+              "checklist_commit": "0695b2b",
+              "results": "RESULTS.md"
+            },
+            "log_digest": "2e58094650b6cf13aa5207f9f0b32791d96f167d20ee568fd1c789d49898aab2",
+            "run_ref": "manager-orchestrator:runs/ue-functional-r5",
+            "reporter": "manager-orchestrator (independent executor claude-opus-5-5)",
+            "identity": "9affda4d4b5d236841cd761c79316ed0fee999656e82fb605156f61e48c41c6d",
+            "recorded_at": "2026-10-09T12:14:45Z"
+          },
+          "ue-f7": {
+            "flow_id": "ue-f7",
+            "status": "passed",
+            "head": "0695b2bafcd68b1f8137bcee72d61c5bb22d8853",
+            "ran_at": "2026-10-09T11:35:00Z",
+            "summary": {
+              "flow": "target selection",
+              "result": "PASS",
+              "checklist_commit": "0695b2b",
+              "results": "RESULTS.md"
+            },
+            "log_digest": "39417160d32836430fda2b06e0eb376a5b2637cee0a82064bc4bf286655e99ed",
+            "run_ref": "manager-orchestrator:runs/ue-functional-r5",
+            "reporter": "manager-orchestrator (independent executor claude-opus-5-5)",
+            "identity": "9affda4d4b5d236841cd761c79316ed0fee999656e82fb605156f61e48c41c6d",
+            "recorded_at": "2026-10-09T12:14:45Z"
+          },
+          "ue-f8": {
+            "flow_id": "ue-f8",
+            "status": "passed",
+            "head": "0695b2bafcd68b1f8137bcee72d61c5bb22d8853",
+            "ran_at": "2026-10-09T11:35:00Z",
+            "summary": {
+              "flow": "work-item hazards (automated e2e)",
+              "result": "PASS",
+              "checklist_commit": "0695b2b",
+              "results": "RESULTS.md"
+            },
+            "log_digest": "0e422878e2227b37da45ba90378a4532a87b8be9638be674494374b2cd1f07c4",
+            "run_ref": "manager-orchestrator:runs/ue-functional-r5",
+            "reporter": "manager-orchestrator (independent executor claude-opus-5-5)",
+            "identity": "9affda4d4b5d236841cd761c79316ed0fee999656e82fb605156f61e48c41c6d",
+            "recorded_at": "2026-10-09T12:14:45Z"
+          },
+          "ue-f9": {
+            "flow_id": "ue-f9",
+            "status": "passed",
+            "head": "0695b2bafcd68b1f8137bcee72d61c5bb22d8853",
+            "ran_at": "2026-10-09T11:35:00Z",
+            "summary": {
+              "flow": "documentation consistency",
+              "result": "PASS",
+              "checklist_commit": "0695b2b",
+              "results": "RESULTS.md"
+            },
+            "log_digest": "2363ea1b54f0d25487f96fd50596aafb15c9eaf71bcd8ba93adec8aa58445724",
+            "run_ref": "manager-orchestrator:runs/ue-functional-r5",
+            "reporter": "manager-orchestrator (independent executor claude-opus-5-5)",
+            "identity": "9affda4d4b5d236841cd761c79316ed0fee999656e82fb605156f61e48c41c6d",
+            "recorded_at": "2026-10-09T12:14:46Z"
+          }
+        },
+        "pr": {
+          "pr": {
+            "number": 22,
+            "url": "https://github.com/RodrigoFAbreu/workflow-manager/pull/22"
+          },
+          "state": "open",
+          "head": "0695b2bafcd68b1f8137bcee72d61c5bb22d8853",
+          "review_decision": null,
+          "reviewed_head": null,
+          "checks": {
+            "state": "success",
+            "failing": []
+          },
+          "review_id": null,
+          "findings": null,
+          "identity_at_head": "9affda4d4b5d236841cd761c79316ed0fee999656e82fb605156f61e48c41c6d",
+          "observed_at": "2026-10-09T12:31:00Z",
+          "ingest_seq": 1,
+          "repository": "RodrigoFAbreu/workflow-manager",
+          "queried_commit": "439a33f56e7f1caab58c5ccc5f327c95871596d9",
+          "provenance": {
+            "source": "workflow_gh",
+            "fetched_by": {
+              "name": "workflow-gh",
+              "version": "pr-list-v1"
+            },
+            "fetched_at": "2026-10-09T12:31:00Z",
+            "raw_sha256": "48e8080045ff2ef12912511d754734918495e15a95627c3033b3971e84fb16d5",
+            "run_ref": null,
+            "gh_path": "/usr/bin/gh",
+            "gh_sha256": "42a7856d6b182b717d8e59612a5d1c6b0e3c1bb707fcd7a57aa64029da75aae1"
+          },
+          "fact_id": "adb5b45bf2e98022e5ce79e8341de8597e9a5db331c3d173b156faaffdf97e1e"
+        },
+        "pr_reported": null,
+        "pr_keys": {
+          "reopened_for": [],
+          "applied": [],
+          "ingest_seq": 1
+        }
+      },
+      "acceptance_satisfaction": {
+        "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "policy_source": "default",
+        "file_digest": null,
+        "adopted_digest": null,
+        "floor_digest": null,
+        "requirements": [
+          {
+            "id": "checkpoints_complete",
+            "met": true,
+            "detail": "every checkpoint of the item's own registry is COMPLETE"
+          },
+          {
+            "id": "technical_approval_current",
+            "met": true,
+            "detail": "the technical approval is CURRENT for the content now"
+          },
+          {
+            "id": "functional_flows_passed",
+            "met": true,
+            "detail": "flows ['ue-ci1', 'ue-ci2', 'ue-f1', 'ue-f2', 'ue-f3', 'ue-f4', 'ue-f5', 'ue-f6', 'ue-f7', 'ue-f8', 'ue-f9'] passed at the approved content"
+          },
+          {
+            "id": "pr_fact_current",
+            "met": true,
+            "detail": "workflow_gh fact for PR #22 at 0695b2bafcd68b1f8137bcee72d61c5bb22d8853 is current"
+          },
+          {
+            "id": "no_standing_pr_objection",
+            "met": true,
+            "detail": "no CHANGES_REQUESTED decision and no failed check"
+          },
+          {
+            "id": "ci_green",
+            "met": true,
+            "detail": "checks are 'success'"
+          }
+        ],
+        "inputs": {
+          "anchor_commit": "439a33f56e7f1caab58c5ccc5f327c95871596d9",
+          "anchor_identity": "9affda4d4b5d236841cd761c79316ed0fee999656e82fb605156f61e48c41c6d",
+          "technical_approval": {
+            "basis": "POLICY_SATISFIED",
+            "approved_review_content_id": "9affda4d4b5d236841cd761c79316ed0fee999656e82fb605156f61e48c41c6d",
+            "recorded_at": "2026-10-09T12:09:25Z"
+          },
+          "functional": {
+            "ue-ci1": {
+              "evidence_id": "7f6a23a13001bd04a9c92cdc15e7a7ebd475e72eacf16342a9a33224fc02c822",
+              "log_digest": "4a613f9c8d6a7d00cf577f9dac56ef133866f94562aa283be156f19eb5c45d65",
+              "run_ref": "manager-orchestrator:runs/ue-functional-r5"
+            },
+            "ue-ci2": {
+              "evidence_id": "df3631a5c13ca55ae0e34f1c82c5d7e20c520d5d837de27fb7cf28076c76ece5",
+              "log_digest": "da8db7306c07064c9bf99f5ac973becaae97f6af566bd329823630921bf42e5b",
+              "run_ref": "manager-orchestrator:runs/ue-functional-r5"
+            },
+            "ue-f1": {
+              "evidence_id": "bf762b4bda05e7ad46aac262da710acfede582c534268c23407aabacf45d4854",
+              "log_digest": "150292b0497441e3da3e4c703a5d2c028e3ed9018fa677f53d436b9005245489",
+              "run_ref": "manager-orchestrator:runs/ue-functional-r5"
+            },
+            "ue-f2": {
+              "evidence_id": "736b38c4dc9e1466db818369275e66e38a585d534b3cca757c36c32ab35d8b60",
+              "log_digest": "94a0d35001ebb2e6d62d0b44aa5f6eb43ec50baa5faed10c43de99fa15bbe4ec",
+              "run_ref": "manager-orchestrator:runs/ue-functional-r5"
+            },
+            "ue-f3": {
+              "evidence_id": "9fc23137a7b3100c9a7413aded6aa6f38a0561e60098699ab0e8324966e32b8e",
+              "log_digest": "dcc13ba52585d5f41d5bb301574360aae58ba5a85fb087a5c1891fbf94765297",
+              "run_ref": "manager-orchestrator:runs/ue-functional-r5"
+            },
+            "ue-f4": {
+              "evidence_id": "d6bf10944fd271bfd045acc54d0f105d4efd3255798b76de3ebca21bea0c2792",
+              "log_digest": "9db84c59586a9082d65271fa948686d2e9f069f25f7ddf277fb656cd03a2391c",
+              "run_ref": "manager-orchestrator:runs/ue-functional-r5"
+            },
+            "ue-f5": {
+              "evidence_id": "69286036dac3e457161a942bba5dfe289cef8626ece0a6af343f78edd5a08d85",
+              "log_digest": "8b84205ede8035095d6ad0a63d9d3f93f8ada775f6d903b9c1357cc8f4214c9d",
+              "run_ref": "manager-orchestrator:runs/ue-functional-r5"
+            },
+            "ue-f6": {
+              "evidence_id": "530bd72003def2ac51af896722322900c19ca861bdb7275b056dbc088c5c3938",
+              "log_digest": "2e58094650b6cf13aa5207f9f0b32791d96f167d20ee568fd1c789d49898aab2",
+              "run_ref": "manager-orchestrator:runs/ue-functional-r5"
+            },
+            "ue-f7": {
+              "evidence_id": "83b6de3aac329958e72a8dcc39910f50d4f740cc5936ac8e90dd4135e25d744f",
+              "log_digest": "39417160d32836430fda2b06e0eb376a5b2637cee0a82064bc4bf286655e99ed",
+              "run_ref": "manager-orchestrator:runs/ue-functional-r5"
+            },
+            "ue-f8": {
+              "evidence_id": "2426d14c0bc813eaae2df91c57dd452ab2a315dd2d4edee7c3692ac40f75c57d",
+              "log_digest": "0e422878e2227b37da45ba90378a4532a87b8be9638be674494374b2cd1f07c4",
+              "run_ref": "manager-orchestrator:runs/ue-functional-r5"
+            },
+            "ue-f9": {
+              "evidence_id": "2372d2d0e520ec721795523bfb43273fdc7d84256f9c1395ce2f5eaa2024aaf5",
+              "log_digest": "2363ea1b54f0d25487f96fd50596aafb15c9eaf71bcd8ba93adec8aa58445724",
+              "run_ref": "manager-orchestrator:runs/ue-functional-r5"
+            }
+          },
+          "pr": {
+            "fact_id": "adb5b45bf2e98022e5ce79e8341de8597e9a5db331c3d173b156faaffdf97e1e",
+            "head": "0695b2bafcd68b1f8137bcee72d61c5bb22d8853",
+            "provenance": "workflow_gh",
+            "raw_sha256": "48e8080045ff2ef12912511d754734918495e15a95627c3033b3971e84fb16d5"
+          }
+        },
+        "trust": {
+          "review_verdicts": "orchestrator",
+          "functional_evidence": "orchestrator",
+          "pr_fact": "workflow_gh"
+        },
+        "evaluated_at": "2026-10-09T12:31:00Z",
+        "workflow_release": "2.9.0"
       }
     }
   }
