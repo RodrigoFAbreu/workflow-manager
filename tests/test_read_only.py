@@ -28,6 +28,7 @@ import audit_hook
 import workflow_manager.compatibility as comp
 from frozen_runs import build_bootstrapped_repo
 from workflow_manager import source
+from workflow_manager.fixture import init_git_repo
 from workflow_manager.compatibility import ContainmentError, plan_destinations
 
 DRIVER = r"""
@@ -347,8 +348,7 @@ class TestCommandsDoNotWriteTheTarget(Base):
     def test_a_clean_filter_configured_in_a_submodule_never_runs(self):
         marker = self.work / "filter-ran"
         sub = self.work / "sm-origin"
-        sub.mkdir()
-        git(sub, "init", "-q")
+        init_git_repo(sub)
         (sub / "f.txt").write_text("tracked\n")
         git(sub, "add", "f.txt")
         git(sub, "-c", "user.name=t", "-c", "user.email=t@e", "commit", "-q", "-m", "s")
