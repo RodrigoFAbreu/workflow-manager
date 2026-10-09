@@ -6999,7 +6999,7 @@
       "registry_path": "docs/ai-workflow/registry/workflow-manager-update-ergonomics-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/workflow-manager-update-ergonomics-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "AWAITING_FUNCTIONAL_REVIEW",
       "plan_revision": 6,
       "implementation_revision": 7,
       "functional_review_round": null,
@@ -7121,10 +7121,10 @@
         }
       },
       "technical_approval": {
-        "status": "STALE",
+        "status": "CURRENT",
         "basis": "POLICY_SATISFIED",
-        "reviewed_bundle_id": "4e922c76be1df15f8d79848934b837b97b6e1b9ba425657a9dcda8304765ac11",
-        "approved_review_content_id": "c0ee153d1e089a970e9dbf14dca12fec3898522045b262812088a6d65e9df09b",
+        "reviewed_bundle_id": "9f752c1f3f15e6dfc109cddf84b8ffbfde4bc30d1b48cbfb5efc59f7462a5224",
+        "approved_review_content_id": "0e4ed58fcee9a2774884ae523af7d371c33d63991fc1de4ff4573448aa5d5ad6",
         "review_content_manifest": [
           {
             "path": "CLAUDE.md",
@@ -7166,7 +7166,7 @@
             "path": "docs/update.md",
             "exists": true,
             "mode": "100644",
-            "blob": "bf318fbab2142649e1bb5c1f8b1f5d30890c2504"
+            "blob": "11125d41907e9962ca8d8dfc3d2c620936fb68bb"
           },
           {
             "path": "src/workflow_manager/__init__.py",
@@ -7184,7 +7184,7 @@
             "path": "src/workflow_manager/compatibility.py",
             "exists": true,
             "mode": "100644",
-            "blob": "b2d5b60cd56873611bd4881c9956f68e96de9965"
+            "blob": "b8fb21be7503a897c57230d9fdc520a2bb224004"
           },
           {
             "path": "src/workflow_manager/install.py",
@@ -7208,7 +7208,7 @@
             "path": "tests/test_compatibility.py",
             "exists": true,
             "mode": "100644",
-            "blob": "406411cde8ea63891f6629f1e1897aee8d4686c3"
+            "blob": "e2e8249445fe4af5199e16b31c334c787c3dcb74"
           },
           {
             "path": "tests/test_doctor_cli.py",
@@ -7235,11 +7235,11 @@
             "blob": "7a76c9e804fa0bb4d12a5fe34e682a803d68046b"
           }
         ],
-        "reviewed_content_commit": "378aa1e5e6f485dbf0e659b6575c520a95c4f38a",
+        "reviewed_content_commit": "11bd158ca178721b8930dae6cd809a91863dfe05",
         "legacy_evidence": null,
         "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
         "waived_guarantees": [],
-        "recorded_at": "2026-10-09T08:53:41Z",
+        "recorded_at": "2026-10-09T09:14:19Z",
         "policy_evidence": {
           "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
           "policy_source": "default",
@@ -7269,23 +7269,23 @@
             }
           ],
           "inputs": {
-            "review_content_id": "c0ee153d1e089a970e9dbf14dca12fec3898522045b262812088a6d65e9df09b",
+            "review_content_id": "0e4ed58fcee9a2774884ae523af7d371c33d63991fc1de4ff4573448aa5d5ad6",
             "ledger": {
               "local": {
-                "bundle_id": "4e922c76be1df15f8d79848934b837b97b6e1b9ba425657a9dcda8304765ac11",
+                "bundle_id": "9f752c1f3f15e6dfc109cddf84b8ffbfde4bc30d1b48cbfb5efc59f7462a5224",
                 "verdict": "APPROVE",
-                "round": 6,
-                "verdict_sha256": "257abd6df5bc54ce85be85b370f65ec3ebeede36921558a3a6777411383653c5",
-                "ledger_entry_sha256": "66d7158bf90fbe27b1492e7b9a5bd5e96dba809c66e5e0c4710debed96298d59",
+                "round": 7,
+                "verdict_sha256": "679f394508064a37633c11eb8c85d52476597914017ce622a7ff1b20efd58fb6",
+                "ledger_entry_sha256": "1aa95722910cdfa948d544c2b6c579a03a11d8c0f2d50325d31e03fc54eb296f",
                 "run_ref": "session:local .ai-review/workflow-manager-update-ergonomics/feedback/REVIEW_FEEDBACK.md",
                 "reviewer_model": "anthropic/claude-opus-5-5"
               },
               "manual": {
-                "bundle_id": "4e922c76be1df15f8d79848934b837b97b6e1b9ba425657a9dcda8304765ac11",
+                "bundle_id": "9f752c1f3f15e6dfc109cddf84b8ffbfde4bc30d1b48cbfb5efc59f7462a5224",
                 "verdict": "APPROVE",
-                "round": 6,
-                "verdict_sha256": "769a49bb0bbf89cd853f0d50529e063bc92ed0a64ed4833cf052c51d18b1a825",
-                "ledger_entry_sha256": "4819859232ff8d36ad889ec5fef4710093b2809520f1c097ee662d148045729f",
+                "round": 7,
+                "verdict_sha256": "6b68959eee23b36defc3adc2f88ecfa38df7580bc5b0fc3841b5e1c17df9f0ef",
+                "ledger_entry_sha256": "9c50cee4f67ce0c0a830ccbf418d0536d0f9505a013f37a948e1078e3d1214c7",
                 "run_ref": "session:local .ai-review/workflow-manager-update-ergonomics/feedback/REVIEW_FEEDBACK.md",
                 "reviewer_model": "openai/gpt-6.1-sol"
               }
@@ -7296,7 +7296,7 @@
           "trust": {
             "review_verdicts": "orchestrator"
           },
-          "evaluated_at": "2026-10-09T08:53:41Z",
+          "evaluated_at": "2026-10-09T09:14:19Z",
           "workflow_release": "2.9.0"
         }
       },
@@ -7324,8 +7324,8 @@
       },
       "functional_acceptance_status": null,
       "blocking_decisions": [],
-      "state_revision": 54,
-      "last_transition": "2026-10-09T09:07:25Z",
+      "state_revision": 57,
+      "last_transition": "2026-10-09T09:14:19Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -7353,22 +7353,22 @@
         "9e8d3a24457fb4fa6f3fac27994a28496d117563ffe607facbd9bfb7b14cf6e0"
       ],
       "implementation_review_stages": {
-        "review_content_id": "c0ee153d1e089a970e9dbf14dca12fec3898522045b262812088a6d65e9df09b",
+        "review_content_id": "0e4ed58fcee9a2774884ae523af7d371c33d63991fc1de4ff4573448aa5d5ad6",
         "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {
-          "bundle_id": "4e922c76be1df15f8d79848934b837b97b6e1b9ba425657a9dcda8304765ac11",
+          "bundle_id": "9f752c1f3f15e6dfc109cddf84b8ffbfde4bc30d1b48cbfb5efc59f7462a5224",
           "verdict": "APPROVE",
-          "round": 6,
-          "completed_at": "2026-10-09T08:48:25Z",
-          "verdict_sha256": "257abd6df5bc54ce85be85b370f65ec3ebeede36921558a3a6777411383653c5",
+          "round": 7,
+          "completed_at": "2026-10-09T09:09:23Z",
+          "verdict_sha256": "679f394508064a37633c11eb8c85d52476597914017ce622a7ff1b20efd58fb6",
           "run_ref": "session:local .ai-review/workflow-manager-update-ergonomics/feedback/REVIEW_FEEDBACK.md",
           "reviewer_model": "anthropic/claude-opus-5-5"
         },
         "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": {
-          "bundle_id": "4e922c76be1df15f8d79848934b837b97b6e1b9ba425657a9dcda8304765ac11",
+          "bundle_id": "9f752c1f3f15e6dfc109cddf84b8ffbfde4bc30d1b48cbfb5efc59f7462a5224",
           "verdict": "APPROVE",
-          "round": 6,
-          "completed_at": "2026-10-09T08:53:12Z",
-          "verdict_sha256": "769a49bb0bbf89cd853f0d50529e063bc92ed0a64ed4833cf052c51d18b1a825",
+          "round": 7,
+          "completed_at": "2026-10-09T09:13:53Z",
+          "verdict_sha256": "6b68959eee23b36defc3adc2f88ecfa38df7580bc5b0fc3841b5e1c17df9f0ef",
           "run_ref": "session:local .ai-review/workflow-manager-update-ergonomics/feedback/REVIEW_FEEDBACK.md",
           "reviewer_model": "openai/gpt-6.1-sol"
         }
