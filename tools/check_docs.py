@@ -43,9 +43,12 @@ USER_PAGES: tuple[str, ...] = (
     "docs/update.md",
     "docs/verify.md",
     "docs/troubleshooting.md",
+    "docs/common-problems.md",
+    "docs/exit-codes.md",
     "docs/glossary.md",
     "docs/development.md",
     "docs/releases/README.md",
+    "docs/release-history.md",
 )
 
 #: The pages whose fenced code blocks are command-checked.
@@ -54,7 +57,7 @@ COMMAND_PAGES: tuple[str, ...] = (
     "docs/install.md",
     "docs/update.md",
     "docs/verify.md",
-    "docs/troubleshooting.md",
+    "docs/common-problems.md",
     "docs/development.md",
 )
 

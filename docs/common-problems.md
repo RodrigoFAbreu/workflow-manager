@@ -1,4 +1,4 @@
-# Troubleshooting
+# Common problems
 
 > For: someone who ran a Manager command and got an error. Last checked with: Workflow Manager 1.6.0, Workflow 2.9.0.
 
@@ -30,14 +30,8 @@ Each problem has a one-line fix. Find the message, apply the fix, run the comman
 
 ## Exit codes
 
-Every command ends with one of these statuses.
+Every command ends with a status: 0 for success, 1 when it found a problem or had no usable release, 2 when it refused to run or could not check. The full table, per command, is in [Exit codes](exit-codes.md).
 
-| Exit code | Meaning |
-|---|---|
-| 0 | The command succeeded. `verify` found no problems, or `status` found the repository clean (or not managed). |
-| 1 | The command ran and found a problem: `verify` or `status` found differences, `doctor` found a `blocked` or `warning` finding, or no usable release was available (not pinned, not downloadable, or failing its digest check). |
-| 2 | The command refused to run: unknown or missing arguments, a repository that is not managed (or already is), not a Git repository, a collision or local edit that needs `--force`, or an unreadable record. `doctor` also exits 2 when it could not check (not managed, unreadable record, unresolvable target release); `update --dry-run` exits 2 when the real update would refuse. |
+Use them in scripts: `workflow-manager verify <repo> && echo ok`.
 
-Use these in scripts: `workflow-manager verify <repo> && echo ok`.
-
-More help: [Install](install.md), [Verify](verify.md), [Glossary](glossary.md).
+More help: [Install](install.md), [Verify](verify.md), [Exit codes](exit-codes.md), [Glossary](glossary.md).

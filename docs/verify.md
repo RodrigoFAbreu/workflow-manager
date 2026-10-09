@@ -47,6 +47,6 @@ Goal: confirm that every installed Workflow file is exactly the one its release 
 
 - `1 problem(s)` followed by lines such as `modified: scripts/workflow_state.py`: someone edited a release file. Undo the edit with `git checkout -- <file>`, or keep it and expect `update` to refuse until you pass `--force`, which throws your local edit away. Other lines say `missing:` (a release file is gone), `unexpected:` (a file is present but was never installed) or `not-executable:`.
 - `not a managed repository`: the Manager did not install the Workflow here. See [Install](install.md).
-- An error about a missing release or the network: the release the repository names is not in the cache and cannot be downloaded. See [Troubleshooting](troubleshooting.md).
+- An error about a missing release or the network: the release the repository names is not in the cache and cannot be downloaded. See [Common problems](common-problems.md).
 
-Exit statuses are listed in [Troubleshooting](troubleshooting.md#exit-codes). For the check behind the command, see [`ARCHITECTURE.md`](ARCHITECTURE.md#release-integrity).
+Exit statuses are listed in [Exit codes](exit-codes.md). For the check behind the command, see [`ARCHITECTURE.md`](ARCHITECTURE.md#release-integrity).

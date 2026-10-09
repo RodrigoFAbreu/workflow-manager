@@ -40,7 +40,7 @@ workflow-manager verify /path/to/your/repo
 
 Step 3 should print `installation matches workflow 2.9.0` and exit with
 status 0. If something goes differently, see
-[Troubleshooting](docs/troubleshooting.md).
+[Common problems](docs/common-problems.md).
 
 ## Where to go next
 
@@ -49,9 +49,10 @@ status 0. If something goes differently, see
 | Install the Manager, or put the Workflow into a repository | [Install](docs/install.md) |
 | Move a repository to a newer Workflow release | [Update](docs/update.md) |
 | Check that an installation is intact | [Verify](docs/verify.md) |
-| Fix an error message | [Troubleshooting](docs/troubleshooting.md) |
+| Fix an error message | [Common problems](docs/common-problems.md) |
+| Look up an exit code | [Exit codes](docs/exit-codes.md) |
 | Look up a word (pin, release cache, profile...) | [Glossary](docs/glossary.md) |
-| See what each Manager release changed | [Release history](docs/releases/README.md) |
+| See what each Manager release changed | [Release history](docs/release-history.md) |
 | Understand the Workflow itself | [Workflow lifecycle](https://github.com/RodrigoFAbreu/workflow/blob/main/docs/overview.md#lifecycle) |
 | Work on the Manager's code | [Development](docs/development.md) |
 | Find every page | [Documentation map](docs/README.md) |

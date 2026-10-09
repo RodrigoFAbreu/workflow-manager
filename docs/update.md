@@ -99,11 +99,11 @@ The report is advisory. It looks at the current state files and a few Git facts;
 
 ## If it fails
 
-- `workflow-manager doctor` exits 2 with `is not a managed repository` or an error naming a release: it could not check. See [Troubleshooting](troubleshooting.md).
+- `workflow-manager doctor` exits 2 with `is not a managed repository` or an error naming a release: it could not check. See [Common problems](common-problems.md).
 - `refusing to update: these release files were modified locally`: you edited a release file, and the Manager will not discard it silently. Save the edit elsewhere, then re-run with `--force` to replace the file with the release's.
 - The update stopped half way: run the same command again. A resumed update does not need `--force`.
 - `is not a managed repository`: use [Install](install.md) instead.
-- A download error: see [Troubleshooting](troubleshooting.md).
+- A download error: see [Common problems](common-problems.md).
 - `--version` still shows an old number after updating the Manager: remove it and install the freshly downloaded wheel: `pipx uninstall workflow-manager`, then `pipx install <wheel>` (`pipx reinstall` reuses the saved wheel path, which may be gone, and `pipx install --force` can refuse with "a virtual environment already exists").
 
-Releases are listed in the [release history](releases/README.md). The design is in [`ARCHITECTURE.md`](ARCHITECTURE.md#interruption).
+Releases are listed in the [release history](release-history.md). The design is in [`ARCHITECTURE.md`](ARCHITECTURE.md#interruption).

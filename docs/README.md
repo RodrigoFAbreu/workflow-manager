@@ -12,10 +12,11 @@ Start with the [project README](../README.md) for what the Manager is and a five
 | Move a repository to a newer Workflow release | [Update](update.md) |
 | See what an update would do before running it | [Update: check before you update](update.md#check-before-you-update) |
 | Check that a repository's installation is intact | [Verify](verify.md) |
-| Fix an error message or look up an exit code | [Troubleshooting](troubleshooting.md) |
+| Fix an error message | [Common problems](common-problems.md) |
+| Look up what an exit code means | [Exit codes](exit-codes.md) |
 | Look up a Manager word (pin, release cache, profile...) | [Glossary](glossary.md) |
 | Look up a Workflow word (work item, approval gate...) | [Workflow glossary](https://github.com/RodrigoFAbreu/workflow/blob/main/docs/glossary.md) |
-| See what each Manager release changed | [Release history](releases/README.md) |
+| See what each Manager release changed | [Release history](release-history.md) |
 | Learn how the Workflow runs, step by step | [Workflow lifecycle](https://github.com/RodrigoFAbreu/workflow/blob/main/docs/overview.md#lifecycle) |
 | Understand who approves what | [Workflow gates](https://github.com/RodrigoFAbreu/workflow/blob/main/docs/gates.md) |
 | Run the Workflow's steps automatically | [Workflow Controller](https://github.com/RodrigoFAbreu/workflow-controller#readme) and its [compatibility page](https://github.com/RodrigoFAbreu/workflow-controller/blob/main/docs/compatibility.md) |
