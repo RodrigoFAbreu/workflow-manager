@@ -42,12 +42,10 @@ USER_PAGES: tuple[str, ...] = (
     "docs/install.md",
     "docs/update.md",
     "docs/verify.md",
-    "docs/troubleshooting.md",
     "docs/common-problems.md",
     "docs/exit-codes.md",
     "docs/glossary.md",
     "docs/development.md",
-    "docs/releases/README.md",
     "docs/release-history.md",
 )
 
@@ -65,7 +63,7 @@ COMMAND_PAGES: tuple[str, ...] = (
 #: are records (see docs/README.md). docs/ai-workflow/, docs/milestones/ and
 #: docs/defects/ are not matched by LINK_GLOBS at all.
 LINK_EXCLUDED = ("docs/ROADMAP.md", "docs/ACTIVE_MILESTONE.md")
-LINK_GLOBS = ("README.md", "docs/*.md", "docs/releases/*.md")
+LINK_GLOBS = ("README.md", "docs/*.md")
 
 #: External hosts allowed besides github.com repository links.
 ALLOWED_HOSTS = frozenset({"pipx.pypa.io", "cli.github.com", "img.shields.io"})
