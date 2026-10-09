@@ -636,9 +636,18 @@ class TestRunGit(Case):
         self.assertEqual(sum("\\\\" in g for g in greps), 0)   # a single backslash
 
     def test_relative_git_common_dir_is_resolved_against_the_target(self):
-        self.assertEqual(comp._resolve_git_path(Path("/a/b"), ".git\n"), Path("/a/b/.git"))
-        self.assertEqual(comp._resolve_git_path(Path("/a/b"), "../.git"), Path("/a/.git"))
-        self.assertEqual(comp._resolve_git_path(Path("/a/b"), "/x/.git"), Path("/x/.git"))
+        for printed, expected in ((".git\n", "/a/b/.git"), ("../.git\n", "/a/.git"), ("/x/.git\n", "/x/.git")):
+            with mock.patch.object(comp, "run_git", return_value=comp.GitResult(0, printed)):
+                self.assertEqual(comp._git_path(Path("/a/b"), "--git-common-dir"), Path(expected))
+
+    def test_a_git_path_keeps_every_byte_but_the_one_terminating_newline(self):
+        for printed, expected in (("/r/repo \n", "/r/repo "), ("/r/repo\n\n", "/r/repo\n"),
+                                  ("/r/repo\rx\n", "/r/repo\rx")):
+            with mock.patch.object(comp, "run_git", return_value=comp.GitResult(0, printed)) as run:
+                self.assertEqual(comp._git_path(Path("/a/b"), "--git-common-dir"), Path(expected))
+                self.assertTrue(run.call_args.kwargs["raw"])
+        with mock.patch.object(comp, "run_git", return_value=comp.GitResult(0, "\n")):
+            self.assertIsNone(comp._git_path(Path("/a/b"), "--git-common-dir"))
 
 
 class TestTrailers(Case):

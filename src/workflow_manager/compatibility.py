@@ -450,10 +450,18 @@ def _read_plan_inputs(target: Path, facts: RepositoryFacts) -> None:
             facts.plan_inputs_dirs.append(f".ai-review/{item.id}/plan-inputs")
 
 
-def _resolve_git_path(target: Path, printed: str) -> Path:
-    """`rev-parse` may print a path relative to the target; resolve it there,
-    not against the process's cwd. (`--path-format=absolute` needs Git 2.31.)"""
-    path = Path(printed.strip())
+def _git_path(target: Path, flag: str) -> Path | None:
+    """The path `git rev-parse <flag>` prints, byte-exact, else None. Read raw
+    and stripped of Git's one terminating newline only: text mode turns a `\\r`
+    into a newline and a `.strip()` eats a trailing space or newline, either of
+    which names another repository. It may print a path relative to the target;
+    resolve it there, not against the process's cwd. (`--path-format=absolute`
+    needs Git 2.31.)"""
+    result = run_git(target, "rev-parse", flag, raw=True)
+    printed = result.stdout.removesuffix("\n")
+    if not (result.ok and printed):
+        return None
+    path = Path(os.fsdecode(printed.encode("latin-1")))
     return path if path.is_absolute() else Path(os.path.normpath(target / path))
 
 
@@ -537,9 +545,9 @@ def _read_git(target: Path, facts: RepositoryFacts) -> None:
     else:
         facts.problems.append("`git worktree list` failed: linked worktrees were not counted")
 
-    common = run_git(target, "rev-parse", "--git-common-dir")
-    if common.ok and common.stdout.strip():
-        claims = _resolve_git_path(target, common.stdout) / CLAIMS_RELDIR
+    common = _git_path(target, "--git-common-dir")
+    if common is not None:
+        claims = common / CLAIMS_RELDIR
         try:
             facts.amendment_witnesses = sorted(p.name for p in claims.glob("*.amendment.json")) \
                 if claims.is_dir() else []
@@ -1387,18 +1395,20 @@ def _inside(path: Path, protected: tuple[Path, ...]) -> Path | None:
 
 def protected_set(target: Path) -> tuple[Path, ...]:
     """The real paths of the work tree and of the actual and common Git
-    directories. Fails closed: a target with a `.git` entry whose directories
-    cannot be resolved is refused, never checked by its work tree alone."""
+    directories, also for a target below the Git root. Fails closed: a target
+    with a `.git` entry whose directories cannot be resolved is refused, never
+    checked by its work tree alone."""
     target = Path(target)
     roots = [Path(os.path.realpath(target))]
-    dot_git = target / ".git"
-    if os.path.lexists(dot_git):
-        for flag in ("--absolute-git-dir", "--git-common-dir"):
-            result = run_git(target, "rev-parse", flag)
-            if not (result.ok and result.stdout.strip()):
+    has_dot_git = os.path.lexists(target / ".git")
+    for flag in ("--absolute-git-dir", "--git-common-dir"):
+        resolved = _git_path(target, flag)
+        if resolved is None:
+            if has_dot_git:
                 raise ContainmentError(
                     f"could not check containment: `git rev-parse {flag}` failed in {target}")
-            roots.append(Path(os.path.realpath(_resolve_git_path(target, result.stdout))))
+            break   # not inside a repository: the work tree is all there is
+        roots.append(Path(os.path.realpath(resolved)))
     unique = []
     for root in roots:
         if root not in unique:

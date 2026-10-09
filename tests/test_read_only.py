@@ -404,6 +404,39 @@ class TestCommandsDoNotWriteTheTarget(Base):
                         self.assertIn("clean/process filter", proc.stdout + proc.stderr)
                         self.assertFalse(marker.exists())
 
+    def test_a_root_path_that_normalizes_to_another_repository_never_redirects_containment_or_witnesses(self):
+        # The same names as the selection test above: `repo ` and `repo\n` lose
+        # a byte to a `.strip()`, `repo\rx` reads back as `repo\nx` in text
+        # mode. The neighbour holds a witness of its own; the target's Git
+        # directory must still be protected and its own witness the one listed.
+        for name, altered in (("repo ", "repo"), ("repo\n", "repo"), ("repo\rx", "repo\nx")):
+            neighbour = self.work / altered
+            if not neighbour.exists():
+                shutil.copytree(self.pristine, neighbour, symlinks=True)
+            (neighbour / ".git" / comp.CLAIMS_RELDIR).mkdir(parents=True, exist_ok=True)
+            (neighbour / ".git" / comp.CLAIMS_RELDIR / "FOREIGN.amendment.json").write_text("{}")
+            root = self.work / name
+            try:
+                shutil.copytree(self.pristine, root, symlinks=True)
+            except OSError:
+                continue
+            below = root / "component"
+            shutil.copytree(self.pristine, below, symlinks=True, ignore=shutil.ignore_patterns(".git"))
+            linked = self.work / (name + "-linked")
+            git(root, "worktree", "add", "-q", "-b", "side-" + str(len(name)) + str(ord(name[-1])),
+                str(linked))
+            (root / ".git" / comp.CLAIMS_RELDIR).mkdir(parents=True, exist_ok=True)
+            (root / ".git" / comp.CLAIMS_RELDIR / "MINE.amendment.json").write_text("{}")
+            for label, target in (("root", root), ("below the root", below), ("linked", linked)):
+                with self.subTest(root=name, target=label):
+                    inside = root / ".git" / "mgr-cache"
+                    with self.assertRaises(ContainmentError):
+                        plan_destinations(mock.Mock(release_cache=str(inside)), {"HOME": str(self.work)},
+                                          target, ())
+                    if label != "below the root":
+                        self.assertEqual(comp.read_repository(target).amendment_witnesses,
+                                         ["MINE.amendment.json"])
+
     def test_a_clean_filter_configured_in_a_submodule_never_runs(self):
         marker = self.work / "filter-ran"
         sub = self.work / "sm-origin"
