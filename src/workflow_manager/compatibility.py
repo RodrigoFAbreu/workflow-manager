@@ -522,11 +522,14 @@ def _read_git(target: Path, facts: RepositoryFacts) -> None:
             "a Git clean/process filter is configured (or could not be ruled out): whether the "
             "tree is clean was not checked, because `git status` could run the filter")
     else:
-        # `--ignore-submodules=all`: the child `git status` in a submodule reads
-        # the submodule's own config, where a filter could still run. A moved
-        # gitlink is still reported as modified.
+        # `--ignore-submodules=dirty`: the child `git status` in a submodule
+        # reads the submodule's own config, where a filter could still run.
+        # `dirty` compares only the submodule's HEAD with the recorded commit,
+        # so a moved gitlink (staged or not) is still reported, and edits
+        # inside a submodule's work tree are not: an update never writes there.
+        # (`all` would hide a moved gitlink; `untracked` runs the child status.)
         status = run_git(target, "status", "--porcelain", "--no-renames", "--untracked-files=normal",
-                         "--ignore-submodules=all")
+                         "--ignore-submodules=dirty")
         if status.ok:
             facts.dirty = bool(status.stdout.strip())
         else:

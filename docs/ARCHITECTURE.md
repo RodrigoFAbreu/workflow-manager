@@ -227,7 +227,9 @@ clone skips the commands that would fetch. A configured Git clean/process
 filter is arbitrary code that `git status` could run, so with one configured
 the tree-state check is skipped and reported as an incomplete inspection. A
 filter configured in a submodule cannot run either: the status call passes
-`--ignore-submodules=all`, and a moved gitlink still reads as modified. The
+`--ignore-submodules=dirty`, which compares only a submodule's HEAD with the
+recorded commit: a moved gitlink, staged or not, still reads as modified, and
+edits inside a submodule's work tree do not (an update never writes there). The
 package disables bytecode writing as it loads, so a checkout that is both the
 Manager's source and the target gains no `.pyc` except the package's own
 `__init__`, which Python compiles before any code of it can run. Any link

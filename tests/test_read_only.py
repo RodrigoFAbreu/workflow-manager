@@ -365,6 +365,31 @@ class TestCommandsDoNotWriteTheTarget(Base):
                 self.check(command)
         self.assertFalse(marker.exists())
 
+    def test_a_moved_gitlink_reads_as_dirty_without_running_a_submodule_filter(self):
+        marker = self.work / "filter-ran"
+        sub = self.work / "sm-origin"
+        init_git_repo(sub)
+        (sub / "f.txt").write_text("tracked\n")
+        git(sub, "add", "f.txt")
+        git(sub, "-c", "user.name=t", "-c", "user.email=t@e", "commit", "-q", "-m", "s")
+        git(self.repo, "-c", "protocol.file.allow=always", "submodule", "add", "-q", str(sub), "sm")
+        git(self.repo, "-c", "user.name=t", "-c", "user.email=t@e", "commit", "-q", "-m", "r")
+        inner = self.repo / "sm"
+        git(inner, "-c", "user.name=t", "-c", "user.email=t@e", "commit", "-q", "--allow-empty", "-m", "move")
+        # Configure the filter only after the move: the test's own commit must not run it.
+        git(inner, "config", "filter.r.clean", f"touch {marker}; cat")
+        modules = self.repo / ".git" / "modules" / "sm" / "info"
+        modules.mkdir(parents=True, exist_ok=True)
+        (modules / "attributes").write_text("f.txt filter=r\n")
+        (inner / "f.txt").write_text("trackeX\n")   # same size
+        for staged in (False, True):
+            if staged:
+                git(self.repo, "add", "sm")
+            with self.subTest(staged=staged):
+                facts = comp.read_repository(self.repo)
+                self.assertIs(facts.dirty, True)
+        self.assertFalse(marker.exists())
+
     def test_startup_writes_no_bytecode_without_the_suppressing_environment(self):
         source_copy = self.repo / "src"
         shutil.copytree(REPO_ROOT / "src", source_copy, ignore=shutil.ignore_patterns("__pycache__"))
