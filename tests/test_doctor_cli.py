@@ -129,6 +129,8 @@ class TestDoctorExitCodes(Base):
                    "doctor", str(self.fresh()))
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
         self.assertIn("not-verified", proc.stdout)
+        self.assertIn("still detected from the install record", proc.stdout)
+        self.assertNotIn("was not checked", proc.stdout)
 
     def test_an_incomplete_inspection_is_never_exit_0(self):
         repo = self.fresh()
@@ -236,6 +238,22 @@ class TestDryRun(Base):
         self.assertEqual(dry.stderr.replace(str(dry_repo), "R"), real.stderr.replace(str(real_repo), "R"))
         self.assertIn("re-run with --force", dry.stderr)
         self.assertIn("refused-drift", dry.stdout)
+
+    def test_a_drifted_repository_with_an_unresolvable_installed_release_reports_both(self):
+        # Local edits are detected from the install record, not the release package.
+        cache = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, cache, True)
+        shutil.copytree(source.cache_root() / NEWEST_RELEASE, cache / NEWEST_RELEASE, symlinks=True)
+        repo = self.fresh()
+        (repo / "scripts" / "workflow_state.py").write_text("# edited\n")
+        self.commit(repo)
+        proc = run("--release-cache", str(cache), "--release-source", str(cache / "nowhere"),
+                   "update", str(repo), "--dry-run")
+        self.assertEqual(proc.returncode, 2, proc.stdout + proc.stderr)
+        self.assertIn("[blocked] refused-drift", proc.stdout)
+        self.assertIn("[note] not-verified", proc.stdout)
+        self.assertIn("still detected from the install record", proc.stdout)
+        self.assertNotIn("was not checked", proc.stdout)
 
     def test_a_collision_is_refused_like_the_real_update(self):
         dry_repo, real_repo = self.fresh("a"), self.fresh("b")

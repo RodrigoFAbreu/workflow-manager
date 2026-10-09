@@ -1042,6 +1042,21 @@ class TestMiscFindings(Case):
         found = next(f for f in report.findings if f.id == "not-verified")
         self.assertEqual(found.severity, NOTE)
         self.assertEqual(report.doctor_exit_code, 0)
+        self.assertIn("Local edits to release files are still detected from the install record", found.detail)
+        self.assertIn("`workflow-manager verify`", found.detail)
+        self.assertNotIn("was not checked", found.detail)
+
+    def test_a_refused_drift_and_an_unresolved_release_report_both_truthfully(self):
+        self.commit()
+        report = self.report(refusal=DriftError("refusing to update: edited", []),
+                             installed_resolved=False)
+        self.assertIn("refused-drift", report.ids(BLOCKED))
+        found = next(f for f in report.findings if f.id == "not-verified")
+        self.assertEqual(found.severity, NOTE)
+        self.assertNotIn("not checked", found.detail)
+        text = render_report(report)
+        self.assertIn("[blocked] refused-drift", text)
+        self.assertIn("still detected from the install record", text)
 
     def test_a_note_only_report_lists_the_note_under_findings(self):
         self.commit()

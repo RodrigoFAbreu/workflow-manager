@@ -1136,7 +1136,10 @@ def build_findings(facts: RepositoryFacts, plan: UpdatePlan | None, *, target: s
     if not installed_resolved:
         findings.append(Finding(
             NOTE, "not-verified", "the installed release could not be resolved",
-            "Whether release files were edited locally was not checked."))
+            "Local edits to release files are still detected from the install record. "
+            "This Manager cannot compare the installation with the installed release's "
+            "published package (offline, or the release is not pinned), the comparison "
+            "`workflow-manager verify` makes."))
     return findings
 
 
