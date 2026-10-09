@@ -1083,6 +1083,34 @@ class TestReportText(Case):
         facts.dirty = None
         self.assertNotIn("restore", render_report(self.report(facts=facts)))
 
+    def test_a_downgrade_target_gets_no_update_command_in_recovery(self):
+        self.commit()
+        report = self.report(target="2.6.0", installed="2.9.0", refusal=DriftError("x", []))
+        commands = [c for step in report.recovery for c in step.commands]
+        self.assertFalse([c for c in commands if c.family == comp.FAMILY_MANAGER])
+        text = render_report(report)
+        self.assertIn("No update command is offered", text)
+        self.assertNotIn("--release-version 2.6.0 update", text)
+        ordinary = render_report(self.report(target="2.8.0", installed="2.7.0"))
+        self.assertIn("--release-version 2.8.0 update", ordinary)
+
+    def test_the_withheld_undo_step_is_explained(self):
+        self.commit()
+        self.assertNotIn("No undo command", render_report(self.report()))
+        (self.target / "x.txt").write_text("x")
+        self.assertIn("No undo command: the tree has uncommitted changes", render_report(self.report()))
+        facts = self.facts()
+        facts.dirty = None
+        self.assertIn("No undo command: whether the tree", render_report(self.report(facts=facts)))
+
+    def test_the_update_time_shows_only_when_it_differs(self):
+        facts = self.facts()
+        facts.installation = Installation("2.9.0", "full", {}, installed_at="T1", updated_at="T1")
+        self.assertNotIn("updated T1", render_report(self.report(facts=facts)))
+        facts.installation = Installation("2.9.0", "full", {}, installed_at="T1", updated_at="T2")
+        text = render_report(self.report(facts=facts))
+        self.assertIn("installed T1, updated T2", text)
+
     def test_recovery_commands_have_families_and_the_global_option_goes_first(self):
         self.commit()
         report = self.report(target="2.8.0", installed="2.7.0", refusal=DriftError("x", []))

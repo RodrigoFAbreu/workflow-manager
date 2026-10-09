@@ -890,6 +890,7 @@ class Report:
     new_work_only: tuple[tuple[str, str], ...]
     recovery: tuple[RecoveryStep, ...]
     inspection_complete: bool
+    updated_at: str | None = None
 
     @property
     def headline(self) -> str:
@@ -1147,21 +1148,24 @@ def new_work_only(installed: str, target: str) -> list[tuple[str, str]]:
 
 
 def recovery_steps(facts: RepositoryFacts, findings: list[Finding], *, target_arg: str | None,
-                   release_version: str | None) -> list[RecoveryStep]:
+                   release_version: str | None, downgrade: bool = False) -> list[RecoveryStep]:
     """Static recovery text with the path filled in. `target_arg` is the
     repository as printed; `release_version` goes in only when it is not the
-    latest (the caller decides)."""
+    latest (the caller decides). `downgrade` withholds every update command:
+    the target is older than the installed release."""
     repo = Path(target_arg or facts.target)
-    update = manager_command("update", str(repo), release_version=release_version)
-    steps = [
-        RecoveryStep(
-            "Before the update: make sure the tree is clean, or the edits are committed, and "
-            "update on a branch.",
-            (git_command(repo, "status", "--short"),)),
-        RecoveryStep(
+    steps = [RecoveryStep(
+        "Before the update: make sure the tree is clean, or the edits are committed, and "
+        "update on a branch.",
+        (git_command(repo, "status", "--short"),))]
+    if downgrade:
+        steps.append(RecoveryStep(
+            "No update command is offered: the target is older than the installed release, and "
+            "a downgrade is unsupported."))
+    else:
+        steps.append(RecoveryStep(
             "An update that stopped half way is re-run with the same command; it needs no --force.",
-            (update,)),
-    ]
+            (manager_command("update", str(repo), release_version=release_version),)))
     if facts.dirty is False:
         steps.append(RecoveryStep(
             "To undo an update that has not been committed: this is an undo only if the tree was "
@@ -1171,7 +1175,13 @@ def recovery_steps(facts: RepositoryFacts, findings: list[Finding], *, target_ar
             "unsupported downgrade.",
             (git_command(repo, "restore", "--source=HEAD", "--staged", "--worktree", "--", "."),
              git_command(repo, "clean", "-n", "-d"))))
-    if any(f.id == "refused-drift" for f in findings):
+    elif facts.dirty:
+        steps.append(RecoveryStep(
+            "No undo command: the tree has uncommitted changes, so an undo would discard them too."))
+    else:
+        steps.append(RecoveryStep(
+            "No undo command: whether the tree has uncommitted changes could not be checked."))
+    if not downgrade and any(f.id == "refused-drift" for f in findings):
         steps.append(RecoveryStep(
             "A locally modified release file: save your edit, then run the update with --force.",
             (manager_command("update", str(repo), "--force", release_version=release_version),)))
@@ -1206,6 +1216,7 @@ def build_report(facts: RepositoryFacts, plan: UpdatePlan | None, *, target_vers
         installed=installed,
         profile=installation.profile if installation else None,
         installed_at=installation.installed_at if installation else None,
+        updated_at=installation.updated_at if installation else None,
         source=source,
         latest=latest_version,
         target=target_version,
@@ -1216,7 +1227,9 @@ def build_report(facts: RepositoryFacts, plan: UpdatePlan | None, *, target_vers
         findings=tuple(findings),
         new_work_only=notes,
         recovery=tuple(recovery_steps(facts, findings, target_arg=target_arg,
-                                      release_version=explicit)),
+                                      release_version=explicit,
+                                      downgrade=bool(installed and target_version
+                                                     and _lt(target_version, installed)))),
         inspection_complete=not any(f.id == "incomplete-inspection" for f in findings),
     )
 
@@ -1237,6 +1250,8 @@ def render_report(report: Report) -> str:
         extra = [f"profile {report.profile}"]
         if report.installed_at:
             extra.append(f"installed {report.installed_at}")
+        if report.updated_at and report.updated_at != report.installed_at:
+            extra.append(f"updated {report.updated_at}")
         if report.source:
             extra.append(f"source {report.source}")
         lines.append(f"Installed release   {report.installed}  ({', '.join(extra)})")
