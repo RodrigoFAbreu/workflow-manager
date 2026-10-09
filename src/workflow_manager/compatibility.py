@@ -1393,21 +1393,35 @@ def _inside(path: Path, protected: tuple[Path, ...]) -> Path | None:
     return None
 
 
+def _has_dot_git_above(target: Path) -> bool:
+    """True when `target` or any ancestor holds a `.git` entry."""
+    real = Path(os.path.realpath(target))
+    return any(os.path.lexists(directory / ".git") for directory in (real, *real.parents))
+
+
 def protected_set(target: Path) -> tuple[Path, ...]:
     """The real paths of the work tree and of the actual and common Git
-    directories, also for a target below the Git root. Fails closed: a target
-    with a `.git` entry whose directories cannot be resolved is refused, never
-    checked by its work tree alone."""
+    directories, also for a target below the Git root. Fails closed: the
+    answer "outside every repository" is accepted only when Git itself ran,
+    reported no repository, and no `.git` entry exists at or above the target.
+    Any other failure of a lookup (a timeout, Git not runnable, a non-zero
+    exit once membership is established, a printed path that is not a
+    directory) is unknown and refuses the destination, never a work-tree-only
+    check."""
     target = Path(target)
     roots = [Path(os.path.realpath(target))]
-    has_dot_git = os.path.lexists(target / ".git")
     for flag in ("--absolute-git-dir", "--git-common-dir"):
         resolved = _git_path(target, flag)
         if resolved is None:
-            if has_dot_git:
+            if flag == "--git-common-dir" or _has_dot_git_above(target) \
+                    or run_git(target, "rev-parse", "--git-dir").returncode != 128:
                 raise ContainmentError(
                     f"could not check containment: `git rev-parse {flag}` failed in {target}")
-            break   # not inside a repository: the work tree is all there is
+            break   # Git ran and found no repository: the work tree is all there is
+        if not os.path.isdir(resolved):
+            raise ContainmentError(
+                f"could not check containment: `git rev-parse {flag}` printed {resolved}, "
+                f"which is not a directory")
         roots.append(Path(os.path.realpath(resolved)))
     unique = []
     for root in roots:

@@ -217,6 +217,84 @@ class TestPlanDestinations(Base):
         self.assertEqual(self.destinations(repo=bare).protected, (bare.resolve(),))
 
 
+class TestContainmentFailsClosed(Base):
+    """Every Git lookup the containment decision rests on, failing in turn,
+    below a linked worktree and at a root: the destination is refused and
+    nothing is created inside either Git directory."""
+
+    def failing(self, flag, returncode):
+        real = comp.run_git
+
+        def run(repo, *args, **kwargs):
+            if flag in args:
+                return comp.GitResult(returncode, "")
+            return real(repo, *args, **kwargs)
+        return mock.patch.object(comp, "run_git", run)
+
+    def targets(self):
+        linked = self.work / "linked"
+        git(self.repo, "worktree", "add", "-q", "-b", "side", str(linked))
+        below = linked / "component"
+        shutil.copytree(self.pristine, below, symlinks=True, ignore=shutil.ignore_patterns(".git"))
+        common = self.repo / ".git"
+        shutil.copytree(self.cache, common / "mgr-cache", symlinks=True)
+        return {"below a linked worktree": below, "a linked worktree": linked, "a root": self.repo}, common
+
+    def test_a_failed_lookup_refuses_both_commands_and_creates_nothing_in_a_git_directory(self):
+        targets, common = self.targets()
+        for flag in ("--absolute-git-dir", "--git-common-dir"):
+            for returncode in (None, 1, 128):
+                for label, target in targets.items():
+                    for command in ("doctor", "update --dry-run"):
+                        with self.subTest(flag=flag, returncode=returncode, target=label,
+                                          command=command):
+                            git_dirs = [Path(p) for p in self.protected(target) if p != str(target.resolve())]
+                            before = [tree_snapshot(d) for d in git_dirs]
+                            locks = sorted(common.rglob("*.lock"))
+                            argv = [command.split()[0], str(target), *command.split()[1:]]
+                            err = []
+                            with self.failing(flag, returncode), \
+                                    mock.patch.dict(os.environ, {source.CACHE_ENV: str(common / "mgr-cache")}), \
+                                    mock.patch("sys.stderr") as stderr:
+                                code = support_main(argv)
+                                err = "".join(c.args[0] for c in stderr.write.call_args_list)
+                            self.assertNotEqual(code, 0)
+                            self.assertIn("could not check containment", err)
+                            self.assertEqual([tree_snapshot(d) for d in git_dirs], before)
+                            self.assertEqual(sorted(common.rglob("*.lock")), locks)
+
+    def test_a_listing_that_prints_a_missing_directory_is_refused(self):
+        real = comp.run_git
+
+        def run(repo, *args, **kwargs):
+            if "--git-common-dir" in args:
+                return comp.GitResult(0, str(self.work / "nowhere") + "\n")
+            return real(repo, *args, **kwargs)
+        with mock.patch.object(comp, "run_git", run), self.assertRaises(ContainmentError):
+            plan_destinations(mock.Mock(release_cache=str(self.cache)), {"HOME": str(self.work)},
+                              self.repo, ())
+
+    def test_a_plain_directory_that_git_reports_as_no_repository_is_still_accepted(self):
+        plain = self.work / "plain-dir"
+        plain.mkdir()
+        self.assertEqual(plan_destinations(mock.Mock(release_cache=str(self.cache)),
+                                           {"HOME": str(self.work)}, plain, ()).protected,
+                         (plain.resolve(),))
+
+    def test_a_timed_out_lookup_in_a_plain_directory_is_refused(self):
+        plain = self.work / "plain-dir"
+        plain.mkdir()
+        with mock.patch.object(comp, "run_git", return_value=comp.GitResult(None, "")), \
+                self.assertRaises(ContainmentError):
+            plan_destinations(mock.Mock(release_cache=str(self.cache)), {"HOME": str(self.work)},
+                              plain, ())
+
+
+def support_main(argv):
+    from workflow_manager import cli
+    return cli.main(argv)
+
+
 class TestResolverIsReadOnly(Base):
     def test_a_lock_leaf_that_is_a_link_fails_before_any_write(self):
         cache = self.work / "linked-cache"
