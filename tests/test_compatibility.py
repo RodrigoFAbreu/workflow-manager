@@ -476,7 +476,7 @@ class TestIncompleteInspection(Case):
         for failing_command in ("check-attr", "ls-files"):
             with self.subTest(failing_command=failing_command):
                 def failing(repo, *args, **kwargs):
-                    if args[:1] == (failing_command,):
+                    if failing_command in args[:2]:
                         return GitResult(128)
                     return real(repo, *args, **kwargs)
 

@@ -363,6 +363,47 @@ class TestCommandsDoNotWriteTheTarget(Base):
                 self.check(command, repo=component)
         self.assertFalse(marker.exists())
 
+    def _filtered_root(self, root: Path, marker: Path) -> bool:
+        """Make `root` a bootstrapped repository whose tracked README.md selects
+        a clean filter, with the work tree edited so that only a filter run
+        could tell. False when the filesystem refuses the name."""
+        try:
+            shutil.copytree(self.pristine, root, symlinks=True)
+        except OSError:
+            return False
+        (root / "README.md").write_text("tracked\n")
+        (root / ".gitattributes").write_text("README.md filter=x\n")
+        git(root, "add", "README.md", ".gitattributes")
+        git(root, "-c", "user.name=t", "-c", "user.email=t@e", "commit", "-q", "-m", "r")
+        return True
+
+    def test_a_root_path_that_normalizes_to_another_repository_never_redirects_the_selection(self):
+        # `repo ` and `repo\n` lose their last byte to a `.strip()`, `repo\rx`
+        # reads back as `repo\nx` in text mode: each altered path names an
+        # ordinary repository with no filter configured.
+        marker = self.work / "filter-ran"
+        for name, altered in (("repo ", "repo"), ("repo\n", "repo"), ("repo\rx", "repo\nx")):
+            ordinary = self.work / altered
+            if not ordinary.exists():
+                shutil.copytree(self.pristine, ordinary, symlinks=True)
+            root = self.work / name
+            if not self._filtered_root(root, marker):
+                continue
+            below = root / "component"
+            shutil.copytree(self.pristine, below, symlinks=True, ignore=shutil.ignore_patterns(".git"))
+            linked = self.work / (name + "-linked")
+            git(root, "worktree", "add", "-q", "-b", "side-" + str(len(name)) + str(ord(name[-1])),
+                str(linked))
+            git(root, "config", "filter.x.clean", f"touch {marker}; cat")
+            (root / "README.md").write_text("trackeX\n")   # same size
+            (linked / "README.md").write_text("trackeX\n")
+            for label, target in (("root", root), ("below the root", below), ("linked", linked)):
+                for command in COMMANDS:
+                    with self.subTest(root=name, target=label, command=command):
+                        proc, _ = self.check(command, repo=target, expected=(0, 1, 2))
+                        self.assertIn("clean/process filter", proc.stdout + proc.stderr)
+                        self.assertFalse(marker.exists())
+
     def test_a_clean_filter_configured_in_a_submodule_never_runs(self):
         marker = self.work / "filter-ran"
         sub = self.work / "sm-origin"

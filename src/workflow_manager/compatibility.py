@@ -505,18 +505,17 @@ def _filter_selected_by_a_tracked_path(target: Path) -> bool:
             drivers.add(key[len("filter."):key.rindex(".")])
     if not drivers:
         return True
-    # `git status` scans the whole work tree, not only a target below its root,
-    # so list and query every tracked path from the top level.
-    top = run_git(target, "rev-parse", "--show-toplevel")
-    if not top.ok or not top.stdout.strip():
-        return True
-    root = _resolve_git_path(target, top.stdout)
-    listed = run_git(root, "ls-files", "-z", raw=True)
+    # `git status` scans the whole work tree, not only a target below its
+    # root, so list every tracked path with the top-level pathspec `:/`. Git
+    # prints the paths relative to the target, and `check-attr` run from the
+    # same directory resolves them the same way: no root path is read back, so
+    # no path normalization can point the selection at another repository.
+    listed = run_git(target, "--no-literal-pathspecs", "ls-files", "-z", "--", ":/", raw=True)
     if not listed.ok:
         return True
     if not listed.stdout:
         return False
-    attrs = run_git(root, "check-attr", "-z", "--stdin", "filter", stdin=listed.stdout, raw=True)
+    attrs = run_git(target, "check-attr", "-z", "--stdin", "filter", stdin=listed.stdout, raw=True)
     if not attrs.ok:
         return True
     fields = attrs.stdout.split("\0")
