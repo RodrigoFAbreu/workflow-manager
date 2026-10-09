@@ -30,7 +30,7 @@ Each problem has a one-line fix. Find the message, apply the fix, run the comman
 
 ## Exit codes
 
-Every command ends with a status: 0 for success, 1 when it found a problem or had no usable release, 2 when it refused to run or could not check. The full table, per command, is in [Exit codes](exit-codes.md).
+Every command ends with a status: 0 for success, 1 when it found a problem or had no usable release (for `doctor`, a release it cannot resolve is 2), 2 when it refused to run or could not check. The full table, per command, is in [Exit codes](exit-codes.md).
 
 Use them in scripts: `workflow-manager verify <repo> && echo ok`.
 

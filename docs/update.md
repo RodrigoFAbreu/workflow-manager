@@ -45,7 +45,7 @@ Reading the report:
 - **Fixes that apply only to new work** says what the update does not change for existing items.
 - **Recovery** prints commands for the repository's path. The line that discards uncommitted changes is printed only when the tree is known to be clean; it is an undo only if the tree was clean before the update. When the tree has uncommitted changes (or could not be checked) the report says `No undo command: ...` instead. When the target is older than the installed release it says `No update command is offered: ...`, because a downgrade is unsupported.
 
-`doctor` exits 0 when it found no `blocked` or `warning` finding, 1 when it found one, and 2 when it could not check (not a managed repository, an unreadable record, or a target release it cannot resolve). `update --dry-run` exits 0 when the update would proceed and 2 when the real update would refuse, with the refusal's own text.
+`doctor` exits 0 when it found no `blocked` or `warning` finding, 1 when it found one, and 2 when it could not check (not a managed repository, an unreadable record, or a target release it cannot resolve). `update --dry-run` exits 0 when the update would proceed, 1 when it has no usable release (see [Exit codes](exit-codes.md)), and 2 when the real update would refuse, with the refusal's own text.
 
 If you run the Manager from a source checkout that is itself the repository you are checking, start Python with `-B` (or set `PYTHONDONTWRITEBYTECODE=1`): the package stops further bytecode writes as it loads, but Python still compiles `workflow_manager/__init__.py` first. A pipx install is not affected.
 

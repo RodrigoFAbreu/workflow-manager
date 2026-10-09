@@ -39,14 +39,15 @@ Newest first.
 - **Update ergonomics** (2026-10-09, PR #22, Manager v1.6.0). `workflow-manager doctor` and `update --dry-run` read a repository and report what an update would do and which Workflow guarantees it would cross, without writing it. Plan: `docs/ai-workflow/WORKFLOW_MANAGER_UPDATE_ERGONOMICS_PLAN.md`.
 - **Small Workflow fix release** (2026-10-08, Workflow 2.9.0; pinned in Manager v1.5.0, PR #19). Built and published by the `workflow` repository. It fixes `v2.6.0-003`, makes the latest governing version the default for new work items, and adds `/retire-legacy-work-item`.
 - **Documentation clean-up** (2026-10-04, PR #16). Readable user documentation with install, update and verify guides, a troubleshooting page and a documentation index.
-- **Workflow 2.8.0 pinned, Manager v1.4.0** (PR #14), and **2.8.0 installed here** (PR #15), so this repository runs its own milestones on 2.8.0.
+- **Workflow 2.9.0 installed here** (2026-10-08, PR #21), so this repository runs its own milestones on 2.9.0.
+- **Workflow 2.8.0 pinned, Manager v1.4.0** (PR #14), and **2.8.0 installed here** (PR #15). Replaced by 2.9.0 above.
 - **Workflow 2.7.0 pinned, Manager v1.3.0** (PR #13).
 - **The `workflow` repository and its releases** (W0 to W2). Set up for development with CI and releases; it published Workflow 2.7.0 (Orchestration Protocol, first packaged release) and 2.8.0 (declarative gate policy, a red pull request reopening its work item). They are tracked in the Workflow roadmap, not here.
 - **M2, packaged distribution** (2026-10-01, PR #11, Manager v1.2.0). Workflow moved to its own repository and is released as checksummed, immutable packages (2.3.1 to 2.6.0 published as a record). The Manager downloads, verifies and installs them, and caches them for offline use. `distribution/` and the stopgap test profile were removed. Record and evidence: `docs/MIGRATION.md`.
 - **M1b, test cleanup** (2026-09-30, PR #10). Throwaway test repositories turn off Git's automatic maintenance, and a leak check fails a run that leaves orphaned processes. This stopped about 1,000 stray `git` processes per full run.
 - **M1, trunk model** (2026-09-29, PR #4, Manager v1.1.0). Protected `main`, one short-lived branch per milestone, squash merges, and the release version derived from the pull-request title (a Conventional Commit). The Git tag is the only version authority. See `docs/RELEASING.md`.
 - **Adaptive test sharding** (2026-09-28, PR #1). The full test run takes about 7 minutes locally instead of 36, and about 7 to 10 minutes in CI at 16 shards. Design: `docs/ARCHITECTURE.md`, "Verification execution".
-- **RepFlow upgrade.** RepFlow's own lane did it. RepFlow is on Workflow 2.8.0 since 2026-10-04 (repflow-android PR #7), adopted through Manager 1.4.0, with an adopted gate policy that keeps every gate human. Using the Controller is the owner's decision for RepFlow. Done for this roadmap.
+- **RepFlow upgrade.** RepFlow's own lane did it. RepFlow is on Workflow 2.9.0 since 2026-10-08 (repflow-android PR #8, merge 7b33182), adopted through Manager 1.5.0, and its legacy milestone-8 is retired. It keeps its adopted gate policy, unchanged, which keeps every gate human. Using the Controller is the owner's decision for RepFlow. Done for this roadmap.
 - **Old sections that moved or were replaced** (review artifacts, review-data simplification, multi-worktree, long-term evolution, release quality): now in the Workflow roadmap or replaced by M2.
 
 ## Later (open items)
