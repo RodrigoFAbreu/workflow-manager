@@ -1,6 +1,6 @@
 # Workflow Manager Roadmap
 
-> For: anyone following where the Workflow Manager is going. Last checked with: Workflow Manager 1.4.0, Workflow 2.8.0.
+> For: anyone following where the Workflow Manager is going. Last checked with: Workflow Manager 1.6.0, Workflow 2.9.0.
 
 The full text of earlier versions is in this file's git history; the last long version is [here](https://github.com/RodrigoFAbreu/workflow-manager/blob/de95195/docs/ROADMAP.md).
 
@@ -14,47 +14,30 @@ The full text of earlier versions is in this file's git history; the last long v
 
 ## What's next
 
+Nothing is Next right now. Items 1 to 4 are done. Items 5 and 6 wait on the Controller, and item 7 is Later. The next step is the Controller's, not this repository's.
+
 The end goal is a loop where the Controller takes the next roadmap item, plans, implements, reviews, tests, merges and releases it, then starts the next one. The order below is the owner's agreed order across this lane.
 
 | Order | Item | What it gives you | Status or what it waits on |
 |---|---|---|---|
 | 1 | Documentation clean-up | Readable install, update and verify guides | Done (PR #16) |
-| 2 | This roadmap clean-up | A roadmap you can read | Done once this change merges |
-| 3 | **Small Workflow fix release** | The `v2.6.0-003` fix, the latest governing version as the default for new work items, and `/retire-legacy-work-item` (a user-only way to close a dormant legacy work item that was already finished, which RepFlow needs); then its pin here | **Next**: built in the `workflow` repository (moved first on 2026-10-04 to unblock RepFlow); the pin follows here |
-| 4 | **Update ergonomics** | `workflow-manager doctor`, `update --dry-run` and a compatibility report; safer upgrades for every repository | Done once PR #22 merges |
-| 5 | Controller C10 (gate policy and automatic acceptance) | The Controller can use Workflow 2.8's gate policy | Waiting on the Controller; done in [the Controller repository](https://github.com/RodrigoFAbreu/workflow-controller/blob/main/docs/ROADMAP.md) |
+| 2 | This roadmap clean-up | A roadmap you can read | Done |
+| 3 | Small Workflow fix release | The `v2.6.0-003` fix, the latest governing version as the default for new work items, and `/retire-legacy-work-item`; then its pin here | Done (Workflow 2.9.0, pinned in Manager 1.5.0, PR #19) |
+| 4 | Update ergonomics | `workflow-manager doctor`, `update --dry-run` and a compatibility report; safer upgrades for every repository | Done (PR #22, Manager 1.6.0) |
+| 5 | Controller C10 (gate policy and automatic acceptance) | The Controller can use Workflow 2.8's gate policy | Waiting on the Controller; tracked in [the Controller repository](https://github.com/RodrigoFAbreu/workflow-controller/blob/main/docs/ROADMAP.md) |
 | 6 | **M3**: this repository and `workflow` driven by the Controller's loop | Roadmap items worked, merged and released with no hand-driving | Waiting on the Controller's kanban runner (C11) |
 | 7 | Operator UX | Clearer errors and recovery steps | Later (deferred); see below |
 
-### 3. Small Workflow fix release (Next)
-
-Authored and published in the `workflow` repository, never here. It carries the `v2.6.0-003` fix (listed in the open-defects table of [the Workflow roadmap](https://github.com/RodrigoFAbreu/workflow/blob/main/docs/ROADMAP.md)) makes the latest governing version the default for new work items, and adds `/retire-legacy-work-item`, a user-only, confirmation-guarded command that closes a dormant legacy work item (already finished long ago) as complete, keeping its old approval record and leaving an auditable commit. Here it is only a `feat:` pull request that adds the pin (`docs/RELEASING.md`, "Workflow packages: adding a pin"). Plan it with the Workflow roadmap's next items so it ships once.
-
-### 4. Update ergonomics (Done once PR #22 merges)
-
-Make an update easy to reason about before it runs. It helps every repository that upgrades. It follows the small fix release, which moved first to unblock RepFlow.
-
-- `workflow-manager doctor` reads a repository and reports, without changing anything.
-- `workflow-manager update --dry-run` shows what an update would change, and what it would leave alone.
-- Both warn before an update when it could disturb work in flight: a `process` work item in IMPLEMENTING or later (an update rewrites its protected `scripts/` and `.claude/commands/`, the `v2.4.0-001` hazard), and any active legacy work item. This is the stronger preflight for repositories with active work items.
-- The compatibility report covers:
-  - the installed release;
-  - the active work items and the version that governs each;
-  - the latest available release;
-  - migration hazards, including the downgrade posture in `CLAUDE.md`;
-  - fixes that apply only to new work and not retroactively;
-  - recovery instructions when something looks wrong.
-- Direction: keep the three versions distinct in the output (installed release, a work item's governing release, latest available), since mixing them up is the common confusion. Make the dry run share the real update's code path so the two cannot disagree. Print commands exactly as they parse. Never write state.
-
 ### 7. Operator UX (Later, deferred)
 
-The documentation clean-up delivered most of this: install, update, verify and troubleshooting guides, and a documentation index. What remains is in the tool, not the docs: error messages that say what to do next, recovery instructions in output, and fewer cases where an operator has to read state JSON. Part of it lands with update ergonomics; schedule the rest after that.
+The documentation clean-up delivered most of this: install, update and verify guides, a common-problems page, and a documentation index. What remains is in the tool, not the docs: error messages that say what to do next, recovery instructions in output, and fewer cases where an operator has to read state JSON. Update ergonomics delivered part of it. The rest has no slot yet.
 
 ## Done
 
 Newest first.
 
-- **Update ergonomics** (pull request #22, accepted 2026-10-09 by policy; Done once it merges). `workflow-manager doctor` and `update --dry-run` read a repository and report what an update would do and which Workflow guarantees it would cross, without writing it. Plan: `docs/ai-workflow/WORKFLOW_MANAGER_UPDATE_ERGONOMICS_PLAN.md`.
+- **Update ergonomics** (2026-10-09, PR #22, Manager v1.6.0). `workflow-manager doctor` and `update --dry-run` read a repository and report what an update would do and which Workflow guarantees it would cross, without writing it. Plan: `docs/ai-workflow/WORKFLOW_MANAGER_UPDATE_ERGONOMICS_PLAN.md`.
+- **Small Workflow fix release** (2026-10-08, Workflow 2.9.0; pinned in Manager v1.5.0, PR #19). Built and published by the `workflow` repository. It fixes `v2.6.0-003`, makes the latest governing version the default for new work items, and adds `/retire-legacy-work-item`.
 - **Documentation clean-up** (2026-10-04, PR #16). Readable user documentation with install, update and verify guides, a troubleshooting page and a documentation index.
 - **Workflow 2.8.0 pinned, Manager v1.4.0** (PR #14), and **2.8.0 installed here** (PR #15), so this repository runs its own milestones on 2.8.0.
 - **Workflow 2.7.0 pinned, Manager v1.3.0** (PR #13).
