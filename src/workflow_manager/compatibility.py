@@ -522,7 +522,11 @@ def _read_git(target: Path, facts: RepositoryFacts) -> None:
             "a Git clean/process filter is configured (or could not be ruled out): whether the "
             "tree is clean was not checked, because `git status` could run the filter")
     else:
-        status = run_git(target, "status", "--porcelain", "--no-renames", "--untracked-files=normal")
+        # `--ignore-submodules=all`: the child `git status` in a submodule reads
+        # the submodule's own config, where a filter could still run. A moved
+        # gitlink is still reported as modified.
+        status = run_git(target, "status", "--porcelain", "--no-renames", "--untracked-files=normal",
+                         "--ignore-submodules=all")
         if status.ok:
             facts.dirty = bool(status.stdout.strip())
         else:
@@ -819,6 +823,9 @@ NEW_WORK_ONLY: dict[str, tuple[str, ...]] = {
 #: Per pinned release, how it changes the gate defaults for existing work too;
 #: "" for a release that does not. A report names each change in (installed,
 #: target] when the repository has no GATE_POLICY.json.
+#: Only `2.8.0` has a non-empty entry; `build_findings` shows the last one in
+#: range with 2.8.0-specific wording. A second non-empty entry needs the
+#: `gates-change` finding generalized first.
 GATE_DEFAULT_CHANGES: dict[str, str] = {
     "2.3.1": "",
     "2.4.0": "",

@@ -225,7 +225,9 @@ run with a hermetic environment and flags, the work tree and Git directories
 are protected by path arithmetic before anything is resolved, and a partial
 clone skips the commands that would fetch. A configured Git clean/process
 filter is arbitrary code that `git status` could run, so with one configured
-the tree-state check is skipped and reported as an incomplete inspection. The
+the tree-state check is skipped and reported as an incomplete inspection. A
+filter configured in a submodule cannot run either: the status call passes
+`--ignore-submodules=all`, and a moved gitlink still reads as modified. The
 package disables bytecode writing as it loads, so a checkout that is both the
 Manager's source and the target gains no `.pyc` except the package's own
 `__init__`, which Python compiles before any code of it can run. Any link

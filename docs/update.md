@@ -47,6 +47,8 @@ Reading the report:
 
 `doctor` exits 0 when it found no `blocked` or `warning` finding, 1 when it found one, and 2 when it could not check (not a managed repository, an unreadable record, or a target release it cannot resolve). `update --dry-run` exits 0 when the update would proceed and 2 when the real update would refuse, with the refusal's own text.
 
+If you run the Manager from a source checkout that is itself the repository you are checking, start Python with `-B` (or set `PYTHONDONTWRITEBYTECODE=1`): the package stops further bytecode writes as it loads, but Python still compiles `workflow_manager/__init__.py` first. A pipx install is not affected.
+
 The report is advisory. It looks at the current state files and a few Git facts; it does not search all of history, and it never says an update is safe.
 
 ## Steps

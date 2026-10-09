@@ -344,6 +344,27 @@ class TestCommandsDoNotWriteTheTarget(Base):
                 self.check(command)
         self.assertFalse(marker.exists())
 
+    def test_a_clean_filter_configured_in_a_submodule_never_runs(self):
+        marker = self.work / "filter-ran"
+        sub = self.work / "sm-origin"
+        sub.mkdir()
+        git(sub, "init", "-q")
+        (sub / "f.txt").write_text("tracked\n")
+        git(sub, "add", "f.txt")
+        git(sub, "-c", "user.name=t", "-c", "user.email=t@e", "commit", "-q", "-m", "s")
+        git(self.repo, "-c", "protocol.file.allow=always", "submodule", "add", "-q", str(sub), "sm")
+        git(self.repo, "-c", "user.name=t", "-c", "user.email=t@e", "commit", "-q", "-m", "r")
+        inner = self.repo / "sm"
+        git(inner, "config", "filter.r.clean", f"touch {marker}; cat")
+        modules = self.repo / ".git" / "modules" / "sm" / "info"
+        modules.mkdir(parents=True, exist_ok=True)
+        (modules / "attributes").write_text("f.txt filter=r\n")
+        (inner / "f.txt").write_text("trackeX\n")   # same size
+        for command in COMMANDS:
+            with self.subTest(command=command):
+                self.check(command)
+        self.assertFalse(marker.exists())
+
     def test_startup_writes_no_bytecode_without_the_suppressing_environment(self):
         source_copy = self.repo / "src"
         shutil.copytree(REPO_ROOT / "src", source_copy, ignore=shutil.ignore_patterns("__pycache__"))
