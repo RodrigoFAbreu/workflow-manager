@@ -87,8 +87,8 @@ A new installation (Workflow 2.8.0 or later) has no `docs/ai-workflow/GATE_POLIC
 - `is not a Git repository`: run `git init` in the target first.
 - `already managed`: the repository already has the Workflow. Use [Update](update.md) to change its release.
 - A list of files that collide: your repository already keeps its own file where a release file goes (`scripts/` and `.claude/commands/` are ordinary names). Move your files, or re-run with `--force` to replace them with the release's.
-- A download error with no network: the release is not in the cache yet. Connect once, or see [Troubleshooting](troubleshooting.md).
+- A download error with no network: the release is not in the cache yet. Connect once, or see [Common problems](common-problems.md).
 - `workflow-manager: command not found`: run `pipx ensurepath` and open a new terminal.
 - `--version` shows `1.0.0` after an editable install: run `pipx reinstall workflow-manager` once.
 
-More: [Troubleshooting](troubleshooting.md), [Verify](verify.md).
+More: [Common problems](common-problems.md), [Verify](verify.md).

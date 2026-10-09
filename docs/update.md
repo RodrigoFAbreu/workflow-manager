@@ -45,7 +45,7 @@ Reading the report:
 - **Fixes that apply only to new work** says what the update does not change for existing items.
 - **Recovery** prints commands for the repository's path. The line that discards uncommitted changes is printed only when the tree is known to be clean; it is an undo only if the tree was clean before the update. When the tree has uncommitted changes (or could not be checked) the report says `No undo command: ...` instead. When the target is older than the installed release it says `No update command is offered: ...`, because a downgrade is unsupported.
 
-`doctor` exits 0 when it found no `blocked` or `warning` finding, 1 when it found one, and 2 when it could not check (not a managed repository, an unreadable record, or a target release it cannot resolve). `update --dry-run` exits 0 when the update would proceed and 2 when the real update would refuse, with the refusal's own text.
+`doctor` exits 0 when it found no `blocked` or `warning` finding, 1 when it found one, and 2 when it could not check (not a managed repository, an unreadable record, or a target release it cannot resolve). `update --dry-run` exits 0 when the update would proceed, 1 when it has no usable release (see [Exit codes](exit-codes.md)), and 2 when the real update would refuse, with the refusal's own text.
 
 If you run the Manager from a source checkout that is itself the repository you are checking, start Python with `-B` (or set `PYTHONDONTWRITEBYTECODE=1`): the package stops further bytecode writes as it loads, but Python still compiles `workflow_manager/__init__.py` first. A pipx install is not affected.
 
@@ -99,11 +99,11 @@ The report is advisory. It looks at the current state files and a few Git facts;
 
 ## If it fails
 
-- `workflow-manager doctor` exits 2 with `is not a managed repository` or an error naming a release: it could not check. See [Troubleshooting](troubleshooting.md).
+- `workflow-manager doctor` exits 2 with `is not a managed repository` or an error naming a release: it could not check. See [Common problems](common-problems.md).
 - `refusing to update: these release files were modified locally`: you edited a release file, and the Manager will not discard it silently. Save the edit elsewhere, then re-run with `--force` to replace the file with the release's.
 - The update stopped half way: run the same command again. A resumed update does not need `--force`.
 - `is not a managed repository`: use [Install](install.md) instead.
-- A download error: see [Troubleshooting](troubleshooting.md).
+- A download error: see [Common problems](common-problems.md).
 - `--version` still shows an old number after updating the Manager: remove it and install the freshly downloaded wheel: `pipx uninstall workflow-manager`, then `pipx install <wheel>` (`pipx reinstall` reuses the saved wheel path, which may be gone, and `pipx install --force` can refuse with "a virtual environment already exists").
 
-Releases are listed in the [release history](releases/README.md). The design is in [`ARCHITECTURE.md`](ARCHITECTURE.md#interruption).
+Releases are listed in the [release history](release-history.md). The design is in [`ARCHITECTURE.md`](ARCHITECTURE.md#interruption).
