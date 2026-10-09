@@ -74,12 +74,16 @@ snap() { (cd "$1" && find . -path ./.git -prune -o -type f -print0 | sort -z | x
    `scripts/workflow_state.py` and commit nothing. `wm update $T/dirty --dry-run;
    echo rc=$?`. Expected: a `[blocked] refused-drift` finding quoting the real
    refusal text, `rc=2`. Then `wm update $T/dirty; echo rc=$?` gives the same
-   refusal and `rc=2`; `--force --dry-run` shows the file as `would overwrite`.
+   refusal and `rc=2`; `--force --dry-run` shows the file as `would update scripts/workflow_state.py
+   (discards your local edit; --force)`, the real update's verb `updated`.
 5. **Recovery honesty.** Make `$T/r`'s tree dirty (`touch $T/r/x`) and run
    `wm doctor $T/r`. Expected: the Recovery section prints the "make sure the
    tree is clean" step but withholds the `git restore --source=HEAD ...` undo line.
    With a clean tree it prints that line with its "only if the tree was clean
    before the update; discards ALL uncommitted changes" precondition.
+   (On a dirty tree it now prints "No undo command: ..." in the undo line's place.
+   Flow 2 leaves `$T/r` updated and uncommitted, so flows 5 and 7 run against an
+   installed 2.9.0.)
 6. **Errors exit 2.** `wm doctor $T/nowhere`, `wm doctor $T` (a plain
    directory) and `wm --release-version 9.9.9 doctor $T/r`. Expected: named
    messages (not a managed repository / unpublished release), `rc=2`, no traceback.
