@@ -223,12 +223,20 @@ compatibility.py`) use the plan to report what an update would do and which
 Workflow guarantees it would cross. They never write the repository: Git is
 run with a hermetic environment and flags, the work tree and Git directories
 are protected by path arithmetic before anything is resolved, and a partial
-clone skips the commands that would fetch. What they do write is the release
+clone skips the commands that would fetch. A configured Git clean/process
+filter is arbitrary code that `git status` could run, so with one configured
+the tree-state check is skipped and reported as an incomplete inspection. The
+package disables bytecode writing as it loads, so a checkout that is both the
+Manager's source and the target gains no `.pyc` except the package's own
+`__init__`, which Python compiles before any code of it can run. Any link
+inside the release cache is refused, whether or not it resolves into the
+target (broader than the path arithmetic needs). What they do write is the release
 cache (a missing release is fetched, under the cache's lock) and one
 temporary copy of the release, in a directory outside the repository. The
 release knowledge the report needs is three tables in `compatibility.py`
 (`DOWNGRADE_BOUNDARIES`, `NEW_WORK_ONLY`, `GATE_DEFAULT_CHANGES`), each with an
-entry for every pinned version, enforced by a test.
+entry for every pinned version (`GATE_DEFAULT_CHANGES` uses `""` for none),
+enforced by a test; the report reads each table.
 
 ## Interruption
 

@@ -329,6 +329,38 @@ class TestCommandsDoNotWriteTheTarget(Base):
                 self.check(command)
         self.assertFalse(marker.exists())
 
+    def test_a_configured_clean_filter_never_runs(self):
+        marker = self.work / "filter-ran"
+        readme = self.repo / "README.md"
+        readme.write_text("tracked\n")
+        git(self.repo, "add", "README.md")
+        git(self.repo, "-c", "user.name=t", "-c", "user.email=t@e", "commit", "-q", "-m", "r")
+        git(self.repo, "config", "filter.review.clean", f"touch {marker}; cat")
+        (self.repo / ".git" / "info").mkdir(exist_ok=True)
+        (self.repo / ".git" / "info" / "attributes").write_text("README.md filter=review\n")
+        readme.write_text("trackeX\n")   # same size, so only a filter run could tell
+        for command in COMMANDS:
+            with self.subTest(command=command):
+                self.check(command)
+        self.assertFalse(marker.exists())
+
+    def test_startup_writes_no_bytecode_without_the_suppressing_environment(self):
+        source_copy = self.repo / "src"
+        shutil.copytree(REPO_ROOT / "src", source_copy, ignore=shutil.ignore_patterns("__pycache__"))
+        env = cli_env(PYTHONPATH=str(source_copy))
+        env.pop("PYTHONDONTWRITEBYTECODE", None)
+        env[source.CACHE_ENV] = str(self.cache)
+        for command in COMMANDS:
+            with self.subTest(command=command):
+                subprocess.run([sys.executable, "-m", "workflow_manager", *self.argv(command)],
+                               cwd=str(self.work), capture_output=True, text=True, env=env)
+                written = sorted(p.relative_to(source_copy).as_posix()
+                                 for p in source_copy.rglob("*.pyc"))
+                # The package's own __init__ is compiled before it can set
+                # sys.dont_write_bytecode: the one file that cannot be avoided.
+                self.assertLessEqual(set(written), {"workflow_manager/__pycache__/__init__.cpython-%d%d.pyc"
+                                                    % sys.version_info[:2]}, written)
+
     def test_only_the_contracted_git_commands_ran(self):
         trace = self.work / "trace2.json"
         proc, result = self.run_audited(["doctor", str(self.repo)], GIT_TRACE2_EVENT=str(trace))

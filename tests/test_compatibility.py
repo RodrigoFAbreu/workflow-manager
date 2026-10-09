@@ -142,9 +142,8 @@ class Case(unittest.TestCase):
 
 class TestTables(unittest.TestCase):
     def test_every_pinned_version_has_an_entry_in_each_table(self):
-        for table in (comp.DOWNGRADE_BOUNDARIES, comp.NEW_WORK_ONLY):
+        for table in (comp.DOWNGRADE_BOUNDARIES, comp.NEW_WORK_ONLY, comp.GATE_DEFAULT_CHANGES):
             self.assertEqual(sorted(table, key=comp.version_key), PINNED_VERSIONS)
-        self.assertLessEqual(set(comp.GATE_DEFAULT_CHANGES), set(PINNED_VERSIONS))
 
     def test_each_boundary_with_a_posture_has_signals_or_says_it_cannot_detect(self):
         for version, boundary in comp.DOWNGRADE_BOUNDARIES.items():
@@ -376,6 +375,16 @@ class TestIncompleteInspection(Case):
         self.set_state({"a": item()})
         self.set_artifacts("a", impl_stage=False)
         self.assertIncomplete(self.report(plan=fake_plan(self.target)), "no implementation_stage")
+
+    def test_a_configured_clean_filter_skips_status_without_running_it(self):
+        self.commit()
+        marker = self.target / "filter-ran"
+        subprocess.run(["git", "-C", str(self.target), "config", "filter.x.clean",
+                        f"touch {marker}; cat"], check=True)
+        facts = self.facts()
+        self.assertIsNone(facts.dirty)
+        self.assertFalse(marker.exists())
+        self.assertIncomplete(self.report(facts=facts), "clean/process filter")
 
     def test_a_failed_git_call_a_detector_needed(self):
         self.set_state({"a": item()})
@@ -679,6 +688,16 @@ class TestHazardV240001(Case):
         report = self.report(plan=fake_plan(self.target, writes=["scripts/x.py"]))
         self.assertFalse(report.has("v2.4.0-001"))
 
+    def test_an_implementing_product_item_without_implementation_stage_is_incomplete(self):
+        self.impl(item={"work_item_type": "product"}, impl_stage=False,
+                  plan_excluded=["scripts/x.py"])
+        report = self.report(plan=fake_plan(self.target, writes=["scripts/x.py"]))
+        self.assertTrue(report.has("incomplete-inspection"))
+        self.assertEqual(report.headline, "inspection incomplete")
+        self.assertIn("no implementation_stage", report.findings[0].detail
+                      if report.findings[0].id == "incomplete-inspection" else
+                      next(f.detail for f in report.findings if f.id == "incomplete-inspection"))
+
     def test_a_product_item_that_plan_protects_a_managed_path(self):
         path = "docs/ai-workflow/REVIEW_PROTOCOL.md"
         self.impl(item={"work_item_type": "product", "phase": "PLANNING"}, plan_protected=[path])
@@ -832,6 +851,14 @@ class TestGatesChange(Case):
         self.assertNotIn("done", detail)
         self.assertIn('"human_approval": true', detail)
         self.assertIn(comp.GATE_POLICY_PATH, detail)
+
+    def test_the_gate_table_drives_the_finding(self):
+        self.set_state({"r": item("PLANNING", "2.2")})
+        table = {v: "" for v in PINNED_VERSIONS}
+        for entries, expected in (({"2.9.0": "2.9.0 moves gates"}, True), ({}, False)):
+            with mock.patch.object(comp, "GATE_DEFAULT_CHANGES", {**table, **entries}):
+                found = self.report(installed="2.8.0", target="2.9.0").has("gates-change")
+            self.assertEqual(found, expected)
 
     def test_not_when_a_policy_exists_or_the_range_misses_2_8_0(self):
         self.set_state({"r": item("PLANNING", "2.2")})

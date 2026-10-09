@@ -10,7 +10,7 @@ Three versions stay distinct everywhere: the *installed release* (the
 Workflow release the installation record names), the *governing version* (the
 protocol version fixed on a work item: `1`, `2.1` or `2.2`, not a release),
 and the *latest available release* (the newest pin). The *target* of a check
-appears only where it differs from the latest.
+is always printed, even when it is the latest (a kept deviation).
 
 Release knowledge the Manager must carry, because only it knows what it
 pinned, is three tables below. Each is keyed by release version and must have
@@ -513,11 +513,20 @@ def _read_git(target: Path, facts: RepositoryFacts) -> None:
             "because reading them could fetch objects")
         return
 
-    status = run_git(target, "status", "--porcelain", "--no-renames", "--untracked-files=normal")
-    if status.ok:
-        facts.dirty = bool(status.stdout.strip())
+    # `git status` runs a configured clean/process filter on any file whose
+    # stat data changed, and a filter is arbitrary code: it may write the
+    # target. No flag disables filters generically, so skip the status.
+    filters = run_git(target, "config", "--get-regexp", r"^filter\..*\.(clean|process)$")
+    if filters.returncode != 1:
+        facts.problems.append(
+            "a Git clean/process filter is configured (or could not be ruled out): whether the "
+            "tree is clean was not checked, because `git status` could run the filter")
     else:
-        facts.problems.append("`git status` failed: whether the tree is clean is unknown")
+        status = run_git(target, "status", "--porcelain", "--no-renames", "--untracked-files=normal")
+        if status.ok:
+            facts.dirty = bool(status.stdout.strip())
+        else:
+            facts.problems.append("`git status` failed: whether the tree is clean is unknown")
 
     head = run_git(target, "rev-parse", "--verify", "--quiet", "HEAD")
     if head.returncode == 1:
@@ -807,9 +816,18 @@ NEW_WORK_ONLY: dict[str, tuple[str, ...]] = {
     ),
 }
 
-#: Releases that change the gate defaults for existing work too.
+#: Per pinned release, how it changes the gate defaults for existing work too;
+#: "" for a release that does not. A report names each change in (installed,
+#: target] when the repository has no GATE_POLICY.json.
 GATE_DEFAULT_CHANGES: dict[str, str] = {
+    "2.3.1": "",
+    "2.4.0": "",
+    "2.5.0": "",
+    "2.5.1": "",
+    "2.6.0": "",
+    "2.7.0": "",
     "2.8.0": "a repository with no GATE_POLICY.json moves from human gates to automatic ones",
+    "2.9.0": "",
 }
 
 #: What to commit first to keep the 2.7.0 gates.
@@ -913,8 +931,7 @@ def _item_findings(facts: RepositoryFacts, plan: UpdatePlan | None, target: str 
         else:
             if decl.plan_stage is None:
                 extra_problems.append(f"{item.id}: its artifacts file declares no plan_stage")
-            if item.implementing_or_later and item.work_item_type == "process" \
-                    and decl.implementation_stage is None:
+            if item.implementing_or_later and decl.implementation_stage is None:
                 extra_problems.append(
                     f"{item.id}: its artifacts file declares no implementation_stage")
 
@@ -1041,8 +1058,11 @@ def build_findings(facts: RepositoryFacts, plan: UpdatePlan | None, *, target: s
                 f"The update does not retire or migrate it. /retire-legacy-work-item {advice}.",
                 (command,) if command else ()))
 
-    if installed and target and _lt(installed, "2.8.0") and _le("2.8.0", target) \
-            and not facts.gate_policy_present:
+    gate_changes = [(v, GATE_DEFAULT_CHANGES[v]) for v in sorted(GATE_DEFAULT_CHANGES, key=version_key)
+                    if GATE_DEFAULT_CHANGES[v] and installed and target
+                    and _lt(installed, v) and _le(v, target)]
+    if gate_changes and not facts.gate_policy_present:
+        change_version, change_text = gate_changes[-1]
         lines = []
         for item in facts.items:
             if not item.active:
@@ -1053,7 +1073,8 @@ def build_findings(facts: RepositoryFacts, plan: UpdatePlan | None, *, target: s
             lines.append(f"{item.id} (governing {item.governing}): becomes automatic: "
                          f"{', '.join(changed) or 'none'}; stays human: {', '.join(kept) or 'none'}")
         findings.append(Finding(
-            WARNING, "gates-change", "gates become automatic by default (2.8.0)",
+            WARNING, "gates-change", f"gates become automatic by default ({change_version})",
+            f"{change_text[0].upper()}{change_text[1:]}. "
             "With no GATE_POLICY.json the gates are satisfied by their evidence, for existing work "
             "items as well as new ones.\n" + ("\n".join(lines) + "\n" if lines else "")
             + f"To keep human gates, commit {GATE_POLICY_PATH} with "
