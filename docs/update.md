@@ -41,7 +41,7 @@ Reading the report:
 
 - **Installed release, Latest available, Target of this check** are three different versions. The installed release is what the record says, the latest is the newest release this Manager pins, and the target is what the check is measured against.
 - **Work items** lists each item's phase, type and governing version. The governing version is a protocol version (`1`, `2.1`, `2.2`), not a release.
-- **Findings** have a severity. `blocked`: the real update would be refused, and the refusal is quoted. `warning`: the update would proceed and could disturb something; read it before running. A warning also appears when the inspection could not finish (`incomplete-inspection`): that report is not a clean bill of health. `note`: a fix or default that reaches only new work.
+- **Findings** have a severity. `blocked`: the real update would be refused, and the refusal is quoted. `warning`: the update would proceed and could disturb something; read it before running. A warning also appears when the inspection could not finish (`incomplete-inspection`): that report is not a clean bill of health. `note`: information that changes nothing about the update, for example that the installed release could not be resolved (`not-verified`). The fixes and defaults that reach only new work are not `[note]` lines; they are listed in their own section below. `Findings -- nothing found` is therefore printed even when that section lists fixes.
 - **Fixes that apply only to new work** says what the update does not change for existing items.
 - **Recovery** prints commands for the repository's path. The line that discards uncommitted changes is printed only when the tree is known to be clean; it is an undo only if the tree was clean before the update.
 
