@@ -6999,7 +6999,7 @@
       "registry_path": "docs/ai-workflow/registry/workflow-manager-update-ergonomics-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/workflow-manager-update-ergonomics-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "AWAITING_FUNCTIONAL_REVIEW",
       "plan_revision": 6,
       "implementation_revision": 14,
       "functional_review_round": null,
@@ -7121,10 +7121,10 @@
         }
       },
       "technical_approval": {
-        "status": "STALE",
+        "status": "CURRENT",
         "basis": "POLICY_SATISFIED",
-        "reviewed_bundle_id": "7f048091cc10b81357137aa7ae17caa993056b4b97416263d0e603608099aa03",
-        "approved_review_content_id": "7e4b56fecef04b1109529f6a27d1887a40edf2a1e4ad9e7deadbd47cb6c9d64b",
+        "reviewed_bundle_id": "2537a129f50d9da2e0cf1c8b28f35a0a97a630c75fd20d8133dc746b15e2e9c1",
+        "approved_review_content_id": "9affda4d4b5d236841cd761c79316ed0fee999656e82fb605156f61e48c41c6d",
         "review_content_manifest": [
           {
             "path": "CLAUDE.md",
@@ -7136,7 +7136,7 @@
             "path": "docs/ARCHITECTURE.md",
             "exists": true,
             "mode": "100644",
-            "blob": "cd6a6e3d37eece36efdc92459742fa6181d6a8cc"
+            "blob": "a982bf9d91c6bc56e4a627deabfe0d9977bbbeb8"
           },
           {
             "path": "docs/README.md",
@@ -7184,7 +7184,7 @@
             "path": "src/workflow_manager/compatibility.py",
             "exists": true,
             "mode": "100644",
-            "blob": "63b53ba8eb89cbc6222589f380b7aed7455e1a2e"
+            "blob": "3b682dedb1583704ace69e54c3f38c1b0f413d20"
           },
           {
             "path": "src/workflow_manager/install.py",
@@ -7205,10 +7205,16 @@
             "blob": "96878bfa946b87c452c2825509a7fff14f10f061"
           },
           {
+            "path": "tests/support.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "7aa31e85a6b7bb459cf74b0b222eece917468dc4"
+          },
+          {
             "path": "tests/test_compatibility.py",
             "exists": true,
             "mode": "100644",
-            "blob": "7a2b4ca819cbe08bbb6d96887798874b16e947db"
+            "blob": "ee480ae64f0dc9ee2fd6df9aa320a7a4cf9dc075"
           },
           {
             "path": "tests/test_doctor_cli.py",
@@ -7220,7 +7226,7 @@
             "path": "tests/test_read_only.py",
             "exists": true,
             "mode": "100644",
-            "blob": "6dbcfc9369fff111c80c9b2f4a3d965da13173e5"
+            "blob": "c1e5355a797649d49ad5de518bdc0c81453270c1"
           },
           {
             "path": "tests/test_update_ergonomics_e2e.py",
@@ -7235,11 +7241,11 @@
             "blob": "7a76c9e804fa0bb4d12a5fe34e682a803d68046b"
           }
         ],
-        "reviewed_content_commit": "5a73ae40ed98be7ab25bb6f86313a3bea82729dd",
+        "reviewed_content_commit": "439a33f56e7f1caab58c5ccc5f327c95871596d9",
         "legacy_evidence": null,
         "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
         "waived_guarantees": [],
-        "recorded_at": "2026-10-09T09:34:15Z",
+        "recorded_at": "2026-10-09T12:09:25Z",
         "policy_evidence": {
           "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
           "policy_source": "default",
@@ -7269,23 +7275,23 @@
             }
           ],
           "inputs": {
-            "review_content_id": "7e4b56fecef04b1109529f6a27d1887a40edf2a1e4ad9e7deadbd47cb6c9d64b",
+            "review_content_id": "9affda4d4b5d236841cd761c79316ed0fee999656e82fb605156f61e48c41c6d",
             "ledger": {
               "local": {
-                "bundle_id": "7f048091cc10b81357137aa7ae17caa993056b4b97416263d0e603608099aa03",
+                "bundle_id": "2537a129f50d9da2e0cf1c8b28f35a0a97a630c75fd20d8133dc746b15e2e9c1",
                 "verdict": "APPROVE",
-                "round": 8,
-                "verdict_sha256": "de0ddcb40102f2a858b637d86353d82cf1bf57b9c7fbad5424a4ce57abecc9e8",
-                "ledger_entry_sha256": "2a1470ff132d992ecd6c83fcc420a4d9a1d5f8ceb69d54f31fb32d25b123f94c",
+                "round": 15,
+                "verdict_sha256": "8a77c1661efc66b9fba7ba4861793e3021d3c06b99ada8e5f9c221820e4d4c1d",
+                "ledger_entry_sha256": "3cdd1f942463d90c90ebd08235f7d56801b259855956cbd4a5db7b4dd11874ba",
                 "run_ref": "session:local .ai-review/workflow-manager-update-ergonomics/feedback/REVIEW_FEEDBACK.md",
                 "reviewer_model": "anthropic/claude-opus-5-5"
               },
               "manual": {
-                "bundle_id": "7f048091cc10b81357137aa7ae17caa993056b4b97416263d0e603608099aa03",
+                "bundle_id": "2537a129f50d9da2e0cf1c8b28f35a0a97a630c75fd20d8133dc746b15e2e9c1",
                 "verdict": "APPROVE",
-                "round": 8,
-                "verdict_sha256": "ed3208956703208f9c8de34cdfd543de57968cbe9e4a5a4d6e562cff7ee06907",
-                "ledger_entry_sha256": "af97c6875be8cfb3c0998cb5acabb23cb61d7bef6d46730f3ecae36e236f7303",
+                "round": 15,
+                "verdict_sha256": "33d16148070505ac09e8ecafc6af8b93a9dc3bbba11e311da2168267dd7f0c39",
+                "ledger_entry_sha256": "b3911147b7808d8a5f0bb2368c1fedd8c11bee8bc8ec813722f83c4d1b039cea",
                 "run_ref": "session:local .ai-review/workflow-manager-update-ergonomics/feedback/REVIEW_FEEDBACK.md",
                 "reviewer_model": "openai/gpt-6.1-sol"
               }
@@ -7296,7 +7302,7 @@
           "trust": {
             "review_verdicts": "orchestrator"
           },
-          "evaluated_at": "2026-10-09T09:34:15Z",
+          "evaluated_at": "2026-10-09T12:09:25Z",
           "workflow_release": "2.9.0"
         }
       },
@@ -7324,8 +7330,8 @@
       },
       "functional_acceptance_status": null,
       "blocking_decisions": [],
-      "state_revision": 79,
-      "last_transition": "2026-10-09T12:00:25Z",
+      "state_revision": 82,
+      "last_transition": "2026-10-09T12:09:25Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -7353,17 +7359,25 @@
         "9e8d3a24457fb4fa6f3fac27994a28496d117563ffe607facbd9bfb7b14cf6e0"
       ],
       "implementation_review_stages": {
-        "review_content_id": "a5c49b929af44e69ba9e7146b852f7fe35ddcb2abbd250bb95be59d5e2fa999b",
+        "review_content_id": "9affda4d4b5d236841cd761c79316ed0fee999656e82fb605156f61e48c41c6d",
         "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {
-          "bundle_id": "d18278320dab602b2878e997a048da86536bb4a4758869b15d7de324a247019a",
+          "bundle_id": "2537a129f50d9da2e0cf1c8b28f35a0a97a630c75fd20d8133dc746b15e2e9c1",
           "verdict": "APPROVE",
-          "round": 14,
-          "completed_at": "2026-10-09T11:42:28Z",
-          "verdict_sha256": "3ff1e4e2c39d45982d9f345e88fd5d5612ea698486224beb4d13c964f68d17f9",
-          "run_ref": "session:local /home/rodrigo/Workspace/workflow-manager/.ai-review/workflow-manager-update-ergonomics/feedback/REVIEW_FEEDBACK.md",
+          "round": 15,
+          "completed_at": "2026-10-09T12:03:24Z",
+          "verdict_sha256": "8a77c1661efc66b9fba7ba4861793e3021d3c06b99ada8e5f9c221820e4d4c1d",
+          "run_ref": "session:local .ai-review/workflow-manager-update-ergonomics/feedback/REVIEW_FEEDBACK.md",
           "reviewer_model": "anthropic/claude-opus-5-5"
         },
-        "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": null
+        "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "2537a129f50d9da2e0cf1c8b28f35a0a97a630c75fd20d8133dc746b15e2e9c1",
+          "verdict": "APPROVE",
+          "round": 15,
+          "completed_at": "2026-10-09T12:08:49Z",
+          "verdict_sha256": "33d16148070505ac09e8ecafc6af8b93a9dc3bbba11e311da2168267dd7f0c39",
+          "run_ref": "session:local .ai-review/workflow-manager-update-ergonomics/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "openai/gpt-6.1-sol"
+        }
       }
     }
   }
