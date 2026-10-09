@@ -31,8 +31,8 @@ Manual functional review against the checklist below
 
 ## Functional review checklist
 
-Technical approval: commit `72e815b` (implementation revision 5, basis
-`POLICY_SATISFIED`). You are testing `doctor` and `update --dry-run` as an
+Technical approval: the latest technical approval (basis `POLICY_SATISFIED`;
+its commit and implementation revision are in `WORKFLOW_STATE.json`). You are testing `doctor` and `update --dry-run` as an
 operator would. Put findings in
 `.ai-review/workflow-manager-update-ergonomics/feedback/FUNCTIONAL_REVIEW.md`.
 The automated verification is current (the full gate in the checkpoint log
@@ -80,7 +80,8 @@ snap() { (cd "$1" && find . -path ./.git -prune -o -type f -print0 | sort -z | x
    `wm doctor $T/r`. Expected: the Recovery section prints the "make sure the
    tree is clean" step but withholds the `git restore --source=HEAD ...` undo line.
    With a clean tree it prints that line with its "only if the tree was clean
-   before the update; discards ALL uncommitted changes" precondition.
+   before the update; discards ALL uncommitted changes" precondition. To get a clean
+   tree, remove `x` and commit flow 2's update, then run `wm doctor $T/r` again.
    (On a dirty tree it now prints "No undo command: ..." in the undo line's place.
    Flow 2 leaves `$T/r` updated and uncommitted, so flows 5 and 7 run against an
    installed 2.9.0.)
