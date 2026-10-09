@@ -7,6 +7,13 @@ and this package installs a resolved release into target repositories without
 ever touching repository-local work-item state.
 """
 
+import sys
+
+# Run from a checkout that is itself the target of a read-only command, the
+# Manager must not write bytecode into it (P1). Set before any submodule loads.
+# This is process-wide: every importer of the package (tests, tools) inherits it.
+sys.dont_write_bytecode = True
+
 from .installation import CorruptInstallationError, Installation, is_managed
 from .release import Release, ReleaseIntegrityError
 

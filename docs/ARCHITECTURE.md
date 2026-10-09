@@ -207,6 +207,51 @@ It is replaced by `os.replace`, never written in place. A record is the one
 thing a target cannot reconstruct, and a reader must see either the previous
 one or the complete new one — never half of either.
 
+## Update planning
+
+`update` is `plan_update` (decide, write nothing) followed by `apply_update`
+(write). `UpdatePlan` carries the changes, removals, writes (including a
+repaired executable bit), what is left alone, the locally modified files a
+forced update would overwrite, and the record that would be written.
+`bootstrap` and `update` share one merge planner. `apply_update` takes the
+release only to refuse a plan made for another one, and writes in the old
+order (removals, release files, state templates, merges, record last), so the
+interruption contract below is unchanged.
+
+`workflow-manager doctor` and `update --dry-run` (`src/workflow_manager/
+compatibility.py`) use the plan to report what an update would do and which
+Workflow guarantees it would cross. They never write the repository: Git is
+run with a hermetic environment and flags, the work tree and Git directories
+are protected by path arithmetic before anything is resolved, and a partial
+clone skips the commands that would fetch. A configured Git clean/process
+filter is arbitrary code that `git status` could run on a tracked file whose
+`filter` attribute selects it, so when a configured driver is selected by a
+tracked path anywhere in the repository (decided read-only, by `config`,
+`ls-files -- :/` and `check-attr` run from the target, the `:/` pathspec
+covering the whole repository as `git status` scans the whole work tree even
+for a target below its root, and no root path is read back; none runs a
+filter), or that cannot be ruled out, the tree-state check is
+skipped and reported as an incomplete inspection. A driver that no tracked path
+selects (Git LFS installed system-wide, say) never runs, and the check goes
+ahead. The path lists cross `run_git(..., raw=True)`, which keeps every byte
+(a non-UTF-8 name, a `\r` in a name) intact; on a very large index the pipe can
+exceed `GIT_TIMEOUT_SECONDS` and fails closed with the same warning. A
+filter configured in a submodule cannot run either: the status call passes
+`--ignore-submodules=dirty`, which compares only a submodule's HEAD with the
+recorded commit: a moved gitlink, staged or not, still reads as modified, and
+edits inside a submodule's work tree do not (an update never writes there). The
+package disables bytecode writing as it loads, so a checkout that is both the
+Manager's source and the target gains no `.pyc` except the package's own
+`__init__`, which Python compiles before any code of it can run. Any link
+inside the release cache is refused, whether or not it resolves into the
+target (broader than the path arithmetic needs). What they do write is the release
+cache (a missing release is fetched, under the cache's lock) and one
+temporary copy of the release, in a directory outside the repository. The
+release knowledge the report needs is three tables in `compatibility.py`
+(`DOWNGRADE_BOUNDARIES`, `NEW_WORK_ONLY`, `GATE_DEFAULT_CHANGES`), each with an
+entry for every pinned version (`GATE_DEFAULT_CHANGES` uses `""` for none),
+enforced by a test; the report reads each table.
+
 ## Interruption
 
 Neither `bootstrap` nor `update` is atomic. A repository is not a database,

@@ -381,27 +381,34 @@ def bootstrap(target: Path, release: Release, profile: str = INSTALL_PROFILE_FUL
         _write(path, release.read_verified(template["location"], template["sha256"]))
         installation.generated[rel] = {"sha256": template["sha256"], "source": "template"}
 
-    _apply_merges(target, release, templates, installation)
+    writes, _, merged_entries = _plan_merges(target, release, templates)
+    for planned in writes:
+        _write(target / planned.path, planned.data, planned.executable)
+    installation.merged.update(merged_entries)
     installation.write(target)
     return installation
 
 
-def _apply_merges(target: Path, release: Release, templates: dict,
-                  installation: Installation) -> list[str]:
-    """Contribute the Workflow's sections to the two shared files.
+def _plan_merges(target: Path, release: Release,
+                 templates: dict) -> tuple[list["PlannedWrite"], list[str], dict[str, dict]]:
+    """Decide the contribution to the two shared files, writing nothing.
 
-    Returns only the merges that actually altered a file, so re-running an
-    update on an unchanged release reports no change rather than claiming one.
+    Returns the writes the merges need, the change lines for them (only the
+    merges that actually alter a file, so re-running an update on an unchanged
+    release reports no change rather than claiming one), and the
+    `installation.merged` entries to record.
     """
+    writes: list[PlannedWrite] = []
     changes: list[str] = []
+    entries: dict[str, dict] = {}
 
     fragment = release.read_verified(templates[GITIGNORE_TEMPLATE]["location"],
                                      templates[GITIGNORE_TEMPLATE]["sha256"])
     merged, action = merge_gitignore(target, fragment)
     if action != "unchanged":
-        _write(target / ".gitignore", merged)
+        writes.append(PlannedWrite(".gitignore", merged))
         changes.append(f"{action} .gitignore workflow entries")
-    installation.merged[".gitignore"] = {
+    entries[".gitignore"] = {
         "fragment_sha256": templates[GITIGNORE_TEMPLATE]["sha256"],
         "action": action,
     }
@@ -412,13 +419,13 @@ def _apply_merges(target: Path, release: Release, templates: dict,
     before = path.read_bytes() if path.exists() else None
     merged, action = merge_claude_md(target, managed_section)
     if merged != before:
-        _write(path, merged)
+        writes.append(PlannedWrite("CLAUDE.md", merged))
         changes.append(f"{action} managed CLAUDE.md section")
-    installation.merged["CLAUDE.md"] = {
+    entries["CLAUDE.md"] = {
         "managed_section_sha256": sha256(managed_claude_section(managed_section)),
         "action": action,
     }
-    return changes
+    return writes, changes, entries
 
 
 # ---------------------------------------------------------------------------
@@ -426,14 +433,50 @@ def _apply_merges(target: Path, release: Release, templates: dict,
 # ---------------------------------------------------------------------------
 
 
-def update(target: Path, release: Release, profile: str | None = None,
-           force: bool = False, now: str | None = None) -> tuple[Installation, list[str]]:
-    """Move a managed repository to `release`.
+@dataclass(frozen=True)
+class PlannedWrite:
+    """One file an operation would write: `path` is relative to the target.
 
-    Returns the new installation record and a list of the changes made.
-    Repository-local state is never rewritten; a locally modified release file
-    stops the update unless `force` is set, so an edit someone made on purpose
-    is not thrown away without being seen.
+    `mode_only` means the bytes already match and only the executable bit is
+    fixed, so `data` is `None` there.
+    """
+    path: str
+    data: bytes | None
+    executable: bool = False
+    mode_only: bool = False
+
+
+@dataclass(frozen=True)
+class LeftAlone:
+    """Something an update deliberately keeps, and why."""
+    path: str
+    reason: str
+
+
+@dataclass(frozen=True)
+class UpdatePlan:
+    """Everything `update` would do, decided and not yet done."""
+    target: Path
+    current: Installation
+    updated: Installation            # the record it would write
+    profile: str
+    changes: list[str]               # the lines `update` prints, in order
+    removals: list[str]
+    writes: list[PlannedWrite]       # artifacts, then state templates, then merges
+    left_alone: list[LeftAlone]
+    #: Locally modified release files a forced update discards (empty otherwise,
+    #: since an unforced update refuses on them).
+    overwrites: list[str] = field(default_factory=list)
+
+
+def plan_update(target: Path, release: Release, profile: str | None = None,
+                force: bool = False, now: str | None = None) -> UpdatePlan:
+    """Decide how to move a managed repository to `release`, writing nothing.
+
+    Performs every read and check the update does before its first write, and
+    raises the same refusals. Repository-local state is never rewritten; a
+    locally modified release file stops the update unless `force` is set, so an
+    edit someone made on purpose is not thrown away without being seen.
     """
     target = Path(target)
     if not is_managed(target):
@@ -447,14 +490,13 @@ def update(target: Path, release: Release, profile: str | None = None,
 
     incoming = {a.target_path: a for a in release.installable(profile)}
 
-    if not force:
-        modified = _local_modifications(target, current, incoming)
-        if modified:
-            raise DriftError(
-                "refusing to update: these release files were modified locally and would be "
-                "overwritten:\n  " + "\n  ".join(str(d) for d in modified),
-                modified,
-            )
+    modified = _local_modifications(target, current, incoming)
+    if modified and not force:
+        raise DriftError(
+            "refusing to update: these release files were modified locally and would be "
+            "overwritten:\n  " + "\n  ".join(str(d) for d in modified),
+            modified,
+        )
     occupied = [] if force else _collisions(target, incoming, already_ours=set(current.managed))
     occupied += _blocked_paths(
         target,
@@ -484,12 +526,13 @@ def update(target: Path, release: Release, profile: str | None = None,
     )
 
     changes: list[str] = []
+    removals: list[str] = []
+    writes: list[PlannedWrite] = []
+    left_alone: list[LeftAlone] = []
 
     for rel in sorted(set(current.managed) - set(incoming)):
-        path = target / rel
-        if path.is_file():
-            path.unlink()
-            _prune_empty_parents(path, target)
+        if (target / rel).is_file():
+            removals.append(rel)
             changes.append(f"removed {rel}")
 
     for rel, artifact in sorted(incoming.items()):
@@ -497,28 +540,77 @@ def update(target: Path, release: Release, profile: str | None = None,
         data = release.read_verified(artifact.location, artifact.sha256)
         before = path.read_bytes() if path.is_file() else None
         if before != data:
-            _write(path, data, artifact.executable)
+            writes.append(PlannedWrite(rel, data, artifact.executable))
             changes.append(("added " if before is None else "updated ") + rel)
         elif artifact.executable and not path.stat().st_mode & 0o111:
-            path.chmod(0o755)
+            writes.append(PlannedWrite(rel, None, True, mode_only=True))
             changes.append(f"fixed mode {rel}")
+        else:
+            left_alone.append(LeftAlone(rel, "already identical to the release"))
         updated.managed[rel] = {"sha256": artifact.sha256, "executable": artifact.executable}
 
     templates = {t["target_path"]: t for t in release.templates()}
     for template in release.state_templates():
         rel = template["target_path"]
-        path = target / rel
-        if path.exists():
+        if (target / rel).exists():
+            # An existing state file is left untouched.
+            left_alone.append(LeftAlone(rel, "repository-local state"))
             continue
         # A state file the repository never had (or deleted) is created from
-        # the new release's template. An existing one is left untouched.
-        _write(path, release.read_verified(template["location"], template["sha256"]))
+        # the new release's template.
+        writes.append(PlannedWrite(
+            rel, release.read_verified(template["location"], template["sha256"])))
         updated.generated[rel] = {"sha256": template["sha256"], "source": "template"}
         changes.append(f"created missing state {rel}")
 
-    changes += _apply_merges(target, release, templates, updated)
-    updated.write(target)
-    return updated, changes
+    merge_writes, merge_changes, merged_entries = _plan_merges(target, release, templates)
+    writes += merge_writes
+    changes += merge_changes
+    updated.merged.update(merged_entries)
+    for rel in (".gitignore", "CLAUDE.md"):
+        left_alone.append(LeftAlone(rel, "the repository's own text outside the managed entries"))
+    left_alone.append(LeftAlone(".ai-review/", "the Workflow's runtime workspace"))
+
+    return UpdatePlan(
+        target=target, current=current, updated=updated, profile=profile,
+        changes=changes, removals=removals, writes=writes, left_alone=left_alone,
+        overwrites=[d.path for d in modified] if force else [],
+    )
+
+
+def apply_update(plan: UpdatePlan, release: Release) -> Installation:
+    """Carry out a plan, in the order the re-runnable contract depends on:
+    removals, release files, state templates, merges, and the record last.
+
+    Every file goes through the module-global `_write`, one call per file, so
+    an interruption at any write leaves a state a plain re-run converges from.
+    """
+    if release.version != plan.updated.workflow_version:
+        raise InstallError(
+            f"plan is for workflow {plan.updated.workflow_version}, not {release.version}"
+        )
+    target = plan.target
+    for rel in plan.removals:
+        path = target / rel
+        path.unlink()
+        _prune_empty_parents(path, target)
+    for planned in plan.writes:
+        if planned.mode_only:
+            (target / planned.path).chmod(0o755)
+        else:
+            _write(target / planned.path, planned.data, planned.executable)
+    plan.updated.write(target)
+    return plan.updated
+
+
+def update(target: Path, release: Release, profile: str | None = None,
+           force: bool = False, now: str | None = None) -> tuple[Installation, list[str]]:
+    """Move a managed repository to `release`.
+
+    Returns the new installation record and a list of the changes made.
+    """
+    plan = plan_update(target, release, profile=profile, force=force, now=now)
+    return apply_update(plan, release), plan.changes
 
 
 def _local_modifications(target: Path, installation: Installation,

@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "work_item_id": "workflow-manager-update-ergonomics",
+  "plan_revision": 6,
+  "checkpoints": [
+    {
+      "id": "CP1",
+      "name": "Split update into plan_update and apply_update (UpdatePlan, pure merge planning, left_alone), behaviour unchanged, with parity tests",
+      "depends_on": [],
+      "complexity": 4,
+      "session_target": 1
+    },
+    {
+      "id": "CP2",
+      "name": "compatibility.py: read-only repository reader, the three release tables, findings catalogue, report rendering and command rendering, with unit tests",
+      "depends_on": [
+        "CP1"
+      ],
+      "complexity": 4,
+      "session_target": 1
+    },
+    {
+      "id": "CP3",
+      "name": "CLI: workflow-manager doctor and update --dry-run, exit codes, containment and hermetic Git, read-only and printed-commands-by-family tests",
+      "depends_on": [
+        "CP1",
+        "CP2"
+      ],
+      "complexity": 3,
+      "session_target": 1
+    },
+    {
+      "id": "CP4",
+      "name": "Documentation (update, troubleshooting, README index, ARCHITECTURE, RELEASING and CLAUDE.md pin step, cli docstring) and the docs check",
+      "depends_on": [
+        "CP3"
+      ],
+      "complexity": 2,
+      "session_target": 1
+    },
+    {
+      "id": "CP5",
+      "name": "End-to-end evidence on disposable repositories (process item at IMPLEMENTING, legacy item, downgrade, undo command) and the full gate",
+      "depends_on": [
+        "CP3",
+        "CP4"
+      ],
+      "complexity": 3,
+      "session_target": 1
+    }
+  ]
+}

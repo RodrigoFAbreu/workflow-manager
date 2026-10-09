@@ -2,62 +2,314 @@
 
 ## Milestone
 
-`workflow-manager-packaged-distribution` (M2; `governing_workflow_version:
-"2.2"`, `process`, plan revision 9 approved in `e341c90` on basis
-`EXTERNAL_APPROVE`, base `ec38979`, branch
-`milestone/workflow-manager-packaged-distribution`): a Workflow release
-becomes a versioned, checksummed, immutable package that the Manager
-downloads, verifies, caches and installs; `distribution/`, `migration/`,
-the migration tooling and the stopgap test profile leave this repository.
-Full plan: `docs/ai-workflow/WORKFLOW_MANAGER_PACKAGED_DISTRIBUTION_PLAN.md`.
+`workflow-manager-update-ergonomics` (`governing_workflow_version: "2.2"`,
+`process`, plan revision 6 approved by policy, base `bb54c76`, branch
+`milestone/workflow-manager-update-ergonomics`): `workflow-manager doctor`
+and `workflow-manager update --dry-run`, which read a repository and report
+what an update would do and which Workflow guarantees it would cross,
+without writing the repository. Full plan:
+`docs/ai-workflow/WORKFLOW_MANAGER_UPDATE_ERGONOMICS_PLAN.md`.
 
 ## Current checkpoint
 
-**Milestone complete.** `workflow-manager-packaged-distribution` reached
-`MILESTONE_COMPLETE` through `/accept-milestone` on 2026-10-01, with the
-user's confirmation, and `active_work_item_id` is cleared.
-- **Checkpoints:** CP1-CP7 are complete.
-- **Technical approval:** commit `2216d5a`, implementation revision 4.
-  Both implementation-review stages approved it. External round 1 found an
-  undiscardable cache entry escaping as `PermissionError` (fixed in
-  `df5ecc6`), and external round 3 asked for a stronger regression scanner
-  (`6bbd8ec`).
-- **Automated verification:** the full gate passed on the final code
-  (1410/1410 units, 8,746 tests, verdict 0, recorded at `2f817cc`). Only
-  docs and state commits have landed since.
-- **Functional review:** round 1 (revision 2) passed flows 1-8 and cutover
-  K1-K3. K4 found F1 (the verification workflow used the `runner` context
-  in a job-level `env`), fixed through the bounded branch in `3e90d7b`.
-  Round 2 (revision 4, checklist `69da8f7`) passed. The user accepted it
-  with no findings filed. The round 2 evidence is recorded under the
-  cutover below.
+**Milestone complete.** `workflow-manager-update-ergonomics` reached
+`MILESTONE_COMPLETE` through `/satisfy-gate acceptance` on 2026-10-09, by
+policy (the default gate policy; no person's decision), and
+`active_work_item_id` is cleared.
+- **Checkpoints:** CP1-CP5 are complete.
+- **Technical approval:** implementation revision 14, basis
+  `POLICY_SATISFIED`.
+- **Functional evidence:** flows ue-f1 to ue-f9, ue-ci1 and ue-ci2 passed at
+  `0695b2b` (run `manager-orchestrator:runs/ue-functional-r5`).
+- **Pull request:** #22, CI green at `0695b2b` (the Workflow's own `gh` query).
 
 The checkpoint log below is this milestone's permanent record.
 
 ## Current blockers
 
-None. What remains after acceptance:
-- cutover K5: squash-merge pull request #11 under its title `feat: Workflow
-  releases are downloaded, verified packages` (a `feat:` title, so it
-  releases the Manager's `v1.2.0`), check that `main`'s full run is green
-  and `v1.2.0` is published, then `pipx install` its wheel into a scratch
-  environment and bootstrap a scratch repository with no checkout;
-- between milestones, install Workflow Controller 1.4.2.
+None. What remains: squash-merge pull request #22 under a `feat:` title (the
+owner's act); `main`'s full run then releases the Manager.
 
 ## Active plan
 
-None, because the milestone is complete. The plan document stays at
-`docs/ai-workflow/WORKFLOW_MANAGER_PACKAGED_DISTRIBUTION_PLAN.md`
-(revision 9) instead of being archived: `docs/ARCHITECTURE.md`,
-`docs/MIGRATION.md` and `docs/RELEASING.md` cite it as the design record.
+None. The finished plan is
+`docs/ai-workflow/WORKFLOW_MANAGER_UPDATE_ERGONOMICS_PLAN.md` (revision 6),
+copied to `docs/milestones/completed/`.
 
 ## Next action
 
-`workflow-manager-packaged-distribution` is complete. The Workflow's
-roadmap now lives in the `workflow` repository's `docs/ROADMAP.md`. Its next
-item is W0 (setting that repository up for development), then W1, "Workflow
-2.7". Both are planned and built in the `workflow` repository; this
-repository adds a pin for each new release.
+Plan the next incomplete milestone in `docs/ROADMAP.md` with
+`/milestone-plan` once pull request #22 has merged.
+
+## Functional review checklist
+
+Technical approval: the latest technical approval (basis `POLICY_SATISFIED`;
+its commit and implementation revision are in `WORKFLOW_STATE.json`). You are testing `doctor` and `update --dry-run` as an
+operator would. Put findings in
+`.ai-review/workflow-manager-update-ergonomics/feedback/FUNCTIONAL_REVIEW.md`.
+The automated verification is current as of implementation revision 14 (the
+technical approval's recorded evidence; the checkpoint log below holds the
+first full gate); nothing but state commits has landed since that approval.
+
+**Setup.** Python 3.12+, Git, a populated release cache, no network needed:
+
+```bash
+export M=~/Workspace/workflow-manager PYTHONPATH=~/Workspace/workflow-manager/src T=$(mktemp -d)
+export WORKFLOW_MANAGER_RELEASE_SOURCE='http://127.0.0.1:9/{version}/'   # unreachable: any download fails loudly
+wm() { python3 -m workflow_manager "$@"; }
+newrepo() { git init -q "$1" && git -C "$1" commit -q --allow-empty -m init; }
+snap() { (cd "$1" && find . -path ./.git -prune -o -type f -print0 | sort -z | xargs -0 sha256sum; find .git -type f -print0 | sort -z | xargs -0 sha256sum) | sha256sum; }
+```
+
+**Test data.** Scratch repositories under `$T`, created by the flows.
+
+**Flows.**
+
+1. **Old install, clean tree.**
+   `newrepo $T/r; wm --release-version 2.5.1 bootstrap $T/r; git -C $T/r add -A; git -C $T/r commit -qm i; S=$(snap $T/r)`
+   then `wm doctor $T/r; echo rc=$?`.
+   Expected: headings `Repository`, `Installed release 2.5.1`, `Latest available
+   2.9.0`, `Target of this check`, a work-items table ("none"), `Findings`
+   with a `[warning] gates-change` entry (gates become automatic by default),
+   `Fixes that apply only to new work`, and `Recovery` with the repository
+   path filled in. `rc=1` (a warning was found).
+2. **Dry run mirrors the real update.**
+   `wm update $T/r --dry-run; echo rc=$?` prints `would update ... from workflow
+   2.5.1 to workflow 2.9.0     (dry run: nothing written)`, `would update/add ...`
+   lines, `left alone:`, then the report; `rc=0`. Then `[ "$S" = "$(snap $T/r)" ] && echo untouched`.
+   Expected: `untouched`. Now run the real `wm update $T/r` and compare its change
+   list with the dry run's: same files, same verbs (`would X` vs `X`).
+3. **Read-only repository.** Recreate flow 1's repository as `$T/ro`,
+   `chmod -R a-w $T/ro`, run `wm doctor $T/ro` and `wm update $T/ro --dry-run`.
+   Expected: both report as before and fail with no permission error;
+   `chmod -R u+w $T/ro` afterwards.
+4. **Refusal parity.** In a fresh copy (`$T/dirty`), append a line to
+   `scripts/workflow_state.py` and commit nothing. `wm update $T/dirty --dry-run;
+   echo rc=$?`. Expected: a `[blocked] refused-drift` finding quoting the real
+   refusal text, `rc=2`. Then `wm update $T/dirty; echo rc=$?` gives the same
+   refusal and `rc=2`; `--force --dry-run` shows the file as `would update scripts/workflow_state.py
+   (discards your local edit; --force)`, the real update's verb `updated`.
+5. **Recovery honesty.** Make `$T/r`'s tree dirty (`touch $T/r/x`) and run
+   `wm doctor $T/r`. Expected: the Recovery section prints the "make sure the
+   tree is clean" step but withholds the `git restore --source=HEAD ...` undo line.
+   With a clean tree it prints that line with its "only if the tree was clean
+   before the update; discards ALL uncommitted changes" precondition. To get a clean
+   tree, remove `x` and commit flow 2's update, then run `wm doctor $T/r` again.
+   (On a dirty tree it now prints "No undo command: ..." in the undo line's place.
+   Flow 2 leaves `$T/r` updated and uncommitted, so flows 5 and 7 run against an
+   installed 2.9.0.)
+6. **Errors exit 2.** `wm doctor $T/nowhere`, `wm doctor $T` (a plain
+   directory) and `wm --release-version 9.9.9 doctor $T/r`. Expected: named
+   messages (not a managed repository / unpublished release), `rc=2`, no traceback.
+7. **Target selection.** `wm --release-version 2.6.0 doctor $T/r`.
+   Expected: `Target of this check 2.6.0`, `Latest available 2.9.0`.
+8. **Work-item hazards (automated).** The hazards that need a driven work item
+   (`v2.4.0-001` for a `process` item at `IMPLEMENTING`, a dormant legacy item
+   with `/retire-legacy-work-item` offered, a downgrade past a `CLAUDE.md`
+   boundary) are exercised by
+   `python3 $M/tests/run_all.py --select test_update_ergonomics_e2e.py`.
+   Expected: `verdict: exit 0`. Record the final lines.
+9. **Documentation.** `docs/update.md`'s "Check before you update" section
+   matches what you saw (commands, exit codes 0/1/2, what is written where).
+
+**Known limitations and out of scope.**
+- `doctor`/`--dry-run` write the release cache and one temporary snapshot
+  outside the repository; that is documented, not a finding.
+- A downgrade is reported, never refused; it stays unsupported.
+- Git history is searched only for the retirement trailer, the activation
+  trailer and the amendment witness; the report never says "safe".
+- The 2.7.0 Orchestration Protocol hazard is listed as undetectable by design.
+
+## Update ergonomics -- checkpoint log
+
+### CP5 -- end-to-end evidence (complete)
+
+- `tests/test_update_ergonomics_e2e.py` (9 tests): disposable repositories built
+  from a bootstrapped `2.3.1`, with a `process` item driven to `IMPLEMENTING`
+  by `fixture.drive_synthetic_work_item_through_checkpoints`, and with a
+  dormant legacy item. Byte/mode snapshots of the work tree and `.git/` around
+  every `doctor` and `update --dry-run`. Covered: `v2.4.0-001` and
+  `gates-change` for the process item, dry-run lines matching the real update,
+  the item surviving the real update unchanged, the printed undo restoring the
+  committed tree, retirement offered for the legacy item, and downgrade to each
+  older pinned release reported and not refused.
+- Verified (gate): `python3 tests/run_all.py` -- full selection, local,
+  8 workers, head `148bd75` plus this checkpoint's working tree, 1926/1926
+  units, 11882 tests, `selection_digest 7f01bea1...`, `tests_digest 95c4ccc2...`,
+  verdict exit 0.
+
+### CP1 -- `plan_update` / `apply_update` (complete)
+
+- `install.update` is now `plan_update` (decide, write nothing) followed by
+  `apply_update` (write). `UpdatePlan` carries `changes`, `removals`,
+  `writes` (`PlannedWrite`, relative path, `mode_only` for a repaired
+  executable bit), `left_alone` (`LeftAlone(path, reason)`) and the record it
+  would write. Beyond the plan's sketch it also carries `overwrites`: the
+  locally modified release files a forced update discards, which the dry
+  run's `would overwrite` annotations (CP3) need and nothing else records.
+- The merges got a pure half, `_plan_merges`; `bootstrap` writes what it
+  returns, so bootstrap and update share one merge implementation
+  (`_apply_merges` is gone, it had no other caller).
+- `apply_update(plan, release)` uses `release` only to refuse a plan made
+  for another release. It writes through the module-global `_write`, once per
+  file, in the old order (removals, release files, state templates, merges,
+  record last), so the interrupt-at-every-write test counts what it did.
+- Behaviour change, as the plan allows: every artifact is read and verified
+  at plan time, so a corrupt cached artifact refuses before any write.
+- Tests: `tests/test_update_plan.py` (new) pins planning as write-free,
+  plan-then-apply equal to `update` (tree, record, change lines) for a clean
+  update, same-release no-op, deleted state, changed merged files, a lost
+  executable bit, a profile change and a forced update over a local edit,
+  and identical refusals (local edit, collision, directory in the way under
+  `--force`, unmanaged target, unknown profile).
+- Verified: `python3 tests/run_all.py --select test_update_plan.py` (exit 0),
+  and `--select test_bootstrap.py --select test_update_path.py` (453/453
+  units, 2859 tests, exit 0). The full gate is CP5's.
+
+### CP2 -- `compatibility.py` (complete)
+
+- New `src/workflow_manager/compatibility.py`, no CLI and no Workflow
+  imports. `run_git` is the one hermetic Git entry point (flags and
+  environment of plan 3.2; returns `GitResult(returncode, stdout)`, `None`
+  for a timeout or `OSError`). `read_repository(target)` reads the record,
+  config, gate-policy presence, state, each item's artifacts declarations and
+  registry ids, `plan-inputs/` directories, worktree count, amendment
+  witnesses in the common Git dir (relative `rev-parse` paths resolved against
+  the target), the dirty flag, and the two trailer searches (one anchored
+  `--grep` each, `HEAD` only). Partial clones are detected from config first
+  (exit 1 = key absent); a partial clone or a failed detection skips
+  `status`/`log` and records a problem. Every unreadable part is a `problems`
+  entry, never an exception.
+- Two classifier copies (`classify_plan_stage`, no protected prefixes;
+  `classify_implementation_stage`), the phase classes, `ALWAYS_HUMAN_GATES`
+  and the ambient exclusion, each compared by test with the 2.9.0 package.
+- The three tables: `DOWNGRADE_BOUNDARIES` (signals as detectors over the
+  facts, 2.7.0's undetectable orchestration hazard stated),
+  `NEW_WORK_ONLY`, `GATE_DEFAULT_CHANGES`; each has an entry per pinned
+  version, enforced by test.
+- `build_report` -> `Report` of `Finding`s (every id of plan section 4),
+  `RecoveryStep`s and `Command`s (family `manager`/`git`/`slash`, argv,
+  `render_command` = `shlex.join`). The restore line is withheld unless the
+  tree is known clean. `render_report` prints the fixed headings; the three
+  version labels never share a line. `doctor_exit_code` is 1 for any
+  `blocked`/`warning`.
+- Not here (CP3): `plan_destinations`, the CLI, `read_only`/`snapshot_parent`
+  threading, exit-2 mapping, parser/Git/slash validation of printed commands.
+- Tests: `tests/test_compatibility.py` (99 tests, synthetic state files and
+  throwaway repositories). Verified: `python3 tests/run_all.py --select
+  test_compatibility.py` (16/16 units, exit 0); `--select test_update_plan.py
+  --select test_docs.py --select test_internal_references.py --select
+  test_release_workflows.py --select test_parallel_runner.py` (exit 0). The
+  full gate is CP5's.
+
+### CP3 -- the CLI and read-only enforcement (complete)
+
+- `workflow-manager doctor <repo>` and `workflow-manager update <repo>
+  --dry-run [--force] [--profile P]` (`cli.py`). The global `--release-version`
+  names the target for both. `doctor` exits 0 with no blocked/warning finding, 1
+  with one (an incomplete inspection is a warning), 2 when it could not check
+  (not managed, corrupt record, target release unresolvable: it handles that
+  itself so `main()`'s exit 1 stays unambiguous). An unresolvable *installed*
+  release still produces the report, with `not-verified`. `--dry-run` prints
+  `would ...` lines (one per `plan.changes` entry, `--force` annotated with the
+  edit it discards), `left alone:`, then the report; a refusal prints the
+  report, then re-raises so stderr and the exit (2, with the `--force` hint)
+  are the real update's.
+- `compatibility.plan_destinations(options, environ, target, versions)`: pure
+  path arithmetic, creates and probes nothing. Protected set = realpath of the
+  work tree and of `--absolute-git-dir`/`--git-common-dir` (relative output
+  resolved against the target; a target with a `.git` entry whose
+  directories cannot be resolved is refused). Refuses a cache root, a lock
+  leaf or version directory that resolves into it, a symlink inside an
+  existing version directory, and a `TMPDIR`/`TEMP`/`TMP` inside it; the
+  snapshot parent is the first of `tempfile`'s candidates that is an
+  accessible directory outside it. A target under `/tmp` is accepted (P3).
+- `source.py`: `_copy_snapshot(tree, dir=None)`, `ReleaseCache.resolve(version,
+  *, snapshot_parent=None, read_only=False)` (a `read_only` lock leaf is opened
+  with `O_NOFOLLOW`, so a link fails with `ELOOP`) and `local_release(...,
+  snapshot_parent=None)`; defaults leave `update`/`verify`/`bootstrap`
+  unchanged. `cli._resolve(args, version, destinations)` threads both down.
+- Tests: `tests/test_read_only.py` (25) with `tests/audit_hook.py` (the
+  write-observing audit hook, self-tested with relative and `dir_fd` paths and
+  an unresolvable event): destinations, resolver, byte/mode snapshots of the work
+  tree and both Git directories (linked worktree included), a read-only copy,
+  `core.fsmonitor` never run, a partial clone (no `status`/`log`, no fetch
+  helper, with and without `GIT_NO_LAZY_FETCH`), and a `GIT_TRACE2_EVENT`
+  trace of the Git commands run. `tests/test_doctor_cli.py` (24): exit codes,
+  headings, dry-run/real-update parity (lines, drift and collision refusals,
+  unpinned release), and every printed command validated by family (Manager
+  through `build_parser()`, Git run in a repository whose path has spaces and
+  metacharacters, slash against the release's command file), the restore line
+  withheld when dirty or unknown, and the undo command run after a real update.
+- Verified: `python3 tests/run_all.py --select test_doctor_cli.py --select
+  test_read_only.py` (7/7 units, 49 tests, exit 0); `--select test_update_plan.py
+  --select test_compatibility.py --select test_release_source.py --select
+  test_bootstrap.py --select test_docs.py --select test_internal_references.py
+  --select test_release_workflows.py --select test_parallel_runner.py --select
+  test_orphan_processes.py` (145/145 units, 714 tests, exit 0). The full gate is
+  CP5's.
+
+### CP4 -- documentation (complete)
+
+- `docs/update.md`: new "Check before you update" section (`doctor`, `update
+  --dry-run`, report reading guide, exit codes, advisory caveat), step 4 points
+  to it, a `doctor` exit-2 entry under "If it fails". `docs/troubleshooting.md`:
+  entries for `blocked`, `warning` and `incomplete-inspection`; exit-code table
+  covers `doctor` and `--dry-run`. `docs/README.md` indexes the new section.
+  `docs/ARCHITECTURE.md`: "Update planning" section. `docs/RELEASING.md` and
+  `CLAUDE.md` pin steps: extend the three `compatibility.py` tables. The `cli.py`
+  docstring was already done in CP3. Headers of the three rewritten pages moved
+  to Manager 1.6.0; `docs/ROADMAP.md` is marked at acceptance.
+- Verified: `python3 tools/check_docs.py`; `python3 tests/run_all.py --select
+  test_docs.py --select test_internal_references.py` (16/16 units, 73 tests,
+  exit 0). The full gate is CP5's.
+
+### Self-review of the milestone diff and the full gate (`SELF_REVIEWING_IMPLEMENTATION`)
+
+- `enter_self_reviewing_implementation` was a no-op. CP5's
+  `complete_checkpoint` had already written the phase. `implementing_entry_status`
+  reported reachable, and `resolve_checkpoint_ownership` returned `NO_CHECKPOINT`.
+- The whole `17b9202..82d30de` diff was reviewed:
+  - `install.py`: `plan_update` performs every read and refusal before the
+    first write, and `apply_update` writes in the old order;
+    `overwrites` is filled only under `--force`; `bootstrap` and `update`
+    share `_plan_merges`;
+  - `source.py`: `dir=` threaded through `_copy_snapshot`, `resolve` and
+    `local_release`, and the `O_NOFOLLOW` lock leaf under `read_only` only;
+    the defaults leave `update`/`verify`/`bootstrap` unchanged;
+  - `cli.py`: `doctor`'s exit 0/1/2 mapping, `--dry-run`'s report-then-re-raise
+    on a refusal, and destinations decided before `_resolve`;
+  - `compatibility.py`: hermetic `run_git`, the partial-clone probes, the
+    reader's problems-not-exceptions rule, both classifier copies, the three
+    tables, every finding of plan section 4, recovery (restore withheld unless
+    the tree is known clean), and `plan_destinations`' path arithmetic;
+  - the five new test files, `tests/audit_hook.py`, and the documentation.
+- Findings, fixed in `2513230` (no blocking or important finding):
+  - `cli._installed_version_of` was dead code; removed;
+  - `docs/update.md` called the four labelled header lines "three different
+    things", Repository included; it now names the three version lines.
+- One case was checked and left as it is: `render_report` prints `Target of this
+  check` even when the target equals the latest. Plan 1.3 says the target appears
+  only where it differs, but the plan's own report shape shows it equal to the
+  latest, and the fixed headings are tested. The implementation follows the
+  shape.
+- INV checks: `git diff --stat bb54c76 HEAD -- scripts .claude/commands
+  .github/workflows docs/ai-workflow/WORKFLOW_CONFIG.json
+  src/workflow_manager/published_releases.json` is empty; `CLAUDE.md` up to
+  `<!-- workflow-manager:end -->` is byte-identical to the base.
+- **The full gate**, `python3 tests/run_all.py` at `2513230`, 2026-10-08
+  (441.9 s wall, 8 workers):
+  - `evidence: full selection, local, 8 worker(s), head 2513230ff5c01a87d60487b78d658af4777e5d14,
+    1926/1926 units, 11882 tests, selection_digest
+    7f01bea1aefb7dedcb7e205e98eeaac57654c0ead084e671910839bc81935498,
+    tests_digest 95c4ccc28a0bbd62b13670cc0ea62c28a559ee3fff08d577b0ebda586e043779,
+    tree_digest 9328862642f72bdf3b9f550b6e541c8458a41a7bdf1f019e057f071ad095e568`,
+    `verdict: exit 0`;
+  - `orphan check: on`; orphans were tolerated only in the nine declared
+    `orphan_sources` chunks;
+  - an earlier attempt at the same head failed `IntegrityError` (exit 2)
+    because its log was written inside the work tree (`runs/`); the log was
+    moved out of the repository and the run repeated. Its result is not evidence.
 
 ## Checkpoint log
 

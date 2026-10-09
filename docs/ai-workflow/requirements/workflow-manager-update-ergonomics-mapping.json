@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "work_item_id": "workflow-manager-update-ergonomics",
+  "requirements": {
+    "REQ-1": {
+      "description": "doctor reads a repository and reports without changing anything in the target: its tree and both Git directories stay byte-identical (also on a read-only copy) with no transient writes; only the Manager's release cache and one fresh temporary snapshot directory may be written, and only outside the target (destinations decided by path arithmetic before any write, lock leaves opened without following symlinks)",
+      "checkpoint_ids": [
+        "CP2",
+        "CP3",
+        "CP5"
+      ]
+    },
+    "REQ-2": {
+      "description": "update --dry-run shows what the update would change and leave alone from the same plan_update the real update applies; refusals, change lines and exit codes agree with the real update",
+      "checkpoint_ids": [
+        "CP1",
+        "CP3",
+        "CP5"
+      ]
+    },
+    "REQ-3": {
+      "description": "the compatibility report keeps installed release, work-item governing version and latest available release distinct, and lists active work items with their governing versions",
+      "checkpoint_ids": [
+        "CP2",
+        "CP3"
+      ]
+    },
+    "REQ-4": {
+      "description": "migration hazards are reported: an active item whose declared protected paths the update rewrites (v2.4.0-001; the declared classification at both stages, merges included, a heuristic only when the declarations file is missing), any active legacy item, the 2.8.0 gate-default change, mixed worktrees, a dirty tree, and CLAUDE.md's downgrade posture boundaries with the signals found",
+      "checkpoint_ids": [
+        "CP2",
+        "CP5"
+      ]
+    },
+    "REQ-5": {
+      "description": "fixes that apply only to new work are listed per release between installed and target, from a table that must cover every pinned version",
+      "checkpoint_ids": [
+        "CP2",
+        "CP4"
+      ]
+    },
+    "REQ-6": {
+      "description": "recovery instructions are printed, and every printed command is built from argv and validated by family: Manager commands re-parse through the real parser to the intended arguments, Git commands are executed in a disposable repository, slash commands are checked against the release's command file",
+      "checkpoint_ids": [
+        "CP2",
+        "CP3",
+        "CP5"
+      ]
+    },
+    "REQ-7": {
+      "description": "existing update, bootstrap, verify and status behaviour is unchanged: the existing tests pass unmodified (apart from the one test_docs.py header bump) and the full gate is green",
+      "checkpoint_ids": [
+        "CP1",
+        "CP5"
+      ]
+    },
+    "REQ-8": {
+      "description": "documentation describes the new commands and the pin-time maintenance step; documented commands parse",
+      "checkpoint_ids": [
+        "CP4"
+      ]
+    }
+  }
+}

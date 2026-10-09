@@ -57,6 +57,15 @@ def next_version(version: str) -> str:
     return f"{major}.{minor}.{int(patch) + 1}"
 
 
+# The host's own Git config (a system-wide Git LFS filter, say) must not leak
+# into a test: it changes what `doctor` can inspect. Every suite imports this
+# module, so the test process and its children read no system or global
+# config; `/dev/null` is the empty file. Commit identity is the repository's
+# own (`fixture.init_git_repo`) or a `-c` of the test's.
+HERMETIC_GIT_ENV = {"GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null"}
+os.environ.update(HERMETIC_GIT_ENV)
+
+
 def cli_env(**extra: str) -> dict[str, str]:
     """A from-scratch environment for a `workflow_manager` subprocess (plan 7.1).
 
@@ -73,6 +82,7 @@ def cli_env(**extra: str) -> dict[str, str]:
         "PATH": "/usr/bin:/bin",
         "HOME": str(Path.home()),
         source.CACHE_ENV: str(source.cache_root()),
+        **HERMETIC_GIT_ENV,
     }
     if os.environ.get(source.SOURCE_ENV):
         env[source.SOURCE_ENV] = os.environ[source.SOURCE_ENV]

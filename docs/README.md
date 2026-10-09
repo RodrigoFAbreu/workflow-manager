@@ -1,6 +1,6 @@
 # Documentation map
 
-> For: anyone looking for the right Workflow Manager page. Last checked with: Workflow Manager 1.5.0, Workflow 2.9.0.
+> For: anyone looking for the right Workflow Manager page. Last checked with: Workflow Manager 1.6.0, Workflow 2.9.0.
 
 Start with the [project README](../README.md) for what the Manager is and a five-minute quick start. This page says where everything else is.
 
@@ -10,6 +10,7 @@ Start with the [project README](../README.md) for what the Manager is and a five
 |---|---|
 | Install the Manager and put the Workflow into a repository | [Install](install.md) |
 | Move a repository to a newer Workflow release | [Update](update.md) |
+| See what an update would do before running it | [Update: check before you update](update.md#check-before-you-update) |
 | Check that a repository's installation is intact | [Verify](verify.md) |
 | Fix an error message or look up an exit code | [Troubleshooting](troubleshooting.md) |
 | Look up a Manager word (pin, release cache, profile...) | [Glossary](glossary.md) |

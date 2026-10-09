@@ -1,6 +1,6 @@
 # Troubleshooting
 
-> For: someone who ran a Manager command and got an error. Last checked with: Workflow Manager 1.5.0, Workflow 2.9.0.
+> For: someone who ran a Manager command and got an error. Last checked with: Workflow Manager 1.6.0, Workflow 2.9.0.
 
 Each problem has a one-line fix. Find the message, apply the fix, run the command again.
 
@@ -23,6 +23,9 @@ Each problem has a one-line fix. Find the message, apply the fix, run the comman
 | An interrupted `bootstrap` or `update` | Run the same command again. It finishes the job. |
 | The installation record is unreadable | Delete `.workflow-manager/` in the repository and run `bootstrap` again. State files are not stored there. |
 | A cache that seems stale or damaged | Delete the cache folder (default `~/.cache/workflow-manager/releases`). The next command downloads again. |
+| `doctor` or `update --dry-run` reports a `blocked` finding | The real update would be refused, and the finding quotes the refusal. Apply its fix (for a locally modified file: save the edit, then `update --force`), then run the check again. |
+| `doctor` reports a `warning` finding | The update would proceed, but could disturb an in-flight work item, change gates or cross a downgrade boundary. Read the finding and its Recovery lines before you update; the finish-or-park advice is in [Update](update.md#check-before-you-update). |
+| `doctor` reports `incomplete-inspection` | Part of the repository could not be read (state file, declarations, or a Git call). The report is not a clean bill of health; fix what it names, or review those parts by hand. An old legacy work item with no `docs/ai-workflow/registry/<id>-artifacts.json` declarations file always reports it, so `doctor` never reaches exit 0 until that item is retired; read the finding rather than chase it. |
 | A repository went wrong after an update to 2.8.0 and gates behave differently | See "Approval gates" in [Update](update.md). |
 
 ## Exit codes
@@ -32,8 +35,8 @@ Every command ends with one of these statuses.
 | Exit code | Meaning |
 |---|---|
 | 0 | The command succeeded. `verify` found no problems, or `status` found the repository clean (or not managed). |
-| 1 | The command ran and found a problem: `verify` or `status` found differences, or no usable release was available (not pinned, not downloadable, or failing its digest check). |
-| 2 | The command refused to run: unknown or missing arguments, a repository that is not managed (or already is), not a Git repository, a collision or local edit that needs `--force`, or an unreadable record. |
+| 1 | The command ran and found a problem: `verify` or `status` found differences, `doctor` found a `blocked` or `warning` finding, or no usable release was available (not pinned, not downloadable, or failing its digest check). |
+| 2 | The command refused to run: unknown or missing arguments, a repository that is not managed (or already is), not a Git repository, a collision or local edit that needs `--force`, or an unreadable record. `doctor` also exits 2 when it could not check (not managed, unreadable record, unresolvable target release); `update --dry-run` exits 2 when the real update would refuse. |
 
 Use these in scripts: `workflow-manager verify <repo> && echo ok`.
 
