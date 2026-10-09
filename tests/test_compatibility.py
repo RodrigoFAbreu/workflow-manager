@@ -1043,6 +1043,19 @@ class TestMiscFindings(Case):
         self.assertEqual(found.severity, NOTE)
         self.assertEqual(report.doctor_exit_code, 0)
 
+    def test_a_note_only_report_lists_the_note_under_findings(self):
+        self.commit()
+        report = self.report(installed_resolved=False)
+        self.assertEqual(report.headline, "notes only")
+        self.assertEqual(report.doctor_exit_code, 0)
+        text = render_report(report)
+        findings, rest = text.split("Fixes that apply only to new work")
+        self.assertIn("Findings -- notes only", findings)
+        self.assertIn("[note] not-verified", findings)
+        self.assertNotIn("nothing found", text)
+        self.assertNotIn("\n  none\n", findings.split("Findings --")[1])
+        self.assertNotIn("not-verified", rest.split("Recovery")[0])
+
     def test_a_clean_repository_reports_nothing_and_exits_zero(self):
         self.set_state({})
         self.commit()

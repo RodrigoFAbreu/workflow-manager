@@ -900,6 +900,8 @@ class Report:
             return "the update would be refused"
         if any(f.severity == WARNING for f in self.findings):
             return "warnings found"
+        if any(_is_listed_note(f) for f in self.findings):
+            return "notes only"
         return "nothing found"
 
     def has(self, finding_id: str) -> bool:
@@ -1243,6 +1245,11 @@ def _indent(text: str, prefix: str) -> list[str]:
     return [prefix + line if line else line for line in text.splitlines()]
 
 
+def _is_listed_note(finding: Finding) -> bool:
+    """A note that is listed under Findings (the new-work-only ones have their own section)."""
+    return finding.severity == NOTE and finding.id != "new-work-only"
+
+
 def render_report(report: Report) -> str:
     """The report as text. The three version labels never share a line."""
     lines = [f"Repository          {report.repository}"]
@@ -1275,23 +1282,18 @@ def render_report(report: Report) -> str:
         lines.append("  none")
     lines.append(f"Config default for new work items: {report.config_default or 'not set'}")
     lines += ["", f"Findings -- {report.headline}"]
-    if report.findings:
-        for finding in report.findings:
-            if finding.severity == NOTE:
-                continue
-            lines.append(f"  [{finding.severity}] {finding.id}: {finding.title}")
-            lines += _indent(finding.detail, "      ")
-            for command in finding.commands:
-                lines.append(f"      {command.render()}")
-    if not any(f.severity != NOTE for f in report.findings):
+    listed = [f for f in report.findings if f.severity != NOTE] + \
+             [f for f in report.findings if _is_listed_note(f)]
+    for finding in listed:
+        lines.append(f"  [{finding.severity}] {finding.id}: {finding.title}")
+        lines += _indent(finding.detail, "      ")
+        for command in finding.commands:
+            lines.append(f"      {command.render()}")
+    if not listed:
         lines.append("  none")
     lines += ["", "Fixes that apply only to new work"]
     notes = [f for f in report.findings if f.severity == NOTE and f.id == "new-work-only"]
     lines += [f"  {f.title}" for f in notes] or ["  none"]
-    for f in report.findings:
-        if f.severity == NOTE and f.id != "new-work-only":
-            lines.append(f"  [{f.severity}] {f.id}: {f.title}")
-            lines += _indent(f.detail, "      ")
     lines += ["", "Recovery"]
     for number, step in enumerate(report.recovery, 1):
         lines.append(f"  {number}. {step.text}")
