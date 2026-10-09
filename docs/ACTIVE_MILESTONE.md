@@ -12,8 +12,8 @@ without writing the repository. Full plan:
 
 ## Current checkpoint
 
-**CP1-CP5 complete, self-review done, full gate green; implementation revision 1 is in local implementation
-review.** CP1-CP5 are in the registry
+**CP1-CP5 complete, self-review done, full gate green; implementation revision 14 is technically approved
+(policy) and awaits functional review.** CP1-CP5 are in the registry
 (`docs/ai-workflow/registry/workflow-manager-update-ergonomics-registry.json`).
 
 ## Current blockers
@@ -35,8 +35,9 @@ Technical approval: the latest technical approval (basis `POLICY_SATISFIED`;
 its commit and implementation revision are in `WORKFLOW_STATE.json`). You are testing `doctor` and `update --dry-run` as an
 operator would. Put findings in
 `.ai-review/workflow-manager-update-ergonomics/feedback/FUNCTIONAL_REVIEW.md`.
-The automated verification is current (the full gate in the checkpoint log
-below); nothing but state commits has landed since.
+The automated verification is current as of implementation revision 14 (the
+technical approval's recorded evidence; the checkpoint log below holds the
+first full gate); nothing but state commits has landed since that approval.
 
 **Setup.** Python 3.12+, Git, a populated release cache, no network needed:
 
