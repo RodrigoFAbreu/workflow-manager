@@ -440,6 +440,35 @@ class TestIncompleteInspection(Case):
         self.assertFalse((self.target / "filter-ran").exists())
         self.assertIncomplete(self.report(facts=facts), "clean/process filter")
 
+    def test_a_tracked_path_that_is_not_utf8_never_aborts_the_report(self):
+        raw_name = b"caf\xe9.txt"
+        (self.target / os.fsdecode(raw_name)).write_text("tracked\n")
+        (self.target / ".gitattributes").write_bytes(b'"caf\\351.txt" filter=lfs\n')
+        self.commit()
+        self.configure_global_filter()
+        (self.target / os.fsdecode(raw_name)).write_text("trackeX\n")
+        facts = self.facts()
+        self.assertIsNone(facts.dirty)
+        self.assertFalse((self.target / "filter-ran").exists())
+        self.assertIncomplete(self.report(facts=facts), "clean/process filter")
+
+    def test_a_non_utf8_path_with_a_configured_filter_no_path_selects_reports_normally(self):
+        (self.target / os.fsdecode(b"caf\xe9.txt")).write_text("tracked\n")
+        self.commit()
+        self.configure_global_filter()
+        self.assertIs(self.facts().dirty, False)
+
+    def test_a_tracked_path_with_a_carriage_return_selected_by_a_driver_skips_status(self):
+        (self.target / "a\rb").write_text("tracked\n")
+        (self.target / ".gitattributes").write_text('"a\\rb" filter=lfs\n')
+        self.commit()
+        self.configure_global_filter()
+        (self.target / "a\rb").write_text("trackeX\n")   # same size: only a filter run could tell
+        facts = self.facts()
+        self.assertIsNone(facts.dirty)
+        self.assertFalse((self.target / "filter-ran").exists())
+        self.assertIncomplete(self.report(facts=facts), "clean/process filter")
+
     def test_a_failing_attribute_query_skips_status_with_the_warning(self):
         self.commit()
         self.configure_global_filter()
@@ -461,8 +490,8 @@ class TestIncompleteInspection(Case):
         self.commit()
         real = comp.run_git
 
-        def failing(repo, *args):
-            return GitResult(128) if args[:1] == ("log",) else real(repo, *args)
+        def failing(repo, *args, **kwargs):
+            return GitResult(128) if args[:1] == ("log",) else real(repo, *args, **kwargs)
         with mock.patch.object(comp, "run_git", failing):
             facts = self.facts()
         self.assertIsNone(facts.retirement_trailer)
@@ -483,9 +512,9 @@ class TestPartialClone(Case):
         calls = []
         real = comp.run_git
 
-        def recording(repo, *args):
+        def recording(repo, *args, **kwargs):
             calls.append(args)
-            return real(repo, *args)
+            return real(repo, *args, **kwargs)
         return calls, recording
 
     def test_an_ordinary_repository_runs_status_and_log_and_is_complete(self):
@@ -525,10 +554,10 @@ class TestPartialClone(Case):
             calls, recording = self.probe_log()
             real = comp.run_git
 
-            def failing(repo, *args, bad=bad, recording=recording):
+            def failing(repo, *args, bad=bad, recording=recording, **kwargs):
                 if args[:2] == ("config", "--get"):
                     return bad
-                return recording(repo, *args)
+                return recording(repo, *args, **kwargs)
             with mock.patch.object(comp, "run_git", failing):
                 facts = self.facts()
             self.assertNotIn("status", [c[0] for c in calls])
@@ -588,9 +617,9 @@ class TestRunGit(Case):
         calls = []
         real = comp.run_git
 
-        def recording(repo, *args):
+        def recording(repo, *args, **kwargs):
             calls.append(args)
-            return real(repo, *args)
+            return real(repo, *args, **kwargs)
         self.commit()
         with mock.patch.object(comp, "run_git", recording):
             self.facts()

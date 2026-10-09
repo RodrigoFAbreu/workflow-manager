@@ -230,7 +230,9 @@ tracked path (decided read-only, by `config`, `ls-files` and `check-attr`,
 which run no filter), or that cannot be ruled out, the tree-state check is
 skipped and reported as an incomplete inspection. A driver that no tracked path
 selects (Git LFS installed system-wide, say) never runs, and the check goes
-ahead. A
+ahead. The path lists cross `run_git(..., raw=True)`, which keeps every byte
+(a non-UTF-8 name, a `\r` in a name) intact; on a very large index the pipe can
+exceed `GIT_TIMEOUT_SECONDS` and fails closed with the same warning. A
 filter configured in a submodule cannot run either: the status call passes
 `--ignore-submodules=dirty`, which compares only a submodule's HEAD with the
 recorded commit: a moved gitlink, staged or not, still reads as modified, and

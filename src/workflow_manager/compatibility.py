@@ -186,8 +186,13 @@ def git_argv(repo: Path, *args: str) -> list[str]:
     return ["git", "-C", str(repo), *_GIT_CONFIG_FLAGS, *args]
 
 
-def run_git(repo: Path, *args: str, stdin: str | None = None) -> GitResult:
+def run_git(repo: Path, *args: str, stdin: str | None = None, raw: bool = False) -> GitResult:
     """The one Git entry point of the read-only paths.
+
+    `raw` is for `-z` output that carries paths: bytes in, bytes out, mapped
+    one-to-one through latin-1 (stdin the same way), with no locale decoding
+    and no newline translation, so a path that is not UTF-8 or holds a `\\r`
+    round-trips unchanged. Text mode that cannot decode is a failed call.
 
     Hermetic: no fsmonitor, untracked cache, auto gc or maintenance, no hooks,
     no prompts, no optional locks, no lazy fetch. Returns the exit status with
@@ -196,9 +201,14 @@ def run_git(repo: Path, *args: str, stdin: str | None = None) -> GitResult:
     env = {k: v for k, v in os.environ.items() if k not in _REPOSITORY_SELECTORS}
     env.update(_GIT_ENVIRONMENT)
     try:
+        if raw:
+            proc = subprocess.run(git_argv(repo, *args), capture_output=True,
+                                  input=None if stdin is None else stdin.encode("latin-1"),
+                                  timeout=GIT_TIMEOUT_SECONDS, env=env)
+            return GitResult(proc.returncode, proc.stdout.decode("latin-1"))
         proc = subprocess.run(git_argv(repo, *args), capture_output=True, text=True,
                               input=stdin, timeout=GIT_TIMEOUT_SECONDS, env=env)
-    except (OSError, subprocess.SubprocessError):
+    except (OSError, subprocess.SubprocessError, UnicodeError):
         return GitResult(None)
     return GitResult(proc.returncode, proc.stdout)
 
@@ -482,7 +492,8 @@ def _filter_selected_by_a_tracked_path(target: Path) -> bool:
     Read-only, and runs no filter: `config`, the index listing and
     `check-attr` (which honors `.gitattributes`, `info/attributes` and
     `core.attributesFile`) execute nothing."""
-    configured = run_git(target, "config", "-z", "--get-regexp", r"^filter\..*\.(clean|process)$")
+    configured = run_git(target, "config", "-z", "--get-regexp", r"^filter\..*\.(clean|process)$",
+                         raw=True)
     if configured.returncode == 1:
         return False
     if configured.returncode != 0:
@@ -494,12 +505,12 @@ def _filter_selected_by_a_tracked_path(target: Path) -> bool:
             drivers.add(key[len("filter."):key.rindex(".")])
     if not drivers:
         return True
-    listed = run_git(target, "ls-files", "-z")
+    listed = run_git(target, "ls-files", "-z", raw=True)
     if not listed.ok:
         return True
     if not listed.stdout:
         return False
-    attrs = run_git(target, "check-attr", "-z", "--stdin", "filter", stdin=listed.stdout)
+    attrs = run_git(target, "check-attr", "-z", "--stdin", "filter", stdin=listed.stdout, raw=True)
     if not attrs.ok:
         return True
     fields = attrs.stdout.split("\0")
@@ -553,7 +564,7 @@ def _read_git(target: Path, facts: RepositoryFacts) -> None:
     # system-wide, say) never runs, so the status is safe.
     if _filter_selected_by_a_tracked_path(target):
         facts.problems.append(
-            "a Git clean/process filter is configured (or could not be ruled out): whether the "
+            "a configured Git clean/process filter is selected by a tracked path (or that could not be ruled out): whether the "
             "tree is clean was not checked, because `git status` could run the filter")
     else:
         # `--ignore-submodules=dirty`: the child `git status` in a submodule
