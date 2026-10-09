@@ -186,7 +186,7 @@ def git_argv(repo: Path, *args: str) -> list[str]:
     return ["git", "-C", str(repo), *_GIT_CONFIG_FLAGS, *args]
 
 
-def run_git(repo: Path, *args: str) -> GitResult:
+def run_git(repo: Path, *args: str, stdin: str | None = None) -> GitResult:
     """The one Git entry point of the read-only paths.
 
     Hermetic: no fsmonitor, untracked cache, auto gc or maintenance, no hooks,
@@ -197,7 +197,7 @@ def run_git(repo: Path, *args: str) -> GitResult:
     env.update(_GIT_ENVIRONMENT)
     try:
         proc = subprocess.run(git_argv(repo, *args), capture_output=True, text=True,
-                              timeout=GIT_TIMEOUT_SECONDS, env=env)
+                              input=stdin, timeout=GIT_TIMEOUT_SECONDS, env=env)
     except (OSError, subprocess.SubprocessError):
         return GitResult(None)
     return GitResult(proc.returncode, proc.stdout)
@@ -476,6 +476,37 @@ RETIREMENT_GREP = r"^Workflow-Legacy-Retirement:"
 ACTIVATION_GREP = r"^Workflow-Activation: 2\.2[[:space:]]*$"
 
 
+def _filter_selected_by_a_tracked_path(target: Path) -> bool:
+    """True when a configured clean/process filter driver is selected by the
+    `filter` attribute of a tracked path, or when that could not be ruled out.
+    Read-only, and runs no filter: `config`, the index listing and
+    `check-attr` (which honors `.gitattributes`, `info/attributes` and
+    `core.attributesFile`) execute nothing."""
+    configured = run_git(target, "config", "-z", "--get-regexp", r"^filter\..*\.(clean|process)$")
+    if configured.returncode == 1:
+        return False
+    if configured.returncode != 0:
+        return True
+    drivers = set()
+    for entry in configured.stdout.split("\0"):
+        key = entry.split("\n", 1)[0]
+        if key.startswith("filter.") and "." in key[len("filter."):]:
+            drivers.add(key[len("filter."):key.rindex(".")])
+    if not drivers:
+        return True
+    listed = run_git(target, "ls-files", "-z")
+    if not listed.ok:
+        return True
+    if not listed.stdout:
+        return False
+    attrs = run_git(target, "check-attr", "-z", "--stdin", "filter", stdin=listed.stdout)
+    if not attrs.ok:
+        return True
+    fields = attrs.stdout.split("\0")
+    # `<path> NUL <attribute> NUL <value> NUL`, repeated: the values.
+    return any(value in drivers for value in fields[2::3])
+
+
 def _read_git(target: Path, facts: RepositoryFacts) -> None:
     inside = run_git(target, "rev-parse", "--git-dir")
     if not inside.ok:
@@ -513,11 +544,14 @@ def _read_git(target: Path, facts: RepositoryFacts) -> None:
             "because reading them could fetch objects")
         return
 
-    # `git status` runs a configured clean/process filter on any file whose
-    # stat data changed, and a filter is arbitrary code: it may write the
-    # target. No flag disables filters generically, so skip the status.
-    filters = run_git(target, "config", "--get-regexp", r"^filter\..*\.(clean|process)$")
-    if filters.returncode != 1:
+    # `git status` runs a configured clean/process filter on a tracked file
+    # whose stat data changed and whose attributes select that driver, and a
+    # filter is arbitrary code: it may write the target. No flag disables
+    # filters generically, so skip the status when a configured driver is
+    # selected by a tracked path, or when that could not be ruled out. A
+    # driver configured but selected by no tracked path (Git LFS installed
+    # system-wide, say) never runs, so the status is safe.
+    if _filter_selected_by_a_tracked_path(target):
         facts.problems.append(
             "a Git clean/process filter is configured (or could not be ruled out): whether the "
             "tree is clean was not checked, because `git status` could run the filter")

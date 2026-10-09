@@ -224,8 +224,13 @@ Workflow guarantees it would cross. They never write the repository: Git is
 run with a hermetic environment and flags, the work tree and Git directories
 are protected by path arithmetic before anything is resolved, and a partial
 clone skips the commands that would fetch. A configured Git clean/process
-filter is arbitrary code that `git status` could run, so with one configured
-the tree-state check is skipped and reported as an incomplete inspection. A
+filter is arbitrary code that `git status` could run on a tracked file whose
+`filter` attribute selects it, so when a configured driver is selected by a
+tracked path (decided read-only, by `config`, `ls-files` and `check-attr`,
+which run no filter), or that cannot be ruled out, the tree-state check is
+skipped and reported as an incomplete inspection. A driver that no tracked path
+selects (Git LFS installed system-wide, say) never runs, and the check goes
+ahead. A
 filter configured in a submodule cannot run either: the status call passes
 `--ignore-submodules=dirty`, which compares only a submodule's HEAD with the
 recorded commit: a moved gitlink, staged or not, still reads as modified, and

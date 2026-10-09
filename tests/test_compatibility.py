@@ -11,6 +11,7 @@ from __future__ import annotations
 import contextlib
 import importlib
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -376,15 +377,84 @@ class TestIncompleteInspection(Case):
         self.set_artifacts("a", impl_stage=False)
         self.assertIncomplete(self.report(plan=fake_plan(self.target)), "no implementation_stage")
 
-    def test_a_configured_clean_filter_skips_status_without_running_it(self):
+    def configure_global_filter(self, drivers=("lfs",)):
+        """Configure the drivers as a user's global config would (Git LFS)."""
+        config = Path(self._tmp.name) / "global-gitconfig"
+        config.write_text("".join(
+            f'[filter "{name}"]\n\tclean = touch {self.target}/filter-ran; cat\n'
+            f'\tprocess = touch {self.target}/filter-ran; cat\n\trequired = true\n'
+            for name in drivers))
+        patcher = mock.patch.dict(os.environ, {"GIT_CONFIG_GLOBAL": str(config)})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def select(self, rel="README.md", driver="lfs", attributes=".gitattributes"):
+        (self.target / rel).write_text("tracked\n")
+        attributes_path = self.target / attributes
+        attributes_path.parent.mkdir(parents=True, exist_ok=True)
+        attributes_path.write_text(f"{rel} filter={driver}\n")
+
+    def test_a_configured_filter_no_tracked_path_selects_leaves_status_running(self):
         self.commit()
-        marker = self.target / "filter-ran"
-        subprocess.run(["git", "-C", str(self.target), "config", "filter.x.clean",
-                        f"touch {marker}; cat"], check=True)
+        self.configure_global_filter()
+        (self.target / "stray.txt").write_text("untracked\n")
+        facts = self.facts()
+        self.assertIs(facts.dirty, True)
+        self.assertFalse((self.target / "filter-ran").exists())
+        self.assertFalse([p for p in facts.problems if "filter" in p], facts.problems)
+
+    def test_a_configured_filter_on_a_clean_tree_reads_clean(self):
+        self.commit()
+        self.configure_global_filter()
+        self.assertIs(self.facts().dirty, False)
+
+    def test_a_configured_clean_filter_selected_by_a_tracked_path_skips_status(self):
+        self.select()
+        self.commit()
+        self.configure_global_filter()
+        (self.target / "README.md").write_text("trackeX\n")   # same size: only a filter run could tell
         facts = self.facts()
         self.assertIsNone(facts.dirty)
-        self.assertFalse(marker.exists())
+        self.assertFalse((self.target / "filter-ran").exists())
         self.assertIncomplete(self.report(facts=facts), "clean/process filter")
+
+    def test_a_filter_selected_through_info_attributes_skips_status(self):
+        self.select(attributes=".git/info/attributes")
+        self.commit()
+        self.configure_global_filter()
+        self.assertIsNone(self.facts().dirty)
+
+    def test_a_driver_that_is_not_configured_does_not_skip_status(self):
+        self.select(driver="other")
+        self.commit()
+        self.configure_global_filter(("lfs",))
+        self.assertIs(self.facts().dirty, False)
+
+    def test_a_configured_clean_filter_in_the_repository_skips_status_without_running_it(self):
+        self.select(driver="x")
+        self.commit()
+        subprocess.run(["git", "-C", str(self.target), "config", "filter.x.clean",
+                        f"touch {self.target}/filter-ran; cat"], check=True)
+        facts = self.facts()
+        self.assertIsNone(facts.dirty)
+        self.assertFalse((self.target / "filter-ran").exists())
+        self.assertIncomplete(self.report(facts=facts), "clean/process filter")
+
+    def test_a_failing_attribute_query_skips_status_with_the_warning(self):
+        self.commit()
+        self.configure_global_filter()
+        real = comp.run_git
+        for failing_command in ("check-attr", "ls-files"):
+            with self.subTest(failing_command=failing_command):
+                def failing(repo, *args, **kwargs):
+                    if args[:1] == (failing_command,):
+                        return GitResult(128)
+                    return real(repo, *args, **kwargs)
+
+                with mock.patch.object(comp, "run_git", failing):
+                    facts = self.facts()
+                self.assertIsNone(facts.dirty)
+                self.assertIncomplete(self.report(facts=facts), "clean/process filter")
 
     def test_a_failed_git_call_a_detector_needed(self):
         self.set_state({"a": item()})

@@ -43,7 +43,7 @@ with open(out, "w") as handle:
     json.dump({"exit": code, "violations": audit_hook.VIOLATIONS}, handle)
 """
 
-ALLOWED_GIT = {"rev-parse", "worktree", "config", "status", "log"}
+ALLOWED_GIT = {"rev-parse", "worktree", "config", "ls-files", "check-attr", "status", "log"}
 FORBIDDEN_GIT = {"fetch", "gc", "maintenance", "add", "commit", "checkout", "reset", "restore",
                  "clean", "pull", "update-index", "stash", "merge", "rebase"}
 
@@ -426,6 +426,39 @@ class TestCommandsDoNotWriteTheTarget(Base):
         # object reads run (`status`, `log`) and nothing is incomplete.
         self.assertTrue({"status", "log"} <= ran)
         self.assertNotIn("incomplete", proc.stdout.lower())
+
+    def test_a_configured_filter_is_decided_by_read_only_queries(self):
+        """With a driver configured, `doctor` asks the index and the attributes
+        which drivers tracked paths select, using only the contracted commands;
+        it runs `status` exactly when none is selected."""
+        marker = self.work / "filter-ran"
+        config = self.work / "global-gitconfig"
+        config.write_text(f'[filter "lfs"]\n\tclean = touch {marker}; cat\n'
+                          f'\tprocess = touch {marker}; cat\n\trequired = true\n')
+        readme = self.repo / "README.md"
+        readme.write_text("tracked\n")
+        git(self.repo, "add", "README.md")
+        git(self.repo, "-c", "user.name=t", "-c", "user.email=t@e", "commit", "-q", "-m", "r")
+        for selected in (False, True):
+            with self.subTest(selected=selected):
+                (self.repo / ".gitattributes").write_text("README.md filter=lfs\n" if selected else "")
+                readme.write_text("trackeX\n" if selected else "tracked\n")
+                trace = self.work / "trace2.json"
+                trace.unlink(missing_ok=True)
+                proc, result = self.run_audited(["doctor", str(self.repo)], GIT_TRACE2_EVENT=str(trace),
+                                                GIT_CONFIG_GLOBAL=str(config))
+                self.assertIn(result["exit"], (0, 1), proc.stdout + proc.stderr)
+                self.assertEqual(result["violations"], [])
+                ran = set()
+                for line in trace.read_text().splitlines():
+                    event = json.loads(line)
+                    if event.get("event") == "start":
+                        self.assertFalse(set(event["argv"]) & FORBIDDEN_GIT, event["argv"])
+                        self.assertEqual(len(set(event["argv"]) & ALLOWED_GIT), 1, event["argv"])
+                        ran |= set(event["argv"])
+                self.assertTrue({"ls-files", "check-attr"} <= ran, ran)
+                self.assertEqual("status" in ran, not selected)
+                self.assertFalse(marker.exists())
 
     def test_a_partial_clone_runs_no_object_read_and_no_fetch_helper(self):
         helper = self.work / "uploadpack.sh"
