@@ -26,8 +26,81 @@ None.
 
 ## Next action
 
-Local implementation review of the bundle in `.ai-review/workflow-manager-update-ergonomics/current/`
-(`AWAITING_LOCAL_IMPLEMENTATION_REVIEW`), then the manual external (Codex) round.
+Manual functional review against the checklist below
+(`AWAITING_FUNCTIONAL_REVIEW`), then `/accept-milestone`.
+
+## Functional review checklist
+
+Technical approval: commit `72e815b` (implementation revision 5, basis
+`POLICY_SATISFIED`). You are testing `doctor` and `update --dry-run` as an
+operator would. Put findings in
+`.ai-review/workflow-manager-update-ergonomics/feedback/FUNCTIONAL_REVIEW.md`.
+The automated verification is current (the full gate in the checkpoint log
+below); nothing but state commits has landed since.
+
+**Setup.** Python 3.12+, Git, a populated release cache, no network needed:
+
+```bash
+export M=~/Workspace/workflow-manager PYTHONPATH=~/Workspace/workflow-manager/src T=$(mktemp -d)
+export WORKFLOW_MANAGER_RELEASE_SOURCE='http://127.0.0.1:9/{version}/'   # unreachable: any download fails loudly
+wm() { python3 -m workflow_manager "$@"; }
+newrepo() { git init -q "$1" && git -C "$1" commit -q --allow-empty -m init; }
+snap() { (cd "$1" && find . -path ./.git -prune -o -type f -print0 | sort -z | xargs -0 sha256sum; find .git -type f -print0 | sort -z | xargs -0 sha256sum) | sha256sum; }
+```
+
+**Test data.** Scratch repositories under `$T`, created by the flows.
+
+**Flows.**
+
+1. **Old install, clean tree.**
+   `newrepo $T/r; wm --release-version 2.5.1 bootstrap $T/r; git -C $T/r add -A; git -C $T/r commit -qm i; S=$(snap $T/r)`
+   then `wm doctor $T/r; echo rc=$?`.
+   Expected: headings `Repository`, `Installed release 2.5.1`, `Latest available
+   2.9.0`, `Target of this check`, a work-items table ("none"), `Findings`
+   with a `[warning] gates-change` entry (gates become automatic by default),
+   `Fixes that apply only to new work`, and `Recovery` with the repository
+   path filled in. `rc=1` (a warning was found).
+2. **Dry run mirrors the real update.**
+   `wm update $T/r --dry-run; echo rc=$?` prints `would update ... from workflow
+   2.5.1 to workflow 2.9.0     (dry run: nothing written)`, `would update/add ...`
+   lines, `left alone:`, then the report; `rc=0`. Then `[ "$S" = "$(snap $T/r)" ] && echo untouched`.
+   Expected: `untouched`. Now run the real `wm update $T/r` and compare its change
+   list with the dry run's: same files, same verbs (`would X` vs `X`).
+3. **Read-only repository.** Recreate flow 1's repository as `$T/ro`,
+   `chmod -R a-w $T/ro`, run `wm doctor $T/ro` and `wm update $T/ro --dry-run`.
+   Expected: both report as before and fail with no permission error;
+   `chmod -R u+w $T/ro` afterwards.
+4. **Refusal parity.** In a fresh copy (`$T/dirty`), append a line to
+   `scripts/workflow_state.py` and commit nothing. `wm update $T/dirty --dry-run;
+   echo rc=$?`. Expected: a `[blocked] refused-drift` finding quoting the real
+   refusal text, `rc=2`. Then `wm update $T/dirty; echo rc=$?` gives the same
+   refusal and `rc=2`; `--force --dry-run` shows the file as `would overwrite`.
+5. **Recovery honesty.** Make `$T/r`'s tree dirty (`touch $T/r/x`) and run
+   `wm doctor $T/r`. Expected: the Recovery section prints the "make sure the
+   tree is clean" step but withholds the `git restore --source=HEAD ...` undo line.
+   With a clean tree it prints that line with its "only if the tree was clean
+   before the update; discards ALL uncommitted changes" precondition.
+6. **Errors exit 2.** `wm doctor $T/nowhere`, `wm doctor $T` (a plain
+   directory) and `wm --release-version 9.9.9 doctor $T/r`. Expected: named
+   messages (not a managed repository / unpublished release), `rc=2`, no traceback.
+7. **Target selection.** `wm --release-version 2.6.0 doctor $T/r`.
+   Expected: `Target of this check 2.6.0`, `Latest available 2.9.0`.
+8. **Work-item hazards (automated).** The hazards that need a driven work item
+   (`v2.4.0-001` for a `process` item at `IMPLEMENTING`, a dormant legacy item
+   with `/retire-legacy-work-item` offered, a downgrade past a `CLAUDE.md`
+   boundary) are exercised by
+   `python3 $M/tests/run_all.py --select test_update_ergonomics_e2e.py`.
+   Expected: `verdict: exit 0`. Record the final lines.
+9. **Documentation.** `docs/update.md`'s "Check before you update" section
+   matches what you saw (commands, exit codes 0/1/2, what is written where).
+
+**Known limitations and out of scope.**
+- `doctor`/`--dry-run` write the release cache and one temporary snapshot
+  outside the repository; that is documented, not a finding.
+- A downgrade is reported, never refused; it stays unsupported.
+- Git history is searched only for the retirement trailer, the activation
+  trailer and the amendment witness; the report never says "safe".
+- The 2.7.0 Orchestration Protocol hazard is listed as undetectable by design.
 
 ## Update ergonomics -- checkpoint log
 
