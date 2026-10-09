@@ -6999,7 +6999,7 @@
       "registry_path": "docs/ai-workflow/registry/workflow-manager-update-ergonomics-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/workflow-manager-update-ergonomics-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "APPLYING_REVIEW_FEEDBACK",
       "plan_revision": 6,
       "implementation_revision": 2,
       "functional_review_round": null,
@@ -7145,8 +7145,8 @@
       },
       "functional_acceptance_status": null,
       "blocking_decisions": [],
-      "state_revision": 36,
-      "last_transition": "2026-10-08T23:39:19Z",
+      "state_revision": 38,
+      "last_transition": "2026-10-09T00:00:07Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -7172,7 +7172,20 @@
         "6f557cf5e7b5d51fa4670952ecc72699a787de24a6d2e6859dc20e09496f6f42",
         "8e2bafe3c3dca0995760a0832da77ae289dfdb936c40ddf8f8b3f5e2ba1cf871",
         "9e8d3a24457fb4fa6f3fac27994a28496d117563ffe607facbd9bfb7b14cf6e0"
-      ]
+      ],
+      "implementation_review_stages": {
+        "review_content_id": "9d06ed173cd7dc1151f8e09f515d05869e313691980ae04644a15d599b68f312",
+        "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "b3ab87cdd72761a1f5be3922dcfee753fbede70ac0acd845c8dd15026479b0ec",
+          "verdict": "APPROVE",
+          "round": 2,
+          "completed_at": "2026-10-08T23:49:41Z",
+          "verdict_sha256": "7e7439017eb135e98c9a77dbd0dd94f61628dbbead33d9f3b79e05d2c929583c",
+          "run_ref": "session:local .ai-review/workflow-manager-update-ergonomics/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": null
+      }
     }
   }
 }
