@@ -345,6 +345,24 @@ class TestCommandsDoNotWriteTheTarget(Base):
                 self.check(command)
         self.assertFalse(marker.exists())
 
+    def test_a_filter_selected_outside_a_target_below_the_git_root_never_runs(self):
+        marker = self.work / "filter-ran"
+        parent = self.work / "parent"
+        init_git_repo(parent)
+        component = parent / "component"
+        shutil.copytree(self.pristine, component, symlinks=True,
+                        ignore=shutil.ignore_patterns(".git"))
+        (parent / "outside.txt").write_text("tracked\n")
+        (parent / ".gitattributes").write_text("outside.txt filter=x\n")
+        git(parent, "add", "-A")
+        git(parent, "-c", "user.name=t", "-c", "user.email=t@e", "commit", "-q", "-m", "r")
+        git(parent, "config", "filter.x.clean", f"touch {marker}; cat")
+        (parent / "outside.txt").write_text("trackeX\n")   # same size
+        for command in COMMANDS:
+            with self.subTest(command=command):
+                self.check(command, repo=component)
+        self.assertFalse(marker.exists())
+
     def test_a_clean_filter_configured_in_a_submodule_never_runs(self):
         marker = self.work / "filter-ran"
         sub = self.work / "sm-origin"

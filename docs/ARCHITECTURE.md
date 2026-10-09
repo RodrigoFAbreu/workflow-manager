@@ -226,8 +226,10 @@ are protected by path arithmetic before anything is resolved, and a partial
 clone skips the commands that would fetch. A configured Git clean/process
 filter is arbitrary code that `git status` could run on a tracked file whose
 `filter` attribute selects it, so when a configured driver is selected by a
-tracked path (decided read-only, by `config`, `ls-files` and `check-attr`,
-which run no filter), or that cannot be ruled out, the tree-state check is
+tracked path anywhere in the repository (decided read-only, by `config`,
+`rev-parse`, `ls-files` and `check-attr` run from the Git top level, as
+`git status` scans the whole work tree even for a target below it; none runs a
+filter), or that cannot be ruled out, the tree-state check is
 skipped and reported as an incomplete inspection. A driver that no tracked path
 selects (Git LFS installed system-wide, say) never runs, and the check goes
 ahead. The path lists cross `run_git(..., raw=True)`, which keeps every byte
