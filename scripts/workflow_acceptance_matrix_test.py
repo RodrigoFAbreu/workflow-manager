@@ -908,8 +908,13 @@ class Item:
 
     def generate_impl_bundle(self, stage="implementation", check=True, expect_outcome=None,
                              summary=None, review_request=None, skip_durability=False,
-                             wrap_up=True, refresh_inputs=True):
-        """`refresh_inputs=False` leaves whatever the previous round wrote
+                             wrap_up=True, refresh_inputs=True, scoped_staging=False):
+        """`scoped_staging=True` stages the state file through
+        `stage_scoped_state`, as `/milestone-implement` step 4 and
+        `/apply-implementation-review` do, so another work item's
+        uncommitted residue stays out of the generation-record commit.
+
+        `refresh_inputs=False` leaves whatever the previous round wrote
         under `<bundle_dir>` exactly as it is -- the shape a command that
         never names its author-written preconditions actually produces
         (convergence pass 11, ledger `I19`, row `C9`)."""
@@ -934,10 +939,15 @@ class Item:
             }
             if outcome == "same_content":
                 trailers["Workflow-Supersedes"] = superseded
-            durability = self.sim.commit(
-                f"chore({self.wid}): record bundle generation, revision {revision} ({outcome})",
-                trailers, paths=["docs/ai-workflow/WORKFLOW_STATE.json"],
-            )
+            subject = f"chore({self.wid}): record bundle generation, revision {revision} ({outcome})"
+            if scoped_staging:
+                if not ws.stage_scoped_state(self.root, self.wid):
+                    self.sim.git("add", "--", "docs/ai-workflow/WORKFLOW_STATE.json")
+                body = subject + "\n\n" + "\n".join(f"{k}: {v}" for k, v in trailers.items())
+                self.sim.git("commit", "-q", "-m", body)
+                durability = self.sim.head()
+            else:
+                durability = self.sim.commit(subject, trailers, paths=["docs/ai-workflow/WORKFLOW_STATE.json"])
         if refresh_inputs:
             self.write_bundle_inputs(stage, durability, revision,
                                      summary=summary, review_request=review_request)
@@ -7948,6 +7958,413 @@ class RepoGlobalLifecycleAcrossWorktrees(MatrixCase):
         self.assertEqual((witness["status"], witness["resolution_projection_sha256"]),
                          (ws.AMENDMENT_WITNESS_RESOLVED, reserved))
         self.assertEqual(len(approval_trailer_commits(self.scratch, self.item.wid)), 2)
+
+
+# ===========================================================================
+# workflow-2.9.1: the commit rule for review-stage writes
+# ===========================================================================
+
+
+class ReviewStageWriteDurabilityProcess(unittest.TestCase):
+    """CP3 of `review-stage-write-durability`: every review-stage write is
+    driven through the functions and commits the command texts name, in the
+    texts' order. A REVISE write (and `/apply-implementation-review` step
+    0's entry) is committed alone by
+    `commit_pending_applying_review_feedback_entry` before any fix commit;
+    an APPROVE write is left uncommitted for the approval commit, because
+    committing it alone moves HEAD past the generation record
+    (`bundle_generation_mismatch`, INV-1). Scenario numbers follow the
+    plan's CP3 section; the rows that exercise the new commit fail against
+    2.9.0's texts, the ones named `regression_pin` already passed there."""
+
+    work_item_type = "process"
+    STATE = "docs/ai-workflow/WORKFLOW_STATE.json"
+    LOCAL = "AWAITING_LOCAL_IMPLEMENTATION_REVIEW"
+    TERMINAL = "AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW"
+
+    def setUp(self):
+        self.scratch = Scratch()
+        self.addCleanup(self.scratch.cleanup)
+
+    # --- fixtures ---------------------------------------------------------
+
+    def start(self, governing="2.2"):
+        """Plan approved, one checkpoint implemented and its first
+        implementation bundle generated; returns the generation-record
+        commit `T`."""
+        self.item = item = Item(self.scratch, self.work_item_type, governing=governing)
+        item.seed()
+        if governing == "2.2":
+            config = json.loads(self.scratch.read("docs/ai-workflow/WORKFLOW_CONFIG.json"))
+            config["supported_versions"] = ["1", "2.1", "2.2"]
+            self.scratch.write("docs/ai-workflow/WORKFLOW_CONFIG.json", json.dumps(config, indent=2) + "\n")
+            item.base_commit = self.scratch.commit("base: enable 2.2")
+        item.milestone_plan()
+        item.generate_plan_bundle()
+        item.write_feedback("APPROVE")
+        if governing != "1":
+            item.record_plan_reviews()
+        item.approve_plan()
+        item.implement_checkpoint("CP1", {item.deliverable: "// round 1\n"})
+        _, durability, _ = item.generate_impl_bundle("implementation", expect_outcome="ordinary")
+        self.review_phase = self.LOCAL if governing == "2.2" else self.TERMINAL
+        self.assertEqual(item.entry()["phase"], self.review_phase)
+        return durability
+
+    def local_review(self, verdict, round=1):
+        item = self.item
+        content_id, _ = item.impl_review_content_id(self.scratch.head())
+        bundle_id = item.bundle_id()
+        item.tx(lambda state: ws.record_local_implementation_review(
+            state, item.wid, verdict=verdict, bundle_id=bundle_id,
+            review_content_id=content_id, round=round, now=item.now(),
+        ))
+
+    def manual_review(self, verdict, round=1):
+        item = self.item
+        content_id, _ = item.impl_review_content_id(self.scratch.head())
+        bundle_id = item.bundle_id()
+        item.tx(lambda state: ws.record_manual_implementation_review(
+            state, item.wid, verdict=verdict, bundle_id=bundle_id, round=round,
+            now=item.now(), current_review_content_id=content_id,
+            feedback_role=ws.MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW,
+            feedback_review_content_id=content_id,
+        ))
+
+    def enter_applying(self):
+        """`/apply-implementation-review` step 0's own entry, uncommitted."""
+        item = self.item
+        item.tx(lambda state: ws.enter_applying_review_feedback(state, item.wid, item.now()))
+
+    def commit_entry(self):
+        return ws.commit_pending_applying_review_feedback_entry(self.item.root, self.item.wid)
+
+    def standin_commit(self, subject, final_paragraph):
+        """A commit of the pending state write made by something other than
+        the helper (the Controller): the whole state file, one subject,
+        an arbitrary final paragraph."""
+        self.scratch.git("add", "--", self.STATE)
+        self.scratch.git("commit", "-q", "-m", subject, "-m", final_paragraph)
+        return self.scratch.head()
+
+    def commit_count(self):
+        return int(self.scratch.git("rev-list", "--count", "HEAD").stdout)
+
+    def fix_commit(self, excluded=False):
+        item = self.item
+        if excluded:
+            self.scratch.write(item.excluded_note, "# ledger\n\nfindings recorded.\n")
+            path = item.excluded_note
+        else:
+            self.scratch.write(item.deliverable, f"// fix {self.commit_count()}\n")
+            path = item.deliverable
+        return self.scratch.commit(f"fix({item.wid}): review finding", {"Workflow-Work-Item": item.wid},
+                                   paths=[path])
+
+    def assert_generation_refused_for_missing_phase_transition(self):
+        """The generator itself refuses the post-fix record: its commit would
+        carry no phase transition (OPUS-R101-001)."""
+        _, durability, proc = self.item.generate_impl_bundle(
+            "post-fix", expect_outcome="ordinary", check=False)
+        self.assertNotEqual(proc.returncode, 0)
+        self.assertIn("OPUS-R101-001", proc.stderr)
+        with self.assertRaises(ws.MalformedBundleGenerationRecordCommitError):
+            ws.validate_bundle_generation_record_commit(self.item.root, durability, self.item.wid)
+
+    def regenerate(self, expect_outcome="ordinary", scoped_staging=False):
+        """`record_bundle_generation` and its record commit, then the
+        validations the approval step later relies on."""
+        item = self.item
+        outcome, durability, proc = item.generate_impl_bundle(
+            "post-fix", expect_outcome=expect_outcome, scoped_staging=scoped_staging)
+        self.assertEqual(proc.returncode, 0)
+        ws.validate_bundle_generation_record_commit(item.root, durability, item.wid)
+        self.assertTrue(ws.implementation_provenance_interval_reachable(
+            item.root, item.entry(), item.base_commit))
+        self.assertEqual(item.entry()["phase"], self.review_phase)
+        return durability
+
+    def gate(self):
+        item = self.item
+        return ws.technical_approval_gate_status(item.root, item.state(), item.wid)
+
+    def approve_both(self):
+        self.local_review("APPROVE")
+        self.manual_review("APPROVE")
+        self.assertEqual(self.item.entry()["phase"], self.TERMINAL)
+
+    def add_foreign_residue(self):
+        """Another work item's uncommitted change in the shared state file."""
+        path = self.item.root / self.STATE
+        state = json.loads(path.read_text())
+        state["work_items"]["other-item"] = {
+            "work_item_id": "other-item", "work_item_type": "process", "phase": "PLANNING",
+            "state_revision": 1, "last_transition": "2026-01-01T00:00:00Z",
+        }
+        path.write_bytes(ws._serialize_state(state))
+
+    def committed_state(self, commit="HEAD"):
+        return json.loads(self.scratch.git("show", f"{commit}:{self.STATE}").stdout)
+
+    # --- implementation stage, REVISE ---------------------------------------
+
+    def test_s01_local_revise_is_committed_then_the_round_regenerates(self):
+        self.start()
+        before = self.commit_count()
+        self.local_review("REVISE")
+        self.assertEqual(self.item.entry()["phase"], "APPLYING_REVIEW_FEEDBACK")
+        sha = self.commit_entry()
+        self.assertEqual(sha, self.scratch.head())
+        self.assertEqual(self.commit_count(), before + 1)
+        message = self.scratch.git("log", "-1", "--format=%B").stdout.strip().split("\n\n")
+        self.assertEqual(message[-1], f"Workflow-Work-Item: {self.item.wid}")
+        self.fix_commit()
+        self.regenerate()
+        self.assertEqual(self.item.entry()["implementation_revision"], 2)
+
+    def test_s02_manual_revise_after_an_uncommitted_local_approve(self):
+        self.start()
+        self.local_review("APPROVE")
+        self.manual_review("REVISE")
+        self.assertEqual(self.item.entry()["phase"], "APPLYING_REVIEW_FEEDBACK")
+        self.assertIsNotNone(self.item.entry()["implementation_review_stages"])
+        self.assertIsNotNone(self.commit_entry())
+        self.fix_commit()
+        self.regenerate()
+
+    def test_s06_a_write_never_committed_is_repaired_by_the_apply_safety_net(self):
+        """The REVISE command crashed after persisting: `/apply-implementation-
+        review` step 1 calls the helper before its first fix commit."""
+        self.start()
+        self.local_review("REVISE")
+        before = self.commit_count()
+        self.assertIsNotNone(self.commit_entry())  # the safety net
+        self.assertEqual(self.commit_count(), before + 1)
+        self.fix_commit()
+        self.regenerate()
+
+    def test_s06b_without_the_helper_the_record_is_refused(self):
+        """What 2.9.0's texts produced: the REVISE write left uncommitted, so
+        the post-fix record commit has no phase transition."""
+        self.start()
+        self.local_review("REVISE")
+        self.fix_commit()
+        self.assert_generation_refused_for_missing_phase_transition()
+
+    def test_s08_late_problem_entry_commits_the_ledgers_and_the_move_together(self):
+        self.start()
+        self.approve_both()
+        self.enter_applying()
+        sha = self.commit_entry()
+        self.assertIsNotNone(sha)
+        committed = self.committed_state()["work_items"][self.item.wid]
+        self.assertEqual(committed["phase"], "APPLYING_REVIEW_FEEDBACK")
+        self.assertIsNotNone(committed["implementation_review_stages"])
+        self.fix_commit()
+        self.regenerate()
+
+    def test_s09_entry_from_a_head_left_at_the_terminal_phase_by_recovery(self):
+        self.start()
+        self.fix_commit(excluded=True)
+        self.approve_both()
+        superseded, record, _ = self.item.recover_provenance()
+        self.assertEqual(self.committed_state()["work_items"][self.item.wid]["phase"], self.TERMINAL)
+        self.enter_applying()
+        self.assertIsNotNone(self.commit_entry())
+        self.fix_commit()
+        self.regenerate()
+
+    def test_s10_a_2_1_item_through_the_ordinary_step_0_route(self):
+        self.start("2.1")
+        self.enter_applying()
+        self.assertIsNotNone(self.commit_entry())
+        self.fix_commit()
+        self.regenerate()
+
+    def test_s10b_a_2_1_item_without_the_helper_is_refused(self):
+        self.start("2.1")
+        self.enter_applying()
+        self.fix_commit()
+        self.assert_generation_refused_for_missing_phase_transition()
+
+    def test_s10_a_1_item_through_the_ordinary_step_0_route(self):
+        self.start("1")
+        self.enter_applying()
+        self.assertIsNotNone(self.commit_entry())
+        self.fix_commit()
+        self.regenerate()
+
+    def test_s10b_a_1_item_without_the_helper_is_refused(self):
+        self.start("1")
+        self.enter_applying()
+        self.fix_commit()
+        self.assert_generation_refused_for_missing_phase_transition()
+
+    def test_s12_a_same_content_round_classifies_the_entry_commit_as_excluded_only(self):
+        self.start()
+        self.local_review("REVISE")
+        entry_commit = self.commit_entry()
+        self.fix_commit(excluded=True)
+        durability = self.regenerate(expect_outcome="same_content")
+        self.assertEqual(self.item.entry()["implementation_revision"], 1)
+        self.assertEqual(
+            ws.verify_implementation_provenance_interval(
+                self.item.root, self.item.entry(), self.item.base_commit), durability)
+        self.assertEqual(
+            self.scratch.git("rev-list", "--count", f"{entry_commit}..{durability}").stdout.strip(), "2")
+
+    # --- interrupted staging (EPR-001) ---------------------------------------
+
+    def interrupt_after_staging(self):
+        """Run the helper with the commit step failing: staging is done and
+        no entry commit exists."""
+        real = ws._run
+
+        def run(args, *a, **kw):
+            if list(args[:2]) == ["git", "commit"]:
+                raise RuntimeError("interrupted before the commit")
+            return real(args, *a, **kw)
+
+        with mock.patch.object(ws, "_run", side_effect=run):
+            with self.assertRaises(RuntimeError):
+                self.commit_entry()
+
+    def check_interrupted_staging(self):
+        before = self.commit_count()
+        self.interrupt_after_staging()
+        self.assertEqual(self.commit_count(), before)
+        staged = self.scratch.git("diff", "--name-only", "--cached").stdout.split()
+        self.assertEqual(staged, [self.STATE])
+        staged_state = json.loads(self.scratch.git("show", f":{self.STATE}").stdout)
+        self.assertNotIn("other-item", staged_state["work_items"])
+        sha = self.commit_entry()  # the retry
+        self.assertEqual(sha, self.scratch.head())
+        self.assertEqual(self.commit_count(), before + 1)
+        self.assertNotIn("other-item", self.committed_state()["work_items"])
+        self.assertIn("other-item", json.loads((self.item.root / self.STATE).read_text())["work_items"])
+        self.assertIsNone(self.commit_entry())
+        self.assertEqual(self.commit_count(), before + 1)
+
+    def test_s11_interrupted_staging_resumes_and_commits_exactly_once(self):
+        self.start()
+        self.local_review("REVISE")
+        self.add_foreign_residue()
+        self.check_interrupted_staging()
+        self.fix_commit()
+        self.regenerate(scoped_staging=True)
+        self.assertIn("other-item", json.loads((self.item.root / self.STATE).read_text())["work_items"])
+        self.assertNotIn("other-item", self.committed_state()["work_items"])
+
+    def test_s15_manual_revise_with_a_local_approve_ledger_through_interrupted_staging(self):
+        self.start()
+        self.local_review("APPROVE")
+        self.manual_review("REVISE")
+        self.add_foreign_residue()
+        self.check_interrupted_staging()
+        self.fix_commit()
+        self.regenerate(scoped_staging=True)
+
+    # --- implementation stage, APPROVE and the strict read side ---------------
+
+    def test_s03_regression_pin_both_approves_left_uncommitted_reach_the_gate(self):
+        self.start()
+        self.item.write_feedback("APPROVE")
+        self.approve_both()
+        gate = self.gate()
+        self.assertTrue(gate["reachable"], gate)
+        self.assertIsNone(gate["cause"])
+        commit = self.item.approve_implementation()
+        self.assertEqual(self.item.entry()["phase"], "AWAITING_FUNCTIONAL_REVIEW")
+        ws.validate_technical_approval_commit(self.item.root, commit, self.item.wid)
+
+    def test_s04_regression_pin_an_approve_committed_alone_breaks_the_gate(self):
+        """The trap the rule exists for: the strict read side (INV-1) refuses
+        a HEAD past the generation record, and the helper refuses to create
+        that commit."""
+        self.start()
+        self.item.write_feedback("APPROVE")
+        self.local_review("APPROVE")
+        head = self.scratch.head()
+        with self.assertRaises(ws.ReviewStageWriteNotCommittableError):
+            self.commit_entry()
+        self.assertEqual(self.scratch.head(), head)
+        self.standin_commit("chore: record local approve", f"Workflow-Work-Item: {self.item.wid}")
+        gate = self.gate()
+        self.assertFalse(gate["reachable"])
+        self.assertEqual(gate["cause"], "bundle_generation_mismatch")
+
+    # --- already committed REVISE ---------------------------------------------
+
+    def test_s05_regression_pin_an_already_committed_revise_is_left_alone(self):
+        self.start()
+        self.local_review("REVISE")
+        self.standin_commit("chore: record revise", f"Workflow-Work-Item: {self.item.wid}")
+        before = self.commit_count()
+        self.assertIsNone(self.commit_entry())
+        self.assertEqual(self.commit_count(), before)
+        self.fix_commit()
+        self.regenerate()
+
+    def test_s13_an_already_committed_revise_with_the_controllers_message_shape(self):
+        self.start()
+        self.local_review("REVISE")
+        self.standin_commit(
+            "Record local implementation review: REVISE",
+            f"Workflow-Work-Item: {self.item.wid}\nCo-Authored-By: Controller <controller@example.com>")
+        before = self.commit_count()
+        self.assertIsNone(self.commit_entry())
+        self.assertEqual(self.commit_count(), before)
+        self.fix_commit()
+        self.regenerate()
+
+    # --- plan stage ------------------------------------------------------------
+
+    def plan_item(self):
+        self.item = item = Item(self.scratch, self.work_item_type)
+        item.seed()
+        item.milestone_plan()
+        item.generate_plan_bundle()
+        return item
+
+    def test_s07_regression_pin_plan_stage_writes_stay_uncommitted_until_approval(self):
+        item = self.plan_item()
+        item.record_plan_reviews(local="REVISE")
+        item.apply_plan_review(2)
+        item.generate_plan_bundle()
+        item.write_feedback("APPROVE")
+        item.record_plan_reviews(round=2)
+        self.assertEqual(item.entry()["phase"], "AWAITING_PLAN_APPROVAL")
+        status = ws.plan_approval_gate_status(item.root, item.state(), item.wid)
+        self.assertTrue(status["reachable"], status)
+        item.approve_plan()
+        self.assertEqual(item.entry()["phase"], "IMPLEMENTING")
+
+    def test_s07b_regression_pin_a_plan_write_committed_alone_breaks_the_plan_gate(self):
+        item = self.plan_item()
+        item.write_feedback("APPROVE")
+        item.record_plan_reviews()
+        self.standin_commit("chore: record plan reviews", f"Workflow-Work-Item: {item.wid}")
+        status = ws.plan_approval_gate_status(item.root, item.state(), item.wid)
+        self.assertFalse(status["reachable"])
+        self.assertEqual(status["cause"], "bundle_generation_mismatch")
+
+    def test_s14_regression_pin_a_manual_plan_revise_then_approval(self):
+        item = self.plan_item()
+        item.record_plan_reviews(local="APPROVE", manual="REVISE")
+        self.assertEqual(item.entry()["phase"], "REVISING_PLAN")
+        item.apply_plan_review(2)
+        item.generate_plan_bundle()
+        item.write_feedback("APPROVE")
+        item.record_plan_reviews(round=2)
+        item.approve_plan()
+        self.assertEqual(item.entry()["phase"], "IMPLEMENTING")
+        self.assertEqual(item.entry()["plan_revision"], 2)
+
+
+class ReviewStageWriteDurabilityProduct(ReviewStageWriteDurabilityProcess):
+    """The same scenarios for a `product` work item."""
+
+    work_item_type = "product"
 
 
 if __name__ == "__main__":

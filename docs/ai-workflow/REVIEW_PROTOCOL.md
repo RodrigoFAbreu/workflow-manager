@@ -926,6 +926,51 @@ both halves of this against a real Git history: the ordinary carry-through
 succeeds unchanged, and a simulated regeneration between the two stages is
 hard-blocked rather than silently ingested.
 
+### Which review-stage writes are committed (`workflow-2.9.1`)
+
+A review stage persists its verdict in `WORKFLOW_STATE.json`. Whether that
+write is committed on its own depends on what reads the history next, so the
+rule is written down once, here, and the command texts point at it:
+
+| Write | Stage | Committed on its own? | Why |
+| --- | --- | --- | --- |
+| `REVISE` (a `"2.2"` item: `/review-implementation` or `/record-manual-implementation-review`) | implementation | **Yes, alone, before any fix commit** | `/apply-implementation-review`'s fix commits and its post-fix generation-record commit would otherwise sweep the write up, and a generation record must always transition `phase` (`OPUS-R101-001`); a swept-up write shows no change and is refused |
+| Entry into `APPLYING_REVIEW_FEEDBACK` by `/apply-implementation-review` step 0 (`enter_applying_review_feedback`, from the terminal `AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW`, every governing version) | implementation | **Yes, alone, before any fix commit** (an uncommitted `APPROVE` ledger rides in with it) | the same dead end: the post-fix record would otherwise absorb the move and show a net no-change `phase` (a recovered `"2.2"` HEAD already at `AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW` is the one exception -- its generation would move to `AWAITING_LOCAL_IMPLEMENTATION_REVIEW` -- but the entry is committed the same way, keeping the rule uniform) |
+| `APPROVE` (`/review-implementation` or `/record-manual-implementation-review`) | implementation | **No** | `/approve-review implementation` or `/satisfy-gate implementation` takes it; a commit of its own puts `HEAD` past the bundle's `generation_head` and both gates refuse with `bundle_generation_mismatch` |
+| `BLOCK` | either | nothing to commit | no state is written |
+| any write | plan | **No** | there is no generation record at the plan stage; the plan-approval commit takes the whole working-tree state, and a commit of its own raises `bundle_generation_mismatch` at the plan-approval gate |
+
+The committed writes go through one idempotent helper,
+`workflow_state.commit_pending_applying_review_feedback_entry(repo_root,
+work_item_id, attribution=())`. It stages only the target work item's entry
+(foreign work-item residue stays in the working tree), commits it with the
+subject `chore(workflow): record entry into APPLYING_REVIEW_FEEDBACK for
+<id>` and a `Workflow-Work-Item` trailer as the final paragraph, and returns
+the commit SHA, or `None` when nothing is pending (the write is already
+committed, or none was made). The review commands call it after a `REVISE`
+write; `/apply-implementation-review` step 1 calls it again as a safety net,
+so a crash between the write and the commit, or between the staging and the
+commit, is repaired and exactly one entry commit ever exists. It refuses
+with `ReviewStageWriteNotCommittableError` for an uncommitted `APPROVE` (the
+row above says to leave it) and for any field outside
+`REVIEW_STAGE_WRITE_COMMIT_FIELDS`, for example `reviewed_implementation_head`
+or a persisted but uncommitted `technical_review_block_pins` entry. It
+raises `DirtyIndexBeforeStagingError` when another path, or a different
+state-file blob, is already staged; unstage that unrelated content, then
+re-run. For a leftover pin, `/apply-implementation-review` step 1 stops on the
+refusal. The remedy is to stage the state file with
+`workflow_state.stage_scoped_state(repo_root, <id>)` (when it returns `False`,
+stage exactly `docs/ai-workflow/WORKFLOW_STATE.json`) and commit it with a
+`Workflow-Work-Item` trailer as the final paragraph; never stage the whole
+file while another work item holds uncommitted state. The helper then returns
+`None` and the post-fix generation proceeds. When a pin and another field are
+both left, resolve the other field first (it is not a pure review-stage
+entry) and commit the pin only afterwards.
+
+The read side is unchanged and strict: `bundle_generation_mismatch` and the
+provenance-interval check do not tolerate a state-only commit past the
+generation record, and the Orchestration Protocol version is unchanged.
+
 ## Context-efficiency rules
 
 - Load only the active status (`docs/ACTIVE_MILESTONE.md`), `docs/ROADMAP.md`,
