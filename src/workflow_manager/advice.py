@@ -19,6 +19,7 @@ from typing import Any, Callable
 
 from .compatibility import (  # noqa: F401  (re-exported: one home for the predicate)
     NOT_MANAGED_PROBLEM,
+    ContainmentError,
     PREDICATE_EXCLUDED,
     RECORD_UNREADABLE_TITLE,
     DataFile,
@@ -43,7 +44,12 @@ from .installation import (
     NotInstalledError,
     UnsupportedInstallationSchemaError,
 )
-from .release import STATE_TEMPLATES
+from .release import STATE_TEMPLATES, ReleaseIntegrityError
+from .source import (
+    SOURCE_ENV,
+    ReleaseNotPublishedError,
+    ReleaseUnavailableError,
+)
 
 PROGRAM = "workflow-manager"
 
@@ -431,18 +437,229 @@ def unmanaged_status_step(context: Context) -> str:
     return _bootstrap_step(context, "run", " to install the Workflow")
 
 
+# -- releases, sources, the cache, packages (R rows) and containment (C rows) ---
+
+#: The commands that read or write a target and so can resolve a release.
+_TARGET_COMMANDS = ("bootstrap", "update", "verify", "status", "doctor")
+
+
+def _writes_held(context: Context) -> bool:
+    """Whether the command being advised writes the repository while a write is
+    withheld (3.2): its re-run or reprinted command would write."""
+    return writes_repository(context.args) and context.withheld
+
+
+def _held_rerun(context: Context) -> str:
+    return f"{data_step(context)}; {rerun_phrase(True, True, _url(PAGE_DATA))}"
+
+
+def _operator_command(context: Context, *, directory=None, source=None, cache=None,
+                      version=_OPERATOR) -> str:
+    """The command the operator ran, rebuilt with one of the places a release
+    comes from replaced by a placeholder (`DIR`, `MIRROR`). Only called when
+    the command does not write while a write is withheld. A command that names
+    no target (`package`, `releases`) is shown as the `bootstrap` of a target
+    placeholder, the command a first release directory is for."""
+    args = context.args
+    name = getattr(args, "command", None)
+    target = context.target
+    if name not in _TARGET_COMMANDS or not target:
+        name, target = "bootstrap", target or "TARGET"
+    flags = [name]
+    if name in ("bootstrap", "update"):
+        profile = getattr(args, "profile", None)
+        if profile not in (None, "full"):
+            flags.append(f"--profile={profile}")
+    if name == "update" and getattr(args, "dry_run", False):
+        flags.append("--dry-run")
+    if version is _OPERATOR:
+        version = getattr(args, "release_version", None)
+    options = []
+    chosen = source or getattr(args, "release_source", None)
+    if chosen:
+        options.append(("--release-source", chosen))
+    chosen = cache or getattr(args, "release_cache", None)
+    if chosen:
+        options.append(("--release-cache", chosen))
+    if directory is not None:
+        options.append(("--release-dir", directory))
+    elif getattr(args, "release_dir", None) is not None and source is None and cache is None:
+        options.append(("--release-dir", args.release_dir))
+    return manager_command(*flags, release_version=version, withheld=False, target=target,
+                           options=tuple(options)).render()
+
+
+def _with_directory(context: Context, lead: str, tail: str = "") -> str:
+    """`lead` and the operator's command with `--release-dir DIR` added; while a
+    write is withheld, the workflow-data step instead of the command."""
+    if _writes_held(context):
+        return f"{lead}{tail}; {data_step(context)}"
+    return f"{lead}: `{_operator_command(context, directory='DIR')}`{tail}"
+
+
+def _release_dir_option(context: Context) -> str:
+    return "--manager-root" if (getattr(context.args, "release_dir", None) is None
+                                and getattr(context.args, "manager_root", None) is not None) \
+        else "--release-dir"
+
+
+def _none_pinned(error, context):
+    upgrade = f"upgrade the Manager ({_url(PAGE_UPDATE_MANAGER)})"
+    if _writes_held(context):
+        return f"{upgrade}; {data_step(context)}"
+    return (f"{upgrade}, or install an unpackaged release directory: "
+            f"`{_operator_command(context, directory='DIR')}`")
+
+
+def _unpinned(error, context):
+    upgrade = (f"a published release needs a newer Manager that pins it: upgrade the Manager "
+               f"({_url(PAGE_UPDATE_MANAGER)})")
+    if _writes_held(context):
+        return f"{upgrade}; {_held_rerun(context)}"
+    return (f"{upgrade}, then run the command again. An unpublished release directory "
+            f"installs with `{_operator_command(context, directory='DIR')}`")
+
+
+def _fetch_url(error, context):
+    version = f"{error.version}/" if error.version else "the release's directory"
+    if _writes_held(context):
+        return _held_rerun(context)
+    return (f"connect to the network and run the same command again, or point the Manager at "
+            f"a mirror that holds {version} (a directory, or a URL with {{version}}): "
+            f"`{_operator_command(context, source='MIRROR')}`")
+
+
+def _fetch_directory(error, context):
+    version = f"{error.version}/" if error.version else "a directory per release"
+    return (f"the source directory {error.source} has no {version} with SHA256SUMS, the archive "
+            f"and the manifest asset: fix --release-source (or ${SOURCE_ENV}), or leave it "
+            f"unset to download")
+
+
+def _no_version_field(error, context):
+    return ("write the source as a directory, or as a URL with {version} in it, for example "
+            "https://host/releases/v{version}/")
+
+
+def _source_response(error, context):
+    return ("the source answered with something that is not a Workflow package or a safe "
+            "redirect; check --release-source, or leave it unset to use the published releases")
+
+
+def _cache_store(error, context):
+    cache = context.cache_dir or "the release cache"
+    if _writes_held(context):
+        return f"free space or fix permissions on {cache}; {_held_rerun(context)}"
+    return (f"free space or fix permissions on {cache}, or choose another cache: "
+            f"`{_operator_command(context, cache='DIR')}`")
+
+
+_REPORT = ("install nothing from this download and report it to the Manager's maintainer "
+           "with this message")
+
+
+def _digest(error, context):
+    if _writes_held(context):
+        return f"{_held_rerun(context)}; if the digests differ on a later run, {_REPORT}"
+    return (f"run the same command again (it downloads afresh). If the digests differ again, "
+            f"{_REPORT}")
+
+
+def _cache_changed(error, context):
+    cache = context.cache_dir or "the release cache"
+    if _writes_held(context):
+        return f"another process is writing {cache}; {_held_rerun(context)}"
+    return (f"another process is writing the release cache {cache}; wait for it to finish and "
+            f"run the command again")
+
+
+def _pin_file(error, context):
+    return f"the Manager's own pin file is damaged; reinstall the Manager: {_url(PAGE_UPDATE_MANAGER)}"
+
+
+def _local_release(error, context):
+    option = _release_dir_option(context)
+    return (f"use an unmodified copy of the release directory, or leave {option} out so the "
+            f"Manager uses the published, checksummed package")
+
+
+def _damaged(error, context):
+    if getattr(context.args, "release_dir", None) is not None \
+            or getattr(context.args, "manager_root", None) is not None:
+        return _local_release(error, context)
+    if _writes_held(context):
+        return f"{_held_rerun(context)}; if it persists, {_REPORT}"
+    return ("run the command again (a cache entry that fails its pin is discarded and "
+            f"downloaded afresh, so this should not recur); if it persists, {_REPORT}")
+
+
+def _package(error, context):
+    if getattr(context.args, "command", None) != "package":
+        return _digest(error, context)
+    return ("download the archive again and compare it with SHA256SUMS: "
+            "`sha256sum -c SHA256SUMS`")
+
+
+def _package_build(error, context):
+    return ("give a Workflow release directory, the one holding manifest.json: "
+            "`workflow-manager package build DIR --out OUT`")
+
+
+def _manifest_shape(error, context):
+    if getattr(context.args, "command", None) == "package":
+        return _package_build(error, context)
+    return _local_release(error, context)
+
+
+def _git_unavailable(error, context):
+    check = git_command(context.target, "rev-parse", "--git-dir").render()
+    return f"make sure Git runs here (`{check}`), then run the command again"
+
+
+def _choose_cache(error, context):
+    return f"choose another cache: `{_operator_command(context, cache='DIR')}`"
+
+
+def _cache_link(error, context):
+    return (f"remove that cache entry, or choose another cache: "
+            f"`{_operator_command(context, cache='DIR')}`")
+
+
+def _tmp_environment(error, context):
+    return ("point the temporary-directory variable (TMPDIR, TEMP or TMP) at a directory "
+            "outside the repository, or unset it, then run the command again")
+
+
+def _no_tmp(error, context):
+    return "set TMPDIR to a writable directory outside the repository and run the command again"
+
+
+def _by_kind(rows: dict):
+    """A table entry that picks its row by the error's `kind`; a kind with no
+    row (the causes that already name their fix) has no step."""
+    def entry(error, context):
+        function = rows.get(getattr(error, "kind", None))
+        return function(error, context) if function is not None else None
+    return entry
+
+
 #: The table: exception class -> function(error, context) -> step. Entries for
 #: runtime errors are added by the checkpoints that own them. A row that prints
 #: a command that writes goes through the predicate, so its context needs the
 #: Workflow data facts (`needs_data`).
 _TABLE: dict[type, Callable[[BaseException, Context], str | None]] = {}
 _PREDICATE_ROWS: set[type] = set()
+#: Classes whose step reprints or re-runs the operator's command: a predicate
+#: row only when that command writes the repository.
+_WRITE_ROWS: set[type] = set()
 
 
-def _row(cls: type, function, *, predicate: bool = False) -> None:
+def _row(cls: type, function, *, predicate: bool = False, on_write: bool = False) -> None:
     _TABLE[cls] = function
     if predicate:
         _PREDICATE_ROWS.add(cls)
+    if on_write:
+        _WRITE_ROWS.add(cls)
 
 
 _row(TargetNotFoundError, _target_not_found)
@@ -458,12 +675,27 @@ _row(UnknownProfileError, _unknown_profile, predicate=True)
 _row(DriftError, _drift, predicate=True)
 _row(CollisionError, _collision, predicate=True)
 _row(OSError, _os_error)
+_row(ReleaseNotPublishedError, _by_kind({"none-pinned": _none_pinned, "unpinned": _unpinned}),
+     on_write=True)
+_row(ReleaseUnavailableError, _by_kind({
+    "fetch-url": _fetch_url, "fetch-directory": _fetch_directory,
+    "no-version-field": _no_version_field, "source-response": _source_response,
+    "cache-store": _cache_store}), on_write=True)
+_row(ReleaseIntegrityError, _by_kind({
+    "digest": _digest, "cache-changed": _cache_changed, "pin-file": _pin_file,
+    "local-release": _local_release, "damaged": _damaged, "package": _package,
+    "package-build": _package_build, "manifest-shape": _manifest_shape}), on_write=True)
+_row(ContainmentError, _by_kind({
+    "git": _git_unavailable, "cache-inside": _choose_cache, "cache-entry": _choose_cache,
+    "cache-link": _cache_link, "tmp-environment": _tmp_environment, "no-tmp": _no_tmp}))
 
 
 def needs_data(error: BaseException, args) -> bool:
     """Whether `error`'s step goes through the withholding predicate, so the
     caller must compute the Workflow data facts for it."""
     if isinstance(error, OSError):
+        return writes_repository(args)
+    if any(isinstance(error, cls) for cls in _WRITE_ROWS):
         return writes_repository(args)
     return any(isinstance(error, cls) for cls in _PREDICATE_ROWS)
 

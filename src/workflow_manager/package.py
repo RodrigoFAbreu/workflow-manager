@@ -140,6 +140,13 @@ def _tarinfo(name: str, *, directory: bool, mode: int, size: int = 0) -> tarfile
     return info
 
 
+def _malformed(release_dir: Path, exc: BaseException) -> ReleaseIntegrityError:
+    """A manifest of the wrong shape (a list, a record that is not a mapping, a
+    location that is not text): a classified refusal instead of a traceback."""
+    return ReleaseIntegrityError(
+        f"manifest.json at {release_dir} is malformed: {exc}", kind="manifest-shape")
+
+
 def _read_checked(root: Path, location: str, record: dict) -> bytes:
     """The bytes the archive will carry for `location`, checked against the
     manifest at the moment they are read, not only by the earlier verify."""
@@ -153,6 +160,17 @@ def _read_checked(root: Path, location: str, record: dict) -> bytes:
 
 
 def build_package(release_dir: Path, out_dir: Path) -> Package:
+    """`_build_package`, with every cause it did not classify tagged
+    `package-build` (the step: give the directory holding manifest.json)."""
+    try:
+        return _build_package(release_dir, out_dir)
+    except ReleaseIntegrityError as exc:
+        if exc.kind is None:
+            exc.kind = "package-build"
+        raise
+
+
+def _build_package(release_dir: Path, out_dir: Path) -> Package:
     """Pack `release_dir` into its three assets in `out_dir`.
 
     Refuses a release that fails `Release.verify()`. Members are
@@ -167,7 +185,12 @@ def build_package(release_dir: Path, out_dir: Path) -> Package:
         release = Release(release_dir)
     except (FileNotFoundError, KeyError, ValueError) as exc:
         raise ReleaseIntegrityError(f"{release_dir} is not a release: {exc}") from exc
-    problems = release.verify()
+    except (TypeError, AttributeError) as exc:
+        raise _malformed(release_dir, exc) from exc
+    try:
+        problems = release.verify()
+    except (KeyError, TypeError, AttributeError) as exc:
+        raise _malformed(release_dir, exc) from exc
     if problems:
         raise ReleaseIntegrityError(
             f"release {release.version} at {release_dir} fails verification: "
@@ -240,6 +263,15 @@ def extract_package(archive: Path, dest: Path, version: str | None = None) -> Re
     `ReleaseIntegrityError` and leaves nothing behind.
     """
     dest = Path(dest)
+    try:
+        return _extract_package(archive, dest, version)
+    except ReleaseIntegrityError as exc:
+        if exc.kind is None:
+            exc.kind = "package"
+        raise
+
+
+def _extract_package(archive: Path, dest: Path, version: str | None) -> Release:
     if dest.exists() or dest.is_symlink():
         raise FileExistsError(f"{dest} already exists")
     dest.parent.mkdir(parents=True, exist_ok=True)

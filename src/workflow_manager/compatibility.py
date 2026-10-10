@@ -1544,7 +1544,15 @@ def render_report(report: Report) -> str:
 
 
 class ContainmentError(InstallError):
-    """A destination the read-only commands would write lies inside the target."""
+    """A destination the read-only commands would write lies inside the target.
+
+    `kind` names the cause for `advice`: `git` (containment could not be
+    checked), `cache-inside`, `cache-entry`, `cache-link`, `tmp-environment`,
+    `no-tmp`."""
+
+    def __init__(self, message: str = "", *, kind: str | None = None):
+        super().__init__(message)
+        self.kind = kind
 
 
 @dataclass(frozen=True)
@@ -1591,12 +1599,13 @@ def protected_set(target: Path) -> tuple[Path, ...]:
             if flag == "--git-common-dir" or _has_dot_git_above(target) \
                     or run_git(target, "rev-parse", "--git-dir").returncode != 128:
                 raise ContainmentError(
-                    f"could not check containment: `git rev-parse {flag}` failed in {target}")
+                    f"could not check containment: `git rev-parse {flag}` failed in {target}",
+                    kind="git")
             break   # Git ran and found no repository: the work tree is all there is
         if not os.path.isdir(resolved):
             raise ContainmentError(
                 f"could not check containment: `git rev-parse {flag}` printed {resolved}, "
-                f"which is not a directory")
+                f"which is not a directory", kind="git")
         roots.append(Path(os.path.realpath(resolved)))
     unique = []
     for root in roots:
@@ -1630,21 +1639,22 @@ def plan_destinations(options, environ, target: Path, versions=()) -> Destinatio
     if (hit := _inside(root, protected)) is not None:
         raise ContainmentError(
             f"the release cache {root} lies inside {hit}: the repository is never written by "
-            f"this command; choose another with --release-cache or $WORKFLOW_MANAGER_RELEASE_CACHE")
+            f"this command; choose another with --release-cache or $WORKFLOW_MANAGER_RELEASE_CACHE",
+            kind="cache-inside")
     for version in versions:
         for leaf in (root / f"{version}.lock", root / version):
             real = Path(os.path.realpath(leaf))
             if (hit := _inside(real, protected)) is not None:
                 raise ContainmentError(
                     f"the release cache entry {leaf} resolves to {real}, inside {hit}: "
-                    f"the repository is never written by this command")
+                    f"the repository is never written by this command", kind="cache-entry")
         entry = root / version
         if entry.is_dir() and not entry.is_symlink():
             link = _walk_links(entry)
             if link is not None:
                 raise ContainmentError(
                     f"the release cache entry {entry} holds a link ({link}); remove the entry "
-                    f"or choose another cache with --release-cache")
+                    f"or choose another cache with --release-cache", kind="cache-link")
 
     candidates: list[tuple[str, bool]] = []
     for name in _TEMP_ENVIRONMENT:
@@ -1662,9 +1672,9 @@ def plan_destinations(options, environ, target: Path, versions=()) -> Destinatio
         if named and hit is not None:
             raise ContainmentError(
                 f"a temporary directory named in the environment ({candidate}) lies inside "
-                f"{hit}; unset it or point it outside the repository")
+                f"{hit}; unset it or point it outside the repository", kind="tmp-environment")
         if parent is None and hit is None and real.is_dir() and os.access(real, os.W_OK | os.X_OK):
             parent = real
     if parent is None:
-        raise ContainmentError("no temporary directory outside the target")
+        raise ContainmentError("no temporary directory outside the target", kind="no-tmp")
     return Destinations(parent, root, protected)

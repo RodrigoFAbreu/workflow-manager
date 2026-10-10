@@ -318,8 +318,13 @@ class TestDryRun(Base):
         repo = self.fresh()
         dry = run("--release-version", "9.9.9", "update", str(repo), "--dry-run")
         real = run("--release-version", "9.9.9", "update", str(repo))
-        self.assertEqual((dry.returncode, dry.stderr), (real.returncode, real.stderr))
+        # The cause and the exit are the same; each `next:` line reprints the
+        # command that was run, so only that line differs.
+        causes = lambda proc: [l for l in proc.stderr.splitlines() if not l.startswith("next: ")]
+        self.assertEqual((dry.returncode, causes(dry)), (real.returncode, causes(real)))
         self.assertEqual(dry.returncode, 1)
+        self.assertIn(f"--release-dir DIR update --dry-run {repo}`", dry.stderr)
+        self.assertIn(f"--release-dir DIR update {repo}`", real.stderr)
 
     def test_help_says_where_the_commands_write(self):
         for argv in (["doctor", "--help"], ["update", "--help"]):

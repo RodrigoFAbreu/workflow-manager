@@ -17,7 +17,7 @@ state JSON; the two parked Update-ergonomics follow-ups are folded in
 
 ## Current checkpoint
 
-CP1 and CP2 complete.
+CP1, CP2 and CP3 complete.
 
 CP1: `advice.py` (`PROGRAM`, `DOCS_BASE`, `page`, `Context`, `next_step`, the
 class-keyed table, A1's global-option pattern), the predicate
@@ -46,8 +46,27 @@ directory at the record or its `.tmp` (`install._blocked_paths`).
 step, `bootstrap` and `update` end with T17's. Known departure from the plan's
 wording: an ancestor file prints as `occupied: PATH (it is a file, not a
 directory)`. The Recovery section still calls `manager_command(...,
-withheld=False)`; CP4 routes it through the predicate. CP3 to CP5 are not
-started.
+withheld=False)`; CP4 routes it through the predicate. 
+
+CP3 (verified: `tests/test_operator_ux.py`, `test_bootstrap.py`,
+`test_release_source.py`, `test_manager_version.py`, `test_doctor_cli.py`,
+`test_read_only.py`, `test_docs.py`, `test_published_packages.py`,
+`test_compatibility.py`, `test_update_path.py`, `test_update_plan.py`): R1 to
+R14, R17 and C1 to C3. `ReleaseIntegrityError`, `ReleaseUnavailableError`,
+`ReleaseNotPublishedError` and `ContainmentError` carry a defaulted `kind`
+(`ReleaseUnavailableError` also `version` and `source`); `advice` keys one row
+per kind (`_by_kind`), and a kind with no row (the causes that already name
+their fix: R4's scheme refusal, R6) prints no `next:`. A row that reprints or
+re-runs the operator's command is a predicate row only when the command writes
+(`_WRITE_ROWS`). R2's and R12's embedded advice moved to `next:`, as did R1's.
+R17: `source.local_release` rejects an unhashable `workflow_version` and
+`_copy_snapshot` a non-text `location` as `kind="manifest-shape"`;
+`package.build_package` classifies the `TypeError`/`AttributeError`/`KeyError`
+crashes the same way and tags every other cause `package-build`;
+`extract_package` tags `package`. `doctor` prints the `next:` of the cause it
+could not resolve (C1). The manifest sweep (`TestManifestSweep`) asserts every
+cell of plan 3.3a by value. `status`'s containment (C5) is CP4's. CP4 and CP5
+are not started.
 
 ## Current blockers
 
@@ -59,7 +78,7 @@ None.
 
 ## Next action
 
-Implement CP3-CP5 in order, one checkpoint per `/milestone-implement`. A `feat:` pull-request title releases
+Implement CP4-CP5 in order, one checkpoint per `/milestone-implement`. A `feat:` pull-request title releases
 Manager 1.8.0.
 
 ## Previous milestone (complete): `workflow-manager-update-ergonomics`

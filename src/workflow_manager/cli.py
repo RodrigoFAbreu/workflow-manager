@@ -217,8 +217,7 @@ def _default_version(args, pins) -> str:
     versions = pins.versions() or list(_alias_releases(args))
     if not versions:
         raise ReleaseNotPublishedError(
-            "no Workflow release is published: this Manager pins none. Install an "
-            "unpackaged release with --release-dir <dir>.")
+            "no Workflow release is published: this Manager pins none", kind="none-pinned")
     return versions[-1]
 
 
@@ -290,7 +289,12 @@ def _context(args, *, with_data: bool = False) -> advice.Context:
     list (it costs Git), which is computed only when `with_data` and the target
     holds Workflow data."""
     target = getattr(args, "target", None)
-    base = dict(args=args, release_dir_version=getattr(args, "resolved_release_dir_version", None))
+    try:
+        cache = str(cache_root(getattr(args, "release_cache", None)))
+    except RuntimeError:    # no home directory: the cache path is only named in a step
+        cache = None
+    base = dict(args=args, release_dir_version=getattr(args, "resolved_release_dir_version", None),
+                cache_dir=cache)
     if target is None:
         return advice.Context(**base)
     installed, local = None, False
@@ -475,6 +479,9 @@ def cmd_doctor(args) -> int:
         release = _resolve(args, args.release_version, destinations)
     except RELEASE_ERRORS as error:
         print(f"error: could not resolve the target release: {error}", file=sys.stderr)
+        step = advice.next_step(error, _context(args))
+        if step is not None:
+            print(f"next: {step}", file=sys.stderr)
         return 2
     with release:
         plan, refusal = _plan_or_refusal(args, release)
@@ -530,7 +537,8 @@ def cmd_package(args) -> int:
     if args.sha256 is not None:
         actual = file_sha256(args.archive)
         if actual != args.sha256.lower():
-            raise ReleaseIntegrityError(f"{args.archive} has digest {actual}, not {args.sha256}")
+            raise ReleaseIntegrityError(f"{args.archive} has digest {actual}, not {args.sha256}",
+                                        kind="package")
     with tempfile.TemporaryDirectory(prefix="workflow-package-") as tmp:
         release = extract_package(args.archive, Path(tmp) / "tree")
         print(f"{args.archive}: release {release.version}, "
