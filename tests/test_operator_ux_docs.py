@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import re
 import unittest
+import unittest.mock
 from pathlib import Path
 
 from support import NEWEST_RELEASE, REPO_ROOT
@@ -126,6 +127,12 @@ class Docs(ux.ReleaseCase):
         (repo / RECORD).write_text(text.replace('"schema_version": 1', '"schema_version": 2', 1))
         return run("verify", str(repo))
 
+    def case_doctor_unmanaged(self):
+        return run("doctor", str(self.empty()))
+
+    def case_status_unmanaged(self):
+        return run("status", str(self.empty()))
+
     def case_in_flight(self):
         return run("status", str(self.fresh()))
 
@@ -186,24 +193,70 @@ class Docs(ux.ReleaseCase):
                         continue        # the page link and prose are not the command
                     self.assertIn(word, fix)
 
+    #: case -> (the command column the row names, a phrase of its meaning column):
+    #: the row the case is bound to; its code is read from the page.
+    EXIT_ROWS = {
+        "misplaced": ("every command", "did not parse"),
+        "no_command": ("every command", "did not parse"),
+        "already": ("`bootstrap`", "already managed"),
+        "unmanaged": ("`verify`", "is not managed"),
+        "collision": ("`bootstrap`", "files in the way"),
+        "drift": ("`update`", "edited locally"),
+        "problems": ("`verify`", "N problem(s)"),
+        "cannot_fetch": ("`bootstrap`", "No usable release"),
+        "digest": ("`bootstrap`", "No usable release"),
+        "unreadable": ("`verify`", "record is unreadable"),
+        "newer": ("`verify`", "record is unreadable"),
+        "in_flight": ("every command", "It succeeded"),
+        "doctor_unmanaged": ("`doctor`", "It could not check"),
+        "status_unmanaged": ("every command", "or not managed"),
+    }
+    FRAGMENTS = {
+        "misplaced": "unrecognized", "no_command": "required",
+        "already": "is already managed", "unmanaged": "is not a managed",
+        "collision": "refusing to bootstrap", "drift": "refusing to update",
+        "problems": "problem(s)", "cannot_fetch": "cannot fetch",
+        "digest": "does not match", "unreadable": "is unreadable",
+        "newer": "newer Manager", "in_flight": "work in flight:",
+        "doctor_unmanaged": "is not a managed", "status_unmanaged": "not a managed",
+    }
+
+    @staticmethod
+    def documented_code(command, phrase):
+        """The one code the page gives the row whose command column holds `command`
+        and whose meaning holds `phrase`; fails when no row, or several codes, match."""
+        codes = set()
+        for line in EXIT_CODES.read_text().splitlines():
+            cells = [c.strip() for c in line.strip().strip("|").split(" | ")]
+            if len(cells) == 4 and cells[0].isdigit() and command in cells[1] and phrase in cells[2]:
+                codes.add(int(cells[0]))
+        return codes
+
     def test_the_exit_codes_page_quotes_messages_the_manager_prints(self):
         text = EXIT_CODES.read_text()
-        cases = (
-            ("misplaced", 2, "unrecognized"), ("no_command", 2, "required"),
-            ("already", 2, "is already managed"), ("unmanaged", 2, "is not a managed"),
-            ("collision", 2, "refusing to bootstrap"), ("drift", 2, "refusing to update"),
-            ("problems", 1, "problem(s)"), ("cannot_fetch", 1, "cannot fetch"),
-            ("digest", 1, "does not match"), ("unreadable", 2, "is unreadable"),
-            ("newer", 2, "newer Manager"), ("in_flight", 0, "work in flight:"),
-        )
-        for name, code, fragment in cases:
+        self.assertEqual(set(self.EXIT_ROWS), set(self.FRAGMENTS))
+        for name, (command, phrase) in self.EXIT_ROWS.items():
             with self.subTest(name):
                 got, output, _ = self.run_case(name)
-                self.assertEqual(got, code, output)
-                self.assertIn(fragment, output)
+                self.assertEqual(self.documented_code(command, phrase), {got},
+                                 f"{name}: the page gives these codes for the row; "
+                                 f"the command exited {got}\n{output}")
+                self.assertIn(self.FRAGMENTS[name], output)
         for quote in ("`N problem(s)`", "`modified:`", "`--force`", "`TMPDIR`",
                       "`--release-cache`", "`next:`", "`error:`"):
             self.assertIn(quote, text)
+
+    def test_a_drifted_documented_code_fails_the_check(self):
+        """The check can fail: with the page's `verify` refusal changed from 2 to 3 the
+        documented code no longer equals the real one."""
+        original = EXIT_CODES.read_text()
+        drifted = original.replace("| 2 | `verify` | The repository is not managed",
+                                   "| 3 | `verify` | The repository is not managed")
+        self.assertNotEqual(drifted, original)
+        got, _, _ = self.run_case("unmanaged")
+        with unittest.mock.patch.object(Path, "read_text", lambda self_, *a, **k:
+                                        drifted if self_ == EXIT_CODES else original):
+            self.assertNotEqual(self.documented_code("`verify`", "is not managed"), {got})
 
     def test_every_page_a_message_links_to_resolves(self):
         urls = set()
