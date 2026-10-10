@@ -19,6 +19,10 @@ Every command ends with a status. This is the one table of them. The quick fix f
 | 2 | `uninstall` | The repository is not managed, or its record is unreadable. | Delete `.workflow-manager/` by hand if the record is damaged. |
 | 1 | `package verify` | The archive does not match `--sha256`, cannot be read, or is not a valid package. | Download the archive again and check it against `SHA256SUMS`. |
 
+## Global options
+
+The options `--release-version`, `--release-source`, `--release-cache` and `--release-dir` go before the command, not after it: `workflow-manager --release-version 2.9.0 update <repo>`. Written after the command they do not parse, and the command exits 2.
+
 `releases` exits 0. `package build` exits 0 when it finishes, and 1 when the directory is not a valid release. Any other error in the Manager's own code ends as a Python traceback with exit 1; report it.
 
 Use them in scripts: `workflow-manager verify <repo> && echo ok`.

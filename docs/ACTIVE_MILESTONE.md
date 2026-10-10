@@ -3,7 +3,7 @@
 ## Milestone
 
 `workflow-manager-operator-ux` (`governing_workflow_version: "2.2"`,
-`process`, plan revision 13, base `218155d`, branch
+`process`, plan revision 14, base `218155d`, branch
 `milestone/workflow-manager-operator-ux`): roadmap item 7, Operator UX. The
 tool, not the documentation, tells an operator what to do next: every error,
 refusal, warning and note of the Manager CLI names its cause and one concrete
@@ -17,15 +17,19 @@ state JSON; the two parked Update-ergonomics follow-ups are folded in
 
 ## Current checkpoint
 
-Planning. The plan (inventory of every operator-facing message, the fixes,
-the open decisions D-1 to D-16, five checkpoints CP1-CP5) is written and
-revised through plan-review round 7 (external round 2: one principle for
-recovery, the Manager prints no command that overwrites, restores over or
-recreates Workflow data and `update` is withheld while any state template is
-missing; manifest version shapes validated before the pin lookup with the
-baseline exit of every case recorded; containment only for managed targets;
-earlier rounds: `status` contained like `doctor` with its exit-code move named, a `status` block that fails closed,
-command-specific option carrying, `--` before hyphen paths); it is being bound to a plan-review bundle. No checkpoint is started.
+CP1 complete (verified: `tests/test_operator_ux.py`, `test_docs.py`,
+`test_doctor_cli.py`, `test_compatibility.py`, `test_bootstrap.py`,
+`test_read_only.py`, `test_internal_references.py`, `tools/check_docs.py`):
+`advice.py` (`PROGRAM`, `DOCS_BASE`, `page`, `Context`, `next_step`, the
+class-keyed table, A1's global-option pattern), the predicate
+`compatibility.writes_withheld` with `NOT_MANAGED_PROBLEM`,
+`RECORD_UNREADABLE_TITLE` and `PREDICATE_EXCLUDED`, `prog="workflow-manager"`,
+`help=` and descriptions for every command and option (A4 doctor wording
+included), the parser's `next:` hint for a misplaced global option, `main()`
+printing the cause then the table's `next:`, and the anchors
+`exit-codes.md#global-options`, `update.md#update-the-manager`,
+`common-problems.md#an-install-stopped-part-way` and
+`#repair-workflow-data-by-hand`. CP2 to CP5 are not started.
 
 ## Current blockers
 
@@ -33,12 +37,11 @@ None.
 
 ## Active plan
 
-`docs/ai-workflow/WORKFLOW_MANAGER_OPERATOR_UX_PLAN.md` (revision 13).
+`docs/ai-workflow/WORKFLOW_MANAGER_OPERATOR_UX_PLAN.md` (revision 14).
 
 ## Next action
 
-Review the plan (`/review-plan workflow-manager-operator-ux`), then the plan
-gate; implement CP1-CP5 in order. A `feat:` pull-request title releases
+Implement CP2-CP5 in order, one checkpoint per `/milestone-implement`. A `feat:` pull-request title releases
 Manager 1.8.0.
 
 ## Previous milestone (complete): `workflow-manager-update-ergonomics`

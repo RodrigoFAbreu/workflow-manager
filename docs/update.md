@@ -59,20 +59,7 @@ The report is advisory. It looks at the current state files and a few Git facts;
    workflow-manager verify /path/to/your/repo
    ```
 
-2. If the Manager does not list the release you want, install the newest Manager release.
-
-   ```bash
-   dl=$(mktemp -d)
-   gh release download --repo RodrigoFAbreu/workflow-manager --dir "$dl" \
-     --pattern SHA256SUMS --pattern '*.whl'
-   (cd "$dl" && sha256sum --ignore-missing -c SHA256SUMS)
-   pipx uninstall workflow-manager
-   pipx install "$dl"/workflow_manager-*-py3-none-any.whl
-   rm -rf "$dl"
-   workflow-manager releases
-   ```
-
-   The temporary folder only holds the download; it is deleted once pipx has installed the Manager.
+2. If the Manager does not list the release you want, [update the Manager](#update-the-manager) first.
 
 3. Decide about human approval gates (see above) and commit `GATE_POLICY.json` if you want it.
 
@@ -90,6 +77,23 @@ The report is advisory. It looks at the current state files and a few Git facts;
    workflow-manager verify /path/to/your/repo
    git -C /path/to/your/repo status
    ```
+
+## Update the Manager
+
+If the Manager does not list the release you want, install the newest Manager release.
+
+```bash
+dl=$(mktemp -d)
+gh release download --repo RodrigoFAbreu/workflow-manager --dir "$dl" \
+  --pattern SHA256SUMS --pattern '*.whl'
+(cd "$dl" && sha256sum --ignore-missing -c SHA256SUMS)
+pipx uninstall workflow-manager
+pipx install "$dl"/workflow_manager-*-py3-none-any.whl
+rm -rf "$dl"
+workflow-manager releases
+```
+
+The temporary folder only holds the download; it is deleted once pipx has installed the Manager.
 
 ## What you should see
 

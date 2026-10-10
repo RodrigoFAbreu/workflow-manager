@@ -40,6 +40,7 @@ from contextlib import nullcontext
 from importlib import metadata
 from pathlib import Path
 
+from . import advice
 from . import source as release_source
 from .compatibility import (
     Destinations,
@@ -507,60 +508,154 @@ COMMANDS = {
 }
 
 
+class _Parser(argparse.ArgumentParser):
+    """Names the program `workflow-manager` in every message and, when a global
+    option was written after the command (A1), ends the error with the pattern
+    that puts it first. Subcommand parsers are instances of it too."""
+
+    def parse_args(self, args=None, namespace=None):
+        self._argv = list(sys.argv[1:] if args is None else args)
+        return super().parse_args(args, namespace)
+
+    def _command_word(self) -> str | None:
+        """The first word of the arguments that is a subcommand: not an option,
+        and not the value of one of the global options before it."""
+        valued = {option for option, _ in advice.GLOBAL_OPTIONS} | {"--manager-root"}
+        skip = False
+        for token in getattr(self, "_argv", []):
+            if skip:
+                skip = False
+            elif token in valued:
+                skip = True
+            elif not token.startswith("-"):
+                return token if token in COMMANDS else None
+        return None
+
+    def error(self, message):
+        self.print_usage(sys.stderr)
+        self.exit(2, f"{self.prog}: error: {message}\n" + self._hint(message))
+
+    def _hint(self, message: str) -> str:
+        prefix = "unrecognized arguments: "
+        if not message.startswith(prefix):
+            return ""
+        misplaced = advice.misplaced_global_options(message[len(prefix):].split())
+        if not misplaced:
+            return ""
+        return f"next: {advice.global_option_step(misplaced, self._command_word())}\n"
+
+
+_GLOBAL_OPTIONS_NOTE = "Global options go before the command."
+
+_EXIT_CODES = (
+    "Exit codes: 0 succeeded; 1 a problem was found, or no usable release; 2 the command "
+    "line did not parse, or the command refused to run. The table per command is at "
+    + advice.page("exit-codes.md") + ".")
+
+
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        prog="workflow_manager", description=__doc__,
+    parser = _Parser(
+        prog=advice.PROGRAM, description=__doc__,
+        epilog=_GLOBAL_OPTIONS_NOTE + " " + _EXIT_CODES,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--manager-root", type=Path, default=None,
                         help="deprecated: a workflow-manager checkout holding "
                              "distribution/workflow/<version>/")
     parser.add_argument("--version", action=_VersionAction)
-    parser.add_argument("--release-version", default=None)
+    parser.add_argument("--release-version", default=None,
+                        help="the Workflow release to use; goes before the command "
+                             "(default: bootstrap and update use the newest published "
+                             "release, status and verify the release the target records)")
     parser.add_argument("--release-source", default=None,
                         help="where packages come from: a URL template with {version}, "
                              f"or a directory of <version>/ (default: ${release_source.SOURCE_ENV}, "
-                             "else the published releases)")
+                             "else the published releases); goes before the command")
     parser.add_argument("--release-cache", default=None,
                         help=f"the release cache directory (default: ${release_source.CACHE_ENV}, "
-                             "else the user cache directory)")
+                             "else the user cache directory); goes before the command")
     parser.add_argument("--release-dir", type=Path, default=None,
-                        help="install an unpackaged release directory instead of a package")
-    sub = parser.add_subparsers(dest="command", required=True)
+                        help="install an unpackaged release directory instead of a package; "
+                             "goes before the command")
+    sub = parser.add_subparsers(dest="command", required=True, metavar="COMMAND")
 
-    sub.add_parser("releases", help="list published releases")
+    def command(name, summary, description):
+        return sub.add_parser(name, help=summary, description=description + " " + _EXIT_CODES,
+                              epilog=_GLOBAL_OPTIONS_NOTE)
 
-    p = sub.add_parser("package", help="build or verify a Workflow release package")
-    package_sub = p.add_subparsers(dest="package_command", required=True)
-    q = package_sub.add_parser("build")
-    q.add_argument("release_dir", type=Path)
-    q.add_argument("--out", type=Path, required=True)
-    q = package_sub.add_parser("verify")
-    q.add_argument("archive", type=Path)
-    q.add_argument("--sha256", default=None)
+    p = command("releases", "list published releases",
+                "List the Workflow releases this Manager pins and whether each is in the "
+                "release cache. Reads the pin file and the cache; writes nothing. "
+                "Exit 0 when it lists.")
 
-    p = sub.add_parser("doctor", help="report what an update would meet in a repository",
-                       description="Read a repository and report what an update would do and "
-                                   "which Workflow guarantees it would cross. Writes the release "
-                                   "cache and a temporary snapshot outside the repository, never "
-                                   "the repository. Exit 0: nothing found; 1: warnings; 2: could "
-                                   "not check.")
-    p.add_argument("target", type=Path)
+    p = command("package", "build or verify a Workflow release package",
+                "`package build DIR --out OUT` writes a release directory's package, its "
+                "manifest asset and SHA256SUMS to OUT. `package verify ARCHIVE [--sha256 H]` "
+                "checks an archive against its manifest, and against H when given, in a "
+                "temporary directory. Neither touches a repository. Exit 0 when it finishes, "
+                "1 when the directory or archive is not a valid release.")
+    package_sub = p.add_subparsers(dest="package_command", required=True, metavar="ACTION")
+    q = package_sub.add_parser("build", help="build a package from a release directory",
+                               description="Build the package, its manifest asset and "
+                                           "SHA256SUMS from a release directory (the one "
+                                           "holding manifest.json) into --out.")
+    q.add_argument("release_dir", type=Path, help="the release directory holding manifest.json")
+    q.add_argument("--out", type=Path, required=True, help="where to write the three files")
+    q = package_sub.add_parser("verify", help="check a package archive",
+                               description="Extract the archive into a temporary directory and "
+                                           "check every file against its manifest.")
+    q.add_argument("archive", type=Path, help="the package archive to check")
+    q.add_argument("--sha256", default=None, help="also require the archive to have this digest")
+
+    p = command("doctor", "report what an update would meet in a repository",
+                "Read a repository and report what an update would do and which Workflow "
+                "guarantees it would cross. Writes the release cache and a temporary snapshot "
+                "outside the repository, never the repository. Exit 0: no blocked or warning "
+                "finding (notes alone still exit 0); 1: a blocked or warning finding, an "
+                "incomplete inspection included; 2: could not check.")
+    p.add_argument("target", type=Path, help="the managed repository to inspect")
     p.set_defaults(profile=None, force=False)
 
-    for name in ("status", "verify", "uninstall"):
-        p = sub.add_parser(name)
-        p.add_argument("target", type=Path)
+    p = command("status", "show a repository's installation and whether it is intact",
+                "Print the release a managed repository records, its source, and whether its "
+                "files match that release. Writes nothing in the repository. Exit 0: intact, "
+                "or not managed; 1: problems found or no usable release; 2: the record is "
+                "unreadable.")
+    p.add_argument("target", type=Path, help="the repository to look at")
 
-    p = sub.add_parser("bootstrap")
-    p.add_argument("target", type=Path)
-    p.add_argument("--profile", choices=INSTALL_PROFILES, default=INSTALL_PROFILE_FULL)
+    p = command("verify", "check that a repository matches its installed release",
+                "Compare a managed repository's installed files with its release and list "
+                "every difference. Writes nothing. Exit 0: matches; 1: problems found or no "
+                "usable release; 2: the repository is not managed or its record is unreadable.")
+    p.add_argument("target", type=Path, help="the managed repository to check")
+
+    p = command("uninstall", "remove the files the Manager installed",
+                "Remove the files the installation record lists and the record itself. "
+                "Repository-local state (WORKFLOW_STATE.json, ACTIVE_MILESTONE.md and the like) "
+                "is kept. Exit 0: removed; 2: the repository is not managed or its record is "
+                "unreadable.")
+    p.add_argument("target", type=Path, help="the managed repository to uninstall")
+
+    p = command("bootstrap", "install the Workflow into a Git repository",
+                "Install a Workflow release into a Git repository that is not yet managed: the "
+                "release's files, blank state templates where none exist, the merged "
+                "CLAUDE.md and .gitignore entries, and the installation record. Writes the "
+                "repository. Exit 0: installed; 2: refused (not a repository, already "
+                "managed, files in the way).")
+    p.add_argument("target", type=Path, help="the Git repository to install into")
+    p.add_argument("--profile", choices=INSTALL_PROFILES, default=INSTALL_PROFILE_FULL,
+                   help="which files to install (default: %(default)s)")
     p.add_argument("--force", action="store_true",
                    help="overwrite files the repository already keeps at release paths")
 
-    p = sub.add_parser("update")
-    p.add_argument("target", type=Path)
-    p.add_argument("--profile", choices=INSTALL_PROFILES, default=None)
+    p = command("update", "move a managed repository to another release",
+                "Move a managed repository to the newest published release, or to "
+                "--release-version (which goes before the command). Writes the repository "
+                "unless --dry-run. Exit 0: updated; 2: refused (not managed, files edited "
+                "locally, paths in use).")
+    p.add_argument("target", type=Path, help="the managed repository to update")
+    p.add_argument("--profile", choices=INSTALL_PROFILES, default=None,
+                   help="which files to install (default: the one the record names)")
     p.add_argument("--force", action="store_true",
                    help="overwrite managed files that were modified locally")
     p.add_argument("--dry-run", action="store_true",
@@ -574,11 +669,19 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.manager_root is not None:
         print(MANAGER_ROOT_DEPRECATION, file=sys.stderr)
+
+    def fail(error, code, text=None):
+        """The cause, then the error's `next:` line when the table has one."""
+        print(text if text is not None else f"error: {error}", file=sys.stderr)
+        step = advice.next_step(error, advice.Context(args=args))
+        if step is not None:
+            print(f"next: {step}", file=sys.stderr)
+        return code
+
     try:
         return COMMANDS[args.command](args)
     except RELEASE_ERRORS as error:
-        print(f"error: {error}", file=sys.stderr)
-        return 1
+        return fail(error, 1)
     except DriftError as error:
         print(str(error), file=sys.stderr)
         print("\nre-run with --force to discard those local edits", file=sys.stderr)
@@ -590,8 +693,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     except (AlreadyManagedError, NotManagedError, InstallError, CorruptInstallationError,
             FileNotFoundError, ValueError) as error:
-        print(f"error: {error}", file=sys.stderr)
-        return 2
+        return fail(error, 2)
 
 
 if __name__ == "__main__":

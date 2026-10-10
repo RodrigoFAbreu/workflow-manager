@@ -28,6 +28,14 @@ Each problem has a one-line fix. Find the message, apply the fix, run the comman
 | `doctor` reports `incomplete-inspection` | Part of the repository could not be read (state file, declarations, or a Git call). The report is not a clean bill of health; fix what it names, or review those parts by hand. An old legacy work item with no `docs/ai-workflow/registry/<id>-artifacts.json` declarations file always reports it, so `doctor` never reaches exit 0 until that item is retired; read the finding rather than chase it. |
 | A repository went wrong after an update to 2.8.0 and gates behave differently | See "Approval gates" in [Update](update.md). |
 
+## An install stopped part way
+
+If `bootstrap` or `update` stopped before it finished (a full disk, a permission error, an interrupted terminal), fix the cause the message names and run the same command again. A resumed run finishes the job. If it then lists a file as modified or in the way that you did not edit, that file is a partial write from the interrupted run, and adding `--force` replaces it with the release's. Keep a copy of any file you did edit first.
+
+## Repair workflow data by hand
+
+The Manager prints no command that writes Workflow data: `WORKFLOW_STATE.json`, `WORKFLOW_CONFIG.json` and `docs/ACTIVE_MILESTONE.md` hold your work in flight, and `update` is not a repair for a missing or damaged one, because it recreates every missing state file from a blank template. Find a good copy in Git history instead: `git log --oneline -- docs/ai-workflow/WORKFLOW_STATE.json` lists the revisions, and `git show REVISION:docs/ai-workflow/WORKFLOW_STATE.json` prints one. Put the copy back yourself, then run the command again.
+
 ## Exit codes
 
 Every command ends with a status: 0 for success, 1 when it found a problem or had no usable release (for `doctor`, a release it cannot resolve is 2), 2 when it refused to run or could not check. The full table, per command, is in [Exit codes](exit-codes.md).

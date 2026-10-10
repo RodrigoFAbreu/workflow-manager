@@ -393,7 +393,7 @@ def read_repository(target: Path) -> RepositoryFacts:
         except (OSError, ValueError) as error:
             facts.installation_error = f"the installation record cannot be read ({error})"
     else:
-        facts.problems.append("the repository is not managed (no installation record)")
+        facts.problems.append(NOT_MANAGED_PROBLEM)
 
     _read_config(target, facts)
     facts.gate_policy_present = (target / GATE_POLICY_PATH).exists()
@@ -920,6 +920,42 @@ def gate_modes(governing: str, human_approval: bool = False) -> dict[str, str]:
 BLOCKED, WARNING, NOTE = "blocked", "warning", "note"
 SEVERITIES = (BLOCKED, WARNING, NOTE)
 
+#: The problem `read_repository` records for every unmanaged target, and the
+#: title of the finding for a record that cannot be read. Both describe the
+#: installation record, not a Workflow data file, so `writes_withheld` does not
+#: count them: counting either would withhold the `bootstrap` of every
+#: unmanaged target and of every damaged record whose data is intact.
+NOT_MANAGED_PROBLEM = "the repository is not managed (no installation record)"
+RECORD_UNREADABLE_TITLE = "the installation record could not be read"
+PREDICATE_EXCLUDED = (NOT_MANAGED_PROBLEM, RECORD_UNREADABLE_TITLE)
+
+_INCOMPLETE = "incomplete-inspection"
+
+
+def writes_withheld(findings, missing_templates, holds_data: bool) -> bool:
+    """Whether the Manager may print a command that writes Workflow data.
+
+    True when the target holds Workflow data and either a state template is
+    missing or `findings` (the full list `build_findings` returns) holds an
+    `incomplete-inspection` finding other than the record-derived ones in
+    `PREDICATE_EXCLUDED`. One definition for the exception advice, the finding
+    details and the Recovery section, so they cannot disagree.
+    """
+    if not holds_data:
+        return False
+    if missing_templates:
+        return True
+    for finding in findings:
+        if finding.id != _INCOMPLETE or finding.title == RECORD_UNREADABLE_TITLE:
+            continue
+        lines = [line for line in finding.detail.splitlines()
+                 if line and line != NOT_MANAGED_PROBLEM
+                 and line != "This report is not a clean bill of health."]
+        if finding.title == "the inspection could not be completed" and not lines:
+            continue
+        return True
+    return False
+
 
 @dataclass(frozen=True)
 class Finding:
@@ -1117,7 +1153,7 @@ def build_findings(facts: RepositoryFacts, plan: UpdatePlan | None, *, target: s
 
     if facts.installation_error:
         findings.append(Finding(WARNING, "incomplete-inspection",
-                                "the installation record could not be read", facts.installation_error))
+                                RECORD_UNREADABLE_TITLE, facts.installation_error))
     if facts.problems:
         findings.append(Finding(
             WARNING, "incomplete-inspection", "the inspection could not be completed",
