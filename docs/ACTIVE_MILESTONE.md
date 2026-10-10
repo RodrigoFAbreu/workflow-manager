@@ -17,7 +17,7 @@ state JSON; the two parked Update-ergonomics follow-ups are folded in
 
 ## Current checkpoint
 
-CP1, CP2 and CP3 complete.
+CP1, CP2, CP3 and CP4 complete.
 
 CP1: `advice.py` (`PROGRAM`, `DOCS_BASE`, `page`, `Context`, `next_step`, the
 class-keyed table, A1's global-option pattern), the predicate
@@ -45,8 +45,8 @@ directory at the record or its `.tmp` (`install._blocked_paths`).
 `status` print the problem step, `status` of an unmanaged target prints T7's
 step, `bootstrap` and `update` end with T17's. Known departure from the plan's
 wording: an ancestor file prints as `occupied: PATH (it is a file, not a
-directory)`. The Recovery section still calls `manager_command(...,
-withheld=False)`; CP4 routes it through the predicate. 
+directory)`. The Recovery section still called `manager_command(...,
+withheld=False)` at CP2; CP4 routed it through the predicate.
 
 CP3 (verified: `tests/test_operator_ux.py`, `test_bootstrap.py`,
 `test_release_source.py`, `test_manager_version.py`, `test_doctor_cli.py`,
@@ -65,8 +65,33 @@ R17: `source.local_release` rejects an unhashable `workflow_version` and
 crashes the same way and tags every other cause `package-build`;
 `extract_package` tags `package`. `doctor` prints the `next:` of the cause it
 could not resolve (C1). The manifest sweep (`TestManifestSweep`) asserts every
-cell of plan 3.3a by value. `status`'s containment (C5) is CP4's. CP4 and CP5
-are not started.
+cell of plan 3.3a by value. `status`'s containment (C5) is CP4's.
+
+CP4 (verified: `tests/test_operator_ux.py`, `test_operator_ux_report.py`,
+`test_read_only.py`, `test_compatibility.py`, `test_doctor_cli.py`,
+`test_bootstrap.py`): the report findings and `status`'s work-in-flight block.
+`compatibility.build_findings` appends each finding's step in a `What to do:`
+line (F-b to F-n; `steps=False` for `data_findings`, so the withholding
+predicate reads the findings, never their advice, and a test pins that the two
+agree). F-c steps go by the first matching rule: the P1 step for a Workflow
+data file, upgrade the Manager for an unknown `schema_version`, the Git check,
+else `doctor` again. A state template missing without any other finding gets
+its own `incomplete-inspection` finding, `a Workflow data file is missing`
+(`ACTIVE_MILESTONE.md` and the config were not read before, so a report could
+call a repository without them clean; `doctor` now exits 1 for it, the exit rule
+unchanged). F-b carries the `update --force` command as a finding command, or the
+directory text without it. `recovery_steps` withholds the update, `update
+--force`, the whole-tree undo and `git status` while `writes_withheld` is true
+and prints the stated line; slash commands stay. `not-verified` names the
+integrity-failure cause and `workflow-manager verify X`. `read_work_items`,
+`_item_core` (shared with `_read_items`) and `render_work_in_flight` give
+`status` its block, which says `none` only when the state was read and every
+entry was understood. `cmd_status` of a managed target validates its
+destinations through `_readonly_destinations` before resolving anything and
+ends 1 on a `ContainmentError` (the argued move of D-14); the unmanaged path
+is untouched. Its one `next:` line is the repair step, if any, then
+``workflow-manager doctor X` reports what an update would meet`` (T16). CP5 is
+not started.
 
 ## Current blockers
 

@@ -804,7 +804,10 @@ class TestProblemLines(TargetCase):
         self.assertIn('add --force if a line says "modified: PATH"', step[0])
         status = run("status", str(repo))
         self.assertEqual(status.returncode, 1)
-        self.assertEqual(next_lines(status.stdout), step)
+        # One `next:` line: the repair, then T16's doctor clause.
+        self.assertEqual(next_lines(status.stdout),
+                         [f"{step[0]}; `workflow-manager doctor {repo}` reports what an update "
+                          "would meet"])
 
     def test_t15_unexpected_release_and_version_lines(self):
         repo = self.fresh()

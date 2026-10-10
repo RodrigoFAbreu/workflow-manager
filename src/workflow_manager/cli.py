@@ -43,6 +43,7 @@ from pathlib import Path
 from . import advice
 from . import source as release_source
 from .compatibility import (
+    ContainmentError,
     Destinations,
     data_files,
     data_findings,
@@ -50,7 +51,9 @@ from .compatibility import (
     missing_templates,
     plan_destinations,
     read_repository,
+    read_work_items,
     render_report,
+    render_work_in_flight,
     build_report,
 )
 from .install import (
@@ -337,23 +340,55 @@ def cmd_releases(args) -> int:
     return 0
 
 
+def _print_error(args, error, text=None) -> None:
+    """The cause on stderr, then the error's `next:` line when the table has one."""
+    print(text if text is not None else f"error: {error}", file=sys.stderr)
+    context = _context(args, with_data=advice.needs_data(error, args))
+    step = advice.next_step(error, context)
+    if step is not None:
+        print(f"next: {step}", file=sys.stderr)
+
+
+def _print_in_flight(args) -> None:
+    for line in render_work_in_flight(read_work_items(args.target), str(args.target)):
+        print(line)
+
+
 def cmd_status(args) -> int:
-    try:
+    if not is_managed(args.target):
+        # Unchanged: nothing is resolved without --release-version, and no
+        # destination check or Git runs (3.5a, 3.6).
         release = _release_for_target(args)
-    except RELEASE_ERRORS:
-        if is_managed(args.target):
-            _print_record(args.target)
-        raise
-    with release if release is not None else nullcontext():
-        result = status(args.target, release)
-    print(result)
-    if not result.managed:
+        with release if release is not None else nullcontext():
+            result = status(args.target, release)
+        print(result)
         print(f"next: {advice.unmanaged_status_step(_context(args, with_data=True))}")
         return 0
+    # A managed target: the record and the work in flight are read first, then the
+    # destinations are validated before anything is resolved, so `status` writes
+    # nothing in the repository or its `.git` directory (3.5a).
+    installed = Installation.read(args.target).workflow_version
+    try:
+        destinations = _readonly_destinations(args, installed)
+        release = _resolve(args, args.release_version or installed, destinations)
+    except ContainmentError as error:
+        _print_record(args.target)
+        _print_in_flight(args)
+        _print_error(args, error)
+        return 1
+    except RELEASE_ERRORS:
+        _print_record(args.target)
+        _print_in_flight(args)
+        raise
+    with release:
+        result = status(args.target, release)
+    print(result)
     print(f"  source: {_describe_source(Installation.read(args.target).source)}")
-    step = advice.problem_step(_context(args, with_data=True), result.problems)
-    if step is not None:
-        print(f"next: {step}")
+    _print_in_flight(args)
+    context = _context(args, with_data=True)
+    step = advice.problem_step(context, result.problems)
+    doctor = advice.doctor_step(context)
+    print(f"next: {step + '; ' + doctor if step is not None else doctor}")
     return 0 if (result.verified and not result.problems) else 1
 
 
@@ -721,12 +756,7 @@ def main(argv: list[str] | None = None) -> int:
         print(MANAGER_ROOT_DEPRECATION, file=sys.stderr)
 
     def fail(error, code, text=None):
-        """The cause, then the error's `next:` line when the table has one."""
-        print(text if text is not None else f"error: {error}", file=sys.stderr)
-        context = _context(args, with_data=advice.needs_data(error, args))
-        step = advice.next_step(error, context)
-        if step is not None:
-            print(f"next: {step}", file=sys.stderr)
+        _print_error(args, error, text)
         return code
 
     try:

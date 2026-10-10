@@ -432,6 +432,12 @@ def success_step(context: Context) -> str:
     return f"run `{verify}`, then review and commit what changed (`{status}`)"
 
 
+def doctor_step(context: Context) -> str:
+    """T16: after the work-in-flight block of `status`."""
+    doctor, _ = _command(context, "doctor", version=None)
+    return f"`{doctor}` reports what an update would meet"
+
+
 def unmanaged_status_step(context: Context) -> str:
     """T7: stdout of `status` for a target that is not managed."""
     return _bootstrap_step(context, "run", " to install the Workflow")

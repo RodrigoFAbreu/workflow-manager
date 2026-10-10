@@ -319,6 +319,9 @@ class TestResolverIsReadOnly(Base):
 # ---------------------------------------------------------------------------
 
 
+#: What a refused destination exits: `status` ends 1 (3.5a), the others 2.
+REFUSED_EXIT = {"status": 1}
+
 COMMANDS = {
     "doctor": ["doctor"],
     "update --dry-run": ["update", "--dry-run"],
@@ -326,9 +329,14 @@ COMMANDS = {
 }
 
 
+#: The commands whose whole runs are audited for writes: `status` joined them in
+#: Operator UX (3.5a); the filter-specific tests below stay with `COMMANDS`.
+AUDITED = {**COMMANDS, "status": ["status"]}
+
+
 class TestCommandsDoNotWriteTheTarget(Base):
     def argv(self, command, repo=None):
-        verb, *rest = COMMANDS[command]
+        verb, *rest = AUDITED[command]
         return [verb, str(repo or self.repo), *rest]
 
     def check(self, command, repo=None, expected=(0, 1), **env):
@@ -342,7 +350,7 @@ class TestCommandsDoNotWriteTheTarget(Base):
         return proc, result
 
     def test_nothing_is_written_to_the_work_tree_or_the_git_directory(self):
-        for command in COMMANDS:
+        for command in AUDITED:
             with self.subTest(command=command):
                 self.check(command)
 
@@ -351,14 +359,14 @@ class TestCommandsDoNotWriteTheTarget(Base):
         (self.repo / "README.md").write_text("edited\n")
         git(self.repo, "add", "README.md")
         (self.repo / "README.md").write_text("edited again\n")
-        for command in COMMANDS:
+        for command in AUDITED:
             with self.subTest(command=command):
                 self.check(command)
 
     def test_a_linked_worktree_and_the_common_git_directory_are_untouched(self):
         linked = self.work / "linked"
         git(self.repo, "worktree", "add", "-q", "-b", "side", str(linked))
-        for command in COMMANDS:
+        for command in AUDITED:
             for repo in (linked, self.repo):
                 with self.subTest(command=command, repo=repo.name):
                     self.check(command, repo)
@@ -366,19 +374,22 @@ class TestCommandsDoNotWriteTheTarget(Base):
     def test_a_forbidden_temporary_directory_is_refused_before_anything_is_written(self):
         for value in (self.repo, self.repo / ".git"):
             for name in ("TMPDIR", "TEMP", "TMP"):
-                for command in COMMANDS:
+                for command in AUDITED:
                     with self.subTest(name=name, value=value.name, command=command):
-                        proc, result = self.check(command, expected=(2,), **{name: str(value)})
+                        proc, result = self.check(
+                            command, expected=(REFUSED_EXIT.get(command, 2),),
+                            **{name: str(value)})
                         self.assertIn("lies inside", proc.stderr)
 
     def test_a_cache_inside_the_target_is_refused_before_any_lock_exists(self):
-        for command in COMMANDS:
+        for command in AUDITED:
             with self.subTest(command=command):
                 inside = self.repo / "new-cache"
                 before = tree_snapshot(self.repo)
                 proc, result = self.run_audited(
                     ["--release-cache", str(inside), *self.argv(command)])
-                self.assertEqual(result["exit"], 2, proc.stdout + proc.stderr)
+                self.assertEqual(result["exit"], REFUSED_EXIT.get(command, 2),
+                                 proc.stdout + proc.stderr)
                 self.assertEqual(result["violations"], [])
                 self.assertFalse(inside.exists())
                 self.assertEqual(tree_snapshot(self.repo), before)
@@ -391,7 +402,7 @@ class TestCommandsDoNotWriteTheTarget(Base):
                 path.chmod(path.stat().st_mode & ~0o222)
         self.addCleanup(lambda: [p.chmod(p.stat().st_mode | 0o700)
                                  for p in [self.repo, *self.repo.rglob("*")] if not p.is_symlink()])
-        for command in COMMANDS:
+        for command in AUDITED:
             with self.subTest(command=command):
                 self.check(command)
 

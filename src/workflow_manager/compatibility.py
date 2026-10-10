@@ -335,6 +335,10 @@ class RepositoryFacts:
     activation_trailer: bool | None = None
     amendment_witnesses: list[str] | None = None
     partial_clone: bool = False
+    #: The state templates absent from the working tree (`missing_templates`).
+    missing_templates: tuple[str, ...] = ()
+    #: Whether the target holds Workflow data (`holds_data`).
+    holds_data: bool = False
     #: Reasons an inspection could not be completed: each is a finding.
     problems: list[str] = field(default_factory=list)
 
@@ -395,6 +399,39 @@ def _load_declarations(target: Path, work_item_id: str) -> ItemDeclarations | No
     return ItemDeclarations(_stage(data.get("plan_stage")), _stage(data.get("implementation_stage")))
 
 
+def _item_core(wid, entry, problems: list[str]):
+    """The per-entry validation `_read_items` and `read_work_items` share:
+    `(phase, governing, work_item_type, parent)` of one `work_items` entry, or
+    `None` when the entry is skipped. Appends to `problems`; reads no file and
+    runs no Git."""
+    if not isinstance(entry, dict):
+        problems.append(f"work item {wid!r} is not an object")
+        return None
+    phase, governing = entry.get("phase"), entry.get("governing_workflow_version")
+    if not isinstance(phase, str):
+        problems.append(f"work item {wid!r} has no phase")
+        return None
+    if governing not in GOVERNING_VERSIONS:
+        problems.append(
+            f"work item {wid!r} has governing_workflow_version {governing!r}, "
+            f"not one of {', '.join(GOVERNING_VERSIONS)}")
+        return None
+    if phase not in KNOWN_PHASES:
+        problems.append(
+            f"work item {wid!r} is in unknown phase {phase!r}; "
+            "treated as implementing or later")
+    wtype, parent = entry.get("work_item_type"), entry.get("parent_work_item_id")
+    if wtype is not None and not isinstance(wtype, str):
+        problems.append(f"work item {wid!r} has a work_item_type that is not text")
+        wtype = None
+    if parent is not None and not isinstance(parent, str):
+        problems.append(f"work item {wid!r} has a parent_work_item_id that is not text")
+        parent = None
+    if not WORK_ITEM_ID_RE.match(wid):
+        problems.append(f"work item id {wid!r} is not a valid id; its declarations were not read")
+    return phase, governing, wtype, parent
+
+
 def _read_items(target: Path, state: dict, problems: list[str]) -> list[WorkItemFacts]:
     work_items = state.get("work_items")
     if not isinstance(work_items, dict):
@@ -402,37 +439,109 @@ def _read_items(target: Path, state: dict, problems: list[str]) -> list[WorkItem
         return []
     items = []
     for wid, entry in sorted(work_items.items()):
-        if not isinstance(entry, dict):
-            problems.append(f"work item {wid!r} is not an object")
+        core = _item_core(wid, entry, problems)
+        if core is None:
             continue
-        phase, governing = entry.get("phase"), entry.get("governing_workflow_version")
-        if not isinstance(phase, str):
-            problems.append(f"work item {wid!r} has no phase")
-            continue
-        if governing not in GOVERNING_VERSIONS:
-            problems.append(
-                f"work item {wid!r} has governing_workflow_version {governing!r}, "
-                f"not one of {', '.join(GOVERNING_VERSIONS)}")
-            continue
-        if phase not in KNOWN_PHASES:
-            problems.append(
-                f"work item {wid!r} is in unknown phase {phase!r}; "
-                "treated as implementing or later")
-        wtype, parent = entry.get("work_item_type"), entry.get("parent_work_item_id")
-        if wtype is not None and not isinstance(wtype, str):
-            problems.append(f"work item {wid!r} has a work_item_type that is not text")
-            wtype = None
-        if parent is not None and not isinstance(parent, str):
-            problems.append(f"work item {wid!r} has a parent_work_item_id that is not text")
-            parent = None
-        if not WORK_ITEM_ID_RE.match(wid):
-            problems.append(f"work item id {wid!r} is not a valid id; its declarations were not read")
-            declarations = None
-        else:
-            declarations = _load_declarations(target, wid)
+        phase, governing, wtype, parent = core
+        declarations = _load_declarations(target, wid) if WORK_ITEM_ID_RE.match(wid) else None
         items.append(WorkItemFacts(wid, phase, governing, wtype, parent, entry,
                                    declarations, _registry_ids(target, wid, entry)))
     return items
+
+
+#: How `read_work_items` found the state file.
+STATE_READ, STATE_MISSING, STATE_UNREADABLE = "read", "missing", "unreadable"
+
+
+@dataclass(frozen=True)
+class InFlightItem:
+    id: str
+    phase: str
+    work_item_type: str | None
+    governing: str
+    active: bool
+    known_phase: bool
+
+
+@dataclass(frozen=True)
+class WorkInFlight:
+    """What `status` says is in flight. `state_read` is `read` only when the
+    file was read and its `schema_version` is the one this reader understands;
+    `items` are the non-terminal entries that could be read; `problems` are the
+    entries and fields it could not."""
+    state_read: str
+    items: tuple[InFlightItem, ...] = ()
+    problems: tuple[str, ...] = ()
+    active_work_item_id: str | None = None
+
+
+def read_work_items(target: Path) -> WorkInFlight:
+    """The work items in flight, from the state file alone: no declarations, no
+    registry, no Git, and nothing written. Never raises: a file that cannot be
+    read is `STATE_UNREADABLE`, never an empty list."""
+    path = Path(target) / STATE_PATH
+    if not path.exists():
+        return WorkInFlight(STATE_MISSING)
+    try:
+        state = _read_json(path)
+    except (OSError, ValueError):
+        return WorkInFlight(STATE_UNREADABLE)
+    if not isinstance(state, dict) or state.get("schema_version") != STATE_SCHEMA_VERSION:
+        return WorkInFlight(STATE_UNREADABLE)
+    work_items = state.get("work_items")
+    problems: list[str] = []
+    if not isinstance(work_items, dict):
+        return WorkInFlight(STATE_READ, (), (f"{STATE_PATH} has no work_items object",))
+    items = []
+    for wid, entry in sorted(work_items.items()):
+        core = _item_core(wid, entry, problems)
+        if core is None:
+            continue
+        phase, governing, wtype, _ = core
+        if phase == "MILESTONE_COMPLETE":
+            continue
+        items.append(InFlightItem(wid, phase, wtype, governing, True, phase in KNOWN_PHASES))
+    active = state.get("active_work_item_id")
+    return WorkInFlight(STATE_READ, tuple(items), tuple(problems),
+                        active if isinstance(active, str) else None)
+
+
+#: The block lists at most this many items.
+IN_FLIGHT_LIMIT = 10
+
+
+def render_work_in_flight(flight: WorkInFlight, target: str) -> list[str]:
+    """The `work in flight` block of `status`. It says `none` only when the
+    state was read, understood, and every entry in it was read."""
+    doctor = manager_command("doctor", target=target, withheld=False).render()
+    if flight.state_read == STATE_MISSING:
+        return [f"  work in flight: unknown ({Path(STATE_PATH).name} is missing; "
+                f"{doctor} says what to do)"]
+    if flight.state_read == STATE_UNREADABLE:
+        return [f"  work in flight: could not be read ({doctor} says why)"]
+    lines = []
+    shown = flight.items[:IN_FLIGHT_LIMIT]
+    if flight.items:
+        count = len(flight.items)
+        lines.append(f"  work in flight: {count} active work item{'s' if count != 1 else ''}")
+        width = max(len(i.id) for i in shown)
+        phase_width = max(len(i.phase) for i in shown)
+        for item in shown:
+            mark = "  (active)" if item.id == flight.active_work_item_id else ""
+            unknown = "" if item.known_phase else "  (unknown phase)"
+            lines.append(f"    {item.id:<{width}}  {item.phase:<{phase_width}}  "
+                         f"{item.work_item_type or '-':<8}  governing {item.governing}"
+                         f"{mark}{unknown}")
+        if len(flight.items) > len(shown):
+            lines.append(f"    and {len(flight.items) - len(shown)} more")
+    elif flight.problems:
+        lines.append("  work in flight: nothing could be listed")
+    else:
+        lines.append("  work in flight: none")
+    if flight.problems:
+        lines.append(f"  inspection incomplete: {len(flight.problems)} problem(s) "
+                     f"({flight.problems[0]}); {doctor} lists them")
+    return lines
 
 
 def read_repository(target: Path) -> RepositoryFacts:
@@ -452,6 +561,8 @@ def read_repository(target: Path) -> RepositoryFacts:
     else:
         facts.problems.append(NOT_MANAGED_PROBLEM)
 
+    facts.missing_templates = missing_templates(target)
+    facts.holds_data = holds_data(target)
     _read_config(target, facts)
     facts.gate_policy_present = (target / GATE_POLICY_PATH).exists()
     _read_state(target, facts)
@@ -1035,7 +1146,8 @@ def data_findings(target: Path) -> tuple:
     Workflow data. Never raises: a failure to compute it is itself an
     `incomplete-inspection` finding, so the predicate fails closed."""
     try:
-        return tuple(build_findings(read_repository(Path(target)), None, target=None))
+        return tuple(build_findings(read_repository(Path(target)), None, target=None,
+                                    steps=False))
     except Exception as error:  # noqa: BLE001 -- fail closed on anything
         return (Finding(WARNING, _INCOMPLETE, "the inspection could not be completed",
                         f"the findings could not be computed ({error})"),)
@@ -1263,6 +1375,22 @@ def _retirement_advice(facts: RepositoryFacts, item: WorkItemFacts, target: str 
 
 
 def build_findings(facts: RepositoryFacts, plan: UpdatePlan | None, *, target: str | None,
+                   installed_resolved: bool = True, refusal: Exception | None = None,
+                   steps: bool = True, target_arg: str | None = None,
+                   release_version: str | None = None) -> list[Finding]:
+    """The report's findings. With `steps` each carries the one next step the
+    operator can take (3.4); `data_findings` asks for none, because the
+    predicate reads only what the findings are, never what they advise, and
+    the steps never change its answer (a test pins that)."""
+    findings = _base_findings(facts, plan, target=target, installed_resolved=installed_resolved,
+                              refusal=refusal)
+    if not steps:
+        return findings
+    return _with_steps(facts, findings, refusal=refusal, target=target,
+                       repo=str(target_arg or facts.target), release_version=release_version)
+
+
+def _base_findings(facts: RepositoryFacts, plan: UpdatePlan | None, *, target: str | None,
                    installed_resolved: bool = True, refusal: Exception | None = None
                    ) -> list[Finding]:
     installed = facts.installation.workflow_version if facts.installation else None
@@ -1366,9 +1494,139 @@ def build_findings(facts: RepositoryFacts, plan: UpdatePlan | None, *, target: s
             NOTE, "not-verified", "the installed release could not be resolved",
             "Local edits to release files are still detected from the install record. "
             "This Manager cannot compare the installation with the installed release's "
-            "published package (offline, or the release is not pinned), the comparison "
-            "`workflow-manager verify` makes."))
+            "published package (offline, the release is not pinned, or its package failed "
+            "verification), the comparison `workflow-manager verify` makes."))
     return findings
+
+
+# -- the next step of each finding (3.4) ------------------------------------
+
+def _advice():
+    from . import advice     # `advice` imports this module: resolved at call time
+    return advice
+
+
+def _data_context(repo: str, files: tuple):
+    from types import SimpleNamespace
+    return _advice().Context(args=SimpleNamespace(target=repo), data_files=tuple(files))
+
+
+_GIT_REASONS = ("not a Git repository", "`git ", "partial-clone detection", "this is a partial clone",
+                "a configured Git", "the amendment witnesses cannot be listed")
+
+
+def _problem_step(line: str, repo: str, by_path: dict, withheld: bool) -> str | None:
+    """The step for one `facts.problems` line, by the first matching rule."""
+    advice = _advice()
+    if line == NOT_MANAGED_PROBLEM:
+        return None
+    if "schema_version" in line and STATE_PATH in line:
+        return f"upgrade the Manager: {advice.page(*advice.PAGE_UPDATE_MANAGER)}"
+    for match in _DATA_PATH_RE.findall(line):
+        if match in by_path:
+            return advice.data_step(_data_context(repo, (by_path[match],)))
+    if line.startswith(_GIT_REASONS):
+        check = git_command(Path(repo), "rev-parse", "--git-dir").render()
+        return (f"make sure `{check}` works here, or review the named parts by hand")
+    doctor = manager_command("doctor", target=repo, withheld=False).render()
+    return f"fix what is named and run `{doctor}` again"
+
+
+def _declarations_step(line: str, repo: str, facts: RepositoryFacts, by_path: dict,
+                       target: str | None) -> str:
+    """The step for one line of the 'declarations could not be fully read' finding."""
+    advice = _advice()
+    wid = line.split(":", 1)[0]
+    item = next((i for i in facts.items if i.id == wid), None)
+    if item is not None and item.legacy:
+        command, _ = _retirement_advice(facts, item, target)
+        retire = (f", or retire it (`{command.render()}`, a Workflow command, not a Manager one)"
+                  if command is not None else "")
+        return f"a legacy item has no declarations: finish it{retire}"
+    if WORK_ITEM_ID_RE.match(wid) and artifacts_relpath(wid) in by_path:
+        return advice.data_step(_data_context(repo, (by_path[artifacts_relpath(wid)],)))
+    return advice.data_step(_data_context(repo, ()))
+
+
+def _with_steps(facts: RepositoryFacts, findings: list[Finding], *, refusal, target, repo: str,
+                release_version: str | None) -> list[Finding]:
+    """`findings` with each one's next step in its detail (F-b to F-n)."""
+    advice = _advice()
+    missing, holds = facts.missing_templates, facts.holds_data
+    withheld = writes_withheld(findings, missing, holds)
+    files = data_files(facts.target, missing, findings) if holds else ()
+    by_path = {f.path: f for f in files}
+    data_page = advice.page(*advice.PAGE_DATA)
+    out: list[Finding] = []
+    for finding in findings:
+        detail, commands = finding.detail, finding.commands
+        if finding.id == "refused-drift" and withheld:
+            detail = (f"{refusal}\n{advice.data_step(_data_context(repo, files))}")
+        elif finding.id == "refused-collision":
+            detail, commands = _collision_step(refusal, repo, release_version, withheld, files,
+                                               data_page)
+        elif finding.id == _INCOMPLETE and finding.title == "the inspection could not be completed":
+            lines = []
+            for line in facts.problems:
+                lines.append(line)
+                step = _problem_step(line, repo, by_path, withheld)
+                if step is not None:
+                    lines.append(f"  What to do: {step}")
+            detail = "\n".join(lines) + "\nThis report is not a clean bill of health."
+        elif finding.id == _INCOMPLETE and finding.title == "declarations could not be fully read":
+            lines = []
+            for line in finding.detail.splitlines():
+                lines.append(line)
+                lines.append(f"  What to do: {_declarations_step(line, repo, facts, by_path, target)}")
+            detail = "\n".join(lines)
+        elif finding.id == "v2.4.0-001":
+            later = "" if withheld else ", or run the update before the item starts implementing"
+            detail = detail.replace(
+                "Finish or park the item first, or update before it starts.",
+                f"What to do: finish the item (it reaches its final phase){later}; "
+                f"{advice.page('update.md', 'check-before-you-update')}")
+        elif finding.id == "unclassified-paths":
+            detail += (" What to do: see the installed docs/ai-workflow/REVIEW_PROTOCOL.md, "
+                       '"Repairing an artifact declaration after an approval".')
+        elif finding.id == "v2.4.0-001-old":
+            check = manager_command("doctor", release_version="2.6.0", target=repo,
+                                    withheld=False).render()
+            detail += f"\nWhat to do: check a target of 2.6.0 or later: `{check}`"
+        elif finding.id == "downgrade":
+            check = manager_command("doctor", target=repo, withheld=False).render()
+            detail += ("\nWhat to do: to check the update to the newest release instead, leave "
+                       f"--release-version out: `{check}`")
+        elif finding.id == "not-verified":
+            verify = manager_command("verify", target=repo, withheld=False).render()
+            detail += f" `{verify}` prints the actual cause."
+        out.append(Finding(finding.severity, finding.id, finding.title, detail, commands))
+    named = {m for f in out if f.id == _INCOMPLETE
+             for m in _DATA_PATH_RE.findall(f.title + "\n" + f.detail)}
+    absent = [rel for rel in missing if holds and rel not in named]
+    if absent:
+        lines = []
+        for rel in absent:
+            lines += [f"{rel} is missing",
+                      f"  What to do: {advice.data_step(_data_context(repo, (by_path[rel],)))}"]
+        out.append(Finding(WARNING, _INCOMPLETE, "a Workflow data file is missing",
+                           "\n".join(lines)))
+    return out
+
+
+def _collision_step(refusal, repo: str, release_version, withheld: bool, files, data_page: str):
+    """F-b: the T12 step, and the `--force` command when `--force` can help."""
+    advice = _advice()
+    detail = str(refusal)
+    if withheld:
+        return (f"{detail}\n{advice.data_step(_data_context(repo, files))}\n"
+                f"{rerun_phrase(True, True, data_page)}"), ()
+    if advice._not_a_directory_tail(refusal):
+        return (f"{detail}\nWhat to do: move or remove that directory, or that file where a "
+                "directory goes (--force cannot replace either), then run the update again"), ()
+    force = manager_command("update", "--force", release_version=release_version, target=repo,
+                            withheld=False)
+    return (f"{detail}\nWhat to do: move your own files away and run the update again, or add "
+            "--force to replace them with the release's:"), (force,)
 
 
 def new_work_only(installed: str, target: str) -> list[tuple[str, str]]:
@@ -1385,24 +1643,41 @@ def recovery_steps(facts: RepositoryFacts, findings: list[Finding], *, target_ar
     """Static recovery text with the path filled in. `target_arg` is the
     repository as printed; `release_version` goes in only when it is not the
     latest (the caller decides). `downgrade` withholds every update command:
-    the target is older than the installed release."""
+    the target is older than the installed release.
+
+    While `writes_withheld` is true (3.2) every command that writes Workflow data
+    or the tree is withheld -- the update, `update --force`, any `bootstrap`, the
+    whole-tree undo -- and so is `git status`: a clean-looking tree can hide
+    Workflow data edits, and `git status` runs a selected clean filter. Slash
+    commands stay: they run the installed Workflow's own validated writer."""
     repo = Path(target_arg or facts.target)
-    # CP4 routes the commands below through `writes_withheld`; until then the
-    # Recovery section prints them as before (`withheld=False`).
-    steps = [RecoveryStep(
-        "Before the update: make sure the tree is clean, or the edits are committed, and "
-        "update on a branch.",
-        (git_command(repo, "status", "--short", inspection=False),))]
+    withheld = writes_withheld(findings, facts.missing_templates, facts.holds_data)
+    if withheld:
+        advice = _advice()
+        steps = [RecoveryStep(
+            "Review the working tree by hand: this Manager offers no command for it while the "
+            "Workflow data named above is incomplete.")]
+    else:
+        steps = [RecoveryStep(
+            "Before the update: make sure the tree is clean, or the edits are committed, and "
+            "update on a branch.",
+            (git_command(repo, "status", "--short", inspection=False),))]
     if downgrade:
         steps.append(RecoveryStep(
             "No update command is offered: the target is older than the installed release, and "
             "a downgrade is unsupported."))
+    elif withheld:
+        steps.append(RecoveryStep(
+            "No command that writes the repository is offered: the Workflow data problem named "
+            f"above needs your decision first ({advice.page(*advice.PAGE_DATA)})."))
     else:
         steps.append(RecoveryStep(
             "An update that stopped half way is re-run with the same command; it needs no --force.",
             (manager_command("update", release_version=release_version, target=str(repo),
                              withheld=False),)))
-    if facts.dirty is False:
+    if withheld:
+        pass
+    elif facts.dirty is False:
         steps.append(RecoveryStep(
             "To undo an update that has not been committed: this is an undo only if the tree was "
             "clean before the update; it discards ALL uncommitted changes, not only the update's. "
@@ -1418,7 +1693,7 @@ def recovery_steps(facts: RepositoryFacts, findings: list[Finding], *, target_ar
     else:
         steps.append(RecoveryStep(
             "No undo command: whether the tree has uncommitted changes could not be checked."))
-    if not downgrade and any(f.id == "refused-drift" for f in findings):
+    if not downgrade and not withheld and any(f.id == "refused-drift" for f in findings):
         steps.append(RecoveryStep(
             "A locally modified release file: save your edit, then run the update with --force.",
             (manager_command("update", "--force", release_version=release_version,
@@ -1434,10 +1709,11 @@ def build_report(facts: RepositoryFacts, plan: UpdatePlan | None, *, target_vers
                  latest_version: str | None, pinned_versions: list[str],
                  refusal: Exception | None = None, installed_resolved: bool = True,
                  target_arg: str | None = None) -> Report:
-    findings = build_findings(facts, plan, target=target_version,
-                              installed_resolved=installed_resolved, refusal=refusal)
-    installation = facts.installation
     explicit = target_version if target_version and target_version != latest_version else None
+    findings = build_findings(facts, plan, target=target_version,
+                              installed_resolved=installed_resolved, refusal=refusal,
+                              target_arg=target_arg, release_version=explicit)
+    installation = facts.installation
     source = None
     if installation is not None:
         src = installation.source
