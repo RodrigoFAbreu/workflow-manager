@@ -124,7 +124,7 @@ None.
 
 ## Next action
 
-All checkpoints complete: run `/milestone-implement` again to enter self-review and prepare the implementation bundle. A `feat:` pull-request title releases
+All checkpoints complete and technically approved: manual functional review (checklist below), then `/accept-milestone`. A `feat:` pull-request title releases
 Manager 1.8.0.
 
 ## Functional review checklist
@@ -134,14 +134,15 @@ its commit and implementation revision are in `WORKFLOW_STATE.json`). You are
 testing the Manager CLI as an operator would: every error, refusal and note
 should say what happened and name one concrete next step. Put findings in
 `.ai-review/workflow-manager-operator-ux/feedback/FUNCTIONAL_REVIEW.md`.
-Automated verification is current as of implementation revision 9: only
-state and bundle-record commits landed after the last code fix (`936ca18`,
-review round 8). Since the first functional-review round the fixes are
-`33a62c9` (plain step for a record directory, options on `doctor` commands,
-next step for a bad command) and review rounds 7 and 8 (each report command's
-`--release-dir` resolved against the version it uses; a failing `HEAD`
-inspection fails closed and finding re-checks keep `--release-version`).
-Flows 5 and 7 below cover them.
+Automated verification is current as of implementation revision 10: only
+state and bundle-record commits landed after the last code fix (`600f6bd`,
+functional review round 2, finding 1). Since the first functional-review
+round the fixes are `33a62c9` (plain step for a record directory, options on
+`doctor` commands, next step for a bad command), review rounds 7 and 8 (each
+report command's `--release-dir` resolved against the version it uses; a
+failing `HEAD` inspection fails closed and finding re-checks keep
+`--release-version`) and `600f6bd` (the not-verified step is true when
+`verify` finds nothing wrong). Flows 5 and 7 below cover them.
 
 **Setup.** Python 3.12+, Git, a populated release cache, no network:
 
