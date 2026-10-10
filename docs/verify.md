@@ -1,6 +1,6 @@
 # Verify
 
-> For: someone who wants to know whether a repository's Workflow installation is intact. Last checked with: Workflow Manager 1.5.0, Workflow 2.9.0.
+> For: someone who wants to know whether a repository's Workflow installation is intact. Last checked with: Workflow Manager 1.7.0, Workflow 2.9.1.
 
 Goal: confirm that every installed Workflow file is exactly the one its release shipped.
 
@@ -39,8 +39,8 @@ Goal: confirm that every installed Workflow file is exactly the one its release 
 
 ## What you should see
 
-- Step 1 prints `workflow 2.9.0 (full profile) — clean`, then a `source:` line naming the package and its digest.
-- Step 2 prints `<path>: installation matches workflow 2.9.0`.
+- Step 1 prints `workflow 2.9.1 (full profile) — clean`, then a `source:` line naming the package and its digest.
+- Step 2 prints `<path>: installation matches workflow 2.9.1`.
 - Step 3 prints `0`.
 
 ## If it fails

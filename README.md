@@ -1,6 +1,6 @@
 # Workflow Manager
 
-> For: anyone who wants to put the Workflow into a repository. Last checked with: Workflow Manager 1.5.0, Workflow 2.9.0.
+> For: anyone who wants to put the Workflow into a repository. Last checked with: Workflow Manager 1.7.0, Workflow 2.9.1.
 
 [![Verification](https://github.com/RodrigoFAbreu/workflow-manager/actions/workflows/workflow-manager-verify.yml/badge.svg?branch=main&event=push)](https://github.com/RodrigoFAbreu/workflow-manager/actions/workflows/workflow-manager-verify.yml?query=branch%3Amain+event%3Apush)
 [![Nightly](https://github.com/RodrigoFAbreu/workflow-manager/actions/workflows/workflow-manager-verify.yml/badge.svg?event=schedule)](https://github.com/RodrigoFAbreu/workflow-manager/actions/workflows/workflow-manager-verify.yml?query=event%3Aschedule)
@@ -38,7 +38,7 @@ workflow-manager bootstrap /path/to/your/repo
 workflow-manager verify /path/to/your/repo
 ```
 
-Step 3 should print `installation matches workflow 2.9.0` and exit with
+Step 3 should print `installation matches workflow 2.9.1` and exit with
 status 0. If something goes differently, see
 [Common problems](docs/common-problems.md).
 
