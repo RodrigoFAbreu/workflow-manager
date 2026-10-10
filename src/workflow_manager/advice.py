@@ -109,6 +109,11 @@ def misplaced_global_options(unrecognized: list[str]) -> list[str]:
     return [option for option, _ in GLOBAL_OPTIONS if option in named]
 
 
+def command_step() -> str:
+    """The step for a missing or unknown COMMAND (usage error, exit 2)."""
+    return f"run `{PROGRAM} --help` to list the commands"
+
+
 def global_option_step(misplaced: list[str], command: str | None) -> str:
     """A1: the usage pattern for global options written after the command.
 

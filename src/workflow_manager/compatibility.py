@@ -345,6 +345,9 @@ class RepositoryFacts:
     missing_templates: tuple[str, ...] = ()
     #: Whether the target holds Workflow data (`holds_data`).
     holds_data: bool = False
+    #: The global options the operator gave (`advice._options`), carried by every
+    #: Manager command the report prints so it parses and resolves the same way.
+    options: tuple[tuple[str, str], ...] = ()
     #: Reasons an inspection could not be completed: each is a finding.
     problems: list[str] = field(default_factory=list)
 
@@ -550,10 +553,11 @@ def read_work_items(target: Path) -> WorkInFlight:
 IN_FLIGHT_LIMIT = 10
 
 
-def render_work_in_flight(flight: WorkInFlight, target: str) -> list[str]:
+def render_work_in_flight(flight: WorkInFlight, target: str,
+                          options: tuple[tuple[str, str], ...] = ()) -> list[str]:
     """The `work in flight` block of `status`. It says `none` only when the
     state was read, understood, and every entry in it was read."""
-    doctor = manager_command("doctor", target=target, withheld=False).render()
+    doctor = manager_command("doctor", target=target, withheld=False, options=options).render()
     if flight.state_read == STATE_MISSING:
         return [f"  work in flight: unknown ({Path(STATE_PATH).name} is missing; "
                 f"{doctor} says what to do)"]
@@ -1166,12 +1170,25 @@ def writes_withheld(findings, missing_templates, holds_data: bool) -> bool:
 
 
 def holds_data(target: Path) -> bool:
-    """Whether the target holds Workflow data: a path at `.workflow-manager`
-    (a record, a directory at it, a file at it, readable or not) or at least
-    one state template. Plain `lexists()` checks: no Git, no record read."""
+    """Whether the target holds Workflow data: at least one state template in
+    the tree, or a path at `.workflow-manager` together with proof that the
+    repository once held the templates -- a readable installation record, or a
+    template present at `HEAD` (read through `run_git`, the hermetic read-only
+    Git). A path at `.workflow-manager` alone (a directory at the record, an
+    unreadable record) in a repository that never held the templates is not
+    data: the templates' absence is then nothing to put back, and the plain
+    `bootstrap` step applies."""
     target = Path(target)
-    return os.path.lexists(target / INSTALLATION_DIR) or any(
-        os.path.lexists(target / rel) for rel in STATE_TEMPLATES)
+    if any(os.path.lexists(target / rel) for rel in STATE_TEMPLATES):
+        return True
+    if not os.path.lexists(target / INSTALLATION_DIR):
+        return False
+    try:
+        Installation.read(target)
+        return True
+    except Exception:  # noqa: BLE001 -- an unreadable record names nothing
+        pass
+    return any(run_git(target, "cat-file", "-e", f"HEAD:{rel}").ok for rel in STATE_TEMPLATES)
 
 
 def missing_templates(target: Path) -> tuple[str, ...]:
@@ -1555,7 +1572,8 @@ _GIT_REASONS = ("not a Git repository", "`git ", "partial-clone detection", "thi
                 "a configured Git", "the amendment witnesses cannot be listed")
 
 
-def _problem_step(line: str, repo: str, by_path: dict, withheld: bool) -> str | None:
+def _problem_step(line: str, repo: str, by_path: dict, withheld: bool,
+                  options: tuple = ()) -> str | None:
     """The step for one `facts.problems` line, by the first matching rule."""
     advice = _advice()
     if line == NOT_MANAGED_PROBLEM:
@@ -1568,7 +1586,7 @@ def _problem_step(line: str, repo: str, by_path: dict, withheld: bool) -> str | 
     if line.startswith(_GIT_REASONS):
         check = git_command(Path(repo), "rev-parse", "--git-dir").render()
         return (f"make sure `{check}` works here, or review the named parts by hand")
-    doctor = manager_command("doctor", target=repo, withheld=False).render()
+    doctor = manager_command("doctor", target=repo, withheld=False, options=options).render()
     return f"fix what is named and run `{doctor}` again"
 
 
@@ -1604,12 +1622,12 @@ def _with_steps(facts: RepositoryFacts, findings: list[Finding], *, refusal, tar
             detail = (f"{refusal}\n{advice.data_step(_data_context(repo, files))}")
         elif finding.id == "refused-collision":
             detail, commands = _collision_step(refusal, repo, release_version, withheld, files,
-                                               data_page)
+                                               data_page, facts.options)
         elif finding.id == _INCOMPLETE and finding.title == "the inspection could not be completed":
             lines = []
             for line in facts.problems:
                 lines.append(line)
-                step = _problem_step(line, repo, by_path, withheld)
+                step = _problem_step(line, repo, by_path, withheld, facts.options)
                 if step is not None:
                     lines.append(f"  What to do: {step}")
             detail = "\n".join(lines) + "\nThis report is not a clean bill of health."
@@ -1630,14 +1648,16 @@ def _with_steps(facts: RepositoryFacts, findings: list[Finding], *, refusal, tar
                        '"Repairing an artifact declaration after an approval".')
         elif finding.id == "v2.4.0-001-old":
             check = manager_command("doctor", release_version="2.6.0", target=repo,
-                                    withheld=False).render()
+                                    withheld=False, options=facts.options).render()
             detail += f"\nWhat to do: check a target of 2.6.0 or later: `{check}`"
         elif finding.id == "downgrade":
-            check = manager_command("doctor", target=repo, withheld=False).render()
+            check = manager_command("doctor", target=repo, withheld=False,
+                                    options=facts.options).render()
             detail += ("\nWhat to do: to check the update to the newest release instead, leave "
                        f"--release-version out: `{check}`")
         elif finding.id == "not-verified":
-            verify = manager_command("verify", target=repo, withheld=False).render()
+            verify = manager_command("verify", target=repo, withheld=False,
+                                     options=facts.options).render()
             detail += f" `{verify}` prints the actual cause."
         out.append(Finding(finding.severity, finding.id, finding.title, detail, commands))
     named = {m for f in out if f.id == _INCOMPLETE
@@ -1653,7 +1673,8 @@ def _with_steps(facts: RepositoryFacts, findings: list[Finding], *, refusal, tar
     return out
 
 
-def _collision_step(refusal, repo: str, release_version, withheld: bool, files, data_page: str):
+def _collision_step(refusal, repo: str, release_version, withheld: bool, files, data_page: str,
+                    options: tuple = ()):
     """F-b: the T12 step, and the `--force` command when `--force` can help."""
     advice = _advice()
     detail = str(refusal)
@@ -1664,7 +1685,7 @@ def _collision_step(refusal, repo: str, release_version, withheld: bool, files, 
         return (f"{detail}\nWhat to do: move or remove that directory, or that file where a "
                 "directory goes (--force cannot replace either), then run the update again"), ()
     force = manager_command("update", "--force", release_version=release_version, target=repo,
-                            withheld=False)
+                            withheld=False, options=options)
     return (f"{detail}\nWhat to do: move your own files away and run the update again, or add "
             "--force to replace them with the release's:"), (force,)
 
@@ -1714,7 +1735,7 @@ def recovery_steps(facts: RepositoryFacts, findings: list[Finding], *, target_ar
         steps.append(RecoveryStep(
             "An update that stopped half way is re-run with the same command; it needs no --force.",
             (manager_command("update", release_version=release_version, target=str(repo),
-                             withheld=False),)))
+                             withheld=False, options=facts.options),)))
     if withheld:
         pass
     elif facts.dirty is False:
@@ -1737,7 +1758,7 @@ def recovery_steps(facts: RepositoryFacts, findings: list[Finding], *, target_ar
         steps.append(RecoveryStep(
             "A locally modified release file: save your edit, then run the update with --force.",
             (manager_command("update", "--force", release_version=release_version,
-                             target=str(repo), withheld=False),)))
+                             target=str(repo), withheld=False, options=facts.options),)))
     for finding in findings:
         for command in finding.commands:
             if command.family == FAMILY_SLASH:

@@ -1,15 +1,15 @@
 """Command-line entry point.
 
-    python3 -m workflow_manager status    <target>
-    python3 -m workflow_manager bootstrap <target> [--profile full|runtime] [--force]
-    python3 -m workflow_manager update    <target> [--profile ...] [--force] [--dry-run]
-    python3 -m workflow_manager doctor    <target>
-    python3 -m workflow_manager verify    <target>
-    python3 -m workflow_manager uninstall <target>
-    python3 -m workflow_manager releases
-    python3 -m workflow_manager package build <release-dir> --out <dir>
-    python3 -m workflow_manager package verify <archive> [--sha256 H]
-    python3 -m workflow_manager --version
+    workflow-manager status    <target>
+    workflow-manager bootstrap <target> [--profile full|runtime] [--force]
+    workflow-manager update    <target> [--profile ...] [--force] [--dry-run]
+    workflow-manager doctor    <target>
+    workflow-manager verify    <target>
+    workflow-manager uninstall <target>
+    workflow-manager releases
+    workflow-manager package build <release-dir> --out <dir>
+    workflow-manager package verify <archive> [--sha256 H]
+    workflow-manager --version
 
 Releases are published packages, pinned in the Manager's
 `published_releases.json` and fetched through a verified cache
@@ -352,7 +352,8 @@ def _print_error(args, error, text=None) -> None:
 
 
 def _print_in_flight(args) -> None:
-    for line in render_work_in_flight(read_work_items(args.target), str(args.target)):
+    options, _ = advice._options(_context(args), None)
+    for line in render_work_in_flight(read_work_items(args.target), str(args.target), options):
         print(line)
 
 
@@ -458,6 +459,8 @@ def _compatibility_report(args, plan, refusal, release, installed_resolved: bool
     except ReleaseNotPublishedError:
         latest = None
     facts = read_repository(args.target)
+    explicit = release.version if release.version and release.version != latest else None
+    facts.options, _ = advice._options(_context(args), explicit)
     return build_report(
         facts, plan, target_version=release.version, latest_version=latest,
         pinned_versions=versions, refusal=refusal, installed_resolved=installed_resolved,
@@ -625,6 +628,9 @@ class _Parser(argparse.ArgumentParser):
         self.exit(2, f"{self.prog}: error: {message}\n" + self._hint(message))
 
     def _hint(self, message: str) -> str:
+        if message.startswith(("argument COMMAND: invalid choice:",
+                               "the following arguments are required: COMMAND")):
+            return f"next: {advice.command_step()}\n"
         prefix = "unrecognized arguments: "
         if not message.startswith(prefix):
             return ""

@@ -307,13 +307,17 @@ class TestReportSteps(ux.ReleaseCase):
         repo = self.fresh()
         work = self.workdir()
         (work / "source").mkdir()
+        release_dir = self.release_dir()
         proc = run("--release-cache", str(work / "cache"), "--release-source",
-                   str(work / "source"), "--release-dir", str(self.release_dir()),
+                   str(work / "source"), "--release-dir", str(release_dir),
                    "doctor", str(repo))
         self.assertIn("[note] not-verified", proc.stdout)
         self.assertIn("offline, the release is not pinned, or its package failed verification",
                       proc.stdout)
-        self.assertIn(f"`workflow-manager verify {repo}` prints the actual cause.", proc.stdout)
+        options = (f"--release-source {work / 'source'} --release-cache {work / 'cache'} "
+                   f"--release-dir {release_dir}")
+        self.assertIn(f"`workflow-manager {options} verify {repo}` prints the actual cause.",
+                      proc.stdout)
 
     def test_a_downgrade_says_what_to_run_instead(self):
         repo = self.fresh()

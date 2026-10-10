@@ -1045,5 +1045,96 @@ class TestPrintedCommandsParse(ux.TargetCase):
             self.assertEqual(Installation.from_dict(data).workflow_version, version)
 
 
+class TestFunctionalReviewRound1(ux.TargetCase):
+    """Functional review round 1, findings 1 to 4."""
+
+    def directory_record_repo(self, committed_templates=False):
+        repo = self.empty()
+        if committed_templates:
+            for rel in (STATE, CONFIG, MILESTONE):
+                (repo / rel).parent.mkdir(parents=True, exist_ok=True)
+                (repo / rel).write_text("{}\n")
+            ux.git(repo, "add", "-A")
+            ux.git(repo, "commit", "-q", "-m", "templates")
+            for rel in (STATE, CONFIG, MILESTONE):
+                (repo / rel).unlink()
+        (repo / RECORD).mkdir(parents=True)
+        return repo
+
+    def test_f1_a_directory_at_the_record_in_a_repository_that_never_held_data_takes_the_plain_step(self):
+        repo = self.directory_record_repo()
+        for argv in (["bootstrap"], ["bootstrap", "--force"], ["status"], ["verify"], ["doctor"]):
+            with self.subTest(argv=argv):
+                proc = run(*argv, str(repo))
+                text = proc.stdout + proc.stderr
+                self.assertEqual(proc.returncode, 2, text)
+                step = next_lines(text)[0]
+                self.assertIn(f"delete {repo}/.workflow-manager", step)
+                self.assertIn(f"bootstrap {repo}", step)
+                self.assertNotIn("Workflow data is missing or damaged", step)
+                self.assertNotIn("No bootstrap command is offered", step)
+                self.assertNotIn("show --no-textconv HEAD:docs/ai-workflow", step)
+
+    def test_f1_a_repository_whose_head_holds_the_templates_keeps_the_data_step(self):
+        repo = self.directory_record_repo(committed_templates=True)
+        for argv in (["bootstrap"], ["bootstrap", "--force"], ["status"], ["doctor"]):
+            with self.subTest(argv=argv):
+                proc = run(*argv, str(repo))
+                text = proc.stdout + proc.stderr
+                self.assertEqual(proc.returncode, 2, text)
+                step = next_lines(text)[0]
+                self.assertIn("Workflow data is missing or damaged", step)
+                self.assertIn("No bootstrap command is offered", step)
+        self.assertTrue(comp.holds_data(repo))
+        self.assertFalse(comp.holds_data(self.directory_record_repo()))
+
+    def test_f2_doctor_commands_carry_the_global_options(self):
+        repo = self.fresh()
+        work = tempfile.TemporaryDirectory()
+        self.addCleanup(work.cleanup)
+        cache = Path(work.name) / "cache"
+        cache.symlink_to(support.cli_env()["WORKFLOW_MANAGER_RELEASE_CACHE"])
+        release = Path(work.name) / "-rel"
+        shutil.copytree(support.release(NEWEST_RELEASE).root, release)
+        env = cli_env(WORKFLOW_MANAGER_RELEASE_CACHE=str(Path(work.name) / "empty"))
+        for options in (["--release-cache", str(cache)], ["--release-dir", str(release)]):
+            with self.subTest(options=options):
+                proc = ux.run_in(work.name, *options, "doctor", str(repo), env=env)
+                text = proc.stdout + proc.stderr
+                self.assertIn("An update that stopped half way", text)
+                seen = 0
+                for line in text.splitlines():
+                    if line.strip().startswith("workflow-manager ") and " update " in line:
+                        seen += 1
+                        argv = shlex.split(line.strip())
+                        self.assertIn(options[0], argv)
+                        self.assertIn(options[1], argv)
+                        self.assertTrue(ux.parses(argv), argv)
+                self.assertTrue(seen, text)
+
+    def test_f2_recovery_and_finding_commands_are_built_with_the_options(self):
+        facts = comp.RepositoryFacts(target=Path("/t"), options=(("--release-dir", "-rel"),))
+        steps = comp.recovery_steps(facts, [], target_arg="/t", release_version=None)
+        commands = [c.render() for step in steps for c in step.commands
+                    if c.family == comp.FAMILY_MANAGER]
+        self.assertTrue(commands)
+        for command in commands:
+            self.assertIn("--release-dir=-rel", shlex.split(command))
+            self.assertTrue(ux.parses(shlex.split(command)), command)
+
+    def test_f3_an_unknown_or_missing_command_names_the_help_step(self):
+        for argv in (["bogus"], []):
+            with self.subTest(argv=argv):
+                proc = run(*argv)
+                self.assertEqual(proc.returncode, 2)
+                self.assertEqual(next_lines(proc.stderr),
+                                 ["run `workflow-manager --help` to list the commands"])
+
+    def test_f4_help_description_names_workflow_manager(self):
+        proc = run("--help")
+        self.assertIn("workflow-manager status", proc.stdout)
+        self.assertNotIn("python3 -m", proc.stdout)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
