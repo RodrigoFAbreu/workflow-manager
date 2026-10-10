@@ -36,11 +36,11 @@ The documentation clean-up delivered most of this: install, update and verify gu
 
 Newest first.
 
-- **Workflow 2.9.1 pinned, Manager v1.7.0** (2026-10-10). A fix release built and published by the `workflow` repository (W4, workflow#13): a review stage's `REVISE` write is committed alone, so the post-fix round that follows it is no longer refused, and `APPROVE` writes stay uncommitted for the approval commit.
+- **Workflow 2.9.1 pinned, Manager v1.7.0** (2026-10-10). A fix release built and published by the `workflow` repository (W4, workflow#13): a review stage's `REVISE` write is committed alone, so the post-fix round that follows it is no longer refused, and `APPROVE` writes stay uncommitted for the approval commit. Installed here the same day, so this repository runs its own milestones on 2.9.1.
 - **Update ergonomics** (2026-10-09, PR #22, Manager v1.6.0). `workflow-manager doctor` and `update --dry-run` read a repository and report what an update would do and which Workflow guarantees it would cross, without writing it. Plan: `docs/ai-workflow/WORKFLOW_MANAGER_UPDATE_ERGONOMICS_PLAN.md`.
 - **Small Workflow fix release** (2026-10-08, Workflow 2.9.0; pinned in Manager v1.5.0, PR #19). Built and published by the `workflow` repository. It fixes `v2.6.0-003`, makes the latest governing version the default for new work items, and adds `/retire-legacy-work-item`.
 - **Documentation clean-up** (2026-10-04, PR #16). Readable user documentation with install, update and verify guides, a troubleshooting page and a documentation index.
-- **Workflow 2.9.0 installed here** (2026-10-08, PR #21), so this repository runs its own milestones on 2.9.0.
+- **Workflow 2.9.0 installed here** (2026-10-08, PR #21). Replaced by 2.9.1 above.
 - **Workflow 2.8.0 pinned, Manager v1.4.0** (PR #14), and **2.8.0 installed here** (PR #15). Replaced by 2.9.0 above.
 - **Workflow 2.7.0 pinned, Manager v1.3.0** (PR #13).
 - **The `workflow` repository and its releases** (W0 to W2). Set up for development with CI and releases; it published Workflow 2.7.0 (Orchestration Protocol, first packaged release) and 2.8.0 (declarative gate policy, a red pull request reopening its work item). They are tracked in the Workflow roadmap, not here.

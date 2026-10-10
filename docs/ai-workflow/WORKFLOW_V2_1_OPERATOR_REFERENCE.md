@@ -700,6 +700,18 @@ test fails and is authoritative about which one moved.
   `FeedbackBundleMismatchError`, and forcing past it records
   `USER_OVERRIDE` rather than `EXTERNAL_APPROVE` (ledger `I11`).
 
+**Review-stage write commit rule (`workflow-2.9.1`).** The review commands
+commit a `REVISE` write alone (a `Workflow-Work-Item` trailer) before any
+fix commit, and `/apply-implementation-review` step 1 commits a
+still-pending one (or step 0's own entry) as a safety net, so the post-fix
+generation record transitions `phase`. An `APPROVE` write, and every
+plan-stage write, is left uncommitted for the approval commit to take: a
+commit of its own puts `HEAD` past the bundle's generation head, and
+`/approve-review` and `/satisfy-gate` refuse. The rule and the helper's
+refusals are in `REVIEW_PROTOCOL.md` ("Which review-stage writes are
+committed"); if a round was refused with "must always transition phase", see
+`docs/common-problems.md` in the Workflow repository.
+
 ### `/recover-implementation-provenance [work-item-id]`
 - **When**: `/approve-review implementation` fails its provenance check only
   because a legitimate excluded-only commit (docs, `scripts/`) landed on top

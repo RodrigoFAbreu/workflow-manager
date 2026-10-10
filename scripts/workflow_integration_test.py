@@ -767,6 +767,12 @@ class TestVersion21OnlyCommandsRefuseCleanlyForV1(unittest.TestCase):
 # below, for the two files where a real pre-v2.1 copy is actually
 # available to diff against.
 _GOLDEN_COMMAND_FILE_SHA256 = {
+    # workflow-2.9.1 (review-stage-write-durability, CP2): `review-implementation.md`,
+    # `record-manual-implementation-review.md` and `apply-implementation-review.md`
+    # gain the commit rule for review-stage writes (REVISE commits through
+    # `commit_pending_applying_review_feedback_entry`, APPROVE stays uncommitted);
+    # `review-plan.md`, `record-manual-plan-review.md` and `apply-plan-review.md`
+    # gain the plan-stage sentence.
     # workflow-2.8.0 (gate-policy-and-reopening, CP2): `approve-review.md`
     # gains the pointer to `/satisfy-gate`; `milestone-plan.md`,
     # `apply-plan-review.md`, `milestone-implement.md` and
@@ -1115,7 +1121,7 @@ _GOLDEN_COMMAND_FILE_SHA256 = {
     # assert_apply_review_feedback_binding (D-Apply-Binding): a two-stage
     # REVISE stating a review_content_id is bound by content --
     # intentional content change.
-    "apply-plan-review.md": "17c7ea54b5d98cd5267dccbe42df5b4e37ed8a1fc8be3762d34aa9b2db5a4658",
+    "apply-plan-review.md": "878527ae17e3cc2cb207a90ee6de20b414e8a702eb6c3edb4da8374d96c66821",
     # apply-implementation-review.md (WF8c item (c)): step 7's
     # record_bundle_generation call site widened to first resolve the
     # outcome (resolve_bundle_generation_outcome) and write the matching
@@ -1150,7 +1156,7 @@ _GOLDEN_COMMAND_FILE_SHA256 = {
     # workflow-2.8.0 (gate-policy-and-reopening, CP1): the generation-record
     # commit stages item-scoped (stage_scoped_state) -- intentional content
     # change.
-    "apply-implementation-review.md": "deaf93154185971241690ee4b5e0c8ec9b21a765a957e5cae78f1a66627a76ba",
+    "apply-implementation-review.md": "dc72c3fa36b1dabdedc64fd4428f6a04754a8431780d415c73f43c3f6186f10d",
     # review-plan.md/record-manual-plan-review.md further updated,
     # workflow-v2-3-followups CP3 (REQ-8/-9): the `Reviewer role:` template
     # literal, the round-computation prose, the exact-match-expectation
@@ -1188,7 +1194,7 @@ _GOLDEN_COMMAND_FILE_SHA256 = {
     # review-plan.md further updated, D-Consumed-History (workflow-2.7.0,
     # CP2, v2.6.0-001): REVISE also adds the id to the durable
     # consumed_plan_review_content_ids history -- intentional content change.
-    "review-plan.md": "61cb286719b6f310c61f9304324d6994f74dc9c443661178b81c051e05d27e0d",
+    "review-plan.md": "d7615154b539dbd74ac08fe06245f3137fffb7d1af83a600eed7207690cfa43a",
     # record-manual-plan-review.md further updated, D-Feedback-Layout
     # (workflow-2.6.0, CP3): preamble states feedback_layout-keyed
     # resolution; step 4 prints the exact resolved paste path and adds the
@@ -1207,7 +1213,7 @@ _GOLDEN_COMMAND_FILE_SHA256 = {
     # ingest_manual_review_verdict (two_stage_only=True), which holds
     # state_lock through the publication; the required header fields,
     # Round: and the absent-bundle-id advisory -- intentional content change.
-    "record-manual-plan-review.md": "f5647bdb1af514a4c89d0fdf9e6bfe098009d48ee6f124c0bf26684f2870b58f",
+    "record-manual-plan-review.md": "3a3a5fd42430430c67a8d13a4ede47a8bb8a8332dbd4769e66d99a658550fe70",
     # bootstrap-workflow-v2.md (WF8c scope clauses (l)/(p)/(q), GPT-R108-002/
     # OPUS-R109-004): the driver-range text made checkpoint-agnostic
     # (OPUS-R102-009), a NO_CHECKPOINT terminal-wrap-up branch added to step
@@ -1301,7 +1307,7 @@ _GOLDEN_COMMAND_FILE_SHA256 = {
     # review-implementation.md further updated, workflow-2.7.0
     # (ORCHESTRATION_PROTOCOL_V1_PLAN.md, CP4): step 4's bundle check is
     # verify_implementation_review_bundle -- intentional content change.
-    "review-implementation.md": "656538d4033c9a086adf1c0b387f15d18ee5a5b95af782a6267a712018d04060",
+    "review-implementation.md": "7af3603cf6834223968258e8256cde95a0ef5e9a9e71a89e41ad1414d671be62",
     # review-functional.md: new, workflow-v2-3 CP2 -- the first recorded
     # hash, not a change.
     #
@@ -2676,6 +2682,44 @@ class TestGoldenCommandFileHashes(unittest.TestCase):
                     f"{filename} content changed since this golden hash was recorded -- "
                     f"if intentional, update _GOLDEN_COMMAND_FILE_SHA256",
                 )
+
+
+class TestReviewStageWriteCommitRuleConformance(unittest.TestCase):
+    """workflow-2.9.1 (review-stage-write-durability, CP2): the command texts
+    carry the commit rule for review-stage writes -- a REVISE branch commits
+    through the helper, an APPROVE branch says to leave the write
+    uncommitted, the apply safety net precedes the `BLOCK` pin, and the plan
+    texts carry the plan-stage sentence."""
+
+    HELPER = "commit_pending_applying_review_feedback_entry"
+
+    def test_revise_branches_name_the_helper_and_approve_branches_say_uncommitted(self):
+        for filename, revise_marker, block_marker, approve_marker in (
+            ("review-implementation.md", "    - `REVISE`", "    - `BLOCK`", "    - `APPROVE`"),
+            ("record-manual-implementation-review.md", "   - `REVISE`", "   - `BLOCK`", "   - `APPROVE`"),
+        ):
+            with self.subTest(filename=filename):
+                text = _command_text(filename)
+                approve = text[text.index(approve_marker, text.index("Write set, exact")):]
+                approve = approve[:approve.index(revise_marker)]
+                revise = text[text.index(revise_marker, text.index("Write set, exact")):]
+                revise = revise[:revise.index(block_marker)]
+                self.assertIn("uncommitted", approve)
+                self.assertNotIn(self.HELPER, approve)
+                self.assertIn(self.HELPER, revise)
+
+    def test_apply_safety_net_precedes_the_block_pin(self):
+        text = _command_text("apply-implementation-review.md")
+        self.assertEqual(text.count(self.HELPER), 1)
+        self.assertLess(text.index(self.HELPER), text.index("**Durable `BLOCK`-verdict pin**"))
+        self.assertLess(text.index("assert_apply_review_feedback_binding"), text.index(self.HELPER))
+
+    def test_plan_texts_carry_the_plan_stage_sentence(self):
+        for filename in ("review-plan.md", "record-manual-plan-review.md", "apply-plan-review.md"):
+            with self.subTest(filename=filename):
+                text = _command_text(filename)
+                self.assertIn("Plan-stage writes are not committed here", text)
+                self.assertNotIn(self.HELPER, text)
 
 
 class TestReconciliationOutcomeReportingConformance(unittest.TestCase):

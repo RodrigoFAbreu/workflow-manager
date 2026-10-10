@@ -125,6 +125,16 @@ rule for an item without the field.
    `workflow_fingerprint.assert_bundle_not_rejected(repo_root,
    work_item_id)` here; a `BundleRejectedError` stops the command, naming
    the marker path and its recorded detail.
+   **Commit a pending REVISE write** (workflow-2.9.1, `REVIEW_PROTOCOL.md`'s
+   commit rule for review-stage writes): after step 0 and the binding
+   check, and before the `BLOCK` pin and any fix commit, call
+   `workflow_state.commit_pending_applying_review_feedback_entry(repo_root,
+   work_item_id, attribution=<the Co-Authored-By/Claude-Session lines this
+   session is told to add, or ()>)`. It commits step 0's own entry, or a
+   REVISE write that was persisted and never committed, alone; it resumes an
+   interrupted staging of that commit; and it returns `None` when the write
+   is already committed. Report a `ReviewStageWriteNotCommittableError` or a
+   `DirtyIndexBeforeStagingError` (unstage the unrelated content) and stop.
    **Durable `BLOCK`-verdict pin** (`D2a`, `WF8c` item (a)): once the
    feedback is confirmed current, bundle-matching, and parse-valid, and
    before taking any other action, check its `status` field. If it is
