@@ -105,6 +105,15 @@ message `common-problems.md` and `exit-codes.md` quote is in the real output of
 the case that raises it, that each row's fix names the `next:` step, and that
 the exit codes match. ROADMAP item 7 stays Next until acceptance.
 
+### Implementation review round 1 disposition
+
+I-1 and I-2 resolved by `tests/test_operator_ux_readonly.py` and an extended
+`printed_commands` in `tests/test_doctor_cli.py`. Deliberate omissions: plan
+section 4 (j)(1)-(4) and (6)-(9) beyond existing per-case tests; (g)'s marker
+lives outside `.git`, declarations are not in the printed-inspection loop, T8's
+`REV:` reader runs with `HEAD`; (i)(6)+(7) skips as root. O-4: reprinted
+commands drop `--force` by design.
+
 ## Current blockers
 
 None.
