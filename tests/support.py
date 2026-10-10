@@ -252,6 +252,20 @@ CI_SUITES = {
         "workflow_protocol_test.py": 314,
         "workflow_gate_policy_test.py": 292,
     },
+    #: `2.9.1` is a fix release (W4, workflow#13: review-stage REVISE writes
+    #: committed alone, APPROVE writes left uncommitted). Same nine suites;
+    #: counts pinned to what the published package actually produces.
+    "2.9.1": {
+        "workflow_fingerprint_test.py": 257,
+        "workflow_state_test.py": 1088,
+        "workflow_test_harness_test.py": 22,
+        "workflow_integration_test.py": 279,
+        "workflow_acceptance_matrix_test.py": 331,
+        "workflow_state_completion_obligations_test.py": 106,
+        "workflow_fingerprint_generalization_test.py": 105,
+        "workflow_protocol_test.py": 314,
+        "workflow_gate_policy_test.py": 292,
+    },
 }
 
 

@@ -22,7 +22,7 @@ import unittest
 from pathlib import Path
 
 import support
-from support import NEWEST_RELEASE, REPO_ROOT, UPGRADE_FROM, cli_env
+from support import NEWEST_RELEASE, PINNED_VERSIONS, REPO_ROOT, UPGRADE_FROM, cli_env
 
 from frozen_runs import build_bootstrapped_repo
 from workflow_manager import cli, source
@@ -34,6 +34,24 @@ HEADINGS = ("Repository", "Installed release", "Latest available", "Target of th
             "Work items (governing version is a protocol version, not a release)",
             "Config default for new work items:", "Findings --", "Fixes that apply only to new work",
             "Recovery")
+
+
+def _payload_files(version: str) -> set[str]:
+    root = support.release(version).root / "payload"
+    return {p.relative_to(root).as_posix() for p in root.rglob("*") if p.is_file()}
+
+
+def adding_release() -> tuple[str, str]:
+    """The newest pinned release below NEWEST_RELEASE that lacks a payload file
+    NEWEST_RELEASE has, and the first such file: updating from it adds that
+    file. UPGRADE_FROM does not always qualify: a fix release (2.9.1) adds no
+    file."""
+    newest = _payload_files(NEWEST_RELEASE)
+    for version in reversed(PINNED_VERSIONS[:-1]):
+        added = sorted(newest - _payload_files(version))
+        if added:
+            return version, added[0]
+    raise unittest.SkipTest("no pinned release lacks a file the newest release has")
 
 
 def run(*args, env=None):
@@ -56,6 +74,22 @@ class Base(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         cls._tmp.cleanup()
+
+    def fresh_adding(self, name="repo") -> tuple[Path, str]:
+        """A copy of a repository bootstrapped at `adding_release()`, and the
+        file the update to NEWEST_RELEASE adds."""
+        cls = Base
+        if not hasattr(cls, "_adding"):
+            version, added = adding_release()
+            tmp = tempfile.TemporaryDirectory()
+            cls._adding = (tmp, build_bootstrapped_repo(support.release(version),
+                                                        Path(tmp.name) / WEIRD), added)
+        _, pristine, added = cls._adding
+        work = tempfile.TemporaryDirectory()
+        self.addCleanup(work.cleanup)
+        repo = Path(work.name) / (WEIRD if name == "weird" else name)
+        shutil.copytree(pristine, repo, symlinks=True)
+        return repo, added
 
     def fresh(self, name="repo") -> Path:
         work = tempfile.TemporaryDirectory()
@@ -256,9 +290,9 @@ class TestDryRun(Base):
         self.assertNotIn("was not checked", proc.stdout)
 
     def test_a_collision_is_refused_like_the_real_update(self):
-        dry_repo, real_repo = self.fresh("a"), self.fresh("b")
+        (dry_repo, added), (real_repo, _) = self.fresh_adding("a"), self.fresh_adding("b")
         for repo in (dry_repo, real_repo):
-            (repo / ".claude" / "commands" / "retire-legacy-work-item.md").write_text("mine\n")
+            (repo / added).write_text("mine\n")
             self.commit(repo)
         dry = run("update", str(dry_repo), "--dry-run")
         real = run("update", str(real_repo))
@@ -386,7 +420,7 @@ class TestPrintedCommands(Base):
         self.assertNotIn("/retire-legacy-work-item old-item", older.replace("exists from", ""))
 
     def test_the_undo_command_restores_the_tree_a_real_update_changed(self):
-        repo = self.fresh("weird")
+        repo, _ = self.fresh_adding("weird")
         doctor = run("doctor", str(repo)).stdout
         restore = next(words for family, words in printed_commands(doctor)
                        if family == FAMILY_GIT and "restore" in words)

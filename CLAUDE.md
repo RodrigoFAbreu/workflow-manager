@@ -328,3 +328,11 @@ an update or downgrade never touches an existing `WORKFLOW_CONFIG.json`. Never
 run `workflow_manager update --release-version <older than 2.9.0>` against a
 repository that has retired a legacy work item, unless no pull-request fact is
 ever reported for that item again.
+
+`2.9.1` is a fix release (workflow#13) and adds no persisted key, phase, status
+or commit shape: it writes nothing `2.9.0` would refuse, so `2.9.0` reads every
+state and history it produces. What a downgrade loses is the fix: `2.9.0`'s
+review commands leave a `REVISE` write uncommitted, so the post-fix
+generation-record commit is refused (`OPUS-R101-001`) unless the state file is
+committed alone by hand before the first fix commit. A downgrade to `2.9.0` is
+supported on those terms.

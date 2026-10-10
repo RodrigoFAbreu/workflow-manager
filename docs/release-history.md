@@ -1,11 +1,12 @@
 # Release history
 
-> For: someone choosing a Manager version or wondering what changed. Last checked with: Workflow Manager 1.6.0, Workflow 2.9.0.
+> For: someone choosing a Manager version or wondering what changed. Last checked with: Workflow Manager 1.7.0, Workflow 2.9.1.
 
 One line per Workflow Manager release, newest first. The Manager's version is the Git tag. Each release links to its GitHub page, which lists the changes and carries the files. A Manager release carries no Workflow release of its own. The last column says which Workflow releases it can install.
 
 | Manager | Date | What changed, in plain words | Workflow releases it installs | Release page |
 |---|---|---|---|---|
+| 1.7.0 | 2026-10-10 | Adds Workflow 2.9.1, a fix release: a review that asks for changes no longer blocks the fix round that follows it. | 2.3.1 to 2.9.1 | [v1.7.0](https://github.com/RodrigoFAbreu/workflow-manager/releases/tag/v1.7.0) |
 | 1.6.0 | 2026-10-09 | Adds `workflow-manager doctor` and `update --dry-run`, which report what an update would do, and which Workflow guarantees it would cross, without changing anything. | 2.3.1 to 2.9.0 | [v1.6.0](https://github.com/RodrigoFAbreu/workflow-manager/releases/tag/v1.6.0) |
 | 1.5.0 | 2026-10-08 | Adds Workflow 2.9.0, which can close a long-finished legacy work item and starts new installations on governing version 2.2. | 2.3.1 to 2.9.0 | [v1.5.0](https://github.com/RodrigoFAbreu/workflow-manager/releases/tag/v1.5.0) |
 | 1.4.0 | 2026-10-04 | Adds Workflow 2.8.0, which makes approval gates automatic unless a repository asks for human approval. | 2.3.1 to 2.8.0 | [v1.4.0](https://github.com/RodrigoFAbreu/workflow-manager/releases/tag/v1.4.0) |
@@ -23,5 +24,6 @@ One line per Workflow Manager release, newest first. The Manager's version is th
 | 2.7.0 | 1.3.0 |
 | 2.8.0 | 1.4.0 |
 | 2.9.0 | 1.5.0 |
+| 2.9.1 | 1.7.0 |
 
 To see exactly what your installed Manager can install, run `workflow-manager releases`. To move to a newer Manager, see [Update](update.md). For what each Workflow release changed, read the [Workflow repository](https://github.com/RodrigoFAbreu/workflow#readme).

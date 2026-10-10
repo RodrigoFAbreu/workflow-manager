@@ -859,6 +859,9 @@ DOWNGRADE_BOUNDARIES: dict[str, Boundary] = {
         "guard, so a red pull-request fact can reopen it, silently.",
         (Signal("legacy-retirement", "a retired legacy work item", _detect_retirement),),
     ),
+    # 2.9.1 writes nothing 2.9.0 refuses; a downgrade loses only the helper that
+    # commits a REVISE write alone (CLAUDE.md "Downgrade posture").
+    "2.9.1": Boundary(""),
 }
 
 #: Fixes and defaults that reach only new work items or new installations.
@@ -879,6 +882,7 @@ NEW_WORK_ONLY: dict[str, tuple[str, ...]] = {
         "edits an existing WORKFLOW_CONFIG.json.",
         "The v2.6.0-003 fix covers new governing-1 implementation entries only.",
     ),
+    "2.9.1": (),
 }
 
 #: Per pinned release, how it changes the gate defaults for existing work too;
@@ -896,6 +900,7 @@ GATE_DEFAULT_CHANGES: dict[str, str] = {
     "2.7.0": "",
     "2.8.0": "a repository with no GATE_POLICY.json moves from human gates to automatic ones",
     "2.9.0": "",
+    "2.9.1": "",
 }
 
 #: What to commit first to keep the 2.7.0 gates.
