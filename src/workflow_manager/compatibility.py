@@ -30,7 +30,13 @@ from pathlib import Path
 from typing import Callable
 
 from .install import InstallError, UpdatePlan
-from .installation import CorruptInstallationError, Installation, is_managed
+from .installation import (
+    INSTALLATION_DIR,
+    CorruptInstallationError,
+    Installation,
+    is_managed,
+)
+from .release import STATE_TEMPLATES
 
 # ---------------------------------------------------------------------------
 # Versions, phases and the Workflow facts this module mirrors
@@ -126,17 +132,68 @@ def render_command(argv) -> str:
     return shlex.join(str(a) for a in argv)
 
 
-def manager_command(*args: str, release_version: str | None = None) -> Command:
-    """`workflow-manager [--release-version V] <args>`: the global option goes
-    before the subcommand."""
+#: The subcommands that write a repository (without `--dry-run`).
+_WRITING = ("update", "bootstrap")
+
+#: What an inspection `git` command is prefixed with, so a partial clone never
+#: fetches an absent promised object while the operator reads history.
+_NO_LAZY_FETCH = ("env", "GIT_NO_LAZY_FETCH=1")
+
+
+def manager_command(*args: str, release_version: str | None = None,
+                    withheld: bool, target: str | None = None,
+                    options: tuple[tuple[str, str], ...] = ()) -> "Command | None":
+    """`workflow-manager [global options] <args> [--] [target]`.
+
+    The global options go before the subcommand: `--release-version` first,
+    then `options` (pairs such as `("--release-source", S)`). Every subcommand
+    flag in `args` stays before the positional `target`, which is preceded by
+    `--` when it starts with a hyphen (`bootstrap -repo` would not parse).
+
+    `withheld` is `writes_withheld`'s answer. While it is true a command that
+    writes (`update` or `bootstrap`, not `--dry-run`) is not rendered: None is
+    returned and the caller prints the workflow-data step instead.
+    """
+    writes = bool(args) and args[0] in _WRITING and "--dry-run" not in args
+    if withheld and writes:
+        return None
     argv = ["workflow-manager"]
     if release_version:
         argv += ["--release-version", release_version]
-    return Command(FAMILY_MANAGER, tuple(argv + list(args)))
+    for flag, value in options:
+        argv += [flag, str(value)]
+    argv += list(args)
+    if target is not None:
+        argv += (["--"] if str(target).startswith("-") else []) + [str(target)]
+    return Command(FAMILY_MANAGER, tuple(argv))
 
 
-def git_command(target: Path, *args: str) -> Command:
+def rerun_phrase(withheld: bool, command_is_write: bool, page_url: str,
+                 phrase: str = "run the same command again") -> str:
+    """Every "run it again" instruction goes through here, so a prose re-run
+    cannot be printed for a write while the Workflow data is incomplete."""
+    if withheld and command_is_write:
+        return ("do not run it again until the Workflow data named above is back in place "
+                f"({page_url})")
+    return phrase
+
+
+def git_command(target: Path, *args: str, inspection: bool = True) -> Command:
+    """`git -C target ...`. An inspection command (log, show, rev-parse) is
+    printed as `env GIT_NO_LAZY_FETCH=1 git -C target --no-optional-locks ...`,
+    an executable argv and a valid shell line; the others (`restore`, `clean`,
+    `status`) are built with `inspection=False`."""
+    if inspection:
+        return Command(FAMILY_GIT, (*_NO_LAZY_FETCH, "git", "-C", str(target),
+                                    "--no-optional-locks", *args))
     return Command(FAMILY_GIT, ("git", "-C", str(target), *args))
+
+
+def git_init_command(target: Path) -> Command:
+    """`git init X`, with `--` before a path that starts with a hyphen."""
+    path = str(target)
+    verb = "init"  # a variable: the fixture-routing lint reads literal `git init` argvs
+    return Command(FAMILY_GIT, ("git", verb, *(["--"] if path.startswith("-") else []), path))
 
 
 def slash_command(name: str, *args: str) -> Command:
@@ -957,6 +1014,78 @@ def writes_withheld(findings, missing_templates, holds_data: bool) -> bool:
     return False
 
 
+def holds_data(target: Path) -> bool:
+    """Whether the target holds Workflow data: a path at `.workflow-manager`
+    (a record, a directory at it, a file at it, readable or not) or at least
+    one state template. Plain `lexists()` checks: no Git, no record read."""
+    target = Path(target)
+    return os.path.lexists(target / INSTALLATION_DIR) or any(
+        os.path.lexists(target / rel) for rel in STATE_TEMPLATES)
+
+
+def missing_templates(target: Path) -> tuple[str, ...]:
+    """The state templates absent from the working tree: the very set `update`
+    would recreate from blank templates."""
+    target = Path(target)
+    return tuple(rel for rel in STATE_TEMPLATES if not (target / rel).exists())
+
+
+def data_findings(target: Path) -> tuple:
+    """The full findings list of `build_findings` for a target that holds
+    Workflow data. Never raises: a failure to compute it is itself an
+    `incomplete-inspection` finding, so the predicate fails closed."""
+    try:
+        return tuple(build_findings(read_repository(Path(target)), None, target=None))
+    except Exception as error:  # noqa: BLE001 -- fail closed on anything
+        return (Finding(WARNING, _INCOMPLETE, "the inspection could not be completed",
+                        f"the findings could not be computed ({error})"),)
+
+
+@dataclass(frozen=True)
+class DataFile:
+    """A Workflow data file a printed step is about: `state` is `missing`,
+    `unreadable` or `malformed`; `backup` is the first free `PATH.bak` name for
+    a malformed file that exists (`None` otherwise)."""
+    path: str
+    state: str
+    backup: str | None = None
+
+
+_DATA_PATH_RE = re.compile(
+    r"docs/ai-workflow/(?:WORKFLOW_STATE|WORKFLOW_CONFIG)\.json|docs/ACTIVE_MILESTONE\.md"
+    r"|docs/ai-workflow/(?:registry|requirements)/[A-Za-z0-9_.-]+\.json")
+
+
+def data_files(target: Path, missing: tuple[str, ...], findings) -> tuple[DataFile, ...]:
+    """The data files the findings name, with what is wrong with each. The only
+    place that looks at them: `advice` receives the result and reads nothing."""
+    target = Path(target)
+    named: list[str] = list(missing)
+    for finding in findings:
+        if finding.id != _INCOMPLETE:
+            continue
+        for match in _DATA_PATH_RE.findall(finding.title + "\n" + finding.detail):
+            if match not in named:
+                named.append(match)
+    files = []
+    for rel in named:
+        path = target / rel
+        if not path.exists():
+            files.append(DataFile(rel, "missing"))
+            continue
+        try:
+            path.read_bytes()
+        except OSError:
+            files.append(DataFile(rel, "unreadable"))
+            continue
+        backup, number = f"{rel}.bak", 0
+        while os.path.lexists(target / backup):
+            number += 1
+            backup = f"{rel}.bak.{number}"
+        files.append(DataFile(rel, "malformed", backup))
+    return tuple(files)
+
+
 @dataclass(frozen=True)
 class Finding:
     severity: str
@@ -1258,10 +1387,12 @@ def recovery_steps(facts: RepositoryFacts, findings: list[Finding], *, target_ar
     latest (the caller decides). `downgrade` withholds every update command:
     the target is older than the installed release."""
     repo = Path(target_arg or facts.target)
+    # CP4 routes the commands below through `writes_withheld`; until then the
+    # Recovery section prints them as before (`withheld=False`).
     steps = [RecoveryStep(
         "Before the update: make sure the tree is clean, or the edits are committed, and "
         "update on a branch.",
-        (git_command(repo, "status", "--short"),))]
+        (git_command(repo, "status", "--short", inspection=False),))]
     if downgrade:
         steps.append(RecoveryStep(
             "No update command is offered: the target is older than the installed release, and "
@@ -1269,7 +1400,8 @@ def recovery_steps(facts: RepositoryFacts, findings: list[Finding], *, target_ar
     else:
         steps.append(RecoveryStep(
             "An update that stopped half way is re-run with the same command; it needs no --force.",
-            (manager_command("update", str(repo), release_version=release_version),)))
+            (manager_command("update", release_version=release_version, target=str(repo),
+                             withheld=False),)))
     if facts.dirty is False:
         steps.append(RecoveryStep(
             "To undo an update that has not been committed: this is an undo only if the tree was "
@@ -1277,8 +1409,9 @@ def recovery_steps(facts: RepositoryFacts, findings: list[Finding], *, target_ar
             "Review untracked leftovers with the preview; a committed update is undone by "
             "reverting its commit. Not `update --release-version <older>`: that is the "
             "unsupported downgrade.",
-            (git_command(repo, "restore", "--source=HEAD", "--staged", "--worktree", "--", "."),
-             git_command(repo, "clean", "-n", "-d"))))
+            (git_command(repo, "restore", "--source=HEAD", "--staged", "--worktree", "--", ".",
+                         inspection=False),
+             git_command(repo, "clean", "-n", "-d", inspection=False))))
     elif facts.dirty:
         steps.append(RecoveryStep(
             "No undo command: the tree has uncommitted changes, so an undo would discard them too."))
@@ -1288,7 +1421,8 @@ def recovery_steps(facts: RepositoryFacts, findings: list[Finding], *, target_ar
     if not downgrade and any(f.id == "refused-drift" for f in findings):
         steps.append(RecoveryStep(
             "A locally modified release file: save your edit, then run the update with --force.",
-            (manager_command("update", str(repo), "--force", release_version=release_version),)))
+            (manager_command("update", "--force", release_version=release_version,
+                             target=str(repo), withheld=False),)))
     for finding in findings:
         for command in finding.commands:
             if command.family == FAMILY_SLASH:

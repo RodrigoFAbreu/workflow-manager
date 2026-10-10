@@ -17,19 +17,37 @@ state JSON; the two parked Update-ergonomics follow-ups are folded in
 
 ## Current checkpoint
 
-CP1 complete (verified: `tests/test_operator_ux.py`, `test_docs.py`,
-`test_doctor_cli.py`, `test_compatibility.py`, `test_bootstrap.py`,
-`test_read_only.py`, `test_internal_references.py`, `tools/check_docs.py`):
-`advice.py` (`PROGRAM`, `DOCS_BASE`, `page`, `Context`, `next_step`, the
+CP1 and CP2 complete.
+
+CP1: `advice.py` (`PROGRAM`, `DOCS_BASE`, `page`, `Context`, `next_step`, the
 class-keyed table, A1's global-option pattern), the predicate
-`compatibility.writes_withheld` with `NOT_MANAGED_PROBLEM`,
-`RECORD_UNREADABLE_TITLE` and `PREDICATE_EXCLUDED`, `prog="workflow-manager"`,
-`help=` and descriptions for every command and option (A4 doctor wording
-included), the parser's `next:` hint for a misplaced global option, `main()`
-printing the cause then the table's `next:`, and the anchors
-`exit-codes.md#global-options`, `update.md#update-the-manager`,
-`common-problems.md#an-install-stopped-part-way` and
-`#repair-workflow-data-by-hand`. CP2 to CP5 are not started.
+`compatibility.writes_withheld`, `prog="workflow-manager"`, `help=` and
+descriptions for every command and option, and the anchors every later `next:`
+links.
+
+CP2 (verified: `tests/test_operator_ux.py`, `test_bootstrap.py`,
+`test_compatibility.py`, `test_doctor_cli.py`, `test_update_path.py`,
+`test_update_plan.py`, `test_read_only.py`, `test_docs.py`): T1 to T15 and T17
+to T20. New exceptions `TargetNotFoundError`, `NotAGitRepositoryError`,
+`UnknownProfileError`, `NotInstalledError` and
+`UnsupportedInstallationSchemaError` (with `newer`);
+`Installation.read` wraps `IsADirectoryError` and `UnicodeDecodeError` as a
+corrupt record and keeps every other `OSError` for the new `main` handler
+(exit 1, text chosen by `advice.writes_repository`). `bootstrap` and
+`plan_update` refuse, with or without `--force`, a directory at a release
+path, a file where a directory goes (any ancestor below the target) and a
+directory at the record or its `.tmp` (`install._blocked_paths`).
+`compatibility` gained `manager_command(withheld=...)`, `rerun_phrase`,
+`git_command(inspection=...)` (the `env GIT_NO_LAZY_FETCH=1` prefix),
+`git_init_command`, `holds_data`, `missing_templates`, `data_findings` and
+`data_files`; `advice` gained the row functions, `data_step` (P1),
+`problem_step` (T15), `success_step` (T17) and `needs_data`. `verify` and
+`status` print the problem step, `status` of an unmanaged target prints T7's
+step, `bootstrap` and `update` end with T17's. Known departure from the plan's
+wording: an ancestor file prints as `occupied: PATH (it is a file, not a
+directory)`. The Recovery section still calls `manager_command(...,
+withheld=False)`; CP4 routes it through the predicate. CP3 to CP5 are not
+started.
 
 ## Current blockers
 
@@ -41,7 +59,7 @@ None.
 
 ## Next action
 
-Implement CP2-CP5 in order, one checkpoint per `/milestone-implement`. A `feat:` pull-request title releases
+Implement CP3-CP5 in order, one checkpoint per `/milestone-implement`. A `feat:` pull-request title releases
 Manager 1.8.0.
 
 ## Previous milestone (complete): `workflow-manager-update-ergonomics`

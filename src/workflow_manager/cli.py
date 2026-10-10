@@ -44,6 +44,10 @@ from . import advice
 from . import source as release_source
 from .compatibility import (
     Destinations,
+    data_files,
+    data_findings,
+    holds_data,
+    missing_templates,
     plan_destinations,
     read_repository,
     render_report,
@@ -62,7 +66,7 @@ from .install import (
     update,
     verify,
 )
-from .installation import CorruptInstallationError, Installation, is_managed
+from .installation import CorruptInstallationError, Installation, is_managed, not_managed_text
 from .package import build_package, extract_package, file_sha256
 from .release import (
     INSTALL_PROFILE_FULL,
@@ -230,7 +234,9 @@ def _resolve(args, version: str | None, destinations: Destinations | None = None
     pins = _pins()
     parent = destinations.snapshot_parent if destinations else None
     if args.release_dir is not None:
-        return local_release(args.release_dir, version, pins, parent)
+        release = local_release(args.release_dir, version, pins, parent)
+        args.resolved_release_dir_version = release.version
+        return release
     if version is None:
         version = _default_version(args, pins)
     candidates = _alias_releases(args)
@@ -276,6 +282,35 @@ def _print_record(target: Path) -> None:
     print(f"  installed at {installation.installed_at}, updated at {installation.updated_at}")
 
 
+def _context(args, *, with_data: bool = False) -> advice.Context:
+    """The facts a `next:` line needs that the error and `args` do not hold.
+
+    The installed version and source come from the record, best effort. The
+    Workflow data facts are cheap `lexists()` checks, except the full findings
+    list (it costs Git), which is computed only when `with_data` and the target
+    holds Workflow data."""
+    target = getattr(args, "target", None)
+    base = dict(args=args, release_dir_version=getattr(args, "resolved_release_dir_version", None))
+    if target is None:
+        return advice.Context(**base)
+    installed, local = None, False
+    try:
+        if is_managed(target):
+            record = Installation.read(target)
+            installed = record.workflow_version
+            local = bool(record.source) and record.source.get("kind") == "local"
+    except Exception:  # noqa: BLE001 -- best effort: a damaged record is the error itself
+        pass
+    holds, missing = holds_data(target), missing_templates(target)
+    findings, files = (), ()
+    if with_data and holds:
+        findings = data_findings(target)
+        files = data_files(target, missing, findings)
+    return advice.Context(installed_version=installed, installed_local=local, holds_data=holds,
+                          missing_templates=missing, data_findings=findings, data_files=files,
+                          **base)
+
+
 def cmd_releases(args) -> int:
     pins = _pins()
     cache = ReleaseCache(cache_root(args.release_cache), None, pins)
@@ -309,8 +344,12 @@ def cmd_status(args) -> int:
         result = status(args.target, release)
     print(result)
     if not result.managed:
+        print(f"next: {advice.unmanaged_status_step(_context(args, with_data=True))}")
         return 0
     print(f"  source: {_describe_source(Installation.read(args.target).source)}")
+    step = advice.problem_step(_context(args, with_data=True), result.problems)
+    if step is not None:
+        print(f"next: {step}")
     return 0 if (result.verified and not result.problems) else 1
 
 
@@ -322,6 +361,7 @@ def cmd_bootstrap(args) -> int:
     print(f"  {len(installation.managed)} managed files, "
           f"{len(installation.generated)} state files, "
           f"{len(installation.merged)} merged files")
+    print(f"next: {advice.success_step(_context(args))}")
     return 0
 
 
@@ -394,7 +434,7 @@ def cmd_dry_run(args) -> int:
     """`update --dry-run`: the plan `update` would apply, printed; the same
     refusals (exit 2) as the real update, with the report printed first."""
     if not is_managed(args.target):
-        raise NotManagedError(f"{args.target} is not a managed repository; use bootstrap() first")
+        raise NotManagedError(not_managed_text(args.target))
     installed = Installation.read(args.target).workflow_version
     destinations = _readonly_destinations(args, installed)
     with _resolve(args, args.release_version, destinations) as release:
@@ -428,7 +468,7 @@ def cmd_doctor(args) -> int:
     """Report what an update would meet. Exit 0 with no blocked or warning
     finding, 1 with one, 2 when it could not check."""
     if not is_managed(args.target):
-        raise NotManagedError(f"{args.target} is not a managed repository; nothing to check")
+        raise NotManagedError(not_managed_text(args.target))
     installed = Installation.read(args.target).workflow_version
     destinations = _readonly_destinations(args, installed)
     try:
@@ -454,13 +494,14 @@ def cmd_update(args) -> int:
         print(f"  {change}")
     if not changes:
         print("  (no change)")
+    print(f"next: {advice.success_step(_context(args))}")
     return 0
 
 
 def cmd_verify(args) -> int:
     release = _release_for_target(args)
     if release is None:
-        raise NotManagedError(f"{args.target} is not a managed repository; nothing to verify")
+        raise NotManagedError(not_managed_text(args.target))
     with release:
         problems = verify(args.target, release)
     if not problems:
@@ -469,6 +510,7 @@ def cmd_verify(args) -> int:
     print(f"{args.target}: {len(problems)} problem(s)")
     for problem in problems:
         print(f"  {problem}")
+    print(f"next: {advice.problem_step(_context(args, with_data=True), problems)}")
     return 1
 
 
@@ -673,7 +715,8 @@ def main(argv: list[str] | None = None) -> int:
     def fail(error, code, text=None):
         """The cause, then the error's `next:` line when the table has one."""
         print(text if text is not None else f"error: {error}", file=sys.stderr)
-        step = advice.next_step(error, advice.Context(args=args))
+        context = _context(args, with_data=advice.needs_data(error, args))
+        step = advice.next_step(error, context)
         if step is not None:
             print(f"next: {step}", file=sys.stderr)
         return code
@@ -682,18 +725,15 @@ def main(argv: list[str] | None = None) -> int:
         return COMMANDS[args.command](args)
     except RELEASE_ERRORS as error:
         return fail(error, 1)
-    except DriftError as error:
-        print(str(error), file=sys.stderr)
-        print("\nre-run with --force to discard those local edits", file=sys.stderr)
-        return 2
-    except CollisionError as error:
-        print(str(error), file=sys.stderr)
-        print("\nre-run with --force to replace those files with the release's",
-              file=sys.stderr)
-        return 2
+    except (DriftError, CollisionError) as error:
+        # These two print without the `error:` prefix: their first words are
+        # quoted by the documentation.
+        return fail(error, 2, text=str(error))
     except (AlreadyManagedError, NotManagedError, InstallError, CorruptInstallationError,
             FileNotFoundError, ValueError) as error:
         return fail(error, 2)
+    except OSError as error:
+        return fail(error, 1)
 
 
 if __name__ == "__main__":

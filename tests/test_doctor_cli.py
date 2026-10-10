@@ -270,7 +270,7 @@ class TestDryRun(Base):
         real = run("update", str(real_repo))
         self.assertEqual((dry.returncode, real.returncode), (2, 2))
         self.assertEqual(dry.stderr.replace(str(dry_repo), "R"), real.stderr.replace(str(real_repo), "R"))
-        self.assertIn("re-run with --force", dry.stderr)
+        self.assertIn("update --force", dry.stderr)
         self.assertIn("refused-drift", dry.stdout)
 
     def test_a_drifted_repository_with_an_unresolvable_installed_release_reports_both(self):

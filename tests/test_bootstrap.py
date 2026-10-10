@@ -867,13 +867,16 @@ class TestTheInstallationRecordSurvivesInterruption(BootstrapCase):
         strays = list((self.target / ".workflow-manager").glob("*.tmp"))
         self.assertEqual(strays, [])
 
-    def test_an_unreadable_record_says_how_to_recover(self):
+    def test_an_unreadable_record_names_its_path_and_cause(self):
+        """The step to take is the CLI's `next:` line (`test_operator_ux.py`);
+        the exception states the cause alone."""
         bootstrap(self.target, self.release, now=FIXED_NOW)
         installation_path(self.target).write_text("{ truncated")
         with self.assertRaises(CorruptInstallationError) as caught:
             Installation.read(self.target)
-        self.assertIn(".workflow-manager", str(caught.exception))
-        self.assertIn("bootstrap", str(caught.exception))
+        self.assertIn(str(installation_path(self.target)), str(caught.exception))
+        self.assertIn("is unreadable (", str(caught.exception))
+        self.assertNotIn("Delete", str(caught.exception))
 
     def test_every_command_reports_a_damaged_record_including_bootstrap(self):
         """`bootstrap` used to answer "already managed; use update()" -- advice
