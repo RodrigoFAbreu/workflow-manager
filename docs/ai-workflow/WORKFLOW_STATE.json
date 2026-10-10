@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_work_item_id": null,
+  "active_work_item_id": "workflow-manager-operator-ux",
   "work_items": {
     "plan-amendment-mechanism": {
       "work_item_type": "process",
@@ -7728,6 +7728,177 @@
         "evaluated_at": "2026-10-09T12:31:00Z",
         "workflow_release": "2.9.0"
       }
+    },
+    "workflow-manager-operator-ux": {
+      "work_item_type": "process",
+      "work_item_kind": "process",
+      "work_item_id": "workflow-manager-operator-ux",
+      "parent_work_item_id": null,
+      "plan_path": "docs/ai-workflow/WORKFLOW_MANAGER_OPERATOR_UX_PLAN.md",
+      "registry_path": "docs/ai-workflow/registry/workflow-manager-operator-ux-registry.json",
+      "mapping_path": "docs/ai-workflow/requirements/workflow-manager-operator-ux-mapping.json",
+      "governing_workflow_version": "2.2",
+      "phase": "IMPLEMENTING",
+      "plan_revision": 14,
+      "implementation_revision": null,
+      "functional_review_round": null,
+      "base_commit": "218155dd7ba6e1b59edb91c93da299cfeeb7e870",
+      "reviewed_implementation_head": null,
+      "current_checkpoint_id": null,
+      "last_completed_checkpoint_id": null,
+      "checkpoints": {},
+      "current_bundle_id": "cb2233a6f62e867d2cab21a47a01b70802d597047929c71b392fea8164a2f67f",
+      "plan_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "cb2233a6f62e867d2cab21a47a01b70802d597047929c71b392fea8164a2f67f",
+        "approved_review_content_id": "508d4eb221aa50f65ccc938a55b9f5c694b8663c1d66ad3934569921accce948",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/WORKFLOW_MANAGER_OPERATOR_UX_PLAN.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "b8ca7e54352bb7671f8c5f8e64ffba8a9d1ea2e4"
+          },
+          {
+            "path": "docs/ai-workflow/registry/workflow-manager-operator-ux-registry.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "a116c92533bb88b55a674338103ce69d3e906334"
+          },
+          {
+            "path": "docs/ai-workflow/requirements/workflow-manager-operator-ux-mapping.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "a708b5c175f38483059183d8878a1986832124ec"
+          }
+        ],
+        "reviewed_content_commit": null,
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-10-10T06:21:38Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "508d4eb221aa50f65ccc938a55b9f5c694b8663c1d66ad3934569921accce948",
+            "ledger": {
+              "local": {
+                "bundle_id": "cb2233a6f62e867d2cab21a47a01b70802d597047929c71b392fea8164a2f67f",
+                "verdict": "APPROVE",
+                "round": 14,
+                "verdict_sha256": "cf23aae9b944ce6c3bc570cbf33380650ac5e24dc6ee7b020502f2772a2c5e31",
+                "ledger_entry_sha256": "b37c40116c4f0cd99c9656c0acf57a0518dd924c5ef562ad72de7e34ab442332",
+                "run_ref": "session:local .ai-review/workflow-manager-operator-ux/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "cb2233a6f62e867d2cab21a47a01b70802d597047929c71b392fea8164a2f67f",
+                "verdict": "APPROVE",
+                "round": 14,
+                "verdict_sha256": "6127f1b55138f9d36da0728e435a2c9d9e0b52b5a300323b4f8efce6fd48d9da",
+                "ledger_entry_sha256": "f3438be5d4b721741ee9c92363c0dc24123a65e043cf76decef81f73db1b31a0",
+                "run_ref": "session:local .ai-review/workflow-manager-operator-ux/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-10-10T06:21:38Z",
+          "workflow_release": "2.9.1"
+        }
+      },
+      "technical_approval": null,
+      "technical_review_block_pins": [],
+      "plan_review_stages": {
+        "review_content_id": "508d4eb221aa50f65ccc938a55b9f5c694b8663c1d66ad3934569921accce948",
+        "LOCAL_MODEL_PLAN_REVIEW": {
+          "bundle_id": "cb2233a6f62e867d2cab21a47a01b70802d597047929c71b392fea8164a2f67f",
+          "verdict": "APPROVE",
+          "round": 14,
+          "completed_at": "2026-10-10T06:14:00Z",
+          "verdict_sha256": "cf23aae9b944ce6c3bc570cbf33380650ac5e24dc6ee7b020502f2772a2c5e31",
+          "run_ref": "session:local .ai-review/workflow-manager-operator-ux/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_PLAN_REVIEW": {
+          "bundle_id": "cb2233a6f62e867d2cab21a47a01b70802d597047929c71b392fea8164a2f67f",
+          "verdict": "APPROVE",
+          "round": 14,
+          "completed_at": "2026-10-10T06:20:55.222435Z",
+          "verdict_sha256": "6127f1b55138f9d36da0728e435a2c9d9e0b52b5a300323b4f8efce6fd48d9da",
+          "run_ref": "session:local .ai-review/workflow-manager-operator-ux/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "openai/gpt-6.1-sol"
+        }
+      },
+      "functional_acceptance_status": null,
+      "blocking_decisions": [],
+      "state_revision": 49,
+      "last_transition": "2026-10-10T06:21:38Z",
+      "feedback_layout": "scoped",
+      "plan_review_binding": {
+        "status": "BOUND",
+        "at": "2026-10-10T06:11:39Z",
+        "consumed": {
+          "review_content_id": "892832e9c2b9c5da970c8c50db45525dd6fbed638ead19432c4d349cf198c5e8",
+          "plan_revision": 13,
+          "legacy": false
+        },
+        "published": {
+          "review_content_id": "508d4eb221aa50f65ccc938a55b9f5c694b8663c1d66ad3934569921accce948",
+          "plan_revision": 14
+        },
+        "bound": {
+          "review_content_id": "508d4eb221aa50f65ccc938a55b9f5c694b8663c1d66ad3934569921accce948",
+          "bundle_id": "cb2233a6f62e867d2cab21a47a01b70802d597047929c71b392fea8164a2f67f",
+          "plan_revision": 14
+        }
+      },
+      "consumed_plan_review_content_ids": [
+        "20e995f8ccd08decdc56e338706222c4e941be73a068bc8cb31e2dbe10a5fcf6",
+        "459483d27869bbcfb5cb7b5a236e37bc4c1b3d63ec31fb81b66aa1183e2b63f7",
+        "512da8fffe176426dd06d383c95c3ae790d5977a40bf73d75b8de121bc808d6f",
+        "5fca7b8741a9e464e16cb44f203404fbe2800b977aa850f31ae244ba2c714b69",
+        "6ba347f3d3b30131f2fd77d87f52fe809409c47d68b84547f3e7467d9b84e766",
+        "7a9247e9a74c802cad1d242c12a456a1bd8563d281c434913052ef5364ae761a",
+        "8892cbb101c7a8b7769308e00dbc51338bdd9e9bc223b88dfba570b096c4d295",
+        "892832e9c2b9c5da970c8c50db45525dd6fbed638ead19432c4d349cf198c5e8",
+        "8e44e3a17c3206cbf5b12803b37571798ab676cb461c22e61a6976729a0f367f",
+        "b8e6e3f826c5c0195541b136291e79021de3e7bc440bed1cff4a498eef7e81b9",
+        "cc80b95fab0ec9a831de688cd8a9ebcd8417e590579f77cea873c69f6eb65567",
+        "cd6b73d38cdf0fb6ad516e3b2a9842c1d877a7602dafe972e011af1debffaced",
+        "debc16227e2d8204b4518cc898957d36896d3393d4acb5c8fab2fdfb5e7487b6"
+      ]
     }
   }
 }

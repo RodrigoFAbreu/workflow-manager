@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "work_item_id": "workflow-manager-operator-ux",
+  "requirements": {
+    "REQ-1": {
+      "description": "The inventory is complete and cited, and every gap in it is fixed or kept for a stated reason",
+      "checkpoint_ids": [
+        "CP2",
+        "CP3",
+        "CP4"
+      ]
+    },
+    "REQ-2": {
+      "description": "Each changed message names its cause and one concrete next step with the real program name and options; every printed command parses",
+      "checkpoint_ids": [
+        "CP1",
+        "CP2",
+        "CP3"
+      ]
+    },
+    "REQ-3": {
+      "description": "The parked follow-ups are folded in: doctor --help's exit-0 wording and the not-verified note's parenthetical",
+      "checkpoint_ids": [
+        "CP1",
+        "CP4"
+      ]
+    },
+    "REQ-4": {
+      "description": "status surfaces the work in flight instead of requiring a read of the state JSON, read-only, with no new command and no write to Workflow state",
+      "checkpoint_ids": [
+        "CP4"
+      ]
+    },
+    "REQ-5": {
+      "description": "Every exit code is stable except the moves D-5, D-14 and D-15 argue for (T13, T18, T19 and T20, each a traceback's 1 becoming 2; status of a managed repository exiting 1 where it cannot prove its writes stay outside the repository, Git unavailable included; and doctor exiting 2 for a manifest that crashes it today); a manifest shape that succeeds today keeps its exit (D-16)",
+      "checkpoint_ids": [
+        "CP1",
+        "CP2",
+        "CP3",
+        "CP4",
+        "CP5"
+      ]
+    },
+    "REQ-6": {
+      "description": "Tests are hermetic and assert each changed message (cause and next step) and the help text",
+      "checkpoint_ids": [
+        "CP1",
+        "CP2",
+        "CP3",
+        "CP4"
+      ]
+    },
+    "REQ-7": {
+      "description": "common-problems.md, exit-codes.md and every page quoting a changed message match the new output exactly",
+      "checkpoint_ids": [
+        "CP5"
+      ]
+    },
+    "REQ-8": {
+      "description": "ROADMAP item 7 is the current Next item and Done at acceptance, and ACTIVE_MILESTONE.md describes the milestone",
+      "checkpoint_ids": [
+        "CP5"
+      ]
+    }
+  }
+}
