@@ -420,8 +420,9 @@ def _registry_ids(target: Path, work_item_id: str, entry: dict,
             data = _read_json(target / rel)
         except (OSError, ValueError):
             data = None
-    if isinstance(data, dict):
-        ids |= {c["id"] for c in data.get("checkpoints", [])
+    checkpoints = data.get("checkpoints") if isinstance(data, dict) else None
+    if isinstance(checkpoints, list):
+        ids |= {c["id"] for c in checkpoints
                 if isinstance(c, dict) and isinstance(c.get("id"), str)}
     return tuple(sorted(ids))
 

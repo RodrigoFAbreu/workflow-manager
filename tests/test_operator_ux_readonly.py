@@ -911,6 +911,23 @@ class TestDamagedRegistryAndMapping(DataCase):
         commit(repo, "done")
         self.assertNotIn(self.REGISTRY, run("doctor", str(repo)).stdout)
 
+    def test_i6_a_terminal_items_registry_with_odd_checkpoints_does_not_crash(self):
+        for value in ("null", "3", "true", '"x"', "{}"):
+            with self.subTest(checkpoints=value):
+                repo = self.fresh()
+                add_item_with_declarations(repo, self.VALID)
+                state = json.loads((repo / STATE).read_text())
+                state["work_items"]["item-a"]["phase"] = "MILESTONE_COMPLETE"
+                (repo / STATE).write_text(json.dumps(state, indent=2) + "\n")
+                (repo / self.REGISTRY).parent.mkdir(parents=True, exist_ok=True)
+                (repo / self.REGISTRY).write_text('{"checkpoints": %s}' % value)
+                commit(repo, "done")
+                for argv in (("doctor", str(repo)), ("update", "--dry-run", str(repo))):
+                    out = run(*argv)
+                    text = out.stdout + out.stderr
+                    self.assertNotIn("Traceback", text, argv)
+                    self.assertNotIn(self.REGISTRY, text, argv)
+
 
 class TestPrintedCommandsParse(ux.TargetCase):
     """Implementation review round 2, I1, I3 and I4."""
