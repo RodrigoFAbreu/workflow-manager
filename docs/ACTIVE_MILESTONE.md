@@ -127,6 +127,84 @@ None.
 All checkpoints complete: run `/milestone-implement` again to enter self-review and prepare the implementation bundle. A `feat:` pull-request title releases
 Manager 1.8.0.
 
+## Functional review checklist
+
+Technical approval: the latest technical approval (basis `POLICY_SATISFIED`;
+its commit and implementation revision are in `WORKFLOW_STATE.json`). You are
+testing the Manager CLI as an operator would: every error, refusal and note
+should say what happened and name one concrete next step. Put findings in
+`.ai-review/workflow-manager-operator-ux/feedback/FUNCTIONAL_REVIEW.md`.
+Automated verification is current as of implementation revision 6: only
+state and bundle-record commits landed after the last code fix (`eba0eb7`).
+
+**Setup.** Python 3.12+, Git, a populated release cache, no network:
+
+```bash
+export M=~/Workspace/workflow-manager PYTHONPATH=~/Workspace/workflow-manager/src T=$(mktemp -d)
+export WORKFLOW_MANAGER_RELEASE_SOURCE='http://127.0.0.1:9/{version}/'   # unreachable: any download fails loudly
+wm() { python3 -m workflow_manager "$@"; }
+newrepo() { git init -q "$1" && git -C "$1" commit -q --allow-empty -m init; }
+snap() { (cd "$1" && find . -path ./.git -prune -o -type f -print0 | sort -z | xargs -0 sha256sum; find .git -type f -print0 | sort -z | xargs -0 sha256sum) | sha256sum; }
+```
+
+**Test data.** Scratch repositories under `$T`, created by the flows.
+
+**Flows.**
+
+1. **Not-managed targets.** `wm doctor $T/nowhere; echo rc=$?`, `wm doctor $T;
+   echo rc=$?`, `wm status $T; echo rc=$?`. Expected: each names the target
+   as not a managed repository and prints a `next:` line with
+   `workflow-manager bootstrap <that path>`. `doctor` exits 2, `status` of
+   an unmanaged target exits 0; no traceback.
+2. **Argument errors.** `wm bogus; echo rc=$?` and `wm bootstrap $T/r
+   --release-version 2.9.1; echo rc=$?`. Expected: argparse's usage line,
+   then a `next:` line that explains the fix (global options go before the
+   command, with the `workflow-manager [--release-version VERSION] bootstrap
+   TARGET` pattern and a link to `docs/exit-codes.md#global-options`);
+   `rc=2`. `wm --help` and `wm bootstrap --help` describe every command and
+   option, and show the program as `workflow-manager`.
+3. **Unpublished release.** `newrepo $T/r; wm --release-version 9.9.9
+   bootstrap $T/r; echo rc=$?`. Expected: a named "not published" refusal
+   with a `next:` step (`workflow-manager releases` to list what exists);
+   `rc=2`, nothing written (`ls -a $T/r` shows only `.git`).
+4. **Install, then status shows work in flight.** `wm bootstrap $T/r; echo
+   rc=$?` then `wm status $T/r; echo rc=$?`. Expected: bootstrap ends with a
+   `next:` step (commit the install, then drive the Workflow). `status`
+   prints the installed release, a `work in flight:` block reading `none`,
+   and one `next:` line; `rc=0`, and `status` writes nothing
+   (`S=$(snap $T/r)` before and after are equal).
+5. **Directory in the way.** `newrepo $T/d; mkdir -p $T/d/.workflow-manager/installation.json;
+   wm bootstrap $T/d; echo rc=$?`, then the same with `--force`. Expected:
+   an `occupied: PATH (it is a directory ...)` refusal with a `next:` step,
+   `rc=2` both times (`--force` does not override it).
+6. **Corrupt record.** Break `$T/r/.workflow-manager/installation.json`
+   (`echo '{' > ...`) and run `wm status $T/r`, `wm verify $T/r`, `wm doctor
+   $T/r`. Expected: a named corrupt-record message with a `next:` step; no
+   traceback; exit codes as documented in `docs/exit-codes.md`. Restore the
+   file from git afterwards.
+7. **Doctor report steps.** On an old install (`wm --release-version 2.5.1
+   bootstrap $T/o`, committed) run `wm doctor $T/o; echo rc=$?`. Expected:
+   each finding carries a `What to do:` line; `rc=1`. Dirty the tree
+   (`touch $T/o/x`): the Recovery section withholds the undo and update
+   commands and says why.
+8. **Read-only repository.** `chmod -R a-w $T/o`; `wm doctor $T/o`, `wm
+   status $T/o`, `wm update $T/o --dry-run`. Expected: all work without a
+   permission error; then `chmod -R u+w $T/o`.
+9. **Docs match the tool.** `docs/common-problems.md` and `docs/exit-codes.md`
+   quote messages and exit codes; spot-check three rows against what you saw
+   above. Also automated: `python3 $M/tests/run_all.py --select
+   test_operator_ux_docs.py` ends `verdict: exit 0`.
+
+**Known limitations and out of scope.**
+- Exit codes are unchanged except the documented moves (plan D-5, D-14,
+  D-15): T13/T18/T19/T20 crashes now exit 2, `status` of a managed
+  repository that cannot prove containment (Git unavailable included) exits
+  1, and `doctor` of a crashing `--release-dir` manifest exits 2.
+- `doctor` and `--dry-run` write the release cache and one temporary
+  snapshot outside the repository; documented.
+- Reprinted commands drop `--force` by design (review O-4).
+- No change to the Workflow package contents or any pin.
+
 ## Previous milestone (complete): `workflow-manager-update-ergonomics`
 
 The sections below, from this heading to the next `## Functional review
