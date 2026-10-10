@@ -429,7 +429,7 @@ def _needs_directory(context: Context, installed, recorded: bool) -> bool:
 
 
 def _directory_step(context: Context, installed) -> str:
-    shown = repr(installed) if isinstance(installed, str) else installed
+    shown = repr(installed) if installed == "" else installed
     return (f"a release directory holding {shown} is needed: run the command again "
             f"with --release-dir DIR")
 
