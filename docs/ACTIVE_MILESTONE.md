@@ -2,6 +2,53 @@
 
 ## Milestone
 
+`workflow-manager-operator-ux` (`governing_workflow_version: "2.2"`,
+`process`, plan revision 13, base `218155d`, branch
+`milestone/workflow-manager-operator-ux`): roadmap item 7, Operator UX. The
+tool, not the documentation, tells an operator what to do next: every error,
+refusal, warning and note of the Manager CLI names its cause and one concrete
+next step (a command, a flag or a page), using the real program name and
+options; `status` shows the work in flight so an operator does not read the
+state JSON; the two parked Update-ergonomics follow-ups are folded in
+(`doctor --help`'s exit wording, the `not-verified` note). Exit codes stay as
+`docs/exit-codes.md` documents them, except the crashes that become refusals
+(plan D-5: T13, T18, T19 and T20, each a traceback's exit 1 becoming 2), `status` of a managed repository, which now exits 1 (not 0) where it cannot prove its writes stay outside the repository, Git unavailable included (plan D-14, C5; an unmanaged target still exits 0), and `doctor`, which exits 2 (not a traceback's 1) for a `--release-dir` manifest that crashes it today (plan D-15, R17); a manifest shape that succeeds today keeps its exit (D-16). Full plan:
+`docs/ai-workflow/WORKFLOW_MANAGER_OPERATOR_UX_PLAN.md`.
+
+## Current checkpoint
+
+Planning. The plan (inventory of every operator-facing message, the fixes,
+the open decisions D-1 to D-16, five checkpoints CP1-CP5) is written and
+revised through plan-review round 7 (external round 2: one principle for
+recovery, the Manager prints no command that overwrites, restores over or
+recreates Workflow data and `update` is withheld while any state template is
+missing; manifest version shapes validated before the pin lookup with the
+baseline exit of every case recorded; containment only for managed targets;
+earlier rounds: `status` contained like `doctor` with its exit-code move named, a `status` block that fails closed,
+command-specific option carrying, `--` before hyphen paths); it is being bound to a plan-review bundle. No checkpoint is started.
+
+## Current blockers
+
+None.
+
+## Active plan
+
+`docs/ai-workflow/WORKFLOW_MANAGER_OPERATOR_UX_PLAN.md` (revision 13).
+
+## Next action
+
+Review the plan (`/review-plan workflow-manager-operator-ux`), then the plan
+gate; implement CP1-CP5 in order. A `feat:` pull-request title releases
+Manager 1.8.0.
+
+## Previous milestone (complete): `workflow-manager-update-ergonomics`
+
+The sections below, from this heading to the next `## Functional review
+checklist`, are the finished milestone's own top block, kept as its record.
+
+
+### Milestone
+
 `workflow-manager-update-ergonomics` (`governing_workflow_version: "2.2"`,
 `process`, plan revision 6 approved by policy, base `bb54c76`, branch
 `milestone/workflow-manager-update-ergonomics`): `workflow-manager doctor`
@@ -10,7 +57,7 @@ what an update would do and which Workflow guarantees it would cross,
 without writing the repository. Full plan:
 `docs/ai-workflow/WORKFLOW_MANAGER_UPDATE_ERGONOMICS_PLAN.md`.
 
-## Current checkpoint
+### Current checkpoint
 
 **Milestone complete.** `workflow-manager-update-ergonomics` reached
 `MILESTONE_COMPLETE` through `/satisfy-gate acceptance` on 2026-10-09, by
@@ -25,21 +72,22 @@ policy (the default gate policy; no person's decision), and
 
 The checkpoint log below is this milestone's permanent record.
 
-## Current blockers
+### Current blockers
 
 None. What remains: squash-merge pull request #22 under a `feat:` title (the
 owner's act); `main`'s full run then releases the Manager.
 
-## Active plan
+### Active plan
 
 None. The finished plan is
 `docs/ai-workflow/WORKFLOW_MANAGER_UPDATE_ERGONOMICS_PLAN.md` (revision 6),
 copied to `docs/milestones/completed/`.
 
-## Next action
+### Next action
 
 Plan the next incomplete milestone in `docs/ROADMAP.md` with
 `/milestone-plan` once pull request #22 has merged.
+
 
 ## Functional review checklist
 

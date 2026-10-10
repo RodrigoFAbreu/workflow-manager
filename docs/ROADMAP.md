@@ -14,7 +14,7 @@ The full text of earlier versions is in this file's git history; the last long v
 
 ## What's next
 
-Nothing is Next right now. Items 1 to 4 are done. Items 5 and 6 wait on the Controller, and item 7 is Later. The next step is the Controller's, not this repository's.
+Item 7, Operator UX, is Next. Items 1 to 4 are done, and items 5 and 6 wait on the Controller. Item 7 does not depend on the Controller, so it runs while they wait.
 
 The end goal is a loop where the Controller takes the next roadmap item, plans, implements, reviews, tests, merges and releases it, then starts the next one. The order below is the owner's agreed order across this lane.
 
@@ -26,11 +26,11 @@ The end goal is a loop where the Controller takes the next roadmap item, plans, 
 | 4 | Update ergonomics | `workflow-manager doctor`, `update --dry-run` and a compatibility report; safer upgrades for every repository | Done (PR #22, Manager 1.6.0) |
 | 5 | Controller C10 (gate policy and automatic acceptance) | The Controller can use Workflow 2.8's gate policy | Waiting on the Controller; tracked in [the Controller repository](https://github.com/RodrigoFAbreu/workflow-controller/blob/main/docs/ROADMAP.md) |
 | 6 | **M3**: this repository and `workflow` driven by the Controller's loop | Roadmap items worked, merged and released with no hand-driving | Waiting on the Controller's kanban runner (C11) |
-| 7 | Operator UX | Clearer errors and recovery steps | Later (deferred); see below |
+| 7 | Operator UX | Error messages that name the cause and the next command, and `status` showing the work in flight | **Next** (planning started 2026-10-10); see below |
 
-### 7. Operator UX (Later, deferred)
+### 7. Operator UX (Next)
 
-The documentation clean-up delivered most of this: install, update and verify guides, a common-problems page, and a documentation index. What remains is in the tool, not the docs: error messages that say what to do next, recovery instructions in output, and fewer cases where an operator has to read state JSON. Update ergonomics delivered part of it. The rest has no slot yet.
+The documentation clean-up delivered most of this: install, update and verify guides, a common-problems page, and a documentation index. What remains is in the tool, not the docs, and this item delivers it: every error, refusal, warning and note names its cause and one concrete next step (a command, a flag or a page), using the real program name and options; recovery instructions appear in the output; and `status` shows the work in flight, so an operator does not need to read the state JSON. Exit codes stay as `docs/exit-codes.md` documents them. Plan: `docs/ai-workflow/WORKFLOW_MANAGER_OPERATOR_UX_PLAN.md`. A `feat:` title, so it releases Manager 1.8.0.
 
 ## Done
 
