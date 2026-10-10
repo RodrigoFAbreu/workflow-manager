@@ -459,7 +459,6 @@ class InFlightItem:
     phase: str
     work_item_type: str | None
     governing: str
-    active: bool
     known_phase: bool
 
 
@@ -500,7 +499,7 @@ def read_work_items(target: Path) -> WorkInFlight:
         phase, governing, wtype, _ = core
         if phase == "MILESTONE_COMPLETE":
             continue
-        items.append(InFlightItem(wid, phase, wtype, governing, True, phase in KNOWN_PHASES))
+        items.append(InFlightItem(wid, phase, wtype, governing, phase in KNOWN_PHASES))
     active = state.get("active_work_item_id")
     return WorkInFlight(STATE_READ, tuple(items), tuple(problems),
                         active if isinstance(active, str) else None)

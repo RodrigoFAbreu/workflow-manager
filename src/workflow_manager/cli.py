@@ -385,7 +385,7 @@ def cmd_status(args) -> int:
     print(result)
     print(f"  source: {_describe_source(Installation.read(args.target).source)}")
     _print_in_flight(args)
-    context = _context(args, with_data=True)
+    context = _context(args, with_data=bool(result.problems))
     step = advice.problem_step(context, result.problems)
     doctor = advice.doctor_step(context)
     print(f"next: {step + '; ' + doctor if step is not None else doctor}")
