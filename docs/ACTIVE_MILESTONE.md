@@ -164,9 +164,10 @@ snap() { (cd "$1" && find . -path ./.git -prune -o -type f -print0 | sort -z | x
    `rc=2`. `wm --help` and `wm bootstrap --help` describe every command and
    option, and show the program as `workflow-manager`.
 3. **Unpublished release.** `newrepo $T/r; wm --release-version 9.9.9
-   bootstrap $T/r; echo rc=$?`. Expected: a named "not published" refusal
-   with a `next:` step (`workflow-manager releases` to list what exists);
-   `rc=2`, nothing written (`ls -a $T/r` shows only `.git`).
+   bootstrap $T/r; echo rc=$?`. Expected: a named refusal (no usable release,
+   as `docs/exit-codes.md` documents) with a `next:` step to upgrade the
+   Manager or use `--release-dir`; `rc=1`, nothing written (`ls -a $T/r`
+   shows only `.git`).
 4. **Install, then status shows work in flight.** `wm bootstrap $T/r; echo
    rc=$?` then `wm status $T/r; echo rc=$?`. Expected: bootstrap ends with a
    `next:` step (commit the install, then drive the Workflow). `status`
@@ -175,8 +176,11 @@ snap() { (cd "$1" && find . -path ./.git -prune -o -type f -print0 | sort -z | x
    (`S=$(snap $T/r)` before and after are equal).
 5. **Directory in the way.** `newrepo $T/d; mkdir -p $T/d/.workflow-manager/installation.json;
    wm bootstrap $T/d; echo rc=$?`, then the same with `--force`. Expected:
-   an `occupied: PATH (it is a directory ...)` refusal with a `next:` step,
-   `rc=2` both times (`--force` does not override it).
+   `the installation record at PATH is unreadable (PATH is a directory)`
+   (T20) with a `next:` step: delete `$T/d/.workflow-manager`, then run
+   `workflow-manager bootstrap $T/d` (the repository never held Workflow
+   data, so no Workflow-data step); `rc=2` both times (`--force` does not
+   override the directory). `status`, `verify` and `doctor` print the same step.
 6. **Corrupt record.** Break `$T/r/.workflow-manager/installation.json`
    (`echo '{' > ...`) and run `wm status $T/r`, `wm verify $T/r`, `wm doctor
    $T/r`. Expected: a named corrupt-record message with a `next:` step; no
@@ -184,9 +188,10 @@ snap() { (cd "$1" && find . -path ./.git -prune -o -type f -print0 | sort -z | x
    file from git afterwards.
 7. **Doctor report steps.** On an old install (`wm --release-version 2.5.1
    bootstrap $T/o`, committed) run `wm doctor $T/o; echo rc=$?`. Expected:
-   each finding carries a `What to do:` line; `rc=1`. Dirty the tree
-   (`touch $T/o/x`): the Recovery section withholds the undo and update
-   commands and says why.
+   each finding carries a step (a `What to do:` line or an unlabelled step,
+   as `gates-change` and `dirty-tree` give); `rc=1`. Dirty the tree
+   (`touch $T/o/x`): only the undo is withheld (`No undo command: ...`);
+   the update is withheld only for a Workflow-data problem.
 8. **Read-only repository.** `chmod -R a-w $T/o`; `wm doctor $T/o`, `wm
    status $T/o`, `wm update $T/o --dry-run`. Expected: all work without a
    permission error; then `chmod -R u+w $T/o`.
