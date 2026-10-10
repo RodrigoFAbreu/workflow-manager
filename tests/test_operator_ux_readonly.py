@@ -948,7 +948,7 @@ class TestPrintedCommandsParse(ux.TargetCase):
         return directory
 
     def test_i3_repair_advice_for_a_scalar_release_version_is_executable(self):
-        for version in (123, True):
+        for version in (123, True, "", None):
             with self.subTest(version=version):
                 directory = self.release_dir(version)
                 repo = self.empty()
@@ -968,6 +968,27 @@ class TestPrintedCommandsParse(ux.TargetCase):
                 self.assertNotIn("Traceback", again.stdout + again.stderr)
                 self.assertEqual(again.returncode, 2, again.stdout + again.stderr)   # drift, not a crash
                 self.assertIn("modified: scripts/workflow_state.py", again.stdout + again.stderr)
+                at = update.index("update") + 1
+                forced = run(*update[1:at], "--force", *update[at:])
+                self.assertEqual(forced.returncode, 0, forced.stdout + forced.stderr)
+
+    def test_i3_verify_without_release_dir_after_a_scalar_install_asks_for_one(self):
+        for version in (123, "", None):
+            with self.subTest(version=version):
+                directory = self.release_dir(version)
+                repo = self.empty()
+                self.assertEqual(run("--release-dir", str(directory), "bootstrap", str(repo)).returncode, 0)
+                (repo / "scripts" / "workflow_state.py").write_text("# edited\n")
+                proc = run("verify", str(repo))
+                out = proc.stdout + proc.stderr
+                self.assertNotIn("Traceback", out)
+                self.assertNotIn("leave out", out, out)
+                self.assertIn("--release-dir DIR", out)
+                if version is None:     # only `null` resolves to the newest pin, so it compares
+                    self.assertIn("a release directory holding None", out, out)
+                again = run("--release-dir", str(directory), "verify", str(repo))
+                commands = ux.manager_commands(again.stdout)
+                update = next(a for a in commands if "update" in a and "--dry-run" not in a)
                 at = update.index("update") + 1
                 forced = run(*update[1:at], "--force", *update[at:])
                 self.assertEqual(forced.returncode, 0, forced.stdout + forced.stderr)

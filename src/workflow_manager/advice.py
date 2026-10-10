@@ -78,6 +78,9 @@ class Context:
     """The facts an error's cause and `args` do not hold."""
     args: Any = None
     installed_version: str | None = None
+    #: Whether the installation record was read, so that `installed_version` is
+    #: what it holds (`None` and `""` included) and not "unknown".
+    installed_recorded: bool = False
     cache_dir: str | None = None
     release_dir_version: str | None = None
     missing_templates: tuple[str, ...] = ()
@@ -385,7 +388,9 @@ def problem_step(context: Context, problems: list[str]) -> str | None:
     """T15: the one next step for the problem lines `verify` and `status` print."""
     if not problems:
         return None
-    installed = context.installed_version or getattr(context.args, "release_version", None)
+    recorded = context.installed_recorded or context.installed_version is not None
+    installed = (context.installed_version if recorded
+                 else getattr(context.args, "release_version", None))
     missing_data = [DataFile(path, "missing") for line in problems
                     if (path := _problem_path(line, "missing")) in STATE_TEMPLATES]
     if missing_data:
@@ -401,26 +406,39 @@ def problem_step(context: Context, problems: list[str]) -> str | None:
                 "the command again (a cache entry that fails its pin is discarded and "
                 "downloaded afresh)")
     if any(line.startswith("version: ") for line in problems):
+        if _needs_directory(context, installed, recorded):
+            return _directory_step(context, installed)
         update, _ = _command(context, "update", version=getattr(context.args, "release_version", None))
         step = ("you compared with a release other than the installed one: leave out "
                 f"--release-version and --release-dir to compare with workflow {installed}")
         if update is None:
             return f"{step}; {data_step(context)}"
         return f"{step}, or run `{update}` to move the repository"
-    return _repair_step(context, installed)
+    return _repair_step(context, installed, recorded)
 
 
-def _repair_step(context: Context, installed) -> str:
-    # A version that is not text (a local release's manifest may carry a number)
-    # can never equal the text `--release-version` takes, so the repair names the
-    # release only through a `--release-dir` that holds it.
-    text_version = installed if isinstance(installed, str) else None
+def _needs_directory(context: Context, installed, recorded: bool) -> bool:
+    """Whether the installed release can be named only through a `--release-dir`
+    that holds it: a version that is not text, or is empty (a local release's
+    manifest may carry a number, `null` or `""`), can never equal the text
+    `--release-version` takes."""
+    if not recorded or (isinstance(installed, str) and installed):
+        return False
     carried = getattr(context.args, "release_dir", None) is not None
-    if (context.installed_local and context.release_dir_version != installed) or (
-            installed is not None and text_version is None
-            and not (carried and context.release_dir_version == installed)):
-        return (f"a release directory holding {installed} is needed: run the command again "
-                f"with --release-dir DIR")
+    return not (carried and context.release_dir_version == installed)
+
+
+def _directory_step(context: Context, installed) -> str:
+    shown = repr(installed) if isinstance(installed, str) else installed
+    return (f"a release directory holding {shown} is needed: run the command again "
+            f"with --release-dir DIR")
+
+
+def _repair_step(context: Context, installed, recorded: bool = True) -> str:
+    text_version = installed if isinstance(installed, str) and installed else None
+    if (context.installed_local and context.release_dir_version != installed) or \
+            _needs_directory(context, installed, recorded):
+        return _directory_step(context, installed)
     update, note = _command(context, "update", version=text_version)
     dry, _ = _command(context, "update", "--dry-run", version=text_version)
     # `update --dry-run` compares versions, and refuses a release whose version is

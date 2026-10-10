@@ -300,11 +300,12 @@ def _context(args, *, with_data: bool = False) -> advice.Context:
                 cache_dir=cache)
     if target is None:
         return advice.Context(**base)
-    installed, local = None, False
+    installed, local, recorded = None, False, False
     try:
         if is_managed(target):
             record = Installation.read(target)
             installed = record.workflow_version
+            recorded = True
             local = bool(record.source) and record.source.get("kind") == "local"
     except Exception:  # noqa: BLE001 -- best effort: a damaged record is the error itself
         pass
@@ -313,7 +314,8 @@ def _context(args, *, with_data: bool = False) -> advice.Context:
     if with_data and holds:
         findings = data_findings(target)
         files = data_files(target, missing, findings)
-    return advice.Context(installed_version=installed, installed_local=local, holds_data=holds,
+    return advice.Context(installed_version=installed, installed_recorded=recorded,
+                          installed_local=local, holds_data=holds,
                           missing_templates=missing, data_findings=findings, data_files=files,
                           **base)
 
