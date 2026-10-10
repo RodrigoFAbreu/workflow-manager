@@ -1088,6 +1088,30 @@ class TestFunctionalReviewRound1(ux.TargetCase):
         self.assertTrue(comp.holds_data(repo))
         self.assertFalse(comp.holds_data(self.directory_record_repo()))
 
+    def test_i7_a_failed_head_inspection_withholds_the_writing_advice(self):
+        repo = self.directory_record_repo(committed_templates=True)
+        nogit = tempfile.TemporaryDirectory()
+        self.addCleanup(nogit.cleanup)
+        env = cli_env(PATH=nogit.name)
+        for argv in (["bootstrap"], ["bootstrap", "--force"], ["status"], ["verify"], ["doctor"]):
+            with self.subTest(argv=argv):
+                proc = run(*argv, str(repo), env=env)
+                text = proc.stdout + proc.stderr
+                step = next_lines(text)[0]
+                self.assertIn("Workflow data is missing or damaged", step)
+                self.assertIn("No bootstrap command is offered", step)
+        self.assertIsNone(comp.head_held_templates(repo.parent / "not-a-repository"))
+        self.assertFalse(comp.head_held_templates(self.empty()))
+
+    def test_i8_a_finding_recheck_keeps_the_explicit_release_version(self):
+        step = comp._problem_step("a work item has an unsupported governing version", "/t", {},
+                                  False, options=(("--release-cache", "/c"),),
+                                  release_version="2.5.0")
+        argv = shlex.split(step[step.index("`") + 1:step.rindex("`")])
+        self.assertEqual(argv[:3], ["workflow-manager", "--release-version", "2.5.0"])
+        self.assertIn("--release-cache", argv)
+        self.assertTrue(ux.parses(argv), argv)
+
     def test_f2_doctor_commands_carry_the_global_options(self):
         repo = self.fresh()
         work = tempfile.TemporaryDirectory()

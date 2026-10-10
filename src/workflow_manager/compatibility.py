@@ -1189,7 +1189,29 @@ def holds_data(target: Path) -> bool:
         return True
     except Exception:  # noqa: BLE001 -- an unreadable record names nothing
         pass
-    return any(run_git(target, "cat-file", "-e", f"HEAD:{rel}").ok for rel in STATE_TEMPLATES)
+    return head_held_templates(target) is not False
+
+
+def head_held_templates(target: Path) -> bool | None:
+    """Whether `HEAD` holds a state template: `True`, `False` (the history is
+    read and holds none, or the repository has no commit yet), or `None` when
+    Git could not establish it (unavailable, timed out, not a repository, an
+    unreadable `HEAD`). Callers fail closed on `None`: a history that could not
+    be read is not proof that the templates never existed."""
+    head = run_git(target, "rev-parse", "--verify", "--quiet", "HEAD^{commit}")
+    if head.ok:
+        listing = run_git(target, "ls-tree", "-r", "--name-only", "HEAD", "--", *STATE_TEMPLATES)
+        if not listing.ok:
+            return None
+        return bool(listing.stdout.strip())
+    if head.returncode != 1:
+        return None
+    # exit 1 is "no such commit": only an unborn branch is an empty history.
+    branch = run_git(target, "symbolic-ref", "--quiet", "HEAD")
+    if not branch.ok or not branch.stdout.strip():
+        return None
+    ref = run_git(target, "show-ref", "--verify", "--quiet", branch.stdout.strip())
+    return False if ref.returncode == 1 else None
 
 
 def missing_templates(target: Path) -> tuple[str, ...]:
@@ -1576,7 +1598,7 @@ _GIT_REASONS = ("not a Git repository", "`git ", "partial-clone detection", "thi
 
 
 def _problem_step(line: str, repo: str, by_path: dict, withheld: bool,
-                  options: tuple = ()) -> str | None:
+                  options: tuple = (), release_version: str | None = None) -> str | None:
     """The step for one `facts.problems` line, by the first matching rule."""
     advice = _advice()
     if line == NOT_MANAGED_PROBLEM:
@@ -1589,7 +1611,8 @@ def _problem_step(line: str, repo: str, by_path: dict, withheld: bool,
     if line.startswith(_GIT_REASONS):
         check = git_command(Path(repo), "rev-parse", "--git-dir").render()
         return (f"make sure `{check}` works here, or review the named parts by hand")
-    doctor = manager_command("doctor", target=repo, withheld=False, options=options).render()
+    doctor = manager_command("doctor", release_version=release_version, target=repo,
+                             withheld=False, options=options).render()
     return f"fix what is named and run `{doctor}` again"
 
 
@@ -1630,7 +1653,8 @@ def _with_steps(facts: RepositoryFacts, findings: list[Finding], *, refusal, tar
             lines = []
             for line in facts.problems:
                 lines.append(line)
-                step = _problem_step(line, repo, by_path, withheld, facts.options_for(release_version))
+                step = _problem_step(line, repo, by_path, withheld, facts.options_for(release_version),
+                                     release_version)
                 if step is not None:
                     lines.append(f"  What to do: {step}")
             detail = "\n".join(lines) + "\nThis report is not a clean bill of health."
