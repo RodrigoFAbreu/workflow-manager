@@ -459,8 +459,8 @@ def _compatibility_report(args, plan, refusal, release, installed_resolved: bool
     except ReleaseNotPublishedError:
         latest = None
     facts = read_repository(args.target)
-    explicit = release.version if release.version and release.version != latest else None
-    facts.options, _ = advice._options(_context(args), explicit)
+    context = _context(args)
+    facts.options_for = lambda version: advice._options(context, version)[0]
     return build_report(
         facts, plan, target_version=release.version, latest_version=latest,
         pinned_versions=versions, refusal=refusal, installed_resolved=installed_resolved,

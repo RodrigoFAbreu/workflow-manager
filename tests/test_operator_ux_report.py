@@ -10,6 +10,9 @@ from __future__ import annotations
 
 import json
 import os
+import re
+import shlex
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
@@ -327,6 +330,70 @@ class TestReportSteps(ux.ReleaseCase):
         proc = self.doctor(repo, "--release-version", older[0])
         self.assertIn("[warning] downgrade", proc.stdout)
         self.assertIn(f"leave --release-version out: `workflow-manager doctor {repo}`", proc.stdout)
+
+    def replayed(self, text, marker, repo, *, env=None):
+        """The command printed after `marker`, run through the CLI."""
+        match = re.search(re.escape(marker) + r"`(workflow-manager [^`]+)`", text)
+        self.assertIsNotNone(match, text)
+        argv = shlex.split(match.group(1))
+        self.assertTrue(ux.parses(argv), argv)
+        return argv, run(*argv[1:], env=env)
+
+    def older_release_dir(self, version):
+        directory = self.workdir() / "older"
+        shutil.copytree(support.release(version).root, directory)
+        return directory
+
+    def test_i1_a_downgrade_step_drops_a_release_dir_holding_the_older_release(self):
+        repo = self.fresh()
+        older = [v for v in support.PINNED_VERSIONS if v != NEWEST_RELEASE]
+        if not older:
+            self.skipTest("one pinned release")
+        directory = self.older_release_dir(older[-1])
+        for options in (["--release-dir", str(directory)],
+                        ["--release-version", older[-1], "--release-dir", str(directory)]):
+            with self.subTest(options=options):
+                proc = self.doctor(repo, *options)
+                self.assertIn("[warning] downgrade", proc.stdout)
+                argv, replay = self.replayed(proc.stdout, "leave --release-version out: ", repo)
+                self.assertNotIn("--release-dir", argv)
+                self.assertNotIn("[warning] downgrade", replay.stdout)
+                self.assertNotIn(f"Target of this check {older[-1]}", replay.stdout)
+
+    def test_i1_the_old_target_step_drops_a_release_dir_holding_another_release(self):
+        repo = self.fresh()
+        self.declare(repo)
+        directory = self.older_release_dir("2.5.0")
+        proc = self.doctor(repo, "--release-version", "2.5.0", "--release-dir", str(directory))
+        self.assertIn("v2.4.0-001-old", proc.stdout)
+        argv, replay = self.replayed(proc.stdout, "check a target of 2.6.0 or later: ", repo)
+        self.assertNotIn("--release-dir", argv)
+        self.assertIn("2.6.0", argv)
+        self.assertNotEqual(replay.returncode, 2, replay.stdout + replay.stderr)
+        self.assertNotIn("could not resolve", replay.stderr)
+
+    def test_i1_the_verify_step_drops_a_release_dir_holding_another_release(self):
+        repo = self.fresh()
+        record = repo / ".workflow-manager/installation.json"
+        data = json.loads(record.read_text())
+        data["workflow_version"] = "2.9.0"
+        record.write_text(json.dumps(data, indent=2) + "\n")
+        work = self.workdir()
+        (work / "source").mkdir()
+        directory = self.release_dir()
+        proc = run("--release-cache", str(work / "cache"), "--release-source", str(work / "source"),
+                   "--release-dir", str(directory), "doctor", str(repo))
+        self.assertIn("[note] not-verified", proc.stdout)
+        match = re.search(r"`(workflow-manager [^`]+ verify [^`]+)` prints the actual cause",
+                          proc.stdout)
+        self.assertIsNotNone(match, proc.stdout)
+        argv = shlex.split(match.group(1))
+        self.assertTrue(ux.parses(argv), argv)
+        replay = run(*argv[1:])
+        self.assertNotIn(str(directory), argv)
+        self.assertIn("--release-source", argv)
+        self.assertIn("--release-cache", argv)
+        self.assertNotIn("holds release", replay.stderr)
 
     def report(self, repo, plan=None, refusal=None, target="2.9.1", installed=None):
         facts = comp.read_repository(repo)

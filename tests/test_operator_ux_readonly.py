@@ -1113,7 +1113,7 @@ class TestFunctionalReviewRound1(ux.TargetCase):
                 self.assertTrue(seen, text)
 
     def test_f2_recovery_and_finding_commands_are_built_with_the_options(self):
-        facts = comp.RepositoryFacts(target=Path("/t"), options=(("--release-dir", "-rel"),))
+        facts = comp.RepositoryFacts(target=Path("/t"), options_for=lambda version: (("--release-dir", "-rel"),))
         steps = comp.recovery_steps(facts, [], target_arg="/t", release_version=None)
         commands = [c.render() for step in steps for c in step.commands
                     if c.family == comp.FAMILY_MANAGER]

@@ -345,9 +345,10 @@ class RepositoryFacts:
     missing_templates: tuple[str, ...] = ()
     #: Whether the target holds Workflow data (`holds_data`).
     holds_data: bool = False
-    #: The global options the operator gave (`advice._options`), carried by every
-    #: Manager command the report prints so it parses and resolves the same way.
-    options: tuple[tuple[str, str], ...] = ()
+    #: The global options the operator gave, as a function of the version the
+    #: printed command uses (`advice._options`): `--release-dir` is carried only
+    #: when it holds that version, so the result is never computed once for all.
+    options_for: Callable[[str | None], tuple[tuple[str, str], ...]] = lambda version: ()
     #: Reasons an inspection could not be completed: each is a finding.
     problems: list[str] = field(default_factory=list)
 
@@ -1434,7 +1435,8 @@ def _retirement_advice(facts: RepositoryFacts, item: WorkItemFacts, target: str 
 def build_findings(facts: RepositoryFacts, plan: UpdatePlan | None, *, target: str | None,
                    installed_resolved: bool = True, refusal: Exception | None = None,
                    steps: bool = True, target_arg: str | None = None,
-                   release_version: str | None = None) -> list[Finding]:
+                   release_version: str | None = None,
+                   latest: str | None = None) -> list[Finding]:
     """The report's findings. With `steps` each carries the one next step the
     operator can take (3.4); `data_findings` asks for none, because the
     predicate reads only what the findings are, never what they advise, and
@@ -1444,7 +1446,8 @@ def build_findings(facts: RepositoryFacts, plan: UpdatePlan | None, *, target: s
     if not steps:
         return findings
     return _with_steps(facts, findings, refusal=refusal, target=target,
-                       repo=str(target_arg or facts.target), release_version=release_version)
+                       repo=str(target_arg or facts.target), release_version=release_version,
+                       latest=latest)
 
 
 def _base_findings(facts: RepositoryFacts, plan: UpdatePlan | None, *, target: str | None,
@@ -1607,7 +1610,7 @@ def _declarations_step(line: str, repo: str, facts: RepositoryFacts, by_path: di
 
 
 def _with_steps(facts: RepositoryFacts, findings: list[Finding], *, refusal, target, repo: str,
-                release_version: str | None) -> list[Finding]:
+                release_version: str | None, latest: str | None = None) -> list[Finding]:
     """`findings` with each one's next step in its detail (F-b to F-n)."""
     advice = _advice()
     missing, holds = facts.missing_templates, facts.holds_data
@@ -1622,12 +1625,12 @@ def _with_steps(facts: RepositoryFacts, findings: list[Finding], *, refusal, tar
             detail = (f"{refusal}\n{advice.data_step(_data_context(repo, files))}")
         elif finding.id == "refused-collision":
             detail, commands = _collision_step(refusal, repo, release_version, withheld, files,
-                                               data_page, facts.options)
+                                               data_page, facts.options_for(release_version))
         elif finding.id == _INCOMPLETE and finding.title == "the inspection could not be completed":
             lines = []
             for line in facts.problems:
                 lines.append(line)
-                step = _problem_step(line, repo, by_path, withheld, facts.options)
+                step = _problem_step(line, repo, by_path, withheld, facts.options_for(release_version))
                 if step is not None:
                     lines.append(f"  What to do: {step}")
             detail = "\n".join(lines) + "\nThis report is not a clean bill of health."
@@ -1648,16 +1651,18 @@ def _with_steps(facts: RepositoryFacts, findings: list[Finding], *, refusal, tar
                        '"Repairing an artifact declaration after an approval".')
         elif finding.id == "v2.4.0-001-old":
             check = manager_command("doctor", release_version="2.6.0", target=repo,
-                                    withheld=False, options=facts.options).render()
+                                    withheld=False,
+                                    options=facts.options_for("2.6.0")).render()
             detail += f"\nWhat to do: check a target of 2.6.0 or later: `{check}`"
         elif finding.id == "downgrade":
             check = manager_command("doctor", target=repo, withheld=False,
-                                    options=facts.options).render()
+                                    options=facts.options_for(latest)).render()
             detail += ("\nWhat to do: to check the update to the newest release instead, leave "
                        f"--release-version out: `{check}`")
         elif finding.id == "not-verified":
+            installed = facts.installation.workflow_version if facts.installation else None
             verify = manager_command("verify", target=repo, withheld=False,
-                                     options=facts.options).render()
+                                     options=facts.options_for(installed)).render()
             detail += f" `{verify}` prints the actual cause."
         out.append(Finding(finding.severity, finding.id, finding.title, detail, commands))
     named = {m for f in out if f.id == _INCOMPLETE
@@ -1735,7 +1740,7 @@ def recovery_steps(facts: RepositoryFacts, findings: list[Finding], *, target_ar
         steps.append(RecoveryStep(
             "An update that stopped half way is re-run with the same command; it needs no --force.",
             (manager_command("update", release_version=release_version, target=str(repo),
-                             withheld=False, options=facts.options),)))
+                             withheld=False, options=facts.options_for(release_version)),)))
     if withheld:
         pass
     elif facts.dirty is False:
@@ -1758,7 +1763,7 @@ def recovery_steps(facts: RepositoryFacts, findings: list[Finding], *, target_ar
         steps.append(RecoveryStep(
             "A locally modified release file: save your edit, then run the update with --force.",
             (manager_command("update", "--force", release_version=release_version,
-                             target=str(repo), withheld=False, options=facts.options),)))
+                             target=str(repo), withheld=False, options=facts.options_for(release_version)),)))
     for finding in findings:
         for command in finding.commands:
             if command.family == FAMILY_SLASH:
@@ -1773,7 +1778,8 @@ def build_report(facts: RepositoryFacts, plan: UpdatePlan | None, *, target_vers
     explicit = target_version if target_version and target_version != latest_version else None
     findings = build_findings(facts, plan, target=target_version,
                               installed_resolved=installed_resolved, refusal=refusal,
-                              target_arg=target_arg, release_version=explicit)
+                              target_arg=target_arg, release_version=explicit,
+                              latest=latest_version)
     installation = facts.installation
     source = None
     if installation is not None:
