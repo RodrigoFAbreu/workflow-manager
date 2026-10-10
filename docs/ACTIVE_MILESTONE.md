@@ -183,10 +183,12 @@ snap() { (cd "$1" && find . -path ./.git -prune -o -type f -print0 | sort -z | x
 5. **Directory in the way.** `newrepo $T/d; mkdir -p $T/d/.workflow-manager/installation.json;
    wm bootstrap $T/d; echo rc=$?`, then the same with `--force`. Expected:
    `the installation record at PATH is unreadable (PATH is a directory)`
-   (T20) with a `next:` step: delete `$T/d/.workflow-manager`, then run
-   `workflow-manager bootstrap $T/d` (the repository never held Workflow
-   data, so no Workflow-data step); `rc=2` both times (`--force` does not
-   override the directory). `status`, `verify` and `doctor` print the same step.
+   (T20) with a `next:` step: the general unreadable-record step, `delete
+   ..., then run `workflow-manager --release-version V bootstrap $T/d`, with
+   V the release the repository was on (...); a bootstrap with no version
+   installs the newest release`. In a repository that never held a record the
+   printed `git log` lists nothing, so the "no version" clause applies; `rc=2`
+   both times (`--force` does not override the directory). `status`, `verify` and `doctor` print the same step.
 6. **Corrupt record.** Break `$T/r/.workflow-manager/installation.json`
    (`echo '{' > ...`) and run `wm status $T/r`, `wm verify $T/r`, `wm doctor
    $T/r`. Expected: a named corrupt-record message with a `next:` step; no
