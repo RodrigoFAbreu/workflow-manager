@@ -134,8 +134,14 @@ its commit and implementation revision are in `WORKFLOW_STATE.json`). You are
 testing the Manager CLI as an operator would: every error, refusal and note
 should say what happened and name one concrete next step. Put findings in
 `.ai-review/workflow-manager-operator-ux/feedback/FUNCTIONAL_REVIEW.md`.
-Automated verification is current as of implementation revision 6: only
-state and bundle-record commits landed after the last code fix (`eba0eb7`).
+Automated verification is current as of implementation revision 9: only
+state and bundle-record commits landed after the last code fix (`936ca18`,
+review round 8). Since the first functional-review round the fixes are
+`33a62c9` (plain step for a record directory, options on `doctor` commands,
+next step for a bad command) and review rounds 7 and 8 (each report command's
+`--release-dir` resolved against the version it uses; a failing `HEAD`
+inspection fails closed and finding re-checks keep `--release-version`).
+Flows 5 and 7 below cover them.
 
 **Setup.** Python 3.12+, Git, a populated release cache, no network:
 
