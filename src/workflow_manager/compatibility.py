@@ -140,6 +140,12 @@ _WRITING = ("update", "bootstrap")
 _NO_LAZY_FETCH = ("env", "GIT_NO_LAZY_FETCH=1")
 
 
+def _option(flag: str, value: str) -> list[str]:
+    """A global option as argv: `--flag=value` when the value starts with a
+    hyphen, which argparse would take for another flag (`--flag -value`)."""
+    return [f"{flag}={value}"] if str(value).startswith("-") else [flag, str(value)]
+
+
 def manager_command(*args: str, release_version: str | None = None,
                     withheld: bool, target: str | None = None,
                     options: tuple[tuple[str, str], ...] = ()) -> "Command | None":
@@ -159,9 +165,9 @@ def manager_command(*args: str, release_version: str | None = None,
         return None
     argv = ["workflow-manager"]
     if release_version:
-        argv += ["--release-version", release_version]
+        argv += _option("--release-version", release_version)
     for flag, value in options:
-        argv += [flag, str(value)]
+        argv += _option(flag, str(value))
     argv += list(args)
     if target is not None:
         argv += (["--"] if str(target).startswith("-") else []) + [str(target)]
@@ -378,14 +384,45 @@ def artifacts_relpath(work_item_id: str) -> str:
     return f"docs/ai-workflow/registry/{work_item_id}-artifacts.json"
 
 
-def _registry_ids(target: Path, work_item_id: str, entry: dict) -> tuple[str, ...]:
+def _damaged_declaration(target: Path, rel: str, problems: list[str], *, objects: bool):
+    """The parsed JSON of an item's registry or mapping file, or None. A file
+    that exists and cannot be read as a JSON object (`objects`: whose
+    `checkpoints`, when present, is a list of objects) is a `problems` entry
+    naming it, so the inspection is incomplete and writes are withheld (P1); a
+    file that is absent is not: an item need not have one."""
+    path = target / rel
+    if not os.path.lexists(path):
+        return None
+    try:
+        data = _read_json(path)
+    except (OSError, ValueError) as error:
+        problems.append(f"{rel} cannot be read as JSON ({error})")
+        return None
+    checkpoints = data.get("checkpoints", []) if isinstance(data, dict) else None
+    if not isinstance(data, dict) or (
+            objects and not (isinstance(checkpoints, list)
+                             and all(isinstance(c, dict) for c in checkpoints))):
+        problems.append(f"{rel} is not the JSON object this report understands")
+        return None
+    return data
+
+
+def _registry_ids(target: Path, work_item_id: str, entry: dict,
+                  problems: list[str], active: bool) -> tuple[str, ...]:
     ids = set(entry.get("checkpoints") or {}) if isinstance(entry.get("checkpoints"), dict) else set()
     rel = f"docs/ai-workflow/registry/{work_item_id}-registry.json"
-    try:
-        data = _read_json(target / rel)
-        ids |= {c["id"] for c in data.get("checkpoints", []) if isinstance(c.get("id"), str)}
-    except (OSError, ValueError, AttributeError, TypeError, KeyError):
-        pass
+    if active:
+        data = _damaged_declaration(target, rel, problems, objects=True)
+        mapping = f"docs/ai-workflow/requirements/{work_item_id}-mapping.json"
+        _damaged_declaration(target, mapping, problems, objects=False)
+    else:
+        try:
+            data = _read_json(target / rel)
+        except (OSError, ValueError):
+            data = None
+    if isinstance(data, dict):
+        ids |= {c["id"] for c in data.get("checkpoints", [])
+                if isinstance(c, dict) and isinstance(c.get("id"), str)}
     return tuple(sorted(ids))
 
 
@@ -445,7 +482,10 @@ def _read_items(target: Path, state: dict, problems: list[str]) -> list[WorkItem
         phase, governing, wtype, parent = core
         declarations = _load_declarations(target, wid) if WORK_ITEM_ID_RE.match(wid) else None
         items.append(WorkItemFacts(wid, phase, governing, wtype, parent, entry,
-                                   declarations, _registry_ids(target, wid, entry)))
+                                   declarations,
+                                   _registry_ids(target, wid, entry, problems,
+                                                 WORK_ITEM_ID_RE.match(wid) is not None
+                                                 and phase != "MILESTONE_COMPLETE")))
     return items
 
 

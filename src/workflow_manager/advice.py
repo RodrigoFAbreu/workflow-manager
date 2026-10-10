@@ -28,6 +28,7 @@ from .compatibility import (  # noqa: F401  (re-exported: one home for the predi
     manager_command,
     render_command,
     rerun_phrase,
+    version_key,
     writes_withheld,
 )
 from .install import (
@@ -409,17 +410,32 @@ def problem_step(context: Context, problems: list[str]) -> str | None:
     return _repair_step(context, installed)
 
 
-def _repair_step(context: Context, installed: str | None) -> str:
-    if context.installed_local and context.release_dir_version != installed:
+def _repair_step(context: Context, installed) -> str:
+    # A version that is not text (a local release's manifest may carry a number)
+    # can never equal the text `--release-version` takes, so the repair names the
+    # release only through a `--release-dir` that holds it.
+    text_version = installed if isinstance(installed, str) else None
+    carried = getattr(context.args, "release_dir", None) is not None
+    if (context.installed_local and context.release_dir_version != installed) or (
+            installed is not None and text_version is None
+            and not (carried and context.release_dir_version == installed)):
         return (f"a release directory holding {installed} is needed: run the command again "
                 f"with --release-dir DIR")
-    update, note = _command(context, "update", version=installed)
-    dry, _ = _command(context, "update", "--dry-run", version=installed)
+    update, note = _command(context, "update", version=text_version)
+    dry, _ = _command(context, "update", "--dry-run", version=text_version)
+    # `update --dry-run` compares versions, and refuses a release whose version is
+    # not dotted numbers (exit 2, the approved contract), so it is not offered then.
+    try:
+        version_key(installed)
+    except ValueError:
+        dry = None
+    preview = f"; `{dry}` previews it" if dry else ""
     if update is None:
-        return f"{data_step(context)}; `{dry}` previews what an update would do"
+        return (f"{data_step(context)}; `{dry}` previews what an update would do" if dry
+                else data_step(context))
     text = (f"to put the release's files back run `{update}` (add --force if a line says "
             f"\"modified: PATH\" for a release file: that replaces your edit, so keep a copy "
-            f"first); `{dry}` previews it")
+            f"first){preview}")
     return text + (f". {note}" if note else "")
 
 

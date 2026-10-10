@@ -128,6 +128,8 @@ class Installation:
             )
         if data.get("source") is not None and not isinstance(data["source"], dict):
             raise TypeError("source is not an object")
+        if isinstance(data.get("workflow_version"), (list, dict)):
+            raise TypeError("workflow_version is not a version")
         return cls(
             workflow_version=data["workflow_version"],
             profile=data["profile"],

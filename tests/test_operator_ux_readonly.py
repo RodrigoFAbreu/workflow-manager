@@ -13,6 +13,7 @@ Every case runs the printed text as written and hashes the whole tree and
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import shlex
@@ -847,6 +848,163 @@ class TestSweepForCrashes(DataCase):
                     proc = run(*argv, str(repo))
                     self.assertNotIn("Traceback", proc.stdout + proc.stderr, (name, argv))
                     self.assertIn(proc.returncode, (0, 1, 2), (name, argv))
+
+
+class TestDamagedRegistryAndMapping(DataCase):
+    """Implementation review round 2, I2: a registry or mapping file that exists and
+    cannot be read is an incomplete inspection, so no printed text offers a command
+    that writes Workflow data or `git status`."""
+
+    REGISTRY = "docs/ai-workflow/registry/item-a-registry.json"
+    MAPPING = "docs/ai-workflow/requirements/item-a-mapping.json"
+    VALID = json.dumps({"plan_stage": {"protected_prefixes": ["docs/ai-workflow/"]},
+                        "implementation_stage": {"protected_prefixes": ["scripts/"]}})
+
+    def damaged(self, rel, content):
+        repo = self.fresh()
+        add_item_with_declarations(repo, self.VALID)
+        (repo / rel).parent.mkdir(parents=True, exist_ok=True)
+        (repo / rel).write_text(content)
+        commit(repo, "damaged")
+        return repo
+
+    def test_each_damage_is_an_incomplete_inspection_that_withholds_writes(self):
+        cases = (("registry", self.REGISTRY, MALFORMED), ("registry list", self.REGISTRY, "[]"),
+                 ("registry checkpoints", self.REGISTRY, '{"checkpoints": 3}'),
+                 ("registry entries", self.REGISTRY, '{"checkpoints": [1]}'),
+                 ("mapping", self.MAPPING, MALFORMED), ("mapping list", self.MAPPING, "[]"))
+        for name, rel, content in cases:
+            with self.subTest(name):
+                repo = self.damaged(rel, content)
+                proc = run("doctor", str(repo))
+                out = proc.stdout + proc.stderr
+                self.assertEqual(proc.returncode, 1, out)
+                self.assertIn("incomplete-inspection", out)
+                self.assertIn(rel, out)
+                self.assertNotIn("Traceback", out)
+                for text in (recovery_of(out), next_text(run("bootstrap", str(repo)), repo)):
+                    self.assertNoWritingCommand(text)
+                    self.assertNotIn("git restore", text)
+                    self.assertNotIn(f"{repo} status", text)
+
+    def test_a_readable_registry_and_mapping_cost_nothing(self):
+        repo = self.damaged(self.REGISTRY, '{"checkpoints": [{"id": "CP1"}]}')
+        (repo / self.MAPPING).parent.mkdir(parents=True, exist_ok=True)
+        (repo / self.MAPPING).write_text("{}")
+        commit(repo, "mapping")
+        self.assertNotIn(self.REGISTRY, run("doctor", str(repo)).stdout)
+
+    def test_an_absent_registry_and_mapping_are_not_damage(self):
+        repo = self.fresh()
+        add_item_with_declarations(repo, self.VALID)
+        for rel in (self.REGISTRY, self.MAPPING):
+            self.assertNotIn(rel, run("doctor", str(repo)).stdout)
+
+    def test_a_terminal_items_damaged_registry_is_not_read(self):
+        repo = self.fresh()
+        add_item_with_declarations(repo, self.VALID)
+        state = json.loads((repo / STATE).read_text())
+        state["work_items"]["item-a"]["phase"] = "MILESTONE_COMPLETE"
+        (repo / STATE).write_text(json.dumps(state, indent=2) + "\n")
+        (repo / self.REGISTRY).parent.mkdir(parents=True, exist_ok=True)
+        (repo / self.REGISTRY).write_text(MALFORMED)
+        commit(repo, "done")
+        self.assertNotIn(self.REGISTRY, run("doctor", str(repo)).stdout)
+
+
+class TestPrintedCommandsParse(ux.TargetCase):
+    """Implementation review round 2, I1, I3 and I4."""
+
+    def test_i1_a_global_option_value_with_a_leading_hyphen_is_printed_as_one_argument(self):
+        command = comp.manager_command("verify", withheld=False, target="/t",
+                                       options=(("--release-dir", "-release"),),
+                                       release_version="-v")
+        argv = shlex.split(command.render())
+        self.assertIn("--release-dir=-release", argv)
+        self.assertIn("--release-version=-v", argv)
+        self.assertTrue(ux.parses(argv), argv)
+
+    def test_i1_the_already_managed_refusal_prints_commands_that_parse(self):
+        repo = self.fresh()
+        work = tempfile.TemporaryDirectory()
+        self.addCleanup(work.cleanup)
+        shutil.copytree(support.release(NEWEST_RELEASE).root, Path(work.name) / "-release")
+        proc = ux.run_in(work.name, "--release-dir=-release", "bootstrap", str(repo))
+        self.assertEqual(proc.returncode, 2, proc.stderr)
+        commands = ux.manager_commands(proc.stderr)
+        self.assertTrue(commands)
+        for argv in commands:
+            self.assertIn("--release-dir=-release", argv)
+            self.assertTrue(ux.parses(argv), argv)
+
+    def release_dir(self, version):
+        work = tempfile.TemporaryDirectory()
+        self.addCleanup(work.cleanup)
+        directory = Path(work.name) / "release"
+        shutil.copytree(support.release(NEWEST_RELEASE).root, directory)
+        manifest = json.loads((directory / "manifest.json").read_text())
+        manifest["workflow_version"] = version
+        (directory / "manifest.json").write_text(json.dumps(manifest, indent=2))
+        return directory
+
+    def test_i3_repair_advice_for_a_scalar_release_version_is_executable(self):
+        for version in (123, True):
+            with self.subTest(version=version):
+                directory = self.release_dir(version)
+                repo = self.empty()
+                self.assertEqual(run("--release-dir", str(directory), "bootstrap", str(repo)).returncode, 0)
+                (repo / "scripts" / "workflow_state.py").write_text("# edited\n")
+                proc = run("--release-dir", str(directory), "verify", str(repo))
+                self.assertEqual(proc.returncode, 1, proc.stdout + proc.stderr)
+                commands = ux.manager_commands(proc.stdout)
+                self.assertTrue(commands)
+                for argv in commands:
+                    self.assertNotIn("--release-version", argv)
+                    self.assertIn("--release-dir", argv)
+                    self.assertTrue(ux.parses(argv), argv)
+                update = next(a for a in commands if "update" in a and "--dry-run" not in a)
+                again = run(*update[1:])
+                self.assertNotIn("holds release", again.stdout + again.stderr)
+                self.assertNotIn("Traceback", again.stdout + again.stderr)
+                self.assertEqual(again.returncode, 2, again.stdout + again.stderr)   # drift, not a crash
+                self.assertIn("modified: scripts/workflow_state.py", again.stdout + again.stderr)
+                at = update.index("update") + 1
+                forced = run(*update[1:at], "--force", *update[at:])
+                self.assertEqual(forced.returncode, 0, forced.stdout + forced.stderr)
+
+    def test_i3_a_scalar_version_without_its_release_dir_asks_for_one(self):
+        context = advice.Context(
+            args=argparse.Namespace(command="verify", target=Path("/t"), release_version=None,
+                                    release_source=None, release_cache=None, release_dir=None,
+                                    profile=None),
+            installed_version=123)
+        step = advice.problem_step(context, ["modified: scripts/x.py"])
+        self.assertIn("a release directory holding 123 is needed", step)
+        self.assertNotIn("--release-version", step)
+
+    def test_i4_an_unhashable_installed_version_is_a_damaged_record_not_a_traceback(self):
+        for value in ("[]", "{}", "[1]"):
+            with self.subTest(value=value):
+                repo = self.fresh()
+                text = (repo / RECORD).read_text()
+                (repo / RECORD).write_text(
+                    text.replace(f'"workflow_version": "{NEWEST_RELEASE}"',
+                                 f'"workflow_version": {value}'))
+                for argv in (("doctor",), ("verify",), ("status",), ("update", "--dry-run"),
+                             ("update",)):
+                    proc = run(*argv, str(repo))
+                    out = proc.stdout + proc.stderr
+                    self.assertNotIn("Traceback", out, argv)
+                    self.assertEqual(proc.returncode, 2, (argv, out))
+                    self.assertIn("is unreadable", out)
+                    self.assertTrue(next_lines(out), argv)
+
+    def test_i4_a_scalar_version_in_the_record_is_still_accepted(self):
+        from workflow_manager.installation import Installation
+        data = json.loads((self.fresh() / RECORD).read_text())
+        for version in (123, True, None, "x"):
+            data["workflow_version"] = version
+            self.assertEqual(Installation.from_dict(data).workflow_version, version)
 
 
 if __name__ == "__main__":

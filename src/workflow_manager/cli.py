@@ -414,7 +414,7 @@ def _readonly_destinations(args, installed: str | None) -> Destinations:
             versions.append(args.release_version or _default_version(args, pins))
         except ReleaseNotPublishedError:
             pass
-    if installed:
+    if installed and isinstance(installed, str):    # a number names no cache entry
         versions.append(installed)
     return plan_destinations(args, os.environ, args.target, versions)
 
@@ -495,6 +495,8 @@ def _installed_resolves(args, installed: str, destinations: Destinations) -> boo
     Always through the cache: `--release-dir` and `--manager-root` are not
     consulted, so an offline run with them may add a `not-verified` note.
     """
+    if not isinstance(installed, str):
+        return False        # a number or a boolean names no cache entry
     try:
         _cache(args, _pins()).resolve(
             installed, snapshot_parent=destinations.snapshot_parent, read_only=True).close()
