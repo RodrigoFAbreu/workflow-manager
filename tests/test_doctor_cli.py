@@ -406,8 +406,10 @@ class TestPrintedCommandExtractor(Base):
     def test_the_check_fails_when_the_extractor_skips_a_prefixed_line(self):
         line = "env GIT_NO_LAZY_FETCH=1 git -C /t --no-optional-locks rev-parse --git-dir"
         self.assertEqual(printed_commands("      " + line + "\n"), [(FAMILY_GIT, shlex.split(line))])
-        skipped = []          # what an extractor that only knew `git ` would return
-        self.assertNotEqual(skipped, [(FAMILY_GIT, shlex.split(line))])
+        def git_only(output):      # an extractor that only knew `git `
+            return [c for c in printed_commands(output) if c[1][0] == "git"]
+        self.assertEqual(git_only("      " + line + "\n"), [])
+        self.assertNotEqual(git_only("      " + line + "\n"), printed_commands("      " + line + "\n"))
 
 
 class TestPrintedCommands(Base):

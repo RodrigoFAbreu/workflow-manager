@@ -50,7 +50,7 @@ def inspection_commands(output: str) -> list[str]:
 def runnable(text: str) -> list[str]:
     """The argv of a printed command; a `REV` placeholder is a revision the
     operator picks, so the test picks HEAD."""
-    return shlex.split(text.replace(":.workflow-manager", ":.workflow-manager").replace(" REV:", " HEAD:"))
+    return shlex.split(text.replace(" REV:", " HEAD:"))
 
 
 def git_dir_hash(repo: Path) -> str:
@@ -431,6 +431,8 @@ class TestSameTextForEveryGitState(DataCase):
         self.assertNoWrite(base)
         for name, make in B_SCENARIOS.items():
             with self.subTest(name):
+                if name == "unreadable state":
+                    needs_permissions(self)
                 repo = self.fresh("r")
                 make(repo)
                 proc = self.go("verify", str(repo))
@@ -469,6 +471,8 @@ class TestSameTextForEveryGitState(DataCase):
     def test_the_printed_commands_write_nothing_and_still_reach_the_data(self):
         for name, make in B_SCENARIOS.items():
             with self.subTest(name):
+                if name == "unreadable state":
+                    needs_permissions(self)
                 repo = self.fresh("r")
                 make(repo)
                 before = tree_hash(repo)
@@ -772,6 +776,8 @@ class TestRecoveryWithholds(DataCase):
     def test_each_case_withholds_every_writing_command(self):
         for name, make in self.cases().items():
             with self.subTest(name):
+                if name == "unreadable state":
+                    needs_permissions(self)
                 repo = self.fresh("r")
                 make(repo)
                 self.check(repo)
@@ -779,6 +785,8 @@ class TestRecoveryWithholds(DataCase):
     def test_a_refused_drift_together_with_each_case_withholds_the_force_step_too(self):
         for name, make in self.cases().items():
             with self.subTest(name):
+                if name == "unreadable state":
+                    needs_permissions(self)
                 repo = self.fresh("r")
                 make(repo)
                 (repo / "scripts" / "workflow_state.py").write_text("# edited\n")
@@ -817,7 +825,6 @@ class TestSweepForCrashes(DataCase):
     """Every reachable case above, through every read command and the dry run."""
 
     def test_no_case_prints_a_traceback(self):
-        needs_permissions(self)
         cases = dict(B_SCENARIOS)
         cases["malformed state"] = lambda r: (r / STATE).write_text(MALFORMED)
         cases["malformed config, committed"] = lambda r: (
@@ -830,6 +837,8 @@ class TestSweepForCrashes(DataCase):
         cases["mixed missing"] = lambda r: TestMixedMissingTemplates().make(r, ("in the index",) * 3)
         for name, make in cases.items():
             with self.subTest(name):
+                if name == "unreadable state":
+                    needs_permissions(self)
                 repo = self.fresh("r")
                 make(repo)
                 self.addCleanup(lambda p=repo / STATE: p.exists() and p.chmod(0o644))
