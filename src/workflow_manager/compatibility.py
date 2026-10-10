@@ -1687,7 +1687,7 @@ def _with_steps(facts: RepositoryFacts, findings: list[Finding], *, refusal, tar
             installed = facts.installation.workflow_version if facts.installation else None
             verify = manager_command("verify", target=repo, withheld=False,
                                      options=facts.options_for(installed)).render()
-            detail += f" `{verify}` prints the actual cause."
+            detail += f" `{verify}` makes that comparison, or prints why it cannot."
         out.append(Finding(finding.severity, finding.id, finding.title, detail, commands))
     named = {m for f in out if f.id == _INCOMPLETE
              for m in _DATA_PATH_RE.findall(f.title + "\n" + f.detail)}

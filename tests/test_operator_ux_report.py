@@ -319,8 +319,27 @@ class TestReportSteps(ux.ReleaseCase):
                       proc.stdout)
         options = (f"--release-source {work / 'source'} --release-cache {work / 'cache'} "
                    f"--release-dir {release_dir}")
-        self.assertIn(f"`workflow-manager {options} verify {repo}` prints the actual cause.",
+        self.assertIn(f"`workflow-manager {options} verify {repo}` makes that comparison, or prints why it cannot.",
                       proc.stdout)
+
+    def test_the_not_verified_verify_step_is_true_when_verify_finds_nothing_wrong(self):
+        # Functional review round 2, 1: doctor resolves the installed release
+        # through the cache only, verify also through --release-dir, so the
+        # replayed verify can succeed; the note must not promise a printed cause.
+        repo = self.fresh()
+        work = self.workdir()
+        (work / "source").mkdir()
+        directory = self.release_dir()
+        proc = run("--release-cache", str(work / "cache"), "--release-source",
+                   str(work / "source"), "--release-dir", str(directory), "doctor", str(repo))
+        self.assertIn("[note] not-verified", proc.stdout)
+        self.assertNotIn("prints the actual cause", proc.stdout)
+        match = re.search(r"`(workflow-manager [^`]+ verify [^`]+)` makes that comparison, "
+                          r"or prints why it cannot\.", proc.stdout)
+        self.assertIsNotNone(match, proc.stdout)
+        replay = run(*shlex.split(match.group(1))[1:])
+        self.assertEqual(replay.returncode, 0, replay.stdout + replay.stderr)
+        self.assertIn("installation matches workflow", replay.stdout)
 
     def test_a_downgrade_says_what_to_run_instead(self):
         repo = self.fresh()
@@ -384,7 +403,7 @@ class TestReportSteps(ux.ReleaseCase):
         proc = run("--release-cache", str(work / "cache"), "--release-source", str(work / "source"),
                    "--release-dir", str(directory), "doctor", str(repo))
         self.assertIn("[note] not-verified", proc.stdout)
-        match = re.search(r"`(workflow-manager [^`]+ verify [^`]+)` prints the actual cause",
+        match = re.search(r"`(workflow-manager [^`]+ verify [^`]+)` makes that comparison, or prints why it cannot",
                           proc.stdout)
         self.assertIsNotNone(match, proc.stdout)
         argv = shlex.split(match.group(1))
