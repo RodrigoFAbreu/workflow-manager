@@ -17,7 +17,7 @@ state JSON; the two parked Update-ergonomics follow-ups are folded in
 
 ## Current checkpoint
 
-CP1, CP2, CP3 and CP4 complete.
+CP1, CP2, CP3, CP4 and CP5 complete.
 
 CP1: `advice.py` (`PROGRAM`, `DOCS_BASE`, `page`, `Context`, `next_step`, the
 class-keyed table, A1's global-option pattern), the predicate
@@ -90,8 +90,20 @@ entry was understood. `cmd_status` of a managed target validates its
 destinations through `_readonly_destinations` before resolving anything and
 ends 1 on a `ContainmentError` (the argued move of D-14); the unmanaged path
 is untouched. Its one `next:` line is the repair step, if any, then
-``workflow-manager doctor X` reports what an update would meet`` (T16). CP5 is
-not started.
+``workflow-manager doctor X` reports what an update would meet`` (T16).
+
+CP5 (verified: `tests/test_operator_ux_docs.py`, `tools/check_docs.py`, then the
+full gate `python3 tests/run_all.py`): the documentation. `common-problems.md`
+rows rewritten to the new messages and their `next:` steps (new rows for the
+argument errors, a missing directory, a newer-Manager record, the OSError and
+the `work in flight:` block), `exit-codes.md` (the `OSError` exit 1, the
+`status` move, the `--release-dir` and directory-in-the-way refusals, the
+traceback sentence replaced), `update.md` (`## Update the Manager`), `install.md`,
+`verify.md`, `README.md`, headers at Manager 1.8.0, and `ARCHITECTURE.md`'s
+"Operator messages". `tests/test_operator_ux_docs.py` checks that every
+message `common-problems.md` and `exit-codes.md` quote is in the real output of
+the case that raises it, that each row's fix names the `next:` step, and that
+the exit codes match. ROADMAP item 7 stays Next until acceptance.
 
 ## Current blockers
 
@@ -103,7 +115,7 @@ None.
 
 ## Next action
 
-Implement CP4-CP5 in order, one checkpoint per `/milestone-implement`. A `feat:` pull-request title releases
+All checkpoints complete: run `/milestone-implement` again to enter self-review and prepare the implementation bundle. A `feat:` pull-request title releases
 Manager 1.8.0.
 
 ## Previous milestone (complete): `workflow-manager-update-ergonomics`

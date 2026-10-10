@@ -1,6 +1,6 @@
 # Update
 
-> For: someone moving a repository to a newer Workflow release, or moving the Manager itself to a newer version. Last checked with: Workflow Manager 1.6.0, Workflow 2.9.0.
+> For: someone moving a repository to a newer Workflow release, or moving the Manager itself to a newer version. Last checked with: Workflow Manager 1.8.0, Workflow 2.9.1.
 
 Goal: bring a repository to the newest pinned Workflow release without losing its work-item state.
 
@@ -80,7 +80,7 @@ The report is advisory. It looks at the current state files and a few Git facts;
 
 ## Update the Manager
 
-If the Manager does not list the release you want, install the newest Manager release.
+Do this when a Manager message tells you to upgrade it: the Manager does not list the release you want (`release X is not published: this Manager has no pin for it`), or a repository's installation record `was written by a newer Manager`. Install the newest Manager release.
 
 ```bash
 dl=$(mktemp -d)
@@ -103,11 +103,12 @@ The temporary folder only holds the download; it is deleted once pipx has instal
 
 ## If it fails
 
-- `workflow-manager doctor` exits 2 with `is not a managed repository` or an error naming a release: it could not check. See [Common problems](common-problems.md).
-- `refusing to update: these release files were modified locally`: you edited a release file, and the Manager will not discard it silently. Save the edit elsewhere, then re-run with `--force` to replace the file with the release's.
+- `workflow-manager doctor` exits 2 with `is not a managed repository` or an error naming a release: it could not check. Read its `next:` line; see also [Common problems](common-problems.md).
+- `refusing to update: these release files were modified locally`: you edited a release file, and the Manager will not discard it silently. Keep a copy of every file a `modified:` line names, then re-run with `--force` to replace the file with the release's. `update --dry-run` previews it.
+- Every error ends with a `next:` line naming one step; run it first.
 - The update stopped half way: run the same command again. A resumed update does not need `--force`.
-- `is not a managed repository`: use [Install](install.md) instead.
-- A download error: see [Common problems](common-problems.md).
+- `is not a managed repository`: use [Install](install.md) instead (`workflow-manager bootstrap TARGET`).
+- A download error (`cannot fetch ...`): connect to the network once, or point `--release-source` at a mirror. See [Common problems](common-problems.md).
 - `--version` still shows an old number after updating the Manager: remove it and install the freshly downloaded wheel: `pipx uninstall workflow-manager`, then `pipx install <wheel>` (`pipx reinstall` reuses the saved wheel path, which may be gone, and `pipx install --force` can refuse with "a virtual environment already exists").
 
 Releases are listed in the [release history](release-history.md). The design is in [`ARCHITECTURE.md`](ARCHITECTURE.md#interruption).

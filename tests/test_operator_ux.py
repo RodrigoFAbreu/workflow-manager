@@ -1216,12 +1216,12 @@ class ReleaseCase(TargetCase):
             self.edit_manifest(directory, lambda m: m.update(workflow_version=version))
         return directory
 
-    def edit_manifest(self, directory, change):
-        path = Path(directory) / "manifest.json"
-        manifest = json.loads(path.read_text())
+    def edit_manifest(self, folder, change):
+        target = Path(folder) / "manifest.json"
+        manifest = json.loads(target.read_text())
         replacement = change(manifest)
-        path.write_text(json.dumps(replacement.value if isinstance(replacement, Replace)
-                                   else manifest))
+        target.write_text(json.dumps(replacement.value if isinstance(replacement, Replace)
+                                     else manifest))
 
 
 import json

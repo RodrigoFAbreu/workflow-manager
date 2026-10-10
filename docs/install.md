@@ -1,6 +1,6 @@
 # Install
 
-> For: someone setting up the Workflow Manager and putting the Workflow into a repository for the first time. Last checked with: Workflow Manager 1.7.0, Workflow 2.9.1.
+> For: someone setting up the Workflow Manager and putting the Workflow into a repository for the first time. Last checked with: Workflow Manager 1.8.0, Workflow 2.9.1.
 
 Goal: have the `workflow-manager` command on your machine and a repository that runs the Workflow.
 
@@ -84,10 +84,10 @@ A new installation (Workflow 2.8.0 or later) has no `docs/ai-workflow/GATE_POLIC
 
 ## If it fails
 
-- `is not a Git repository`: run `git init` in the target first.
-- `already managed`: the repository already has the Workflow. Use [Update](update.md) to change its release.
-- A list of files that collide: your repository already keeps its own file where a release file goes (`scripts/` and `.claude/commands/` are ordinary names). Move your files, or re-run with `--force` to replace them with the release's.
-- A download error with no network: the release is not in the cache yet. Connect once, or see [Common problems](common-problems.md).
+- `is not a Git repository` or `no directory at`: run `git init` in the target first (the `next:` line prints the command).
+- `is already managed`: the repository already has the Workflow. Use [Update](update.md) to change its release; `doctor` shows what that would do first.
+- `refusing to bootstrap` and a list of `occupied:` files: your repository already keeps its own file where a release file goes (`scripts/` and `.claude/commands/` are ordinary names). Move your files, or re-run with `--force` to replace them with the release's. A directory in the way is not replaced by `--force`; move it.
+- A download error with no network (`cannot fetch ...`): the release is not in the cache yet. Connect once, or see [Common problems](common-problems.md).
 - `workflow-manager: command not found`: run `pipx ensurepath` and open a new terminal.
 - `--version` shows `1.0.0` after an editable install: run `pipx reinstall workflow-manager` once.
 

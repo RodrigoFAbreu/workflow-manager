@@ -310,6 +310,12 @@ looked. A target recording an unpinned version needs `--release-dir` for
 `status` and `verify`; `status` still prints what it knows without it (the
 recorded version, profile, `source` and install time).
 
+## Operator messages
+
+`src/workflow_manager/advice.py` computes the step an operator takes after an error. `cli.main` prints the error's cause on stderr as `error: CAUSE`, then at most one `next: STEP` line. A raise site keeps only the cause; the step depends on the invocation (the command, the target, the global options), so it comes from a table in `advice.py` keyed by exception class and, where one class has several causes, by its `kind`. `next_step` never reads the filesystem or asks Git; the caller passes the facts it needs in a `Context`. A step names a command in backticks, a flag or a page (a full URL, since an installed wheel has no `docs/` folder), with upper-case placeholders instead of angle brackets so a pasted command parses. A command that writes Workflow data is withheld while the target holds Workflow data that is missing or could not be inspected (`writes_withheld`).
+
+The exit codes are the contract (`docs/exit-codes.md`); the message text is not. `tests/test_operator_ux_docs.py` checks that every message the user pages quote appears in the real output of the case that raises it.
+
 ## Boundaries this design keeps
 
 - Nothing in a release reads outside its own tree.
