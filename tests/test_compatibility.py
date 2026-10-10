@@ -251,7 +251,7 @@ class TestRendering(unittest.TestCase):
         self.assertEqual(shlex.split(render_command(argv)), argv)
 
     def test_global_release_version_goes_before_the_subcommand(self):
-        cmd = comp.manager_command("update", "/r", release_version="2.8.0")
+        cmd = comp.manager_command("update", release_version="2.8.0", target="/r", withheld=False)
         self.assertEqual(cmd.argv, ("workflow-manager", "--release-version", "2.8.0", "update", "/r"))
         self.assertEqual(cmd.argv[0], "workflow-manager")
 

@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "work_item_id": "workflow-manager-operator-ux",
+  "plan_revision": 14,
+  "checkpoints": [
+    {
+      "id": "CP1",
+      "name": "advice.py next-step machinery, the program name, help text for every command and option (doctor exit wording included), the global-option hint for argument errors, and the three page anchors every later `next:` links (`update.md#update-the-manager`, `common-problems.md#an-install-stopped-part-way`, `common-problems.md#repair-workflow-data-by-hand`)",
+      "depends_on": [],
+      "complexity": 3,
+      "session_target": 1
+    },
+    {
+      "id": "CP2",
+      "name": "Target, record and refusal messages: not-managed, not-a-repository, already-managed, record errors (an unknown profile included), drift and collision refusals, the --force directory refusal, the OSError message, the verify/status next lines with the workflow-data step (P1: no printed write for Workflow data, update and bootstrap withheld, prose re-runs included, while the target holds Workflow data and a state template is missing or any inspection is incomplete) and the command-specific option rule, success next lines",
+      "depends_on": [
+        "CP1"
+      ],
+      "complexity": 4,
+      "session_target": 1
+    },
+    {
+      "id": "CP3",
+      "name": "Release, source, cache, integrity, package (malformed manifest shapes included) and containment messages, with the kind values on the three error classes and doctor pass-through",
+      "depends_on": [
+        "CP1"
+      ],
+      "complexity": 4,
+      "session_target": 1
+    },
+    {
+      "id": "CP4",
+      "name": "Report findings next steps and the workflow-data step (Recovery section included), the reworded not-verified note, and the status work-in-flight block (fail closed on partial inspection) with status's destination containment",
+      "depends_on": [
+        "CP1",
+        "CP2"
+      ],
+      "complexity": 3,
+      "session_target": 1
+    },
+    {
+      "id": "CP5",
+      "name": "Documentation (common-problems, exit-codes, update, install, verify, README, ARCHITECTURE), the docs-versus-output test, ROADMAP and the full gate",
+      "depends_on": [
+        "CP2",
+        "CP3",
+        "CP4"
+      ],
+      "complexity": 3,
+      "session_target": 1
+    }
+  ]
+}

@@ -46,6 +46,30 @@ class CorruptInstallationError(RuntimeError):
     """The installation record exists but cannot be read as one."""
 
 
+class UnsupportedInstallationSchemaError(ValueError):
+    """The record's `schema_version` is not the one this Manager understands.
+    `value` is what the record holds; only an integer above `SCHEMA_VERSION`
+    means a newer Manager wrote it."""
+
+    def __init__(self, message: str, value=None):
+        super().__init__(message)
+        self.value = value
+
+    @property
+    def newer(self) -> bool:
+        return (isinstance(self.value, int) and not isinstance(self.value, bool)
+                and self.value > SCHEMA_VERSION)
+
+
+class NotInstalledError(FileNotFoundError):
+    """No installation record: the target is not a managed repository."""
+
+
+def not_managed_text(target) -> str:
+    """The cause every command gives for a target that is not managed."""
+    return f"{target} is not a managed repository (no {INSTALLATION_DIR}/{INSTALLATION_FILE})"
+
+
 def installation_path(target: Path) -> Path:
     return Path(target) / INSTALLATION_DIR / INSTALLATION_FILE
 
@@ -97,12 +121,15 @@ class Installation:
     @classmethod
     def from_dict(cls, data: dict) -> "Installation":
         if data.get("schema_version") != SCHEMA_VERSION:
-            raise ValueError(
+            raise UnsupportedInstallationSchemaError(
                 f"unsupported installation schema_version {data.get('schema_version')!r}; "
-                f"this workflow-manager understands {SCHEMA_VERSION}"
+                f"this workflow-manager understands {SCHEMA_VERSION}",
+                data.get("schema_version"),
             )
         if data.get("source") is not None and not isinstance(data["source"], dict):
             raise TypeError("source is not an object")
+        if isinstance(data.get("workflow_version"), (list, dict)):
+            raise TypeError("workflow_version is not a version")
         return cls(
             workflow_version=data["workflow_version"],
             profile=data["profile"],
@@ -137,20 +164,28 @@ class Installation:
     def read(cls, target: Path) -> "Installation":
         path = installation_path(target)
         if not path.exists():
-            raise FileNotFoundError(
-                f"{target} is not a managed repository (no {INSTALLATION_DIR}/{INSTALLATION_FILE})"
-            )
+            raise NotInstalledError(not_managed_text(target))
         try:
             data = json.loads(path.read_text())
             if not isinstance(data, dict):
                 raise TypeError("record is not a JSON object")
             return cls.from_dict(data)
-        except (json.JSONDecodeError, KeyError, TypeError) as error:
+        except UnsupportedInstallationSchemaError as error:
+            if error.newer:
+                raise UnsupportedInstallationSchemaError(
+                    f"the installation record at {path} was written by a newer Manager "
+                    f"(schema_version {error.value}; this one understands {SCHEMA_VERSION})",
+                    error.value) from error
             raise CorruptInstallationError(
-                f"the installation record at {path} is unreadable ({error}). "
-                f"Delete {INSTALLATION_DIR}/ and re-run bootstrap to reinstall; "
-                f"repository-local state is not stored there and is not affected."
+                f"the installation record at {path} is unreadable "
+                f"(unsupported schema_version {error.value!r})") from error
+        except IsADirectoryError as error:
+            raise CorruptInstallationError(
+                f"the installation record at {path} is unreadable ({path} is a directory)"
             ) from error
+        except (json.JSONDecodeError, UnicodeDecodeError, KeyError, TypeError) as error:
+            raise CorruptInstallationError(
+                f"the installation record at {path} is unreadable ({error})") from error
 
     # -- queries -----------------------------------------------------------
 

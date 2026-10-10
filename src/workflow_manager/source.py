@@ -66,11 +66,25 @@ _HEX64 = re.compile(r"[0-9a-f]{64}")
 
 
 class ReleaseNotPublishedError(InstallError):
-    """The version has no pin, so no package of it can be installed."""
+    """The version has no pin, so no package of it can be installed.
+
+    `kind` is `none-pinned` (the Manager pins nothing) or `unpinned`."""
+
+    def __init__(self, message: str = "", *, kind: str | None = None):
+        super().__init__(message)
+        self.kind = kind
 
 
 class ReleaseUnavailableError(InstallError):
-    """The package could not be fetched, and nothing usable is cached."""
+    """The package could not be fetched, and nothing usable is cached.
+
+    `kind` names the cause for `advice`; `version` and `source` are the facts
+    its step quotes (the release asked for, the source directory)."""
+
+    def __init__(self, message: str = "", *, kind: str | None = None,
+                 version: str | None = None, source: str | None = None):
+        super().__init__(message)
+        self.kind, self.version, self.source = kind, version, source
 
 
 def _log(message: str) -> None:
@@ -131,7 +145,8 @@ def load_pins(path: Path = PINS_PATH) -> Pins:
                     raise ValueError(f"{version}: digest {digest!r}")
             releases[version] = pin
     except (OSError, ValueError, KeyError, TypeError, AttributeError) as exc:
-        raise ReleaseIntegrityError(f"the pin file {path} is malformed: {exc}") from exc
+        raise ReleaseIntegrityError(f"the pin file {path} is malformed: {exc}",
+                                    kind="pin-file") from exc
     return Pins(repository=repository, releases=releases)
 
 
@@ -172,7 +187,8 @@ class _RedirectHandler(urllib.request.HTTPRedirectHandler):
         new = urllib.parse.urlsplit(newurl).scheme
         if old == "https" and new != "https":
             raise ReleaseUnavailableError(
-                f"refusing redirect from {req.full_url} to {newurl}: it drops https")
+                f"refusing redirect from {req.full_url} to {newurl}: it drops https",
+                kind="source-response")
         _check_url(newurl)
         return super().redirect_request(req, fp, code, msg, headers, newurl)
 
@@ -186,7 +202,8 @@ class ReleaseSource:
         if "://" in value:
             if "{version}" not in value:
                 raise ReleaseUnavailableError(
-                    f"release source {value!r} has no {{version}} field")
+                    f"release source {value!r} has no {{version}} field",
+                    kind="no-version-field")
             _check_url(value)
             self.directory = None
         else:
@@ -219,7 +236,12 @@ class ReleaseSource:
         except ReleaseUnavailableError:
             raise
         except (OSError, urllib.error.URLError, ValueError) as exc:
-            raise ReleaseUnavailableError(f"cannot fetch {where}: {exc}") from exc
+            raise ReleaseUnavailableError(
+                f"cannot fetch {where}: {exc}",
+                kind="fetch-directory" if self.directory is not None else "fetch-url",
+                version=version,
+                source=str(self.directory) if self.directory is not None else self.value,
+            ) from exc
 
 
 def _copy_capped(stream, dest: Path, where: str) -> None:
@@ -229,7 +251,7 @@ def _copy_capped(stream, dest: Path, where: str) -> None:
             total += len(chunk)
             if total > MAX_ASSET_BYTES:
                 raise ReleaseUnavailableError(
-                    f"{where} is larger than {MAX_ASSET_BYTES} bytes")
+                    f"{where} is larger than {MAX_ASSET_BYTES} bytes", kind="source-response")
             out.write(chunk)
 
 
@@ -238,7 +260,8 @@ def _parse_sums(path: Path) -> dict[str, str]:
     for line in path.read_text("utf-8", "replace").splitlines():
         match = re.fullmatch(r"([0-9a-f]{64})  (\S+)", line)
         if match is None:
-            raise ReleaseIntegrityError(f"{path.name} has a malformed line {line!r}")
+            raise ReleaseIntegrityError(f"{path.name} has a malformed line {line!r}",
+                                        kind="digest")
         sums[match.group(2)] = match.group(1)
     return sums
 
@@ -287,19 +310,25 @@ def _copy_snapshot(tree: Path, dir: Path | None = None) -> Path:
         manifest = json.loads((snapshot / MANIFEST_NAME).read_text())
         for record in manifest["artifacts"] + manifest["templates"]:
             location = record["location"]
+            if not isinstance(location, str):
+                raise ReleaseIntegrityError(
+                    f"manifest.json at {tree} is malformed: a location that is not text "
+                    f"({location!r})", kind="manifest-shape")
             parts = location.split("/")
             if location.startswith("/") or any(p in ("", ".", "..") for p in parts):
-                raise ReleaseIntegrityError(f"unsafe manifest location {location!r}")
+                raise ReleaseIntegrityError(f"unsafe manifest location {location!r}",
+                                            kind="local-release")
             source = tree / location
             if source.is_symlink():
-                raise ReleaseIntegrityError(f"{location} is a link")
+                raise ReleaseIntegrityError(f"{location} is a link", kind="local-release")
             dest = snapshot / location
             dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(source, dest)
             os.chmod(dest, 0o755 if record.get("executable") else 0o644)
     except (OSError, ValueError, KeyError, TypeError) as exc:
         shutil.rmtree(snapshot, ignore_errors=True)
-        raise ReleaseIntegrityError(f"cannot snapshot the release at {tree}: {exc}") from exc
+        raise ReleaseIntegrityError(f"cannot snapshot the release at {tree}: {exc}",
+                                    kind="local-release") from exc
     except BaseException:
         shutil.rmtree(snapshot, ignore_errors=True)
         raise
@@ -364,8 +393,7 @@ class ReleaseCache:
         if pin is None:
             raise ReleaseNotPublishedError(
                 f"release {version} is not published: this Manager has no pin for it "
-                f"(pinned: {', '.join(self.pins.versions()) or 'none'}). An unpublished "
-                f"release installs only from a local directory, with --release-dir.")
+                f"(pinned: {', '.join(self.pins.versions()) or 'none'})", kind="unpinned")
         return pin
 
     @contextmanager
@@ -382,7 +410,8 @@ class ReleaseCache:
         except OSError as exc:
             raise ReleaseUnavailableError(
                 f"cannot use the release cache {self.root}: {exc} "
-                f"(choose another with --release-cache or ${CACHE_ENV})") from exc
+                f"(choose another with --release-cache or ${CACHE_ENV})",
+                kind="cache-unusable") from exc
         with handle:
             fcntl.flock(handle, fcntl.LOCK_EX)
             try:
@@ -416,7 +445,7 @@ class ReleaseCache:
                 raise ReleaseUnavailableError(
                     f"cannot discard the cache entry {entry} ({why}): {exc}. Remove it "
                     f"by hand, or choose another cache with --release-cache or "
-                    f"${CACHE_ENV}") from exc
+                    f"${CACHE_ENV}", kind="cache-unusable") from exc
 
     def _fetch(self, pin: Pin) -> None:
         """Fetch, check and extract the package into a temporary sibling of
@@ -438,24 +467,26 @@ class ReleaseCache:
                 raise ReleaseIntegrityError(
                     f"release {version}'s archive does not match its pin: downloaded "
                     f"{archive_digest}, {SUMS_NAME} lists {sums.get(pin.archive)}, "
-                    f"the pin records {pin.sha256}")
+                    f"the pin records {pin.sha256}", kind="digest")
             manifest_digest = file_sha256(manifest)
             if manifest_digest != pin.manifest_sha256 or \
                     sums.get(manifest_name) != pin.manifest_sha256:
                 raise ReleaseIntegrityError(
                     f"release {version}'s manifest asset does not match its pin: downloaded "
                     f"{manifest_digest}, {SUMS_NAME} lists {sums.get(manifest_name)}, "
-                    f"the pin records {pin.manifest_sha256}")
+                    f"the pin records {pin.manifest_sha256}", kind="digest")
 
             extract_package(archive, staging / TREE_NAME, version)
             if file_sha256(staging / TREE_NAME / MANIFEST_NAME) != pin.manifest_sha256:
                 raise ReleaseIntegrityError(
-                    f"release {version}'s archive carries a manifest other than the pinned one")
+                    f"release {version}'s archive carries a manifest other than the pinned one",
+                    kind="digest")
             (staging / COMPLETE_NAME).write_text(pin.sha256 + "\n")
             os.rename(staging, self.entry(version))
         except OSError as exc:
             raise ReleaseUnavailableError(
-                f"cannot store release {version} in the cache {self.root}: {exc}") from exc
+                f"cannot store release {version} in the cache {self.root}: {exc}",
+                kind="cache-store") from exc
         finally:
             shutil.rmtree(staging, ignore_errors=True)
 
@@ -508,7 +539,7 @@ class ReleaseCache:
                 if attempt == 2:
                     raise ReleaseIntegrityError(
                         f"release {version}'s cache entry changed while it was being copied, "
-                        f"twice: {'; '.join(problems)}")
+                        f"twice: {'; '.join(problems)}", kind="cache-changed")
                 self._discard(entry, "it changed while it was being copied: "
                               + "; ".join(problems))
                 self._fetch(pin)
@@ -534,17 +565,26 @@ def local_release(directory: Path, requested_version: str | None, pins: Pins,
     try:
         version = Release(directory).version
     except (OSError, ValueError, KeyError, TypeError) as exc:
-        raise ReleaseIntegrityError(f"{directory} is not a release: {exc}") from exc
+        raise ReleaseIntegrityError(f"{directory} is not a release: {exc}",
+                                    kind="local-release") from exc
     if requested_version is not None and version != requested_version:
         raise ReleaseIntegrityError(
-            f"{directory} holds release {version}, not the requested {requested_version}")
+            f"{directory} holds release {version}, not the requested {requested_version}",
+            kind="local-release")
+    try:
+        hash(version)
+    except TypeError:
+        raise ReleaseIntegrityError(
+            f"manifest.json at {directory} is malformed: workflow_version is a "
+            f"{type(version).__name__}, not text", kind="manifest-shape") from None
     pin = pins.get(version)
     if pin is not None:
         actual = file_sha256(directory / MANIFEST_NAME)
         if actual != pin.manifest_sha256:
             raise ReleaseIntegrityError(
                 f"{directory} claims published release {version}, but its manifest.json "
-                f"has digest {actual} and the pin records {pin.manifest_sha256}")
+                f"has digest {actual} and the pin records {pin.manifest_sha256}",
+                kind="local-release")
         source = pins.source_record(version)
     else:
         source = {"kind": "local"}
@@ -553,7 +593,8 @@ def local_release(directory: Path, requested_version: str | None, pins: Pins,
     if problems:
         shutil.rmtree(snapshot, ignore_errors=True)
         raise ReleaseIntegrityError(
-            f"release {version} at {directory} fails verification: " + "; ".join(problems))
+            f"release {version} at {directory} fails verification: " + "; ".join(problems),
+            kind="local-release")
     if pin is not None:
         _log(f"using a local copy of published release {version} from {directory}")
     return SnapshotRelease(snapshot, source)

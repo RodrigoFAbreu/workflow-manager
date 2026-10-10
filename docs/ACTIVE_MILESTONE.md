@@ -2,6 +2,245 @@
 
 ## Milestone
 
+`workflow-manager-operator-ux` (`governing_workflow_version: "2.2"`,
+`process`, plan revision 14, base `218155d`, branch
+`milestone/workflow-manager-operator-ux`): roadmap item 7, Operator UX. The
+tool, not the documentation, tells an operator what to do next: every error,
+refusal, warning and note of the Manager CLI names its cause and one concrete
+next step (a command, a flag or a page), using the real program name and
+options; `status` shows the work in flight so an operator does not read the
+state JSON; the two parked Update-ergonomics follow-ups are folded in
+(`doctor --help`'s exit wording, the `not-verified` note). Exit codes stay as
+`docs/exit-codes.md` documents them, except the crashes that become refusals
+(plan D-5: T13, T18, T19 and T20, each a traceback's exit 1 becoming 2), `status` of a managed repository, which now exits 1 (not 0) where it cannot prove its writes stay outside the repository, Git unavailable included (plan D-14, C5; an unmanaged target still exits 0), and `doctor`, which exits 2 (not a traceback's 1) for a `--release-dir` manifest that crashes it today (plan D-15, R17); a manifest shape that succeeds today keeps its exit (D-16). Full plan:
+`docs/ai-workflow/WORKFLOW_MANAGER_OPERATOR_UX_PLAN.md`.
+
+## Current checkpoint
+
+**Milestone complete.** `workflow-manager-operator-ux` reached
+`MILESTONE_COMPLETE` through `/satisfy-gate acceptance` on 2026-10-10, by
+policy (the default gate policy; no person's decision), and
+`active_work_item_id` is cleared.
+- **Checkpoints:** CP1-CP5 are complete.
+- **Functional evidence:** flows ox-f1 to ox-f9 passed at `cd721cd` (run
+  `manager-orchestrator:runs/ox-functional-r3`).
+- **Pull request:** #26, CI green at `cd721cd` (the Workflow's own `gh` query).
+
+The checkpoint log below is this milestone's permanent record.
+
+CP1, CP2, CP3, CP4 and CP5 complete.
+
+CP1: `advice.py` (`PROGRAM`, `DOCS_BASE`, `page`, `Context`, `next_step`, the
+class-keyed table, A1's global-option pattern), the predicate
+`compatibility.writes_withheld`, `prog="workflow-manager"`, `help=` and
+descriptions for every command and option, and the anchors every later `next:`
+links.
+
+CP2 (verified: `tests/test_operator_ux.py`, `test_bootstrap.py`,
+`test_compatibility.py`, `test_doctor_cli.py`, `test_update_path.py`,
+`test_update_plan.py`, `test_read_only.py`, `test_docs.py`): T1 to T15 and T17
+to T20. New exceptions `TargetNotFoundError`, `NotAGitRepositoryError`,
+`UnknownProfileError`, `NotInstalledError` and
+`UnsupportedInstallationSchemaError` (with `newer`);
+`Installation.read` wraps `IsADirectoryError` and `UnicodeDecodeError` as a
+corrupt record and keeps every other `OSError` for the new `main` handler
+(exit 1, text chosen by `advice.writes_repository`). `bootstrap` and
+`plan_update` refuse, with or without `--force`, a directory at a release
+path, a file where a directory goes (any ancestor below the target) and a
+directory at the record or its `.tmp` (`install._blocked_paths`).
+`compatibility` gained `manager_command(withheld=...)`, `rerun_phrase`,
+`git_command(inspection=...)` (the `env GIT_NO_LAZY_FETCH=1` prefix),
+`git_init_command`, `holds_data`, `missing_templates`, `data_findings` and
+`data_files`; `advice` gained the row functions, `data_step` (P1),
+`problem_step` (T15), `success_step` (T17) and `needs_data`. `verify` and
+`status` print the problem step, `status` of an unmanaged target prints T7's
+step, `bootstrap` and `update` end with T17's. Known departure from the plan's
+wording: an ancestor file prints as `occupied: PATH (it is a file, not a
+directory)`. The Recovery section still called `manager_command(...,
+withheld=False)` at CP2; CP4 routed it through the predicate.
+
+CP3 (verified: `tests/test_operator_ux.py`, `test_bootstrap.py`,
+`test_release_source.py`, `test_manager_version.py`, `test_doctor_cli.py`,
+`test_read_only.py`, `test_docs.py`, `test_published_packages.py`,
+`test_compatibility.py`, `test_update_path.py`, `test_update_plan.py`): R1 to
+R14, R17 and C1 to C3. `ReleaseIntegrityError`, `ReleaseUnavailableError`,
+`ReleaseNotPublishedError` and `ContainmentError` carry a defaulted `kind`
+(`ReleaseUnavailableError` also `version` and `source`); `advice` keys one row
+per kind (`_by_kind`), and a kind with no row (the causes that already name
+their fix: R4's scheme refusal, R6) prints no `next:`. A row that reprints or
+re-runs the operator's command is a predicate row only when the command writes
+(`_WRITE_ROWS`). R2's and R12's embedded advice moved to `next:`, as did R1's.
+R17: `source.local_release` rejects an unhashable `workflow_version` and
+`_copy_snapshot` a non-text `location` as `kind="manifest-shape"`;
+`package.build_package` classifies the `TypeError`/`AttributeError`/`KeyError`
+crashes the same way and tags every other cause `package-build`;
+`extract_package` tags `package`. `doctor` prints the `next:` of the cause it
+could not resolve (C1). The manifest sweep (`TestManifestSweep`) asserts every
+cell of plan 3.3a by value. `status`'s containment (C5) is CP4's.
+
+CP4 (verified: `tests/test_operator_ux.py`, `test_operator_ux_report.py`,
+`test_read_only.py`, `test_compatibility.py`, `test_doctor_cli.py`,
+`test_bootstrap.py`): the report findings and `status`'s work-in-flight block.
+`compatibility.build_findings` appends each finding's step in a `What to do:`
+line (F-b to F-n; `steps=False` for `data_findings`, so the withholding
+predicate reads the findings, never their advice, and a test pins that the two
+agree). F-c steps go by the first matching rule: the P1 step for a Workflow
+data file, upgrade the Manager for an unknown `schema_version`, the Git check,
+else `doctor` again. A state template missing without any other finding gets
+its own `incomplete-inspection` finding, `a Workflow data file is missing`
+(`ACTIVE_MILESTONE.md` and the config were not read before, so a report could
+call a repository without them clean; `doctor` now exits 1 for it, the exit rule
+unchanged). F-b carries the `update --force` command as a finding command, or the
+directory text without it. `recovery_steps` withholds the update, `update
+--force`, the whole-tree undo and `git status` while `writes_withheld` is true
+and prints the stated line; slash commands stay. `not-verified` names the
+integrity-failure cause and `workflow-manager verify X`. `read_work_items`,
+`_item_core` (shared with `_read_items`) and `render_work_in_flight` give
+`status` its block, which says `none` only when the state was read and every
+entry was understood. `cmd_status` of a managed target validates its
+destinations through `_readonly_destinations` before resolving anything and
+ends 1 on a `ContainmentError` (the argued move of D-14); the unmanaged path
+is untouched. Its one `next:` line is the repair step, if any, then
+``workflow-manager doctor X` reports what an update would meet`` (T16).
+
+CP5 (verified: `tests/test_operator_ux_docs.py`, `tools/check_docs.py`, then the
+full gate `python3 tests/run_all.py`): the documentation. `common-problems.md`
+rows rewritten to the new messages and their `next:` steps (new rows for the
+argument errors, a missing directory, a newer-Manager record, the OSError and
+the `work in flight:` block), `exit-codes.md` (the `OSError` exit 1, the
+`status` move, the `--release-dir` and directory-in-the-way refusals, the
+traceback sentence replaced), `update.md` (`## Update the Manager`), `install.md`,
+`verify.md`, `README.md`, headers at Manager 1.8.0, and `ARCHITECTURE.md`'s
+"Operator messages". `tests/test_operator_ux_docs.py` checks that every
+message `common-problems.md` and `exit-codes.md` quote is in the real output of
+the case that raises it, that each row's fix names the `next:` step, and that
+the exit codes match. ROADMAP item 7 stays Next until acceptance.
+
+### Implementation review round 1 disposition
+
+I-1 and I-2 resolved by `tests/test_operator_ux_readonly.py` and an extended
+`printed_commands` in `tests/test_doctor_cli.py`. Deliberate omissions: plan
+section 4 (j)(1)-(4) and (6)-(9) beyond existing per-case tests; (g)'s marker
+lives outside `.git`, declarations are not in the printed-inspection loop, T8's
+`REV:` reader runs with `HEAD`; (i)(6)+(7) skips as root. O-4: reprinted
+commands drop `--force` by design.
+
+## Current blockers
+
+None. What remains: squash-merge pull request #26 under a `feat:` title (the
+owner's act); `main`'s full run then releases Manager 1.8.0.
+
+## Active plan
+
+None. The finished plan is
+`docs/ai-workflow/WORKFLOW_MANAGER_OPERATOR_UX_PLAN.md` (revision 14), copied
+to `docs/milestones/completed/`.
+
+## Next action
+
+Plan the next incomplete milestone in `docs/ROADMAP.md` with `/milestone-plan`
+once pull request #26 has merged.
+
+## Functional review checklist
+
+Technical approval: the latest technical approval (basis `POLICY_SATISFIED`;
+its commit and implementation revision are in `WORKFLOW_STATE.json`). You are
+testing the Manager CLI as an operator would: every error, refusal and note
+should say what happened and name one concrete next step. Put findings in
+`.ai-review/workflow-manager-operator-ux/feedback/FUNCTIONAL_REVIEW.md`.
+Automated verification is current as of implementation revision 10: only
+state and bundle-record commits landed after the last code fix (`600f6bd`,
+functional review round 2, finding 1). Since the first functional-review
+round the fixes are `33a62c9` (plain step for a record directory, options on
+`doctor` commands, next step for a bad command), review rounds 7 and 8 (each
+report command's `--release-dir` resolved against the version it uses; a
+failing `HEAD` inspection fails closed and finding re-checks keep
+`--release-version`) and `600f6bd` (the not-verified step is true when
+`verify` finds nothing wrong). Flows 5 and 7 below cover them.
+
+**Setup.** Python 3.12+, Git, a populated release cache, no network:
+
+```bash
+export M=~/Workspace/workflow-manager PYTHONPATH=~/Workspace/workflow-manager/src T=$(mktemp -d)
+export WORKFLOW_MANAGER_RELEASE_SOURCE='http://127.0.0.1:9/{version}/'   # unreachable: any download fails loudly
+wm() { python3 -m workflow_manager "$@"; }
+newrepo() { git init -q "$1" && git -C "$1" commit -q --allow-empty -m init; }
+snap() { (cd "$1" && find . -path ./.git -prune -o -type f -print0 | sort -z | xargs -0 sha256sum; find .git -type f -print0 | sort -z | xargs -0 sha256sum) | sha256sum; }
+```
+
+**Test data.** Scratch repositories under `$T`, created by the flows.
+
+**Flows.**
+
+1. **Not-managed targets.** `wm doctor $T/nowhere; echo rc=$?`, `wm doctor $T;
+   echo rc=$?`, `wm status $T; echo rc=$?`. Expected: each names the target
+   as not a managed repository and prints a `next:` line with
+   `workflow-manager bootstrap <that path>`. `doctor` exits 2, `status` of
+   an unmanaged target exits 0; no traceback.
+2. **Argument errors.** `wm bogus; echo rc=$?` and `wm bootstrap $T/r
+   --release-version 2.9.1; echo rc=$?`. Expected: argparse's usage line,
+   then a `next:` line that explains the fix (global options go before the
+   command, with the `workflow-manager [--release-version VERSION] bootstrap
+   TARGET` pattern and a link to `docs/exit-codes.md#global-options`);
+   `rc=2`. `wm --help` and `wm bootstrap --help` describe every command and
+   option, and show the program as `workflow-manager`.
+3. **Unpublished release.** `newrepo $T/r; wm --release-version 9.9.9
+   bootstrap $T/r; echo rc=$?`. Expected: a named refusal (no usable release,
+   as `docs/exit-codes.md` documents) with a `next:` step to upgrade the
+   Manager or use `--release-dir`; `rc=1`, nothing written (`ls -a $T/r`
+   shows only `.git`).
+4. **Install, then status shows work in flight.** `wm bootstrap $T/r; echo
+   rc=$?` then `wm status $T/r; echo rc=$?`. Expected: bootstrap ends with a
+   `next:` step (commit the install, then drive the Workflow). `status`
+   prints the installed release, a `work in flight:` block reading `none`,
+   and one `next:` line; `rc=0`, and `status` writes nothing
+   (`S=$(snap $T/r)` before and after are equal).
+5. **Directory in the way.** `newrepo $T/d; mkdir -p $T/d/.workflow-manager/installation.json;
+   wm bootstrap $T/d; echo rc=$?`, then the same with `--force`. Expected:
+   `the installation record at PATH is unreadable (PATH is a directory)`
+   (T20) with a `next:` step: the general unreadable-record step, `delete
+   ..., then run `workflow-manager --release-version V bootstrap $T/d`, with
+   V the release the repository was on (...); a bootstrap with no version
+   installs the newest release`. In a repository that never held a record the
+   printed `git log` lists nothing, so the "no version" clause applies; `rc=2`
+   both times (`--force` does not override the directory). `status`, `verify` and `doctor` print the same step.
+6. **Corrupt record.** Break `$T/r/.workflow-manager/installation.json`
+   (`echo '{' > ...`) and run `wm status $T/r`, `wm verify $T/r`, `wm doctor
+   $T/r`. Expected: a named corrupt-record message with a `next:` step; no
+   traceback; exit codes as documented in `docs/exit-codes.md`. Restore the
+   file from git afterwards.
+7. **Doctor report steps.** On an old install (`wm --release-version 2.5.1
+   bootstrap $T/o`, committed) run `wm doctor $T/o; echo rc=$?`. Expected:
+   each finding carries a step (a `What to do:` line or an unlabelled step,
+   as `gates-change` and `dirty-tree` give); `rc=1`. Dirty the tree
+   (`touch $T/o/x`): only the undo is withheld (`No undo command: ...`);
+   the update is withheld only for a Workflow-data problem.
+8. **Read-only repository.** `chmod -R a-w $T/o`; `wm doctor $T/o`, `wm
+   status $T/o`, `wm update $T/o --dry-run`. Expected: all work without a
+   permission error; then `chmod -R u+w $T/o`.
+9. **Docs match the tool.** `docs/common-problems.md` and `docs/exit-codes.md`
+   quote messages and exit codes; spot-check three rows against what you saw
+   above. Also automated: `python3 $M/tests/run_all.py --select
+   test_operator_ux_docs.py` ends `verdict: exit 0`.
+
+**Known limitations and out of scope.**
+- Exit codes are unchanged except the documented moves (plan D-5, D-14,
+  D-15): T13/T18/T19/T20 crashes now exit 2, `status` of a managed
+  repository that cannot prove containment (Git unavailable included) exits
+  1, and `doctor` of a crashing `--release-dir` manifest exits 2.
+- `doctor` and `--dry-run` write the release cache and one temporary
+  snapshot outside the repository; documented.
+- Reprinted commands drop `--force` by design (review O-4).
+- No change to the Workflow package contents or any pin.
+
+## Previous milestone (complete): `workflow-manager-update-ergonomics`
+
+The sections below, from this heading to the next `## Functional review
+checklist`, are the finished milestone's own top block, kept as its record.
+
+
+### Milestone
+
 `workflow-manager-update-ergonomics` (`governing_workflow_version: "2.2"`,
 `process`, plan revision 6 approved by policy, base `bb54c76`, branch
 `milestone/workflow-manager-update-ergonomics`): `workflow-manager doctor`
@@ -10,7 +249,7 @@ what an update would do and which Workflow guarantees it would cross,
 without writing the repository. Full plan:
 `docs/ai-workflow/WORKFLOW_MANAGER_UPDATE_ERGONOMICS_PLAN.md`.
 
-## Current checkpoint
+### Current checkpoint
 
 **Milestone complete.** `workflow-manager-update-ergonomics` reached
 `MILESTONE_COMPLETE` through `/satisfy-gate acceptance` on 2026-10-09, by
@@ -25,21 +264,22 @@ policy (the default gate policy; no person's decision), and
 
 The checkpoint log below is this milestone's permanent record.
 
-## Current blockers
+### Current blockers
 
 None. What remains: squash-merge pull request #22 under a `feat:` title (the
 owner's act); `main`'s full run then releases the Manager.
 
-## Active plan
+### Active plan
 
 None. The finished plan is
 `docs/ai-workflow/WORKFLOW_MANAGER_UPDATE_ERGONOMICS_PLAN.md` (revision 6),
 copied to `docs/milestones/completed/`.
 
-## Next action
+### Next action
 
 Plan the next incomplete milestone in `docs/ROADMAP.md` with
 `/milestone-plan` once pull request #22 has merged.
+
 
 ## Functional review checklist
 

@@ -1,15 +1,15 @@
 """Command-line entry point.
 
-    python3 -m workflow_manager status    <target>
-    python3 -m workflow_manager bootstrap <target> [--profile full|runtime] [--force]
-    python3 -m workflow_manager update    <target> [--profile ...] [--force] [--dry-run]
-    python3 -m workflow_manager doctor    <target>
-    python3 -m workflow_manager verify    <target>
-    python3 -m workflow_manager uninstall <target>
-    python3 -m workflow_manager releases
-    python3 -m workflow_manager package build <release-dir> --out <dir>
-    python3 -m workflow_manager package verify <archive> [--sha256 H]
-    python3 -m workflow_manager --version
+    workflow-manager status    <target>
+    workflow-manager bootstrap <target> [--profile full|runtime] [--force]
+    workflow-manager update    <target> [--profile ...] [--force] [--dry-run]
+    workflow-manager doctor    <target>
+    workflow-manager verify    <target>
+    workflow-manager uninstall <target>
+    workflow-manager releases
+    workflow-manager package build <release-dir> --out <dir>
+    workflow-manager package verify <archive> [--sha256 H]
+    workflow-manager --version
 
 Releases are published packages, pinned in the Manager's
 `published_releases.json` and fetched through a verified cache
@@ -40,12 +40,20 @@ from contextlib import nullcontext
 from importlib import metadata
 from pathlib import Path
 
+from . import advice
 from . import source as release_source
 from .compatibility import (
+    ContainmentError,
     Destinations,
+    data_files,
+    data_findings,
+    holds_data,
+    missing_templates,
     plan_destinations,
     read_repository,
+    read_work_items,
     render_report,
+    render_work_in_flight,
     build_report,
 )
 from .install import (
@@ -61,7 +69,7 @@ from .install import (
     update,
     verify,
 )
-from .installation import CorruptInstallationError, Installation, is_managed
+from .installation import CorruptInstallationError, Installation, is_managed, not_managed_text
 from .package import build_package, extract_package, file_sha256
 from .release import (
     INSTALL_PROFILE_FULL,
@@ -212,8 +220,7 @@ def _default_version(args, pins) -> str:
     versions = pins.versions() or list(_alias_releases(args))
     if not versions:
         raise ReleaseNotPublishedError(
-            "no Workflow release is published: this Manager pins none. Install an "
-            "unpackaged release with --release-dir <dir>.")
+            "no Workflow release is published: this Manager pins none", kind="none-pinned")
     return versions[-1]
 
 
@@ -229,7 +236,9 @@ def _resolve(args, version: str | None, destinations: Destinations | None = None
     pins = _pins()
     parent = destinations.snapshot_parent if destinations else None
     if args.release_dir is not None:
-        return local_release(args.release_dir, version, pins, parent)
+        release = local_release(args.release_dir, version, pins, parent)
+        args.resolved_release_dir_version = release.version
+        return release
     if version is None:
         version = _default_version(args, pins)
     candidates = _alias_releases(args)
@@ -275,6 +284,42 @@ def _print_record(target: Path) -> None:
     print(f"  installed at {installation.installed_at}, updated at {installation.updated_at}")
 
 
+def _context(args, *, with_data: bool = False) -> advice.Context:
+    """The facts a `next:` line needs that the error and `args` do not hold.
+
+    The installed version and source come from the record, best effort. The
+    Workflow data facts are cheap `lexists()` checks, except the full findings
+    list (it costs Git), which is computed only when `with_data` and the target
+    holds Workflow data."""
+    target = getattr(args, "target", None)
+    try:
+        cache = str(cache_root(getattr(args, "release_cache", None)))
+    except RuntimeError:    # no home directory: the cache path is only named in a step
+        cache = None
+    base = dict(args=args, release_dir_version=getattr(args, "resolved_release_dir_version", None),
+                cache_dir=cache)
+    if target is None:
+        return advice.Context(**base)
+    installed, local, recorded = None, False, False
+    try:
+        if is_managed(target):
+            record = Installation.read(target)
+            installed = record.workflow_version
+            recorded = True
+            local = bool(record.source) and record.source.get("kind") == "local"
+    except Exception:  # noqa: BLE001 -- best effort: a damaged record is the error itself
+        pass
+    holds, missing = holds_data(target), missing_templates(target)
+    findings, files = (), ()
+    if with_data and holds:
+        findings = data_findings(target)
+        files = data_files(target, missing, findings)
+    return advice.Context(installed_version=installed, installed_recorded=recorded,
+                          installed_local=local, holds_data=holds,
+                          missing_templates=missing, data_findings=findings, data_files=files,
+                          **base)
+
+
 def cmd_releases(args) -> int:
     pins = _pins()
     cache = ReleaseCache(cache_root(args.release_cache), None, pins)
@@ -297,19 +342,56 @@ def cmd_releases(args) -> int:
     return 0
 
 
+def _print_error(args, error, text=None) -> None:
+    """The cause on stderr, then the error's `next:` line when the table has one."""
+    print(text if text is not None else f"error: {error}", file=sys.stderr)
+    context = _context(args, with_data=advice.needs_data(error, args))
+    step = advice.next_step(error, context)
+    if step is not None:
+        print(f"next: {step}", file=sys.stderr)
+
+
+def _print_in_flight(args) -> None:
+    options, _ = advice._options(_context(args), None)
+    for line in render_work_in_flight(read_work_items(args.target), str(args.target), options):
+        print(line)
+
+
 def cmd_status(args) -> int:
-    try:
+    if not is_managed(args.target):
+        # Unchanged: nothing is resolved without --release-version, and no
+        # destination check or Git runs (3.5a, 3.6).
         release = _release_for_target(args)
+        with release if release is not None else nullcontext():
+            result = status(args.target, release)
+        print(result)
+        print(f"next: {advice.unmanaged_status_step(_context(args, with_data=True))}")
+        return 0
+    # A managed target: the record and the work in flight are read first, then the
+    # destinations are validated before anything is resolved, so `status` writes
+    # nothing in the repository or its `.git` directory (3.5a).
+    installed = Installation.read(args.target).workflow_version
+    try:
+        destinations = _readonly_destinations(args, installed)
+        release = _resolve(args, args.release_version or installed, destinations)
+    except ContainmentError as error:
+        _print_record(args.target)
+        _print_in_flight(args)
+        _print_error(args, error)
+        return 1
     except RELEASE_ERRORS:
-        if is_managed(args.target):
-            _print_record(args.target)
+        _print_record(args.target)
+        _print_in_flight(args)
         raise
-    with release if release is not None else nullcontext():
+    with release:
         result = status(args.target, release)
     print(result)
-    if not result.managed:
-        return 0
     print(f"  source: {_describe_source(Installation.read(args.target).source)}")
+    _print_in_flight(args)
+    context = _context(args, with_data=bool(result.problems))
+    step = advice.problem_step(context, result.problems)
+    doctor = advice.doctor_step(context)
+    print(f"next: {step + '; ' + doctor if step is not None else doctor}")
     return 0 if (result.verified and not result.problems) else 1
 
 
@@ -321,6 +403,7 @@ def cmd_bootstrap(args) -> int:
     print(f"  {len(installation.managed)} managed files, "
           f"{len(installation.generated)} state files, "
           f"{len(installation.merged)} merged files")
+    print(f"next: {advice.success_step(_context(args))}")
     return 0
 
 
@@ -334,7 +417,7 @@ def _readonly_destinations(args, installed: str | None) -> Destinations:
             versions.append(args.release_version or _default_version(args, pins))
         except ReleaseNotPublishedError:
             pass
-    if installed:
+    if installed and isinstance(installed, str):    # a number names no cache entry
         versions.append(installed)
     return plan_destinations(args, os.environ, args.target, versions)
 
@@ -376,6 +459,8 @@ def _compatibility_report(args, plan, refusal, release, installed_resolved: bool
     except ReleaseNotPublishedError:
         latest = None
     facts = read_repository(args.target)
+    context = _context(args)
+    facts.options_for = lambda version: advice._options(context, version)[0]
     return build_report(
         facts, plan, target_version=release.version, latest_version=latest,
         pinned_versions=versions, refusal=refusal, installed_resolved=installed_resolved,
@@ -393,7 +478,7 @@ def cmd_dry_run(args) -> int:
     """`update --dry-run`: the plan `update` would apply, printed; the same
     refusals (exit 2) as the real update, with the report printed first."""
     if not is_managed(args.target):
-        raise NotManagedError(f"{args.target} is not a managed repository; use bootstrap() first")
+        raise NotManagedError(not_managed_text(args.target))
     installed = Installation.read(args.target).workflow_version
     destinations = _readonly_destinations(args, installed)
     with _resolve(args, args.release_version, destinations) as release:
@@ -415,6 +500,8 @@ def _installed_resolves(args, installed: str, destinations: Destinations) -> boo
     Always through the cache: `--release-dir` and `--manager-root` are not
     consulted, so an offline run with them may add a `not-verified` note.
     """
+    if not isinstance(installed, str):
+        return False        # a number or a boolean names no cache entry
     try:
         _cache(args, _pins()).resolve(
             installed, snapshot_parent=destinations.snapshot_parent, read_only=True).close()
@@ -427,13 +514,16 @@ def cmd_doctor(args) -> int:
     """Report what an update would meet. Exit 0 with no blocked or warning
     finding, 1 with one, 2 when it could not check."""
     if not is_managed(args.target):
-        raise NotManagedError(f"{args.target} is not a managed repository; nothing to check")
+        raise NotManagedError(not_managed_text(args.target))
     installed = Installation.read(args.target).workflow_version
     destinations = _readonly_destinations(args, installed)
     try:
         release = _resolve(args, args.release_version, destinations)
     except RELEASE_ERRORS as error:
         print(f"error: could not resolve the target release: {error}", file=sys.stderr)
+        step = advice.next_step(error, _context(args))
+        if step is not None:
+            print(f"next: {step}", file=sys.stderr)
         return 2
     with release:
         plan, refusal = _plan_or_refusal(args, release)
@@ -453,13 +543,14 @@ def cmd_update(args) -> int:
         print(f"  {change}")
     if not changes:
         print("  (no change)")
+    print(f"next: {advice.success_step(_context(args))}")
     return 0
 
 
 def cmd_verify(args) -> int:
     release = _release_for_target(args)
     if release is None:
-        raise NotManagedError(f"{args.target} is not a managed repository; nothing to verify")
+        raise NotManagedError(not_managed_text(args.target))
     with release:
         problems = verify(args.target, release)
     if not problems:
@@ -468,6 +559,7 @@ def cmd_verify(args) -> int:
     print(f"{args.target}: {len(problems)} problem(s)")
     for problem in problems:
         print(f"  {problem}")
+    print(f"next: {advice.problem_step(_context(args, with_data=True), problems)}")
     return 1
 
 
@@ -487,7 +579,8 @@ def cmd_package(args) -> int:
     if args.sha256 is not None:
         actual = file_sha256(args.archive)
         if actual != args.sha256.lower():
-            raise ReleaseIntegrityError(f"{args.archive} has digest {actual}, not {args.sha256}")
+            raise ReleaseIntegrityError(f"{args.archive} has digest {actual}, not {args.sha256}",
+                                        kind="package")
     with tempfile.TemporaryDirectory(prefix="workflow-package-") as tmp:
         release = extract_package(args.archive, Path(tmp) / "tree")
         print(f"{args.archive}: release {release.version}, "
@@ -507,60 +600,157 @@ COMMANDS = {
 }
 
 
+class _Parser(argparse.ArgumentParser):
+    """Names the program `workflow-manager` in every message and, when a global
+    option was written after the command (A1), ends the error with the pattern
+    that puts it first. Subcommand parsers are instances of it too."""
+
+    def parse_args(self, args=None, namespace=None):
+        self._argv = list(sys.argv[1:] if args is None else args)
+        return super().parse_args(args, namespace)
+
+    def _command_word(self) -> str | None:
+        """The first word of the arguments that is a subcommand: not an option,
+        and not the value of one of the global options before it."""
+        valued = {option for option, _ in advice.GLOBAL_OPTIONS} | {"--manager-root"}
+        skip = False
+        for token in getattr(self, "_argv", []):
+            if skip:
+                skip = False
+            elif token in valued:
+                skip = True
+            elif not token.startswith("-"):
+                return token if token in COMMANDS else None
+        return None
+
+    def error(self, message):
+        self.print_usage(sys.stderr)
+        self.exit(2, f"{self.prog}: error: {message}\n" + self._hint(message))
+
+    def _hint(self, message: str) -> str:
+        if message.startswith(("argument COMMAND: invalid choice:",
+                               "the following arguments are required: COMMAND")):
+            return f"next: {advice.command_step()}\n"
+        prefix = "unrecognized arguments: "
+        if not message.startswith(prefix):
+            return ""
+        misplaced = advice.misplaced_global_options(message[len(prefix):].split())
+        if not misplaced:
+            return ""
+        return f"next: {advice.global_option_step(misplaced, self._command_word())}\n"
+
+
+_GLOBAL_OPTIONS_NOTE = "Global options go before the command."
+
+_EXIT_CODES = (
+    "Exit codes: 0 succeeded; 1 a problem was found, or no usable release; 2 the command "
+    "line did not parse, or the command refused to run. The table per command is at "
+    + advice.page("exit-codes.md") + ".")
+
+
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        prog="workflow_manager", description=__doc__,
+    parser = _Parser(
+        prog=advice.PROGRAM, description=__doc__,
+        epilog=_GLOBAL_OPTIONS_NOTE + " " + _EXIT_CODES,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--manager-root", type=Path, default=None,
                         help="deprecated: a workflow-manager checkout holding "
                              "distribution/workflow/<version>/")
     parser.add_argument("--version", action=_VersionAction)
-    parser.add_argument("--release-version", default=None)
+    parser.add_argument("--release-version", default=None,
+                        help="the Workflow release to use; goes before the command "
+                             "(default: bootstrap and update use the newest published "
+                             "release, status and verify the release the target records)")
     parser.add_argument("--release-source", default=None,
                         help="where packages come from: a URL template with {version}, "
                              f"or a directory of <version>/ (default: ${release_source.SOURCE_ENV}, "
-                             "else the published releases)")
+                             "else the published releases); goes before the command")
     parser.add_argument("--release-cache", default=None,
                         help=f"the release cache directory (default: ${release_source.CACHE_ENV}, "
-                             "else the user cache directory)")
+                             "else the user cache directory); goes before the command")
     parser.add_argument("--release-dir", type=Path, default=None,
-                        help="install an unpackaged release directory instead of a package")
-    sub = parser.add_subparsers(dest="command", required=True)
+                        help="install an unpackaged release directory instead of a package; "
+                             "goes before the command")
+    sub = parser.add_subparsers(dest="command", required=True, metavar="COMMAND")
 
-    sub.add_parser("releases", help="list published releases")
+    def command(name, summary, description):
+        return sub.add_parser(name, help=summary, description=description + " " + _EXIT_CODES,
+                              epilog=_GLOBAL_OPTIONS_NOTE)
 
-    p = sub.add_parser("package", help="build or verify a Workflow release package")
-    package_sub = p.add_subparsers(dest="package_command", required=True)
-    q = package_sub.add_parser("build")
-    q.add_argument("release_dir", type=Path)
-    q.add_argument("--out", type=Path, required=True)
-    q = package_sub.add_parser("verify")
-    q.add_argument("archive", type=Path)
-    q.add_argument("--sha256", default=None)
+    p = command("releases", "list published releases",
+                "List the Workflow releases this Manager pins and whether each is in the "
+                "release cache. Reads the pin file and the cache; writes nothing. "
+                "Exit 0 when it lists.")
 
-    p = sub.add_parser("doctor", help="report what an update would meet in a repository",
-                       description="Read a repository and report what an update would do and "
-                                   "which Workflow guarantees it would cross. Writes the release "
-                                   "cache and a temporary snapshot outside the repository, never "
-                                   "the repository. Exit 0: nothing found; 1: warnings; 2: could "
-                                   "not check.")
-    p.add_argument("target", type=Path)
+    p = command("package", "build or verify a Workflow release package",
+                "`package build DIR --out OUT` writes a release directory's package, its "
+                "manifest asset and SHA256SUMS to OUT. `package verify ARCHIVE [--sha256 H]` "
+                "checks an archive against its manifest, and against H when given, in a "
+                "temporary directory. Neither touches a repository. Exit 0 when it finishes, "
+                "1 when the directory or archive is not a valid release.")
+    package_sub = p.add_subparsers(dest="package_command", required=True, metavar="ACTION")
+    q = package_sub.add_parser("build", help="build a package from a release directory",
+                               description="Build the package, its manifest asset and "
+                                           "SHA256SUMS from a release directory (the one "
+                                           "holding manifest.json) into --out.")
+    q.add_argument("release_dir", type=Path, help="the release directory holding manifest.json")
+    q.add_argument("--out", type=Path, required=True, help="where to write the three files")
+    q = package_sub.add_parser("verify", help="check a package archive",
+                               description="Extract the archive into a temporary directory and "
+                                           "check every file against its manifest.")
+    q.add_argument("archive", type=Path, help="the package archive to check")
+    q.add_argument("--sha256", default=None, help="also require the archive to have this digest")
+
+    p = command("doctor", "report what an update would meet in a repository",
+                "Read a repository and report what an update would do and which Workflow "
+                "guarantees it would cross. Writes the release cache and a temporary snapshot "
+                "outside the repository, never the repository. Exit 0: no blocked or warning "
+                "finding (notes alone still exit 0); 1: a blocked or warning finding, an "
+                "incomplete inspection included; 2: could not check.")
+    p.add_argument("target", type=Path, help="the managed repository to inspect")
     p.set_defaults(profile=None, force=False)
 
-    for name in ("status", "verify", "uninstall"):
-        p = sub.add_parser(name)
-        p.add_argument("target", type=Path)
+    p = command("status", "show a repository's installation and whether it is intact",
+                "Print the release a managed repository records, its source, and whether its "
+                "files match that release. Writes nothing in the repository. Exit 0: intact, "
+                "or not managed; 1: problems found or no usable release; 2: the record is "
+                "unreadable.")
+    p.add_argument("target", type=Path, help="the repository to look at")
 
-    p = sub.add_parser("bootstrap")
-    p.add_argument("target", type=Path)
-    p.add_argument("--profile", choices=INSTALL_PROFILES, default=INSTALL_PROFILE_FULL)
+    p = command("verify", "check that a repository matches its installed release",
+                "Compare a managed repository's installed files with its release and list "
+                "every difference. Writes nothing. Exit 0: matches; 1: problems found or no "
+                "usable release; 2: the repository is not managed or its record is unreadable.")
+    p.add_argument("target", type=Path, help="the managed repository to check")
+
+    p = command("uninstall", "remove the files the Manager installed",
+                "Remove the files the installation record lists and the record itself. "
+                "Repository-local state (WORKFLOW_STATE.json, ACTIVE_MILESTONE.md and the like) "
+                "is kept. Exit 0: removed; 2: the repository is not managed or its record is "
+                "unreadable.")
+    p.add_argument("target", type=Path, help="the managed repository to uninstall")
+
+    p = command("bootstrap", "install the Workflow into a Git repository",
+                "Install a Workflow release into a Git repository that is not yet managed: the "
+                "release's files, blank state templates where none exist, the merged "
+                "CLAUDE.md and .gitignore entries, and the installation record. Writes the "
+                "repository. Exit 0: installed; 2: refused (not a repository, already "
+                "managed, files in the way).")
+    p.add_argument("target", type=Path, help="the Git repository to install into")
+    p.add_argument("--profile", choices=INSTALL_PROFILES, default=INSTALL_PROFILE_FULL,
+                   help="which files to install (default: %(default)s)")
     p.add_argument("--force", action="store_true",
                    help="overwrite files the repository already keeps at release paths")
 
-    p = sub.add_parser("update")
-    p.add_argument("target", type=Path)
-    p.add_argument("--profile", choices=INSTALL_PROFILES, default=None)
+    p = command("update", "move a managed repository to another release",
+                "Move a managed repository to the newest published release, or to "
+                "--release-version (which goes before the command). Writes the repository "
+                "unless --dry-run. Exit 0: updated; 2: refused (not managed, files edited "
+                "locally, paths in use).")
+    p.add_argument("target", type=Path, help="the managed repository to update")
+    p.add_argument("--profile", choices=INSTALL_PROFILES, default=None,
+                   help="which files to install (default: the one the record names)")
     p.add_argument("--force", action="store_true",
                    help="overwrite managed files that were modified locally")
     p.add_argument("--dry-run", action="store_true",
@@ -574,24 +764,24 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.manager_root is not None:
         print(MANAGER_ROOT_DEPRECATION, file=sys.stderr)
+
+    def fail(error, code, text=None):
+        _print_error(args, error, text)
+        return code
+
     try:
         return COMMANDS[args.command](args)
     except RELEASE_ERRORS as error:
-        print(f"error: {error}", file=sys.stderr)
-        return 1
-    except DriftError as error:
-        print(str(error), file=sys.stderr)
-        print("\nre-run with --force to discard those local edits", file=sys.stderr)
-        return 2
-    except CollisionError as error:
-        print(str(error), file=sys.stderr)
-        print("\nre-run with --force to replace those files with the release's",
-              file=sys.stderr)
-        return 2
+        return fail(error, 1)
+    except (DriftError, CollisionError) as error:
+        # These two print without the `error:` prefix: their first words are
+        # quoted by the documentation.
+        return fail(error, 2, text=str(error))
     except (AlreadyManagedError, NotManagedError, InstallError, CorruptInstallationError,
             FileNotFoundError, ValueError) as error:
-        print(f"error: {error}", file=sys.stderr)
-        return 2
+        return fail(error, 2)
+    except OSError as error:
+        return fail(error, 1)
 
 
 if __name__ == "__main__":

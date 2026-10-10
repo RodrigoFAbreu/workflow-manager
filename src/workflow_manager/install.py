@@ -36,9 +36,15 @@ from __future__ import annotations
 import shutil
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
-from .installation import INSTALLATION_DIR, Installation, is_managed
+from .installation import (
+    INSTALLATION_DIR,
+    INSTALLATION_FILE,
+    Installation,
+    is_managed,
+    not_managed_text,
+)
 from .release import (
     CLAUDE_TEMPLATE,
     GITIGNORE_TEMPLATE,
@@ -63,6 +69,18 @@ class AlreadyManagedError(InstallError):
 
 class NotManagedError(InstallError):
     pass
+
+
+class TargetNotFoundError(InstallError):
+    """The target path is not a directory."""
+
+
+class NotAGitRepositoryError(InstallError):
+    """The target is not the top of a Git repository (no `.git` in it)."""
+
+
+class UnknownProfileError(InstallError):
+    """The installation record names an install profile this Manager lacks."""
 
 
 class CollisionError(InstallError):
@@ -238,19 +256,55 @@ def _other_written_paths(release: Release) -> set[str]:
     return {t["target_path"] for t in release.state_templates()} | {".gitignore", "CLAUDE.md"}
 
 
-def _blocked_paths(target: Path, paths: set[str]) -> list[Drift]:
-    """Paths an operation must write through that are not files.
+#: The record and the temporary file it is written through: paths every
+#: `bootstrap` and `update` writes, though they are neither release files nor
+#: state templates.
+RECORD_PATH = f"{INSTALLATION_DIR}/{INSTALLATION_FILE}"
+RECORD_TMP_PATH = RECORD_PATH + ".tmp"
 
-    Nothing here can write a file where a directory stands, so the operation
-    says so up front instead of failing part-way through. Unlike a collision,
-    this is not something `force` can decide its way past.
+
+def _blocked_paths(target: Path, paths: set[str]) -> list[Drift]:
+    """Paths an operation must write through that cannot be written, whatever
+    `force` says.
+
+    Nothing here can write a file where a directory stands, or create a
+    directory below a file, so the operation says so up front instead of failing
+    part-way with a traceback. Unlike a collision, this is not something `force`
+    can decide its way past. A path is blocked when it is not a file, or when an
+    ancestor of it below the target exists and is not a directory. The record
+    and its `.tmp` sibling are scanned too: only a directory at either is
+    refused (a regular file at the `.tmp` is the leftover of an interrupted
+    write, which the next write overwrites).
     """
-    found = []
-    for rel in sorted(paths):
+    found: list[Drift] = []
+    seen_ancestors: set[str] = set()
+    for rel in sorted(paths | {RECORD_PATH, RECORD_TMP_PATH}):
         path = target / rel
-        if path.exists() and not path.is_file():
+        for ancestor in reversed(PurePosixPath(rel).parents):
+            name = str(ancestor)
+            if name == "." or name in seen_ancestors:
+                continue
+            blocking = target / name
+            if blocking.exists() and not blocking.is_dir():
+                seen_ancestors.add(name)
+                found.append(Drift(name, "occupied", "it is a file, not a directory"))
+        if rel in (RECORD_PATH, RECORD_TMP_PATH):
+            if path.is_dir():
+                found.append(Drift(rel, "occupied", "a directory is in the way"))
+        elif path.exists() and not path.is_file():
             found.append(Drift(rel, "occupied", "a directory is in the way"))
     return found
+
+
+def _merge_refusals(collisions: list[Drift], blocked: list[Drift]) -> list[Drift]:
+    """The collisions, then the blocked paths they do not already list."""
+    listed = {(d.path, d.kind) for d in collisions}
+    merged = list(collisions)
+    for d in blocked:
+        if (d.path, d.kind) not in listed:
+            merged.append(d)
+            listed.add((d.path, d.kind))
+    return merged
 
 
 def drift(target: Path, release: Release) -> list[Drift]:
@@ -324,20 +378,21 @@ def bootstrap(target: Path, release: Release, profile: str = INSTALL_PROFILE_FUL
     if profile not in INSTALL_PROFILES:
         raise InstallError(f"unknown install profile {profile!r}")
     if not target.is_dir():
-        raise InstallError(f"no directory at {target}")
+        raise TargetNotFoundError(f"no directory at {target}")
     if not (target / ".git").exists():
-        raise InstallError(f"{target} is not a Git repository")
+        raise NotAGitRepositoryError(f"{target} is not a Git repository")
     if is_managed(target):
         # Reading it first means a damaged record reports itself, with the
         # remedy, instead of being turned away with advice that cannot work.
-        Installation.read(target)
+        installed = Installation.read(target)
         raise AlreadyManagedError(
-            f"{target} is already managed; use update() to move it to another release"
+            f"{target} is already managed (workflow {installed.workflow_version} is installed)"
         )
 
     incoming = {a.target_path: a for a in release.installable(profile)}
     occupied = [] if force else _collisions(target, incoming)
-    occupied += _blocked_paths(target, _other_written_paths(release))
+    occupied = _merge_refusals(
+        occupied, _blocked_paths(target, set(incoming) | _other_written_paths(release)))
     if occupied:
         raise CollisionError(
             "refusing to bootstrap: the repository already has its own file at these "
@@ -480,13 +535,13 @@ def plan_update(target: Path, release: Release, profile: str | None = None,
     """
     target = Path(target)
     if not is_managed(target):
-        raise NotManagedError(
-            f"{target} is not a managed repository; use bootstrap() first"
-        )
+        raise NotManagedError(not_managed_text(target))
     current = Installation.read(target)
+    from_record = profile is None
     profile = profile or current.profile
     if profile not in INSTALL_PROFILES:
-        raise InstallError(f"unknown install profile {profile!r}")
+        raise (UnknownProfileError if from_record else InstallError)(
+            f"unknown install profile {profile!r}")
 
     incoming = {a.target_path: a for a in release.installable(profile)}
 
@@ -498,10 +553,10 @@ def plan_update(target: Path, release: Release, profile: str | None = None,
             modified,
         )
     occupied = [] if force else _collisions(target, incoming, already_ours=set(current.managed))
-    occupied += _blocked_paths(
+    occupied = _merge_refusals(occupied, _blocked_paths(
         target,
-        _other_written_paths(release) | (set(current.managed) - set(incoming)),
-    )
+        set(incoming) | _other_written_paths(release) | (set(current.managed) - set(incoming)),
+    ))
     if occupied:
         raise CollisionError(
             "refusing to update: this release needs paths the repository is using for "
@@ -656,7 +711,7 @@ class Status:
 
     def __str__(self) -> str:
         if not self.managed:
-            return "not a managed repository"
+            return f"not a managed repository (no {INSTALLATION_DIR}/{INSTALLATION_FILE})"
         head = f"workflow {self.workflow_version} ({self.profile} profile)"
         if self.problems:
             return f"{head} — {len(self.problems)} problem(s):\n  " + "\n  ".join(self.problems)

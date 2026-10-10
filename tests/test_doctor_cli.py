@@ -270,7 +270,7 @@ class TestDryRun(Base):
         real = run("update", str(real_repo))
         self.assertEqual((dry.returncode, real.returncode), (2, 2))
         self.assertEqual(dry.stderr.replace(str(dry_repo), "R"), real.stderr.replace(str(real_repo), "R"))
-        self.assertIn("re-run with --force", dry.stderr)
+        self.assertIn("update --force", dry.stderr)
         self.assertIn("refused-drift", dry.stdout)
 
     def test_a_drifted_repository_with_an_unresolvable_installed_release_reports_both(self):
@@ -318,8 +318,13 @@ class TestDryRun(Base):
         repo = self.fresh()
         dry = run("--release-version", "9.9.9", "update", str(repo), "--dry-run")
         real = run("--release-version", "9.9.9", "update", str(repo))
-        self.assertEqual((dry.returncode, dry.stderr), (real.returncode, real.stderr))
+        # The cause and the exit are the same; each `next:` line reprints the
+        # command that was run, so only that line differs.
+        causes = lambda proc: [l for l in proc.stderr.splitlines() if not l.startswith("next: ")]
+        self.assertEqual((dry.returncode, causes(dry)), (real.returncode, causes(real)))
         self.assertEqual(dry.returncode, 1)
+        self.assertIn(f"--release-dir DIR update --dry-run {repo}`", dry.stderr)
+        self.assertIn(f"--release-dir DIR update {repo}`", real.stderr)
 
     def test_help_says_where_the_commands_write(self):
         for argv in (["doctor", "--help"], ["update", "--help"]):
@@ -336,8 +341,13 @@ LEGACY_STATE = {"schema_version": 1, "active_work_item_id": None, "work_items": 
                  "governing_workflow_version": "1", "parent_work_item_id": None}}}
 
 
+NO_LAZY_PREFIX = ["env", "GIT_NO_LAZY_FETCH=1"]
+
+
 def printed_commands(output: str) -> list[tuple[str, list[str]]]:
-    """(family, argv) for every indented command line of a report."""
+    """(family, argv) for every indented command line of a report. A line that
+    starts with `env GIT_NO_LAZY_FETCH=1 git` is a Git-family argv, prefix
+    included: it runs as printed."""
     found = []
     for line in output.splitlines():
         text = line.strip()
@@ -345,11 +355,61 @@ def printed_commands(output: str) -> list[tuple[str, list[str]]]:
             continue
         if text.startswith("workflow-manager "):
             found.append((FAMILY_MANAGER, shlex.split(text)))
-        elif text.startswith("git "):
+        elif text.startswith("git ") or text.startswith("env GIT_NO_LAZY_FETCH=1 git "):
             found.append((FAMILY_GIT, shlex.split(text)))
         elif text.startswith("/"):
             found.append((FAMILY_SLASH, shlex.split(text)))
     return found
+
+
+class TestPrintedCommandExtractor(Base):
+    """Plan 3.1 and (j)(10): the extractor returns every prefixed inspection
+    command as a Git-family argv, and a printed inspection command without the
+    prefix is a failure."""
+
+    INSPECTION = ("log", "show", "rev-parse")
+
+    def inline_git(self, text: str) -> list[str]:
+        return [c for c in re.findall(r"`([^`]+)`", text)
+                if c.startswith(("git ", "env GIT_NO_LAZY_FETCH=1 git "))]
+
+    def assert_prefixed(self, commands):
+        for text in commands:
+            words = shlex.split(text)
+            if any(w in self.INSPECTION for w in words[:8]):
+                self.assertEqual(words[:3], NO_LAZY_PREFIX + ["git"], f"unprefixed inspection: {text}")
+
+    def test_a_prefixed_line_is_a_git_family_argv_and_is_never_skipped(self):
+        line = "      env GIT_NO_LAZY_FETCH=1 git -C '/t/a b' --no-optional-locks rev-parse --git-dir"
+        found = printed_commands("heading\n" + line + "\n      git -C /t status --short\n")
+        self.assertEqual(len(found), 2)
+        self.assertEqual(found[0], (FAMILY_GIT, shlex.split(line)))
+        self.assertEqual(found[0][1][:3], ["env", "GIT_NO_LAZY_FETCH=1", "git"])
+
+    def test_every_inline_inspection_command_of_a_real_report_is_extracted_and_prefixed(self):
+        repo = self.fresh("weird")
+        (repo / STATE.replace("WORKFLOW_STATE", "WORKFLOW_CONFIG")).unlink()
+        out = run("doctor", str(repo)).stdout
+        inline = self.inline_git(out)
+        self.assertTrue(inline, out)
+        self.assert_prefixed(inline)
+        for text in inline:
+            found = printed_commands("      " + text + "\n")
+            self.assertEqual(found, [(FAMILY_GIT, shlex.split(text))], text)
+            self.assertEqual(subprocess.run(found[0][1], capture_output=True,
+                                            env=cli_env()).returncode, 0, text)
+
+    def test_the_check_fails_on_an_unprefixed_inspection_command(self):
+        with self.assertRaises(AssertionError):
+            self.assert_prefixed(["git -C /t --no-optional-locks --no-pager log --oneline -- x"])
+
+    def test_the_check_fails_when_the_extractor_skips_a_prefixed_line(self):
+        line = "env GIT_NO_LAZY_FETCH=1 git -C /t --no-optional-locks rev-parse --git-dir"
+        self.assertEqual(printed_commands("      " + line + "\n"), [(FAMILY_GIT, shlex.split(line))])
+        def git_only(output):      # an extractor that only knew `git `
+            return [c for c in printed_commands(output) if c[1][0] == "git"]
+        self.assertEqual(git_only("      " + line + "\n"), [])
+        self.assertNotEqual(git_only("      " + line + "\n"), printed_commands("      " + line + "\n"))
 
 
 class TestPrintedCommands(Base):
@@ -382,8 +442,14 @@ class TestPrintedCommands(Base):
             self.assertEqual(ns.target, repo)
             self.assertIn(ns.command, ("update", "doctor"))
         elif family == FAMILY_GIT:
-            self.assertEqual(words[:3], ["git", "-C", str(repo)])
-            self.assertEqual(git(repo, *words[3:], check=False).returncode, 0, words)
+            if words[:2] == NO_LAZY_PREFIX:      # an inspection command: it runs as printed
+                self.assertEqual(words[2:5], ["git", "-C", str(repo)])
+                self.assertEqual(subprocess.run(words, capture_output=True,
+                                                env=cli_env()).returncode, 0, words)
+                words = words[2:]
+            else:
+                self.assertEqual(words[:3], ["git", "-C", str(repo)])
+                self.assertEqual(git(repo, *words[3:], check=False).returncode, 0, words)
             self.assertNotIn("clean -d", " ".join(words))      # the preview, never the destructive form
             if words[3] == "clean":
                 self.assertIn("-n", words)

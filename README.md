@@ -1,6 +1,6 @@
 # Workflow Manager
 
-> For: anyone who wants to put the Workflow into a repository. Last checked with: Workflow Manager 1.7.0, Workflow 2.9.1.
+> For: anyone who wants to put the Workflow into a repository. Last checked with: Workflow Manager 1.8.0, Workflow 2.9.1.
 
 [![Verification](https://github.com/RodrigoFAbreu/workflow-manager/actions/workflows/workflow-manager-verify.yml/badge.svg?branch=main&event=push)](https://github.com/RodrigoFAbreu/workflow-manager/actions/workflows/workflow-manager-verify.yml?query=branch%3Amain+event%3Apush)
 [![Nightly](https://github.com/RodrigoFAbreu/workflow-manager/actions/workflows/workflow-manager-verify.yml/badge.svg?event=schedule)](https://github.com/RodrigoFAbreu/workflow-manager/actions/workflows/workflow-manager-verify.yml?query=event%3Aschedule)
@@ -39,7 +39,7 @@ workflow-manager verify /path/to/your/repo
 ```
 
 Step 3 should print `installation matches workflow 2.9.1` and exit with
-status 0. If something goes differently, see
+status 0. If something goes differently, read the `next:` line the error prints, or see
 [Common problems](docs/common-problems.md).
 
 ## Where to go next
@@ -61,7 +61,7 @@ The commands, in one place:
 
 ```bash
 workflow-manager releases                  # the pinned Workflow releases, and which are cached
-workflow-manager status    /path/to/repo   # is it managed, is it clean
+workflow-manager status    /path/to/repo   # managed? clean? work in flight?
 workflow-manager bootstrap /path/to/repo   # install into a repository
 workflow-manager verify    /path/to/repo   # is every installed file as released
 workflow-manager update    /path/to/repo   # move to the newest pinned release

@@ -63,7 +63,14 @@ def sha256(data: bytes) -> str:
 
 
 class ReleaseIntegrityError(RuntimeError):
-    """Release content on disk does not match the digest its manifest records."""
+    """Release content on disk does not match the digest its manifest records.
+
+    `kind` names the cause for `advice` (which step the operator is told to
+    take); `None` is an unclassified cause with no step of its own."""
+
+    def __init__(self, message: str = "", *, kind: str | None = None):
+        super().__init__(message)
+        self.kind = kind
 
 
 @dataclass(frozen=True)
@@ -177,8 +184,8 @@ class Release:
         if actual != expected_sha256:
             raise ReleaseIntegrityError(
                 f"release {self.version} is damaged: {location} has digest {actual[:12]}, "
-                f"its manifest records {expected_sha256[:12]}. "
-                f"Refetch it, or rebuild the release directory, before installing."
+                f"its manifest records {expected_sha256[:12]}",
+                kind="damaged",
             )
         return data
 
