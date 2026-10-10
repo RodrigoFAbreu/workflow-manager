@@ -17,6 +17,17 @@ state JSON; the two parked Update-ergonomics follow-ups are folded in
 
 ## Current checkpoint
 
+**Milestone complete.** `workflow-manager-operator-ux` reached
+`MILESTONE_COMPLETE` through `/satisfy-gate acceptance` on 2026-10-10, by
+policy (the default gate policy; no person's decision), and
+`active_work_item_id` is cleared.
+- **Checkpoints:** CP1-CP5 are complete.
+- **Functional evidence:** flows ox-f1 to ox-f9 passed at `cd721cd` (run
+  `manager-orchestrator:runs/ox-functional-r3`).
+- **Pull request:** #26, CI green at `cd721cd` (the Workflow's own `gh` query).
+
+The checkpoint log below is this milestone's permanent record.
+
 CP1, CP2, CP3, CP4 and CP5 complete.
 
 CP1: `advice.py` (`PROGRAM`, `DOCS_BASE`, `page`, `Context`, `next_step`, the
@@ -116,16 +127,19 @@ commands drop `--force` by design.
 
 ## Current blockers
 
-None.
+None. What remains: squash-merge pull request #26 under a `feat:` title (the
+owner's act); `main`'s full run then releases Manager 1.8.0.
 
 ## Active plan
 
-`docs/ai-workflow/WORKFLOW_MANAGER_OPERATOR_UX_PLAN.md` (revision 14).
+None. The finished plan is
+`docs/ai-workflow/WORKFLOW_MANAGER_OPERATOR_UX_PLAN.md` (revision 14), copied
+to `docs/milestones/completed/`.
 
 ## Next action
 
-All checkpoints complete and technically approved: manual functional review (checklist below), then `/accept-milestone`. A `feat:` pull-request title releases
-Manager 1.8.0.
+Plan the next incomplete milestone in `docs/ROADMAP.md` with `/milestone-plan`
+once pull request #26 has merged.
 
 ## Functional review checklist
 

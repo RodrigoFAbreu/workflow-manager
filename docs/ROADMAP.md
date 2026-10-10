@@ -14,7 +14,7 @@ The full text of earlier versions is in this file's git history; the last long v
 
 ## What's next
 
-Item 7, Operator UX, is Next. Items 1 to 4 are done, and items 5 and 6 wait on the Controller. Item 7 does not depend on the Controller, so it runs while they wait.
+Items 1 to 4 and item 7 (Operator UX) are done. Items 5 and 6 wait on the Controller.
 
 The end goal is a loop where the Controller takes the next roadmap item, plans, implements, reviews, tests, merges and releases it, then starts the next one. The order below is the owner's agreed order across this lane.
 
@@ -26,9 +26,9 @@ The end goal is a loop where the Controller takes the next roadmap item, plans, 
 | 4 | Update ergonomics | `workflow-manager doctor`, `update --dry-run` and a compatibility report; safer upgrades for every repository | Done (PR #22, Manager 1.6.0) |
 | 5 | Controller C10 (gate policy and automatic acceptance) | The Controller can use Workflow 2.8's gate policy | Waiting on the Controller; tracked in [the Controller repository](https://github.com/RodrigoFAbreu/workflow-controller/blob/main/docs/ROADMAP.md) |
 | 6 | **M3**: this repository and `workflow` driven by the Controller's loop | Roadmap items worked, merged and released with no hand-driving | Waiting on the Controller's kanban runner (C11) |
-| 7 | Operator UX | Error messages that name the cause and the next command, and `status` showing the work in flight | **Next** (planning started 2026-10-10); see below |
+| 7 | Operator UX | Error messages that name the cause and the next command, and `status` showing the work in flight | Done (accepted by policy 2026-10-10; Manager 1.8.0 releases when its pull request merges) |
 
-### 7. Operator UX (Next)
+### 7. Operator UX (Done)
 
 The documentation clean-up delivered most of this: install, update and verify guides, a common-problems page, and a documentation index. What remains is in the tool, not the docs, and this item delivers it: every error, refusal, warning and note names its cause and one concrete next step (a command, a flag or a page), using the real program name and options; recovery instructions appear in the output; and `status` shows the work in flight, so an operator does not need to read the state JSON. Exit codes stay as `docs/exit-codes.md` documents them. Plan: `docs/ai-workflow/WORKFLOW_MANAGER_OPERATOR_UX_PLAN.md`. A `feat:` title, so it releases Manager 1.8.0.
 
@@ -36,6 +36,7 @@ The documentation clean-up delivered most of this: install, update and verify gu
 
 Newest first.
 
+- **Operator UX** (2026-10-10, accepted by policy; Manager v1.8.0 releases when its pull request merges). Every error, refusal, warning and note of the Manager CLI names its cause and one concrete next step, and `status` shows the work in flight. Plan: `docs/ai-workflow/WORKFLOW_MANAGER_OPERATOR_UX_PLAN.md`.
 - **Workflow 2.9.1 pinned, Manager v1.7.0** (2026-10-10). A fix release built and published by the `workflow` repository (W4, workflow#13): a review stage's `REVISE` write is committed alone, so the post-fix round that follows it is no longer refused, and `APPROVE` writes stay uncommitted for the approval commit. Installed here the same day, so this repository runs its own milestones on 2.9.1.
 - **Update ergonomics** (2026-10-09, PR #22, Manager v1.6.0). `workflow-manager doctor` and `update --dry-run` read a repository and report what an update would do and which Workflow guarantees it would cross, without writing it. Plan: `docs/ai-workflow/WORKFLOW_MANAGER_UPDATE_ERGONOMICS_PLAN.md`.
 - **Small Workflow fix release** (2026-10-08, Workflow 2.9.0; pinned in Manager v1.5.0, PR #19). Built and published by the `workflow` repository. It fixes `v2.6.0-003`, makes the latest governing version the default for new work items, and adds `/retire-legacy-work-item`.
