@@ -7320,6 +7320,41 @@ class TestRecoveredRoleLegalParentPhaseCombinations(unittest.TestCase):
             child = self._child(repo, p, "AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW", parent)
             ws.validate_bundle_generation_record_commit(repo.root, child, self.WI)  # must not raise
 
+    def _child_with_attribution(self, repo: "ScratchRepo", p: str, supersedes: str, *, same_paragraph: bool) -> str:
+        """The recovered-role commit with a `Co-Authored-By:` line either in
+        its own earlier paragraph or in the trailer paragraph itself."""
+        child_state = {
+            "work_item_id": self.WI, "work_item_type": "process",
+            "reviewed_implementation_head": p, "implementation_revision": 1,
+            "phase": "AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW", "state_revision": 6, "last_transition": "t6",
+        }
+        full = repo.root / STATE_REL_PATH
+        full.write_bytes(ws._serialize_state({"schema_version": 1, "work_items": {self.WI: child_state}}))
+        _run(["git", "add", STATE_REL_PATH], cwd=repo.root)
+        trailers = "\n".join(f"{k}: {v}" for k, v in _recovered_trailers(self.WI, 1, supersedes).items())
+        attribution = "Co-Authored-By: Claude <noreply@anthropic.com>"
+        sep = "\n" if same_paragraph else "\n\n"
+        _run(["git", "commit", "-q", "-m", f"recovered-role commit\n\n{attribution}{sep}{trailers}"], cwd=repo.root)
+        return repo.head()
+
+    def test_attribution_in_its_own_paragraph_before_the_trailers_validates(self):
+        with ScratchRepo() as repo:
+            p, parent = self._seed_and_parent(repo, "AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW")
+            child = self._child_with_attribution(repo, p, parent, same_paragraph=False)
+            ws.validate_bundle_generation_record_commit(repo.root, child, self.WI)  # must not raise
+
+    def test_attribution_in_the_trailer_paragraph_is_refused_and_the_refusal_names_the_remedy(self):
+        with ScratchRepo() as repo:
+            p, parent = self._seed_and_parent(repo, "AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW")
+            child = self._child_with_attribution(repo, p, parent, same_paragraph=True)
+            with self.assertRaises(ws.MalformedBundleGenerationRecordCommitError) as ctx:
+                ws.validate_bundle_generation_record_commit(repo.root, child, self.WI)
+            message = str(ctx.exception)
+            self.assertIn("Co-Authored-By", message)
+            self.assertIn("earlier paragraph", message)
+            self.assertIn("unpublished HEAD", message)
+            self.assertIn("a later recovery cannot supersede it", message)
+
     def test_item_293_awaiting_technical_approval_parent_phase_refused(self):
         with ScratchRepo() as repo:
             p, parent = self._seed_and_parent(repo, "AWAITING_TECHNICAL_APPROVAL")

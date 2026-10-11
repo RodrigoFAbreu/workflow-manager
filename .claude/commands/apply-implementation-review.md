@@ -206,8 +206,7 @@ rule for an item without the field.
    (unchanged, never bumped) + `Workflow-Work-Item: <work_item_id>` +
    `Workflow-Supersedes: <t>` (`t` the commit `resolve_bundle_generation_outcome`
    returned), no other trailer. **These trailer lines must be the commit
-   message's own final paragraph** — after any `Co-Authored-By:`/
-   `Claude-Session:` lines, never before them (`OPUS-R129-001`, the same
+   message's own final paragraph** and nothing else is in it (the record's trailer set is checked exactly, so a `Co-Authored-By:` line in that paragraph is refused): any `Co-Authored-By:`/`Claude-Session:` lines go in their own paragraph before it, separated by a blank line (`OPUS-R129-001`, the same
    rule `milestone-implement.md` step 1f, `bootstrap-workflow-v2.md` step
    6, `approve-review.md` step 6.4, and `accept-milestone.md` step 6
    already state): Git's `git interpret-trailers --parse`, the exact
@@ -242,9 +241,17 @@ rule for an item without the field.
    run `./scripts/prepare-ai-review.sh <base-sha> post-fix [work_item_id]`
    — required before `AWAITING_TECHNICAL_APPROVAL` can be reachable again.
 8. If any Blocking finding remains unresolved, or the fix was structurally
-   significant, stay in `AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW` and stop
-   for another review round. Otherwise report readiness and that
-   `AWAITING_TECHNICAL_APPROVAL` is the next state, and stop — do not
+   significant, stay at the post-fix phase step 7 wrote --
+   `AWAITING_LOCAL_IMPLEMENTATION_REVIEW` for a `"2.2"` item,
+   `AWAITING_EXTERNAL_IMPLEMENTATION_REVIEW` for a `"1"`/`"2.1"` item -- and
+   stop for another review round. Otherwise report readiness and that
+   `AWAITING_TECHNICAL_APPROVAL` is the next state. For a `"2.2"` item the
+   item is never at the terminal phase after step 7: `/review-implementation`
+   (local review) and then `/record-manual-implementation-review` (manual
+   external review) must both run again before `/approve-review
+   implementation` is reachable -- name `/review-implementation` as the next
+   command, never a manual-verdict ingest (it refuses at
+   `AWAITING_LOCAL_IMPLEMENTATION_REVIEW`). Then stop — do not
    auto-run `/approve-review` or `/prepare-functional-review`. Only the user
    invokes `/approve-review implementation`; let the user decide when to
    proceed.
