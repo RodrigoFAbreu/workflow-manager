@@ -1075,6 +1075,9 @@ DOWNGRADE_BOUNDARIES: dict[str, Boundary] = {
     # 2.9.1 writes nothing 2.9.0 refuses; a downgrade loses only the helper that
     # commits a REVISE write alone (CLAUDE.md "Downgrade posture").
     "2.9.1": Boundary(""),
+    # 2.9.2 writes nothing 2.9.1 refuses; a downgrade loses only the corrected
+    # command order and text (CLAUDE.md "Downgrade posture").
+    "2.9.2": Boundary(""),
 }
 
 #: Fixes and defaults that reach only new work items or new installations.
@@ -1096,6 +1099,7 @@ NEW_WORK_ONLY: dict[str, tuple[str, ...]] = {
         "The v2.6.0-003 fix covers new governing-1 implementation entries only.",
     ),
     "2.9.1": (),
+    "2.9.2": (),
 }
 
 #: Per pinned release, how it changes the gate defaults for existing work too;
@@ -1114,6 +1118,7 @@ GATE_DEFAULT_CHANGES: dict[str, str] = {
     "2.8.0": "a repository with no GATE_POLICY.json moves from human gates to automatic ones",
     "2.9.0": "",
     "2.9.1": "",
+    "2.9.2": "",
 }
 
 #: What to commit first to keep the 2.7.0 gates.

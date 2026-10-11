@@ -266,6 +266,20 @@ CI_SUITES = {
         "workflow_protocol_test.py": 314,
         "workflow_gate_policy_test.py": 292,
     },
+    #: `2.9.2` is a fix release (workflow#19, #20: a generation record is the
+    #: last commit, and the Workflow-* trailers are the final paragraph alone).
+    #: Same nine suites; counts pinned to what the published package produces.
+    "2.9.2": {
+        "workflow_fingerprint_test.py": 257,
+        "workflow_state_test.py": 1090,
+        "workflow_test_harness_test.py": 22,
+        "workflow_integration_test.py": 289,
+        "workflow_acceptance_matrix_test.py": 353,
+        "workflow_state_completion_obligations_test.py": 106,
+        "workflow_fingerprint_generalization_test.py": 105,
+        "workflow_protocol_test.py": 314,
+        "workflow_gate_policy_test.py": 292,
+    },
 }
 
 
