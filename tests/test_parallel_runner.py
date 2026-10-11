@@ -4711,12 +4711,17 @@ class TestShardWorkerQueue(unittest.TestCase):
         chunks = [_chunk(f"c{i:02d}", float(i)) for i in range(40)]
         seen, threads = [], set()
         lock = threading.Lock()
+        # The first two chunks meet at a barrier: a worker waiting there takes
+        # nothing else, so the second chunk must come from another worker.
+        both_started = threading.Barrier(2, timeout=30)
 
         def run_one(chunk, phase, shard, extra_env=None):
             with lock:
                 seen.append((chunk.id, phase, shard))
                 threads.add(threading.get_ident())
-            time.sleep(0.005)
+                first_two = len(seen) <= 2
+            if first_two:
+                both_started.wait()
 
         self.engine(run_one).run_queue(chunks, executor.PHASE_A, 3, 4)
         self.assertEqual(sorted(c for c, _, _ in seen), sorted(c.id for c in chunks))
@@ -4739,19 +4744,27 @@ class TestShardWorkerQueue(unittest.TestCase):
         self.assertEqual(order, ["only"])
 
     def test_an_escaping_error_stops_the_other_workers_and_is_raised(self):
-        started = []
+        started = []  # (chunk id, whether `stop` was already set)
+        lock = threading.Lock()
+        engine = self.engine(None)
 
         def run_one(chunk, phase, shard, extra_env=None):
-            started.append(chunk.id)
+            with lock:
+                started.append((chunk.id, engine.stop.is_set()))
             if chunk.id == "c00":
                 raise RuntimeError("boom")
-            time.sleep(0.05)
+            time.sleep(0.2)
 
-        engine = self.engine(run_one)
+        engine.run_one = run_one
         with self.assertRaisesRegex(RuntimeError, "boom"):
             engine.run_queue([_chunk(f"c{i:02d}", 40.0 - i) for i in range(30)],
                              executor.PHASE_A, 0, 2)
         self.assertTrue(engine.stop.is_set())
+        # Every chunk still reaches `run_one` once (the real one records it
+        # `not_run` once `stop` is set), and at most the one chunk already in
+        # flight on the other worker started before the stop.
+        self.assertEqual(sorted(c for c, _ in started), [f"c{i:02d}" for i in range(30)])
+        self.assertLessEqual(sum(1 for _, stopped in started if not stopped), 2)
 
     def test_the_worker_count_defaults_to_the_cpus_and_can_be_overridden(self):
         self.assertEqual(executor.shard_workers({}, cpu_count=4), 4)
