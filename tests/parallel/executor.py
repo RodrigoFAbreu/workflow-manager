@@ -8,7 +8,9 @@ A local run, under the checkout run lock taken by `cli`:
 3. apply the write barrier;
 4. phase A: pre-phase A0 runs every exclusive chunk alone, one at a time,
    with the barrier lifted for exactly its resources' trees; then one worker
-   per shard runs that shard's shared chunks in plan order;
+   per shard runs that shard's shared chunks in plan order (a CI shard
+   instead runs them on every runner CPU, from one shared queue, longest
+   estimate first);
 5. phase B: the matrix host classes in merged mode, against merge contexts
    built from the verified plan (never from the records);
 6. restore the barrier, re-snapshot and compare;
@@ -50,6 +52,7 @@ MERGE_CONTEXT = "merge-context"
 SHARD_SUMMARY = "shard-{index}.json"
 RECORDS_ENV = "WM_FROZEN_RECORDS"
 CONTEXT_ENV = "WM_FROZEN_CONTEXT"
+SHARD_WORKERS_ENV = "WM_SHARD_WORKERS"
 
 PHASE_A0 = "A0"
 PHASE_A = "A"
@@ -290,17 +293,47 @@ class Engine:
         order (permuted by `--shuffle-seed`)."""
         work = [(index, self._ordered(chunks, index)) for index, chunks in enumerate(shards)
                 if chunks]
-        errors: list[BaseException] = []
 
         def worker(index, chunks):
+            for chunk in chunks:
+                self.run_one(chunk, phase, index, extra_env)
+
+        self._run_threads([(worker, item) for item in work])
+
+    def run_queue(self, chunks, phase: str, shard: int, workers: int,
+                  extra_env: dict | None = None) -> None:
+        """`workers` threads pulling from one shared queue of `chunks`, longest
+        estimate first (a CI shard on a multi-CPU runner). Each chunk is taken
+        by exactly one worker, so it runs exactly once, through the same
+        `run_one` (timeout, leak check, isolation) as `run_pool`'s."""
+        queue = sorted(chunks, key=lambda c: (-c.estimate, c.id))
+        workers = max(1, min(workers, len(queue)))
+        if not queue:
+            return
+        taken = iter(queue)
+        take = threading.Lock()
+
+        def worker():
+            while True:
+                with take:
+                    chunk = next(taken, None)
+                if chunk is None:
+                    return
+                self.run_one(chunk, phase, shard, extra_env)
+
+        self._run_threads([(worker, ())] * workers)
+
+    def _run_threads(self, targets) -> None:
+        errors: list[BaseException] = []
+
+        def guarded(func, args):
             try:
-                for chunk in chunks:
-                    self.run_one(chunk, phase, index, extra_env)
+                func(*args)
             except BaseException as exc:  # noqa: BLE001 -- re-raised by the main thread
                 errors.append(exc)
                 self.stop.set()
 
-        threads = [threading.Thread(target=worker, args=item, daemon=True) for item in work]
+        threads = [threading.Thread(target=guarded, args=item, daemon=True) for item in targets]
         for thread in threads:
             thread.start()
         try:
@@ -776,12 +809,31 @@ def plan_only(repo_root: Path, lock, *, specs, profile, out_path, shards=None,
     return 0
 
 
+def shard_workers(environ=None, cpu_count=None) -> int:
+    """The worker count of a CI shard: `WM_SHARD_WORKERS` if set (a positive
+    integer), else every CPU of the runner."""
+    environ = os.environ if environ is None else environ
+    raw = environ.get(SHARD_WORKERS_ENV)
+    if raw not in (None, ""):
+        try:
+            value = int(raw)
+        except ValueError:
+            value = 0
+        if value < 1:
+            raise ExecutorError(f"{SHARD_WORKERS_ENV}={raw!r}: expected a positive integer")
+        return value
+    return max(1, cpu_count or os.cpu_count() or 1)
+
+
 def run_shard(repo_root: Path, lock, *, index: int, plan_path: Path, results: Path,
-              allow_root=False, out=print, err=print) -> int:
-    """One CI shard: the plan's shard `index`, exclusive chunks first, under the
-    lock, the snapshot and the barrier (5.9 "Guards per mode", 5.10)."""
+              allow_root=False, out=print, err=print, workers=None) -> int:
+    """One CI shard: the plan's shard `index`, exclusive chunks first and alone,
+    then the shared chunks on `workers` threads (default: every CPU) pulling
+    from one queue, under the lock, the snapshot and the barrier (5.9 "Guards
+    per mode", 5.10)."""
     refuse_root(allow_root)
     isolation.check_git_env()
+    workers = shard_workers() if workers is None else max(1, workers)
     guard = Guard(Path(repo_root), lock, allow_root)
     guard.snapshot()
     started = time.monotonic()
@@ -802,7 +854,7 @@ def run_shard(repo_root: Path, lock, *, index: int, plan_path: Path, results: Pa
         guard.apply(out)
         engine.barrier = guard.barrier
         engine.run_a0([c for c in shard if c.exclusive])
-        engine.run_pool([[c for c in shard if not c.exclusive]], PHASE_A)
+        engine.run_queue([c for c in shard if not c.exclusive], PHASE_A, index, workers)
     except KeyboardInterrupt:
         engine.interrupt()
         interrupted = True
@@ -823,7 +875,7 @@ def run_shard(repo_root: Path, lock, *, index: int, plan_path: Path, results: Pa
         "results": [r.to_json() for r in sorted(engine.results, key=lambda r: r.chunk.id)],
         "integrity": [message for _, message in integrity_faults(Path(repo_root), guard,
                                                                   engine.results)],
-        "interrupted": interrupted, "wall": round(wall, 3),
+        "interrupted": interrupted, "wall": round(wall, 3), "workers": workers,
         "identity": run_identity(repo_root, plan, inv, engine.results,
                                  f"shard {index} of {plan['n']}"),
     }
@@ -843,7 +895,9 @@ def run_shard(repo_root: Path, lock, *, index: int, plan_path: Path, results: Pa
             result.log = str(run_dir / result.log)
     emit_report(out, plan=plan, inv=inv, results=engine.results, verdict=verdict, wall=wall,
                 run_dir=run_dir, judged=judged, identity=summary["identity"],
-                extra_summary=guard.summary_warnings(), orphan_sources=res.orphan_sources)
+                extra_summary=[f"  shard {index}: {workers} worker(s) on a shared queue "
+                               f"(longest estimate first)", *guard.summary_warnings()],
+                orphan_sources=res.orphan_sources)
     return finish_verdict(verdict, err)
 
 

@@ -447,7 +447,20 @@ request, every push to `main`, a nightly `schedule` (`17 3 * * *`, the
 default branch) and on dispatch. Its `plan` job writes the plan, and the
 plan's shard list becomes the `shard` matrix; nothing in the file names a
 shard. Each shard job runs one shard (`--run-shard`) and uploads its
-results. The `aggregate` job verifies every result against the plan, runs
+results. A shard runs its exclusive chunks first and alone (A0), then its
+shared chunks on every CPU of its runner (4 on a public-repository Linux
+runner), as worker threads pulling from one shared queue ordered longest
+estimate first, so the shard balances itself whatever the estimates. It
+reuses the local pool's per-chunk machinery (`Engine.run_one`: timeout, leak
+check, Git isolation, barrier and snapshot). Each chunk runs exactly once.
+The worker count is every CPU, or `WM_SHARD_WORKERS`, and is recorded in the
+shard's summary (`workers`) and report. The planner caps CI at 6 shards
+(`ci_max_shards`; the account's free plan allows 20 concurrent jobs across all
+repositories), and the `shard` job `needs: [plan, package]` with
+`if: !cancelled() && needs.plan.result == 'success'`, so shards start after
+the 20-second `package` job and at most 6 jobs run at once; a failed
+`package` does not stop the shards, and `aggregate` still fails on it. The
+`aggregate` job verifies every result against the plan, runs
 phase B and reports. Every file the tooling writes lives under
 `$RUNNER_TEMP`. In every job that runs tests, and in the `package` job, the
 step that runs them sets `WORKFLOW_MANAGER_RELEASE_CACHE` to
@@ -513,6 +526,11 @@ enough to move the plan. A refresh is a large, reviewable diff, so fold one
 batch of runs at a time, not every run. A multi-class chunk yields only its
 group overhead, so per-class numbers come from a run planned one class per
 chunk.
+
+*Note, 2026-10-11:* the CI rows above, and the 16- and 19-shard figures, were
+measured with one worker per shard. Since then a shard runs on every runner
+CPU and CI plans 6 shards (see **CI** above); the table is the record of the
+earlier design and is not re-measured.
 
 Against the plan's section 7, P-3 (CI under 5.5 min) is documented as
 unreachable under the 20-job cap, per its own clause. Two misses are

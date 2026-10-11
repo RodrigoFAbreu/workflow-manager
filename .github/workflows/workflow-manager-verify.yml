@@ -6,6 +6,12 @@
 #   plan       discovers the inventory and writes plan.json; its shard list
 #              becomes the matrix.
 #   shard      runs one shard of the plan (phase A) and uploads its results.
+#              Each shard runs its chunks on every CPU of its runner, from one
+#              shared queue; the planner caps the shards at 6 (ci_max_shards).
+#              Shards start once plan and package have finished (package takes
+#              about 20 s), so at most 6 jobs run at once and the account's
+#              20-job concurrency is never approached. A failed package does
+#              not stop the shards; the aggregate still fails on it.
 #   package    builds and proves the Manager's release assets, as the release
 #              does (tools/release/package.py).
 #   aggregate  verifies every shard's results against the plan, runs phase B
@@ -51,7 +57,8 @@ permissions:
 jobs:
   # Job timeouts bound a hung job well below GitHub's 360-minute default.
   # Each chunk has its own timeout too; the shard's allows the single-shard
-  # reference (`shards=1`, about 110 minutes).
+  # reference (`shards=1`, about 110 minutes on one worker; a shard runs on
+  # every runner CPU).
   plan:
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -84,7 +91,10 @@ jobs:
           if-no-files-found: error
 
   shard:
-    needs: plan
+    needs: [plan, package]
+    # Not skipped by a failed package job (the aggregate reports that); only
+    # by a plan that did not succeed or a cancelled run.
+    if: ${{ !cancelled() && needs.plan.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 180
     name: shard ${{ matrix.shard }}
