@@ -14689,7 +14689,10 @@ def validate_bundle_generation_record_commit(repo_root: Path, commit: str, work_
             f"{commit} carries trailer set {sorted(trailers)}, not exactly the "
             f"ordinary {{'Workflow-Bundle-Generation-Record', 'Workflow-Work-Item'}} "
             f"set or the recovered {{'Workflow-Bundle-Generation-Record', "
-            f"'Workflow-Work-Item', 'Workflow-Supersedes'}} set"
+            f"'Workflow-Work-Item', 'Workflow-Supersedes'}} set; every line of the "
+            f"final paragraph counts, so put Co-Authored-By:/Claude-Session: lines in an "
+            f"earlier paragraph; while this commit is still the unpublished HEAD, rewrite "
+            f"its message, because a later recovery cannot supersede it"
         )
     field_diff = _work_item_field_diff(repo_root, commit, work_item_id)
     after = _read_json_at_commit_or_empty(repo_root, commit, state_rel)

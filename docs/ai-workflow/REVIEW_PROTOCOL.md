@@ -971,6 +971,44 @@ The read side is unchanged and strict: `bundle_generation_mismatch` and the
 provenance-interval check do not tolerate a state-only commit past the
 generation record, and the Orchestration Protocol version is unchanged.
 
+### A generation record is the last commit, and its trailer paragraph (`workflow-2.9.2`)
+
+**Last commit.** A generation record is the last commit of the invocation that
+writes it. Every commit a round needs (the fix, the narrative and checklist
+update, a stale or review-stage state write) lands before the record. The
+read side refuses anything after it with `bundle_generation_mismatch`, because
+`HEAD` has moved past the bundle's `generation_head`, and only
+`/recover-implementation-provenance` repairs that, at the cost of a new bundle
+id and a fresh review round. The bounded branch of `/apply-functional-review`
+is the example: it commits the stale `technical_approval` write alone before
+the first edit, then each fix, then the "no code change" fixes and the
+functional-review checklist in `docs/ACTIVE_MILESTONE.md`, and only then
+regenerates the bundle once and commits the record. Nothing is committed after
+it. In a mixed round, the new remediation child's entry in
+`WORKFLOW_STATE.json` stays uncommitted: the child's own plan-approval commit
+(`/approve-review plan <child-id>` or `/satisfy-gate plan <child-id>`) first
+commits it, and the scoped staging keeps it out of every commit of the
+parent's round, the record included. `/milestone-implement`, `/apply-implementation-review`, `/apply-pr-review`
+and `/recover-implementation-provenance` already end on their record.
+
+**Trailer paragraph.** Every command that writes a `Workflow-*` trailer (the
+`OPUS-R129-001` rule) puts those trailers in the commit message's final
+paragraph, and nothing else is in that paragraph. Git parses only the last
+paragraph as trailers. Any `Co-Authored-By:` or `Claude-Session:` lines go in
+their own paragraph before it, separated by a blank line. For a generation
+record the rule is enforced: the record's trailer set is checked exactly, so a
+`Co-Authored-By:` line in the trailer paragraph is refused
+(`MalformedBundleGenerationRecordCommitError`). While the refused commit is still
+the unpublished `HEAD`, rewrite its message; a later recovery cannot supersede
+it.
+
+The read side stays strict, the Orchestration Protocol version is unchanged
+(1.2), and no state field or commit shape is added. A project on 2.9.1 keeps
+the old order and must follow it by hand: commit the stale `technical_approval`
+write alone before the first fix edit, commit the checklist before the record,
+and keep `Co-Authored-By:` out of the trailer paragraph. Downgrading to
+2.9.1 loses nothing but the corrected command text.
+
 ## Context-efficiency rules
 
 - Load only the active status (`docs/ACTIVE_MILESTONE.md`), `docs/ROADMAP.md`,
