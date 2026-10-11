@@ -414,7 +414,7 @@ class TestReportSteps(ux.ReleaseCase):
         self.assertIn("--release-cache", argv)
         self.assertNotIn("holds release", replay.stderr)
 
-    def report(self, repo, plan=None, refusal=None, target="2.9.1", installed=None):
+    def report(self, repo, plan=None, refusal=None, target=NEWEST_RELEASE, installed=None):
         facts = comp.read_repository(repo)
         if installed:
             facts.installation = Installation(installed, "full", {})

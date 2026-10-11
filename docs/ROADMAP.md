@@ -1,6 +1,6 @@
 # Workflow Manager Roadmap
 
-> For: anyone following where the Workflow Manager is going. Last checked with: Workflow Manager 1.7.0, Workflow 2.9.1.
+> For: anyone following where the Workflow Manager is going. Last checked with: Workflow Manager 1.7.0, Workflow 2.9.2.
 
 The full text of earlier versions is in this file's git history; the last long version is [here](https://github.com/RodrigoFAbreu/workflow-manager/blob/de95195/docs/ROADMAP.md).
 
@@ -36,6 +36,7 @@ The documentation clean-up delivered most of this: install, update and verify gu
 
 Newest first.
 
+- **Workflow 2.9.2 pinned** (2026-10-11). A fix release built and published by the `workflow` repository (workflow#19 and #20): `/apply-functional-review`'s bounded branch commits the stale technical-approval write alone, then the fix, then the narrative and checklist, and the generation record last; the `Workflow-*` trailers are the final paragraph alone.
 - **Operator UX** (2026-10-10, accepted by policy; Manager v1.8.0 releases when its pull request merges). Every error, refusal, warning and note of the Manager CLI names its cause and one concrete next step, and `status` shows the work in flight. Plan: `docs/ai-workflow/WORKFLOW_MANAGER_OPERATOR_UX_PLAN.md`.
 - **Workflow 2.9.1 pinned, Manager v1.7.0** (2026-10-10). A fix release built and published by the `workflow` repository (W4, workflow#13): a review stage's `REVISE` write is committed alone, so the post-fix round that follows it is no longer refused, and `APPROVE` writes stay uncommitted for the approval commit. Installed here the same day, so this repository runs its own milestones on 2.9.1.
 - **Update ergonomics** (2026-10-09, PR #22, Manager v1.6.0). `workflow-manager doctor` and `update --dry-run` read a repository and report what an update would do and which Workflow guarantees it would cross, without writing it. Plan: `docs/ai-workflow/WORKFLOW_MANAGER_UPDATE_ERGONOMICS_PLAN.md`.

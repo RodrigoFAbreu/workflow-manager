@@ -336,3 +336,12 @@ review commands leave a `REVISE` write uncommitted, so the post-fix
 generation-record commit is refused (`OPUS-R101-001`) unless the state file is
 committed alone by hand before the first fix commit. A downgrade to `2.9.0` is
 supported on those terms.
+
+`2.9.2` is a fix release (workflow#19, #20) and adds no persisted key, phase,
+status or commit shape; the Orchestration Protocol stays `1.2`. It writes
+nothing `2.9.1` would refuse, so `2.9.1` reads every state and history it
+produces. What a downgrade loses is the fix, and the corrected command text:
+with `2.9.1`, commit the stale `technical_approval` write alone before the
+first fix edit, commit the checklist before the generation record, and keep
+`Co-Authored-By:` out of the `Workflow-*` trailer paragraph, by hand. A
+downgrade to `2.9.1` is supported on those terms.
