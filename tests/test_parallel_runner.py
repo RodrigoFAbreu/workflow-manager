@@ -47,6 +47,7 @@ import subprocess
 import sys
 import tempfile
 import textwrap
+import threading
 import time
 import unittest
 from pathlib import Path
@@ -1893,10 +1894,22 @@ class TestChunking(unittest.TestCase):
                                + terms["phase_b"])
         timing = _timings(ci=estimates, setup={"plan": 30.0, "shard": 60.0, "aggregate": 45.0})
         ci = _plan(units, matrix=hosts, profile="ci", timing=timing, res=exclusive,
-                   phase_b_workers=2)
+                   phase_b_workers=2, shard_workers=1)
         terms = ci["predicted"]["makespan"]
         self.assertEqual(terms["plan_job"], 30.0)
         self.assertAlmostEqual(terms["shard_job"], 60.0 + max(s["load"] for s in ci["shards"]))
+        # More workers per shard: the exclusive chunks still add up (they run
+        # alone), the shared ones are scheduled on the workers.
+        wide = _plan(units, matrix=hosts, profile="ci", timing=timing, res=exclusive,
+                     phase_b_workers=2, shard_workers=4)
+        self.assertEqual(wide["bounds"]["shard_workers"], 4)
+        self.assertAlmostEqual(wide["predicted"]["makespan"]["shard_job"], 60.0 + max(
+            sum(c.estimate for c in s if c.exclusive)
+            + planner.shard_wall([c.estimate for c in s if not c.exclusive], 4)
+            for s in plan_schema.shard_chunks(wide)))
+        self.assertLessEqual(wide["predicted"]["makespan"]["shard_job"], terms["shard_job"])
+        for key in ("selection_digest", "selection", "shards", "phase_b", "n"):
+            self.assertEqual(wide[key], ci[key])
         self.assertAlmostEqual(terms["aggregate_job"],
                                45.0 + max(s["load"] for s in ci["phase_b"]["shards"]))
         self.assertAlmostEqual(terms["total"], terms["plan_job"] + terms["shard_job"]
@@ -4677,6 +4690,156 @@ class TestExecutorPieces(unittest.TestCase):
         self.assertEqual(len(found), 2)
 
 
+# -- a CI shard runs its chunks on several workers from one shared queue -------------------
+
+def _chunk(chunk_id: str, estimate: float, resources=()):
+    return plan_schema.ChunkDescriptor(chunk_id, 0, (chunk_id,), estimate, tuple(resources))
+
+
+class TestShardWorkerQueue(unittest.TestCase):
+    """`Engine.run_queue`: every chunk exactly once, longest estimate first,
+    through `run_one`, with a worker's escape stopping the rest."""
+
+    def engine(self, run_one):
+        engine = object.__new__(executor.Engine)
+        engine.stop = threading.Event()
+        engine.run_one = run_one
+        engine.interrupt = lambda: engine.stop.set()
+        return engine
+
+    def test_every_chunk_runs_exactly_once_on_several_workers(self):
+        chunks = [_chunk(f"c{i:02d}", float(i)) for i in range(40)]
+        seen, threads = [], set()
+        lock = threading.Lock()
+        # The first two chunks meet at a barrier: a worker waiting there takes
+        # nothing else, so the second chunk must come from another worker.
+        both_started = threading.Barrier(2, timeout=30)
+
+        def run_one(chunk, phase, shard, extra_env=None):
+            with lock:
+                seen.append((chunk.id, phase, shard))
+                threads.add(threading.get_ident())
+                first_two = len(seen) <= 2
+            if first_two:
+                both_started.wait()
+
+        self.engine(run_one).run_queue(chunks, executor.PHASE_A, 3, 4)
+        self.assertEqual(sorted(c for c, _, _ in seen), sorted(c.id for c in chunks))
+        self.assertEqual({(p, s) for _, p, s in seen}, {(executor.PHASE_A, 3)})
+        self.assertGreater(len(threads), 1)
+        self.assertLessEqual(len(threads), 4)
+
+    def test_the_queue_starts_with_the_longest_estimates(self):
+        chunks = [_chunk("a", 1), _chunk("b", 9), _chunk("c", 5), _chunk("d", 9)]
+        order = []
+        self.engine(lambda chunk, phase, shard, extra_env=None: order.append(chunk.id)) \
+            .run_queue(chunks, executor.PHASE_A, 0, 1)
+        self.assertEqual(order, ["b", "d", "c", "a"])
+
+    def test_more_workers_than_chunks_and_no_chunks(self):
+        order = []
+        engine = self.engine(lambda chunk, phase, shard, extra_env=None: order.append(chunk.id))
+        engine.run_queue([_chunk("only", 1)], executor.PHASE_A, 0, 16)
+        engine.run_queue([], executor.PHASE_A, 0, 16)
+        self.assertEqual(order, ["only"])
+
+    def test_an_escaping_error_stops_the_other_workers_and_is_raised(self):
+        started = []  # (chunk id, whether `stop` was already set)
+        lock = threading.Lock()
+        engine = self.engine(None)
+
+        def run_one(chunk, phase, shard, extra_env=None):
+            with lock:
+                started.append((chunk.id, engine.stop.is_set()))
+            if chunk.id == "c00":
+                raise RuntimeError("boom")
+            time.sleep(0.2)
+
+        engine.run_one = run_one
+        with self.assertRaisesRegex(RuntimeError, "boom"):
+            engine.run_queue([_chunk(f"c{i:02d}", 40.0 - i) for i in range(30)],
+                             executor.PHASE_A, 0, 2)
+        self.assertTrue(engine.stop.is_set())
+        # Every chunk still reaches `run_one` once (the real one records it
+        # `not_run` once `stop` is set), and at most the one chunk already in
+        # flight on the other worker started before the stop.
+        self.assertEqual(sorted(c for c, _ in started), [f"c{i:02d}" for i in range(30)])
+        self.assertLessEqual(sum(1 for _, stopped in started if not stopped), 2)
+
+    def test_the_worker_count_defaults_to_the_cpus_and_can_be_overridden(self):
+        self.assertEqual(executor.shard_workers({}, cpu_count=4), 4)
+        self.assertEqual(executor.shard_workers({}, cpu_count=0), max(1, os.cpu_count() or 1))
+        self.assertEqual(executor.shard_workers({executor.SHARD_WORKERS_ENV: "3"}, cpu_count=4), 3)
+        self.assertEqual(executor.shard_workers({executor.SHARD_WORKERS_ENV: ""}, cpu_count=2), 2)
+        for bad in ("0", "-1", "many"):
+            with self.subTest(value=bad), self.assertRaises(executor.ExecutorError):
+                executor.shard_workers({executor.SHARD_WORKERS_ENV: bad}, cpu_count=4)
+
+    def test_the_predicted_shard_wall_scales_with_the_workers(self):
+        self.assertEqual(planner.shard_wall([30, 30, 30, 30], 1), 120)
+        self.assertEqual(planner.shard_wall([30, 30, 30, 30], 4), 30)
+        self.assertEqual(planner.shard_wall([100, 10, 10, 10], 4), 100)
+        self.assertEqual(planner.shard_wall([], 4), 0)
+
+
+class TestMultiWorkerShard(_CliCase):
+
+    def run_shards(self, workers, *, shards="2", modules=None, aggregate=False):
+        scratch = scratch_checkout(self.tmp / "scratch", modules=modules)
+        plan = _plan_only(self, scratch, "--profile", "ci", "--shards", shards)
+        out = self.tmp / "out"
+        env = dict(self.env, **{executor.SHARD_WORKERS_ENV: str(workers)})
+        procs = []
+        for index in range(json.loads(plan.read_text())["n"]):
+            procs.append(run_cli(scratch, "--run-shard", index, "--plan", plan,
+                                 "--results", out / f"shard-{index}", env=env))
+        agg = run_cli(scratch, "--aggregate", out, "--plan", plan, env=self.env) \
+            if aggregate else None
+        return plan, out, procs, agg
+
+    def test_a_shard_on_several_workers_round_trips_through_the_aggregate(self):
+        plan, out, procs, agg = self.run_shards(3, aggregate=True)
+        for proc in procs:
+            self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+            self.assertIn("3 worker(s) on a shared queue", proc.stdout)
+        planned = json.loads(plan.read_text())
+        for index, shard in enumerate(planned["shards"]):
+            doc = json.loads(next((out / f"shard-{index}").glob("shard-*.json")).read_text())
+            self.assertEqual(doc["workers"], 3)
+            self.assertEqual(sorted(r["chunk"]["id"] for r in doc["results"]),
+                             sorted(c["id"] for c in shard["chunks"]))
+        self.assertEqual(agg.returncode, 0, agg.stdout + agg.stderr)
+        self.assertIn("verdict: exit 0", agg.stdout)
+
+    def test_exclusive_chunks_still_run_first_and_alone(self):
+        _, out, procs, _ = self.run_shards(4, shards="1")
+        self.assertEqual(procs[0].returncode, 0, procs[0].stdout + procs[0].stderr)
+        doc = json.loads(next(out.rglob("shard-0.json")).read_text())
+        rows = [r for r in doc["results"] if r["started_at"]]
+        exclusive = [r for r in rows if r["phase"] == "A0"]
+        shared = [r for r in rows if r["phase"] == "A"]
+        self.assertTrue(exclusive and shared)
+        for a in exclusive:
+            for b in rows:
+                if b is not a:
+                    self.assertTrue(a["ended_at"] <= b["started_at"] or b["ended_at"] <= a["started_at"])
+        self.assertLessEqual(max(r["ended_at"] for r in exclusive),
+                             min(r["started_at"] for r in shared))
+
+    def test_a_failing_chunk_in_a_multi_worker_shard_is_reported_as_before(self):
+        _, _, procs, _ = self.run_shards(
+            4, shards="1", modules={"test_scratch_failing.py": FAILING_HOST_MODULE})
+        self.assertEqual(procs[0].returncode, 1, procs[0].stdout + procs[0].stderr)
+        self.assertIn("failing: test_scratch_failing.py::TestScratchFailing::test_bad",
+                      procs[0].stdout)
+
+    def test_a_chunk_killed_before_its_record_is_still_an_infrastructure_fault(self):
+        _, _, procs, _ = self.run_shards(
+            4, shards="1", modules={"test_scratch_crash.py": CRASH_MODULE})
+        assert_refusal(self, procs[0].returncode, procs[0].stderr, "InfrastructureFaultError")
+        self.assertIn("missing_record", procs[0].stdout)
+
+
 # == CP6: the CI pipeline (T-CI-1..5) =====================================================
 
 CI_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "workflow-manager-verify.yml"
@@ -4692,6 +4855,7 @@ CI_CONCURRENCY_GROUP = ("workflow-manager-verify-${{ github.event_name }}-${{ gi
                         "== 'pull_request' && github.ref || github.sha }}")
 #: The aggregate's first step, which fails it when `plan` or `package` did not succeed.
 CI_NEEDS_STEP = "needs"
+CI_SHARD_IF = "${{ !cancelled() && needs.plan.result == 'success' }}"
 CI_MATRIX = "${{ fromJSON(needs.plan.outputs.shards) }}"
 #: The release cache every test job primes (plan 7.1, 7.3): its directory, and
 #: the `actions/cache` inputs that restore it, keyed on the pins.
@@ -4890,7 +5054,12 @@ def ci_workflow_problems(doc: dict) -> list[str]:
     need(strategy.get("matrix") == {"shard": CI_MATRIX},
          f"the shard matrix is {strategy.get('matrix')!r}, not exactly {CI_MATRIX}")
     need(strategy.get("fail-fast") is False, "the shard matrix is not fail-fast: false")
-    need(shard.get("needs") == "plan", "the shard job does not need the plan job")
+    need(shard.get("needs") == ["plan", CI_PACKAGE_JOB],
+         "the shard job does not need [plan, package] (shards start after packaging, so the "
+         "peak is the shard count)")
+    need(shard.get("if") == CI_SHARD_IF,
+         f"the shard job's if is {shard.get('if')!r}, not {CI_SHARD_IF!r} (shards must still "
+         f"run when package fails, and not when plan does)")
     need(aggregate.get("needs") == ["plan", "shard", CI_PACKAGE_JOB],
          "aggregate does not need [plan, shard, package]")
     need(aggregate.get("if") == "always()", "aggregate does not run if: always()")
@@ -5019,6 +5188,10 @@ class TestCiWorkflowStructure(unittest.TestCase):
             "a literal shard list": (CI_MATRIX, "[0, 1, 2]"),
             "fail-fast": ("fail-fast: false", "fail-fast: true"),
             "aggregate needs only the shards": ("needs: [plan, shard, package]", "needs: [shard]"),
+            "shards that do not wait for the package": ("    needs: [plan, package]\n",
+                                                        "    needs: plan\n"),
+            "shards skipped when the package fails": (
+                "!cancelled() && needs.plan.result == 'success'", "success()"),
             "aggregate skips the package": ("needs: [plan, shard, package]",
                                             "needs: [plan, shard]"),
             "no nightly run": (re.compile(r"^  schedule:\n    - cron: .*\n", re.M), ""),

@@ -115,6 +115,16 @@ def max_shards(config: dict, profile: str, cpu_count: int) -> int:
     return max(1, min(config["ci_max_shards"], config["ci_account_concurrent_job_limit"] - 1))
 
 
+def shard_wall(estimates, workers: int) -> float:
+    """Predicted wall of one shard's shared chunks on `workers` threads pulling
+    from one queue, longest estimate first (greedy list scheduling). With one
+    worker this is the sum, as before."""
+    loads = [0.0] * max(1, workers)
+    for estimate in sorted(estimates, reverse=True):
+        loads[loads.index(min(loads))] += estimate
+    return max(loads)
+
+
 def shard_count(total: float, chunks: int, config: dict, profile: str, cpu_count: int,
                 override: int | None = None) -> int:
     """`clamp(ceil(T / target), min_shards, max_shards(profile))`, never more
@@ -271,7 +281,7 @@ def selection_doc(selection: Selection) -> dict:
 def build_plan(selection: Selection, *, inventory_unit_ids, matrix_units, timings, config: dict,
                profile: str, tree_digest: str, resources: Resources, shards: int | None = None,
                cpu_count: int | None = None, phase_b_workers: int | None = None,
-               whole_groups: bool = False) -> dict:
+               shard_workers: int | None = None, whole_groups: bool = False) -> dict:
     """The plan for `selection` (5.4 step 6), verified by INV-1 before it is
     returned.
 
@@ -279,7 +289,8 @@ def build_plan(selection: Selection, *, inventory_unit_ids, matrix_units, timing
     judged against it); `matrix_units` the matrix host class ids (phase B).
     `cpu_count` bounds the local shard count; `phase_b_workers` is the CI
     aggregate job's pool (default `cpu_count`) -- locally phase B runs on the
-    same `n` workers as phase A."""
+    same `n` workers as phase A. `shard_workers` is the worker count of each CI
+    shard job (default `cpu_count`): it only scales the predicted shard wall."""
     if profile not in PROFILES:
         raise PlanError(f"unknown profile {profile!r}")
     cpu_count = cpu_count or os.cpu_count() or 1
@@ -317,9 +328,12 @@ def build_plan(selection: Selection, *, inventory_unit_ids, matrix_units, timing
         terms = {"exclusive_a0": exclusive, "phase_a": shared, "phase_b": phase_b_makespan}
     else:
         setup = {kind: timings.ci_job_setup.get(kind, 0.0) for kind in timings_mod.CI_JOB_KINDS}
+        per_shard = shard_workers or cpu_count
         terms = {"plan_job": _round(setup["plan"]),
-                 "shard_job": _round(setup["shard"] + max(sum(c.estimate for c in s)
-                                                          for s in phase_a)),
+                 "shard_job": _round(setup["shard"] + max(
+                     sum(c.estimate for c in s if c.resources)
+                     + shard_wall([c.estimate for c in s if not c.resources], per_shard)
+                     for s in phase_a)),
                  "aggregate_job": _round(setup["aggregate"] + phase_b_makespan)}
     terms["total"] = _round(sum(terms.values()))
 
@@ -335,6 +349,7 @@ def build_plan(selection: Selection, *, inventory_unit_ids, matrix_units, timing
         "partial_frozen": selection.partial_frozen,
         "bounds": {**config, "cpu_count": cpu_count,
                    "max_shards": max_shards(config, profile, cpu_count),
+                   **({"shard_workers": shard_workers or cpu_count} if profile != "local" else {}),
                    "shards_override": shards, "whole_groups": whole_groups},
         "n": n,
         "shards": _shard_docs(phase_a),
