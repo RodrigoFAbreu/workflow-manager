@@ -345,3 +345,15 @@ with `2.9.1`, commit the stale `technical_approval` write alone before the
 first fix edit, commit the checklist before the generation record, and keep
 `Co-Authored-By:` out of the `Workflow-*` trailer paragraph, by hand. A
 downgrade to `2.9.1` is supported on those terms.
+
+`2.10.0` is a minor release (workflow#24) and adds no persisted key, phase,
+status, value, configuration write or commit shape; the Orchestration Protocol
+becomes `1.3`, additively (row `1b`, `plan_start_default_retired`, and the
+advisory `default_workflow_version` verify check). It writes nothing `2.9.2`
+would refuse, so `2.9.2` reads and drives every state and history it produces.
+What a downgrade loses: `2.10.0` refuses to create a new work item while
+`WORKFLOW_CONFIG.json` names `"2.1"` as the default, and `2.9.2` creates it
+again, so a repository that wants to stay off `"2.1"` for new work keeps its
+default at `"2.2"`; and `2.9.2`'s `workflow-conformance.yml`, which runs the
+suites one after another and never cancels a run, comes back. A downgrade to
+`2.9.2` is supported on those terms.

@@ -82,6 +82,19 @@ ALWAYS_HUMAN_GATES = {
 _HEURISTIC_IMPLEMENTATION_PREFIXES = ("scripts/", ".claude/commands/")
 
 
+#: The release that stops creating work items under a "2.1" default, and the next
+#: step it prints (`RETIRED_DEFAULT_NEXT_STEP` in its `workflow_state.py`, embedded
+#: verbatim: the Manager does not import release code).
+RETIRED_DEFAULT_FROM = "2.10.0"
+RETIRED_DEFAULT_NEXT_STEP = (
+    'Set `default_workflow_version` to "2.2" in '
+    '`docs/ai-workflow/WORKFLOW_CONFIG.json` (with "2.2" in '
+    '`supported_versions`), commit it with the trailer `Workflow-Activation: '
+    '2.2`, then run the command again. Existing "2.1" work items are not '
+    'affected.'
+)
+
+
 def version_key(version: str) -> tuple[int, ...]:
     """`"2.5.1"` -> `(2, 5, 1)`; raises `ValueError` for anything else."""
     if not isinstance(version, str) or not re.fullmatch(r"\d+(\.\d+)*", version):
@@ -1078,6 +1091,10 @@ DOWNGRADE_BOUNDARIES: dict[str, Boundary] = {
     # 2.9.2 writes nothing 2.9.1 refuses; a downgrade loses only the corrected
     # command order and text (CLAUDE.md "Downgrade posture").
     "2.9.2": Boundary(""),
+    # 2.10.0 writes no state, value or configuration; a downgrade restores creation
+    # under a "2.1" default and 2.9.2's workflow-conformance.yml (CLAUDE.md "Downgrade
+    # posture").
+    "2.10.0": Boundary(""),
 }
 
 #: Fixes and defaults that reach only new work items or new installations.
@@ -1100,6 +1117,10 @@ NEW_WORK_ONLY: dict[str, tuple[str, ...]] = {
     ),
     "2.9.1": (),
     "2.9.2": (),
+    "2.10.0": (
+        'New work items are refused while default_workflow_version is "2.1"; existing "2.1" '
+        "work items, legacy adoption and a default of \"2.2\" or \"1\" are unchanged.",
+    ),
 }
 
 #: Per pinned release, how it changes the gate defaults for existing work too;
@@ -1119,6 +1140,7 @@ GATE_DEFAULT_CHANGES: dict[str, str] = {
     "2.9.0": "",
     "2.9.1": "",
     "2.9.2": "",
+    "2.10.0": "",
 }
 
 #: What to commit first to keep the 2.7.0 gates.
@@ -1513,6 +1535,20 @@ def _base_findings(facts: RepositoryFacts, plan: UpdatePlan | None, *, target: s
                 WARNING, "legacy-active", f"{item.id} is an active legacy work item ({item.phase})",
                 f"The update does not retire or migrate it. /retire-legacy-work-item {advice}.",
                 (command,) if command else ()))
+
+    if facts.config_default == "2.1":
+        refused_now = installed is not None and not _lt(installed, RETIRED_DEFAULT_FROM)
+        refused_after = target is not None and _le(RETIRED_DEFAULT_FROM, target)
+        if refused_now or refused_after:
+            when = ("The installed Workflow refuses to create a new work item while this is the "
+                    "default" if refused_now else
+                    f"Workflow {RETIRED_DEFAULT_FROM} refuses to create a new work item while this "
+                    "is the default, so new work items will be refused after the update")
+            findings.append(Finding(
+                WARNING, "default-2.1-retired",
+                f'{CONFIG_PATH} defaults new work items to "2.1", which is retired',
+                f"{when}. The Manager does not edit the configuration.\n"
+                f"What to do: {RETIRED_DEFAULT_NEXT_STEP}"))
 
     gate_changes = [(v, GATE_DEFAULT_CHANGES[v]) for v in sorted(GATE_DEFAULT_CHANGES, key=version_key)
                     if GATE_DEFAULT_CHANGES[v] and installed and target

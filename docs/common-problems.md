@@ -1,6 +1,6 @@
 # Common problems
 
-> For: someone who ran a Manager command and got an error. Last checked with: Workflow Manager 1.8.0, Workflow 2.9.2.
+> For: someone who ran a Manager command and got an error. Last checked with: Workflow Manager 1.8.0, Workflow 2.10.0.
 
 Every error the Manager prints has two parts: `error:` names the cause, and `next:` names one step to take (a command, a flag or a page). Run the `next:` step, then run your command again. This page lists the messages with the same fix in more words.
 

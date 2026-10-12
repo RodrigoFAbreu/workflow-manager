@@ -1,6 +1,6 @@
 # Exit codes
 
-> For: anyone who runs `workflow-manager` from a script or wants to know what a status means. Last checked with: Workflow Manager 1.8.0, Workflow 2.9.2.
+> For: anyone who runs `workflow-manager` from a script or wants to know what a status means. Last checked with: Workflow Manager 1.8.0, Workflow 2.10.0.
 
 Every command ends with a status. This is the one table of them. Every error message names its cause (`error:`) and one step to take (`next:`); the exit code is the contract, and the message text can improve between releases. The fix for each message, in more words, is in [common problems](common-problems.md).
 

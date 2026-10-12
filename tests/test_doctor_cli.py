@@ -177,6 +177,73 @@ class TestDoctorExitCodes(Base):
         self.assertEqual(run("update", str(repo), "--dry-run").returncode, 0)
 
 
+class TestRetiredDefault(Base):
+    """`doctor` and `update --dry-run` warn about a "2.1" default for new work."""
+
+    def default_2_1(self, repo: Path):
+        config = repo / "docs/ai-workflow/WORKFLOW_CONFIG.json"
+        data = json.loads(config.read_text())
+        data["default_workflow_version"] = "2.1"
+        data["supported_versions"] = sorted(set(data.get("supported_versions", [])) | {"2.1", "2.2"})
+        config.write_text(json.dumps(data, indent=2) + "\n")
+        self.commit(repo, "default 2.1")
+
+    def test_doctor_checking_a_2_9_2_target_from_2_9_2_says_nothing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = build_bootstrapped_repo(support.release("2.9.2"), Path(tmp) / "repo")
+            self.default_2_1(repo)
+            proc = run("--release-version", "2.9.2", "doctor", str(repo))
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        self.assertNotIn("default-2.1-retired", proc.stdout)
+
+    def test_doctor_toward_2_10_0_from_2_9_2(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = build_bootstrapped_repo(support.release("2.9.2"), Path(tmp) / "repo")
+            self.default_2_1(repo)
+            proc = run("--release-version", "2.10.0", "doctor", str(repo))
+        self.assertEqual(proc.returncode, 1, proc.stdout + proc.stderr)
+        self.assertIn("default-2.1-retired", proc.stdout)
+        self.assertIn("will be refused after the update", proc.stdout)
+        self.assertIn('Workflow-Activation: 2.2', proc.stdout)
+
+    def test_doctor_under_installed_2_10_0(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = build_bootstrapped_repo(support.release("2.10.0"), Path(tmp) / "repo")
+            self.default_2_1(repo)
+            proc = run("doctor", str(repo))
+        self.assertEqual(proc.returncode, 1, proc.stdout + proc.stderr)
+        self.assertIn("default-2.1-retired", proc.stdout)
+        self.assertIn("refuses to create a new work item", proc.stdout)
+
+    def test_a_2_2_default_shows_nothing(self):
+        proc = run("doctor", str(self.fresh()))
+        self.assertNotIn("default-2.1-retired", proc.stdout)
+
+    def test_a_missing_config_degrades_quietly(self):
+        repo = self.fresh()
+        (repo / "docs/ai-workflow/WORKFLOW_CONFIG.json").unlink()
+        self.commit(repo, "no config")
+        proc = run("doctor", str(repo))
+        self.assertNotIn("default-2.1-retired", proc.stdout)
+        self.assertNotIn("Traceback", proc.stderr)
+
+    def test_an_invalid_config_degrades_quietly(self):
+        repo = self.fresh()
+        (repo / "docs/ai-workflow/WORKFLOW_CONFIG.json").write_text("{not json")
+        self.commit(repo, "bad config")
+        proc = run("doctor", str(repo))
+        self.assertNotIn("default-2.1-retired", proc.stdout)
+        self.assertNotIn("Traceback", proc.stderr)
+
+    def test_update_dry_run_shows_the_warning_and_exits_0(self):
+        repo = self.fresh()
+        self.default_2_1(repo)
+        proc = run("update", str(repo), "--dry-run")
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        self.assertIn("default-2.1-retired", proc.stdout)
+        self.assertIn("will be refused after the update", proc.stdout)
+
+
 class TestDryRun(Base):
     def real_update_lines(self, repo, *extra):
         proc = run("update", str(repo), *extra)
