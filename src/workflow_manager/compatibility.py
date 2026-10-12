@@ -1119,7 +1119,7 @@ NEW_WORK_ONLY: dict[str, tuple[str, ...]] = {
     "2.9.2": (),
     "2.10.0": (
         'New work items are refused while default_workflow_version is "2.1"; existing "2.1" '
-        "work items, legacy adoption and a default of 2.2 or 1 are unchanged.",
+        "work items, legacy adoption and a default of \"2.2\" or \"1\" are unchanged.",
     ),
 }
 
@@ -1547,8 +1547,8 @@ def _base_findings(facts: RepositoryFacts, plan: UpdatePlan | None, *, target: s
             findings.append(Finding(
                 WARNING, "default-2.1-retired",
                 f'{CONFIG_PATH} defaults new work items to "2.1", which is retired',
-                f"{when}. Existing \"2.1\" work items are not affected, and the Manager does not "
-                f"edit the configuration.\nWhat to do: {RETIRED_DEFAULT_NEXT_STEP}"))
+                f"{when}. The Manager does not edit the configuration.\n"
+                f"What to do: {RETIRED_DEFAULT_NEXT_STEP}"))
 
     gate_changes = [(v, GATE_DEFAULT_CHANGES[v]) for v in sorted(GATE_DEFAULT_CHANGES, key=version_key)
                     if GATE_DEFAULT_CHANGES[v] and installed and target

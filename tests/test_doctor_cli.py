@@ -189,16 +189,18 @@ class TestRetiredDefault(Base):
         self.commit(repo, "default 2.1")
 
     def test_doctor_checking_a_2_9_2_target_from_2_9_2_says_nothing(self):
-        repo = self.fresh()
-        self.default_2_1(repo)
-        proc = run("--release-version", "2.9.2", "doctor", str(repo))
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = build_bootstrapped_repo(support.release("2.9.2"), Path(tmp) / "repo")
+            self.default_2_1(repo)
+            proc = run("--release-version", "2.9.2", "doctor", str(repo))
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
         self.assertNotIn("default-2.1-retired", proc.stdout)
 
     def test_doctor_toward_2_10_0_from_2_9_2(self):
-        repo = self.fresh()
-        self.default_2_1(repo)
-        proc = run("doctor", str(repo))
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = build_bootstrapped_repo(support.release("2.9.2"), Path(tmp) / "repo")
+            self.default_2_1(repo)
+            proc = run("--release-version", "2.10.0", "doctor", str(repo))
         self.assertEqual(proc.returncode, 1, proc.stdout + proc.stderr)
         self.assertIn("default-2.1-retired", proc.stdout)
         self.assertIn("will be refused after the update", proc.stdout)
