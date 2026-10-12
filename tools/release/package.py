@@ -43,6 +43,7 @@ sys.path.insert(0, str(REPO_ROOT / "src"))
 from release import VERSION_RE, ReleaseError, set_version  # noqa: E402
 
 from workflow_manager import package as workflow_package  # noqa: E402
+from workflow_manager.release import _version_key  # noqa: E402
 
 #: What the wheel and sdist are built from; nothing else of the checkout.
 COPY_FILES = ("pyproject.toml", "README.md")
@@ -112,7 +113,7 @@ def expected_release_versions(checkout: Path) -> list[str]:
         raise PackageError(f"cannot read the pins at {path}: {exc}") from exc
     if not isinstance(releases, dict):
         raise PackageError(f"{path}'s releases is not a mapping")
-    return sorted(releases)
+    return sorted(releases, key=_version_key)
 
 
 def check_wheel_carries_pins(wheel: Path) -> None:
@@ -123,9 +124,11 @@ def check_wheel_carries_pins(wheel: Path) -> None:
 
 def check_releases_output(output: str, versions: list[str]) -> None:
     """`releases` must list each release, one per line, by its version."""
-    listed = sorted(line.split()[0] for line in output.splitlines() if line.strip())
-    if listed != sorted(versions):
-        raise PackageError(f"releases listed {listed}, expected {sorted(versions)}")
+    listed = sorted((line.split()[0] for line in output.splitlines() if line.strip()),
+                    key=_version_key)
+    expected = sorted(versions, key=_version_key)
+    if listed != expected:
+        raise PackageError(f"releases listed {listed}, expected {expected}")
 
 
 def _run(argv: list[str], *, cwd: Path | None = None) -> subprocess.CompletedProcess:

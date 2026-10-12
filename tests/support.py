@@ -280,6 +280,20 @@ CI_SUITES = {
         "workflow_protocol_test.py": 314,
         "workflow_gate_policy_test.py": 292,
     },
+    #: `2.10.0` refuses new work items under a "2.1" default and runs its CI
+    #: suites in parallel inside one job. Same nine suites; counts pinned to
+    #: what the published package produces.
+    "2.10.0": {
+        "workflow_fingerprint_test.py": 257,
+        "workflow_state_test.py": 1102,
+        "workflow_test_harness_test.py": 25,
+        "workflow_integration_test.py": 292,
+        "workflow_acceptance_matrix_test.py": 381,
+        "workflow_state_completion_obligations_test.py": 106,
+        "workflow_fingerprint_generalization_test.py": 106,
+        "workflow_protocol_test.py": 320,
+        "workflow_gate_policy_test.py": 292,
+    },
 }
 
 

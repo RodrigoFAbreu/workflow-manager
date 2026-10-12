@@ -146,6 +146,12 @@ class TestTables(unittest.TestCase):
         for table in (comp.DOWNGRADE_BOUNDARIES, comp.NEW_WORK_ONLY, comp.GATE_DEFAULT_CHANGES):
             self.assertEqual(sorted(table, key=comp.version_key), PINNED_VERSIONS)
 
+    def test_versions_order_numerically(self):
+        self.assertLess(comp.version_key("2.9.2"), comp.version_key("2.10.0"))
+        self.assertTrue(comp._lt("2.9.2", "2.10.0"))
+        self.assertEqual(PINNED_VERSIONS[-1], "2.10.0")
+        self.assertEqual(PINNED_VERSIONS[-2], "2.9.2")
+
     def test_each_boundary_with_a_posture_has_signals_or_says_it_cannot_detect(self):
         for version, boundary in comp.DOWNGRADE_BOUNDARIES.items():
             if boundary.posture:
@@ -1106,6 +1112,60 @@ class TestDowngrade(Case):
         self.assertIn("Orchestration Protocol", detail)
         self.set_state({})
         self.assertIn("no signal", self.downgrade("2.8.0").detail)
+
+
+class TestRetiredDefault(Case):
+    """A repository defaulting to "2.1" gets a warning when the installed or the
+    target release is 2.10.0 or later, and never anything else."""
+
+    def default(self, value):
+        self.put(comp.CONFIG_PATH, {"schema_version": 1, "default_workflow_version": value,
+                                    "supported_versions": ["2.1", "2.2"]})
+
+    def finding(self, **kwargs):
+        return next((f for f in self.report(**kwargs).findings
+                     if f.id == "default-2.1-retired"), None)
+
+    def test_the_next_step_is_the_releases_own_text(self):
+        with workflow_modules("2.10.0") as m:
+            self.assertEqual(comp.RETIRED_DEFAULT_NEXT_STEP,
+                             m["workflow_state"].RETIRED_DEFAULT_NEXT_STEP)
+
+    def test_an_older_installed_release_is_told_new_work_will_be_refused(self):
+        self.default("2.1")
+        found = self.finding(installed="2.9.2", target="2.10.0")
+        self.assertEqual(found.severity, WARNING)
+        self.assertIn("will be refused after the update", found.detail)
+        self.assertIn(comp.RETIRED_DEFAULT_NEXT_STEP, found.detail)
+        self.assertIn("does not edit the configuration", found.detail)
+
+    def test_an_installed_2_10_0_is_told_new_work_is_refused(self):
+        self.default("2.1")
+        found = self.finding(installed="2.10.0", target="2.10.0")
+        self.assertEqual(found.severity, WARNING)
+        self.assertNotIn("will be refused", found.detail)
+        self.assertIn("refuses to create a new work item", found.detail)
+        self.assertIn(comp.RETIRED_DEFAULT_NEXT_STEP, found.detail)
+
+    def test_nothing_is_said_when_neither_release_refuses(self):
+        self.default("2.1")
+        self.assertIsNone(self.finding(installed="2.9.2", target="2.9.2"))
+        self.assertIsNone(self.finding(installed="2.9.1", target="2.9.2"))
+
+    def test_a_downgrade_of_2_10_0_still_warns_while_installed(self):
+        self.default("2.1")
+        self.assertIsNotNone(self.finding(installed="2.10.0", target="2.9.2"))
+
+    def test_other_defaults_and_an_absent_or_broken_config_say_nothing(self):
+        for value in ("2.2", "1"):
+            self.default(value)
+            self.assertIsNone(self.finding(installed="2.9.2", target="2.10.0"), value)
+        (self.target / comp.CONFIG_PATH).unlink()
+        self.assertIsNone(self.finding(installed="2.9.2", target="2.10.0"))
+        self.put(comp.CONFIG_PATH, "{not json")
+        self.assertIsNone(self.finding(installed="2.9.2", target="2.10.0"))
+        self.put(comp.CONFIG_PATH, {"default_workflow_version": 2.1})
+        self.assertIsNone(self.finding(installed="2.9.2", target="2.10.0"))
 
 
 class TestMiscFindings(Case):

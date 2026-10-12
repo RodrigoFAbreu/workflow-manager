@@ -209,7 +209,9 @@ class TestAuthoredReleaseCiTemplateSuiteNames(unittest.TestCase):
             with self.subTest(version=version):
                 text = support.release(version).read(
                     "templates/.github/workflows/workflow-conformance.yml").decode()
-                named = set(re.findall(r"run:\s*python3\s+(\S+_test\.py)", text))
+                # Every suite file name in the template, wherever it appears: one
+                # `run:` step each (up to 2.9.2) or a list in one step (2.10.0).
+                named = set(re.findall(r"workflow_[a-z_]+_test\.py", text))
                 self.assertEqual(named, set(CI_SUITES[version]))
 
 

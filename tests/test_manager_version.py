@@ -431,9 +431,20 @@ class VersionOutputCheckTest(_Tmp):
         versions the checkout's pin file publishes (plan 5.6)."""
         pins = json.loads((REPO_ROOT / "src/workflow_manager/published_releases.json")
                           .read_text())
-        self.assertEqual(package.expected_release_versions(REPO_ROOT), sorted(pins["releases"]))
+        self.assertEqual(package.expected_release_versions(REPO_ROOT),
+                         sorted(pins["releases"], key=lambda v: tuple(map(int, v.split(".")))))
         self.assertEqual(package.PINS_PATH.as_posix(), "src/workflow_manager/published_releases.json")
         self.assertEqual(package.PINS_IN_WHEEL, "workflow_manager/published_releases.json")
+
+    def test_versions_order_numerically_2_10_0_after_2_9_2(self):
+        """A two-digit minor sorts after a one-digit one, in the expected list
+        and in the comparison of what `releases` printed."""
+        (self.tmp / package.PINS_PATH).parent.mkdir(parents=True)
+        (self.tmp / package.PINS_PATH).write_text(json.dumps(
+            {"releases": {"2.10.0": {}, "2.9.2": {}, "2.3.1": {}}}))
+        versions = package.expected_release_versions(self.tmp)
+        self.assertEqual(versions, ["2.3.1", "2.9.2", "2.10.0"])
+        package.check_releases_output("2.10.0 x\n2.3.1 x\n2.9.2 x\n", versions)
 
     def test_the_expected_list_refuses_an_unreadable_pin_file(self):
         with self.assertRaisesRegex(package.PackageError, "cannot read the pins"):
