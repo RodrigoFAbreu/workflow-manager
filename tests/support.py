@@ -294,6 +294,19 @@ CI_SUITES = {
         "workflow_protocol_test.py": 320,
         "workflow_gate_policy_test.py": 292,
     },
+    #: `2.11.0` checks a plan revision's checkpoint anchors before any plan review.
+    #: Same nine suites; counts pinned to what the published package produces.
+    "2.11.0": {
+        "workflow_fingerprint_test.py": 257,
+        "workflow_state_test.py": 1112,
+        "workflow_test_harness_test.py": 27,
+        "workflow_integration_test.py": 300,
+        "workflow_acceptance_matrix_test.py": 415,
+        "workflow_state_completion_obligations_test.py": 106,
+        "workflow_fingerprint_generalization_test.py": 112,
+        "workflow_protocol_test.py": 320,
+        "workflow_gate_policy_test.py": 292,
+    },
 }
 
 

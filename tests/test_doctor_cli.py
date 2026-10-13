@@ -236,9 +236,10 @@ class TestRetiredDefault(Base):
         self.assertNotIn("Traceback", proc.stderr)
 
     def test_update_dry_run_shows_the_warning_and_exits_0(self):
-        repo = self.fresh()
-        self.default_2_1(repo)
-        proc = run("update", str(repo), "--dry-run")
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = build_bootstrapped_repo(support.release("2.9.2"), Path(tmp) / "repo")
+            self.default_2_1(repo)
+            proc = run("update", str(repo), "--dry-run")
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
         self.assertIn("default-2.1-retired", proc.stdout)
         self.assertIn("will be refused after the update", proc.stdout)

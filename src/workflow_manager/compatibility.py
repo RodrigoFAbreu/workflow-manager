@@ -1095,6 +1095,9 @@ DOWNGRADE_BOUNDARIES: dict[str, Boundary] = {
     # under a "2.1" default and 2.9.2's workflow-conformance.yml (CLAUDE.md "Downgrade
     # posture").
     "2.10.0": Boundary(""),
+    # 2.11.0 writes no state, value, record, configuration or commit shape; a downgrade
+    # loses only the early anchor refusals (CLAUDE.md "Downgrade posture").
+    "2.11.0": Boundary(""),
 }
 
 #: Fixes and defaults that reach only new work items or new installations.
@@ -1121,6 +1124,9 @@ NEW_WORK_ONLY: dict[str, tuple[str, ...]] = {
         'New work items are refused while default_workflow_version is "2.1"; existing "2.1" '
         "work items, legacy adoption and a default of \"2.2\" or \"1\" are unchanged.",
     ),
+    # The early anchor check reaches every "2.1"/"2.2" item's next plan revision, so it is
+    # not new-work-only; approved and bound plans are untouched until revised.
+    "2.11.0": (),
 }
 
 #: Per pinned release, how it changes the gate defaults for existing work too;
@@ -1141,6 +1147,7 @@ GATE_DEFAULT_CHANGES: dict[str, str] = {
     "2.9.1": "",
     "2.9.2": "",
     "2.10.0": "",
+    "2.11.0": "",
 }
 
 #: What to commit first to keep the 2.7.0 gates.
