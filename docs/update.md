@@ -1,6 +1,6 @@
 # Update
 
-> For: someone moving a repository to a newer Workflow release, or moving the Manager itself to a newer version. Last checked with: Workflow Manager 1.8.0, Workflow 2.10.0.
+> For: someone moving a repository to a newer Workflow release, or moving the Manager itself to a newer version. Last checked with: Workflow Manager 1.8.0, Workflow 2.11.0.
 
 Goal: bring a repository to the newest pinned Workflow release without losing its work-item state.
 
