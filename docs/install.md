@@ -1,6 +1,6 @@
 # Install
 
-> For: someone setting up the Workflow Manager and putting the Workflow into a repository for the first time. Last checked with: Workflow Manager 1.8.0, Workflow 2.10.0.
+> For: someone setting up the Workflow Manager and putting the Workflow into a repository for the first time. Last checked with: Workflow Manager 1.8.0, Workflow 2.11.0.
 
 Goal: have the `workflow-manager` command on your machine and a repository that runs the Workflow.
 
@@ -65,9 +65,9 @@ Optional choices for step 4:
 ## What you should see
 
 - Step 2 prints `workflow-manager 1.5.0` (or a newer number).
-- Step 3 lists one line per Workflow release, from 2.3.1 to 2.10.0, each ending in `[cached]` or `[not cached]`.
-- Step 4 prints `bootstrapped workflow 2.10.0 (full) into /path/to/your/repo` and a count of managed, state and merged files. The first run of a release downloads it, so it takes a moment.
-- Step 5 prints `installation matches workflow 2.10.0` and exits with status 0.
+- Step 3 lists one line per Workflow release, from 2.3.1 to 2.11.0, each ending in `[cached]` or `[not cached]`.
+- Step 4 prints `bootstrapped workflow 2.11.0 (full) into /path/to/your/repo` and a count of managed, state and merged files. The first run of a release downloads it, so it takes a moment.
+- Step 5 prints `installation matches workflow 2.11.0` and exits with status 0.
 - The repository now has `.claude/commands/`, `scripts/`, `docs/ai-workflow/` and `.workflow-manager/installation.json` (the [installation record](glossary.md#installation-record)).
 
 ## Approval gates after a fresh install

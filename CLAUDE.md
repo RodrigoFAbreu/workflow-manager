@@ -357,3 +357,16 @@ again, so a repository that wants to stay off `"2.1"` for new work keeps its
 default at `"2.2"`; and `2.9.2`'s `workflow-conformance.yml`, which runs the
 suites one after another and never cancels a run, comes back. A downgrade to
 `2.9.2` is supported on those terms.
+
+`2.11.0` is a minor release (workflow#23) and adds no persisted key, phase,
+status, value, record, configuration write or commit shape; the Orchestration
+Protocol stays `1.3`. It writes nothing `2.10.0` would refuse, so `2.10.0`
+reads and drives every state and history it produces. What a downgrade loses
+is the early anchor check: `2.11.0` refuses a plan revision without its
+checkpoint anchors (`<!-- CPn -->`/`<!-- /CPn -->`) when it is published,
+bound or turned into a plan-review bundle, and `2.10.0` again refuses an
+amending plan without anchors first at plan approval, after both plan reviews,
+and accepts a new plan without anchors, so its first amendment demotes every
+completed checkpoint. Plans already written with anchors keep them, and
+`2.10.0`'s reconciliation uses them. A downgrade to `2.10.0` is supported on
+those terms.
