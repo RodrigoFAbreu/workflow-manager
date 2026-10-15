@@ -215,8 +215,9 @@ Read them back with `gh api "repos/$repo" --jq '{allow_squash_merge,
 allow_merge_commit, allow_rebase_merge, squash_merge_commit_title,
 squash_merge_commit_message, allow_auto_merge, delete_branch_on_merge}'`
 and `gh api "repos/$repo/rulesets/$id"`. The required checks are
-`aggregate` and `Conventional Commit title`; `strict` is off, so a pull
-request need not be up to date with `main`. There are no bypass actors: an
+`aggregate`, `Conventional Commit title` and `workflow-conformance`, so
+auto-merge waits for every job a pull request runs; `strict` is off, so a
+pull request need not be up to date with `main`. There are no bypass actors: an
 administrator recovers from a lockout by editing or disabling the ruleset.
 Never make a check required before it has reported under that exact name on
 an open pull request.

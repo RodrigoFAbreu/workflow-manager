@@ -47,7 +47,7 @@ RELEASE_PY = REPO_ROOT / "tools" / "release" / "release.py"
 
 #: The GitHub Actions app: every required check comes from it (plan 6.3).
 ACTIONS_APP = 15368
-REQUIRED_CHECKS = {"aggregate", "Conventional Commit title"}
+REQUIRED_CHECKS = {"aggregate", "Conventional Commit title", "workflow-conformance"}
 
 
 def _load_release_tool():
