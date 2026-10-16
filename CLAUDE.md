@@ -370,3 +370,18 @@ and accepts a new plan without anchors, so its first amendment demotes every
 completed checkpoint. Plans already written with anchors keep them, and
 `2.10.0`'s reconciliation uses them. A downgrade to `2.10.0` is supported on
 those terms.
+
+`2.12.0` is a minor release (workflow#28) and adds no persisted key, phase,
+status, value, configuration write or commit shape; the Orchestration Protocol
+becomes `1.4`, additively (the `review_round` field of the `next-action`
+snapshot). It adds one gitignored file, `.ai-review/<id>/CHANGES_SINCE_REVIEW.md`,
+outside `bundle_id` and `review_content_id`, and one optional verdict header
+line, `Review scope:`. It writes nothing `2.11.0` would refuse, so `2.11.0`
+reads and drives every state and history it produces, and verifies an archive
+that carries the file. What a downgrade loses: `2.11.0` ignores the header
+line, neither regenerates nor deletes `CHANGES_SINCE_REVIEW.md` (delete it by
+hand so a reviewer does not read a stale copy), no longer refuses a malformed
+verdict by shape (a `REVISE` without a Blocking or Important finding, an
+`APPROVE` listing a Blocking finding or declaring `Review scope: changes`),
+and drops `review_round` (an orchestrator reading protocol `1.4` sees `1.3`
+again). A downgrade to `2.11.0` is supported on those terms.

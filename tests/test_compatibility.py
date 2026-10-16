@@ -149,9 +149,10 @@ class TestTables(unittest.TestCase):
     def test_versions_order_numerically(self):
         self.assertLess(comp.version_key("2.9.2"), comp.version_key("2.10.0"))
         self.assertTrue(comp._lt("2.9.2", "2.10.0"))
-        self.assertEqual(PINNED_VERSIONS[-1], "2.11.0")
-        self.assertEqual(PINNED_VERSIONS[-2], "2.10.0")
-        self.assertEqual(PINNED_VERSIONS[-3], "2.9.2")
+        self.assertEqual(PINNED_VERSIONS[-1], "2.12.0")
+        self.assertEqual(PINNED_VERSIONS[-2], "2.11.0")
+        self.assertEqual(PINNED_VERSIONS[-3], "2.10.0")
+        self.assertEqual(PINNED_VERSIONS[-4], "2.9.2")
 
     def test_each_boundary_with_a_posture_has_signals_or_says_it_cannot_detect(self):
         for version, boundary in comp.DOWNGRADE_BOUNDARIES.items():
