@@ -2,6 +2,35 @@
 
 ## Milestone
 
+`workflow-manager-release-agnostic` (`governing_workflow_version: "2.2"`,
+`process`, plan revision 1, base `dff497d`, branch
+`milestone/workflow-manager-release-agnostic`): roadmap item 8, the
+release-agnostic Manager. A Workflow release published after a Manager
+release installs without a Manager pin pull request or a Manager release: the
+Manager discovers published releases and verifies an unpinned one by its
+published `SHA256SUMS` and manifest digest (pins stay authoritative for the
+releases they name and are never changed); a release's manifest may carry the
+per-release data the Manager hard-codes today (downgrade boundary, new-work-only
+fixes, gate-default change, frozen suite counts, portability exceptions,
+`min_manager_version`), with built-in data kept for releases up to 2.12.0; CI
+tests the releases a lock file names (the nightly the newest published one);
+timings are keyed without the release version. The matching Workflow-side
+change is a separate follow-up in the `workflow` repository. Full plan:
+`docs/ai-workflow/WORKFLOW_MANAGER_RELEASE_AGNOSTIC_PLAN.md`. A `feat:` title,
+so it releases a Manager minor.
+
+## Current checkpoint
+
+**Planning.** Plan revision 1 is awaiting plan review. Five checkpoints: CP1
+discovery, trust and the cache; CP2 release metadata and
+`min_manager_version`; CP3 deterministic CI (lock file, nightly); CP4
+version-free timing keys; CP5 documentation, roadmap and the Workflow-side
+contract.
+
+---
+
+## Previous milestone: workflow-manager-operator-ux
+
 `workflow-manager-operator-ux` (`governing_workflow_version: "2.2"`,
 `process`, plan revision 14, base `218155d`, branch
 `milestone/workflow-manager-operator-ux`): roadmap item 7, Operator UX. The
@@ -15,7 +44,7 @@ state JSON; the two parked Update-ergonomics follow-ups are folded in
 (plan D-5: T13, T18, T19 and T20, each a traceback's exit 1 becoming 2), `status` of a managed repository, which now exits 1 (not 0) where it cannot prove its writes stay outside the repository, Git unavailable included (plan D-14, C5; an unmanaged target still exits 0), and `doctor`, which exits 2 (not a traceback's 1) for a `--release-dir` manifest that crashes it today (plan D-15, R17); a manifest shape that succeeds today keeps its exit (D-16). Full plan:
 `docs/ai-workflow/WORKFLOW_MANAGER_OPERATOR_UX_PLAN.md`.
 
-## Current checkpoint
+## Previous milestone: final checkpoint
 
 **Milestone complete.** `workflow-manager-operator-ux` reached
 `MILESTONE_COMPLETE` through `/satisfy-gate acceptance` on 2026-10-10, by
