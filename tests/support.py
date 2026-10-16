@@ -65,6 +65,11 @@ def next_version(version: str) -> str:
 HERMETIC_GIT_ENV = {"GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null"}
 os.environ.update(HERMETIC_GIT_ENV)
 
+#: No test discovers a release over the network (plan 3.7): a suite that needs
+#: discovery sets this to "0" with a mirror directory or a loopback server and a
+#: private release cache of its own. The runner exports the same value.
+os.environ.setdefault("WORKFLOW_MANAGER_PINNED_ONLY", "1")
+
 
 def cli_env(**extra: str) -> dict[str, str]:
     """A from-scratch environment for a `workflow_manager` subprocess (plan 7.1).
@@ -82,6 +87,7 @@ def cli_env(**extra: str) -> dict[str, str]:
         "PATH": "/usr/bin:/bin",
         "HOME": str(Path.home()),
         source.CACHE_ENV: str(source.cache_root()),
+        source.PINNED_ONLY_ENV: "1",
         **HERMETIC_GIT_ENV,
     }
     if os.environ.get(source.SOURCE_ENV):

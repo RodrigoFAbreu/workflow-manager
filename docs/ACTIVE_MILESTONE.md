@@ -21,11 +21,54 @@ so it releases a Manager minor.
 
 ## Current checkpoint
 
-**Planning.** Plan revision 1 is awaiting plan review. Five checkpoints: CP1
-discovery, trust and the cache; CP2 release metadata and
-`min_manager_version`; CP3 deterministic CI (lock file, nightly); CP4
-version-free timing keys; CP5 documentation, roadmap and the Workflow-side
-contract.
+**Implementing: CP1 done** (discovery, trust and the cache). Plan revision 5 is
+approved (by policy). Remaining: CP2 release metadata and `min_manager_version`;
+CP3 deterministic CI (lock file, nightly); CP4 version-free timing keys; CP5
+documentation, roadmap and the Workflow-side contract.
+
+### CP1: Discovery, trust and the cache (R1, R5)
+
+Built in `src/workflow_manager/source.py`, `cli.py`, `advice.py`:
+
+- `ReleaseSource` reads assets in memory (`read`, size-capped, under a shared
+  `Deadline`), lists a source (`listing`: a directory's `<version>/` folders with
+  the three assets, or the default source's GitHub releases listing; a URL
+  template has none), and `inspect`s a candidate (its `SHA256SUMS` and manifest
+  asset checked against each other). `parse_github_listing` keeps only
+  non-draft, non-prerelease `vX.Y.Z` releases that list their three assets and
+  report `immutable: true`.
+- `ReleaseCache._trust(version)` returns the shipped pin (`pinned`) or a pin
+  derived from the source's own `SHA256SUMS` (`discovered`; exactly the archive
+  and manifest asset). A discovered entry carries a `SOURCE` file next to
+  `complete`; it is a hit only under the same source, and its own
+  `SHA256SUMS` must derive the pin the archive is checked against. The
+  installation record's `source` gains `trust: "discovered"` and `from`
+  (`github:<repository>`, `dir:<path>`, `template:<url>`) for such a release.
+- `--pinned-only` / `WORKFLOW_MANAGER_PINNED_ONLY=1` restores "a pin is the only
+  door".
+- `Chooser` walks candidates newest first (pins, source-bound cache entries,
+  the `--manager-root` alias, the listing), never raising on the network: a
+  failed listing, a stalled request or the 20-second total deadline is one
+  stderr line and the walk ends at the newest local release; a candidate whose
+  metadata fails is skipped with a line. `cli._choose_and_resolve` runs the
+  install loop for `bootstrap`, `update`, `update --dry-run` and `doctor`:
+  destinations are planned on each candidate's cache leaves, an availability
+  failure of the archive falls back to the next release down, an integrity
+  failure refuses. A bare `update` has the installed release as a floor
+  (`ReleaseFloorError`, exit 1, nothing written).
+- `releases` lists the discovered releases after the pinned ones.
+- Tests: `tests/test_discovery.py` (42+ tests, hermetic: directory mirrors and
+  loopback servers, a private cache each), `tests/fixtures/github_releases_listing.json`
+  (a recorded GitHub response); `cli_env`, `support` and the runner default to
+  `WORKFLOW_MANAGER_PINNED_ONLY=1`, and the runner fails a run that adds a
+  discovered or unpinned entry to the primed cache.
+
+**Live API check (done once, 2026-10-16):** `GET
+https://api.github.com/repos/RodrigoFAbreu/workflow/releases?per_page=100`
+returns 13 releases; each carries `draft`, `prerelease`, `tag_name`, `assets[].name`
+and **`immutable: true`** (field present, name as the plan assumes), with the three
+assets (`SHA256SUMS`, `workflow-V.manifest.json`, `workflow-V.tar.gz`). No plan
+amendment is needed.
 
 ---
 

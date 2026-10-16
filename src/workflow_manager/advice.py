@@ -48,6 +48,7 @@ from .installation import (
 from .release import STATE_TEMPLATES, ReleaseIntegrityError
 from .source import (
     SOURCE_ENV,
+    ReleaseFloorError,
     ReleaseNotPublishedError,
     ReleaseUnavailableError,
 )
@@ -556,9 +557,24 @@ def _none_pinned(error, context):
             f"`{_operator_command(context, directory='DIR')}`")
 
 
+def _floor(error, context):
+    if error.kind == "manager":
+        step = f"upgrade the Manager ({_url(PAGE_UPDATE_MANAGER)})"
+    elif _writes_held(context):
+        return _held_rerun(context)
+    elif error.kind == "archive":
+        step = ("connect to a network that serves the release's archive, or point the Manager "
+                "at a mirror that holds it with --release-source")
+    else:
+        step = ("connect to the network and run the command again, or point the Manager at a "
+                "mirror with --release-source")
+    return (f"{step}; a bare update never installs a release older than the installed "
+            f"Workflow {error.installed}")
+
+
 def _unpinned(error, context):
-    upgrade = (f"a published release needs a newer Manager that pins it: upgrade the Manager "
-               f"({_url(PAGE_UPDATE_MANAGER)})")
+    upgrade = (f"a published release needs a newer Manager that pins it, or a run without "
+               f"--pinned-only: upgrade the Manager ({_url(PAGE_UPDATE_MANAGER)})")
     if _writes_held(context):
         return f"{upgrade}; {_held_rerun(context)}"
     return (f"{upgrade}, then run the command again. An unpublished release directory "
@@ -722,6 +738,7 @@ _row(CollisionError, _collision, predicate=True)
 _row(OSError, _os_error)
 _row(ReleaseNotPublishedError, _by_kind({"none-pinned": _none_pinned, "unpinned": _unpinned}),
      on_write=True)
+_row(ReleaseFloorError, _floor, on_write=True)
 _row(ReleaseUnavailableError, _by_kind({
     "fetch-url": _fetch_url, "fetch-directory": _fetch_directory,
     "no-version-field": _no_version_field, "source-response": _source_response,

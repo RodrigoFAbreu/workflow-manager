@@ -21,6 +21,7 @@ from . import strict_json_loads
 
 CACHE_ENV = "WORKFLOW_MANAGER_RELEASE_CACHE"
 SOURCE_ENV = "WORKFLOW_MANAGER_RELEASE_SOURCE"
+PINNED_ONLY_ENV = "WORKFLOW_MANAGER_PINNED_ONLY"
 
 _SCRIPT = """
 import json, sys
@@ -70,15 +71,41 @@ def prime(repo_root: Path, environ=None) -> dict:
 
 @contextmanager
 def exported(cache: str):
-    """`WORKFLOW_MANAGER_RELEASE_CACHE=cache` in this process's environment
-    for the block -- inherited by discovery and by every unit -- restored
+    """`WORKFLOW_MANAGER_RELEASE_CACHE=cache` and `WORKFLOW_MANAGER_PINNED_ONLY=1`
+    in this process's environment for the block -- inherited by discovery and
+    by every unit, so no test discovers a release over the network -- restored
     after it."""
-    saved = os.environ.get(CACHE_ENV)
+    saved = {name: os.environ.get(name) for name in (CACHE_ENV, PINNED_ONLY_ENV)}
     os.environ[CACHE_ENV] = cache
+    os.environ[PINNED_ONLY_ENV] = "1"
     try:
         yield
     finally:
-        if saved is None:
-            os.environ.pop(CACHE_ENV, None)
-        else:
-            os.environ[CACHE_ENV] = saved
+        for name, value in saved.items():
+            if value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = value
+
+
+def cache_entries(cache: str) -> set[str]:
+    """The names directly under the release cache directory (none when absent)."""
+    try:
+        return set(os.listdir(cache))
+    except OSError:
+        return set()
+
+
+def stray_entries(cache: str, before: set[str], pinned) -> list[str]:
+    """Release entries the run added to the primed cache that are not a pinned
+    version, or that were discovered (plan 3.7): a test reached the primed
+    cache with discovery on instead of its own private one."""
+    pinned = set(pinned)
+    strays = []
+    for name in sorted(cache_entries(cache) - before):
+        if name.endswith(".lock") or name.startswith("."):
+            continue
+        entry = Path(cache) / name
+        if name not in pinned or (entry / "SOURCE").exists():
+            strays.append(name)
+    return strays

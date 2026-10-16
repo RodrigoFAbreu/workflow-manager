@@ -251,8 +251,16 @@ def _main(argv, *, repo_root: Path) -> int:
                 _out("no write barrier to restore")
             return 0
         primed = priming.prime(repo_root)
+        before = priming.cache_entries(primed["cache"])
         with priming.exported(primed["cache"]):
-            return _dispatch(mode, args, parsed, repo_root, lock)
+            code = _dispatch(mode, args, parsed, repo_root, lock)
+        strays = priming.stray_entries(primed["cache"], before, primed["versions"])
+        if strays:
+            raise priming.PrimingError(
+                f"the run added {', '.join(strays)} to the primed release cache "
+                f"{primed['cache']}: a test discovered a release instead of using a "
+                f"private cache (plan 3.7)")
+        return code
     except REFUSALS as exc:
         return refuse(exc)
     finally:
