@@ -35,6 +35,12 @@ NOT_A_MESSAGE = (
     "`doctor` or `update --dry-run` reports a `blocked` finding",
     "`doctor` reports a `warning` finding",
     "`doctor` reports `incomplete-inspection`",
+    # Messages of the release-agnostic Manager, asserted against the real output in
+    # test_discovery.py and test_release_metadata.py.
+    "`Workflow X needs workflow-manager Y or newer; this is Z`",
+    "`could not look for newer releases: REASON; using X`",
+    "`no usable release at or above the installed Workflow X`",
+    "`doctor` reports `a release carries no compatibility data`",
     "A repository went wrong after an update to 2.8.0 and gates behave differently",
     "An interrupted `bootstrap` or `update`, or `[Errno 13] Permission denied` and other "
     "file errors (exit 1)",

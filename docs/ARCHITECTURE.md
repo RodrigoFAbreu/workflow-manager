@@ -5,7 +5,8 @@ repositories. Two things must never blur together, and the whole design is
 arranged around keeping them apart:
 
 - **Canonical release content** — immutable, versioned, byte-identical to a
-  published package whose digest the Manager pins. It reaches a machine as a
+  published package whose digest the Manager pins, or, for a release published
+  after the Manager, verifies by the package's own `SHA256SUMS`. It reaches a machine as a
   download, lives in a verified per-user cache, and is never edited.
 - **Target-repository state** — mutable, repository-local, owned by whoever
   runs the Workflow. Work items, approvals, bundles, checkpoints. Workflow
@@ -33,26 +34,46 @@ pieces, each with one job:
   temporary sibling and publishes it by `rename`. Anything else is
   `ReleaseIntegrityError`, and nothing is left behind.
 - **The pins** (`src/workflow_manager/published_releases.json`, `D-Pins`),
-  shipped in the wheel. They are the trust root: for each published version,
-  the archive name, its sha256 and the sha256 of its `manifest.json`. Only a
-  pinned version installs from a package. A download is accepted only when
-  the archive matches the pin **and** the published `SHA256SUMS`, and the
-  manifest asset matches `manifest_sha256`, so a re-published asset is
-  detected even when it agrees with a re-published `SHA256SUMS`.
+  shipped in the wheel. They are authoritative for the releases they name
+  (2.3.1 to 2.12.0; no pin is added for a later release): for each, the
+  archive name, its sha256 and the sha256 of its `manifest.json`. A download
+  of a pinned version is accepted only when the archive matches the pin
+  **and** the published `SHA256SUMS`, and the manifest asset matches
+  `manifest_sha256`, so a re-published asset is detected even when it agrees
+  with a re-published `SHA256SUMS`. A published `2.12.0` with different bytes
+  is refused whatever the source says.
+- **Discovered releases** (`source.ReleaseSource`, `ReleaseCache._trust`,
+  `D-Discover`/`D-Coexist` of
+  `docs/ai-workflow/WORKFLOW_MANAGER_RELEASE_AGNOSTIC_PLAN.md`). A version no
+  pin names is *discovered*: a `Pin` is derived from the source's
+  `SHA256SUMS`, which must list exactly the archive and the manifest asset
+  with well-formed digests, and the downloads, the extraction rules, the
+  manifest-equals-asset check and `Release.verify()` apply exactly as for a
+  pin. Everything else about the cache (lock, private snapshot, "nothing is
+  read from a shared path") is unchanged.
 - **The source** (`D-Release-Source`): `--release-source`, else
   `WORKFLOW_MANAGER_RELEASE_SOURCE`, else
   `https://github.com/RodrigoFAbreu/workflow/releases/download/v{version}/`.
   A URL template (`https://`; `file://`; `http://` only to a loopback host)
   or a local directory of `<version>/` subdirectories. Redirects never
-  downgrade the scheme. Integrity never rests on the transport; the pins
-  carry it.
+  downgrade the scheme. Integrity of a pinned release never rests on the
+  transport; the pin carries it. Discovery lists a source only where a
+  command *chooses* a release: the default source's GitHub releases listing
+  (a release counts when it is not a draft or prerelease, has a
+  `vMAJOR.MINOR.PATCH` tag, the three assets and `immutable: true`), or a
+  directory mirror's `<version>/` folders. A URL template has no listing.
+  The choosing walk is in memory, size-capped and under one 20-second
+  deadline; any failure is one stderr line and the choice falls back to the
+  newest release known locally, so a primed cache behaves offline as before.
 - **The cache** (`D-Release-Cache`): `--release-cache`, else
   `WORKFLOW_MANAGER_RELEASE_CACHE`, else
   `$XDG_CACHE_HOME/workflow-manager/releases`, else
   `~/.cache/workflow-manager/releases`. An entry `<cache>/<V>/` holds the three
   assets, the extracted `tree/` and a `complete` marker written last. Under an
   `fcntl` lock on `<cache>/<V>.lock`, an entry is a hit only when `complete`
-  names the pinned digest, the archive hashes to it, `tree/manifest.json`
+  names the pinned digest (for a discovered release: the digest derived from
+  the entry's own `SHA256SUMS`, and the entry's `SOURCE` file names the
+  current source), the archive hashes to it, `tree/manifest.json`
   hashes to the pin's `manifest_sha256`, the manifest's version is `V`, and
   `Release(tree).verify()` passes. A hit does no network I/O. A miss or a
   broken entry is discarded (`discarding cache entry …` on stderr) and
@@ -78,6 +99,54 @@ development, checked by `Release.verify()` only and recorded as
 The installation record carries an optional `source` object, `{"kind":
 "package", "repository", "archive", "sha256"}` or `{"kind": "local"}`.
 Records written before M2 lack it and still read; `SCHEMA_VERSION` stays `1`.
+For a release installed by discovery the object gains two fields, `trust:
+"discovered"` and `from` (the source that served the bytes:
+`github:<repository>`, `dir:<path>` or `template:<url>`). The change is
+additive: an older Manager reads `source` as a free object, and `status`
+prints both.
+
+### Trust
+
+Before discovery, an attacker had to publish the assets, get a pin merged
+here and a Manager released and upgraded to. Now **the release source is a
+trust root** for every version that is not pinned: whoever publishes a
+release in `RodrigoFAbreu/workflow`, or controls the directory, URL or
+environment variable of `--release-source`/`WORKFLOW_MANAGER_RELEASE_SOURCE`,
+can supply a release. `SHA256SUMS` and the manifest asset come from the same
+release, so they detect corruption, truncation and a partial re-publish, not a
+malicious or mistaken publisher. Immutability is checked only on the default
+source's listing path (`immutable: true` is required there); the explicit
+`--release-version` path, the cache-hit path and every mirror rely on
+`SHA256SUMS` alone. A discovered cache entry is checked against its own
+recorded `SHA256SUMS`, so a local writer who changes both archive and sums is
+not detected; that writer can already change the Manager. The decision was the
+owner's: both repositories have one owner, and a pin pull request added a review
+step, not an independent root.
+
+What stays: pins for every release they name, the extraction and manifest
+rules, and a **source binding** of the cache (a discovered entry is a hit only
+under the source recorded in its `SOURCE` file, and is neither reused,
+offered nor counted as "newest known locally" under another). `--pinned-only`
+(or `WORKFLOW_MANAGER_PINNED_ONLY=1`) restores "a pin is the only door": no
+discovery, an unpinned version is `ReleaseNotPublishedError` as before. Stderr
+names a discovered release whenever it is used.
+
+### Release metadata
+
+A release's manifest may carry an optional `manager` block with what the
+Manager used to hard-code per release: the downgrade boundary, the new-work-only
+fixes, the gate-default change, the frozen suite counts and portability
+exceptions, and `min_manager_version`. The contract is
+`docs/release-metadata.md`. Releases up to 2.12.0 use the built-in tables in
+`compatibility.py` always (a block in their manifest is ignored with a note); a
+later release uses its block, and for an item it lacks the neutral value plus
+an `incomplete-inspection` warning, so a missing assessment is never reported
+as success and `doctor` exits 1. That finding is about the release's metadata,
+not the repository, so it is in `RELEASE_COVERAGE_TITLES` and never withholds a
+write. A malformed block refuses that release (`manifest-shape`).
+`min_manager_version` refuses an explicit `--release-version` newer than this
+Manager (`ReleaseIncompatibleError`, exit 1); a bare command skips such a
+candidate with one note, and never below the installed release.
 
 ## Repository layout
 
@@ -249,8 +318,17 @@ cache (a missing release is fetched, under the cache's lock) and one
 temporary copy of the release, in a directory outside the repository. The
 release knowledge the report needs is three tables in `compatibility.py`
 (`DOWNGRADE_BOUNDARIES`, `NEW_WORK_ONLY`, `GATE_DEFAULT_CHANGES`), each with an
-entry for every pinned version (`GATE_DEFAULT_CHANGES` uses `""` for none),
-enforced by a test; the report reads each table.
+entry for every release up to 2.12.0 (`GATE_DEFAULT_CHANGES` uses `""` for
+none), enforced by a test; a later release's data comes from its manifest's
+`manager` block (`ReleaseMetadata.data`). The report reads the releases it
+crosses: for an update, those in (installed, target]; for a downgrade, those in
+(target, installed], the installed one included. Above 2.12.0 it builds a
+catalog of the range from the pins, the cache and the source's listing, and a
+catalog that could not be read in full (a URL-template mirror, an unreachable
+or truncated listing) adds one `incomplete-inspection` warning. A bare `update`
+never downgrades: the installed release is a floor on every rule of the
+choosing path, and a run with nothing usable at or above it stops with
+`ReleaseFloorError` (exit 1, nothing written).
 
 ## Interruption
 
@@ -296,18 +374,20 @@ every command works offline.
 
 ## Which release a command means
 
-Several releases are pinned at once, and the two kinds of command mean
+Several releases are available at once, and the two kinds of command mean
 different things by "the release":
 
 | Command | Default | Why |
 |---|---|---|
-| `bootstrap`, `update` | the newest pinned release | These *choose* which release a repository is on; "the current one" is the only sensible default, and `--release-version` pins. |
-| `status`, `verify` | the release the target's own record names | These *report on* an installation. Grading a repository against a release it was never installed from would make every target look broken the moment a newer one landed. |
+| `bootstrap`, `update`, `doctor`, `update --dry-run` | the newest release this Manager can use, among the pins, the source-bound cache and (unless `--pinned-only`) the source's listing | These *choose* which release a repository is on; "the current one" is the only sensible default, and `--release-version` pins. A candidate that needs a newer Manager is skipped; a bare `update` never goes below the installed release. |
+| `status`, `verify` | the release the target's own record names (they never discover) | These *report on* an installation. Grading a repository against a release it was never installed from would make every target look broken the moment a newer one landed. |
 
 `status` never reports an installation it did not check. If no release is
 available to compare against it says so; it cannot say "clean" without having
-looked. A target recording an unpinned version needs `--release-dir` for
-`status` and `verify`; `status` still prints what it knows without it (the
+looked. A target recording a discovered version resolves it from the cache or the
+source; under `--pinned-only` that is refused as unpinned, and `doctor` adds a
+`not-verified` note. A target recording any other unpinned version needs
+`--release-dir` for `status` and `verify`; `status` still prints what it knows without it (the
 recorded version, profile, `source` and install time).
 
 ## Operator messages
@@ -341,9 +421,9 @@ would fail if the claim were false:
 | A published package is the pinned one | `TestPinChecks`: an archive that differs from its pin or from `SHA256SUMS`, or a manifest asset that differs from `manifest_sha256`, is refused, including a re-published pair that agree with each other. `test_published_packages.py`'s `TestPinnedPackagesVerify` re-verifies every pinned package, through the cache, on every run. |
 | A cache entry is never trusted | `TestCache`, `TestSnapshots`, `TestLocking`: a damaged, foreign or half-written entry is discarded and refetched; a tree altered during the snapshot is caught; a change after the snapshot reaches nothing; offline with nothing cached is a named `ReleaseUnavailableError`. |
 | A local directory cannot impersonate a published release | `TestLocalRelease`: a directory claiming a pinned version must hash to the pin; an unpinned one installs as `source.kind: "local"`. |
-| Semantics of the newest release are intact | The newest pinned release's frozen suites run unchanged in four fixtures (conformance, clean target, bootstrapped, and updated from the release below it), and the test *counts* are asserted against `tests/support.py`'s `CI_SUITES` — a vanished or silently skipped test fails. |
+| Semantics of the newest release are intact | The newest tested release's frozen suites run unchanged in four fixtures (conformance, clean target, bootstrapped, and updated from the release below it), and the test *counts* are asserted against `tests/support.py`'s `CI_SUITES` (or the lock's entry) — a vanished or silently skipped test fails. |
 | A clean target behaves like the release | The bootstrapper's own output runs the frozen suite; its failure set must *equal* `tests/portability_exceptions.json`'s entry for that version — a new unportable test fails the build rather than being absorbed. |
-| Every pinned version carries its records | `TestPinnedVersionsCarryTheirRecords`: the pins, `CI_SUITES`' keys and the exceptions' `by_version` keys are the same set, so a new pin cannot land without its counts and exceptions. |
+| Every tested version carries its records | `TestPinnedVersionsCarryTheirRecords`: the exceptions' `by_version` keys are the pins, and `CI_SUITES`' keys are the tested set (pins plus the lock), whose lock-only entries carry their counts and exceptions in the lock or the manifest, so a release cannot be tested without them. |
 | The real update path works | `test_update_path.py` bootstraps the release below the newest, updates it through the CLI, and runs the newest frozen suites in the result (the `updated` fixture). |
 | Updates preserve local work | A second release is synthesized so the release-to-release path is exercised for real: added, changed and dropped files, with live work-item state written through the installed module and compared byte-for-byte afterwards. |
 | A damaged release cannot be installed | A release copy is tampered with and every install path is asserted to refuse it, with the target left untouched. |
@@ -374,7 +454,7 @@ the tested releases, one selection) in
 `docs/ai-workflow/WORKFLOW_MANAGER_PACKAGED_DISTRIBUTION_PLAN.md`, 7.
 
 - **Priming.** Every mode but `--restore-barrier` first resolves **every
-  pinned version** of the checkout under test into the release cache
+  tested version** (the pins plus `tests/tested_releases.json`) of the checkout under test into the release cache
   (`tests/parallel/priming.py`, `ReleaseCache.ensure`), in a subprocess that
   imports the checkout's own `src/` and reads its own pins, then exports the
   resolved directory as `WORKFLOW_MANAGER_RELEASE_CACHE` to discovery and to
@@ -385,18 +465,30 @@ the tested releases, one selection) in
   subprocess environment, so a test that moves `HOME` still reads the primed
   cache; a scratch checkout passes its own private source and cache the same
   way and never touches the real one.
-- **Tested releases.** `tests/support.py` derives `NEWEST_RELEASE` (the
-  highest pin) and `UPGRADE_FROM` (the one below it, or `None` with one pin)
-  from the pins, and `support.release(v)` returns a verified snapshot through
+- **Tested releases.** The tested set is the pins plus the releases in
+  `tests/tested_releases.json` (the lock: published after the last pin, with
+  digests and, until the manifest carries a `conformance` block, the frozen
+  suite counts and portability exceptions; maintained by
+  `tools/release_lock.py`, never read by the CLI or shipped in the wheel).
+  `WORKFLOW_MANAGER_TESTED_RELEASES` overrides the lock file: the nightly's
+  plan job writes a lock with the newest published release added and the
+  other jobs read it, so the nightly tests a release the night it appears,
+  with no commit. `tests/support.py` derives `NEWEST_RELEASE` (the
+  highest tested version) and `UPGRADE_FROM` (the one below it, or `None`
+  with one) from that set, and `support.release(v)` returns a verified snapshot through
   the cache, memoized per process. Only `NEWEST_RELEASE`'s frozen suites run,
   in four fixtures: `conformance`, `target`, `bootstrapped`, and `updated`
   (bootstrap `UPGRADE_FROM`, commit, `update` to the newest, commit). Every
   older pinned release is immutable and was tested once, when it was built;
   its `CI_SUITES` counts and portability exceptions stay as frozen records.
-  A new pin moves the matrix to the new release with no renamed class.
+  A new lock entry moves the matrix to the new release with no renamed class.
+Test runs and the wheel proof default to `WORKFLOW_MANAGER_PINNED_ONLY=1`, so
+no test discovers by accident, and the runner fails a run that adds a
+discovered entry to the primed cache.
 - **Inventory.** The atomic units are host test classes
   (`test_x.py::Class`) and, for the frozen conformance matrix, frozen
-  classes (`frozen:<version>/<fixture>/<suite>.py::Class`). Discovery is
+  classes (`frozen:<version>/<fixture>/<suite>.py::Class`; a unit id keeps its version,
+but a *timing key* does not, see below). Discovery is
   deterministic and imports without running anything. A frozen suite whose
   class total differs from its pin is a hard error, so a vanished test
   cannot shrink the inventory quietly.
@@ -519,7 +611,10 @@ Plans balance perfectly on paper, so wall time is bound by total work (about
 bound by hosted-runner speed variance of about 0.7-1.1x between shards of
 equal predicted load. The 5-minute CI target needs about 24 shards, above
 the Free plan's 20 concurrent jobs, which cap this account at 19. The
-timing sources are recorded in `tests/parallel/timings.json`. Refresh them
+timing sources are recorded in `tests/parallel/timings.json`, keyed without
+the Workflow version (`timing_key` strips it from a frozen unit id), so a new
+release's classes inherit the estimates of the same class in the previous one
+and a lock bump does not orphan the history. Refresh them
 from new runs with `--update-timings` when reports keep listing `timing
 drifted` or `timing defaulted` units, or after adding or reshaping tests
 enough to move the plan. A refresh is a large, reviewable diff, so fold one
@@ -806,7 +901,7 @@ than reaching into the internals:
 |---|---|
 | `Release` | A release tree, verifiable from its own manifest. Every `Release` a command installs from is a private, pin-verified snapshot. |
 | `Release.installable(profile)` | The install set — payload plus release-owned templates. `bootstrap`, `update` and `drift()` all read it, so they cannot disagree about what the release owns. A new profile is one entry in `_PROFILE_CATEGORIES`. |
-| `load_pins()` / `ReleaseCache.resolve()` / `local_release()` | Which releases are published, and a verified `Release` for one of them, from the cache or from a local directory. Adding a release is adding a pin. |
+| `load_pins()` / `ReleaseSource` / `ReleaseCache.resolve()` / `local_release()` | Which releases are published (pinned, or discovered from the source), and a verified `Release` for one of them, from the cache or from a local directory. Adding a release is publishing it. |
 | `build_package()` / `extract_package()` | The package format, for any producer of releases; `workflow-manager package build`/`verify` expose it to the `workflow` repository's own release job. |
 | `Installation` | What a repository has, as data. A Controller asking "which of my repositories are on which release" reads these files; it does not need to inspect trees. |
 | `drift()` / `verify()` | A structured answer (`Drift(path, kind, detail)`), not a printed report, covering release-owned, generated and merged content alike. Fleet-wide health is a loop over targets. |
@@ -823,26 +918,22 @@ should stay open.
 
 A Workflow release is built, tested and published in the `workflow`
 repository (`RodrigoFAbreu/workflow`), as three release assets per version
-(see "Packages, pins, source and cache" above). The Manager learns of it
-through one `feat:` pull request here:
+(see "Packages, pins, source and cache" above). The Manager needs **nothing
+here** to install it: discovery finds it, its `SHA256SUMS` verifies it, and
+its manifest's `manager` block (`docs/release-metadata.md`) supplies what the
+Manager used to hard-code per release. `bootstrap`, `update`, `doctor` and
+`update --dry-run` already mean the newest usable release, and `status` and
+`verify` already resolve a target's own version, so a new release changes no
+code and no command line.
 
-1. Add its pin to `src/workflow_manager/published_releases.json`: the archive
-   name, the archive's sha256 and its `manifest.json`'s sha256, taken from the
-   published assets and checked with `sha256sum -c SHA256SUMS`.
-2. Add its frozen suite counts to `tests/support.py`'s `CI_SUITES` and its
-   (possibly empty) entry to `tests/portability_exceptions.json`'s
-   `by_version`; `TestPinnedVersionsCarryTheirRecords` fails until both
-   exist.
-3. `python3 tests/run_all.py`. Priming fetches the new package once; the
-   matrix moves to it (`NEWEST_RELEASE`) and the `updated` fixture updates to
-   it from the previous release (`UPGRADE_FROM`). The conformance fixture must
-   be green, and the clean target's failure set must equal the documented
-   exceptions.
-
-Nothing else. `bootstrap` and `update` already mean the newest pinned release,
-and `status` and `verify` already resolve a target's own version, so a new
-release changes no code and no command line. `docs/RELEASING.md` has the
-operator steps.
+To have the Manager's own tests cover it, a non-releasing `chore:` pull
+request adds it to `tests/tested_releases.json` (`python3
+tools/release_lock.py add V`); the nightly run tests the newest published
+release without it. A Manager release is needed only when the release changes
+what the manifest cannot carry: the package format, the detector vocabulary,
+the metadata schema, the CLI, or the logic kept in code outside the three
+tables (`RETIRED_DEFAULT_FROM`, the `2.6.0` worktree finding,
+`gate_modes(governing)`). `docs/RELEASING.md` has the operator steps.
 
 `update()` already handles files added, changed, and dropped between releases;
 `tests/test_bootstrap.py::TestReleaseToReleaseUpdate` proves that against a

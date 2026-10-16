@@ -8477,14 +8477,14 @@
       "registry_path": "docs/ai-workflow/registry/workflow-manager-release-agnostic-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/workflow-manager-release-agnostic-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "IMPLEMENTING",
+      "phase": "SELF_REVIEWING_IMPLEMENTATION",
       "plan_revision": 5,
       "implementation_revision": null,
       "functional_review_round": null,
       "base_commit": "dff497db9e5dc8511d5d64dc894b55a9cedc0842",
       "reviewed_implementation_head": null,
       "current_checkpoint_id": null,
-      "last_completed_checkpoint_id": "CP4",
+      "last_completed_checkpoint_id": "CP5",
       "checkpoints": {
         "CP1": {
           "status": "COMPLETE",
@@ -8501,6 +8501,10 @@
         "CP4": {
           "status": "COMPLETE",
           "start_commit": "96b52e5c77c7221e98ff51d365f5efccad63b3bf"
+        },
+        "CP5": {
+          "status": "COMPLETE",
+          "start_commit": "34d48dfac79e39776ea2e0158f3ff6762c279dac"
         }
       },
       "current_bundle_id": "1ed73c989234c33d2bda7bcc9b7fa5758309b8c818bec187392d744690c6c4c8",
@@ -8619,8 +8623,8 @@
       },
       "functional_acceptance_status": null,
       "blocking_decisions": [],
-      "state_revision": 28,
-      "last_transition": "2026-10-16T22:33:41Z",
+      "state_revision": 30,
+      "last_transition": "2026-10-16T22:38:05Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",

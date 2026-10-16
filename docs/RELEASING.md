@@ -3,8 +3,8 @@
 This repository releases one product: the Workflow Manager's own package.
 It never creates a Workflow release. Workflow releases are built and
 published as packages in the `workflow` repository
-(`RodrigoFAbreu/workflow`); this repository pins them (see "Workflow
-packages: adding a pin" below). The design records are
+(`RodrigoFAbreu/workflow`); this repository pins the releases up to 2.12.0 and
+discovers later ones (see "A new Workflow release" below). The design records are
 `docs/ai-workflow/WORKFLOW_MANAGER_TRUNK_MODEL_PLAN.md`, sections 5 and 9,
 and `docs/ai-workflow/WORKFLOW_MANAGER_PACKAGED_DISTRIBUTION_PLAN.md`.
 
@@ -34,7 +34,8 @@ build time.
      (`release.py assert-not-superseded`, exit 3, a notice);
    - builds and verifies the wheel and sdist (`tools/release/package.py`):
      the wheel must carry `published_releases.json`, and, installed outside
-     any checkout, its `releases` must list exactly the pins and its
+     any checkout (with `WORKFLOW_MANAGER_PINNED_ONLY=1`, so nothing is
+     discovered), its `releases` must list exactly the pins and its
      `verify` of the checkout must pass, through a release cache restored
      like the test jobs' (on a miss it downloads the checkout's release from
      the published source);
@@ -103,7 +104,8 @@ strict tags and are ignored.
 
 ## Installing a release, without a checkout
 
-A Manager release is self-contained: its wheel carries the pins, and it
+A Manager release is self-contained: its wheel carries the pins for the
+releases up to 2.12.0, and it discovers later ones, then
 downloads, verifies and caches the Workflow release it installs. No checkout
 of this repository is needed.
 
@@ -113,14 +115,14 @@ gh release download "v$v" --repo RodrigoFAbreu/workflow-manager --dir "wm-$v"
 (cd "wm-$v" && sha256sum -c SHA256SUMS)
 pipx install "./wm-$v/workflow_manager-$v-py3-none-any.whl"
 workflow-manager --version                 # workflow-manager X.Y.Z
-workflow-manager releases                  # the pinned Workflow releases, and which are cached
-workflow-manager bootstrap /path/to/repo   # the newest pinned release, fetched and verified
+workflow-manager releases                  # the pinned and discovered Workflow releases, and which are cached
+workflow-manager bootstrap /path/to/repo   # the newest compatible release, fetched and verified
 workflow-manager verify /path/to/repo
 ```
 
 The first use of a Workflow release downloads its three assets from
 `https://github.com/RodrigoFAbreu/workflow/releases/download/v<version>/`,
-checks them against the pin and `SHA256SUMS`, and caches the verified tree in
+checks them against the pin (or, for a release no pin names, `SHA256SUMS`), and caches the verified tree in
 `~/.cache/workflow-manager/releases` (or `$XDG_CACHE_HOME/…`,
 `WORKFLOW_MANAGER_RELEASE_CACHE`, `--release-cache`). After that every command
 works offline. With no network and nothing cached, a command fails with exit
@@ -129,7 +131,10 @@ works offline. With no network and nothing cached, a command fails with exit
 - **Air-gapped or mirrored.** Put each version's three assets in
   `<dir>/<version>/` and pass `--release-source <dir>` (or set
   `WORKFLOW_MANAGER_RELEASE_SOURCE`); a URL template with `{version}` works
-  too. The pins still decide what is accepted.
+  too. A directory mirror is also listed for discovery; a URL template is not
+  (only an explicit `--release-version` fetches from it). A mirror is a
+  trust root for every version that is not pinned; `--pinned-only` removes
+  that.
 - **A release in development.** `--release-dir <dir>` installs an unpackaged
   release directory, for example a `workflow` checkout. A directory claiming
   a pinned version must match its pin exactly; an unpinned version installs
@@ -146,51 +151,56 @@ vX.Y.Z)`). Anything else reports a development build.
 --editable` made before the trunk model still reports `workflow-manager
 1.0.0`. Run `pipx reinstall workflow-manager` once.
 
-## Workflow packages: adding a pin
+## A new Workflow release
 
 A Workflow release `V` is published by the `workflow` repository as the
 GitHub release `vV` with three assets: `workflow-V.tar.gz`,
 `workflow-V.manifest.json` and `SHA256SUMS`. That repository's settings keep
-release immutability on, so a published asset cannot be replaced. The Manager
-installs `V` only once it is pinned, through one pull request here:
+release immutability on, so a published asset cannot be replaced.
 
-1. Download and check the assets:
+**Nothing has to happen here for `V` to be installable.** A bare
+`workflow-manager update` or `bootstrap` with network access discovers `V`
+from the repository's releases listing, verifies it by its own `SHA256SUMS`
+and manifest digest, and installs it. No pin pull request and no Manager
+release stands in between. The trust this accepts, and the escape hatch
+(`--pinned-only`), are in `docs/ARCHITECTURE.md`, "Trust". What `V` carries
+for the Manager (its downgrade posture, new-work-only fixes, gate-default
+change, frozen suite counts, `min_manager_version`) is its manifest's
+`manager` block, specified in `docs/release-metadata.md`. A release without
+the block installs with an `incomplete-inspection` warning, and `doctor`
+exits 1 until the block exists.
 
-   ```bash
-   V=2.7.0
-   gh release download "v$V" --repo RodrigoFAbreu/workflow --dir "pkg/$V"
-   (cd "pkg/$V" && sha256sum -c --strict SHA256SUMS)
-   PYTHONPATH=src python3 -m workflow_manager package verify "pkg/$V/workflow-$V.tar.gz" \
-       --sha256 "$(sha256sum "pkg/$V/workflow-$V.tar.gz" | cut -d' ' -f1)"
-   sha256sum "pkg/$V/workflow-$V.manifest.json"
-   ```
+Pins are authoritative for the releases they name (2.3.1 to 2.12.0) and are
+never added for a later one, never edited. A wrong or withdrawn release is
+superseded by a new version, never re-published under the old one.
 
-   `package verify` extracts the archive under the same rules an install
-   uses and checks every file against the carried manifest.
-2. Add the entry to `src/workflow_manager/published_releases.json`'s
-   `releases`, keyed by `V`: `archive` (`workflow-V.tar.gz`), `sha256` (the
-   archive's digest) and `manifest_sha256` (the manifest asset's digest).
-3. Add `V`'s frozen suite counts to `tests/support.py`'s `CI_SUITES`, and its
-   entry, possibly empty, to `tests/portability_exceptions.json`'s
-   `by_version`. `TestPinnedVersionsCarryTheirRecords` fails until the pins
-   and both records name the same versions.
-   Also extend the three release tables in
-   `src/workflow_manager/compatibility.py` (`DOWNGRADE_BOUNDARIES`,
-   `NEW_WORK_ONLY`, `GATE_DEFAULT_CHANGES`) with an entry for `V`, possibly
-   empty; a test fails until you do. `doctor` reads them.
-4. Run `python3 tests/run_all.py`. Priming fetches `V` once; the frozen matrix
-   moves to it, and the `updated` fixture updates the previous newest release
-   to it. The conformance fixture must be green, and the clean target's
-   failure set must equal the documented exceptions.
-5. Open the pull request with a `feat:` title (`feat: pin Workflow V`): a new
-   pin is a new capability, so it releases a minor Manager version. CI's
-   release-cache key is the pin file's hash, so the first run after the change
-   downloads every pinned package once and caches them.
+**What the maintainer does when `V` is published.** The Manager's own tests
+test the pins plus the releases listed in `tests/tested_releases.json`, and
+the nightly run adds the newest published release to that set without a
+commit. To make `V` part of every pull request's run, open a non-releasing
+`chore:` pull request:
 
-A published package never changes, so a pin is never edited. A wrong or
-withdrawn release is superseded by a new version, never re-published under
-the old one: a re-published asset would fail every Manager that pins the
-original.
+```bash
+python3 tools/release_lock.py add V     # downloads, verifies, writes the lock entry
+python3 tools/release_lock.py check     # the lock against what the source publishes
+python3 tests/run_all.py                # the matrix moves to V; the updated fixture updates to it
+```
+
+`add` writes the digests and, while `V`'s manifest has no `conformance`
+block, the frozen suite counts (discovered, not hand-written) and an empty
+`portability_exceptions` list; the reviewer checks both. Once the manifest
+carries the block it wins over the entry. The pull request title is
+`chore: test Workflow V`: the lock is test data, so nothing is released. CI's
+release-cache key is the hash of the pins and the lock, so the first run
+after the change downloads the new package once.
+
+**When a Manager release is still needed.** A Workflow release needs a new
+Manager (and says so with `min_manager_version`) only when it changes
+something the manifest cannot carry: the package format, the detector
+vocabulary of the `manager` block, the metadata schema, the CLI, or the
+version-coded logic outside the three tables (`RETIRED_DEFAULT_FROM`, the
+`2.6.0` worktree finding, `gate_modes(governing)`). That is an ordinary
+`feat:`/`fix:` pull request here.
 
 ## Repository settings, as reviewed data
 
@@ -225,7 +235,10 @@ an open pull request.
 ## The nightly run
 
 `workflow-manager-verify.yml` runs the full selection of `main` at 03:17
-UTC. The README's nightly badge shows the latest result; a red nightly opens
+UTC, on the pins, the lock and the newest published Workflow release (the
+plan job adds it from the GitHub listing without a commit, so a release
+published after the last Manager release is tested the night it appears). The
+README's nightly badge shows the latest result; a red nightly opens
 no issue, so check the badge or the Actions tab.
 
 GitHub disables scheduled workflows in a public repository after 60 days

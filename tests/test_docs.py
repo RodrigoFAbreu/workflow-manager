@@ -377,3 +377,54 @@ class PageRuleTest(TreeTestCase):
                   "[m]: milestones/completed/the-real-item.md\n> [n]: milestones/completed/the-real-item.md\n")
         self.assertFalse([p for p in check_docs.check_pages(self.tree.root) if "glossary" in p])
 
+
+
+class ReleaseAgnosticDocsTest(unittest.TestCase):
+    """The release-agnostic Manager's pages say what the code does: no "adding a pin"
+    procedure remains, the new contract page is indexed, and its key list and detector
+    table are the reader's (`release.parse_manager_block`, `DETECTOR_KINDS`)."""
+
+    def _read(self, rel: str) -> str:
+        return (REPO_ROOT / rel).read_text()
+
+    def _example(self) -> dict:
+        text = self._read("docs/release-metadata.md")
+        fence = text.split("```json\n", 1)[1].split("\n```", 1)[0]
+        return json.loads("{" + fence + "}")["manager"]
+
+    def test_no_page_keeps_an_adding_a_pin_procedure(self) -> None:
+        for rel in ("docs/RELEASING.md", "docs/ARCHITECTURE.md", "docs/development.md", "CLAUDE.md"):
+            self.assertNotIn("adding a pin", self._read(rel).lower(), rel)
+        self.assertIn("## A new Workflow release", self._read("docs/RELEASING.md"))
+        self.assertIn("release_lock.py add", self._read("CLAUDE.md"))
+
+    def test_the_contract_page_is_indexed_and_linked_from_the_pages_that_use_it(self) -> None:
+        self.assertIn("(release-metadata.md)", self._read("docs/README.md"))
+        self.assertIn("release-metadata.md", self._read("docs/ROADMAP.md"))
+        self.assertIn("docs/release-metadata.md", self._read("CLAUDE.md"))
+
+    def test_the_documented_example_is_a_block_the_reader_accepts(self) -> None:
+        from workflow_manager import release
+
+        block = release.parse_manager_block(self._example())
+        self.assertEqual(block.min_manager_version, "1.13.0")
+        self.assertEqual(set(self._example()),
+                         {"schema_version", "min_manager_version", *release.ManagerBlock.ITEMS})
+        self.assertEqual(set(self._example()["downgrade_boundary"]),
+                         {"posture", "undetectable", "signals"})
+        self.assertEqual(set(self._example()["downgrade_boundary"]["signals"][0]),
+                         {"name", "label", "detect"})
+        self.assertEqual(set(self._example()["conformance"]), {"suites", "portability_exceptions"})
+        self.assertEqual(set(self._example()["conformance"]["portability_exceptions"][0]),
+                         {"suite", "test", "requires", "reason", "defect"})
+
+    def test_the_detector_table_is_the_readers_vocabulary(self) -> None:
+        from workflow_manager import release
+
+        documented = {}
+        for line in self._read("docs/release-metadata.md").splitlines():
+            cells = [c.strip() for c in line.strip().strip("|").split("|")]
+            if line.strip().startswith("|") and len(cells) == 3 and cells[0].startswith("`") \
+                    and cells[0].strip("`") in release.DETECTOR_KINDS:
+                documented[cells[0].strip("`")] = tuple(k.strip("`") for k in cells[1].split(", "))
+        self.assertEqual(documented, release.DETECTOR_KINDS)

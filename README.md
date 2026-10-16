@@ -13,7 +13,7 @@ It never overwrites the work-item state the repository builds up.
 
 ## How the pieces fit
 
-[Workflow](https://github.com/RodrigoFAbreu/workflow#readme) is the development process and its commands, installed into a repository. [Workflow Manager](https://github.com/RodrigoFAbreu/workflow-manager#readme) installs, updates and verifies the Workflow from published, digest-pinned releases. [Workflow Controller](https://github.com/RodrigoFAbreu/workflow-controller#readme) runs the Workflow's lifecycle steps automatically and stops wherever a person is needed.
+[Workflow](https://github.com/RodrigoFAbreu/workflow#readme) is the development process and its commands, installed into a repository. [Workflow Manager](https://github.com/RodrigoFAbreu/workflow-manager#readme) installs, updates and verifies the Workflow from published releases, digest-pinned up to 2.12.0 and checked by their own checksums after that. [Workflow Controller](https://github.com/RodrigoFAbreu/workflow-controller#readme) runs the Workflow's lifecycle steps automatically and stops wherever a person is needed.
 
 ## Quick start
 
@@ -31,7 +31,7 @@ pipx install "$dl"/workflow_manager-*-py3-none-any.whl
 rm -rf "$dl"
 workflow-manager --version
 
-# 2. Put the newest pinned Workflow release into a Git repository.
+# 2. Put the newest Workflow release into a Git repository.
 workflow-manager bootstrap /path/to/your/repo
 
 # 3. Check the result.
@@ -60,11 +60,11 @@ status 0. If something goes differently, read the `next:` line the error prints,
 The commands, in one place:
 
 ```bash
-workflow-manager releases                  # the pinned Workflow releases, and which are cached
+workflow-manager releases                  # the pinned and discovered Workflow releases, and which are cached
 workflow-manager status    /path/to/repo   # managed? clean? work in flight?
 workflow-manager bootstrap /path/to/repo   # install into a repository
 workflow-manager verify    /path/to/repo   # is every installed file as released
-workflow-manager update    /path/to/repo   # move to the newest pinned release
+workflow-manager update    /path/to/repo   # move to the newest release
 workflow-manager uninstall /path/to/repo   # remove the managed files
 workflow-manager --version                 # the Manager's own version
 ```
@@ -73,7 +73,9 @@ workflow-manager --version                 # the Manager's own version
 
 - Nothing is installed unchecked. A downloaded Workflow release must match
   its pin (a digest recorded inside the Manager) and its published
-  `SHA256SUMS`, and every file is checked as it is copied.
+  `SHA256SUMS`; a release published after the Manager has no pin and is
+  verified by its `SHA256SUMS` alone (`--pinned-only` refuses those). Every
+  file is checked as it is copied.
 - The first use of a Workflow release downloads it into a local cache.
   After that, every command works offline.
 - `update` never touches `WORKFLOW_STATE.json`, `docs/ACTIVE_MILESTONE.md`

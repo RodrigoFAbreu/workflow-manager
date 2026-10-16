@@ -21,10 +21,38 @@ so it releases a Manager minor.
 
 ## Current checkpoint
 
-**Implementing: CP1 to CP4 done** (discovery, trust and the cache; release
-metadata and `min_manager_version`; deterministic CI; version-free timing keys).
-Plan revision 5 is approved (by policy). Remaining: CP5 documentation, roadmap
-and the Workflow-side contract.
+**Implementing: CP1 to CP5 done** (discovery, trust and the cache; release
+metadata and `min_manager_version`; deterministic CI; version-free timing keys;
+documentation). Plan revision 5 is approved (by policy). Next: the full
+verification, then the implementation review.
+
+### CP5: Documentation, roadmap and the Workflow-side contract (R7, R8)
+
+- `docs/RELEASING.md`: "Workflow packages: adding a pin" is replaced by "A new
+  Workflow release" (nothing to do for installability; the `chore:` lock bump
+  through `tools/release_lock.py`; when a Manager release is still needed);
+  the nightly section names the newest-published-release run.
+- `docs/ARCHITECTURE.md`: discovered releases, the additive `source.trust` /
+  `source.from` record fields, the `SOURCE` file binding, a "Trust" section, a
+  "Release metadata" section, update planning (crossed-version catalog, the
+  floor), "Which release a command means", tested releases / lock / timing keys
+  in "Verification execution", and "What a new Workflow release needs".
+- `CLAUDE.md`: the immutable-pin hard rule, "Adding a Workflow release" (the
+  lock procedure; the downgrade paragraphs stay as the built-in record up to
+  2.12.0), the gate description and "Where things are".
+- `docs/update.md`, `install.md`, `common-problems.md`, `glossary.md`,
+  `development.md`, `README.md`, `docs/README.md`: what an operator does when a
+  release is published, `--pinned-only`, the offline line, the floor, the
+  `min_manager_version` refusal and the no-compatibility-data warning.
+  `exit-codes.md` was already current from CP1/CP2.
+- New `docs/release-metadata.md` (the section 3.4 contract and the section 5
+  Workflow-side follow-up); `docs/ROADMAP.md` item 8 is "In progress" (Done at
+  acceptance).
+- Tests: `tests/test_docs.py`'s `ReleaseAgnosticDocsTest` (no "adding a pin"
+  procedure, the page is indexed, its example block parses and its keys and
+  detector table equal the reader's); `test_operator_ux_docs.py` lists the four
+  new `common-problems.md` rows. Verified: `test_docs.py`,
+  `test_operator_ux_docs.py`, `test_operator_ux.py`, exit 0.
 
 ### CP4: Version-free timing keys (R6)
 

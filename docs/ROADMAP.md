@@ -7,14 +7,14 @@ The full text of earlier versions is in this file's git history; the last long v
 ## How to read this roadmap
 
 - Read **What's next** for the order of work, **Done** for what already shipped, and **Later** for open items that have no slot yet.
-- Status words: **Done** (merged and released), **Next** (the item to start now), **Later** (wanted, not scheduled), **Waiting on ...** (blocked until the named thing exists).
+- Status words: **Done** (merged and released), **In progress** (a milestone is under way), **Next** (the item to start now), **Later** (wanted, not scheduled), **Waiting on ...** (blocked until the named thing exists).
 - This file covers the Workflow Manager (the installer and updater) and the order of work across this repository and the `workflow` repository. M1, M2 and M3 are this file's milestone names.
 - The Workflow's own plans and defects are in [the Workflow roadmap](https://github.com/RodrigoFAbreu/workflow/blob/main/docs/ROADMAP.md). The Controller's are in [the Controller roadmap](https://github.com/RodrigoFAbreu/workflow-controller/blob/main/docs/ROADMAP.md). They are linked, not copied.
 - Controller releases are installed into the shared Controller only between milestones, when no lane is running one.
 
 ## What's next
 
-Items 1 to 4 and item 7 (Operator UX) are done. Item 8 (the release-agnostic Manager) is next. Items 5 and 6 wait on the Controller.
+Items 1 to 4 and item 7 (Operator UX) are done. Item 8 (the release-agnostic Manager) is in progress. Items 5 and 6 wait on the Controller.
 
 The end goal is a loop where the Controller takes the next roadmap item, plans, implements, reviews, tests, merges and releases it, then starts the next one. The order below is the owner's agreed order across this lane.
 
@@ -27,15 +27,15 @@ The end goal is a loop where the Controller takes the next roadmap item, plans, 
 | 5 | Controller C10 (gate policy and automatic acceptance) | The Controller can use Workflow 2.8's gate policy | Waiting on the Controller; tracked in [the Controller repository](https://github.com/RodrigoFAbreu/workflow-controller/blob/main/docs/ROADMAP.md) |
 | 6 | **M3**: this repository and `workflow` driven by the Controller's loop | Roadmap items worked, merged and released with no hand-driving | Waiting on the Controller's kanban runner (C11) |
 | 7 | Operator UX | Error messages that name the cause and the next command, and `status` showing the work in flight | Done (accepted by policy 2026-10-10; Manager 1.8.0 releases when its pull request merges) |
-| 8 | Release-agnostic Manager | A Workflow release installs without a Manager pin pull request or a Manager release | **Next** |
+| 8 | Release-agnostic Manager | A Workflow release installs without a Manager pin pull request or a Manager release | **In progress** (milestone `workflow-manager-release-agnostic`; Done at acceptance) |
 
 ### 7. Operator UX (Done)
 
 The documentation clean-up delivered most of this: install, update and verify guides, a common-problems page, and a documentation index. What remains is in the tool, not the docs, and this item delivers it: every error, refusal, warning and note names its cause and one concrete next step (a command, a flag or a page), using the real program name and options; recovery instructions appear in the output; and `status` shows the work in flight, so an operator does not need to read the state JSON. Exit codes stay as `docs/exit-codes.md` documents them. Plan: `docs/ai-workflow/WORKFLOW_MANAGER_OPERATOR_UX_PLAN.md`. A `feat:` title, so it releases Manager 1.8.0.
 
-### 8. Release-agnostic Manager (Next)
+### 8. Release-agnostic Manager (In progress)
 
-Every Workflow release forces a Manager pin pull request and a Manager release that adds nothing but the pin. This item removes that: the Manager discovers published Workflow releases and verifies each by its published `SHA256SUMS` and manifest digest, instead of only the digests pinned in `src/workflow_manager/published_releases.json`. Existing pins stay, are never changed, and stay authoritative for the releases they name. A release's manifest may carry the data the Manager hard-codes today (downgrade boundary, new-work-only fixes, gate-default change, frozen suite counts, portability exceptions, `min_manager_version`); an older Manager refuses a release that needs a newer one, and releases up to 2.12.0 keep the built-in data. Manager CI stays deterministic: a lock file names the Workflow releases it tests, and the nightly tests the newest published one. The Workflow-side change (writing those manifest fields) is a separate milestone in the `workflow` repository. Plan: `docs/ai-workflow/WORKFLOW_MANAGER_RELEASE_AGNOSTIC_PLAN.md`. A `feat:` title, so it releases a Manager minor.
+Every Workflow release forces a Manager pin pull request and a Manager release that adds nothing but the pin. This item removes that: the Manager discovers published Workflow releases and verifies each by its published `SHA256SUMS` and manifest digest, instead of only the digests pinned in `src/workflow_manager/published_releases.json`. Existing pins stay, are never changed, and stay authoritative for the releases they name. A release's manifest may carry the data the Manager hard-codes today (downgrade boundary, new-work-only fixes, gate-default change, frozen suite counts, portability exceptions, `min_manager_version`); an older Manager refuses a release that needs a newer one, and releases up to 2.12.0 keep the built-in data. Manager CI stays deterministic: a lock file names the Workflow releases it tests, and the nightly tests the newest published one. The Workflow-side change (writing those manifest fields) is a separate milestone in the `workflow` repository; its contract is [`release-metadata.md`](release-metadata.md). Plan: `docs/ai-workflow/WORKFLOW_MANAGER_RELEASE_AGNOSTIC_PLAN.md`. A `feat:` title, so it releases a Manager minor.
 
 ## Done
 
