@@ -21,10 +21,26 @@ so it releases a Manager minor.
 
 ## Current checkpoint
 
-**Implementing: CP1, CP2 and CP3 done** (discovery, trust and the cache; release
-metadata and `min_manager_version`; deterministic CI). Plan revision 5 is approved (by policy).
-Remaining: CP4 version-free timing
-keys; CP5 documentation, roadmap and the Workflow-side contract.
+**Implementing: CP1 to CP4 done** (discovery, trust and the cache; release
+metadata and `min_manager_version`; deterministic CI; version-free timing keys).
+Plan revision 5 is approved (by policy). Remaining: CP5 documentation, roadmap
+and the Workflow-side contract.
+
+### CP4: Version-free timing keys (R6)
+
+- `tests/parallel/timings.py`: `timing_key` strips the version from a frozen
+  unit id (`frozen:<fixture>/<suite>::<Class>`); host ids are their own key.
+  The loader, `to_json` and `update` fold any two forms of one unit into one
+  estimate (sample-weighted mean, samples summed and capped at `MAX_SAMPLES`),
+  so the writer emits only the new form. `estimate_units`, `orphaned` and
+  `estimate_group` look up by key; unit ids in plans, selectors and records keep
+  their version.
+- `tests/parallel/timings.json` rewritten once through the writer (3,480
+  versioned keys became version-free, 1,977 ci and 1,981 local units, no
+  warning); the `2.9.1` history now applies to the `2.12.0` classes.
+- `tests/test_parallel_runner.py`: `TestTimingKeysAreVersionFree`; the
+  `_timings` helper keys by `timing_key`. Verified: the whole
+  `test_parallel_runner.py` selection, exit 0.
 
 ### CP3: Deterministic CI (R4, R5)
 

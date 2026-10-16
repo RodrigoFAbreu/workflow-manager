@@ -29,7 +29,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import canonical_json, strict_json_loads
-from .inventory import FROZEN_PREFIX, split_frozen_unit_id, split_host_unit_id
+from .inventory import FROZEN_PREFIX, split_host_unit_id
 
 SCHEMA_VERSION = 1
 PROFILES = ("local", "ci")
@@ -62,6 +62,42 @@ def history_path(environ) -> Path:
     return Path(base).expanduser() / "workflow-manager" / "test-timings.jsonl"
 
 
+# -- the timing key ----------------------------------------------------------------
+
+_VERSIONED_FROZEN_RE = re.compile(r"frozen:\d+\.\d+\.\d+/(?P<rest>[a-z]+/\w+\.py::.+)")
+
+
+def timing_key(unit_id: str) -> str:
+    """The key a unit's estimate is stored and looked up under (`D-Timing-Key`):
+    a frozen unit id without its Workflow version, `frozen:<fixture>/<suite>::
+    <Class>`, so a new release does not orphan the history of a class it
+    shares with the previous one. A host id, and an id already in this form,
+    is its own key. Unit ids in plans, selectors and records keep their
+    version; only the timing lookup uses this."""
+    match = _VERSIONED_FROZEN_RE.fullmatch(unit_id)
+    return f"{FROZEN_PREFIX}{match['rest']}" if match else unit_id
+
+
+def _fold_units(entries) -> dict[str, "UnitTiming"]:
+    """`(unit id, UnitTiming)` pairs folded under their timing keys. Two forms
+    of one unit (a versioned and a version-free id, or two versions) become one
+    estimate: the sample-weighted mean of their seconds (rounded to 0.1 s)
+    over their summed samples, capped at `MAX_SAMPLES`. Order-independent."""
+    grouped: dict[str, list[UnitTiming]] = {}
+    for unit, timing in entries:
+        grouped.setdefault(timing_key(unit), []).append(timing)
+    out = {}
+    for key in sorted(grouped):
+        parts = grouped[key]
+        if len(parts) == 1:
+            out[key] = parts[0]
+            continue
+        samples = sum(t.samples for t in parts)
+        mean = sum(t.seconds * t.samples for t in parts) / samples
+        out[key] = UnitTiming(round(mean, 1), min(samples, MAX_SAMPLES))
+    return out
+
+
 # -- the committed file ------------------------------------------------------------
 
 @dataclass(frozen=True)
@@ -92,7 +128,8 @@ class Timings:
             "profiles": {
                 profile: {
                     "units": {unit: {"seconds": t.seconds, "samples": t.samples}
-                              for unit, t in sorted(self.units.get(profile, {}).items())},
+                              for unit, t in sorted(
+                                  _fold_units(self.units.get(profile, {}).items()).items())},
                     "source": self.sources.get(profile, ""),
                 }
                 for profile in PROFILES if profile in self.units or profile in self.sources
@@ -147,7 +184,7 @@ def parse(raw, *, source: str = "timings.json") -> Timings:
                 or not isinstance(body.get("units", {}), dict):
             warnings.append(f"{source}: profile {profile!r} ignored")
             continue
-        kept = {}
+        kept = []
         for unit in sorted(body.get("units", {})):
             entry = body["units"][unit]
             samples = entry.get("samples") if isinstance(entry, dict) else None
@@ -156,8 +193,8 @@ def parse(raw, *, source: str = "timings.json") -> Timings:
                     or not isinstance(samples, int) or not 1 <= samples <= MAX_SAMPLES:
                 warnings.append(f"{source}: {profile} estimate for {unit} ignored: {entry!r}")
                 continue
-            kept[unit] = UnitTiming(float(seconds), samples)
-        units[profile] = kept
+            kept.append((unit, UnitTiming(float(seconds), samples)))
+        units[profile] = _fold_units(kept)
         if isinstance(body.get("source"), str):
             sources[profile] = body["source"]
 
@@ -196,10 +233,10 @@ class Estimate:
 
 def estimate_group(unit_id: str) -> str:
     """The new-unit rule's "same group": the module of a host unit, the
-    `version/fixture/suite` of a frozen one."""
+    `fixture/suite` of a frozen one (a selection holds one version)."""
     if unit_id.startswith(FROZEN_PREFIX):
-        version, fixture, suite, _ = split_frozen_unit_id(unit_id)
-        return f"frozen:{version}/{fixture}/{suite}"
+        key = timing_key(unit_id)
+        return key.partition("::")[0]
     return "host:" + split_host_unit_id(unit_id)[0]
 
 
@@ -225,29 +262,31 @@ def estimate_units(timings: Timings, profile: str, unit_ids, inventory_unit_ids,
     the median of the active profile's known units of the same group; else
     `default_unit_seconds`. Only units still in the inventory count as known --
     an orphaned entry informs nothing."""
-    inventory_unit_ids = set(inventory_unit_ids)
-    active = {u: t for u, t in timings.profile_units(profile).items() if u in inventory_unit_ids}
+    inventory_keys = {timing_key(u) for u in inventory_unit_ids}
+    active = {u: t for u, t in timings.profile_units(profile).items() if u in inventory_keys}
     other = {u: t for u, t in timings.profile_units(other_profile(profile)).items()
-             if u in inventory_unit_ids}
-    ratio = profile_ratio(timings, profile, inventory_unit_ids)
+             if u in inventory_keys}
+    ratio = profile_ratio(timings, profile, inventory_keys)
     by_group: dict[str, list[float]] = {}
     for unit in sorted(active):
         by_group.setdefault(estimate_group(unit), []).append(active[unit].seconds)
 
     out = {}
-    for unit in sorted(unit_ids):
+    for unit_id in sorted(unit_ids):
+        unit = timing_key(unit_id)
         # A ratio estimate that is not a valid duration (an adversarial file
         # can make it overflow) falls through to the next rule.
         scaled = round(other[unit].seconds * ratio, 3) \
             if unit in other and ratio is not None else None
         if unit in active:
-            out[unit] = Estimate(active[unit].seconds, MEASURED)
+            out[unit_id] = Estimate(active[unit].seconds, MEASURED)
         elif scaled is not None and _valid_seconds(scaled):
-            out[unit] = Estimate(scaled, OTHER_PROFILE)
+            out[unit_id] = Estimate(scaled, OTHER_PROFILE)
         elif estimate_group(unit) in by_group:
-            out[unit] = Estimate(statistics.median(by_group[estimate_group(unit)]), GROUP_MEDIAN)
+            out[unit_id] = Estimate(statistics.median(by_group[estimate_group(unit)]),
+                                    GROUP_MEDIAN)
         else:
-            out[unit] = Estimate(float(default_unit_seconds), DEFAULT)
+            out[unit_id] = Estimate(float(default_unit_seconds), DEFAULT)
     return out
 
 
@@ -258,7 +297,7 @@ def group_overhead(timings: Timings, profile: str, fixture: str, default: float)
 def orphaned(timings: Timings, inventory_unit_ids) -> list[str]:
     """Estimated units (any profile) no longer in the inventory: ignored by
     every estimate, listed in the report, dropped by `update`."""
-    present = set(inventory_unit_ids)
+    present = {timing_key(u) for u in inventory_unit_ids}
     return sorted({u for p in timings.units.values() for u in p if u not in present})
 
 
@@ -404,11 +443,11 @@ def update(timings: Timings, observations, profile: str, *, inventory_unit_ids=N
     per_fixture: dict[str, list[float]] = {}
     for _, _, obs in indexed:
         if obs.unit is not None:
-            per_unit.setdefault(obs.unit, []).append(obs.seconds)
+            per_unit.setdefault(timing_key(obs.unit), []).append(obs.seconds)
         else:
             per_fixture.setdefault(obs.fixture, []).append(obs.seconds)
 
-    units = {p: dict(v) for p, v in timings.units.items()}
+    units = {p: _fold_units(v.items()) for p, v in timings.units.items()}
     current = units.setdefault(profile, {})
     for unit, values in per_unit.items():
         values = values[-MAX_SAMPLES:]
@@ -417,7 +456,7 @@ def update(timings: Timings, observations, profile: str, *, inventory_unit_ids=N
             values = [previous.seconds] * min(previous.samples, MAX_SAMPLES - len(values)) + values
         current[unit] = UnitTiming(round(statistics.median(values), 1), len(values))
     if inventory_unit_ids is not None:
-        present = set(inventory_unit_ids)
+        present = {timing_key(u) for u in inventory_unit_ids}
         units = {p: {u: t for u, t in v.items() if u in present} for p, v in units.items()}
 
     overhead = {p: dict(v) for p, v in timings.group_overhead.items()}

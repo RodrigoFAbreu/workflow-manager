@@ -1576,7 +1576,8 @@ def _timings(local=None, ci=None, overhead=None, setup=None):
     units = {}
     for profile, values in (("local", local), ("ci", ci)):
         if values is not None:
-            units[profile] = {u: timings.UnitTiming(float(s), 1) for u, s in values.items()}
+            units[profile] = {timings.timing_key(u): timings.UnitTiming(float(s), 1)
+                             for u, s in values.items()}
     return timings.Timings(units=units, group_overhead=overhead or {},
                            ci_job_setup=setup or {})
 
@@ -2165,6 +2166,65 @@ class TestTimingLifecycle(unittest.TestCase):
         # Canonical on disk: a refresh rewrites it byte-for-byte reviewably.
         self.assertEqual(timings.timings_path(REPO_ROOT).read_text(), loaded.to_json())
         self.assertEqual(set(planner.load_config(REPO_ROOT)), set(planner.CONFIG_KEYS))
+
+
+class TestTimingKeysAreVersionFree(unittest.TestCase):
+    """D-Timing-Key (R6): a frozen unit's estimate is keyed without its
+    Workflow version, so a new release inherits the history of a shared class."""
+
+    OLD = "frozen:2.9.1/conformance/s_test.py::K1"
+    NEW = "frozen:2.12.0/conformance/s_test.py::K1"
+    KEY = "frozen:conformance/s_test.py::K1"
+    HOST = "host:test_a.py::A"
+
+    def doc(self, units):
+        return {"schema_version": 1, "profiles": {"local": {"units": units, "source": "s"}}}
+
+    def test_the_key_function_strips_only_the_version(self):
+        self.assertEqual(timings.timing_key(self.OLD), self.KEY)
+        self.assertEqual(timings.timing_key(self.NEW), self.KEY)
+        self.assertEqual(timings.timing_key(self.KEY), self.KEY)
+        self.assertEqual(timings.timing_key(self.HOST), self.HOST)
+
+    def test_old_form_keys_load_as_new(self):
+        loaded = timings.parse(self.doc({self.OLD: {"seconds": 4.0, "samples": 2}}))
+        self.assertEqual(loaded.warnings, ())
+        self.assertEqual(loaded.units["local"], {self.KEY: timings.UnitTiming(4.0, 2)})
+
+    def test_two_forms_of_one_unit_fold_into_one_estimate(self):
+        loaded = timings.parse(self.doc({
+            self.OLD: {"seconds": 4.0, "samples": 1}, self.NEW: {"seconds": 10.0, "samples": 3},
+            self.KEY: {"seconds": 1.0, "samples": 1}}))
+        self.assertEqual(loaded.units["local"], {self.KEY: timings.UnitTiming(7.0, 5)})
+        flipped = timings.parse(self.doc({
+            self.KEY: {"seconds": 1.0, "samples": 1}, self.NEW: {"seconds": 10.0, "samples": 3},
+            self.OLD: {"seconds": 4.0, "samples": 1}}))
+        self.assertEqual(flipped.units, loaded.units)
+
+    def test_a_versioned_inventory_id_finds_the_version_free_estimate(self):
+        loaded = timings.parse(self.doc({self.OLD: {"seconds": 4.0, "samples": 1}}))
+        got = timings.estimate_units(loaded, "local", [self.NEW], [self.NEW], 30.0)
+        self.assertEqual(got[self.NEW], timings.Estimate(4.0, timings.MEASURED))
+        self.assertEqual(timings.orphaned(loaded, [self.NEW]), [])
+        self.assertEqual(timings.orphaned(loaded, [self.HOST]), [self.KEY])
+
+    def test_the_writer_emits_only_the_new_form(self):
+        loaded = timings.Timings(units={"local": {
+            self.OLD: timings.UnitTiming(4.0, 1), self.HOST: timings.UnitTiming(1.0, 1)}})
+        self.assertEqual(sorted(json.loads(loaded.to_json())["profiles"]["local"]["units"]),
+                         [self.KEY, self.HOST])
+        after = timings.update(loaded, [timings.Observation(
+            "local", 6.0, "pass", "t1", unit=self.NEW)], "local", inventory_unit_ids=[self.NEW])
+        self.assertEqual(after.units["local"], {self.KEY: timings.UnitTiming(5.0, 2)})
+        self.assertNotRegex(after.to_json(), r"frozen:\d")
+
+    def test_the_committed_file_loads_with_no_warning_and_has_no_versioned_key(self):
+        loaded = timings.load(REPO_ROOT)
+        self.assertEqual(loaded.warnings, ())
+        text = (REPO_ROOT / "tests" / "parallel" / "timings.json").read_text(encoding="utf-8")
+        self.assertNotRegex(text, r'"frozen:\d+\.\d+\.\d+/')
+        self.assertTrue(any(u.startswith("frozen:") for u in loaded.units["ci"]))
+
 
 
 class TestConfig(unittest.TestCase):
