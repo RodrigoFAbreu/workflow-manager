@@ -43,6 +43,7 @@ from support import (
     CI_SUITES,
     NEWEST_RELEASE,
     PINNED_VERSIONS,
+    TESTED_VERSIONS,
     expected_portability_exceptions,
 )
 
@@ -222,12 +223,17 @@ class TestPinnedVersionsCarryTheirRecords(unittest.TestCase):
     entry, and no test can subscript a version the data lacks."""
 
     def test_pins_counts_and_exceptions_name_the_same_versions(self):
+        """The built-in tables cover exactly the pins; a lock-only release
+        (`tests/tested_releases.json`) carries its counts and exceptions in its
+        manifest or its lock entry, so `CI_SUITES` covers the tested set."""
         pinned = set(PINNED_VERSIONS)
-        self.assertEqual(set(CI_SUITES), pinned)
+        self.assertEqual(set(CI_SUITES), set(TESTED_VERSIONS))
         self.assertEqual(set(support.PORTABILITY_EXCEPTIONS["by_version"]), pinned)
+        for version in TESTED_VERSIONS:
+            expected_portability_exceptions(version)
 
-    def test_the_matrix_runs_the_newest_pin(self):
-        self.assertEqual(NEWEST_RELEASE, PINNED_VERSIONS[-1])
+    def test_the_matrix_runs_the_newest_tested_release(self):
+        self.assertEqual(NEWEST_RELEASE, TESTED_VERSIONS[-1])
         self.assertEqual(TestConformanceFixture.WORKFLOW_VERSION, NEWEST_RELEASE)
         self.assertEqual(TestBootstrappedTarget.WORKFLOW_VERSION, NEWEST_RELEASE)
 

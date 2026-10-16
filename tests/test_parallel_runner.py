@@ -791,6 +791,7 @@ class TestFrozenInventoryCountRefusal(unittest.TestCase):
         shutil.copytree(TESTS_DIR / "parallel", root / "tests" / "parallel",
                         ignore=shutil.ignore_patterns("__pycache__", "matrix.py", "*.json"))
         shutil.copy2(TESTS_DIR / "support.py", root / "tests" / "support.py")
+        copy_lock_support(root)
         (root / "tests" / "portability_exceptions.json").write_text(canonical_json(
             {"by_version": {"0.0.1": {"exceptions": []}}}))
         _writable_copy(REPO_ROOT / "src" / "workflow_manager", root / "src" / "workflow_manager",
@@ -2651,6 +2652,14 @@ def _writable_copy(src: Path, dst: Path, **kwargs) -> None:
     isolation._make_removable(dst)  # noqa: SLF001
 
 
+def copy_lock_support(root: Path) -> None:
+    """`tests/tested_releases.py` and an empty lock beside the scratch's
+    `support.py`, which imports them (plan 3.5): the scratch tests only its pin."""
+    shutil.copy2(TESTS_DIR / "tested_releases.py", root / "tests" / "tested_releases.py")
+    (root / "tests" / "tested_releases.json").write_text(
+        canonical_json({"schema_version": 1, "releases": {}}))
+
+
 def scratch_checkout(root: Path, *, resources=SCRATCH_RESOURCES, modules=None,
                      suite: str = SCRATCH_SUITE, pinned: int = SCRATCH_SUITE_TESTS,
                      timings_units=None, no_gitignore_template: bool = False) -> Path:
@@ -2689,6 +2698,7 @@ def scratch_checkout(root: Path, *, resources=SCRATCH_RESOURCES, modules=None,
                                                  "timings.json", "config.json"))
     for name in ("run_all.py", "frozen_runs.py", "support.py"):
         shutil.copy2(TESTS_DIR / name, tests / name)
+    copy_lock_support(root)
     _writable_copy(REPO_ROOT / "src" / "workflow_manager", root / "src" / "workflow_manager",
                    ignore=shutil.ignore_patterns("__pycache__"))
     (tests / "parallel" / "resources.json").write_text(canonical_json(resources))
@@ -4858,11 +4868,17 @@ CI_NEEDS_STEP = "needs"
 CI_SHARD_IF = "${{ !cancelled() && needs.plan.result == 'success' }}"
 CI_MATRIX = "${{ fromJSON(needs.plan.outputs.shards) }}"
 #: The release cache every test job primes (plan 7.1, 7.3): its directory, and
-#: the `actions/cache` inputs that restore it, keyed on the pins.
+#: the `actions/cache` inputs that restore it, keyed on the pins and the
+#: tested-releases lock; the nightly's key adds the run id and restores the
+#: pinned releases by the prefix (plan 3.5).
 CI_RELEASE_CACHE = "${{ runner.temp }}/workflow-manager-releases"
+CI_CACHE_HASH = ("${{ hashFiles('src/workflow_manager/published_releases.json', "
+                 "'tests/tested_releases.json') }}")
 CI_RELEASE_CACHE_INPUTS = {
     "path": CI_RELEASE_CACHE,
-    "key": "workflow-releases-${{ hashFiles('src/workflow_manager/published_releases.json') }}"}
+    "key": f"workflow-releases-{CI_CACHE_HASH}"
+           "${{ github.event_name == 'schedule' && format('-{0}', github.run_id) || '' }}",
+    "restore-keys": f"workflow-releases-{CI_CACHE_HASH}\n"}
 #: `run_all.py`'s path flags, each of which must name a path under `$RUNNER_TEMP`.
 CI_PATH_FLAG_RE = re.compile(r'(--(?:out|plan|results|aggregate))\s+("[^"]*"|\S+)')
 _YAML_KEY_RE = re.compile(r"([A-Za-z0-9_.-]+):(?: +(.*))?$")
@@ -5114,10 +5130,11 @@ def ci_workflow_problems(doc: dict) -> list[str]:
     # The single CI profile (M2 removed the pull-request stopgap).
     need(sorted(jobs) == sorted(CI_JOBS + (CI_PACKAGE_JOB,)),
          f"jobs are {sorted(jobs)}, not exactly plan, shard, package and aggregate")
-    need(sorted(plan.get("outputs") or {}) == ["shards"], "the plan job exports more than shards")
+    need(sorted(plan.get("outputs") or {}) == ["lock", "shards"],
+         "the plan job exports more than shards and the nightly's lock")
     need("permissions" not in plan, "the plan job has its own permissions")
-    need(len(plan.get("steps") or []) == 5,
-         "the plan job is not checkout, python, cache, plan and upload")
+    need(len(plan.get("steps") or []) == 6,
+         "the plan job is not checkout, python, lock, cache, plan and upload")
 
     plan_steps = [s for s in plan.get("steps") or [] if s.get("id") == "plan"]
     need(len(plan_steps) == 1 and '"shards=' in plan_steps[0].get("run", "")
@@ -5212,8 +5229,9 @@ class TestCiWorkflowStructure(unittest.TestCase):
                 "  plan:\n    runs-on: ubuntu-latest\n",
                 "  plan:\n    runs-on: ubuntu-latest\n    env:\n"
                 "      WORKFLOW_MANAGER_RELEASE_CACHE: ${{ runner.temp }}/workflow-manager-releases\n"),
-            "a cache key off the pins": ("hashFiles('src/workflow_manager/published_releases.json')",
-                                         "hashFiles('pyproject.toml')"),
+            "a cache key off the pins": (
+                "hashFiles('src/workflow_manager/published_releases.json', "
+                "'tests/tested_releases.json')", "hashFiles('pyproject.toml')"),
             "no cache restore before a run": (
                 re.compile(r"^      - name: Restore the release cache\n(?:        .*\n)+", re.M), ""),
             "a nightly alarm again": ("\n  aggregate:\n", "\n  nightly-alarm:\n    runs-on: x\n"
@@ -5328,10 +5346,7 @@ class TestOneRequiredCheck(unittest.TestCase):
         self.assertEqual(len(restore), 1)
         self.assertEqual(len(build), 1)
         self.assertLess(restore[0], build[0])
-        self.assertEqual(steps[restore[0]]["with"], {
-            "path": cache_dir,
-            "key": "workflow-releases-"
-                   "${{ hashFiles('src/workflow_manager/published_releases.json') }}"})
+        self.assertEqual(steps[restore[0]]["with"], CI_RELEASE_CACHE_INPUTS)
         self.assertEqual(steps[build[0]]["env"], {"WORKFLOW_MANAGER_RELEASE_CACHE": cache_dir})
 
     def test_only_a_pull_request_run_is_cancelled(self):

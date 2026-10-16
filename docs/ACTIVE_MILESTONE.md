@@ -21,10 +21,40 @@ so it releases a Manager minor.
 
 ## Current checkpoint
 
-**Implementing: CP1 and CP2 done** (discovery, trust and the cache; release
-metadata and `min_manager_version`). Plan revision 5 is approved (by policy).
-Remaining: CP3 deterministic CI (lock file, nightly); CP4 version-free timing
+**Implementing: CP1, CP2 and CP3 done** (discovery, trust and the cache; release
+metadata and `min_manager_version`; deterministic CI). Plan revision 5 is approved (by policy).
+Remaining: CP4 version-free timing
 keys; CP5 documentation, roadmap and the Workflow-side contract.
+
+### CP3: Deterministic CI (R4, R5)
+
+- `tests/tested_releases.json` (empty `releases`, every release up to 2.12.0 is
+  pinned) and `tests/tested_releases.py`, the one reader: shape-validated lock
+  entries, `tested_pins` (pins plus lock, a version never in both and every lock
+  entry newer than the last pin), `lock_conformance` (the manifest's
+  `conformance` block wins over the entry's `suites`/`portability_exceptions`),
+  the `WORKFLOW_MANAGER_TESTED_RELEASES` override. Test data: not in the wheel,
+  not read by the CLI.
+- `tests/support.py`: `TESTED_VERSIONS`, `NEWEST_RELEASE`/`UPGRADE_FROM` from
+  it, `PINNED_VERSIONS` still the pins; `release()` resolves through the
+  composite pins; `CI_SUITES`/`expected_portability_exceptions` cover a
+  lock-only version; `mirror_dir`/`mirror_env` (a local release-source directory
+  from the primed cache, discovery on, a private cache) and
+  `expected_source_record` (the pin's record, or the discovered one).
+- `tests/parallel/priming.py` primes the tested set; scratch checkouts carry an
+  empty lock. A shard on another lock plans other frozen units, so its
+  `selection_digest` differs (tested), which is the plan's digest rule.
+- `tools/release_lock.py` (`add`, `check`, `latest`); `tools/release/package.py`
+  runs every wheel command with `WORKFLOW_MANAGER_PINNED_ONLY=1` (RA-E1).
+- `workflow-manager-verify.yml`: cache key = pins + lock hash (nightly: plus run
+  id, `restore-keys` prefix) in all four places; the nightly's plan job runs
+  `latest` with `GITHUB_TOKEN`, outputs the lock, and shard/aggregate write it and
+  set the override, on `schedule` only. `test_parallel_runner.py`'s workflow
+  structure rules follow.
+- Tests: `tests/test_tested_releases.py` (30; lock shape, tested set from an
+  override, priming and a CLI bootstrap-then-update of a lock-only `7.0.2`
+  against a mirror directory, the tool, the package proof, the workflow YAML).
+  `release.yml` needed no change (it calls the wheel only through `package.py`).
 
 ### CP2: Release metadata and `min_manager_version` (R2, R3)
 

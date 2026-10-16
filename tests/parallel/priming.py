@@ -30,7 +30,10 @@ root = source.cache_root().resolve()
 where = source.ReleaseSource.select()
 report = {"cache": str(root), "source": where.value, "versions": []}
 try:
-    pins = source.load_pins()
+    # The tested set: the pins plus the checkout's lock file (plan 3.5).
+    sys.path.insert(0, "tests")
+    import tested_releases
+    pins = tested_releases.tested_pins()
     cache = source.ReleaseCache(root, where, pins)
     for version in pins.versions():
         cache.ensure(version)
