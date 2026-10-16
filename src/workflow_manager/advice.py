@@ -18,9 +18,13 @@ from dataclasses import dataclass, field, replace
 from typing import Any, Callable
 
 from .compatibility import (  # noqa: F401  (re-exported: one home for the predicate)
+    CATALOG_TITLE,
     NOT_MANAGED_PROBLEM,
+    NO_DATA_TITLE,
+    UNREADABLE_DATA_TITLE,
     ContainmentError,
     PREDICATE_EXCLUDED,
+    RELEASE_COVERAGE_TITLES,
     RECORD_UNREADABLE_TITLE,
     DataFile,
     git_command,
@@ -49,6 +53,7 @@ from .release import STATE_TEMPLATES, ReleaseIntegrityError
 from .source import (
     SOURCE_ENV,
     ReleaseFloorError,
+    ReleaseIncompatibleError,
     ReleaseNotPublishedError,
     ReleaseUnavailableError,
 )
@@ -559,7 +564,8 @@ def _none_pinned(error, context):
 
 def _floor(error, context):
     if error.kind == "manager":
-        step = f"upgrade the Manager ({_url(PAGE_UPDATE_MANAGER)})"
+        needs = f" to {error.needs} or newer" if error.needs else ""
+        step = f"upgrade the Manager{needs} ({_url(PAGE_UPDATE_MANAGER)})"
     elif _writes_held(context):
         return _held_rerun(context)
     elif error.kind == "archive":
@@ -570,6 +576,33 @@ def _floor(error, context):
                 "mirror with --release-source")
     return (f"{step}; a bare update never installs a release older than the installed "
             f"Workflow {error.installed}")
+
+
+def _incompatible(error, context):
+    needs = f" to {error.needs} or newer" if error.needs else ""
+    upgrade = f"upgrade the Manager{needs} ({_url(PAGE_UPDATE_MANAGER)})"
+    if _writes_held(context):
+        return f"{upgrade}; {_held_rerun(context)}"
+    return f"{upgrade}, then run the same command again"
+
+
+#: Where a Workflow release's notes live (the `workflow` repository's releases).
+WORKFLOW_RELEASES_URL = "https://github.com/RodrigoFAbreu/workflow/releases"
+
+
+def coverage_step(title: str) -> str:
+    """The step for a release-coverage finding (RA-L3-001): the cause of the
+    missing data, and that `update` itself is not refused."""
+    if title == NO_DATA_TITLE:
+        return (f"read the release notes at {WORKFLOW_RELEASES_URL}, then decide; `update` itself "
+                f"is not refused. A newer Manager may carry the data ({_url(PAGE_UPDATE_MANAGER)})")
+    if title == UNREADABLE_DATA_TITLE:
+        return ("connect to the network, or point --release-source at a mirror that holds the "
+                "release's manifest, then run the check again; `update` itself is not refused")
+    if title == CATALOG_TITLE:
+        return ("name a source that lists its releases: a directory mirror, or the default source "
+                "(--release-source), then run the check again; `update` itself is not refused")
+    raise ValueError(f"not a release-coverage title: {title!r}")
 
 
 def _unpinned(error, context):
@@ -739,6 +772,7 @@ _row(OSError, _os_error)
 _row(ReleaseNotPublishedError, _by_kind({"none-pinned": _none_pinned, "unpinned": _unpinned}),
      on_write=True)
 _row(ReleaseFloorError, _floor, on_write=True)
+_row(ReleaseIncompatibleError, _incompatible, on_write=True)
 _row(ReleaseUnavailableError, _by_kind({
     "fetch-url": _fetch_url, "fetch-directory": _fetch_directory,
     "no-version-field": _no_version_field, "source-response": _source_response,

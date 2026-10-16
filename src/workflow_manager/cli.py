@@ -46,6 +46,7 @@ from . import advice
 from . import source as release_source
 from .compatibility import (
     ContainmentError,
+    has_builtin_data,
     Destinations,
     data_files,
     data_findings,
@@ -72,6 +73,7 @@ from .install import (
     verify,
 )
 from .installation import CorruptInstallationError, Installation, is_managed, not_managed_text
+from .coverage import gather_metadata
 from .package import build_package, extract_package, file_sha256
 from .release import (
     INSTALL_PROFILE_FULL,
@@ -79,6 +81,7 @@ from .release import (
     Release,
     ReleaseIntegrityError,
     _version_key,
+    manager_version_ok,
 )
 from .source import (
     AVAILABILITY_KINDS,
@@ -87,10 +90,12 @@ from .source import (
     DiscoveryFailure,
     ReleaseCache,
     ReleaseFloorError,
+    ReleaseIncompatibleError,
     ReleaseNotPublishedError,
     ReleaseSource,
     ReleaseUnavailableError,
     cache_root,
+    incompatible,
     is_strict_version,
     local_release,
     pinned_only,
@@ -192,7 +197,7 @@ class _VersionAction(argparse.Action):
 
 #: The errors that mean "no usable release": exit 1, with actionable text.
 RELEASE_ERRORS = (ReleaseNotPublishedError, ReleaseUnavailableError, ReleaseIntegrityError,
-                  ReleaseFloorError)
+                  ReleaseFloorError, ReleaseIncompatibleError)
 
 MANAGER_ROOT_DEPRECATION = (
     "workflow-manager: --manager-root is deprecated and will be removed in a later release. "
@@ -264,6 +269,54 @@ def _resolve(args, version: str | None, destinations: Destinations | None = None
                                       read_only=destinations is not None)
 
 
+def _needs_newer_manager(release) -> str | None:
+    """The `min_manager_version` of `release` when this Manager is older than it
+    (3.4), else None. A release whose data is built in ignores its block. A bad
+    block is `ReleaseIntegrityError(kind="manifest-shape")`."""
+    if has_builtin_data(release.version):
+        return None
+    block = release.manager
+    minimum = block.min_manager_version if block is not None else None
+    return None if manager_version_ok(minimum, _installed_version()) else minimum
+
+
+def _close(release) -> None:
+    close = getattr(release, "close", None)
+    if close is not None:
+        close()
+
+
+def _require_compatible(release):
+    """`release`, or `ReleaseIncompatibleError` (the release is closed first)
+    when it needs a newer Manager: an explicit choice is refused (3.4)."""
+    try:
+        needs = _needs_newer_manager(release)
+    except ReleaseIntegrityError:
+        _close(release)
+        raise
+    if needs is not None:
+        _close(release)
+        raise incompatible(release.version, needs, _installed_version())
+    return release
+
+
+def _note_incompatible(error: ReleaseIncompatibleError) -> None:
+    print(f"workflow-manager: {error}; to install it, upgrade the Manager first "
+          f"({advice.page(*advice.PAGE_UPDATE_MANAGER)})", file=sys.stderr)
+
+
+def _note_release_needs(release) -> None:
+    """`status` and `verify` only read, so a release that needs a newer Manager
+    is a note, never a refusal (3.4)."""
+    try:
+        needs = _needs_newer_manager(release)
+    except ReleaseIntegrityError:
+        return
+    if needs is not None:
+        print(f"workflow-manager: note: {incompatible(release.version, needs, _installed_version())}",
+              file=sys.stderr)
+
+
 def _floor(args) -> str | None:
     """The installed release, a floor for a bare `update` (3.2): the record's
     version when it is one parseable `X.Y.Z`, else none, with a note."""
@@ -302,14 +355,22 @@ def _choose_and_resolve(args, *, floor: str | None = None, installed: str | None
     the candidate with one stderr line; an integrity failure refuses (3.2)."""
     pins = _pins()
     chooser = Chooser(_cache(args, pins), local=_alias_releases(args), floor=floor)
-    first_error, blocked = None, []
+    first_error, blocked, skipped_for_manager = None, [], []
     for version in chooser.candidates():
         destinations = None
         if readonly:
             leaves = [version] + ([installed] if installed and isinstance(installed, str) else [])
             destinations = plan_destinations(args, os.environ, args.target, leaves)
         try:
-            return _resolve(args, version, destinations), destinations
+            release = _resolve(args, version, destinations)
+            try:
+                release = _require_compatible(release)
+            except ReleaseIncompatibleError as exc:
+                skipped_for_manager.append(exc)
+                continue
+            if skipped_for_manager:
+                _note_incompatible(skipped_for_manager[0])
+            return release, destinations
         except ReleaseUnavailableError as exc:
             if exc.kind not in AVAILABILITY_KINDS:
                 raise
@@ -317,6 +378,13 @@ def _choose_and_resolve(args, *, floor: str | None = None, installed: str | None
             blocked.append(version)
             print(f"workflow-manager: could not fetch release {version}: {exc}; "
                   f"trying an older one", file=sys.stderr)
+    if skipped_for_manager:
+        newest = skipped_for_manager[0]
+        if floor is not None:
+            raise ReleaseFloorError(
+                f"no usable release at or above the installed Workflow {floor}: {newest}",
+                kind="manager", installed=floor, version=newest.version, needs=newest.needs)
+        raise newest
     if chooser.cut_by_floor and floor is not None:
         raise _floor_error(floor, chooser, blocked)
     if first_error is not None:
@@ -329,7 +397,7 @@ def _release(args):
     """What `bootstrap` and `update` install: the version named, else the newest
     usable release. A bare `update` never goes below the installed one."""
     if args.release_version is not None or args.release_dir is not None:
-        return _resolve(args, args.release_version)
+        return _require_compatible(_resolve(args, args.release_version))
     floor = _floor(args) if args.command == "update" else None
     return _choose_and_resolve(args, floor=floor)[0]
 
@@ -505,6 +573,7 @@ def cmd_status(args) -> int:
         raise
     with release:
         result = status(args.target, release)
+        _note_release_needs(release)
     print(result)
     print(f"  source: {_describe_source(Installation.read(args.target).source)}")
     _print_in_flight(args)
@@ -588,10 +657,12 @@ def _compatibility_report(args, plan, refusal, release, installed_resolved: bool
     facts = read_repository(args.target)
     context = _context(args)
     facts.options_for = lambda version: advice._options(context, version)[0]
+    installed = facts.installation.workflow_version if facts.installation else None
+    metadata = gather_metadata(_cache(args, pins), installed, release)
     return build_report(
         facts, plan, target_version=release.version, latest_version=latest,
         pinned_versions=versions, refusal=refusal, installed_resolved=installed_resolved,
-        target_arg=str(args.target))
+        target_arg=str(args.target), metadata=metadata)
 
 
 def _plan_or_refusal(args, release):
@@ -612,7 +683,7 @@ def cmd_dry_run(args) -> int:
             args, floor=_floor(args), installed=installed, readonly=True)
     else:
         destinations = _readonly_destinations(args, installed)
-        release = _resolve(args, args.release_version, destinations)
+        release = _require_compatible(_resolve(args, args.release_version, destinations))
     with release:
         plan, refusal = _plan_or_refusal(args, release)
         installed_resolved = _installed_resolves(args, installed, destinations)
@@ -654,7 +725,7 @@ def cmd_doctor(args) -> int:
                 args, floor=_floor(args), installed=installed, readonly=True)
         else:
             destinations = _readonly_destinations(args, installed)
-            release = _resolve(args, args.release_version, destinations)
+            release = _require_compatible(_resolve(args, args.release_version, destinations))
     except RELEASE_ERRORS as error:
         print(f"error: could not resolve the target release: {error}", file=sys.stderr)
         step = advice.next_step(error, _context(args))
@@ -689,6 +760,7 @@ def cmd_verify(args) -> int:
         raise NotManagedError(not_managed_text(args.target))
     with release:
         problems = verify(args.target, release)
+        _note_release_needs(release)
     if not problems:
         print(f"{args.target}: installation matches workflow {release.version}")
         return 0

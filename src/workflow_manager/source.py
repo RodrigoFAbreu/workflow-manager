@@ -130,9 +130,27 @@ class ReleaseFloorError(InstallError):
     (3.2): `kind` is `offline`, `archive` or `manager`, `installed` the floor."""
 
     def __init__(self, message: str = "", *, kind: str | None = None,
-                 installed: str | None = None, version: str | None = None):
+                 installed: str | None = None, version: str | None = None,
+                 needs: str | None = None):
         super().__init__(message)
-        self.kind, self.installed, self.version = kind, installed, version
+        self.kind, self.installed, self.version, self.needs = kind, installed, version, needs
+
+
+class ReleaseIncompatibleError(InstallError):
+    """The release's manifest says it needs a newer Manager than this one
+    (`min_manager_version`, 3.4). Chosen explicitly it is refused; a bare
+    `update` or `bootstrap` skips it (`needs` is what the skipped release asks)."""
+
+    def __init__(self, message: str = "", *, version: str | None = None,
+                 needs: str | None = None, manager: str | None = None):
+        super().__init__(message)
+        self.version, self.needs, self.manager = version, needs, manager
+
+
+def incompatible(version: str, needs: str, manager: str | None) -> ReleaseIncompatibleError:
+    return ReleaseIncompatibleError(
+        f"Workflow {version} needs workflow-manager {needs} or newer; this is {manager or 'unknown'}",
+        version=version, needs=needs, manager=manager)
 
 
 def _log(message: str) -> None:
@@ -650,6 +668,16 @@ class ReleaseCache:
             raise self._unpinned(version)
         local = self._local_pin(version)
         return local is not None and self._is_hit(self.entry(version), local, TRUST_DISCOVERED)
+
+    def cached_manifest(self, version: str) -> bytes | None:
+        """The manifest of a cache entry this run trusts (a hit for its pin or
+        for this source), or None. No network, no lock."""
+        try:
+            if not self.cached(version):
+                return None
+            return (self.entry(version) / TREE_NAME / MANIFEST_NAME).read_bytes()
+        except (ReleaseNotPublishedError, ReleaseIntegrityError, OSError):
+            return None
 
     def _unpinned(self, version: str) -> ReleaseNotPublishedError:
         return ReleaseNotPublishedError(

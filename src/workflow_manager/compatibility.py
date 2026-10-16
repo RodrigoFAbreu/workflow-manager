@@ -36,7 +36,7 @@ from .installation import (
     Installation,
     is_managed,
 )
-from .release import STATE_TEMPLATES
+from .release import STATE_TEMPLATES, DetectorSpec, ManagerBlock
 
 # ---------------------------------------------------------------------------
 # Versions, phases and the Workflow facts this module mirrors
@@ -907,7 +907,7 @@ def values_anywhere(obj, key: str, value, prefix: str = "") -> list[str]:
     if isinstance(obj, dict):
         for k, v in obj.items():
             here = f"{prefix}/{k}" if prefix else str(k)
-            if k == key and v == value:
+            if k == key and type(v) is type(value) and v == value:
                 found.append(here)
             found += values_anywhere(v, key, value, here)
     elif isinstance(obj, list):
@@ -1158,6 +1158,146 @@ GATE_DEFAULT_CHANGES: dict[str, str] = {
     "2.12.0": "",
 }
 
+# ---------------------------------------------------------------------------
+# Release data beyond the tables (D-Metadata)
+# ---------------------------------------------------------------------------
+
+#: The newest release the tables above cover; a later one carries its own data
+#: in its manifest's `manager` block, or has none.
+BUILTIN_THROUGH = max(DOWNGRADE_BOUNDARIES, key=version_key)
+
+NO_DATA_TITLE = "a release carries no compatibility data"
+UNREADABLE_DATA_TITLE = "a release's compatibility data could not be read"
+CATALOG_TITLE = "the releases in the range could not be enumerated"
+#: Findings about a release's metadata, not the repository's data: they are
+#: `incomplete-inspection` (so `doctor` exits 1) but never withhold a write.
+RELEASE_COVERAGE_TITLES = (NO_DATA_TITLE, UNREADABLE_DATA_TITLE, CATALOG_TITLE)
+
+
+def has_builtin_data(version: str) -> bool:
+    return version in DOWNGRADE_BOUNDARIES
+
+
+def _detector_from_spec(spec: DetectorSpec) -> Detector:
+    if spec.kind == "state-key":
+        return _state_keys(spec.key)
+    if spec.kind == "state-value":
+        return _state_value(spec.key, spec.value)
+    if spec.kind == "item-governing":
+        return _items_where(lambda i: i.governing == spec.value,
+                            lambda i: f"{i.id}: governing_workflow_version {spec.value}")
+    if spec.kind == "item-phase":
+        return _items_where(lambda i: i.phase in spec.phases, lambda i: f"{i.id}: phase {i.phase}")
+    if spec.kind == "item-field":
+        return _items_where(
+            lambda i: spec.key in i.entry and type(i.entry[spec.key]) is type(spec.value)
+            and i.entry[spec.key] == spec.value,
+            lambda i: f"{i.id}: {spec.key} {spec.value}")
+    raise ValueError(f"unknown detector kind {spec.kind!r}")     # parse_manager_block refuses it first
+
+
+def boundary_from_block(block: ManagerBlock) -> Boundary | None:
+    spec = block.downgrade_boundary
+    if spec is None:
+        return None
+    return Boundary(spec.posture,
+                    tuple(Signal(s.name, s.label, _detector_from_spec(s.detect))
+                          for s in spec.signals),
+                    spec.undetectable)
+
+
+@dataclass(frozen=True)
+class ReleaseData:
+    """One release's compatibility data, from the tables or its manifest."""
+    boundary: Boundary
+    new_work_only: tuple[str, ...]
+    gate_change: str
+
+
+@dataclass
+class ReleaseMetadata:
+    """What the report knows about releases above the built-in data, gathered by
+    the caller (`coverage.py`): never read from the network here.
+
+    `versions` are the non-built-in releases that may lie in the range;
+    `blocks` maps a version whose manifest was read to its block (None: none);
+    `unreadable` maps a version whose manifest could not be read to why;
+    `catalog_incomplete` is why the releases above `BUILTIN_THROUGH` could not
+    all be listed, or None."""
+    versions: tuple[str, ...] = ()
+    blocks: dict[str, ManagerBlock | None] = field(default_factory=dict)
+    unreadable: dict[str, str] = field(default_factory=dict)
+    catalog_incomplete: str | None = None
+
+    def data(self, version: str) -> tuple[ReleaseData, tuple[str, ...]]:
+        """`(data, missing)`: the resolved data for `version` and the items it
+        lacks (empty for built-in data and for a complete block)."""
+        if has_builtin_data(version):
+            return ReleaseData(DOWNGRADE_BOUNDARIES[version], NEW_WORK_ONLY[version],
+                               GATE_DEFAULT_CHANGES[version]), ()
+        block = self.blocks.get(version)
+        if block is None:
+            return ReleaseData(Boundary(""), (), ""), ManagerBlock.ITEMS
+        return (ReleaseData(boundary_from_block(block) or Boundary(""),
+                            block.new_work_only or (), block.gate_default_change or ""),
+                block.missing_items())
+
+    def all_versions(self) -> list[str]:
+        return sorted(set(DOWNGRADE_BOUNDARIES) | set(self.versions), key=version_key)
+
+
+_BUILTIN_ONLY = ReleaseMetadata()
+
+
+def in_range(version: str, installed: str | None, target: str | None) -> bool:
+    """Whether `version` is crossed: (installed, target] up, (target, installed] down."""
+    if not installed or not target:
+        return False
+    if _lt(installed, target):
+        return _lt(installed, version) and _le(version, target)
+    return _lt(target, version) and _le(version, installed)
+
+
+def coverage_findings(installed: str | None, target: str | None,
+                      metadata: ReleaseMetadata) -> list[Finding]:
+    """The `incomplete-inspection` findings for release data the report lacks
+    (RA-E2, RA-E4): a crossed version with no data, one whose manifest could
+    not be read, and a catalog that could not be enumerated."""
+    if not installed or not target or not is_comparable(installed) or not is_comparable(target):
+        return []
+    findings = []
+    for version in metadata.all_versions():
+        if has_builtin_data(version) or not in_range(version, installed, target):
+            continue
+        if version in metadata.unreadable:
+            findings.append(Finding(
+                WARNING, _INCOMPLETE, UNREADABLE_DATA_TITLE,
+                f"Workflow {version}'s manifest could not be read: {metadata.unreadable[version]}. "
+                "Its downgrade guarantees and notes cannot be assessed."))
+            continue
+        block = metadata.blocks.get(version)
+        _, missing = metadata.data(version)
+        if block is None or missing:
+            what = ("its manifest carries no `manager` block" if block is None
+                    else f"its `manager` block lacks {', '.join(missing)}")
+            findings.append(Finding(
+                WARNING, _INCOMPLETE, NO_DATA_TITLE,
+                f"Workflow {version} was published after this Manager and {what}; "
+                "its downgrade guarantees and notes are not assessed."))
+    if metadata.catalog_incomplete and _lt(BUILTIN_THROUGH, max(installed, target, key=version_key)):
+        low, high = sorted((installed, target), key=version_key)
+        findings.append(Finding(
+            WARNING, _INCOMPLETE, CATALOG_TITLE,
+            f"The releases between {low} and {high} could not be enumerated "
+            f"({metadata.catalog_incomplete}); a release in between may carry a new-work-only "
+            "restriction or a downgrade posture."))
+    return findings
+
+
+def is_comparable(version: str) -> bool:
+    return isinstance(version, str) and re.fullmatch(r"\d+(\.\d+)*", version) is not None
+
+
 #: What to commit first to keep the 2.7.0 gates.
 HUMAN_GATE_POLICY = {"schema_version": 1, "human_approval": True}
 
@@ -1182,7 +1322,7 @@ SEVERITIES = (BLOCKED, WARNING, NOTE)
 #: unmanaged target and of every damaged record whose data is intact.
 NOT_MANAGED_PROBLEM = "the repository is not managed (no installation record)"
 RECORD_UNREADABLE_TITLE = "the installation record could not be read"
-PREDICATE_EXCLUDED = (NOT_MANAGED_PROBLEM, RECORD_UNREADABLE_TITLE)
+PREDICATE_EXCLUDED = (NOT_MANAGED_PROBLEM, RECORD_UNREADABLE_TITLE, *RELEASE_COVERAGE_TITLES)
 
 _INCOMPLETE = "incomplete-inspection"
 
@@ -1201,7 +1341,7 @@ def writes_withheld(findings, missing_templates, holds_data: bool) -> bool:
     if missing_templates:
         return True
     for finding in findings:
-        if finding.id != _INCOMPLETE or finding.title == RECORD_UNREADABLE_TITLE:
+        if finding.id != _INCOMPLETE or finding.title in PREDICATE_EXCLUDED:
             continue
         lines = [line for line in finding.detail.splitlines()
                  if line and line != NOT_MANAGED_PROBLEM
@@ -1500,13 +1640,14 @@ def build_findings(facts: RepositoryFacts, plan: UpdatePlan | None, *, target: s
                    installed_resolved: bool = True, refusal: Exception | None = None,
                    steps: bool = True, target_arg: str | None = None,
                    release_version: str | None = None,
-                   latest: str | None = None) -> list[Finding]:
+                   latest: str | None = None,
+                   metadata: ReleaseMetadata | None = None) -> list[Finding]:
     """The report's findings. With `steps` each carries the one next step the
     operator can take (3.4); `data_findings` asks for none, because the
     predicate reads only what the findings are, never what they advise, and
     the steps never change its answer (a test pins that)."""
     findings = _base_findings(facts, plan, target=target, installed_resolved=installed_resolved,
-                              refusal=refusal)
+                              refusal=refusal, metadata=metadata or _BUILTIN_ONLY)
     if not steps:
         return findings
     return _with_steps(facts, findings, refusal=refusal, target=target,
@@ -1515,8 +1656,8 @@ def build_findings(facts: RepositoryFacts, plan: UpdatePlan | None, *, target: s
 
 
 def _base_findings(facts: RepositoryFacts, plan: UpdatePlan | None, *, target: str | None,
-                   installed_resolved: bool = True, refusal: Exception | None = None
-                   ) -> list[Finding]:
+                   installed_resolved: bool = True, refusal: Exception | None = None,
+                   metadata: ReleaseMetadata = _BUILTIN_ONLY) -> list[Finding]:
     installed = facts.installation.workflow_version if facts.installation else None
     findings: list[Finding] = []
 
@@ -1565,8 +1706,8 @@ def _base_findings(facts: RepositoryFacts, plan: UpdatePlan | None, *, target: s
                 f"{when}. The Manager does not edit the configuration.\n"
                 f"What to do: {RETIRED_DEFAULT_NEXT_STEP}"))
 
-    gate_changes = [(v, GATE_DEFAULT_CHANGES[v]) for v in sorted(GATE_DEFAULT_CHANGES, key=version_key)
-                    if GATE_DEFAULT_CHANGES[v] and installed and target
+    gate_changes = [(v, metadata.data(v)[0].gate_change) for v in metadata.all_versions()
+                    if metadata.data(v)[0].gate_change and installed and target
                     and _lt(installed, v) and _le(v, target)]
     if gate_changes and not facts.gate_policy_present:
         change_version, change_text = gate_changes[-1]
@@ -1588,11 +1729,11 @@ def _base_findings(facts: RepositoryFacts, plan: UpdatePlan | None, *, target: s
             + json.dumps(HUMAN_GATE_POLICY) + " before the update; decide the policy first."))
 
     if installed and target and _lt(target, installed):
-        crossed = [v for v in sorted(DOWNGRADE_BOUNDARIES, key=version_key, reverse=True)
-                   if DOWNGRADE_BOUNDARIES[v].posture and _lt(target, v) and _le(v, installed)]
+        crossed = [v for v in reversed(metadata.all_versions())
+                   if metadata.data(v)[0].boundary.posture and _lt(target, v) and _le(v, installed)]
         lines = []
         for version in crossed:
-            boundary = DOWNGRADE_BOUNDARIES[version]
+            boundary = metadata.data(version)[0].boundary
             lines.append(f"Crossing {version}: {boundary.posture}")
             hits = [(s, s.detect(facts)) for s in boundary.signals]
             found = [f"{s.description}: {'; '.join(e)}" for s, e in hits if e]
@@ -1622,10 +1763,14 @@ def _base_findings(facts: RepositoryFacts, plan: UpdatePlan | None, *, target: s
 
     if installed and target:
         try:
-            for version, text in new_work_only(installed, target):
+            for version, text in new_work_only(installed, target, metadata):
                 findings.append(Finding(NOTE, "new-work-only", f"{version}: {text}"))
         except ValueError:
             pass
+    try:
+        findings += coverage_findings(installed, target, metadata)
+    except ValueError:
+        pass
 
     if not installed_resolved:
         findings.append(Finding(
@@ -1739,6 +1884,8 @@ def _with_steps(facts: RepositoryFacts, findings: list[Finding], *, refusal, tar
                                     options=facts.options_for(latest)).render()
             detail += ("\nWhat to do: to check the update to the newest release instead, leave "
                        f"--release-version out: `{check}`")
+        elif finding.id == _INCOMPLETE and finding.title in RELEASE_COVERAGE_TITLES:
+            detail += f"\nWhat to do: {advice.coverage_step(finding.title)}"
         elif finding.id == "not-verified":
             installed = facts.installation.workflow_version if facts.installation else None
             verify = manager_command("verify", target=repo, withheld=False,
@@ -1775,12 +1922,15 @@ def _collision_step(refusal, repo: str, release_version, withheld: bool, files, 
             "--force to replace them with the release's:"), (force,)
 
 
-def new_work_only(installed: str, target: str) -> list[tuple[str, str]]:
-    """The `NEW_WORK_ONLY` entries for releases in (installed, target]."""
+def new_work_only(installed: str, target: str, metadata: ReleaseMetadata | None = None
+                  ) -> list[tuple[str, str]]:
+    """The new-work-only entries (the tables', or a manifest's) for releases in
+    (installed, target]."""
+    metadata = metadata or _BUILTIN_ONLY
     out = []
-    for version in sorted(NEW_WORK_ONLY, key=version_key):
+    for version in metadata.all_versions():
         if _lt(installed, version) and _le(version, target):
-            out += [(version, text) for text in NEW_WORK_ONLY[version]]
+            out += [(version, text) for text in metadata.data(version)[0].new_work_only]
     return out
 
 
@@ -1854,12 +2004,13 @@ def recovery_steps(facts: RepositoryFacts, findings: list[Finding], *, target_ar
 def build_report(facts: RepositoryFacts, plan: UpdatePlan | None, *, target_version: str | None,
                  latest_version: str | None, pinned_versions: list[str],
                  refusal: Exception | None = None, installed_resolved: bool = True,
-                 target_arg: str | None = None) -> Report:
+                 target_arg: str | None = None,
+                 metadata: ReleaseMetadata | None = None) -> Report:
     explicit = target_version if target_version and target_version != latest_version else None
     findings = build_findings(facts, plan, target=target_version,
                               installed_resolved=installed_resolved, refusal=refusal,
                               target_arg=target_arg, release_version=explicit,
-                              latest=latest_version)
+                              latest=latest_version, metadata=metadata)
     installation = facts.installation
     source = None
     if installation is not None:
@@ -1871,7 +2022,7 @@ def build_report(facts: RepositoryFacts, plan: UpdatePlan | None, *, target_vers
         else:
             source = "not recorded"
     installed = installation.workflow_version if installation else None
-    notes = tuple(new_work_only(installed, target_version)) if installed and target_version else ()
+    notes = tuple(new_work_only(installed, target_version, metadata)) if installed and target_version else ()
     return Report(
         repository=str(target_arg or facts.target),
         installed=installed,

@@ -184,7 +184,8 @@ class TestAdviceUnits(unittest.TestCase):
     def test_the_predicate_constants_are_exactly_these(self):
         self.assertEqual(advice.PREDICATE_EXCLUDED,
                          ("the repository is not managed (no installation record)",
-                          "the installation record could not be read"))
+                          "the installation record could not be read",
+                          *advice.RELEASE_COVERAGE_TITLES))
 
     def test_writes_withheld(self):
         from workflow_manager.compatibility import Finding, WARNING

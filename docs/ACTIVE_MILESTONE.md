@@ -21,10 +21,42 @@ so it releases a Manager minor.
 
 ## Current checkpoint
 
-**Implementing: CP1 done** (discovery, trust and the cache). Plan revision 5 is
-approved (by policy). Remaining: CP2 release metadata and `min_manager_version`;
-CP3 deterministic CI (lock file, nightly); CP4 version-free timing keys; CP5
-documentation, roadmap and the Workflow-side contract.
+**Implementing: CP1 and CP2 done** (discovery, trust and the cache; release
+metadata and `min_manager_version`). Plan revision 5 is approved (by policy).
+Remaining: CP3 deterministic CI (lock file, nightly); CP4 version-free timing
+keys; CP5 documentation, roadmap and the Workflow-side contract.
+
+### CP2: Release metadata and `min_manager_version` (R2, R3)
+
+- `release.py`: `parse_manager_block` validates a manifest's optional `manager`
+  block (schema 1, the closed detector vocabulary, all-or-nothing nested
+  objects, type-aware scalars); `Release.manager` reads it lazily, so a release
+  whose data is built in never fails on a block it ignores. A bad block is
+  `ReleaseIntegrityError(kind="manifest-shape")`. `manager_version_ok` is the
+  `min_manager_version` compare (a development build satisfies every minimum).
+- `compatibility.py`: `ReleaseMetadata.data(version)` is the resolver. Versions
+  up to 2.12.0 use the three tables, always; a later one uses its block, with
+  the neutral value and an `incomplete-inspection` warning for what the block
+  lacks. `coverage_findings` emits the three release-coverage findings
+  (`NO_DATA_TITLE`, `UNREADABLE_DATA_TITLE`, `CATALOG_TITLE`), whose fixed
+  titles are `RELEASE_COVERAGE_TITLES` and joined `PREDICATE_EXCLUDED`, so they
+  make `inspection_complete` false and `doctor` exit 1 without ever withholding
+  a write. (Deviation from the plan's wording: the version is in the detail, not
+  the title, because set membership needs fixed titles.)
+  `values_anywhere` is now type-aware (`true` is not `1`).
+- `coverage.py` (new): `gather_metadata` reads the crossed versions' blocks
+  (target; the cache entry's manifest; else a checksum-verified manifest asset
+  under one deadline) and the source's listing for the catalog. It records
+  what it could not read, with the cause, and never skips it.
+- `cli.py`/`advice.py`/`source.py`: `ReleaseIncompatibleError` (exit 1, an
+  advice row, `docs/exit-codes.md`); an explicit version is refused (`bootstrap`,
+  `update`, `update --dry-run`; `doctor` exits 2 as for any unresolvable
+  target); a bare command skips it with one note and the choosing loop's floor
+  (`ReleaseFloorError(kind="manager")`) stops a bare `update` that would go
+  below the installed release; `status` and `verify` print a note.
+- Tests: `tests/test_release_metadata.py` (38, hermetic, `7.0.x` releases in
+  directory mirrors and loopback stubs); `test_operator_ux.py` follows the
+  widened `PREDICATE_EXCLUDED`.
 
 ### CP1: Discovery, trust and the cache (R1, R5)
 
