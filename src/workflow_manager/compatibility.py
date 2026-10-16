@@ -2017,6 +2017,8 @@ def build_report(facts: RepositoryFacts, plan: UpdatePlan | None, *, target_vers
         src = installation.source
         if isinstance(src, dict) and src.get("kind") == "package":
             source = f"package {src.get('archive')}"
+            if src.get("trust") == "discovered":
+                source += f" (discovered from {src.get('from')}; no pin)"
         elif isinstance(src, dict) and src.get("kind") == "local":
             source = "local, unpublished"
         else:
@@ -2076,7 +2078,9 @@ def render_report(report: Report) -> str:
         lines.append("Installed release   unknown")
     if report.latest:
         pins = f"  (this Manager pins {report.pinned[0]} ... {report.pinned[-1]})" if report.pinned else ""
-        lines.append(f"Latest available    {report.latest}{pins}")
+        kind = "" if not report.pinned else (
+            "  [pinned]" if report.latest in report.pinned else "  [discovered, not pinned]")
+        lines.append(f"Latest available    {report.latest}{kind}{pins}")
     if report.target:
         lines.append(f"Target of this check {report.target}  (--release-version, else latest)")
     lines += ["", "Work items (governing version is a protocol version, not a release)"]

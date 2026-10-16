@@ -421,8 +421,11 @@ def _describe_source(record: dict | None) -> str:
         return "not recorded"
     if record.get("kind") == "local":
         return "(local, unpublished)"
-    return (f"package {record.get('archive')} from {record.get('repository')} "
-            f"(sha256 {record.get('sha256')})")
+    described = (f"package {record.get('archive')} from {record.get('repository')} "
+                 f"(sha256 {record.get('sha256')})")
+    if record.get("trust") == "discovered":
+        described += f" (discovered from {record.get('from')}; no pin, verified by its SHA256SUMS)"
+    return described
 
 
 def _print_record(target: Path) -> None:

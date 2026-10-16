@@ -236,6 +236,18 @@ class TestDiscoveryOverADirectory(_Mirror):
                       self.cli_stderr)
         self.assertIn("no pin", self.cli_stderr)
 
+    def test_status_and_doctor_name_the_trust_and_source_of_a_discovered_release(self):
+        self.bootstrap_at("7.0.0")
+        self.assertEqual(self._cli("status", str(self.target), source_dir=self.mirror), 0,
+                         self.cli_output)
+        self.assertNotIn("discovered", self.cli_stdout)
+        self._cli("update", str(self.target), source_dir=self.mirror)
+        self._cli("status", str(self.target), source_dir=self.mirror)
+        self.assertIn(f"discovered from dir:{self.mirror}", self.cli_stdout)
+        self._cli("doctor", str(self.target), source_dir=self.mirror)
+        self.assertIn(f"discovered from dir:{self.mirror}", self.cli_stdout)
+        self.assertIn("[discovered, not pinned]", self.cli_stdout)
+
     def test_the_cache_entry_records_its_source(self):
         self.bootstrap_at("7.0.0")
         self._cli("update", str(self.target), source_dir=self.mirror)

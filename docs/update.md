@@ -85,7 +85,7 @@ The report is advisory. It looks at the current state files and a few Git facts;
 
 ## Trust, offline and `--pinned-only`
 
-A release newer than the Manager's pins is verified by the `SHA256SUMS` published with it, not by a digest inside the Manager, and the Manager says so on stderr whenever it uses one. The installation record keeps `source.trust: "discovered"` and the source it came from; `workflow-manager status` prints both. If you want only the releases this Manager pins, put `--pinned-only` before the command (or set `WORKFLOW_MANAGER_PINNED_ONLY=1`): nothing is discovered, and an unpinned version is refused as before. Under `--pinned-only`, `status` and `verify` of a repository installed from a discovered release are refused as `unpinned`, and `doctor` adds a `not-verified` note.
+A release newer than the Manager's pins is verified by the `SHA256SUMS` published with it, not by a digest inside the Manager, and the Manager says so on stderr whenever it uses one. The installation record keeps `source.trust: "discovered"` and the source it came from; `workflow-manager status` and `doctor` print both (`doctor` also marks the latest release as `pinned` or `discovered, not pinned`). If you want only the releases this Manager pins, put `--pinned-only` before the command (or set `WORKFLOW_MANAGER_PINNED_ONLY=1`): nothing is discovered, and an unpinned version is refused as before. Under `--pinned-only`, `status` and `verify` of a repository installed from a discovered release are refused as `unpinned`, and `doctor` adds a `not-verified` note.
 
 ## Update the Manager
 
