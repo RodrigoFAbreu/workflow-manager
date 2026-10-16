@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "work_item_id": "workflow-manager-release-agnostic",
+  "requirements": {
+    "R1": {
+      "description": "Discovery and trust: unpinned releases verified by SHA256SUMS and manifest digest; pins authoritative for the releases they name",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R2": {
+      "description": "Release metadata travels in the manifest manager block, with built-in fallback up to 2.12.0",
+      "checkpoint_ids": [
+        "CP2"
+      ]
+    },
+    "R3": {
+      "description": "min_manager_version: an older Manager refuses clearly, naming the Manager to install; bare update skips to the newest compatible",
+      "checkpoint_ids": [
+        "CP2"
+      ]
+    },
+    "R4": {
+      "description": "Deterministic CI: lock file of tested releases, nightly on the newest published release",
+      "checkpoint_ids": [
+        "CP3"
+      ]
+    },
+    "R5": {
+      "description": "Offline and cache: cache and mirror keep working, discovery never fails an offline run, all tests hermetic",
+      "checkpoint_ids": [
+        "CP1",
+        "CP3"
+      ]
+    },
+    "R6": {
+      "description": "Timings keyed so a new release does not orphan them",
+      "checkpoint_ids": [
+        "CP4"
+      ]
+    },
+    "R7": {
+      "description": "Docs: adding a pin becomes adding a release; CLAUDE.md; operator guidance",
+      "checkpoint_ids": [
+        "CP5"
+      ]
+    },
+    "R8": {
+      "description": "The Workflow-side change named precisely as a follow-up for the workflow repository",
+      "checkpoint_ids": [
+        "CP5"
+      ]
+    }
+  }
+}
