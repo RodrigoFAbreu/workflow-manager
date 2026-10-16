@@ -1098,6 +1098,10 @@ DOWNGRADE_BOUNDARIES: dict[str, Boundary] = {
     # 2.11.0 writes no state, value, record, configuration or commit shape; a downgrade
     # loses only the early anchor refusals (CLAUDE.md "Downgrade posture").
     "2.11.0": Boundary(""),
+    # 2.12.0 writes no state, value, record, configuration or commit shape; a downgrade
+    # loses only the severity refusal and review_round, and leaves a stale
+    # CHANGES_SINCE_REVIEW.md (CLAUDE.md "Downgrade posture").
+    "2.12.0": Boundary(""),
 }
 
 #: Fixes and defaults that reach only new work items or new installations.
@@ -1127,6 +1131,9 @@ NEW_WORK_ONLY: dict[str, tuple[str, ...]] = {
     # The early anchor check reaches every "2.1"/"2.2" item's next plan revision, so it is
     # not new-work-only; approved and bound plans are untouched until revised.
     "2.11.0": (),
+    # The review-round changes reach every item's next review round, so they are not
+    # new-work-only; nothing about an existing item's state is reinterpreted.
+    "2.12.0": (),
 }
 
 #: Per pinned release, how it changes the gate defaults for existing work too;
@@ -1148,6 +1155,7 @@ GATE_DEFAULT_CHANGES: dict[str, str] = {
     "2.9.2": "",
     "2.10.0": "",
     "2.11.0": "",
+    "2.12.0": "",
 }
 
 #: What to commit first to keep the 2.7.0 gates.

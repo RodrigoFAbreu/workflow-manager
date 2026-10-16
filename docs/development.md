@@ -1,6 +1,6 @@
 # Development
 
-> For: people changing the Manager's own code or tests. Last checked with: Workflow Manager 1.5.0, Workflow 2.11.0.
+> For: people changing the Manager's own code or tests. Last checked with: Workflow Manager 1.5.0, Workflow 2.12.0.
 
 Everything here is for contributors. If you only want to install or update the Workflow, use [Install](install.md) and [Update](update.md).
 
@@ -47,6 +47,7 @@ The documentation checks run inside the gate (`tests/test_docs.py`, using `tools
 | `2.9.2` | published by the Workflow repository (fix release: a generation record is the last commit, trailer paragraph alone, workflow#19 and #20) | 9 of 9, 2828 tests | 2828 of 2828 |
 | `2.10.0` | published by the Workflow repository (new work items refused under a `"2.1"` default; Orchestration Protocol 1.3; CI suites run in parallel in one job) | 9 of 9, 2881 tests | 2881 of 2881 |
 | `2.11.0` | published by the Workflow repository (plan checkpoint anchors checked before any plan review; Orchestration Protocol 1.3) | 9 of 9, 2941 tests | 2941 of 2941 |
+| `2.12.0` | published by the Workflow repository (review rounds converge: `CHANGES_SINCE_REVIEW.md`, verdict shape checks; Orchestration Protocol 1.4) | 9 of 9, 2979 tests | 2979 of 2979 |
 
 The full test selection runs the newest pinned release's frozen suites; each older release was tested once, when it was built ([`MIGRATION.md`](MIGRATION.md)). Workflow releases are authored and published in the Workflow repository. The Manager learns of a new one through a pull request that adds its pin: see ["Workflow packages: adding a pin"](RELEASING.md#workflow-packages-adding-a-pin).
 

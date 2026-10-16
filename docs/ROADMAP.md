@@ -1,6 +1,6 @@
 # Workflow Manager Roadmap
 
-> For: anyone following where the Workflow Manager is going. Last checked with: Workflow Manager 1.7.0, Workflow 2.11.0.
+> For: anyone following where the Workflow Manager is going. Last checked with: Workflow Manager 1.7.0, Workflow 2.12.0.
 
 The full text of earlier versions is in this file's git history; the last long version is [here](https://github.com/RodrigoFAbreu/workflow-manager/blob/de95195/docs/ROADMAP.md).
 
@@ -36,6 +36,7 @@ The documentation clean-up delivered most of this: install, update and verify gu
 
 Newest first.
 
+- **Workflow 2.12.0 pinned** (2026-10-16). Published by the `workflow` repository (W8, workflow#28): from round 2 a plan or implementation review is given the changes since the last reviewed bundle in a gitignored `CHANGES_SINCE_REVIEW.md`, and a verdict is checked for shape before it becomes state. It writes no new key or value; Orchestration Protocol 1.4.
 - **Workflow 2.11.0 pinned** (2026-10-13). Published by the `workflow` repository (W7, workflow#23): a plan revision's checkpoint anchors are checked when the revision is published, bound or turned into a plan-review bundle, instead of first at plan approval. It writes nothing new; Orchestration Protocol stays 1.3.
 - **Workflow 2.10.0 pinned** (2026-10-12). Published by the `workflow` repository (W5, workflow#24): creating a new work item is refused while `default_workflow_version` is `"2.1"`; Orchestration Protocol 1.3; the managed CI workflow runs its suites in parallel and cancels a superseded pull-request run. `workflow-manager doctor` and `update --dry-run` warn about a `"2.1"` default whatever release is installed.
 - **Workflow 2.9.2 pinned** (2026-10-11). A fix release built and published by the `workflow` repository (workflow#19 and #20): `/apply-functional-review`'s bounded branch commits the stale technical-approval write alone, then the fix, then the narrative and checklist, and the generation record last; the `Workflow-*` trailers are the final paragraph alone.
