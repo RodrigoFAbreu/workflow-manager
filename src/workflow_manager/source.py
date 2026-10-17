@@ -283,6 +283,10 @@ class ReleaseSource:
         return cls(option or environ.get(SOURCE_ENV) or DEFAULT_SOURCE)
 
     def location(self, version: str, name: str) -> str:
+        if not is_strict_version(version):
+            # A version becomes a path or a URL here: only X.Y.Z does.
+            raise ReleaseNotPublishedError(
+                f"release {version!r} is not a version (X.Y.Z)", kind="unpinned")
         if self.directory is not None:
             return str(self.directory / version / name)
         base = self.value.replace("{version}", urllib.parse.quote(version, safe=""))
@@ -695,7 +699,7 @@ class ReleaseCache:
         pin = self.pins.get(version)
         if pin is not None:
             return self._is_hit(self.entry(version), pin, TRUST_PINNED)
-        if not self.discover:
+        if not self.discover or not is_strict_version(version):
             raise self._unpinned(version)
         local = self._local_pin(version)
         return local is not None and self._is_hit(self.entry(version), local, TRUST_DISCOVERED)
@@ -707,7 +711,7 @@ class ReleaseCache:
             pin = self.pins.get(version)
             trust = TRUST_PINNED
             if pin is None:
-                if not self.discover:
+                if not self.discover or not is_strict_version(version):
                     return None
                 pin, trust = self._local_pin(version), TRUST_DISCOVERED
             if pin is None or not self._is_hit(self.entry(version), pin, trust):
@@ -779,7 +783,7 @@ class ReleaseCache:
         pin = self.pins.get(version)
         if pin is not None:
             return pin, TRUST_PINNED
-        if not self.discover:
+        if not self.discover or not is_strict_version(version):
             raise self._unpinned(version)
         return (self._local_pin(version) or self._derive(version)), TRUST_DISCOVERED
 

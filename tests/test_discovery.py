@@ -371,6 +371,65 @@ class TestEveryRefusalFailsClosed(_Mirror):
         self.assertTrue(all(not p.endswith("SHA256SUMS") or "7.0.1" in p for p in stub.requests))
 
 
+class TestOnlyAStrictVersionBuildsAPath(_Mirror):
+    """RA-IMPL-R6-001: a version that is not `X.Y.Z` -- from `--release-version`
+    or a target's record -- is refused before any cache path or source read, so
+    nothing outside the cache root is created or removed."""
+
+    BAD = ("../escaped", "2.12", "v2.12.0", "", "a/b", "7.0.2/../7.0.2")
+
+    def outside(self):
+        return sorted(p.name for p in self.tmp.iterdir())
+
+    def test_a_traversal_version_given_by_option_touches_nothing(self):
+        # What the reviewer reproduced: a source that serves a parseable
+        # SHA256SUMS at the traversed location, and a cache next to it.
+        victim = self.mirror.parent / "escaped"
+        victim.mkdir()
+        (victim / "SHA256SUMS").write_text("0" * 64 + "  workflow-../escaped.tar.gz\n")
+        before = sorted(p.name for p in self.mirror.parent.iterdir())
+        for bad in self.BAD:
+            with self.subTest(version=bad):
+                repo = tb.empty_repo(self.tmp / f"repo-{len(list(self.tmp.glob('repo-*')))}")
+                code = self._cli("--release-version", bad, "bootstrap", str(repo),
+                                 source_dir=self.mirror)
+                self.assertEqual(code, 1, self.cli_output)
+                self.assertNotIn("Traceback", self.cli_output)
+                self.assertTrue(victim.is_dir())
+                self.assertEqual(sorted(p.name for p in self.mirror.parent.iterdir()), before)
+                self.assertFalse(self.cache.exists() and any(self.cache.iterdir()),
+                                 list(self.cache.iterdir()) if self.cache.exists() else None)
+
+    def test_the_cache_refuses_a_non_strict_version_before_any_path(self):
+        cache = ReleaseCache(self.cache, ReleaseSource(str(self.mirror)),
+                             release_source.load_pins(self.pins_path), discover=True)
+        for bad in (*self.BAD, 123, None):
+            with self.subTest(version=bad):
+                with self.assertRaises(release_source.ReleaseNotPublishedError) as caught:
+                    cache.resolve(bad)
+                self.assertEqual(caught.exception.kind, "unpinned")
+                self.assertRaises(release_source.ReleaseNotPublishedError, cache.cached, bad)
+                self.assertIsNone(cache.cached_manifest(bad))
+                self.assertRaises(release_source.ReleaseNotPublishedError,
+                                  cache.source.inspect, bad)
+        self.assertFalse(self.cache.exists() and any(self.cache.iterdir()))
+
+    def test_verify_after_a_scalar_record_gives_the_release_dir_advice_under_discovery(self):
+        for value in (123, ""):
+            with self.subTest(value=value):
+                repo = tb.empty_repo(self.tmp / f"repo-{len(list(self.tmp.glob('repo-*')))}")
+                self.assertEqual(self._cli("--pinned-only", "--release-version", "7.0.0",
+                                           "bootstrap", str(repo)), 0, self.cli_output)
+                record = repo / ".workflow-manager" / "installation.json"
+                text = record.read_text()
+                record.write_text(text.replace('"workflow_version": "7.0.0"',
+                                               f'"workflow_version": {json.dumps(value)}'))
+                code = self._cli("verify", str(repo), source_dir=self.mirror)
+                self.assertNotIn("Traceback", self.cli_output)
+                self.assertIn("--release-dir DIR", self.cli_output)
+                self.assertNotEqual(code, 0)
+
+
 class TestOffline(_Mirror):
     def test_a_missing_source_directory_falls_back_to_the_newest_pin(self):
         self.bootstrap_at("7.0.1")

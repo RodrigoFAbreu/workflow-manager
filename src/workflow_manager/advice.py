@@ -624,8 +624,8 @@ def _fetch_url(error, context):
 
 
 def _fetch_directory(error, context):
-    version = f"{error.version}/" if error.version else "a directory per release"
-    return (f"the source directory {error.source} has no {version} with SHA256SUMS, the archive "
+    version = f"has no {error.version}/" if error.version else "holds no directory per release"
+    return (f"the source directory {error.source} {version} with SHA256SUMS, the archive "
             f"and the manifest asset: fix --release-source (or ${SOURCE_ENV}), or leave it "
             f"unset to download")
 
