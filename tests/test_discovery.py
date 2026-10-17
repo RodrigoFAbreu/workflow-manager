@@ -549,6 +549,54 @@ class TestTheCacheIsBoundToItsSource(_Mirror):
                 self.assertTrue((self.cache / UNPINNED / name).is_file())
 
 
+    def test_a_manifest_replaced_after_the_hit_check_is_not_served(self):
+        self._cli("--release-version", UNPINNED, "bootstrap", str(self.target),
+                  source_dir=self.mirror)
+        cache = self.cache_for(self.mirror)
+        manifest = self.cache / UNPINNED / "tree" / "manifest.json"
+        genuine = manifest.read_bytes()
+        self.assertEqual(cache.cached_manifest(UNPINNED), genuine)
+        real = cache._is_hit
+
+        def hit_then_replace(*args, **kwargs):
+            hit = real(*args, **kwargs)
+            manifest.write_bytes(b'{"manager": {}}')     # another source's invocation
+            return hit
+
+        with mock.patch.object(cache, "_is_hit", hit_then_replace):
+            self.assertIsNone(cache.cached_manifest(UNPINNED))
+
+
+class TestABodyReadKeepsToTheDeadline(unittest.TestCase):
+    def test_a_trickling_body_reaches_the_deadline(self):
+        now = [0.0]
+        deadline = Deadline(1.0, clock=lambda: now[0])
+
+        class Trickle:
+            def read1(self, size):
+                now[0] += 0.4                  # one byte per 0.4s
+                return b"x"
+
+            def read(self, size):              # blocks until `size` bytes: the old path
+                raise AssertionError("a bounded read must use read1")
+
+        with self.assertRaises(DiscoveryFailure) as caught:
+            release_source._read_capped(Trickle(), 1 << 20, "http://example.invalid/", deadline)
+        self.assertTrue(caught.exception.expired)
+
+    def test_a_plain_stream_is_still_read(self):
+        import io as _io
+        self.assertEqual(release_source._read_capped(_io.BytesIO(b"abc"), 10, "x", None), b"abc")
+
+
+class TestTheSumsFile(unittest.TestCase):
+    def test_a_repeated_filename_is_refused(self):
+        line = "a" * 64 + "  workflow-1.0.0.tar.gz"
+        with self.assertRaises(release_source.ReleaseIntegrityError):
+            release_source._parse_sums_text(
+                line + "\n" + "b" * 64 + "  workflow-1.0.0.manifest.json\n" + line + "\n", "SHA256SUMS")
+
+
 class TestTheFloor(_Mirror):
     """A bare `update` never installs a release older than the installed one."""
 

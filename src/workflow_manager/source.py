@@ -424,7 +424,10 @@ class Candidate:
 
 def _read_capped(stream, cap: int, where: str, deadline: Deadline | None) -> bytes:
     chunks, total = [], 0
-    while chunk := stream.read(1 << 16):
+    # read1 returns after one socket read, so the deadline below is checked as
+    # often as bytes arrive; read(n) would block until n bytes or the end.
+    read = getattr(stream, "read1", stream.read)
+    while chunk := read(1 << 16):
         total += len(chunk)
         if total > cap:
             raise ReleaseUnavailableError(f"{where} is larger than {cap} bytes",
@@ -527,6 +530,8 @@ def _parse_sums_text(text: str, name: str) -> dict[str, str]:
         match = re.fullmatch(r"([0-9a-f]{64})  (\S+)", line)
         if match is None:
             raise ReleaseIntegrityError(f"{name} has a malformed line {line!r}", kind="digest")
+        if match.group(2) in sums:
+            raise ReleaseIntegrityError(f"{name} lists {match.group(2)} twice", kind="digest")
         sums[match.group(2)] = match.group(1)
     return sums
 
@@ -673,9 +678,18 @@ class ReleaseCache:
         """The manifest of a cache entry this run trusts (a hit for its pin or
         for this source), or None. No network, no lock."""
         try:
-            if not self.cached(version):
+            pin = self.pins.get(version)
+            trust = TRUST_PINNED
+            if pin is None:
+                if not self.discover:
+                    return None
+                pin, trust = self._local_pin(version), TRUST_DISCOVERED
+            if pin is None or not self._is_hit(self.entry(version), pin, trust):
                 return None
-            return (self.entry(version) / TREE_NAME / MANIFEST_NAME).read_bytes()
+            data = (self.entry(version) / TREE_NAME / MANIFEST_NAME).read_bytes()
+            # The bytes just read are the ones the pin names: a concurrent
+            # replacement of the entry after the hit check is not served.
+            return data if hashlib.sha256(data).hexdigest() == pin.manifest_sha256 else None
         except (ReleaseNotPublishedError, ReleaseIntegrityError, OSError):
             return None
 
