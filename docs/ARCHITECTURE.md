@@ -822,7 +822,11 @@ orphans something.
   check: on`, and it lists every tolerated orphan by chunk.
 - **Declared sources.** `tests/parallel/resources.json`'s optional
   `orphan_sources` maps an exact unit id, host or frozen, to a non-empty
-  `reason`. An unknown unit is a schema error. Only a chunk that contains a
+  `reason`. An unknown unit is a schema error. A frozen key may write the
+  release as `*` (`frozen:*/<fixture>/<suite>::<Class>`): it expands to that
+  class in whichever release the run selects, so a lock that moves the
+  matrix needs no edit here, and a key that matches no unit is as much a
+  schema error as an unknown one. Only a chunk that contains a
   declared unit has its orphans tolerated. A declared frozen class
   therefore runs in a chunk of its own (`<group>#<Class>`), and a chunk
   that mixes one with another unit is `OrphanDeclarationError`. The policy
@@ -831,7 +835,7 @@ orphans something.
   frozen code is declared with its class named. A declaration that
   tolerated nothing in a run is listed as unused. Today there are nine
   declarations: five host classes that kill chunk groups on purpose, and
-  the frozen `TestStateLock` in the newest release's four fixtures, whose
+  the frozen `TestStateLock` in the selected release's four fixtures, whose
   `multiprocessing` forkserver (the default on Python 3.14) outlives its
   chunk.
 - **Whole-run use.** The same wrapper measures a whole run:

@@ -289,19 +289,24 @@ class TestResourcesContract(_RealHostInventory):
 
     def test_the_committed_declaration_loads_against_the_real_inventory(self):
         """It declares no resource and no exclusive unit; every `orphan_sources`
-        id is a discovered unit, and every frozen one is `NEWEST_RELEASE`'s."""
+        key is a discovered unit, or a `frozen:*` key that expands to the
+        selected release's units in every fixture, whichever release the lock
+        selects."""
         found = inventory.discover(REPO_ROOT)
         loaded = resources.load(REPO_ROOT, self.host, orphan_unit_ids=found.unit_ids())
         self.assertEqual(loaded.resources, {})
         self.assertEqual(loaded.exclusive_units(), ())
         doc = json.loads(resources.resources_path(REPO_ROOT).read_text())
-        orphans = sorted(doc["orphan_sources"])
-        self.assertTrue(orphans)
-        self.assertEqual(sorted(set(orphans) - set(found.unit_ids())), [])
-        for unit_id in orphans:
+        self.assertTrue(doc["orphan_sources"])
+        self.assertEqual(sorted(set(loaded.orphan_sources) - set(found.unit_ids())), [])
+        keys = [k for k in doc["orphan_sources"] if k.startswith(resources.ANY_RELEASE_PREFIX)]
+        self.assertTrue(keys)
+        for unit_id in loaded.orphan_sources:
             if unit_id.startswith(inventory.FROZEN_PREFIX):
                 with self.subTest(unit=unit_id):
                     self.assertEqual(inventory.split_frozen_unit_id(unit_id)[0], NEWEST_RELEASE)
+        self.assertEqual(len([u for u in loaded.orphan_sources
+                              if u.startswith(inventory.FROZEN_PREFIX)]), len(keys))
 
     def test_a_valid_two_resource_file_reports_each_tree_union(self):
         loaded = resources.parse(_resources_doc(), SYNTHETIC)

@@ -735,7 +735,10 @@ class TestTestsStayHermetic(unittest.TestCase):
 
     def test_the_default_test_environment_is_pinned_only(self):
         import support
-        self.assertEqual(support.cli_env()[release_source.PINNED_ONLY_ENV], "1")
+        # A committed or overriding lock moves the helper to discovery mode
+        # through a private mirror and cache (support.cli_env).
+        self.assertEqual(support.cli_env()[release_source.PINNED_ONLY_ENV],
+                         "0" if support.LOCK else "1")
         self.assertEqual(support.cli_env(**{release_source.PINNED_ONLY_ENV: "0"})
                          [release_source.PINNED_ONLY_ENV], "0")
         self.assertEqual(os.environ.get(release_source.PINNED_ONLY_ENV), "1")

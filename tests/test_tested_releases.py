@@ -53,13 +53,17 @@ def lock_text(releases: dict | None = None, **top) -> str:
 
 
 class TestLockShape(unittest.TestCase):
-    def test_the_committed_lock_is_empty_and_valid(self):
-        """Every release up to the last pin is pinned, so the committed lock is
-        an empty object until a release is published after it."""
-        lock = tested_releases.load_lock(tested_releases.LOCK_PATH)
-        self.assertEqual(lock, {})
-        raw = json.loads(tested_releases.LOCK_PATH.read_text())
-        self.assertEqual(raw, {"schema_version": 1, "releases": {}})
+    def test_the_committed_lock_is_valid_whether_empty_or_not(self):
+        """Every release up to the last pin is pinned, so the committed lock
+        lists only releases published after it -- none until one is added."""
+        text = tested_releases.LOCK_PATH.read_text()
+        lock = tested_releases.parse_lock(text)
+        raw = json.loads(text)
+        self.assertEqual(raw["schema_version"], 1)
+        self.assertEqual(sorted(raw), ["releases", "schema_version"])
+        self.assertEqual(sorted(raw["releases"]), list(lock))
+        tested_releases.check_against_pins(lock, release_source.load_pins())
+        self.assertEqual(tested_releases.dump_lock(lock), text)
 
     def test_a_valid_entry_round_trips_in_version_order(self):
         text = lock_text({NEWER: entry_json(NEWER), SYNTHETIC: entry_json(
@@ -529,6 +533,49 @@ class TestTheScratchCheckoutsCarryTheLock(unittest.TestCase):
             self.assertTrue((root / "tests" / "tested_releases.py").is_file())
             self.assertEqual(canonical_json({"schema_version": 1, "releases": {}}),
                              (root / "tests" / "tested_releases.json").read_text())
+
+
+class TestANonEmptyLockKeepsTheRunnerAndTheHostTestsGreen(_LockedRelease):
+    """RA-EXT-001: the committed lock is empty, so nothing else exercises a lock
+    that selects a newer release. The runner plans through the real
+    `resources.json` and the host tests that read the lock run under it."""
+
+    def locked(self):
+        # The synthetic release carries the newest real release's suites, so
+        # its counts are theirs.
+        self.write_lock({SYNTHETIC: self.entry(suites=support.CI_SUITES[support.NEWEST_RELEASE])})
+        priming.prime(self.checkout(), self.env())
+
+    def test_the_runner_plans_with_the_committed_orphan_declarations(self):
+        self.locked()
+        proc = self.python(
+            "import json, support\n"
+            "from parallel import inventory, planner, resources\n"
+            "inv = inventory.discover(support.REPO_ROOT)\n"
+            "loaded = resources.load(support.REPO_ROOT, list(inv.host), "
+            "orphan_unit_ids=inv.unit_ids())\n"
+            "frozen = sorted(u for u in loaded.orphan_sources if u.startswith('frozen:'))\n"
+            "plan = planner.plan_checkout(support.REPO_ROOT, inv, "
+            "inventory.select(inv.host, frozen, inv.frozen), profile='local')\n"
+            "chunks = [c['units'] for s in plan['shards'] for c in s['chunks']]\n"
+            "print(json.dumps({'frozen': frozen, 'alone': all([u] in chunks for u in frozen)}))")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        got = json.loads(proc.stdout)
+        self.assertEqual(len(got["frozen"]), 4)
+        self.assertTrue(all(u.startswith(f"frozen:{SYNTHETIC}/") for u in got["frozen"]), got)
+        self.assertTrue(got["alone"], got)
+
+    def test_the_host_tests_that_read_the_lock_pass_under_it(self):
+        self.locked()
+        for target in ("test_tested_releases.TestLockShape."
+                       "test_the_committed_lock_is_valid_whether_empty_or_not",
+                       "test_discovery.TestTestsStayHermetic."
+                       "test_the_default_test_environment_is_pinned_only"):
+            with self.subTest(target=target):
+                proc = self.python(f"import sys, unittest\n"
+                                   f"sys.exit(not unittest.main(module=None, argv=['x', "
+                                   f"{target!r}], exit=False).result.wasSuccessful())")
+                self.assertEqual(proc.returncode, 0, proc.stderr)
 
 
 class TestCliEnvFollowsTheLock(unittest.TestCase):

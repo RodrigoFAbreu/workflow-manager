@@ -1345,6 +1345,32 @@ class TestOrphanSourcesSchema(unittest.TestCase):
         with self.assertRaises(resources.ResourcesFileError):
             resources.parse(_doc({FROZEN_A: {"reason": "r"}}), [HOST])  # no orphan_unit_ids
 
+    def test_a_release_wildcard_follows_the_selected_inventory(self):
+        """A `frozen:*` key expands to the selected release's matching units, in
+        whichever release the inventory holds, and matching nothing is refused."""
+        key = "frozen:*/conformance/s.py::TestA"
+        reason = {"reason": "r"}
+        for version in ("1.0.0", "9.9.9"):
+            with self.subTest(version=version):
+                unit = f"frozen:{version}/conformance/s.py::TestA"
+                other = f"frozen:{version}/conformance/s.py::TestB"
+                loaded = resources.parse(_doc({key: reason}), [HOST],
+                                         orphan_unit_ids=[HOST, unit, other])
+                self.assertEqual(sorted(loaded.orphan_sources), [unit])
+        both = resources.parse(_doc({key: reason}), [HOST], orphan_unit_ids=[
+            HOST, FROZEN_A, "frozen:1.0.0/target/s.py::TestA", "frozen:1.0.0/target/s.py::TestB"])
+        self.assertEqual(sorted(both.orphan_sources),
+                         [FROZEN_A])  # the fixture is part of the key
+        for what, doc, ids in (
+                ("no unit matches", _doc({key: reason}), [HOST, FROZEN_B]),
+                ("no frozen inventory", _doc({key: reason}), [HOST]),
+                ("an empty reason", _doc({key: {"reason": " "}}), [HOST, FROZEN_A]),
+                ("another key", _doc({key: {"reason": "r", "n": 1}}), [HOST, FROZEN_A])):
+            with self.subTest(what=what), self.assertRaises(resources.ResourcesFileError):
+                resources.parse(doc, [HOST], orphan_unit_ids=ids)
+        with self.assertRaises(resources.ResourcesFileError):
+            resources.parse(_doc({key: reason}), [HOST])  # host-only inventory
+
     def chunks(self, res, whole_groups=False):
         units = [FROZEN_A, FROZEN_B, FROZEN_C, HOST]
         return [(c.id, c.units) for c in planner.make_chunks(
