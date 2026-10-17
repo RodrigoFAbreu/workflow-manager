@@ -5,7 +5,7 @@ day. `tests/tested_releases.json` lists Workflow releases published after the
 last pin, with their digests; the tested set is the pins plus those entries.
 The lock is test data: it is not shipped in the wheel and the CLI never reads
 it. This module is the one reader, shared by `tests/support.py`, the runner's
-priming and `tools/release_lock.py`. It imports only the standard library and
+priming, `tools/release_lock.py` and the self-verify of `tools/release/package.py`. It imports only the standard library and
 `workflow_manager`, and runs with `src/` on the path.
 
 `WORKFLOW_MANAGER_TESTED_RELEASES=<path>` replaces the lock file for a run (the
@@ -18,11 +18,13 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
 from workflow_manager import source
-from workflow_manager.package import archive_name
+from workflow_manager.installation import Installation
+from workflow_manager.package import SUMS_NAME, archive_name, file_sha256, manifest_asset_name
 from workflow_manager.release import _version_key, parse_manifest_manager
 
 LOCK_PATH = Path(__file__).with_name("tested_releases.json")
@@ -176,3 +178,46 @@ def lock_conformance(entry: LockEntry, manifest: bytes | None) -> tuple[dict, tu
         raise LockError(f"{entry.version}: neither its manifest nor its lock entry carries "
                         "the frozen suite counts (`tools/release_lock.py add` writes them)")
     return dict(entry.suites), tuple(entry.portability_exceptions or ())
+
+
+def self_verify_env(repo_root: Path, workdir: Path, environ=None) -> dict[str, str]:
+    """The environment of `workflow-manager verify <repo_root>` in this
+    repository's own self-checks (`tools/release/package.py`, the runner's
+    `TestManagedWorkflowUntouched`): `environ` with discovery off, so a release
+    published since cannot change the proof (plan 3.5, RA-E1).
+
+    When the checkout's installation records a tested release that has no pin
+    (a lock entry), discovery is on, but its only source is a directory under
+    `workdir` holding that release's three assets, taken from the release cache
+    under the lock's digests (`ReleaseCache.ensure`, as priming does: a miss is
+    fetched from `environ`'s source by that version alone) and checked against
+    them again once copied, with a private cache under `workdir`. Any other
+    recorded version stays pinned-only, so `verify` refuses it as unpinned.
+    `workdir` must not hold a `mirror` or `cache` directory yet."""
+    environ = dict(os.environ if environ is None else environ)
+    env = {**environ, source.PINNED_ONLY_ENV: "1"}
+    try:
+        version = Installation.read(Path(repo_root)).workflow_version
+    except (OSError, ValueError, RuntimeError):
+        return env  # `verify` reports the record itself
+    pins = source.load_pins()
+    lock = load_lock(lock_path(environ))
+    if version in pins.releases or version not in lock:
+        return env
+    pin = lock[version].pin()
+    cache = source.ReleaseCache(source.cache_root(environ=environ),
+                                source.ReleaseSource.select(environ=environ),
+                                tested_pins(pins, lock))
+    entry = cache.ensure(version)
+    mirror = Path(workdir) / "mirror"
+    (mirror / version).mkdir(parents=True)
+    for name in (SUMS_NAME, archive_name(version), manifest_asset_name(version)):
+        shutil.copy2(entry / name, mirror / version / name)
+    copied = mirror / version
+    if source.derive_pin(version, (copied / SUMS_NAME).read_text("utf-8", "replace")) != pin \
+            or file_sha256(copied / pin.archive) != pin.sha256 \
+            or file_sha256(copied / manifest_asset_name(version)) != pin.manifest_sha256:
+        raise LockError(f"{version}: the cached assets do not match the lock's digests")
+    env.update({source.SOURCE_ENV: str(mirror), source.PINNED_ONLY_ENV: "0",
+                source.CACHE_ENV: str(Path(workdir) / "cache")})
+    return env

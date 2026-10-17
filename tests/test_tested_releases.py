@@ -440,7 +440,8 @@ class TestThePackageProofIsDeterministic(_LockedRelease):
             self.assertEqual(tool.wheel_env()[tool.PINNED_ONLY_ENV], "1")
         source = (REPO_ROOT / "tools" / "release" / "package.py").read_text()
         for command in ('"--version"', '"releases"', '"verify"'):
-            line = next(line for line in source.splitlines() if f"[entry, {command}" in line)
+            line = next(line for line in source.splitlines()
+                        if "_run([" in line and f", {command}" in line)
             self.assertIn("env=env", line, command)
 
     def test_a_published_but_unpinned_release_does_not_change_what_releases_lists(self):
@@ -471,6 +472,84 @@ class TestThePackageProofIsDeterministic(_LockedRelease):
                 self.assertNotIn("workflow_manager.cli", line, path.name)
         self.assertIn("tools/release/package.py", VERIFY_WORKFLOW.read_text())
         self.assertIn("tools/release/package.py", RELEASE_WORKFLOW.read_text())
+
+
+class TestSelfVerifyOfAnUnpinnedInstallation(_LockedRelease):
+    """#56: this checkout's own `verify` -- `package.py`'s and the runner's
+    `TestManagedWorkflowUntouched` -- passes when the installation records a
+    tested release that has no pin, from an offline source of the tested set
+    alone, and still refuses a release outside it."""
+
+    def setUp(self):
+        super().setUp()
+        self.write_lock({SYNTHETIC: self.entry(suites=SUITES)})
+        # The release cache the self-checks read: empty, so the lock-only
+        # release is fetched from the mirror by version under the lock's digests.
+        self.primed = self.tmp / "primed"
+        patcher = unittest.mock.patch.dict(os.environ, {
+            "PYTHONPATH": str(REPO_ROOT / "src"),
+            release_source.SOURCE_ENV: str(self.mirror),
+            release_source.CACHE_ENV: str(self.primed),
+            release_source.PINNED_ONLY_ENV: "1",
+            tested_releases.OVERRIDE_ENV: str(self.lock_file)})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def installed_at(self, version: str) -> Path:
+        target = empty_repo(self.tmp / f"consumer-{version}")
+        env = self.env(**{release_source.PINNED_ONLY_ENV: "0",
+                          release_source.CACHE_ENV: str(self.tmp / "install-cache")})
+        proc = subprocess.run([sys.executable, "-B", "-m", "workflow_manager",
+                               "--release-version", version, "bootstrap", str(target)],
+                              env=env, capture_output=True, text=True)
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        return target
+
+    def workdir(self) -> Path:
+        return Path(tempfile.mkdtemp(dir=self.tmp))
+
+    def test_the_environment_is_the_lock_release_alone_offline(self):
+        env = tested_releases.self_verify_env(self.installed_at(SYNTHETIC), self.workdir())
+        self.assertEqual(env[release_source.PINNED_ONLY_ENV], "0")
+        mirror = Path(env[release_source.SOURCE_ENV])
+        self.assertEqual([p.name for p in mirror.iterdir()], [SYNTHETIC])
+        self.assertNotEqual(env[release_source.CACHE_ENV], str(self.primed))
+        self.assertTrue((self.primed / SYNTHETIC / "complete").is_file())
+        self.assertFalse((self.primed / SYNTHETIC / "SOURCE").exists(), "bound by the lock")
+
+    def test_any_other_record_keeps_the_proof_pinned_only(self):
+        for repo in (self.installed_at(NEWER), empty_repo(self.tmp / "unmanaged")):
+            env = tested_releases.self_verify_env(repo, self.workdir())
+            self.assertEqual(env[release_source.PINNED_ONLY_ENV], "1")
+            self.assertEqual(env[release_source.SOURCE_ENV], str(self.mirror))
+        self.assertFalse((self.primed / NEWER).exists())
+
+    def test_a_lock_digest_the_assets_do_not_match_is_refused(self):
+        target = self.installed_at(SYNTHETIC)
+        wrong = self.entry(suites=SUITES)
+        wrong["sha256"] = DIGEST
+        self.write_lock({SYNTHETIC: wrong})
+        tool = TestThePackageProofIsDeterministic._load_package_tool()
+        with self.assertRaises(tool.PackageError):
+            tool.self_verify([sys.executable, "-B", "-m", "workflow_manager"], target,
+                             self.workdir())
+
+    def test_package_py_verifies_a_lock_only_installation(self):
+        tool = TestThePackageProofIsDeterministic._load_package_tool()
+        command = [sys.executable, "-B", "-m", "workflow_manager"]
+        tool.self_verify(command, self.installed_at(SYNTHETIC), self.workdir())
+        with self.assertRaisesRegex(tool.PackageError, "no pin"):
+            tool.self_verify(command, self.installed_at(NEWER), self.workdir())
+
+    def test_the_runner_verifies_a_lock_only_installation(self):
+        from test_parallel_runner import self_verify
+
+        proc = self_verify(self.installed_at(SYNTHETIC), self)
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        self.assertIn(f"installation matches workflow {SYNTHETIC}", proc.stdout)
+        proc = self_verify(self.installed_at(NEWER), self)
+        self.assertNotEqual(proc.returncode, 0, proc.stdout)
+        self.assertIn("no pin", proc.stderr)
 
 
 class TestTheVerifyWorkflow(unittest.TestCase):

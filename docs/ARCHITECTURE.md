@@ -484,7 +484,13 @@ the tested releases, one selection) in
   A new lock entry moves the matrix to the new release with no renamed class.
 Test runs and the wheel proof default to `WORKFLOW_MANAGER_PINNED_ONLY=1`, so
 no test discovers by accident, and the runner fails a run that adds a
-discovered entry to the primed cache.
+discovered entry to the primed cache. The one exception is this checkout's
+own `verify` (the wheel proof's and `TestManagedWorkflowUntouched`'s) when
+its installation records a tested release that has no pin:
+`tested_releases.self_verify_env` turns discovery on with a local directory
+holding only that release's assets, taken from the release cache under the
+lock's digests, and a private cache, so the proof is still the tested set,
+offline, and a release outside it is refused as unpinned (#56).
 - **Inventory.** The atomic units are host test classes
   (`test_x.py::Class`) and, for the frozen conformance matrix, frozen
   classes (`frozen:<version>/<fixture>/<suite>.py::Class`; a unit id keeps its version,
