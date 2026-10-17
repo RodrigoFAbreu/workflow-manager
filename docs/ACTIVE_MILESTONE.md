@@ -21,10 +21,33 @@ so it releases a Manager minor.
 
 ## Current checkpoint
 
-**Implementing: CP1 to CP5 done** (discovery, trust and the cache; release
-metadata and `min_manager_version`; deterministic CI; version-free timing keys;
-documentation). Plan revision 5 is approved (by policy). Next: the full
-verification, then the implementation review.
+**Milestone complete.** `workflow-manager-release-agnostic` reached
+`MILESTONE_COMPLETE` through `/satisfy-gate acceptance` on 2026-10-17, by
+policy (the default gate policy; no person's decision), and
+`active_work_item_id` is cleared.
+- **Checkpoints:** CP1-CP5 are complete (discovery, trust and the cache; release
+  metadata and `min_manager_version`; deterministic CI; version-free timing keys;
+  documentation).
+- **Functional evidence:** flows ra-r2-f2 to ra-r2-f11 and ra-r2-finding-5 to
+  ra-r2-finding-10 passed at `e26f1f9` (run
+  `manager-orchestrator:runs/ra-functional-r2`).
+- **Pull request:** #38, CI green at `e26f1f9` (the Workflow's own `gh` query).
+
+#### Optional review findings: dispositions
+
+**Fixed in this milestone:**
+
+| Finding | Where it was raised | Fix |
+|---|---|---|
+| RA-L2-001: the lock-only test environment needs its own cache | local plan review, round 2 | `cb6d06d`: every test environment names its lock, and pins-only suites use `support.pinned_env` |
+| RA-L4-O1: `writes_withheld` ignores the coverage titles by membership | local plan review, round 4 | implemented and tested in CP2 |
+| Bound the complete choosing walk | Codex plan review, round 1 | RA-EXT-004's fix (`a53125c`, `6f59233`) bounds the whole discovery request by one deadline |
+| RA-IMPL-R2-O1, RA-LOC-R5-O1 and the round 4 note: bundle test evidence lagged the revision | local implementation reviews | superseded: the checklist quotes the full-gate evidence, and functional review round 2, flow 11, passed |
+| RA-LOC-R5-O3: no committed test of a nonempty committed lock | local implementation review, round 5 | `cb6d06d`'s regression runs the lock tests under a nonempty committed lock and under the override |
+
+**Deferred:** the 14 remaining Optional findings are follow-ups, listed in `docs/ROADMAP.md`, "Later (open items)", under "Review follow-ups: release-agnostic Manager (item 8)".
+
+The checkpoint log below is this milestone's permanent record.
 
 ### CP5: Documentation, roadmap and the Workflow-side contract (R7, R8)
 
