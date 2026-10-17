@@ -34,6 +34,7 @@ import re
 import shutil
 import sys
 import tempfile
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -441,6 +442,31 @@ def _read_capped(stream, cap: int, where: str, deadline: Deadline | None) -> byt
 def _http_read(where: str, cap: int, deadline: Deadline | None, headers=None) -> bytes:
     timeout = deadline.timeout() if deadline is not None else FETCH_TIMEOUT_SECONDS
     _check_url(where)
+    if deadline is None:
+        return _http_fetch(where, cap, None, headers, timeout)
+    # The socket timeout bounds one operation, not the request: a server that
+    # trickles header bytes (or a TLS handshake) outlasts it. Run the request
+    # in a daemon thread and give up on it when the shared deadline passes.
+    outcome: list = []
+
+    def work():
+        try:
+            outcome.append((True, _http_fetch(where, cap, deadline, headers, timeout)))
+        except BaseException as exc:
+            outcome.append((False, exc))
+
+    worker = threading.Thread(target=work, daemon=True)
+    worker.start()
+    worker.join(max(deadline.remaining(), 0))
+    if not outcome:
+        raise DiscoveryFailure("the discovery time limit passed", expired=True)
+    ok, value = outcome[0]
+    if not ok:
+        raise value
+    return value
+
+
+def _http_fetch(where: str, cap: int, deadline: Deadline | None, headers, timeout: float) -> bytes:
     opener = urllib.request.build_opener(_RedirectHandler)
     request = urllib.request.Request(where, headers=headers or {})
     try:

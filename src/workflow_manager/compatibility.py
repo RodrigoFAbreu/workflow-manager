@@ -1293,7 +1293,8 @@ def coverage_findings(installed: str | None, target: str | None,
                 WARNING, _INCOMPLETE, NO_DATA_TITLE,
                 f"Workflow {version} was published after this Manager and {what}; "
                 "its downgrade guarantees and notes are not assessed."))
-    if metadata.catalog_incomplete and _lt(BUILTIN_THROUGH, max(installed, target, key=version_key)):
+    if (metadata.catalog_incomplete and installed != target
+            and _lt(BUILTIN_THROUGH, max(installed, target, key=version_key))):
         low, high = sorted((installed, target), key=version_key)
         findings.append(Finding(
             WARNING, _INCOMPLETE, CATALOG_TITLE,

@@ -210,6 +210,10 @@ class TestTheResolver(unittest.TestCase):
         self.assertEqual(data.new_work_only, comp.NEW_WORK_ONLY["2.12.0"])
         self.assertEqual(comp.coverage_findings("2.11.0", "2.12.0", metadata), [])
 
+    def test_nothing_between_equal_ends_is_no_catalog_finding(self):
+        metadata = comp.ReleaseMetadata(catalog_incomplete="the listing could not be read: x")
+        self.assertEqual(comp.coverage_findings("7.0.2", "7.0.2", metadata), [])
+
     def test_an_unknown_version_without_a_block_is_neutral_and_flagged(self):
         metadata = comp.ReleaseMetadata(versions=("7.0.2",), blocks={"7.0.2": None})
         data, missing = metadata.data("7.0.2")

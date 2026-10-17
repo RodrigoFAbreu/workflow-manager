@@ -531,5 +531,20 @@ class TestTheScratchCheckoutsCarryTheLock(unittest.TestCase):
                              (root / "tests" / "tested_releases.json").read_text())
 
 
+class TestCliEnvFollowsTheLock(unittest.TestCase):
+    def test_a_non_empty_lock_names_the_mirror_discovery_and_a_private_cache(self):
+        from workflow_manager import source
+        with unittest.mock.patch.object(support, "LOCK", {"9.9.9": object()}), \
+                unittest.mock.patch.object(support, "mirror_dir", return_value=Path("/m")), \
+                unittest.mock.patch.object(support, "_lock_cache", return_value=Path("/c")):
+            env = cli_env()
+            self.assertEqual(env[source.SOURCE_ENV], "/m")
+            self.assertEqual(env[source.PINNED_ONLY_ENV], "0")
+            self.assertEqual(env[source.CACHE_ENV], "/c")
+            self.assertEqual(cli_env(**{source.PINNED_ONLY_ENV: "1"})[source.PINNED_ONLY_ENV], "1")
+        with unittest.mock.patch.object(support, "LOCK", {}):
+            self.assertEqual(cli_env()[source.PINNED_ONLY_ENV], "1")
+
+
 if __name__ == "__main__":
     unittest.main()

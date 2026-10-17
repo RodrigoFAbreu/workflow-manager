@@ -45,7 +45,9 @@ def gather_metadata(cache: ReleaseCache, installed, target: Release, *,
     candidates = {installed, target.version}
     candidates |= {v for v in cache.known_local() if is_strict_version(v)}
     source = cache.source if cache.discover else None
-    if source is None:
+    if installed == target.version:
+        pass                               # nothing lies between the two ends: no listing
+    elif source is None:
         metadata.catalog_incomplete = "discovery is off (--pinned-only), so no listing was read"
     else:
         try:

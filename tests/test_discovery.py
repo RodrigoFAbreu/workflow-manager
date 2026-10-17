@@ -584,6 +584,39 @@ class TestABodyReadKeepsToTheDeadline(unittest.TestCase):
             release_source._read_capped(Trickle(), 1 << 20, "http://example.invalid/", deadline)
         self.assertTrue(caught.exception.expired)
 
+    def test_trickling_response_headers_reach_the_deadline(self):
+        import socket
+
+        server = socket.socket()
+        server.bind(("127.0.0.1", 0))
+        server.listen(1)
+        stop = threading.Event()
+
+        def trickle():
+            conn, _ = server.accept()
+            try:
+                conn.recv(4096)
+                conn.sendall(b"HTTP/1.1 200 OK\r\n")
+                while not stop.is_set():
+                    conn.sendall(b"X")             # one header byte every 40 ms
+                    time.sleep(0.04)
+            except OSError:
+                pass
+            finally:
+                conn.close()
+
+        thread = threading.Thread(target=trickle, daemon=True)
+        thread.start()
+        self.addCleanup(server.close)
+        self.addCleanup(thread.join, 5)
+        self.addCleanup(stop.set)
+        url = f"http://127.0.0.1:{server.getsockname()[1]}/"
+        started = time.monotonic()
+        with self.assertRaises(DiscoveryFailure) as caught:
+            release_source._http_read(url, 1 << 20, Deadline(0.3))
+        self.assertTrue(caught.exception.expired)
+        self.assertLess(time.monotonic() - started, 1.5)
+
     def test_a_plain_stream_is_still_read(self):
         import io as _io
         self.assertEqual(release_source._read_capped(_io.BytesIO(b"abc"), 10, "x", None), b"abc")
