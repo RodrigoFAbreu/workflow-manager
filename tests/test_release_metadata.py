@@ -12,6 +12,7 @@ or a loopback server, with a private release cache per test.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import shutil
 import unittest
@@ -303,6 +304,24 @@ class _Published(_Mirror):
     def doctor(self, *args, source):
         return self._cli(*args, "doctor", str(self.target), source_dir=source)
 
+    @staticmethod
+    def contents(root: Path) -> dict:
+        """Every file under `root` (but its lock leaves and `.git/`) with its digest."""
+        if not root.exists():
+            return {}
+        files = {p.relative_to(root).as_posix(): p for p in root.rglob("*") if p.is_file()}
+        return {name: hashlib.sha256(path.read_bytes()).hexdigest() for name, path in files.items()
+                if not name.endswith(".lock") and not name.startswith(".git/")}
+
+    def assertRefusalWritesNothing(self, run, *targets):
+        """`run()` leaves the release cache and every one of `targets` as they were."""
+        cache, before = self.contents(self.cache), [self.contents(t) for t in targets]
+        code = run()
+        self.assertEqual(self.contents(self.cache), cache, "a refusal changed the release cache")
+        for target, was in zip(targets, before):
+            self.assertEqual(self.contents(target), was, f"a refusal changed {target}")
+        return code
+
 
 class TestReportsFromTheBlock(_Published):
     def test_a_block_drives_the_report_of_an_update(self):
@@ -364,22 +383,49 @@ class TestReportsFromTheBlock(_Published):
             {"name": "s", "label": "l", "detect": {"kind": []}}]})
         mirror = self.mirror_of({UNPINNED: bad})
         self.installed_at("7.0.1")
-        self.assertEqual(self.doctor("--release-version", UNPINNED, source=mirror), 2,
-                         self.cli_output)
+        code = self.assertRefusalWritesNothing(
+            lambda: self.doctor("--release-version", UNPINNED, source=mirror), self.target)
+        self.assertEqual(code, 2, self.cli_output)
         self.assertNotIn("Traceback", self.cli_stderr)
-        self.assertEqual(self._cli("update", str(self.target), source_dir=mirror), 1,
-                         self.cli_output)
+        code = self.assertRefusalWritesNothing(
+            lambda: self._cli("update", str(self.target), source_dir=mirror), self.target)
+        self.assertEqual(code, 1, self.cli_output)
         self.assertNotIn("Traceback", self.cli_stderr)
+        self.assertFalse((self.cache / UNPINNED).exists(), "a refused release is not cached")
 
     def test_a_block_of_the_wrong_shape_refuses_that_release(self):
         mirror = self.mirror_of({UNPINNED: block(min_manager_version="x")})
         self.installed_at("7.0.1")
-        for argv in (["--release-version", UNPINNED, "update"], ["update"]):
+        for argv in (["--release-version", UNPINNED, "update"], ["update"],
+                     ["--release-version", UNPINNED, "update", "--dry-run"]):
             with self.subTest(argv=argv):
-                code = self._cli(*argv, str(self.target), source_dir=mirror)
+                code = self.assertRefusalWritesNothing(
+                    lambda: self._cli(*argv, str(self.target), source_dir=mirror), self.target)
                 self.assertEqual(code, 1, self.cli_output)
                 self.assertIn("manifest `manager` block", self.cli_stderr)
                 self.assertEqual(Installation.read(self.target).workflow_version, "7.0.1")
+                self.assertFalse((self.cache / UNPINNED).exists())
+
+    def test_malformed_published_metadata_gets_advice_for_its_source(self):
+        cases = {
+            "malformed": (block(min_manager_version="x"),
+                          f"Workflow {UNPINNED}'s published release metadata", "never edited"),
+            "newer": (block(schema_version=2), f"Workflow {UNPINNED}'s release metadata",
+                      "upgrade the Manager"),
+        }
+        self.installed_at("7.0.1")
+        for name, (bad, lead, remedy) in cases.items():
+            with self.subTest(name):
+                mirror = self.mirror_of({UNPINNED: bad})
+                for argv, code in ((["update"], 1), (["doctor"], 2)):
+                    self.assertEqual(self._cli("--release-version", UNPINNED, *argv,
+                                               str(self.target), source_dir=mirror),
+                                     code, self.cli_output)
+                    self.assertIn(lead, self.cli_stderr)
+                    self.assertIn(remedy, self.cli_stderr)
+                    self.assertIn("--release-version VERSION", self.cli_stderr)
+                    self.assertNotIn("--release-dir", self.cli_stderr)
+                    self.assertNotIn("unmodified copy", self.cli_stderr)
 
     def test_the_advice_names_the_missing_metadata_and_never_the_data_repair(self):
         mirror = self.mirror_of({UNPINNED: None})
@@ -507,9 +553,11 @@ class TestMinManagerVersion(_Published):
                 if command == "update":
                     self.assertEqual(self._cli("--release-version", "7.0.1", "bootstrap",
                                                str(repo), source_dir=self.source_dir), 0)
-                code = self._cli("--release-version", UNPINNED, command, str(repo),
-                                 source_dir=mirror)
+                code = self.assertRefusalWritesNothing(
+                    lambda: self._cli("--release-version", UNPINNED, command, str(repo),
+                                      source_dir=mirror), repo)
                 self.assertEqual(code, 1, self.cli_output)
+                self.assertFalse((self.cache / UNPINNED).exists())
                 self.assertIn(f"error: Workflow {UNPINNED} needs workflow-manager {self.NEEDS} "
                               "or newer; this is 1.13.0", self.cli_stderr)
                 self.assertIn(f"next: upgrade the Manager to {self.NEEDS} or newer", self.cli_stderr)
@@ -519,11 +567,32 @@ class TestMinManagerVersion(_Published):
     def test_doctor_and_dry_run_refuse_an_explicit_version_too(self):
         mirror = self.mirror_of({UNPINNED: block(min_manager_version=self.NEEDS)})
         self.installed_at("7.0.1")
-        self.assertEqual(self._cli("--release-version", UNPINNED, "doctor", str(self.target),
-                                   source_dir=mirror), 2, self.cli_output)
-        self.assertIn("needs workflow-manager", self.cli_stderr)
-        self.assertEqual(self._cli("--release-version", UNPINNED, "update", "--dry-run",
-                                   str(self.target), source_dir=mirror), 1, self.cli_output)
+        for argv, expected in ((["doctor"], 2), (["update", "--dry-run"], 1)):
+            with self.subTest(argv=argv):
+                code = self.assertRefusalWritesNothing(
+                    lambda: self._cli("--release-version", UNPINNED, *argv, str(self.target),
+                                      source_dir=mirror), self.target)
+                self.assertEqual(code, expected, self.cli_output)
+                self.assertIn("needs workflow-manager", self.cli_stderr)
+                self.assertFalse((self.cache / UNPINNED).exists())
+
+    def test_a_refusal_never_replaces_an_entry_another_source_trusts(self):
+        trusted = self.mirror_of({UNPINNED: block()})
+        repo = tb.empty_repo(self.tmp / "other")
+        self.assertEqual(self._cli("--release-version", UNPINNED, "bootstrap", str(repo),
+                                   source_dir=trusted), 0, self.cli_output)
+        self.assertTrue((self.cache / UNPINNED / "complete").is_file())
+        refused = self.mirror_of({UNPINNED: block(min_manager_version=self.NEEDS)})
+        self.installed_at("7.0.1")
+        for argv, expected in ((["update", "--dry-run"], 1), (["update"], 1), (["doctor"], 2)):
+            with self.subTest(argv=argv):
+                code = self.assertRefusalWritesNothing(
+                    lambda: self._cli("--release-version", UNPINNED, *argv, str(self.target),
+                                      source_dir=refused), self.target, repo)
+                self.assertEqual(code, expected, self.cli_output)
+                self.assertIn("needs workflow-manager", self.cli_stderr)
+        stored = json.loads((self.cache / UNPINNED / "SOURCE").read_text())
+        self.assertEqual(stored["from"], f"dir:{trusted}")
 
     def test_a_bare_update_skips_it_with_one_note(self):
         mirror = self.mirror_of({UNPINNED: block(min_manager_version="1.0.0"),

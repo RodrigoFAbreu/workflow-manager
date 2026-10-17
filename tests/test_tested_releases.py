@@ -357,6 +357,7 @@ class TestTheLockTool(_LockedRelease):
         refused = self.tool(*args, "add", pinned)
         self.assertEqual(refused.returncode, 1)
         self.assertIn("is pinned", refused.stderr)
+        self.assertIn("no lock change is needed", refused.stderr)
         self.assertEqual(tested_releases.load_lock(self.lock_file), {})
         self.assertEqual(self.tool(*args, "add", SYNTHETIC).returncode, 0)
         self.assertIn("already in the lock", self.tool(*args, "add", SYNTHETIC).stderr)

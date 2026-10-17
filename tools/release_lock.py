@@ -26,7 +26,8 @@ shipped in the wheel, not read by the CLI.
   the other jobs read the result through `WORKFLOW_MANAGER_TESTED_RELEASES`.
   The committed lock is never written.
 
-Exit codes: 0 success; 1 a verification failure or a refused lock; 2 usage.
+Exit codes: 0 success; 1 a verification failure or a refused lock; 2 usage
+(docs/exit-codes.md, "Maintainer tools").
 """
 
 from __future__ import annotations
@@ -107,7 +108,10 @@ def add_entry(version: str, lock_file: Path, where: source.ReleaseSource,
     pins = source.load_pins()
     lock = tested_releases.load_lock(lock_file) if lock_file.exists() else {}
     if version in pins.releases:
-        raise ToolError(f"{version} is pinned: a pinned release is not added to the lock")
+        raise ToolError(f"{version} is pinned: a pinned release is not added to the lock. "
+                        f"Every pin is already tested in every run, so no lock change is "
+                        f"needed; `add` is for a release published after the last pin "
+                        f"(see `python3 tools/release_lock.py check`)")
     if version in lock:
         raise ToolError(f"{version} is already in the lock")
     try:

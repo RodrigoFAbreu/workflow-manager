@@ -66,11 +66,17 @@ class ReleaseIntegrityError(RuntimeError):
     """Release content on disk does not match the digest its manifest records.
 
     `kind` names the cause for `advice` (which step the operator is told to
-    take); `None` is an unclassified cause with no step of its own."""
+    take); `None` is an unclassified cause with no step of its own. `version`
+    is the release the cause belongs to, when known; `newer_manager` says a
+    newer Manager may read what this one cannot (a `manager` block's schema or
+    detector kind)."""
 
-    def __init__(self, message: str = "", *, kind: str | None = None):
+    def __init__(self, message: str = "", *, kind: str | None = None,
+                 version: str | None = None, newer_manager: bool = False):
         super().__init__(message)
         self.kind = kind
+        self.version = version
+        self.newer_manager = newer_manager
 
 
 _VERSION_TEXT = re.compile(r"\d+(\.\d+)*")
@@ -87,8 +93,9 @@ DETECTOR_KINDS = {
 }
 
 
-def _shape(message: str) -> ReleaseIntegrityError:
-    return ReleaseIntegrityError(f"manifest `manager` block: {message}", kind="manifest-shape")
+def _shape(message: str, *, newer_manager: bool = False) -> ReleaseIntegrityError:
+    return ReleaseIntegrityError(f"manifest `manager` block: {message}", kind="manifest-shape",
+                                 newer_manager=newer_manager)
 
 
 def parse_version_tuple(text) -> tuple[int, ...]:
@@ -196,7 +203,8 @@ def _detector(raw, where: str) -> DetectorSpec:
     kind = _required(raw, "kind", where)
     if not isinstance(kind, str) or kind not in DETECTOR_KINDS:
         raise _shape(f"{where} names the unknown detector kind {kind!r}; this Manager knows "
-                     f"{', '.join(DETECTOR_KINDS)} (a newer Manager may know more)")
+                     f"{', '.join(DETECTOR_KINDS)} (a newer Manager may know more)",
+                     newer_manager=True)
     wanted = DETECTOR_KINDS[kind]
     key = value = None
     phases: tuple[str, ...] = ()
@@ -269,7 +277,7 @@ def parse_manager_block(raw) -> ManagerBlock:
         raise _shape("needs an integer `schema_version`")
     if schema != MANAGER_SCHEMA_VERSION:
         raise _shape(f"has schema_version {schema}, which needs a newer Manager than this one "
-                     f"(it reads {MANAGER_SCHEMA_VERSION})")
+                     f"(it reads {MANAGER_SCHEMA_VERSION})", newer_manager=True)
     minimum = raw.get("min_manager_version")
     if minimum is not None:
         parse_version_tuple(minimum)

@@ -170,7 +170,7 @@ docs/
                                and the M2 packaging and removal record
   ARCHITECTURE.md              this file
   defects/                     upstream defects found, documented, not repaired
-  RELEASING.md                 how the Manager is released, and how a pin is added
+  RELEASING.md                 how the Manager is released, and how a new Workflow release is tested (the lock)
 .github/
   workflows/                   verification, PR title, release, and the managed conformance check
   repository/                  merge settings and the `main` ruleset, as reviewed data

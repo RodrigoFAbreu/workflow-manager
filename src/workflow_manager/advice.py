@@ -571,6 +571,10 @@ def _floor(error, context):
     elif error.kind == "archive":
         step = ("connect to a network that serves the release's archive, or point the Manager "
                 "at a mirror that holds it with --release-source")
+    elif error.kind == "none-at-floor":
+        step = ("the source was read and holds no release at or above it: point the Manager at "
+                "a source that does with --release-source, or name a release with "
+                "--release-version")
     else:
         step = ("connect to the network and run the command again, or point the Manager at a "
                 "mirror with --release-source")
@@ -702,7 +706,25 @@ def _package_build(error, context):
 def _manifest_shape(error, context):
     if getattr(context.args, "command", None) == "package":
         return _package_build(error, context)
-    return _local_release(error, context)
+    if getattr(context.args, "release_dir", None) is not None \
+            or getattr(context.args, "manager_root", None) is not None:
+        return _local_release(error, context)
+    # The release came from a source: its published metadata is at fault, and
+    # a published release is never edited.
+    release = f"Workflow {error.version}" if getattr(error, "version", None) else "the release"
+    if getattr(error, "newer_manager", False):
+        lead = (f"{release}'s release metadata (its manifest's `manager` block) needs a newer "
+                f"Manager than this one: upgrade the Manager ({_url(PAGE_UPDATE_MANAGER)})")
+        alternative = "or install an earlier usable release"
+    else:
+        lead = (f"{release}'s published release metadata (its manifest's `manager` block) is "
+                f"malformed, and a published release is never edited: use a newer Workflow "
+                f"release that corrects it, or a mirror that serves a corrected copy "
+                f"(--release-source)")
+        alternative = "or install an earlier usable release"
+    if _writes_held(context):
+        return f"{lead}; {_held_rerun(context)}"
+    return f"{lead}, {alternative}: `{_operator_command(context, version='VERSION')}`"
 
 
 def _git_unavailable(error, context):

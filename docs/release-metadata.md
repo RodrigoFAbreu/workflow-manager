@@ -54,7 +54,7 @@ Keys the Manager reads:
   | `item-field` | `key`, `value` | a work item has the key with that value |
 
   `key` is a non-empty string; `value` is a JSON scalar (string, integer, boolean or null) compared by equality after parsing, type-aware (`true` is not `1`, `"1"` is not `1`); `phases` is a non-empty list of strings. An unknown kind is refused. A condition the vocabulary cannot express is stated in `undetectable`, or the release declares a `min_manager_version` of a Manager that adds the detector.
-- **Fail closed.** A block of the wrong shape, an unknown detector kind, another `schema_version` or a malformed version string refuses *that release* (`manifest-shape`) when it is chosen to install or report on.
+- **Fail closed.** A block of the wrong shape, an unknown detector kind, another `schema_version` or a malformed version string refuses *that release* (`manifest-shape`) when it is chosen to install or report on. The check runs before a fetched release is stored in the cache, so a refused release never replaces a cache entry.
 - **Releases up to 2.12.0** have their data built into the Manager, which uses it always; a block in such a manifest is ignored with a note.
 - **Without the block (or an item of it)** a later release installs, but the Manager reports `incomplete-inspection` ("a release carries no compatibility data"): its downgrade guarantees and notes cannot be assessed, `doctor` exits 1, and `update` itself is not refused. That finding describes the release's metadata, never the repository's data.
 

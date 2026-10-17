@@ -216,10 +216,10 @@ def _discovering(args) -> bool:
     return not pinned_only(getattr(args, "pinned_only", False))
 
 
-def _cache(args, pins) -> ReleaseCache:
+def _cache(args, pins, admit=None) -> ReleaseCache:
     return ReleaseCache(cache_root(args.release_cache),
                         ReleaseSource.select(args.release_source), pins,
-                        discover=_discovering(args))
+                        discover=_discovering(args), admit=admit)
 
 
 def _checkout_releases(checkout: Path) -> dict[str, Path]:
@@ -246,7 +246,8 @@ def _default_version(args, pins) -> str:
     return versions[-1]
 
 
-def _resolve(args, version: str | None, destinations: Destinations | None = None):
+def _resolve(args, version: str | None, destinations: Destinations | None = None,
+             admit=None):
     """The release `version` (default: the newest) as a verified private
     snapshot. Precedence: `--release-dir`, the `--manager-root` alias when its
     checkout holds the version, then the pins through the cache, which refuse
@@ -254,7 +255,8 @@ def _resolve(args, version: str | None, destinations: Destinations | None = None
 
     `destinations` is the read-only commands' (`doctor`, `update --dry-run`):
     the validated snapshot parent and the no-follow lock leaf, threaded down so
-    no hop falls back to the default temporary directory."""
+    no hop falls back to the default temporary directory. `admit` is the
+    cache's check of a fetched release before it is stored (`ReleaseCache`)."""
     pins = _pins()
     parent = destinations.snapshot_parent if destinations else None
     if args.release_dir is not None:
@@ -266,8 +268,8 @@ def _resolve(args, version: str | None, destinations: Destinations | None = None
     candidates = _alias_releases(args)
     if version in candidates:
         return local_release(candidates[version], version, pins, parent)
-    return _cache(args, pins).resolve(version, snapshot_parent=parent,
-                                      read_only=destinations is not None)
+    return _cache(args, pins, admit).resolve(version, snapshot_parent=parent,
+                                             read_only=destinations is not None)
 
 
 def _needs_newer_manager(release) -> str | None:
@@ -289,16 +291,25 @@ def _close(release) -> None:
 
 def _require_compatible(release):
     """`release`, or `ReleaseIncompatibleError` (the release is closed first)
-    when it needs a newer Manager: an explicit choice is refused (3.4)."""
+    when it needs a newer Manager: an explicit choice is refused (3.4). A bad
+    `manager` block is `ReleaseIntegrityError`, naming the release."""
     try:
         needs = _needs_newer_manager(release)
-    except ReleaseIntegrityError:
+    except ReleaseIntegrityError as exc:
         _close(release)
+        exc.version = getattr(exc, "version", None) or release.version
         raise
     if needs is not None:
         _close(release)
         raise incompatible(release.version, needs, _installed_version())
     return release
+
+
+def _resolve_compatible(args, version: str | None, destinations: Destinations | None = None):
+    """`_resolve` for a command that refuses a release needing a newer Manager
+    or carrying a bad `manager` block: the same check runs on a fetched
+    release before the cache stores it, so a refusal leaves the cache as it was."""
+    return _require_compatible(_resolve(args, version, destinations, admit=_require_compatible))
 
 
 def _note_incompatible(error: ReleaseIncompatibleError) -> None:
@@ -338,8 +349,10 @@ def _floor(args) -> str | None:
 def _floor_error(installed: str, chooser: Chooser, blocked: list[str]) -> ReleaseFloorError:
     if blocked:
         kind, reason = "archive", f"the archive of {blocked[0]} could not be fetched"
-    else:
+    elif chooser.offline is not None:
         kind, reason = "offline", "could not look for newer releases (offline)"
+    else:
+        kind, reason = "none-at-floor", "the release source offers no release at or above it"
     return ReleaseFloorError(
         f"no usable release at or above the installed Workflow {installed}: {reason}",
         kind=kind, installed=installed, version=blocked[0] if blocked else None)
@@ -363,9 +376,8 @@ def _choose_and_resolve(args, *, floor: str | None = None, installed: str | None
             leaves = [version] + ([installed] if installed and isinstance(installed, str) else [])
             destinations = plan_destinations(args, os.environ, args.target, leaves)
         try:
-            release = _resolve(args, version, destinations)
             try:
-                release = _require_compatible(release)
+                release = _resolve_compatible(args, version, destinations)
             except ReleaseIncompatibleError as exc:
                 skipped_for_manager.append(exc)
                 continue
@@ -398,7 +410,7 @@ def _release(args):
     """What `bootstrap` and `update` install: the version named, else the newest
     usable release. A bare `update` never goes below the installed one."""
     if args.release_version is not None or args.release_dir is not None:
-        return _require_compatible(_resolve(args, args.release_version))
+        return _resolve_compatible(args, args.release_version)
     floor = _floor(args) if args.command == "update" else None
     return _choose_and_resolve(args, floor=floor)[0]
 
@@ -703,7 +715,7 @@ def cmd_dry_run(args) -> int:
             args, floor=_floor(args), installed=installed, readonly=True)
     else:
         destinations = _readonly_destinations(args, installed)
-        release = _require_compatible(_resolve(args, args.release_version, destinations))
+        release = _resolve_compatible(args, args.release_version, destinations)
     with release:
         plan, refusal = _plan_or_refusal(args, release)
         installed_resolved = _installed_resolves(args, installed, destinations)
@@ -745,7 +757,7 @@ def cmd_doctor(args) -> int:
                 args, floor=_floor(args), installed=installed, readonly=True)
         else:
             destinations = _readonly_destinations(args, installed)
-            release = _require_compatible(_resolve(args, args.release_version, destinations))
+            release = _resolve_compatible(args, args.release_version, destinations)
     except RELEASE_ERRORS as error:
         print(f"error: could not resolve the target release: {error}", file=sys.stderr)
         step = advice.next_step(error, _context(args))

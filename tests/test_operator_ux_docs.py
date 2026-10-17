@@ -40,6 +40,7 @@ NOT_A_MESSAGE = (
     "`Workflow X needs workflow-manager Y or newer; this is Z`",
     "`could not look for newer releases: REASON; using X`",
     "`no usable release at or above the installed Workflow X`",
+    "``manifest `manager` block: ...``",
     "`doctor` reports `a release carries no compatibility data`",
     "A repository went wrong after an update to 2.8.0 and gates behave differently",
     "An interrupted `bootstrap` or `update`, or `[Errno 13] Permission denied` and other "

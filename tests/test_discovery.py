@@ -714,6 +714,26 @@ class TestTheFloor(_Mirror):
                 self.assertIn("next:", self.cli_stderr)
         self.assertEqual(self.snapshot(), before)
 
+    def test_a_listing_with_nothing_at_the_floor_is_not_called_offline(self):
+        self.install_discovered()
+        older = self.tmp / "older"
+        older.mkdir()
+        for entry in self.mirror.iterdir():
+            if entry.name != NEWER:
+                (older / entry.name).symlink_to(entry.resolve())
+        before = self.snapshot()
+        for command in (("update",), ("update", "--dry-run")):
+            with self.subTest(command=command):
+                code = self._cli(*command, str(self.target), source_dir=older)
+                self.assertEqual(code, 1, self.cli_output)
+                self.assertIn(f"error: no usable release at or above the installed Workflow "
+                              f"{NEWER}: the release source offers no release at or above it",
+                              self.cli_stderr)
+                self.assertNotIn("offline", self.cli_stderr)
+                self.assertIn("next: the source was read and holds no release at or above it",
+                              self.cli_stderr)
+        self.assertEqual(self.snapshot(), before)
+
     def test_a_blocked_archive_installs_nothing(self):
         self.install_discovered()
         self.stub(block=(f"workflow-{NEWER}.tar.gz",))
@@ -828,6 +848,7 @@ class TestTestsStayHermetic(unittest.TestCase):
         from workflow_manager import advice
         for kind, remedy in (("offline", "connect to the network"),
                              ("archive", "serves the release's archive"),
+                             ("none-at-floor", "holds no release at or above it"),
                              ("manager", "upgrade the Manager")):
             with self.subTest(kind=kind):
                 error = release_source.ReleaseFloorError("m", kind=kind, installed="2.14.0")

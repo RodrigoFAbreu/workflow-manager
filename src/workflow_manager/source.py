@@ -680,12 +680,16 @@ class ReleaseCache:
     _after_snapshot_copy: Callable[[Path, Path], None] | None = None
 
     def __init__(self, root: Path, source: ReleaseSource | None, pins: Pins, *,
-                 discover: bool = False):
+                 discover: bool = False, admit: Callable[[Release], object] | None = None):
         self.root = Path(root)
         self.source = source
         self.pins = pins
         #: Whether a version with no pin may be installed (3.3); `--pinned-only` is False.
         self.discover = discover
+        #: Called with the fetched release, still in private staging, before it
+        #: is promoted into the cache: an error it raises leaves the cache as it
+        #: was (the command's own refusals, such as `min_manager_version`).
+        self.admit = admit
 
     def entry(self, version: str) -> Path:
         return self.root / version
@@ -817,10 +821,11 @@ class ReleaseCache:
             finally:
                 fcntl.flock(handle, fcntl.LOCK_UN)
 
-    def _is_hit(self, entry: Path, pin: Pin, trust: str = TRUST_PINNED) -> bool:
+    def _is_hit(self, entry: Path, pin: Pin, trust: str = TRUST_PINNED, *,
+                any_source: bool = False) -> bool:
         try:
             if trust == TRUST_DISCOVERED:
-                if not self._source_matches(entry) or derive_pin(
+                if not (any_source or self._source_matches(entry)) or derive_pin(
                         pin.version, (entry / SUMS_NAME).read_text("utf-8", "replace")) != pin:
                     return False
             if (entry / COMPLETE_NAME).read_text().strip() != pin.sha256:
@@ -834,6 +839,19 @@ class ReleaseCache:
             return release.version == pin.version and not release.verify()
         except (OSError, ValueError, KeyError, TypeError, ReleaseIntegrityError):
             return False
+
+    def _trusted_elsewhere(self, entry: Path, version: str) -> bool:
+        """Whether `entry` is an intact discovered entry another source wrote:
+        trusted for that source, so it is replaced only once its successor is
+        admitted (`_fetch`), never discarded ahead of a refusal."""
+        stored = self._stored_source(entry)
+        if entry.is_symlink() or stored is None or stored.get("trust") != TRUST_DISCOVERED:
+            return False
+        try:
+            own = derive_pin(version, (entry / SUMS_NAME).read_text("utf-8", "replace"))
+        except (OSError, ReleaseIntegrityError):
+            return False
+        return self._is_hit(entry, own, TRUST_DISCOVERED, any_source=True)
 
     def _discard(self, entry: Path, why: str) -> None:
         if entry.exists() or entry.is_symlink():
@@ -849,9 +867,11 @@ class ReleaseCache:
                     f"by hand, or choose another cache with --release-cache or "
                     f"${CACHE_ENV}", kind="cache-unusable") from exc
 
-    def _fetch(self, pin: Pin, trust: str = TRUST_PINNED) -> None:
+    def _fetch(self, pin: Pin, trust: str = TRUST_PINNED, why: str | None = None) -> None:
         """Fetch, check and extract the package into a temporary sibling of
-        the entry, then rename it into place. The entry must be absent."""
+        the entry, admit it (`admit`), and only then discard the entry still
+        there (for `why`) and rename the sibling into place. A refusal at any
+        step leaves that entry as it was."""
         version = pin.version
         staging = Path(tempfile.mkdtemp(prefix=f".{version}.", dir=self.root))
         try:
@@ -891,6 +911,10 @@ class ReleaseCache:
                 (staging / SOURCE_NAME).write_text(
                     json.dumps({"trust": TRUST_DISCOVERED, "from": self.identity()}) + "\n")
             (staging / COMPLETE_NAME).write_text(pin.sha256 + "\n")
+            if self.admit is not None:
+                self.admit(Release(staging / TREE_NAME))
+            if why is not None:
+                self._discard(self.entry(version), why)
             os.rename(staging, self.entry(version))
         except OSError as exc:
             raise ReleaseUnavailableError(
@@ -905,14 +929,17 @@ class ReleaseCache:
         entry = self.entry(pin.version)
         if self._is_hit(entry, pin, trust):
             return pin
-        self._discard(entry, "it does not match the pin" if trust == TRUST_PINNED
-                      else "it does not match its recorded checksums or source")
-        return self._refetch(pin, trust)
+        why = ("it does not match the pin" if trust == TRUST_PINNED
+               else "it does not match its recorded checksums or source")
+        if not self._trusted_elsewhere(entry, pin.version):
+            self._discard(entry, why)     # a broken entry goes now, whatever follows
+            why = None
+        return self._refetch(pin, trust, why)
 
-    def _refetch(self, pin: Pin, trust: str) -> Pin:
+    def _refetch(self, pin: Pin, trust: str, why: str | None = None) -> Pin:
         if trust == TRUST_DISCOVERED:
             pin = self._derive(pin.version)
-        self._fetch(pin, trust)
+        self._fetch(pin, trust, why)
         return pin
 
     def ensure(self, version: str) -> Path:

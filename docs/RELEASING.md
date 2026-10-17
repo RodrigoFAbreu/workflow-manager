@@ -186,6 +186,10 @@ python3 tools/release_lock.py check     # the lock against what the source publi
 python3 tests/run_all.py                # the matrix moves to V; the updated fixture updates to it
 ```
 
+The tool's exit codes are in [Exit codes](exit-codes.md#maintainer-tools). A
+pinned version (2.12.0 or older) is refused by `add`: pins are already tested
+in every run, so it needs no lock change.
+
 `add` writes the digests and, while `V`'s manifest has no `conformance`
 block, the frozen suite counts (discovered, not hand-written) and an empty
 `portability_exceptions` list; the reviewer checks both. Once the manifest

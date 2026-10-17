@@ -89,7 +89,7 @@ A release newer than the Manager's pins is verified by the `SHA256SUMS` publishe
 
 ## Update the Manager
 
-Do this when a Manager message tells you to upgrade it: a release needs a newer Manager (`Workflow X needs workflow-manager Y or newer`), you used `--pinned-only` and the release is not pinned (`release X is not published: this Manager has no pin for it`), or a repository's installation record `was written by a newer Manager`. Install the newest Manager release.
+Do this when a Manager message tells you to upgrade it: a release needs a newer Manager (`Workflow X needs workflow-manager Y or newer`), its release metadata needs a newer Manager (a `manager` block schema or detector kind this one does not read), or a repository's installation record `was written by a newer Manager`. Install the newest Manager release. Upgrading does not help with `release X is not published: this Manager has no pin for it` under `--pinned-only`: no release after 2.12.0 is ever pinned, so remove `--pinned-only` or choose a pinned release.
 
 ```bash
 dl=$(mktemp -d)

@@ -9,6 +9,7 @@ import contextlib
 import importlib.util
 import io
 import json
+import re
 import subprocess
 import sys
 import tempfile
@@ -392,11 +393,37 @@ class ReleaseAgnosticDocsTest(unittest.TestCase):
         fence = text.split("```json\n", 1)[1].split("\n```", 1)[0]
         return json.loads("{" + fence + "}")["manager"]
 
+    #: A pin being added, in any wording ("adding a pin", "how a pin is added",
+    #: "add a new pin"); "never added" and "none is added" are not matched.
+    PIN_ADDED = re.compile(r"(?<!\bno )(?<!\bNo )\bpins?\b[^.|\n]{0,15}\b(?:is|are|be|gets?)\s+added\b"
+                           r"|\badd(?:ing|s|ed)?\s+(?:a\s+|the\s+|one\s+)?(?:new\s+)?pins?\b",
+                           re.IGNORECASE)
+
     def test_no_page_keeps_an_adding_a_pin_procedure(self) -> None:
-        for rel in ("docs/RELEASING.md", "docs/ARCHITECTURE.md", "docs/development.md", "CLAUDE.md"):
-            self.assertNotIn("adding a pin", self._read(rel).lower(), rel)
+        for rel in ("docs/RELEASING.md", "docs/ARCHITECTURE.md", "docs/development.md", "CLAUDE.md",
+                    "README.md", "docs/README.md", "docs/update.md", "docs/install.md",
+                    "docs/common-problems.md", "docs/exit-codes.md"):
+            text = " ".join(self._read(rel).split())
+            self.assertNotIn("adding a pin", text.lower(), rel)
+            self.assertIsNone(self.PIN_ADDED.search(text), rel)
+        for stale in ("how a pin is added", "adding a pin", "add a new pin", "pins are added"):
+            self.assertIsNotNone(self.PIN_ADDED.search(stale), stale)
+        for current in ("pins are never added", "none is added for a release", "a pinned release",
+                        "no pin is added for a later release"):
+            self.assertIsNone(self.PIN_ADDED.search(current), current)
         self.assertIn("## A new Workflow release", self._read("docs/RELEASING.md"))
         self.assertIn("release_lock.py add", self._read("CLAUDE.md"))
+
+    def test_the_lock_tool_exit_codes_are_where_operators_look(self) -> None:
+        self.assertIn("## Maintainer tools", self._read("docs/exit-codes.md"))
+        self.assertIn("tools/release_lock.py", self._read("docs/exit-codes.md"))
+        self.assertIn("exit-codes.md#maintainer-tools", self._read("docs/RELEASING.md"))
+        self.assertIn("docs/exit-codes.md", self._read("tools/release_lock.py"))
+
+    def test_upgrading_the_manager_is_not_the_pinned_only_remedy(self) -> None:
+        text = " ".join(self._read("docs/update.md").split())
+        self.assertIn("Upgrading does not help with `release X is not published", text)
+        self.assertIn("remove `--pinned-only` or choose a pinned release", text)
 
     def test_the_contract_page_is_indexed_and_linked_from_the_pages_that_use_it(self) -> None:
         self.assertIn("(release-metadata.md)", self._read("docs/README.md"))
