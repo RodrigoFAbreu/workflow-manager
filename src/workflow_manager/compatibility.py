@@ -1258,6 +1258,15 @@ def in_range(version: str, installed: str | None, target: str | None) -> bool:
     return _lt(target, version) and _le(version, installed)
 
 
+def is_inspected(version: str, installed: str | None, target: str | None) -> bool:
+    """Whether a report must hold data for `version`: a crossed version, or the
+    one release both ends name when `installed` is `target` (nothing is crossed,
+    yet that release's data is still what the report rests on)."""
+    if installed and installed == target:
+        return version == target
+    return in_range(version, installed, target)
+
+
 def coverage_findings(installed: str | None, target: str | None,
                       metadata: ReleaseMetadata) -> list[Finding]:
     """The `incomplete-inspection` findings for release data the report lacks
@@ -1267,7 +1276,7 @@ def coverage_findings(installed: str | None, target: str | None,
         return []
     findings = []
     for version in metadata.all_versions():
-        if has_builtin_data(version) or not in_range(version, installed, target):
+        if has_builtin_data(version) or not is_inspected(version, installed, target):
             continue
         if version in metadata.unreadable:
             findings.append(Finding(

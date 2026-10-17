@@ -47,6 +47,7 @@ from . import source as release_source
 from .compatibility import (
     ContainmentError,
     has_builtin_data,
+    is_comparable,
     Destinations,
     data_files,
     data_findings,
@@ -587,9 +588,25 @@ def cmd_status(args) -> int:
     return 0 if (result.verified and not result.problems) else 1
 
 
+def _note_missing_metadata(release) -> None:
+    """A release after the built-in data whose `manager` block is absent or
+    incomplete installs, but `doctor` will report an incomplete inspection (3.4)."""
+    if has_builtin_data(release.version) or not is_comparable(release.version):
+        return
+    try:
+        block = release.manager
+    except ReleaseIntegrityError:
+        return
+    if block is None or block.missing_items():
+        print(f"workflow-manager: note: workflow {release.version} carries no complete `manager` "
+              "block, so its downgrade guarantees and notes are not assessed; `doctor` reports "
+              "an incomplete inspection", file=sys.stderr)
+
+
 def cmd_bootstrap(args) -> int:
     with _release(args) as release:
         installation = bootstrap(args.target, release, args.profile, force=args.force)
+        _note_missing_metadata(release)
     print(f"bootstrapped workflow {installation.workflow_version} "
           f"({installation.profile}) into {args.target}")
     print(f"  {len(installation.managed)} managed files, "

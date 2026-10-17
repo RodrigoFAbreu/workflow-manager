@@ -12,8 +12,8 @@ its cause, never skipped: a missing assessment is a finding, not a clean bill.
 
 from __future__ import annotations
 
-from .compatibility import BUILTIN_THROUGH, ReleaseMetadata, has_builtin_data, in_range, \
-    is_comparable, version_key
+from .compatibility import BUILTIN_THROUGH, ReleaseMetadata, has_builtin_data, is_comparable, \
+    is_inspected, version_key
 from .release import Release, ReleaseIntegrityError, parse_manifest_manager
 from .source import (
     Deadline,
@@ -67,7 +67,7 @@ def gather_metadata(cache: ReleaseCache, installed, target: Release, *,
                     metadata.catalog_incomplete = "the listing may be truncated"
     wanted = sorted((v for v in candidates
                      if is_comparable(v) and not has_builtin_data(v)
-                     and in_range(v, installed, target.version)), key=version_key)
+                     and is_inspected(v, installed, target.version)), key=version_key)
     metadata.versions = tuple(wanted)
     for version in wanted:
         if version in metadata.unreadable:
