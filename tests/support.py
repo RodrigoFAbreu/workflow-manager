@@ -96,6 +96,11 @@ def cli_env(**extra: str) -> dict[str, str]:
     }
     if os.environ.get(source.SOURCE_ENV):
         env[source.SOURCE_ENV] = os.environ[source.SOURCE_ENV]
+    if LOCK:
+        # A lock-only release is not pinned: reach it through the hermetic
+        # mirror and a process-private cache, as `mirror_env` does (plan 3.5).
+        env.update({source.SOURCE_ENV: str(mirror_dir()), source.PINNED_ONLY_ENV: "0",
+                    source.CACHE_ENV: str(_lock_cache())})
     env.update(extra)
     return env
 
@@ -371,6 +376,23 @@ def mirror_dir() -> Path:
                 shutil.copy2(cache / version / name, root / version / name)
         _MIRROR.append(root)
     return _MIRROR[0]
+
+
+_LOCK_CACHE: list = []
+
+
+def _lock_cache() -> Path:
+    """The private release cache `cli_env` names while the lock is non-empty
+    (memoized per process, removed at exit)."""
+    if not _LOCK_CACHE:
+        import atexit
+        import shutil
+        import tempfile
+
+        root = Path(tempfile.mkdtemp(prefix="wm-lock-cache-"))
+        atexit.register(shutil.rmtree, root, True)
+        _LOCK_CACHE.append(root)
+    return _LOCK_CACHE[0]
 
 
 def mirror_env(private_cache: Path, **extra: str) -> dict[str, str]:
