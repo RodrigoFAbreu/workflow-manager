@@ -45,7 +45,7 @@ policy (the default gate policy; no person's decision), and
 | RA-IMPL-R2-O1, RA-LOC-R5-O1 and the round 4 note: bundle test evidence lagged the revision | local implementation reviews | superseded: the checklist quotes the full-gate evidence, and functional review round 2, flow 11, passed |
 | RA-LOC-R5-O3: no committed test of a nonempty committed lock | local implementation review, round 5 | `cb6d06d`'s regression runs the lock tests under a nonempty committed lock and under the override |
 
-**Deferred:** the 14 remaining Optional findings are follow-ups, listed in `docs/ROADMAP.md`, "Later (open items)", under "Review follow-ups: release-agnostic Manager (item 8)".
+**Deferred:** the 14 remaining Optional findings are follow-ups: issues #39 to #52, labelled `review-follow-up` and listed in `docs/ROADMAP.md`, "Later (open items)".
 
 The checkpoint log below is this milestone's permanent record.
 

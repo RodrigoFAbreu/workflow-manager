@@ -76,31 +76,22 @@ Not scheduled. Each is small unless noted.
 
 ### Review follow-ups: release-agnostic Manager (item 8)
 
-These are the Optional review findings deferred at acceptance (the owner's rule of 2026-10-16). Each is a complete disposition, and a later clean-up milestone works them off. Issues are disabled in this repository, so the list lives here.
+These are the Optional review findings deferred at acceptance (the owner's rule of 2026-10-16). Each one is an issue labelled [`review-follow-up`](https://github.com/RodrigoFAbreu/workflow-manager/issues?q=is%3Aissue+label%3Areview-follow-up), and a later clean-up milestone works them off:
 
-**Floor and choosing**
-1. RA-L4-O2 / RA-L5-001 (local plan review): the floor's edges outside bare `update` are unstated. Two cases:
-   - `--pinned-only` with an installed discovered release, where the newest pin is below the floor;
-   - `doctor`'s output and exit code when nothing usable reaches the floor.
-2. RA-IMPL-R1-O3: the floor refusal has a fixed set of REASON strings; one more may be needed for the `--pinned-only` case above.
-3. RA-IMPL-R1-O4 / RA-IMPL-R2-O2: on an explicit `--release-version` run, `doctor`'s "Latest available" still comes from the newest pin, so the `[pinned]` marker can hide a newer discovered release.
-4. RA-IMPL-R7-O1: under discovery, a malformed version such as `v2.12.0` gets "not published / no pin" advice instead of "name a release as X.Y.Z". Add a dedicated `not-a-version` kind.
-
-**Metadata and verification**
-
-5. Codex plan round 1: the behaviour of partial metadata objects is unspecified, for example `conformance: {}` or a single missing nested field. Specify per-field defaults or required fields, and add tests.
-6. RA-IMPL-R1-O1: a manager block of the wrong shape refuses the whole release (plan 3.4, "fail closed"). Revisit whether an older, compatible release should be offered instead. This would be a plan change.
-7. RA-IMPL-R1-O2: pre-screen the binding check from the manifest asset before fetching the archive. An optimisation only; the check on the installed bytes stays.
-8. Codex implementation round 1: `SHA256SUMS` parsing silently keeps the last of duplicate filenames, though the contract says exactly two lines. Refuse duplicates.
-9. RA-IMPL-R8-001: `ReleaseFloorError`'s docstring (`src/workflow_manager/source.py:131`) does not name the `none-at-floor` kind.
-
-**Tests and runner**
-
-10. RA-IMPL-R7-O2: add a CLI-level test of a traversal version (`"../escaped"`) through an installation record, checking that nothing is created or removed outside the cache.
-11. Local implementation round 4: add a CLI test that `doctor` exits 0 on an up-to-date post-2.12.0 installation whose source is unreadable.
-12. Local implementation round 4: when the deadline expires, `_http_read` abandons its worker thread and socket. That is harmless in the one-shot CLI, but it accumulates in long-lived callers such as a test process.
-13. RA-LOC-R5-O2: in `tests/parallel/resources.json`, a concrete `frozen:<v>/...` key and a `frozen:*/...` key for the same unit silently overwrite each other. Refuse the overlap or document it.
-14. RA-L2-002: the nightly saves a new cache entry per run. Save only when the nightly's lock differs from the committed one, or document the noise.
+- #39: Floor edges outside bare update: --pinned-only with an installed discovered release, and doctor at the floor
+- #40: Floor refusal: add a REASON for the --pinned-only case
+- #41: doctor's "Latest available" on an explicit --release-version run can hide a newer discovered release
+- #42: A malformed version such as v2.12.0 gets "not published" advice instead of "name a release as X.Y.Z"
+- #43: Specify partial manager-block objects (conformance: {} and missing nested fields)
+- #44: Revisit refusing the whole release for a manager block of the wrong shape
+- #45: Pre-screen the pin binding from the manifest asset before fetching the archive
+- #46: Refuse duplicate filenames in SHA256SUMS
+- #47: ReleaseFloorError's docstring does not name the none-at-floor kind
+- #48: CLI test: a traversal version through an installation record stays inside the cache
+- #49: CLI test: doctor exits 0 on an up-to-date post-2.12.0 installation with an unreadable source
+- #50: _http_read abandons its worker thread and socket when the deadline expires
+- #51: Overlapping frozen orphan keys in tests/parallel/resources.json silently overwrite each other
+- #52: The nightly saves a new cache entry on every run
 
 ## Principles
 
