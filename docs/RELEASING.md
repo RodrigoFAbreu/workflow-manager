@@ -38,7 +38,13 @@ build time.
      discovered), its `releases` must list exactly the pins and its
      `verify` of the checkout must pass, through a release cache restored
      like the test jobs' (on a miss it downloads the checkout's release from
-     the published source);
+     the published source). When the checkout records a tested release that
+     has no pin (a lock entry), `verify` alone reads it from a local
+     directory of that release's assets, checked against the lock's
+     digests, so the proof stays the tested set; a release outside it fails.
+     That `verify` never fetches: `package.py` first primes the cache with
+     every tested release (the pins plus the lock, as the test jobs do), the
+     one step that may download, and a release the cache still lacks fails;
    - publishes them with `SHA256SUMS` through `gh release create`, which
      creates the tag and the release in one call. The release notes list the
      pinned Workflow versions.

@@ -162,8 +162,8 @@ jobs:
 
   # The release's own build-and-verify path, on every run, so a packaging
   # break is caught on the pull request and not at release time. `releases` lists the wheel's pins, and `verify` resolves the
-  # checkout's recorded release through the release cache, downloading it
-  # from the published source only on a cache miss.
+  # checkout's recorded release through the release cache, which package.py
+  # first primes with the tested set, downloading only what a cache miss lacks.
   package:
     runs-on: ubuntu-latest
     timeout-minutes: 30

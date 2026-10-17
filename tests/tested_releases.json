@@ -1,4 +1,10 @@
 {
-  "releases": {},
+  "releases": {
+    "2.13.0": {
+      "archive": "workflow-2.13.0.tar.gz",
+      "manifest_sha256": "d77c719c1be8d36b8258ec3f9cdfda0cd102d65cd0009be330a35df7b9bdb382",
+      "sha256": "a054c3f04dd66867c04b9ecac6cf928b0061ab14f57bc5a65327d6df060749ce"
+    }
+  },
   "schema_version": 1
 }

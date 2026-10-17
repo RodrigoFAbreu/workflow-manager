@@ -5607,12 +5607,22 @@ class TestManagedWorkflowUntouched(unittest.TestCase):
         self.assertNotIn(str(CI_WORKFLOW.relative_to(REPO_ROOT)), managed)
 
     def test_workflow_manager_verify_reports_no_drift(self):
-        proc = subprocess.run([sys.executable, "-B", "-m", "workflow_manager", "verify",
-                               str(REPO_ROOT)], capture_output=True, text=True,
-                              env=dict(os.environ, PYTHONPATH=str(REPO_ROOT / "src"),
-                                       PYTHONDONTWRITEBYTECODE="1"), timeout=300)
+        proc = self_verify(REPO_ROOT, self)
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
         self.assertIn("installation matches workflow", proc.stdout)
+
+
+def self_verify(repo: Path, case: unittest.TestCase) -> subprocess.CompletedProcess:
+    """`workflow_manager verify <repo>` as the runner's self-check runs it: the
+    run's pinned-only environment, or, for a recorded tested release with no
+    pin, the offline tested-set source of `tested_releases.self_verify_env`
+    (#56)."""
+    workdir = Path(tempfile.mkdtemp(prefix="wm-self-verify-"))
+    case.addCleanup(shutil.rmtree, workdir, True)
+    env = tested_releases.self_verify_env(repo, workdir, dict(
+        os.environ, PYTHONPATH=str(REPO_ROOT / "src"), PYTHONDONTWRITEBYTECODE="1"))
+    return subprocess.run([sys.executable, "-B", "-m", "workflow_manager", "verify", str(repo)],
+                          capture_output=True, text=True, env=env, timeout=300)
 
 
 # -- T-CI-5: a fresh CI checkout keeps its guards ---------------------------------------------
