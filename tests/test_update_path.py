@@ -22,7 +22,7 @@ import unittest
 from pathlib import Path
 
 import support
-from support import NEWEST_RELEASE, PINNED_VERSIONS, REPO_ROOT, UPGRADE_FROM, cli_env
+from support import NEWEST_RELEASE, REPO_ROOT, UPGRADE_FROM, cli_env
 
 from frozen_runs import empty_repo
 from test_bootstrap_e2e import _BootstrappedRepositorySatisfiesTheFrozenSuiteAssertions
@@ -49,7 +49,7 @@ class TestTheRealPinsDefineAnUpdatePath(unittest.TestCase):
 
     def test_upgrade_from_is_the_release_below_the_newest(self):
         self.assertIsNotNone(UPGRADE_FROM)
-        self.assertEqual(PINNED_VERSIONS[-2:], [UPGRADE_FROM, NEWEST_RELEASE])
+        self.assertEqual(support.TESTED_VERSIONS[-2:], [UPGRADE_FROM, NEWEST_RELEASE])
 
     def test_the_matrix_carries_the_updated_class(self):
         from parallel import matrix
@@ -96,7 +96,7 @@ class TestCliUpdateToTheNewestRelease(unittest.TestCase):
     def test_the_record_names_the_newest_release_and_its_package(self):
         record = Installation.read(self.target)
         self.assertEqual(record.workflow_version, NEWEST_RELEASE)
-        self.assertEqual(record.source, source.load_pins().source_record(NEWEST_RELEASE))
+        self.assertEqual(record.source, support.expected_source_record(NEWEST_RELEASE))
         self.assertEqual(record.installed_at, self.before.installed_at)
 
     def test_every_managed_file_holds_the_newest_release_bytes(self):

@@ -22,7 +22,7 @@ from pathlib import Path
 from unittest import mock
 
 import support
-from support import NEWEST_RELEASE, REPO_ROOT, UPGRADE_FROM, cli_env
+from support import PINNED_NEWEST, PINNED_UPGRADE_FROM, REPO_ROOT, pinned_env
 
 import audit_hook
 import workflow_manager.compatibility as comp
@@ -69,13 +69,13 @@ def git(repo: Path, *args: str) -> str:
 
 
 class Base(unittest.TestCase):
-    """One bootstrapped, committed repository (`UPGRADE_FROM`, so an update
+    """One bootstrapped, committed repository (`PINNED_UPGRADE_FROM`, so an update
     has work to do), copied per test."""
 
     @classmethod
     def setUpClass(cls):
         cls._tmp = tempfile.TemporaryDirectory()
-        cls.pristine = build_bootstrapped_repo(support.release(UPGRADE_FROM),
+        cls.pristine = build_bootstrapped_repo(support.release(PINNED_UPGRADE_FROM),
                                                Path(cls._tmp.name) / "pristine")
 
     @classmethod
@@ -106,7 +106,7 @@ class Base(unittest.TestCase):
         proc = subprocess.run(
             [sys.executable, "-c", DRIVER, str(REPO_ROOT / "src"), str(REPO_ROOT / "tests"),
              str(out), json.dumps(argv), json.dumps(protected or self.protected(repo))],
-            cwd=str(self.work), capture_output=True, text=True, env=cli_env(**env))
+            cwd=str(self.work), capture_output=True, text=True, env=pinned_env(**env))
         result = json.loads(out.read_text()) if out.exists() else {"exit": None, "violations": []}
         return proc, result
 
@@ -148,7 +148,7 @@ class TestPlanDestinations(Base):
         with mock.patch("tempfile.gettempdir", side_effect=AssertionError("gettempdir")), \
                 mock.patch("tempfile.mkdtemp", side_effect=AssertionError("mkdtemp")), \
                 mock.patch("tempfile.mkstemp", side_effect=AssertionError("mkstemp")):
-            self.destinations(versions=[NEWEST_RELEASE])
+            self.destinations(versions=[PINNED_NEWEST])
             with self.assertRaises(ContainmentError):
                 self.destinations(env={"TMPDIR": str(self.repo)})
         self.assertEqual(tree_snapshot(self.repo), before)
@@ -172,7 +172,7 @@ class TestPlanDestinations(Base):
             plan_destinations(opts, {"XDG_CACHE_HOME": str(self.repo)}, self.repo)
 
     def test_a_lock_leaf_or_version_directory_that_is_a_link_into_the_target_is_refused(self):
-        for leaf in (f"{NEWEST_RELEASE}.lock", NEWEST_RELEASE):
+        for leaf in (f"{PINNED_NEWEST}.lock", PINNED_NEWEST):
             cache = self.work / f"cache-{leaf}"
             cache.mkdir()
             for aim in (self.repo / "new-file", self.repo / ".git" / "x"):
@@ -180,13 +180,13 @@ class TestPlanDestinations(Base):
                     (cache / leaf).unlink(missing_ok=True)
                     (cache / leaf).symlink_to(aim)
                     with self.assertRaises(ContainmentError):
-                        self.destinations(cache=cache, versions=[NEWEST_RELEASE])
+                        self.destinations(cache=cache, versions=[PINNED_NEWEST])
         self.assertFalse((self.repo / "new-file").exists())
 
     def test_a_link_inside_an_existing_version_directory_is_refused(self):
-        (self.cache / NEWEST_RELEASE / "tree" / "stray").symlink_to(self.work)
+        (self.cache / PINNED_NEWEST / "tree" / "stray").symlink_to(self.work)
         with self.assertRaises(ContainmentError):
-            self.destinations(versions=[NEWEST_RELEASE])
+            self.destinations(versions=[PINNED_NEWEST])
 
     def test_a_cache_inside_a_linked_worktrees_common_git_directory_is_refused(self):
         linked = self.work / "linked"
@@ -299,17 +299,17 @@ class TestResolverIsReadOnly(Base):
     def test_a_lock_leaf_that_is_a_link_fails_before_any_write(self):
         cache = self.work / "linked-cache"
         cache.mkdir()
-        (cache / f"{NEWEST_RELEASE}.lock").symlink_to(self.repo / "new-file")
+        (cache / f"{PINNED_NEWEST}.lock").symlink_to(self.repo / "new-file")
         resolver = source.ReleaseCache(cache, None, source.load_pins())
         with self.assertRaises(source.ReleaseUnavailableError):
-            resolver.resolve(NEWEST_RELEASE, read_only=True)
+            resolver.resolve(PINNED_NEWEST, read_only=True)
         self.assertFalse((self.repo / "new-file").exists())
 
     def test_the_snapshot_is_made_under_the_given_parent(self):
         parent = self.work / "snapshots"
         parent.mkdir()
         resolver = source.ReleaseCache(self.cache, None, source.load_pins())
-        with resolver.resolve(NEWEST_RELEASE, snapshot_parent=parent, read_only=True) as release:
+        with resolver.resolve(PINNED_NEWEST, snapshot_parent=parent, read_only=True) as release:
             self.assertEqual(release.root.parent, parent)
         self.assertEqual(list(parent.iterdir()), [])
 
@@ -574,7 +574,7 @@ class TestCommandsDoNotWriteTheTarget(Base):
     def test_startup_writes_no_bytecode_without_the_suppressing_environment(self):
         source_copy = self.repo / "src"
         shutil.copytree(REPO_ROOT / "src", source_copy, ignore=shutil.ignore_patterns("__pycache__"))
-        env = cli_env(PYTHONPATH=str(source_copy))
+        env = pinned_env(PYTHONPATH=str(source_copy))
         env.pop("PYTHONDONTWRITEBYTECODE", None)
         env[source.CACHE_ENV] = str(self.cache)
         for command in COMMANDS:

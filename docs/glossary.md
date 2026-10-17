@@ -22,7 +22,7 @@ A file the release owns: the Workflow's commands in `.claude/commands/`, its scr
 
 ## Manager release and Workflow release
 
-Two different things with two different version numbers. A *Manager release* (1.5.0) is the tool itself. A *Workflow release* (2.9.0) is the process the tool installs. A Manager release carries no Workflow release. It only knows the digests of the ones it pins, and downloads them when needed.
+Two different things with two different version numbers. A *Manager release* (1.5.0) is the tool itself. A *Workflow release* (2.9.0) is the process the tool installs. A Manager release carries no Workflow release. It knows the digests of the ones it pins (up to 2.12.0), discovers later ones from the release source, and downloads them when needed.
 
 ## Package
 
@@ -30,7 +30,7 @@ A Workflow release as published: an archive (`workflow-<version>.tar.gz`), its m
 
 ## Pin
 
-The record, inside the Manager, of one published Workflow release: its archive name and the digests the download must match. A release that is not pinned cannot be installed from the published source. A pin is added once and never changed.
+The record, inside the Manager, of one published Workflow release: its archive name and the digests the download must match. A pin binds a release against every source; no pin is added for a release published later, which the Manager verifies by its own `SHA256SUMS` instead (a *discovered* release). A pin is never changed.
 
 ## Profile
 
@@ -42,7 +42,7 @@ The local folder where verified Workflow releases are kept after their first dow
 
 ## Release source
 
-Where the Manager downloads Workflow releases from. By default, the Workflow repository's published releases. A mirror folder or URL can replace it with `--release-source` or `WORKFLOW_MANAGER_RELEASE_SOURCE`. The pins still decide what is accepted.
+Where the Manager downloads Workflow releases from. By default, the Workflow repository's published releases. A mirror folder or URL can replace it with `--release-source` or `WORKFLOW_MANAGER_RELEASE_SOURCE`. The pins still bind the releases they name; any other release is trusted as far as this source is.
 
 ## State files
 
@@ -54,7 +54,7 @@ The repository's own record of its work: `docs/ai-workflow/WORKFLOW_STATE.json`,
 - `update` moves a managed repository to another release, replacing managed files and keeping state files.
 - `verify` compares every installed file with its release and lists the differences.
 
-`status` and `verify` use the release the repository's record names. `bootstrap` and `update` use the newest pinned release unless you choose one with `--release-version`.
+`status` and `verify` use the release the repository's record names. `bootstrap` and `update` use the newest release this Manager can use (pinned or discovered) unless you choose one with `--release-version`.
 
 ## Uninstall
 

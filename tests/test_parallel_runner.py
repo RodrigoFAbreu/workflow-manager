@@ -54,6 +54,7 @@ from pathlib import Path
 from unittest import mock
 
 import support
+import tested_releases
 from support import CI_SUITES, NEWEST_RELEASE, REPO_ROOT
 
 import frozen_runs
@@ -289,19 +290,24 @@ class TestResourcesContract(_RealHostInventory):
 
     def test_the_committed_declaration_loads_against_the_real_inventory(self):
         """It declares no resource and no exclusive unit; every `orphan_sources`
-        id is a discovered unit, and every frozen one is `NEWEST_RELEASE`'s."""
+        key is a discovered unit, or a `frozen:*` key that expands to the
+        selected release's units in every fixture, whichever release the lock
+        selects."""
         found = inventory.discover(REPO_ROOT)
         loaded = resources.load(REPO_ROOT, self.host, orphan_unit_ids=found.unit_ids())
         self.assertEqual(loaded.resources, {})
         self.assertEqual(loaded.exclusive_units(), ())
         doc = json.loads(resources.resources_path(REPO_ROOT).read_text())
-        orphans = sorted(doc["orphan_sources"])
-        self.assertTrue(orphans)
-        self.assertEqual(sorted(set(orphans) - set(found.unit_ids())), [])
-        for unit_id in orphans:
+        self.assertTrue(doc["orphan_sources"])
+        self.assertEqual(sorted(set(loaded.orphan_sources) - set(found.unit_ids())), [])
+        keys = [k for k in doc["orphan_sources"] if k.startswith(resources.ANY_RELEASE_PREFIX)]
+        self.assertTrue(keys)
+        for unit_id in loaded.orphan_sources:
             if unit_id.startswith(inventory.FROZEN_PREFIX):
                 with self.subTest(unit=unit_id):
                     self.assertEqual(inventory.split_frozen_unit_id(unit_id)[0], NEWEST_RELEASE)
+        self.assertEqual(len([u for u in loaded.orphan_sources
+                              if u.startswith(inventory.FROZEN_PREFIX)]), len(keys))
 
     def test_a_valid_two_resource_file_reports_each_tree_union(self):
         loaded = resources.parse(_resources_doc(), SYNTHETIC)
@@ -791,6 +797,7 @@ class TestFrozenInventoryCountRefusal(unittest.TestCase):
         shutil.copytree(TESTS_DIR / "parallel", root / "tests" / "parallel",
                         ignore=shutil.ignore_patterns("__pycache__", "matrix.py", "*.json"))
         shutil.copy2(TESTS_DIR / "support.py", root / "tests" / "support.py")
+        copy_lock_support(root)
         (root / "tests" / "portability_exceptions.json").write_text(canonical_json(
             {"by_version": {"0.0.1": {"exceptions": []}}}))
         _writable_copy(REPO_ROOT / "src" / "workflow_manager", root / "src" / "workflow_manager",
@@ -1575,7 +1582,8 @@ def _timings(local=None, ci=None, overhead=None, setup=None):
     units = {}
     for profile, values in (("local", local), ("ci", ci)):
         if values is not None:
-            units[profile] = {u: timings.UnitTiming(float(s), 1) for u, s in values.items()}
+            units[profile] = {timings.timing_key(u): timings.UnitTiming(float(s), 1)
+                             for u, s in values.items()}
     return timings.Timings(units=units, group_overhead=overhead or {},
                            ci_job_setup=setup or {})
 
@@ -2166,6 +2174,65 @@ class TestTimingLifecycle(unittest.TestCase):
         self.assertEqual(set(planner.load_config(REPO_ROOT)), set(planner.CONFIG_KEYS))
 
 
+class TestTimingKeysAreVersionFree(unittest.TestCase):
+    """D-Timing-Key (R6): a frozen unit's estimate is keyed without its
+    Workflow version, so a new release inherits the history of a shared class."""
+
+    OLD = "frozen:2.9.1/conformance/s_test.py::K1"
+    NEW = "frozen:2.12.0/conformance/s_test.py::K1"
+    KEY = "frozen:conformance/s_test.py::K1"
+    HOST = "host:test_a.py::A"
+
+    def doc(self, units):
+        return {"schema_version": 1, "profiles": {"local": {"units": units, "source": "s"}}}
+
+    def test_the_key_function_strips_only_the_version(self):
+        self.assertEqual(timings.timing_key(self.OLD), self.KEY)
+        self.assertEqual(timings.timing_key(self.NEW), self.KEY)
+        self.assertEqual(timings.timing_key(self.KEY), self.KEY)
+        self.assertEqual(timings.timing_key(self.HOST), self.HOST)
+
+    def test_old_form_keys_load_as_new(self):
+        loaded = timings.parse(self.doc({self.OLD: {"seconds": 4.0, "samples": 2}}))
+        self.assertEqual(loaded.warnings, ())
+        self.assertEqual(loaded.units["local"], {self.KEY: timings.UnitTiming(4.0, 2)})
+
+    def test_two_forms_of_one_unit_fold_into_one_estimate(self):
+        loaded = timings.parse(self.doc({
+            self.OLD: {"seconds": 4.0, "samples": 1}, self.NEW: {"seconds": 10.0, "samples": 3},
+            self.KEY: {"seconds": 1.0, "samples": 1}}))
+        self.assertEqual(loaded.units["local"], {self.KEY: timings.UnitTiming(7.0, 5)})
+        flipped = timings.parse(self.doc({
+            self.KEY: {"seconds": 1.0, "samples": 1}, self.NEW: {"seconds": 10.0, "samples": 3},
+            self.OLD: {"seconds": 4.0, "samples": 1}}))
+        self.assertEqual(flipped.units, loaded.units)
+
+    def test_a_versioned_inventory_id_finds_the_version_free_estimate(self):
+        loaded = timings.parse(self.doc({self.OLD: {"seconds": 4.0, "samples": 1}}))
+        got = timings.estimate_units(loaded, "local", [self.NEW], [self.NEW], 30.0)
+        self.assertEqual(got[self.NEW], timings.Estimate(4.0, timings.MEASURED))
+        self.assertEqual(timings.orphaned(loaded, [self.NEW]), [])
+        self.assertEqual(timings.orphaned(loaded, [self.HOST]), [self.KEY])
+
+    def test_the_writer_emits_only_the_new_form(self):
+        loaded = timings.Timings(units={"local": {
+            self.OLD: timings.UnitTiming(4.0, 1), self.HOST: timings.UnitTiming(1.0, 1)}})
+        self.assertEqual(sorted(json.loads(loaded.to_json())["profiles"]["local"]["units"]),
+                         [self.KEY, self.HOST])
+        after = timings.update(loaded, [timings.Observation(
+            "local", 6.0, "pass", "t1", unit=self.NEW)], "local", inventory_unit_ids=[self.NEW])
+        self.assertEqual(after.units["local"], {self.KEY: timings.UnitTiming(5.0, 2)})
+        self.assertNotRegex(after.to_json(), r"frozen:\d")
+
+    def test_the_committed_file_loads_with_no_warning_and_has_no_versioned_key(self):
+        loaded = timings.load(REPO_ROOT)
+        self.assertEqual(loaded.warnings, ())
+        text = (REPO_ROOT / "tests" / "parallel" / "timings.json").read_text(encoding="utf-8")
+        self.assertNotRegex(text, r'"frozen:\d+\.\d+\.\d+/')
+        self.assertTrue(any(u.startswith("frozen:") for u in loaded.units["ci"]))
+
+
+
 class TestConfig(unittest.TestCase):
 
     def test_bad_configs_are_refused(self):
@@ -2592,9 +2659,12 @@ def synthetic_release_env(releases: Path) -> dict[str, str]:
     """`WORKFLOW_MANAGER_RELEASE_SOURCE`/`_CACHE` for a synthetic release
     published under `releases` by `publish_synthetic_release`: its `file://`
     source and its private cache. These override the real cache the runner
-    exports, which is the only thing keeping a synthetic run off it (7.1)."""
+    exports, which is the only thing keeping a synthetic run off it (7.1).
+    The lock override is cleared, never inherited: a synthetic run tests the
+    lock its own checkout commits, and its source serves no other release."""
     return {release_source.SOURCE_ENV: (releases / "source").as_uri() + "/{version}/",
-            release_source.CACHE_ENV: str(releases / "cache")}
+            release_source.CACHE_ENV: str(releases / "cache"),
+            tested_releases.OVERRIDE_ENV: ""}
 
 
 def publish_synthetic_release(checkout: Path, releases: Path, suite: str, *,
@@ -2651,6 +2721,14 @@ def _writable_copy(src: Path, dst: Path, **kwargs) -> None:
     isolation._make_removable(dst)  # noqa: SLF001
 
 
+def copy_lock_support(root: Path) -> None:
+    """`tests/tested_releases.py` and an empty lock beside the scratch's
+    `support.py`, which imports them (plan 3.5): the scratch tests only its pin."""
+    shutil.copy2(TESTS_DIR / "tested_releases.py", root / "tests" / "tested_releases.py")
+    (root / "tests" / "tested_releases.json").write_text(
+        canonical_json({"schema_version": 1, "releases": {}}))
+
+
 def scratch_checkout(root: Path, *, resources=SCRATCH_RESOURCES, modules=None,
                      suite: str = SCRATCH_SUITE, pinned: int = SCRATCH_SUITE_TESTS,
                      timings_units=None, no_gitignore_template: bool = False) -> Path:
@@ -2689,6 +2767,7 @@ def scratch_checkout(root: Path, *, resources=SCRATCH_RESOURCES, modules=None,
                                                  "timings.json", "config.json"))
     for name in ("run_all.py", "frozen_runs.py", "support.py"):
         shutil.copy2(TESTS_DIR / name, tests / name)
+    copy_lock_support(root)
     _writable_copy(REPO_ROOT / "src" / "workflow_manager", root / "src" / "workflow_manager",
                    ignore=shutil.ignore_patterns("__pycache__"))
     (tests / "parallel" / "resources.json").write_text(canonical_json(resources))
@@ -2726,7 +2805,8 @@ def resources_module_load(root: Path) -> resources.Resources:
     declared = json.loads(resources.resources_path(root).read_text()).get("orphan_sources")
     with mock.patch.dict(os.environ, scratch_release_env(root)):
         every = inventory.discover(root).unit_ids() if declared else None
-    return resources.load(root, inventory.discover_host(root), orphan_unit_ids=every)
+        host = inventory.discover_host(root)
+    return resources.load(root, host, orphan_unit_ids=every)
 
 
 def scratch_worktree(scratch: Path) -> Path:
@@ -3758,6 +3838,25 @@ class _CliCase(_ScratchCase):
             patcher.start()
             self.addCleanup(patcher.stop)
         self.env = dict(os.environ)
+
+
+class TestAScratchRunTestsItsOwnLock(_CliCase):
+    """RA-EXT-006: the nightly's lock override never reaches a scratch run. A
+    scratch source serves only its own `0.0.1`, so priming a release the
+    override names from it is a `PrimingError` (exit 2)."""
+
+    def test_an_override_naming_another_release_leaves_the_scratch_runs_green(self):
+        scratch = scratch_checkout(self.tmp / "scratch")
+        self.assertEqual(scratch_release_env(scratch)[tested_releases.OVERRIDE_ENV], "")
+        nightly = self.tmp / "nightly.json"
+        nightly.write_text(json.dumps({"schema_version": 1, "releases": {"9.0.0": {
+            "archive": package_module.archive_name("9.0.0"), "sha256": "ab" * 32,
+            "manifest_sha256": "cd" * 32}}}))
+        with mock.patch.dict(os.environ, {tested_releases.OVERRIDE_ENV: str(nightly)}):
+            proc = run_cli(scratch, "--select", "test_scratch_shared.py", env=dict(os.environ))
+            self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+            code, out, err = main_in_process(scratch, "--select", "test_scratch_shared.py")
+            self.assertEqual(code, 0, out + err)
 
 
 # -- T-EXE-1: the exit-code contract ----------------------------------------------------
@@ -4858,11 +4957,17 @@ CI_NEEDS_STEP = "needs"
 CI_SHARD_IF = "${{ !cancelled() && needs.plan.result == 'success' }}"
 CI_MATRIX = "${{ fromJSON(needs.plan.outputs.shards) }}"
 #: The release cache every test job primes (plan 7.1, 7.3): its directory, and
-#: the `actions/cache` inputs that restore it, keyed on the pins.
+#: the `actions/cache` inputs that restore it, keyed on the pins and the
+#: tested-releases lock; the nightly's key adds the run id and restores the
+#: pinned releases by the prefix (plan 3.5).
 CI_RELEASE_CACHE = "${{ runner.temp }}/workflow-manager-releases"
+CI_CACHE_HASH = ("${{ hashFiles('src/workflow_manager/published_releases.json', "
+                 "'tests/tested_releases.json') }}")
 CI_RELEASE_CACHE_INPUTS = {
     "path": CI_RELEASE_CACHE,
-    "key": "workflow-releases-${{ hashFiles('src/workflow_manager/published_releases.json') }}"}
+    "key": f"workflow-releases-{CI_CACHE_HASH}"
+           "${{ github.event_name == 'schedule' && format('-{0}', github.run_id) || '' }}",
+    "restore-keys": f"workflow-releases-{CI_CACHE_HASH}\n"}
 #: `run_all.py`'s path flags, each of which must name a path under `$RUNNER_TEMP`.
 CI_PATH_FLAG_RE = re.compile(r'(--(?:out|plan|results|aggregate))\s+("[^"]*"|\S+)')
 _YAML_KEY_RE = re.compile(r"([A-Za-z0-9_.-]+):(?: +(.*))?$")
@@ -5114,10 +5219,11 @@ def ci_workflow_problems(doc: dict) -> list[str]:
     # The single CI profile (M2 removed the pull-request stopgap).
     need(sorted(jobs) == sorted(CI_JOBS + (CI_PACKAGE_JOB,)),
          f"jobs are {sorted(jobs)}, not exactly plan, shard, package and aggregate")
-    need(sorted(plan.get("outputs") or {}) == ["shards"], "the plan job exports more than shards")
+    need(sorted(plan.get("outputs") or {}) == ["lock", "shards"],
+         "the plan job exports more than shards and the nightly's lock")
     need("permissions" not in plan, "the plan job has its own permissions")
-    need(len(plan.get("steps") or []) == 5,
-         "the plan job is not checkout, python, cache, plan and upload")
+    need(len(plan.get("steps") or []) == 6,
+         "the plan job is not checkout, python, lock, cache, plan and upload")
 
     plan_steps = [s for s in plan.get("steps") or [] if s.get("id") == "plan"]
     need(len(plan_steps) == 1 and '"shards=' in plan_steps[0].get("run", "")
@@ -5212,8 +5318,9 @@ class TestCiWorkflowStructure(unittest.TestCase):
                 "  plan:\n    runs-on: ubuntu-latest\n",
                 "  plan:\n    runs-on: ubuntu-latest\n    env:\n"
                 "      WORKFLOW_MANAGER_RELEASE_CACHE: ${{ runner.temp }}/workflow-manager-releases\n"),
-            "a cache key off the pins": ("hashFiles('src/workflow_manager/published_releases.json')",
-                                         "hashFiles('pyproject.toml')"),
+            "a cache key off the pins": (
+                "hashFiles('src/workflow_manager/published_releases.json', "
+                "'tests/tested_releases.json')", "hashFiles('pyproject.toml')"),
             "no cache restore before a run": (
                 re.compile(r"^      - name: Restore the release cache\n(?:        .*\n)+", re.M), ""),
             "a nightly alarm again": ("\n  aggregate:\n", "\n  nightly-alarm:\n    runs-on: x\n"
@@ -5328,10 +5435,7 @@ class TestOneRequiredCheck(unittest.TestCase):
         self.assertEqual(len(restore), 1)
         self.assertEqual(len(build), 1)
         self.assertLess(restore[0], build[0])
-        self.assertEqual(steps[restore[0]]["with"], {
-            "path": cache_dir,
-            "key": "workflow-releases-"
-                   "${{ hashFiles('src/workflow_manager/published_releases.json') }}"})
+        self.assertEqual(steps[restore[0]]["with"], CI_RELEASE_CACHE_INPUTS)
         self.assertEqual(steps[build[0]]["env"], {"WORKFLOW_MANAGER_RELEASE_CACHE": cache_dir})
 
     def test_only_a_pull_request_run_is_cancelled(self):

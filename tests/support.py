@@ -20,19 +20,28 @@ PORTABILITY_EXCEPTIONS = json.loads(
 )
 
 
-def _pinned_versions() -> list[str]:
-    from workflow_manager import source
+import tested_releases  # noqa: E402  (stdlib + workflow_manager; needs `src/` on the path)
 
-    return source.load_pins().versions()
+from workflow_manager import source as _source  # noqa: E402
 
-
-#: Every pinned version, oldest first (plan 7.1, `D-Tested-Releases`).
-PINNED_VERSIONS = _pinned_versions()
-#: The release the frozen matrix runs: the highest pinned version.
-NEWEST_RELEASE = PINNED_VERSIONS[-1]
+#: Every pinned version, oldest first (plan 7.1, `D-Tested-Releases`): the pins
+#: alone, which is what the compatibility tests mean by "pinned".
+PINNED_VERSIONS = _source.load_pins().versions()
+#: The lock file's entries (`tests/tested_releases.json`, or the nightly's
+#: override): releases published after the last pin (plan 3.5, `D-Lock`).
+LOCK = tested_releases.load_lock()
+#: The tested set, oldest first: the pins plus the lock.
+TESTED_VERSIONS = tested_releases.tested_versions(lock=LOCK)
+#: The release the frozen matrix runs: the highest tested version.
+NEWEST_RELEASE = TESTED_VERSIONS[-1]
 #: The release the `updated` fixture bootstraps before updating it to
-#: `NEWEST_RELEASE`: the one below it, or None when only one is pinned.
-UPGRADE_FROM = PINNED_VERSIONS[-2] if len(PINNED_VERSIONS) > 1 else None
+#: `NEWEST_RELEASE`: the one below it, or None when only one is tested.
+UPGRADE_FROM = TESTED_VERSIONS[-2] if len(TESTED_VERSIONS) > 1 else None
+#: The newest pin and the one below it: what a suite that means the pins alone
+#: (`pinned_env`) runs against, whatever the lock names. Equal to
+#: `NEWEST_RELEASE`/`UPGRADE_FROM` while the lock is empty.
+PINNED_NEWEST = PINNED_VERSIONS[-1]
+PINNED_UPGRADE_FROM = PINNED_VERSIONS[-2] if len(PINNED_VERSIONS) > 1 else None
 
 _RELEASES: dict = {}
 
@@ -44,7 +53,7 @@ def release(version: str):
     if version not in _RELEASES:
         from workflow_manager import source
 
-        pins = source.load_pins()
+        pins = tested_releases.tested_pins(source.load_pins(), LOCK)
         cache = source.ReleaseCache(source.cache_root(), source.ReleaseSource.select(), pins)
         _RELEASES[version] = cache.resolve(version)
     return _RELEASES[version]
@@ -65,6 +74,11 @@ def next_version(version: str) -> str:
 HERMETIC_GIT_ENV = {"GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null"}
 os.environ.update(HERMETIC_GIT_ENV)
 
+#: No test discovers a release over the network (plan 3.7): a suite that needs
+#: discovery sets this to "0" with a mirror directory or a loopback server and a
+#: private release cache of its own. The runner exports the same value.
+os.environ.setdefault("WORKFLOW_MANAGER_PINNED_ONLY", "1")
+
 
 def cli_env(**extra: str) -> dict[str, str]:
     """A from-scratch environment for a `workflow_manager` subprocess (plan 7.1).
@@ -72,9 +86,27 @@ def cli_env(**extra: str) -> dict[str, str]:
     It always names the parent's resolved release cache in
     `WORKFLOW_MANAGER_RELEASE_CACHE`, so a test that moves `HOME` on purpose
     still reads the cache every other test reads, and it carries
-    `WORKFLOW_MANAGER_RELEASE_SOURCE` through when that is set. Those are
-    defaults: `extra` is applied last and overrides them.
+    `WORKFLOW_MANAGER_RELEASE_SOURCE` through when that is set. It sets the
+    lock override to this process's own, empty when there is none, so a child
+    that imports this module tests the same set, never an inherited one.
+    Those are defaults: `extra` is applied last and overrides them.
     """
+    env = pinned_env()
+    if LOCK:
+        # A lock-only release is not pinned: reach it through the hermetic
+        # mirror and a process-private cache, as `mirror_env` does (plan 3.5).
+        env.update({_source.SOURCE_ENV: str(mirror_dir()), _source.PINNED_ONLY_ENV: "0",
+                    _source.CACHE_ENV: str(_lock_cache())})
+    env.update(extra)
+    return env
+
+
+def pinned_env(**extra: str) -> dict[str, str]:
+    """`cli_env` as it is while the lock is empty, whatever the lock names:
+    pinned-only, on the parent's resolved release cache. For a suite that
+    means the pins alone -- the pinned-only Manager's messages and exit codes,
+    against `PINNED_NEWEST` -- never one that reaches a lock-only release.
+    `extra` is applied last and overrides it."""
     from workflow_manager import source
 
     env = {
@@ -82,6 +114,8 @@ def cli_env(**extra: str) -> dict[str, str]:
         "PATH": "/usr/bin:/bin",
         "HOME": str(Path.home()),
         source.CACHE_ENV: str(source.cache_root()),
+        source.PINNED_ONLY_ENV: "1",
+        tested_releases.OVERRIDE_ENV: os.environ.get(tested_releases.OVERRIDE_ENV, ""),
         **HERMETIC_GIT_ENV,
     }
     if os.environ.get(source.SOURCE_ENV):
@@ -324,6 +358,81 @@ CI_SUITES = {
 }
 
 
+def _lock_conformance(version: str) -> tuple[dict, tuple]:
+    """Suite counts and exceptions of a lock-only release: the manifest's
+    `conformance` block when the primed cache holds the manifest, else the
+    lock entry's own (plan 3.5)."""
+    pins = tested_releases.tested_pins(_source.load_pins(), LOCK)
+    cache = _source.ReleaseCache(_source.cache_root(), None, pins)
+    return tested_releases.lock_conformance(LOCK[version], cache.cached_manifest(version))
+
+
+for _version in LOCK:
+    CI_SUITES[_version] = _lock_conformance(_version)[0]
+
+
+_MIRROR: list = []
+
+
+def mirror_dir() -> Path:
+    """A release-source directory holding every tested release's three assets,
+    copied from the primed cache (memoized per process, removed at exit): the
+    no-network source a CLI-driven test uses to install a lock-only release
+    (plan 3.5). A test using it passes its own private release cache too."""
+    if not _MIRROR:
+        import atexit
+        import shutil
+        import tempfile
+
+        from workflow_manager.package import SUMS_NAME, archive_name, manifest_asset_name
+
+        root = Path(tempfile.mkdtemp(prefix="wm-mirror-"))
+        atexit.register(shutil.rmtree, root, True)
+        cache = _source.cache_root()
+        for version in TESTED_VERSIONS:
+            (root / version).mkdir()
+            for name in (SUMS_NAME, archive_name(version), manifest_asset_name(version)):
+                shutil.copy2(cache / version / name, root / version / name)
+        _MIRROR.append(root)
+    return _MIRROR[0]
+
+
+_LOCK_CACHE: list = []
+
+
+def _lock_cache() -> Path:
+    """The private release cache `cli_env` names while the lock is non-empty
+    (memoized per process, removed at exit)."""
+    if not _LOCK_CACHE:
+        import atexit
+        import shutil
+        import tempfile
+
+        root = Path(tempfile.mkdtemp(prefix="wm-lock-cache-"))
+        atexit.register(shutil.rmtree, root, True)
+        _LOCK_CACHE.append(root)
+    return _LOCK_CACHE[0]
+
+
+def mirror_env(private_cache: Path, **extra: str) -> dict[str, str]:
+    """`cli_env` with discovery on, the mirror directory as the source and a
+    private release cache (never the primed one, plan 3.7)."""
+    return cli_env(**{_source.SOURCE_ENV: str(mirror_dir()), _source.PINNED_ONLY_ENV: "0",
+                      _source.CACHE_ENV: str(private_cache)}, **extra)
+
+
+def expected_source_record(version: str) -> dict:
+    """The installation record's `source` for `version`: the pin's for a pinned
+    version (identity when the lock is empty), the discovered record from the
+    mirror directory for a lock-only one."""
+    pins = _source.load_pins()
+    if version in pins.releases:
+        return pins.source_record(version)
+    pin = LOCK[version].pin()
+    return {"kind": "package", "repository": pins.repository, "archive": pin.archive,
+            "sha256": pin.sha256, "trust": "discovered", "from": "dir:" + str(mirror_dir())}
+
+
 def expected_portability_exceptions(workflow_version: str) -> dict:
     """`{suite: {test, ...}}` for the documented portability exceptions of one
     release, from `tests/portability_exceptions.json`'s per-version
@@ -333,6 +442,10 @@ def expected_portability_exceptions(workflow_version: str) -> dict:
     FrozenSuite*` derive their expected-failure set from, so the two never
     drift apart on how a record maps to an expectation."""
     expected: dict = {}
-    for record in PORTABILITY_EXCEPTIONS["by_version"][workflow_version]["exceptions"]:
+    if workflow_version in LOCK:
+        records = _lock_conformance(workflow_version)[1]
+    else:
+        records = PORTABILITY_EXCEPTIONS["by_version"][workflow_version]["exceptions"]
+    for record in records:
         expected.setdefault(record["suite"], set()).add(record["test"])
     return expected

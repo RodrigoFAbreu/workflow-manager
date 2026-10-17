@@ -2,7 +2,9 @@
 
 > For: someone moving a repository to a newer Workflow release, or moving the Manager itself to a newer version. Last checked with: Workflow Manager 1.8.0, Workflow 2.12.0.
 
-Goal: bring a repository to the newest pinned Workflow release without losing its work-item state.
+Goal: bring a repository to the newest Workflow release without losing its work-item state.
+
+When a Workflow release is published, there is nothing to wait for and no Manager to upgrade first: `workflow-manager update` finds it, verifies it by its own `SHA256SUMS` and installs it (unless it needs a newer Manager; see below). Run `doctor` first, as below.
 
 ## Before you start: two things to know
 
@@ -24,7 +26,8 @@ Two Workflow 2.9.0 points. An update never changes the default version in your e
 
 - A repository the Manager installed the Workflow into ([Install](install.md)).
 - No unfinished edits to release files. Run `workflow-manager verify` first.
-- A Manager that knows the release you want. Each Manager release pins a fixed set of Workflow releases; `workflow-manager releases` lists them.
+- A network connection if you want a release newer than your cache holds. With no network the Manager says so in one line (`could not look for newer releases: ...; using X`) and uses the newest release it already has. A bare `update` never goes below the installed release: if the only releases it can get are older, it stops and writes nothing.
+- A Manager recent enough for the release. A release may name a minimum Manager version; `workflow-manager releases` lists what this Manager has pinned or discovered, and an explicit `--release-version` of a release that needs a newer Manager is refused with the version to install. A bare `update` skips such a release with one note.
 
 ## Check before you update
 
@@ -35,14 +38,15 @@ workflow-manager doctor /path/to/your/repo
 workflow-manager update /path/to/your/repo --dry-run
 ```
 
-`doctor` measures the repository against the newest pinned release; put `--release-version` before the command to measure against another. `update --dry-run` prints the same `would ...` lines the real update prints as changes, then `left alone:` for what it keeps (your state files, for one), then the same report.
+`doctor` measures the repository against the newest release this Manager can use (pinned, cached or discovered); put `--release-version` before the command to measure against another. `update --dry-run` prints the same `would ...` lines the real update prints as changes, then `left alone:` for what it keeps (your state files, for one), then the same report.
 
 Reading the report:
 
-- **Installed release, Latest available, Target of this check** are three different versions. The installed release is what the record says, the latest is the newest release this Manager pins, and the target is what the check is measured against.
+- **Installed release, Latest available, Target of this check** are three different versions. The installed release is what the record says, the latest is the newest release this Manager can use (the parenthesis shows the range it pins), and the target is what the check is measured against.
 - **Work items** lists each item's phase, type and governing version. The governing version is a protocol version (`1`, `2.1`, `2.2`), not a release.
 - **Findings** have a severity. `blocked`: the real update would be refused, and the refusal is quoted. `warning`: the update would proceed and could disturb something; read it before running. A warning also appears when the inspection could not finish (`incomplete-inspection`): that report is not a clean bill of health. `note`: information that changes nothing about the update, for example that the installed release could not be resolved (`not-verified`). That note does not mean local edits went unchecked: they are still detected from the install record, and an edited installation is still refused (`refused-drift`). What cannot be done is comparing the installation with the installed release's published package, the comparison `workflow-manager verify` makes. A note is listed under **Findings**, after any blocked or warning entries, and does not change the exit code. When only notes are listed the headline reads `Findings -- notes only`; `none` and `nothing found` are printed only when nothing is listed there. The fixes and defaults that reach only new work are not `[note]` lines; they are listed in their own section below, so `Findings -- nothing found` is still printed when that section lists fixes.
 - **A `"2.1"` default** (`default-2.1-retired`, a warning) appears when `docs/ai-workflow/WORKFLOW_CONFIG.json` names `"2.1"` as `default_workflow_version` and the installed release or the target is 2.10.0 or later. From 2.10.0 the Workflow refuses to create a new work item under that default; existing `"2.1"` items are not affected. The report prints the Workflow's own next step: set the default to `"2.2"` (with `"2.2"` in `supported_versions`) and commit it with the trailer `Workflow-Activation: 2.2`. The Manager never edits the configuration.
+- **A release without compatibility data** (`incomplete-inspection`, titled `a release carries no compatibility data`, `a release's compatibility data could not be read` or `the releases in the range could not be enumerated`) means a release published after this Manager did not give it what it needs to assess the downgrade guarantees and new-work-only fixes, or the Manager could not read them. `doctor` exits 1. It describes the release, not your repository, and `update` itself is not refused: read the release notes the finding names, then decide.
 - **Fixes that apply only to new work** says what the update does not change for existing items.
 - **Recovery** prints commands for the repository's path. The line that discards uncommitted changes is printed only when the tree is known to be clean; it is an undo only if the tree was clean before the update. When the tree has uncommitted changes (or could not be checked) the report says `No undo command: ...` instead. When the target is older than the installed release it says `No update command is offered: ...`, because a downgrade is unsupported.
 
@@ -60,11 +64,11 @@ The report is advisory. It looks at the current state files and a few Git facts;
    workflow-manager verify /path/to/your/repo
    ```
 
-2. If the Manager does not list the release you want, [update the Manager](#update-the-manager) first.
+2. If the Manager refuses the release you want because it needs a newer Manager, [update the Manager](#update-the-manager) first.
 
 3. Decide about human approval gates (see above) and commit `GATE_POLICY.json` if you want it.
 
-4. Read the report from "Check before you update" (`doctor`, then `update --dry-run`), then update to the newest pinned release.
+4. Read the report from "Check before you update" (`doctor`, then `update --dry-run`), then update to the newest release.
 
    ```bash
    workflow-manager update /path/to/your/repo
@@ -79,9 +83,13 @@ The report is advisory. It looks at the current state files and a few Git facts;
    git -C /path/to/your/repo status
    ```
 
+## Trust, offline and `--pinned-only`
+
+A release newer than the Manager's pins is verified by the `SHA256SUMS` published with it, not by a digest inside the Manager, and the Manager says so on stderr whenever it uses one. The installation record keeps `source.trust: "discovered"` and the source it came from; `workflow-manager status` and `doctor` print both (`doctor` also marks the latest release as `pinned` or `discovered, not pinned`). If you want only the releases this Manager pins, put `--pinned-only` before the command (or set `WORKFLOW_MANAGER_PINNED_ONLY=1`): nothing is discovered, and an unpinned version is refused as before. Under `--pinned-only`, `status` and `verify` of a repository installed from a discovered release are refused as `unpinned`, and `doctor` adds a `not-verified` note.
+
 ## Update the Manager
 
-Do this when a Manager message tells you to upgrade it: the Manager does not list the release you want (`release X is not published: this Manager has no pin for it`), or a repository's installation record `was written by a newer Manager`. Install the newest Manager release.
+Do this when a Manager message tells you to upgrade it: a release needs a newer Manager (`Workflow X needs workflow-manager Y or newer`), its release metadata needs a newer Manager (a `manager` block schema or detector kind this one does not read), or a repository's installation record `was written by a newer Manager`. Install the newest Manager release. Upgrading does not help with `release X is not published: this Manager has no pin for it` under `--pinned-only`: no release after 2.12.0 is ever pinned, so remove `--pinned-only` or choose a pinned release.
 
 ```bash
 dl=$(mktemp -d)

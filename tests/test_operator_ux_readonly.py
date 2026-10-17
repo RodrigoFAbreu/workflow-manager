@@ -26,7 +26,7 @@ from pathlib import Path
 from unittest import mock
 
 import support
-from support import NEWEST_RELEASE, cli_env
+from support import PINNED_NEWEST, pinned_env
 
 import test_operator_ux as ux
 from test_operator_ux import CONFIG, MILESTONE, RECORD, STATE, backticked, next_lines, run, tree_hash
@@ -144,7 +144,7 @@ class TestPrintedInspectionIsReadOnly(HostileRepoCase):
                     self.assertIn("--no-textconv", text)
                 if " log " in text:
                     self.assertIn("--no-show-signature", text)
-                proc = subprocess.run(runnable(text), capture_output=True, env=cli_env())
+                proc = subprocess.run(runnable(text), capture_output=True, env=pinned_env())
                 self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertEqual(git_dir_hash(repo), git_before)
         self.assertEqual(tree_hash(repo), before)
@@ -155,7 +155,7 @@ class TestPrintedInspectionIsReadOnly(HostileRepoCase):
         (repo / STATE).unlink()
         text = next(c for c in inspection_commands(" ".join(next_lines_all(run("verify", str(repo)))))
                     if " show " in c)
-        proc = subprocess.run(runnable(text), capture_output=True, env=cli_env())
+        proc = subprocess.run(runnable(text), capture_output=True, env=pinned_env())
         self.assertEqual(proc.stdout, (ux.Pristine.pristine() / STATE).read_bytes())
         self.assertNoMarker(markers)
 
@@ -189,7 +189,7 @@ class TestPartialClone(ux.TargetCase):
         proc = subprocess.run(["git", "-c", "gc.auto=0", "-c", "maintenance.auto=false", "clone", "-q",
                                "-c", "gc.auto=0", "-c", "maintenance.auto=false",
                                "--no-checkout", "--filter=blob:none", f"file://{origin}", str(target)], capture_output=True, text=True,
-                              env=cli_env())
+                              env=pinned_env())
         self.assertEqual(proc.returncode, 0, proc.stderr)
         configure_throwaway_repo(target)
         ux.git(target, "checkout", "HEAD", "--", ".", f":!{STATE}")
@@ -204,7 +204,7 @@ class TestPartialClone(ux.TargetCase):
         text = next(c for c in inspection_commands(" ".join(next_lines_all(run("verify", str(target)))))
                     if " show " in c and STATE in c)
         before = git_dir_hash(target)
-        proc = subprocess.run(runnable(text), capture_output=True, text=True, env=cli_env())
+        proc = subprocess.run(runnable(text), capture_output=True, text=True, env=pinned_env())
         self.assertEqual(proc.returncode, 128, proc.stderr)
         self.assertEqual(git_dir_hash(target), before)
 
@@ -216,7 +216,7 @@ class TestPartialClone(ux.TargetCase):
         shutil.copytree(target, copy, symlinks=True)
         packs = self.packs(copy)
         argv = shlex.split(text.replace(PREFIX, "git ").replace(str(target), str(copy)))
-        proc = subprocess.run(argv, capture_output=True, env=cli_env())
+        proc = subprocess.run(argv, capture_output=True, env=pinned_env())
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertNotEqual(self.packs(copy), packs, "the reproducer: a pack file appears")
 
@@ -405,7 +405,7 @@ class DataCase(ux.TargetCase):
         return self.noTraceback(run(*argv, env=env))
 
     def run_printed(self, text: str, cwd=None, **kw):
-        return subprocess.run(runnable(text), capture_output=True, cwd=cwd, env=cli_env(), **kw)
+        return subprocess.run(runnable(text), capture_output=True, cwd=cwd, env=pinned_env(), **kw)
 
     def assertNoWrite(self, text: str):
         for word in ("git restore", "git checkout", "git stash", "git reset", "git rm", "--force"):
@@ -447,7 +447,7 @@ class TestSameTextForEveryGitState(DataCase):
         self.addCleanup(shutil.rmtree, work, True)
         repo = work / "r"
         init_git_repo(repo)
-        bootstrap(repo, support.release(NEWEST_RELEASE), now="2026-01-01T00:00:00Z")
+        bootstrap(repo, support.release(PINNED_NEWEST), now="2026-01-01T00:00:00Z")
         (repo / CONFIG).unlink()
         self.assertNotEqual(ux.git(repo, "rev-parse", "--verify", "-q", "HEAD").returncode, 0)
         proc = self.go("verify", str(repo))
@@ -461,7 +461,7 @@ class TestSameTextForEveryGitState(DataCase):
         base = self.baseline()
         repo = self.fresh("r")
         make_plain_deletion(repo)
-        proc = self.go("verify", str(repo), env=cli_env(PATH=""))
+        proc = self.go("verify", str(repo), env=pinned_env(PATH=""))
         self.assertEqual(next_text(proc, repo), base)
         with mock.patch.object(comp, "run_git", return_value=comp.GitResult(128)):
             code, out, err = ux.main_in_process("verify", str(repo))
@@ -690,7 +690,7 @@ class TestUnreadableAndAwkwardPaths(DataCase):
         self.assertEqual(shlex.split(copy[0]), ["cp", "-p", "--", f"{shown}/{STATE}",
                                                 f"{shown}/{STATE}.bak"])
         for text in inspection_commands(steps):
-            proc = subprocess.run(shlex.split(text), cwd=cwd, capture_output=True, env=cli_env())
+            proc = subprocess.run(shlex.split(text), cwd=cwd, capture_output=True, env=pinned_env())
             self.assertEqual(proc.returncode, 0, (text, proc.stderr))
             if " show " in text:
                 self.assertEqual(proc.stdout, pristine_bytes(STATE))
@@ -715,7 +715,7 @@ class TestUnreadableAndAwkwardPaths(DataCase):
         step = next_lines(proc.stdout)[0]
         for text in inspection_commands(step):
             self.assertEqual(subprocess.run(shlex.split(text), cwd=work, capture_output=True,
-                                            env=cli_env()).returncode, 0, text)
+                                            env=pinned_env()).returncode, 0, text)
 
 
 class TestRecoveryWithholds(DataCase):
@@ -945,7 +945,7 @@ class TestPrintedCommandsParse(ux.TargetCase):
         repo = self.fresh()
         work = tempfile.TemporaryDirectory()
         self.addCleanup(work.cleanup)
-        shutil.copytree(support.release(NEWEST_RELEASE).root, Path(work.name) / "-release")
+        shutil.copytree(support.release(PINNED_NEWEST).root, Path(work.name) / "-release")
         proc = ux.run_in(work.name, "--release-dir=-release", "bootstrap", str(repo))
         self.assertEqual(proc.returncode, 2, proc.stderr)
         commands = ux.manager_commands(proc.stderr)
@@ -958,7 +958,7 @@ class TestPrintedCommandsParse(ux.TargetCase):
         work = tempfile.TemporaryDirectory()
         self.addCleanup(work.cleanup)
         directory = Path(work.name) / "release"
-        shutil.copytree(support.release(NEWEST_RELEASE).root, directory)
+        shutil.copytree(support.release(PINNED_NEWEST).root, directory)
         manifest = json.loads((directory / "manifest.json").read_text())
         manifest["workflow_version"] = version
         (directory / "manifest.json").write_text(json.dumps(manifest, indent=2))
@@ -1026,7 +1026,7 @@ class TestPrintedCommandsParse(ux.TargetCase):
                 repo = self.fresh()
                 text = (repo / RECORD).read_text()
                 (repo / RECORD).write_text(
-                    text.replace(f'"workflow_version": "{NEWEST_RELEASE}"',
+                    text.replace(f'"workflow_version": "{PINNED_NEWEST}"',
                                  f'"workflow_version": {value}'))
                 for argv in (("doctor",), ("verify",), ("status",), ("update", "--dry-run"),
                              ("update",)):
@@ -1092,7 +1092,7 @@ class TestFunctionalReviewRound1(ux.TargetCase):
         repo = self.directory_record_repo(committed_templates=True)
         nogit = tempfile.TemporaryDirectory()
         self.addCleanup(nogit.cleanup)
-        env = cli_env(PATH=nogit.name)
+        env = pinned_env(PATH=nogit.name)
         for argv in (["bootstrap"], ["bootstrap", "--force"], ["status"], ["verify"], ["doctor"]):
             with self.subTest(argv=argv):
                 proc = run(*argv, str(repo), env=env)
@@ -1117,10 +1117,10 @@ class TestFunctionalReviewRound1(ux.TargetCase):
         work = tempfile.TemporaryDirectory()
         self.addCleanup(work.cleanup)
         cache = Path(work.name) / "cache"
-        cache.symlink_to(support.cli_env()["WORKFLOW_MANAGER_RELEASE_CACHE"])
+        cache.symlink_to(support.pinned_env()["WORKFLOW_MANAGER_RELEASE_CACHE"])
         release = Path(work.name) / "-rel"
-        shutil.copytree(support.release(NEWEST_RELEASE).root, release)
-        env = cli_env(WORKFLOW_MANAGER_RELEASE_CACHE=str(Path(work.name) / "empty"))
+        shutil.copytree(support.release(PINNED_NEWEST).root, release)
+        env = pinned_env(WORKFLOW_MANAGER_RELEASE_CACHE=str(Path(work.name) / "empty"))
         for options in (["--release-cache", str(cache)], ["--release-dir", str(release)]):
             with self.subTest(options=options):
                 proc = ux.run_in(work.name, *options, "doctor", str(repo), env=env)

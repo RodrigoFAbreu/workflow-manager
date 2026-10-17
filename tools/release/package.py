@@ -15,9 +15,11 @@ fresh venv, where it requires:
 - `workflow-manager verify <this checkout>` to exit 0, resolving the
   checkout's recorded Workflow release through the release cache.
 
-Every command runs outside any checkout, with this process's environment:
-`WORKFLOW_MANAGER_RELEASE_CACHE` and `WORKFLOW_MANAGER_RELEASE_SOURCE` reach
-the wheel unchanged, so a primed cache means no download.
+Every command runs outside any checkout, with this process's environment plus
+`WORKFLOW_MANAGER_PINNED_ONLY=1` (no discovery, so a release published since
+cannot change the proof): `WORKFLOW_MANAGER_RELEASE_CACHE` and
+`WORKFLOW_MANAGER_RELEASE_SOURCE` reach the wheel unchanged, so a primed cache
+means no download.
 
 Finally it writes DIR/SHA256SUMS (`sha256sum`-compatible, sorted by name,
 over every other file in DIR). The build frontend is CI's own
@@ -30,6 +32,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -57,6 +60,7 @@ PINS_PATH = Path("src/workflow_manager/published_releases.json")
 PINS_IN_WHEEL = "workflow_manager/published_releases.json"
 DISTRIBUTION_NAME = "workflow-manager"
 COMMAND_TIMEOUT_SECONDS = 600
+PINNED_ONLY_ENV = "WORKFLOW_MANAGER_PINNED_ONLY"
 
 
 class PackageError(Exception):
@@ -131,9 +135,18 @@ def check_releases_output(output: str, versions: list[str]) -> None:
         raise PackageError(f"releases listed {listed}, expected {expected}")
 
 
-def _run(argv: list[str], *, cwd: Path | None = None) -> subprocess.CompletedProcess:
+def wheel_env() -> dict[str, str]:
+    """The environment of every command run against the installed wheel: this
+    process's, with discovery off (`--pinned-only`), so the proof is the same
+    whatever Workflow release was published since (plan 3.5, RA-E1). `releases`
+    must list exactly the pins and no command asks a listing."""
+    return {**os.environ, PINNED_ONLY_ENV: "1"}
+
+
+def _run(argv: list[str], *, cwd: Path | None = None,
+         env: dict[str, str] | None = None) -> subprocess.CompletedProcess:
     try:
-        proc = subprocess.run(argv, cwd=cwd, capture_output=True, text=True,
+        proc = subprocess.run(argv, cwd=cwd, capture_output=True, text=True, env=env,
                               timeout=COMMAND_TIMEOUT_SECONDS)
     except (OSError, subprocess.SubprocessError) as exc:
         raise PackageError(f"{' '.join(argv)}: {exc}") from exc
@@ -173,10 +186,11 @@ def package(version: str, out: Path) -> None:
               str(wheel)])
         # Run outside any checkout, so only the wheel's own metadata answers.
         entry = str(bindir / DISTRIBUTION_NAME)
-        check_version_output(_run([entry, "--version"], cwd=Path(tmp)).stdout, version)
-        listed = _run([entry, "releases"], cwd=Path(tmp))
+        env = wheel_env()
+        check_version_output(_run([entry, "--version"], cwd=Path(tmp), env=env).stdout, version)
+        listed = _run([entry, "releases"], cwd=Path(tmp), env=env)
         check_releases_output(listed.stdout, expected_release_versions(REPO_ROOT))
-        _run([entry, "verify", str(REPO_ROOT)], cwd=Path(tmp))
+        _run([entry, "verify", str(REPO_ROOT)], cwd=Path(tmp), env=env)
     write_sha256sums(out)
 
 

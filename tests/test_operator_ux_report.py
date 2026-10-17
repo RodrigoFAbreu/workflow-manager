@@ -19,7 +19,7 @@ from pathlib import Path
 from unittest import mock
 
 import support
-from support import NEWEST_RELEASE, cli_env
+from support import PINNED_NEWEST, pinned_env
 
 import test_operator_ux as ux
 from test_operator_ux import CONFIG, next_lines, run, tree_hash
@@ -54,7 +54,7 @@ def block(stdout: str) -> str:
 
 class TestStatusBlock(ux.TargetCase):
     def status(self, repo, **env):
-        return run("status", str(repo), env=cli_env(**env) if env else None)
+        return run("status", str(repo), env=pinned_env(**env) if env else None)
 
     def test_no_work_items_says_none(self):
         repo = self.fresh()
@@ -207,9 +207,9 @@ class TestStatusContainment(ux.TargetCase):
 
     def test_no_git_exits_1_with_the_record_and_the_block_first(self):
         repo = self.fresh()
-        proc = run("status", str(repo), env=cli_env(PATH=""))
+        proc = run("status", str(repo), env=pinned_env(PATH=""))
         self.assertEqual(proc.returncode, 1, proc.stdout + proc.stderr)
-        self.assertIn(f"workflow {NEWEST_RELEASE} (full profile)", proc.stdout)
+        self.assertIn(f"workflow {PINNED_NEWEST} (full profile)", proc.stdout)
         self.assertIn("work in flight:", proc.stdout)
         self.assertIn("could not check containment", proc.stderr)
         self.assertEqual(len(next_lines(proc.stderr)), 1)
@@ -218,7 +218,7 @@ class TestStatusContainment(ux.TargetCase):
 
     def test_doctor_keeps_its_exit_2_for_the_same_causes(self):
         repo = self.fresh()
-        self.assertEqual(run("doctor", str(repo), env=cli_env(PATH="")).returncode, 2)
+        self.assertEqual(run("doctor", str(repo), env=pinned_env(PATH="")).returncode, 2)
         cache = repo / ".git" / "mycache"
         self.assertEqual(run("--release-cache", str(cache), "doctor", str(repo)).returncode, 2)
 
@@ -252,7 +252,7 @@ class TestStatusContainment(ux.TargetCase):
         inside = repo / "tmp"
         inside.mkdir()
         before = tree_hash(repo)
-        proc = run("status", str(repo), env=cli_env(TMPDIR=str(inside)))
+        proc = run("status", str(repo), env=pinned_env(TMPDIR=str(inside)))
         self.assertEqual(proc.returncode, 1, proc.stdout + proc.stderr)
         self.assertIn("a temporary directory named in the environment", proc.stderr)
         self.assertEqual(tree_hash(repo), before)
@@ -282,7 +282,7 @@ class TestStatusContainment(ux.TargetCase):
             target = make()
             self.addCleanup(__import__("shutil").rmtree, target, True)
             with mock.patch.object(comp, "run_git", side_effect=AssertionError("git ran")):
-                proc = run("status", str(target), env=cli_env(PATH=""))
+                proc = run("status", str(target), env=pinned_env(PATH=""))
             self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
             self.assertIn("not a managed repository", proc.stdout)
 
@@ -296,7 +296,7 @@ class TestStatusContainment(ux.TargetCase):
         # 3.6: unchanged at the base, tested as unchanged.
         target = self.empty()
         cache = target / ".git" / "c"
-        proc = run("--release-version", NEWEST_RELEASE, "--release-cache", str(cache),
+        proc = run("--release-version", PINNED_NEWEST, "--release-cache", str(cache),
                    "status", str(target))
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
         self.assertIn("not a managed repository", proc.stdout)
@@ -343,7 +343,7 @@ class TestReportSteps(ux.ReleaseCase):
 
     def test_a_downgrade_says_what_to_run_instead(self):
         repo = self.fresh()
-        older = [v for v in support.PINNED_VERSIONS if v != NEWEST_RELEASE]
+        older = [v for v in support.PINNED_VERSIONS if v != PINNED_NEWEST]
         if not older:
             self.skipTest("one pinned release")
         proc = self.doctor(repo, "--release-version", older[0])
@@ -365,7 +365,7 @@ class TestReportSteps(ux.ReleaseCase):
 
     def test_i1_a_downgrade_step_drops_a_release_dir_holding_the_older_release(self):
         repo = self.fresh()
-        older = [v for v in support.PINNED_VERSIONS if v != NEWEST_RELEASE]
+        older = [v for v in support.PINNED_VERSIONS if v != PINNED_NEWEST]
         if not older:
             self.skipTest("one pinned release")
         directory = self.older_release_dir(older[-1])
@@ -414,11 +414,11 @@ class TestReportSteps(ux.ReleaseCase):
         self.assertIn("--release-cache", argv)
         self.assertNotIn("holds release", replay.stderr)
 
-    def report(self, repo, plan=None, refusal=None, target=NEWEST_RELEASE, installed=None):
+    def report(self, repo, plan=None, refusal=None, target=PINNED_NEWEST, installed=None):
         facts = comp.read_repository(repo)
         if installed:
             facts.installation = Installation(installed, "full", {})
-        return comp.build_report(facts, plan, target_version=target, latest_version=NEWEST_RELEASE,
+        return comp.build_report(facts, plan, target_version=target, latest_version=PINNED_NEWEST,
                                  pinned_versions=support.PINNED_VERSIONS, refusal=refusal,
                                  target_arg=str(repo))
 

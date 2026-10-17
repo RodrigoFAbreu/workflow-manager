@@ -9,6 +9,7 @@ import contextlib
 import importlib.util
 import io
 import json
+import re
 import subprocess
 import sys
 import tempfile
@@ -377,3 +378,80 @@ class PageRuleTest(TreeTestCase):
                   "[m]: milestones/completed/the-real-item.md\n> [n]: milestones/completed/the-real-item.md\n")
         self.assertFalse([p for p in check_docs.check_pages(self.tree.root) if "glossary" in p])
 
+
+
+class ReleaseAgnosticDocsTest(unittest.TestCase):
+    """The release-agnostic Manager's pages say what the code does: no "adding a pin"
+    procedure remains, the new contract page is indexed, and its key list and detector
+    table are the reader's (`release.parse_manager_block`, `DETECTOR_KINDS`)."""
+
+    def _read(self, rel: str) -> str:
+        return (REPO_ROOT / rel).read_text()
+
+    def _example(self) -> dict:
+        text = self._read("docs/release-metadata.md")
+        fence = text.split("```json\n", 1)[1].split("\n```", 1)[0]
+        return json.loads("{" + fence + "}")["manager"]
+
+    #: A pin being added, in any wording ("adding a pin", "how a pin is added",
+    #: "add a new pin"); "never added" and "none is added" are not matched.
+    PIN_ADDED = re.compile(r"(?<!\bno )(?<!\bNo )\bpins?\b[^.|\n]{0,15}\b(?:is|are|be|gets?)\s+added\b"
+                           r"|\badd(?:ing|s|ed)?\s+(?:a\s+|the\s+|one\s+)?(?:new\s+)?pins?\b",
+                           re.IGNORECASE)
+
+    def test_no_page_keeps_an_adding_a_pin_procedure(self) -> None:
+        for rel in ("docs/RELEASING.md", "docs/ARCHITECTURE.md", "docs/development.md", "CLAUDE.md",
+                    "README.md", "docs/README.md", "docs/update.md", "docs/install.md",
+                    "docs/common-problems.md", "docs/exit-codes.md"):
+            text = " ".join(self._read(rel).split())
+            self.assertNotIn("adding a pin", text.lower(), rel)
+            self.assertIsNone(self.PIN_ADDED.search(text), rel)
+        for stale in ("how a pin is added", "adding a pin", "add a new pin", "pins are added"):
+            self.assertIsNotNone(self.PIN_ADDED.search(stale), stale)
+        for current in ("pins are never added", "none is added for a release", "a pinned release",
+                        "no pin is added for a later release"):
+            self.assertIsNone(self.PIN_ADDED.search(current), current)
+        self.assertIn("## A new Workflow release", self._read("docs/RELEASING.md"))
+        self.assertIn("release_lock.py add", self._read("CLAUDE.md"))
+
+    def test_the_lock_tool_exit_codes_are_where_operators_look(self) -> None:
+        self.assertIn("## Maintainer tools", self._read("docs/exit-codes.md"))
+        self.assertIn("tools/release_lock.py", self._read("docs/exit-codes.md"))
+        self.assertIn("exit-codes.md#maintainer-tools", self._read("docs/RELEASING.md"))
+        self.assertIn("docs/exit-codes.md", self._read("tools/release_lock.py"))
+
+    def test_upgrading_the_manager_is_not_the_pinned_only_remedy(self) -> None:
+        text = " ".join(self._read("docs/update.md").split())
+        self.assertIn("Upgrading does not help with `release X is not published", text)
+        self.assertIn("remove `--pinned-only` or choose a pinned release", text)
+
+    def test_the_contract_page_is_indexed_and_linked_from_the_pages_that_use_it(self) -> None:
+        self.assertIn("(release-metadata.md)", self._read("docs/README.md"))
+        self.assertIn("release-metadata.md", self._read("docs/ROADMAP.md"))
+        self.assertIn("docs/release-metadata.md", self._read("CLAUDE.md"))
+
+    def test_the_documented_example_is_a_block_the_reader_accepts(self) -> None:
+        from workflow_manager import release
+
+        block = release.parse_manager_block(self._example())
+        self.assertEqual(block.min_manager_version, "1.13.0")
+        self.assertEqual(set(self._example()),
+                         {"schema_version", "min_manager_version", *release.ManagerBlock.ITEMS})
+        self.assertEqual(set(self._example()["downgrade_boundary"]),
+                         {"posture", "undetectable", "signals"})
+        self.assertEqual(set(self._example()["downgrade_boundary"]["signals"][0]),
+                         {"name", "label", "detect"})
+        self.assertEqual(set(self._example()["conformance"]), {"suites", "portability_exceptions"})
+        self.assertEqual(set(self._example()["conformance"]["portability_exceptions"][0]),
+                         {"suite", "test", "requires", "reason", "defect"})
+
+    def test_the_detector_table_is_the_readers_vocabulary(self) -> None:
+        from workflow_manager import release
+
+        documented = {}
+        for line in self._read("docs/release-metadata.md").splitlines():
+            cells = [c.strip() for c in line.strip().strip("|").split("|")]
+            if line.strip().startswith("|") and len(cells) == 3 and cells[0].startswith("`") \
+                    and cells[0].strip("`") in release.DETECTOR_KINDS:
+                documented[cells[0].strip("`")] = tuple(k.strip("`") for k in cells[1].split(", "))
+        self.assertEqual(documented, release.DETECTOR_KINDS)

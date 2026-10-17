@@ -18,9 +18,13 @@ from dataclasses import dataclass, field, replace
 from typing import Any, Callable
 
 from .compatibility import (  # noqa: F401  (re-exported: one home for the predicate)
+    CATALOG_TITLE,
     NOT_MANAGED_PROBLEM,
+    NO_DATA_TITLE,
+    UNREADABLE_DATA_TITLE,
     ContainmentError,
     PREDICATE_EXCLUDED,
+    RELEASE_COVERAGE_TITLES,
     RECORD_UNREADABLE_TITLE,
     DataFile,
     git_command,
@@ -48,6 +52,8 @@ from .installation import (
 from .release import STATE_TEMPLATES, ReleaseIntegrityError
 from .source import (
     SOURCE_ENV,
+    ReleaseFloorError,
+    ReleaseIncompatibleError,
     ReleaseNotPublishedError,
     ReleaseUnavailableError,
 )
@@ -556,9 +562,56 @@ def _none_pinned(error, context):
             f"`{_operator_command(context, directory='DIR')}`")
 
 
+def _floor(error, context):
+    if error.kind == "manager":
+        needs = f" to {error.needs} or newer" if error.needs else ""
+        step = f"upgrade the Manager{needs} ({_url(PAGE_UPDATE_MANAGER)})"
+    elif _writes_held(context):
+        return _held_rerun(context)
+    elif error.kind == "archive":
+        step = ("connect to a network that serves the release's archive, or point the Manager "
+                "at a mirror that holds it with --release-source")
+    elif error.kind == "none-at-floor":
+        step = ("the source was read and holds no release at or above it: point the Manager at "
+                "a source that does with --release-source, or name a release with "
+                "--release-version")
+    else:
+        step = ("connect to the network and run the command again, or point the Manager at a "
+                "mirror with --release-source")
+    return (f"{step}; a bare update never installs a release older than the installed "
+            f"Workflow {error.installed}")
+
+
+def _incompatible(error, context):
+    needs = f" to {error.needs} or newer" if error.needs else ""
+    upgrade = f"upgrade the Manager{needs} ({_url(PAGE_UPDATE_MANAGER)})"
+    if _writes_held(context):
+        return f"{upgrade}; {_held_rerun(context)}"
+    return f"{upgrade}, then run the same command again"
+
+
+#: Where a Workflow release's notes live (the `workflow` repository's releases).
+WORKFLOW_RELEASES_URL = "https://github.com/RodrigoFAbreu/workflow/releases"
+
+
+def coverage_step(title: str) -> str:
+    """The step for a release-coverage finding (RA-L3-001): the cause of the
+    missing data, and that `update` itself is not refused."""
+    if title == NO_DATA_TITLE:
+        return (f"read the release notes at {WORKFLOW_RELEASES_URL}, then decide; `update` itself "
+                f"is not refused. A newer Manager may carry the data ({_url(PAGE_UPDATE_MANAGER)})")
+    if title == UNREADABLE_DATA_TITLE:
+        return ("connect to the network, or point --release-source at a mirror that holds the "
+                "release's manifest, then run the check again; `update` itself is not refused")
+    if title == CATALOG_TITLE:
+        return ("name a source that lists its releases: a directory mirror, or the default source "
+                "(--release-source), then run the check again; `update` itself is not refused")
+    raise ValueError(f"not a release-coverage title: {title!r}")
+
+
 def _unpinned(error, context):
-    upgrade = (f"a published release needs a newer Manager that pins it: upgrade the Manager "
-               f"({_url(PAGE_UPDATE_MANAGER)})")
+    upgrade = (f"a published release needs a newer Manager that pins it, or a run without "
+               f"--pinned-only: upgrade the Manager ({_url(PAGE_UPDATE_MANAGER)})")
     if _writes_held(context):
         return f"{upgrade}; {_held_rerun(context)}"
     return (f"{upgrade}, then run the command again. An unpublished release directory "
@@ -575,8 +628,8 @@ def _fetch_url(error, context):
 
 
 def _fetch_directory(error, context):
-    version = f"{error.version}/" if error.version else "a directory per release"
-    return (f"the source directory {error.source} has no {version} with SHA256SUMS, the archive "
+    version = f"has no {error.version}/" if error.version else "holds no directory per release"
+    return (f"the source directory {error.source} {version} with SHA256SUMS, the archive "
             f"and the manifest asset: fix --release-source (or ${SOURCE_ENV}), or leave it "
             f"unset to download")
 
@@ -653,7 +706,25 @@ def _package_build(error, context):
 def _manifest_shape(error, context):
     if getattr(context.args, "command", None) == "package":
         return _package_build(error, context)
-    return _local_release(error, context)
+    if getattr(context.args, "release_dir", None) is not None \
+            or getattr(context.args, "manager_root", None) is not None:
+        return _local_release(error, context)
+    # The release came from a source: its published metadata is at fault, and
+    # a published release is never edited.
+    release = f"Workflow {error.version}" if getattr(error, "version", None) else "the release"
+    if getattr(error, "newer_manager", False):
+        lead = (f"{release}'s release metadata (its manifest's `manager` block) needs a newer "
+                f"Manager than this one: upgrade the Manager ({_url(PAGE_UPDATE_MANAGER)})")
+        alternative = "or install an earlier usable release"
+    else:
+        lead = (f"{release}'s published release metadata (its manifest's `manager` block) is "
+                f"malformed, and a published release is never edited: use a newer Workflow "
+                f"release that corrects it, or a mirror that serves a corrected copy "
+                f"(--release-source)")
+        alternative = "or install an earlier usable release"
+    if _writes_held(context):
+        return f"{lead}; {_held_rerun(context)}"
+    return f"{lead}, {alternative}: `{_operator_command(context, version='VERSION')}`"
 
 
 def _git_unavailable(error, context):
@@ -722,6 +793,8 @@ _row(CollisionError, _collision, predicate=True)
 _row(OSError, _os_error)
 _row(ReleaseNotPublishedError, _by_kind({"none-pinned": _none_pinned, "unpinned": _unpinned}),
      on_write=True)
+_row(ReleaseFloorError, _floor, on_write=True)
+_row(ReleaseIncompatibleError, _incompatible, on_write=True)
 _row(ReleaseUnavailableError, _by_kind({
     "fetch-url": _fetch_url, "fetch-directory": _fetch_directory,
     "no-version-field": _no_version_field, "source-response": _source_response,

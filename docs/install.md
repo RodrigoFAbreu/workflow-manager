@@ -9,7 +9,7 @@ Goal: have the `workflow-manager` command on your machine and a repository that 
 - Python 3.11 or newer and Git.
 - [pipx](https://pipx.pypa.io/).
 - The [GitHub CLI](https://cli.github.com/) (`gh`), signed in.
-- A network connection for the first install. The Manager downloads each Workflow release once, then works offline.
+- A network connection for the first install. The Manager downloads each Workflow release once, then works offline. Offline, it installs the newest release it already has.
 - A Git repository to install into. It must already exist (`git init` is enough).
 
 ## Steps
@@ -37,13 +37,13 @@ Goal: have the `workflow-manager` command on your machine and a repository that 
    and puts the `workflow-manager` command in `~/.local/bin/`, so the download
    folder is no longer needed.
 
-3. See which Workflow releases this Manager knows about.
+3. See which Workflow releases this Manager knows about: the pinned ones, then any it discovers newer.
 
    ```bash
    workflow-manager releases
    ```
 
-4. Install the newest of them into your repository.
+4. Install the newest of them into your repository. A release published after your Manager was built is found and verified by its own `SHA256SUMS`; put `--pinned-only` before the command to install only a pinned release.
 
    ```bash
    workflow-manager bootstrap /path/to/your/repo
@@ -65,7 +65,7 @@ Optional choices for step 4:
 ## What you should see
 
 - Step 2 prints `workflow-manager 1.5.0` (or a newer number).
-- Step 3 lists one line per Workflow release, from 2.3.1 to 2.12.0, each ending in `[cached]` or `[not cached]`.
+- Step 3 lists one line per Workflow release, from 2.3.1 to 2.12.0 (pinned) and then any discovered, each ending in `[cached]` or `[not cached]`. With no network only the pinned ones appear.
 - Step 4 prints `bootstrapped workflow 2.12.0 (full) into /path/to/your/repo` and a count of managed, state and merged files. The first run of a release downloads it, so it takes a moment.
 - Step 5 prints `installation matches workflow 2.12.0` and exits with status 0.
 - The repository now has `.claude/commands/`, `scripts/`, `docs/ai-workflow/` and `.workflow-manager/installation.json` (the [installation record](glossary.md#installation-record)).

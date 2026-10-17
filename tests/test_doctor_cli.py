@@ -22,7 +22,7 @@ import unittest
 from pathlib import Path
 
 import support
-from support import NEWEST_RELEASE, PINNED_VERSIONS, REPO_ROOT, UPGRADE_FROM, cli_env
+from support import PINNED_NEWEST, PINNED_UPGRADE_FROM, PINNED_VERSIONS, REPO_ROOT, pinned_env
 
 from frozen_runs import build_bootstrapped_repo
 from workflow_manager import cli, source
@@ -42,11 +42,11 @@ def _payload_files(version: str) -> set[str]:
 
 
 def adding_release() -> tuple[str, str]:
-    """The newest pinned release below NEWEST_RELEASE that lacks a payload file
-    NEWEST_RELEASE has, and the first such file: updating from it adds that
-    file. UPGRADE_FROM does not always qualify: a fix release (2.9.1) adds no
+    """The newest pinned release below PINNED_NEWEST that lacks a payload file
+    PINNED_NEWEST has, and the first such file: updating from it adds that
+    file. PINNED_UPGRADE_FROM does not always qualify: a fix release (2.9.1) adds no
     file."""
-    newest = _payload_files(NEWEST_RELEASE)
+    newest = _payload_files(PINNED_NEWEST)
     for version in reversed(PINNED_VERSIONS[:-1]):
         added = sorted(newest - _payload_files(version))
         if added:
@@ -56,7 +56,7 @@ def adding_release() -> tuple[str, str]:
 
 def run(*args, env=None):
     return subprocess.run([sys.executable, "-m", "workflow_manager", *args], cwd=str(REPO_ROOT),
-                          capture_output=True, text=True, env=env or cli_env())
+                          capture_output=True, text=True, env=env or pinned_env())
 
 
 def git(repo: Path, *args: str, check=True):
@@ -68,7 +68,7 @@ class Base(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls._tmp = tempfile.TemporaryDirectory()
-        cls.pristine = build_bootstrapped_repo(support.release(UPGRADE_FROM),
+        cls.pristine = build_bootstrapped_repo(support.release(PINNED_UPGRADE_FROM),
                                                Path(cls._tmp.name) / WEIRD)
 
     @classmethod
@@ -77,7 +77,7 @@ class Base(unittest.TestCase):
 
     def fresh_adding(self, name="repo") -> tuple[Path, str]:
         """A copy of a repository bootstrapped at `adding_release()`, and the
-        file the update to NEWEST_RELEASE adds."""
+        file the update to PINNED_NEWEST adds."""
         cls = Base
         if not hasattr(cls, "_adding"):
             version, added = adding_release()
@@ -113,9 +113,9 @@ class TestDoctorExitCodes(Base):
 
     def test_the_three_versions_are_labelled_and_never_share_a_line(self):
         out = run("doctor", str(self.fresh())).stdout
-        self.assertRegex(out, rf"(?m)^Installed release   {re.escape(UPGRADE_FROM)}")
-        self.assertRegex(out, rf"(?m)^Latest available    {re.escape(NEWEST_RELEASE)}")
-        self.assertRegex(out, rf"(?m)^Target of this check {re.escape(NEWEST_RELEASE)}")
+        self.assertRegex(out, rf"(?m)^Installed release   {re.escape(PINNED_UPGRADE_FROM)}")
+        self.assertRegex(out, rf"(?m)^Latest available    {re.escape(PINNED_NEWEST)}")
+        self.assertRegex(out, rf"(?m)^Target of this check {re.escape(PINNED_NEWEST)}")
 
     def test_a_warning_exits_1(self):
         repo = self.fresh()
@@ -151,14 +151,14 @@ class TestDoctorExitCodes(Base):
         empty_cache = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, empty_cache, True)
         proc = run("--release-cache", str(empty_cache), "--release-source", str(empty_cache / "src"),
-                   "doctor", str(self.fresh()), env=cli_env(**{source.CACHE_ENV: str(empty_cache)}))
+                   "doctor", str(self.fresh()), env=pinned_env(**{source.CACHE_ENV: str(empty_cache)}))
         self.assertEqual(proc.returncode, 2, proc.stdout + proc.stderr)
 
     def test_an_unresolvable_installed_release_still_reports(self):
         # A cache holding only the target release: the installed one cannot be resolved.
         cache = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, cache, True)
-        shutil.copytree(source.cache_root() / NEWEST_RELEASE, cache / NEWEST_RELEASE, symlinks=True)
+        shutil.copytree(source.cache_root() / PINNED_NEWEST, cache / PINNED_NEWEST, symlinks=True)
         proc = run("--release-cache", str(cache), "--release-source", str(cache / "nowhere"),
                    "doctor", str(self.fresh()))
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
@@ -256,8 +256,8 @@ class TestDryRun(Base):
         dry = run("update", str(dry_repo), "--dry-run")
         self.assertEqual(dry.returncode, 0, dry.stderr)
         lines = dry.stdout.splitlines()
-        self.assertTrue(lines[0].startswith(f"would update {dry_repo} from workflow {UPGRADE_FROM} "
-                                            f"to workflow {NEWEST_RELEASE}"))
+        self.assertTrue(lines[0].startswith(f"would update {dry_repo} from workflow {PINNED_UPGRADE_FROM} "
+                                            f"to workflow {PINNED_NEWEST}"))
         self.assertIn("(dry run: nothing written)", lines[0])
         would = lines[1:lines.index("left alone:")]
         real = self.real_update_lines(real_repo)
@@ -345,7 +345,7 @@ class TestDryRun(Base):
         # Local edits are detected from the install record, not the release package.
         cache = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, cache, True)
-        shutil.copytree(source.cache_root() / NEWEST_RELEASE, cache / NEWEST_RELEASE, symlinks=True)
+        shutil.copytree(source.cache_root() / PINNED_NEWEST, cache / PINNED_NEWEST, symlinks=True)
         repo = self.fresh()
         (repo / "scripts" / "workflow_state.py").write_text("# edited\n")
         self.commit(repo)
@@ -465,7 +465,7 @@ class TestPrintedCommandExtractor(Base):
             found = printed_commands("      " + text + "\n")
             self.assertEqual(found, [(FAMILY_GIT, shlex.split(text))], text)
             self.assertEqual(subprocess.run(found[0][1], capture_output=True,
-                                            env=cli_env()).returncode, 0, text)
+                                            env=pinned_env()).returncode, 0, text)
 
     def test_the_check_fails_on_an_unprefixed_inspection_command(self):
         with self.assertRaises(AssertionError):
@@ -513,7 +513,7 @@ class TestPrintedCommands(Base):
             if words[:2] == NO_LAZY_PREFIX:      # an inspection command: it runs as printed
                 self.assertEqual(words[2:5], ["git", "-C", str(repo)])
                 self.assertEqual(subprocess.run(words, capture_output=True,
-                                                env=cli_env()).returncode, 0, words)
+                                                env=pinned_env()).returncode, 0, words)
                 words = words[2:]
             else:
                 self.assertEqual(words[:3], ["git", "-C", str(repo)])
@@ -523,7 +523,7 @@ class TestPrintedCommands(Base):
                 self.assertIn("-n", words)
         else:
             name = words[0].lstrip("/")
-            command_file = support.release(NEWEST_RELEASE).root / "payload" / ".claude" / "commands" / f"{name}.md"
+            command_file = support.release(PINNED_NEWEST).root / "payload" / ".claude" / "commands" / f"{name}.md"
             self.assertTrue(command_file.is_file(), command_file)
             text = command_file.read_text()
             self.assertIn("argument-hint:", text)

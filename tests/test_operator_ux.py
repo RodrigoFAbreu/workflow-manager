@@ -28,7 +28,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 import support
-from support import NEWEST_RELEASE, REPO_ROOT, cli_env
+from support import PINNED_NEWEST, REPO_ROOT, pinned_env
 
 from frozen_runs import build_bootstrapped_repo, empty_repo
 
@@ -45,7 +45,7 @@ TARGET_COMMANDS = ("bootstrap", "update", "verify", "status", "doctor", "uninsta
 
 def run(*args, env=None):
     return subprocess.run([sys.executable, "-m", "workflow_manager", *args], cwd=str(REPO_ROOT),
-                          capture_output=True, text=True, env=env or cli_env())
+                          capture_output=True, text=True, env=env or pinned_env())
 
 
 # ---------------------------------------------------------------------------
@@ -184,7 +184,8 @@ class TestAdviceUnits(unittest.TestCase):
     def test_the_predicate_constants_are_exactly_these(self):
         self.assertEqual(advice.PREDICATE_EXCLUDED,
                          ("the repository is not managed (no installation record)",
-                          "the installation record could not be read"))
+                          "the installation record could not be read",
+                          *advice.RELEASE_COVERAGE_TITLES))
 
     def test_writes_withheld(self):
         from workflow_manager.compatibility import Finding, WARNING
@@ -365,12 +366,12 @@ LOG_READER = "env GIT_NO_LAZY_FETCH=1 git -C "
 
 def run_in(cwd, *args, env=None):
     return subprocess.run([sys.executable, "-m", "workflow_manager", *args], cwd=str(cwd),
-                          capture_output=True, text=True, env=env or cli_env())
+                          capture_output=True, text=True, env=env or pinned_env())
 
 
 def git(repo, *args):
     return subprocess.run(["git", "-C", str(repo), *args], capture_output=True, text=True,
-                          env=cli_env())
+                          env=pinned_env())
 
 
 def tree_hash(root: Path, skip=()) -> str:
@@ -399,7 +400,7 @@ class Pristine:
     def pristine(cls) -> Path:
         if Pristine._repo is None:
             Pristine._tmp = tempfile.TemporaryDirectory()
-            Pristine._repo = build_bootstrapped_repo(support.release(NEWEST_RELEASE),
+            Pristine._repo = build_bootstrapped_repo(support.release(PINNED_NEWEST),
                                                      Path(Pristine._tmp.name) / "pristine")
         return Pristine._repo
 
@@ -456,7 +457,7 @@ class TestTargetRows(TargetCase):
         self.assertIn("`workflow-manager bootstrap -- -repo`", step)
         commands = backticked(step)
         self.assertEqual(subprocess.run(shlex.split(commands[0]), cwd=work.name, capture_output=True,
-                                        env=cli_env()).returncode, 0)
+                                        env=pinned_env()).returncode, 0)
         again = shlex.split(commands[1])
         self.assertTrue(parses(again), again)
         self.assertEqual(run_in(work.name, *again[1:]).returncode, 0)
@@ -481,7 +482,7 @@ class TestTargetRows(TargetCase):
     def test_t3_already_managed_names_the_version_and_the_update_command(self):
         repo = self.fresh()
         proc = self.check(Case("T3", ["bootstrap", str(repo)], exit_code=2,
-                               cause=f"error: {repo} is already managed (workflow {NEWEST_RELEASE} is installed)",
+                               cause=f"error: {repo} is already managed (workflow {PINNED_NEWEST} is installed)",
                                step=(f"`workflow-manager update {repo}`", f"`workflow-manager doctor {repo}`")))
         self.assertNotIn("update()", proc.stderr)
 
@@ -624,10 +625,10 @@ class TestRefusals(TargetCase):
     def test_t11_carries_the_operators_release_version_and_source(self):
         repo = self.fresh()
         self.edit(repo)
-        proc = run("--release-version", NEWEST_RELEASE, "--release-cache", str(support.cli_env()[
+        proc = run("--release-version", PINNED_NEWEST, "--release-cache", str(support.pinned_env()[
             "WORKFLOW_MANAGER_RELEASE_CACHE"]), "update", str(repo))
         step = next_lines(proc.stderr)[0]
-        self.assertIn(f"`workflow-manager --release-version {NEWEST_RELEASE} --release-cache ", step)
+        self.assertIn(f"`workflow-manager --release-version {PINNED_NEWEST} --release-cache ", step)
         for argv in manager_commands(proc.stderr):
             self.assertTrue(parses(argv), argv)
 
@@ -799,8 +800,8 @@ class TestProblemLines(TargetCase):
         self.assertEqual(proc.returncode, 1)
         step = next_lines(proc.stdout)
         self.assertEqual(len(step), 1)
-        self.assertIn(f"`workflow-manager --release-version {NEWEST_RELEASE} update {repo}`", step[0])
-        self.assertIn(f"`workflow-manager --release-version {NEWEST_RELEASE} update --dry-run {repo}`", step[0])
+        self.assertIn(f"`workflow-manager --release-version {PINNED_NEWEST} update {repo}`", step[0])
+        self.assertIn(f"`workflow-manager --release-version {PINNED_NEWEST} update --dry-run {repo}`", step[0])
         self.assertIn('add --force if a line says "modified: PATH"', step[0])
         status = run("status", str(repo))
         self.assertEqual(status.returncode, 1)
@@ -818,7 +819,7 @@ class TestProblemLines(TargetCase):
         self.assertIn("missing: scripts/workflow_state.py", proc.stdout)
         self.assertIn("put the release's files back", next_lines(proc.stdout)[0])
         # A comparison with another release is a `version:` line.
-        other = [v for v in support.PINNED_VERSIONS if v != NEWEST_RELEASE]
+        other = [v for v in support.PINNED_VERSIONS if v != PINNED_NEWEST]
         if other:
             proc = run("--release-version", other[0], "verify", str(repo))
             self.assertIn("version: installed", proc.stdout)
@@ -852,7 +853,7 @@ class TestProblemLines(TargetCase):
         for text in backticked(step):
             if not text.startswith("env GIT_NO_LAZY_FETCH=1 git "):
                 continue
-            proc = subprocess.run(shlex.split(text), capture_output=True, env=cli_env())
+            proc = subprocess.run(shlex.split(text), capture_output=True, env=pinned_env())
             self.assertEqual(proc.returncode, 0, text)
             if " show " in text:
                 self.assertEqual(proc.stdout, committed)
@@ -861,30 +862,30 @@ class TestProblemLines(TargetCase):
     def test_t15_options_are_carried_by_the_command_specific_rule(self):
         repo = self.fresh()
         (repo / "scripts" / "workflow_state.py").write_text("# edited\n")
-        cache = cli_env()["WORKFLOW_MANAGER_RELEASE_CACHE"]
+        cache = pinned_env()["WORKFLOW_MANAGER_RELEASE_CACHE"]
         proc = run("--release-cache", cache, "verify", str(repo))
         step = next_lines(proc.stdout)[0]
-        self.assertIn(f"`workflow-manager --release-version {NEWEST_RELEASE} --release-cache {cache} "
+        self.assertIn(f"`workflow-manager --release-version {PINNED_NEWEST} --release-cache {cache} "
                       f"update {repo}`", step)
         for argv in manager_commands(proc.stdout):
             self.assertTrue(parses(argv), argv)
 
     def test_t15_a_release_dir_of_another_version_is_left_out_and_the_repair_succeeds(self):
-        if support.UPGRADE_FROM is None:
+        if support.PINNED_UPGRADE_FROM is None:
             self.skipTest("one pinned release")
-        older = support.UPGRADE_FROM
+        older = support.PINNED_UPGRADE_FROM
         work = tempfile.TemporaryDirectory()
         self.addCleanup(work.cleanup)
         repo = build_bootstrapped_repo(support.release(older), Path(work.name) / "r")
         (repo / "scripts" / "workflow_state.py").write_text("# edited\n")
         newest = Path(work.name) / "newest"
-        shutil.copytree(support.release(NEWEST_RELEASE).root, newest)
-        proc = run("--release-version", NEWEST_RELEASE, "--release-dir", str(newest), "verify", str(repo))
+        shutil.copytree(support.release(PINNED_NEWEST).root, newest)
+        proc = run("--release-version", PINNED_NEWEST, "--release-dir", str(newest), "verify", str(repo))
         self.assertEqual(proc.returncode, 1, proc.stdout + proc.stderr)
         step = next_lines(proc.stdout)[0]
         self.assertIn("leave out --release-version and --release-dir to compare with workflow "
                       f"{older}", step)
-        self.assertIn(f"`workflow-manager --release-version {NEWEST_RELEASE} --release-dir {newest} "
+        self.assertIn(f"`workflow-manager --release-version {PINNED_NEWEST} --release-dir {newest} "
                       f"update {repo}`", step)
 
     def test_t15_the_ordinary_repair_drops_a_release_dir_that_is_not_the_installed_release(self):
@@ -927,7 +928,7 @@ class TestSuccessNext(TargetCase):
 
     def test_the_success_line_carries_a_release_source_and_cache(self):
         repo = self.empty()
-        cache = cli_env()["WORKFLOW_MANAGER_RELEASE_CACHE"]
+        cache = pinned_env()["WORKFLOW_MANAGER_RELEASE_CACHE"]
         proc = run("--release-cache", cache, "bootstrap", str(repo))
         self.assertIn(f"`workflow-manager --release-cache {cache} verify {repo}`", proc.stdout)
 
@@ -986,7 +987,7 @@ class TestWorkflowDataWithheld(TargetCase):
         self.assertNotIn("No bootstrap command is offered", step)
         before = {rel: (repo / rel).read_bytes() for rel in (STATE, CONFIG, MILESTONE)}
         shutil.rmtree(repo / ".workflow-manager")
-        again = run("--release-version", NEWEST_RELEASE, "bootstrap", str(repo))
+        again = run("--release-version", PINNED_NEWEST, "bootstrap", str(repo))
         self.assertEqual(again.returncode, 0, again.stderr)
         self.assertEqual(before, {rel: (repo / rel).read_bytes() for rel in (STATE, CONFIG, MILESTONE)})
 
@@ -1014,7 +1015,7 @@ class TestWorkflowDataWithheld(TargetCase):
 
     def test_a_fresh_repository_keeps_its_bootstrap_without_running_git(self):
         repo = self.empty()
-        env = cli_env(PATH="")
+        env = pinned_env(PATH="")
         for argv in (["status", str(repo)],):
             proc = run(*argv, env=env)
             self.assertEqual(proc.returncode, 0, proc.stderr)
@@ -1023,7 +1024,7 @@ class TestWorkflowDataWithheld(TargetCase):
     def test_an_unmanaged_target_with_data_and_no_git_fails_closed(self):
         repo = self.fresh()
         self.assertEqual(run("uninstall", str(repo)).returncode, 0)
-        proc = run("status", str(repo), env=cli_env(PATH=""))
+        proc = run("status", str(repo), env=pinned_env(PATH=""))
         self.assertEqual(proc.returncode, 0, proc.stderr)
         step = next_lines(proc.stdout)[0]
         self.assertIn("No bootstrap command is offered", step)
@@ -1189,8 +1190,8 @@ class ReleaseCase(TargetCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        support.release(NEWEST_RELEASE)     # fills the shared cache
-        cls.published = release_source.cache_root() / NEWEST_RELEASE
+        support.release(PINNED_NEWEST)     # fills the shared cache
+        cls.published = release_source.cache_root() / PINNED_NEWEST
 
     def workdir(self) -> Path:
         work = tempfile.TemporaryDirectory()
@@ -1200,10 +1201,10 @@ class ReleaseCase(TargetCase):
     def mirror(self, base=None) -> Path:
         """`<mirror>/<version>/` with the three assets of the newest release."""
         mirror = (base or self.workdir()) / "mirror"
-        folder = mirror / NEWEST_RELEASE
+        folder = mirror / PINNED_NEWEST
         folder.mkdir(parents=True)
-        for name in (release_source.SUMS_NAME, f"workflow-{NEWEST_RELEASE}.tar.gz",
-                     f"workflow-{NEWEST_RELEASE}.manifest.json"):
+        for name in (release_source.SUMS_NAME, f"workflow-{PINNED_NEWEST}.tar.gz",
+                     f"workflow-{PINNED_NEWEST}.manifest.json"):
             shutil.copyfile(self.published / name, folder / name)
         return mirror
 
@@ -1211,7 +1212,7 @@ class ReleaseCase(TargetCase):
         """A copy of the newest release directory; with `version`, a manifest
         that names it (an unpublished release)."""
         directory = (base or self.workdir()) / "release"
-        shutil.copytree(support.release(NEWEST_RELEASE).root, directory)
+        shutil.copytree(support.release(PINNED_NEWEST).root, directory)
         if version is not None:
             self.edit_manifest(directory, lambda m: m.update(workflow_version=version))
         return directory
@@ -1280,7 +1281,7 @@ class TestReleaseRows(ReleaseCase):
                        "http://127.0.0.1:9/{version}/", "bootstrap", str(repo)],
             exit_code=1, cause="cannot fetch http://127.0.0.1:9/",
             step=["connect to the network and run the same command again",
-                  f"a mirror that holds {NEWEST_RELEASE}/ (a directory, or a URL with {{version}})",
+                  f"a mirror that holds {PINNED_NEWEST}/ (a directory, or a URL with {{version}})",
                   "--release-source MIRROR", f"--release-cache {cache}"]))
         self.assertFalse(is_managed_repo(repo))
         self.assertIn("bootstrap", next_lines(proc.stderr)[0])
@@ -1293,8 +1294,8 @@ class TestReleaseRows(ReleaseCase):
         self.check(Case(
             "R3 directory", ["--release-cache", str(work / "cache"), "--release-source",
                              str(source), "bootstrap", str(repo)], exit_code=1,
-            cause=f"cannot fetch {source}/{NEWEST_RELEASE}/",
-            step=[f"the source directory {source} has no {NEWEST_RELEASE}/ with SHA256SUMS, the "
+            cause=f"cannot fetch {source}/{PINNED_NEWEST}/",
+            step=[f"the source directory {source} has no {PINNED_NEWEST}/ with SHA256SUMS, the "
                   "archive and the manifest asset", "fix --release-source (or "
                   "$WORKFLOW_MANAGER_RELEASE_SOURCE), or leave it unset to download"]))
 
@@ -1339,7 +1340,7 @@ class TestReleaseRows(ReleaseCase):
             code, _, err = main_in_process("--release-cache", str(work / "cache"),
                                            "--release-source", str(mirror), "bootstrap", str(repo))
         self.assertEqual(code, 1)
-        self.assertIn(f"cannot store release {NEWEST_RELEASE} in the cache {work / 'cache'}", err)
+        self.assertIn(f"cannot store release {PINNED_NEWEST} in the cache {work / 'cache'}", err)
         step = next_lines(err)[0]
         self.assertIn(f"free space or fix permissions on {work / 'cache'}, or choose another "
                       f"cache: `workflow-manager --release-source {mirror} --release-cache DIR "
@@ -1349,13 +1350,13 @@ class TestReleaseRows(ReleaseCase):
     def test_r8_a_tampered_archive_says_to_retry_then_report(self):
         work = self.workdir()
         mirror = self.mirror(work)
-        archive = mirror / NEWEST_RELEASE / f"workflow-{NEWEST_RELEASE}.tar.gz"
+        archive = mirror / PINNED_NEWEST / f"workflow-{PINNED_NEWEST}.tar.gz"
         archive.write_bytes(archive.read_bytes() + b"x")
         repo = self.empty()
         proc = self.check(Case(
             "R8", ["--release-cache", str(work / "cache"), "--release-source", str(mirror),
                    "bootstrap", str(repo)], exit_code=1,
-            cause=f"release {NEWEST_RELEASE}'s archive does not match its pin",
+            cause=f"release {PINNED_NEWEST}'s archive does not match its pin",
             step=["run the same command again (it downloads afresh). If the digests differ "
                   "again, install nothing from this download and report it to the Manager's "
                   "maintainer with this message"]))
@@ -1364,7 +1365,7 @@ class TestReleaseRows(ReleaseCase):
     def test_r8_a_malformed_sums_file(self):
         work = self.workdir()
         mirror = self.mirror(work)
-        (mirror / NEWEST_RELEASE / "SHA256SUMS").write_text("nonsense\n")
+        (mirror / PINNED_NEWEST / "SHA256SUMS").write_text("nonsense\n")
         repo = self.empty()
         self.check(Case(
             "R8 sums", ["--release-cache", str(work / "cache"), "--release-source", str(mirror),
@@ -1410,12 +1411,12 @@ class TestReleaseRows(ReleaseCase):
         victim.write_text(victim.read_text() + "\n# edited\n")
         self.check(Case("R11 fails verification",
                         ["--release-dir", str(edited), "bootstrap", str(repo)], exit_code=1,
-                        cause=f"release {NEWEST_RELEASE} at {edited} fails verification", step=step))
+                        cause=f"release {PINNED_NEWEST} at {edited} fails verification", step=step))
         claimed = self.release_dir()
         self.edit_manifest(claimed, lambda m: m.update(provenance={"origin": "tampered"}))
         self.check(Case("R11 claims published",
                         ["--release-dir", str(claimed), "bootstrap", str(repo)], exit_code=1,
-                        cause=f"{claimed} claims published release {NEWEST_RELEASE}", step=step))
+                        cause=f"{claimed} claims published release {PINNED_NEWEST}", step=step))
         self.check(Case("R11 version",
                         ["--release-dir", str(self.release_dir()), "--release-version", "7.7.7",
                          "bootstrap", str(repo)], exit_code=1,
@@ -1466,7 +1467,7 @@ class TestReleaseRows(ReleaseCase):
 
     def test_r13_a_package_that_is_not_what_its_digest_says(self):
         work = self.workdir()
-        archive = self.published / f"workflow-{NEWEST_RELEASE}.tar.gz"
+        archive = self.published / f"workflow-{PINNED_NEWEST}.tar.gz"
         step = ["download the archive again and compare it with SHA256SUMS: `sha256sum -c SHA256SUMS`"]
         self.check(Case("R13 digest", ["package", "verify", str(archive), "--sha256", "0" * 64],
                         exit_code=1, cause=f"{archive} has digest", step=step))
@@ -1491,7 +1492,7 @@ class TestReleaseRows(ReleaseCase):
         victim.write_text(victim.read_text() + "\n# edited\n")
         self.check(Case("R14 verification", ["package", "build", str(edited), "--out",
                                              str(work / "o")], exit_code=1,
-                        cause=f"release {NEWEST_RELEASE} at {edited} fails verification", step=build))
+                        cause=f"release {PINNED_NEWEST} at {edited} fails verification", step=build))
 
 
 def is_managed_repo(repo) -> bool:
@@ -1512,7 +1513,7 @@ class TestWithheldRelease(ReleaseCase):
         repo = self.broken()
         work = self.workdir()
         mirror = self.mirror(work)
-        archive = mirror / NEWEST_RELEASE / f"workflow-{NEWEST_RELEASE}.tar.gz"
+        archive = mirror / PINNED_NEWEST / f"workflow-{PINNED_NEWEST}.tar.gz"
         archive.write_bytes(archive.read_bytes() + b"x")
         cases = {
             "R2": ["--release-version", "9.9.9", "bootstrap", str(repo)],
@@ -1666,16 +1667,16 @@ class TestContainmentRows(ReleaseCase):
         cache.mkdir()
         inside = repo / "elsewhere"
         inside.mkdir()
-        (cache / NEWEST_RELEASE).symlink_to(inside)
+        (cache / PINNED_NEWEST).symlink_to(inside)
         self.check(Case(
             "C2 entry", ["--release-cache", str(cache), "doctor", str(repo)], exit_code=2,
-            cause=f"the release cache entry {cache / NEWEST_RELEASE} resolves to",
+            cause=f"the release cache entry {cache / PINNED_NEWEST} resolves to",
             step=["choose another cache: `workflow-manager --release-cache DIR doctor"]))
 
     def test_c2_a_cache_entry_holding_a_link(self):
         repo = self.fresh()
         cache = self.workdir() / "cache"
-        entry = cache / NEWEST_RELEASE
+        entry = cache / PINNED_NEWEST
         entry.mkdir(parents=True)
         (entry / "stray").symlink_to("/etc")
         self.check(Case(
@@ -1689,7 +1690,7 @@ class TestContainmentRows(ReleaseCase):
         inside = repo / "tmp"
         inside.mkdir()
         self.check(Case(
-            "C2 tmp", ["doctor", str(repo)], exit_code=2, env=cli_env(TMPDIR=str(inside)),
+            "C2 tmp", ["doctor", str(repo)], exit_code=2, env=pinned_env(TMPDIR=str(inside)),
             cause="a temporary directory named in the environment",
             step=["point the temporary-directory variable (TMPDIR, TEMP or TMP) at a directory "
                   "outside the repository, or unset it, then run the command again"]))
@@ -1697,7 +1698,7 @@ class TestContainmentRows(ReleaseCase):
     def test_c3_git_that_cannot_run(self):
         repo = self.fresh()
         proc = self.check(Case(
-            "C3 git", ["doctor", str(repo)], exit_code=2, env=cli_env(PATH=""),
+            "C3 git", ["doctor", str(repo)], exit_code=2, env=pinned_env(PATH=""),
             cause="could not check containment",
             step=["make sure Git runs here (`env GIT_NO_LAZY_FETCH=1 git -C", "rev-parse --git-dir`)",
                   "then run the command again"]))

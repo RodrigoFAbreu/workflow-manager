@@ -14,6 +14,12 @@ A local release directory (`--release-dir`, the `--manager-root` alias and
 the checkout fallback) goes through `local_release`, which applies the same
 pin to it when its version is published, and treats it as an unpublished
 release in development when it is not.
+
+A version with no pin can still be installed (`D-Trust`, `D-Discover`): its
+*derived* pin comes from the `SHA256SUMS` the source serves, the cache records
+which source that was (`SOURCE`), and the installation record says the release
+was `discovered`. `--pinned-only` (or `WORKFLOW_MANAGER_PINNED_ONLY=1`) restores
+the rule that a pin is the only door.
 """
 
 from __future__ import annotations
@@ -28,12 +34,14 @@ import re
 import shutil
 import sys
 import tempfile
+import threading
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from .install import InstallError
@@ -53,16 +61,47 @@ PINS_SCHEMA_VERSION = 1
 SOURCE_ENV = "WORKFLOW_MANAGER_RELEASE_SOURCE"
 CACHE_ENV = "WORKFLOW_MANAGER_RELEASE_CACHE"
 DEFAULT_SOURCE = "https://github.com/RodrigoFAbreu/workflow/releases/download/v{version}/"
+PINNED_ONLY_ENV = "WORKFLOW_MANAGER_PINNED_ONLY"
+#: The default source's releases listing; `{repository}` comes from the pin file.
+GITHUB_LISTING_URL = "https://api.github.com/repos/{repository}/releases?per_page=100"
+#: A listing of exactly this many releases may be truncated (one page is read).
+LISTING_PAGE_SIZE = 100
 
 FETCH_TIMEOUT_SECONDS = 60
 MAX_ASSET_BYTES = 64 * 1024 * 1024
 MAX_REDIRECTS = 5
 LOOPBACK_HOSTS = ("localhost",)
 
+#: Per request, and for all of one command's choosing walk (3.2).
+DISCOVERY_TIMEOUT_SECONDS = 8
+DISCOVERY_DEADLINE_SECONDS = 20
+MAX_LISTING_BYTES = 8 * 1024 * 1024
+MAX_SUMS_BYTES = 1024 * 1024
+MAX_MANIFEST_ASSET_BYTES = 16 * 1024 * 1024
+
 COMPLETE_NAME = "complete"
 TREE_NAME = "tree"
+SOURCE_NAME = "SOURCE"
+
+TRUST_PINNED = "pinned"
+TRUST_DISCOVERED = "discovered"
+#: `ReleaseUnavailableError.kind`s that mean "the bytes could not be had" (as
+#: against "they were wrong"): a candidate with one of these is skipped.
+AVAILABILITY_KINDS = ("fetch-url", "fetch-directory", "source-response")
 
 _HEX64 = re.compile(r"[0-9a-f]{64}")
+_STRICT_VERSION = re.compile(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)")
+_STRICT_TAG = re.compile(r"v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)")
+
+
+def pinned_only(flag: bool = False, environ=None) -> bool:
+    """`--pinned-only`, else `WORKFLOW_MANAGER_PINNED_ONLY` set to a true value."""
+    environ = os.environ if environ is None else environ
+    return bool(flag) or environ.get(PINNED_ONLY_ENV, "").strip().lower() in ("1", "true", "yes")
+
+
+def is_strict_version(text) -> bool:
+    return isinstance(text, str) and _STRICT_VERSION.fullmatch(text) is not None
 
 
 class ReleaseNotPublishedError(InstallError):
@@ -85,6 +124,34 @@ class ReleaseUnavailableError(InstallError):
                  version: str | None = None, source: str | None = None):
         super().__init__(message)
         self.kind, self.version, self.source = kind, version, source
+
+
+class ReleaseFloorError(InstallError):
+    """A bare `update` found no usable release at or above the installed one
+    (3.2): `kind` is `offline`, `archive` or `manager`, `installed` the floor."""
+
+    def __init__(self, message: str = "", *, kind: str | None = None,
+                 installed: str | None = None, version: str | None = None,
+                 needs: str | None = None):
+        super().__init__(message)
+        self.kind, self.installed, self.version, self.needs = kind, installed, version, needs
+
+
+class ReleaseIncompatibleError(InstallError):
+    """The release's manifest says it needs a newer Manager than this one
+    (`min_manager_version`, 3.4). Chosen explicitly it is refused; a bare
+    `update` or `bootstrap` skips it (`needs` is what the skipped release asks)."""
+
+    def __init__(self, message: str = "", *, version: str | None = None,
+                 needs: str | None = None, manager: str | None = None):
+        super().__init__(message)
+        self.version, self.needs, self.manager = version, needs, manager
+
+
+def incompatible(version: str, needs: str, manager: str | None) -> ReleaseIncompatibleError:
+    return ReleaseIncompatibleError(
+        f"Workflow {version} needs workflow-manager {needs} or newer; this is {manager or 'unknown'}",
+        version=version, needs=needs, manager=manager)
 
 
 def _log(message: str) -> None:
@@ -216,6 +283,10 @@ class ReleaseSource:
         return cls(option or environ.get(SOURCE_ENV) or DEFAULT_SOURCE)
 
     def location(self, version: str, name: str) -> str:
+        if not is_strict_version(version):
+            # A version becomes a path or a URL here: only X.Y.Z does.
+            raise ReleaseNotPublishedError(
+                f"release {version!r} is not a version (X.Y.Z)", kind="unpinned")
         if self.directory is not None:
             return str(self.directory / version / name)
         base = self.value.replace("{version}", urllib.parse.quote(version, safe=""))
@@ -244,6 +315,234 @@ class ReleaseSource:
             ) from exc
 
 
+    # -- discovery (in memory, size-capped, one shared deadline) -------------
+
+    def identity(self, repository: str) -> str:
+        """Which source served bytes: `github:<repository>` for the default,
+        `dir:<path>` for a directory, `template:<url>` for another template."""
+        if self.directory is not None:
+            return "dir:" + os.path.abspath(self.directory)
+        if self.value == DEFAULT_SOURCE:
+            return f"github:{repository}"
+        return f"template:{self.value}"
+
+    def read(self, version: str, name: str, cap: int, deadline: Deadline | None = None) -> bytes:
+        """One asset held in memory, at most `cap` bytes. Writes nothing."""
+        where = self.location(version, name)
+        kind, source = (("fetch-directory", str(self.directory)) if self.directory is not None
+                        else ("fetch-url", self.value))
+        try:
+            if self.directory is not None:
+                with open(where, "rb") as stream:
+                    return _read_capped(stream, cap, where, deadline)
+            return _http_read(where, cap, deadline)
+        except (ReleaseUnavailableError, DiscoveryFailure):
+            raise
+        except (OSError, urllib.error.URLError, ValueError) as exc:
+            raise ReleaseUnavailableError(f"cannot fetch {where}: {exc}", kind=kind,
+                                          version=version, source=source) from exc
+
+    def listing(self, repository: str, deadline: Deadline) -> Listing | None:
+        """The versions the source says exist, or None when it has no listing
+        (a URL template). A failure to list is `DiscoveryFailure`."""
+        if self.directory is not None:
+            return _list_directory(self.directory)
+        if self.value != DEFAULT_SOURCE:
+            return None
+        url = GITHUB_LISTING_URL.format(repository=urllib.parse.quote(repository, safe="/"))
+        try:
+            raw = _http_read(url, MAX_LISTING_BYTES, deadline,
+                             headers={"Accept": "application/vnd.github+json"})
+        except ReleaseUnavailableError as exc:
+            raise DiscoveryFailure(str(exc)) from exc
+        return parse_github_listing(raw)
+
+    def inspect(self, version: str, deadline: Deadline | None = None) -> Candidate:
+        """Read a version's `SHA256SUMS` and manifest asset and check them
+        against each other; a `Candidate` is not yet installed or trusted."""
+        sums = self.read(version, SUMS_NAME, MAX_SUMS_BYTES, deadline)
+        pin = derive_pin(version, sums.decode("utf-8", "replace"))
+        manifest = self.read(version, manifest_asset_name(version), MAX_MANIFEST_ASSET_BYTES,
+                             deadline)
+        actual = hashlib.sha256(manifest).hexdigest()
+        if actual != pin.manifest_sha256:
+            raise ReleaseIntegrityError(
+                f"release {version}'s manifest asset has digest {actual}, {SUMS_NAME} lists "
+                f"{pin.manifest_sha256}", kind="digest")
+        try:
+            named = json.loads(manifest)["workflow_version"]
+        except (ValueError, KeyError, TypeError) as exc:
+            raise ReleaseIntegrityError(
+                f"release {version}'s manifest asset is malformed: {exc}",
+                kind="manifest-shape") from exc
+        if named != version:
+            raise ReleaseIntegrityError(
+                f"release {version}'s manifest asset names release {named!r}",
+                kind="manifest-shape")
+        return Candidate(version, pin, manifest)
+
+
+class DiscoveryFailure(Exception):
+    """Discovery could not look: offline, a stalled server, a malformed or
+    oversize listing. `expired` marks the shared deadline running out."""
+
+    def __init__(self, reason: str, *, expired: bool = False):
+        super().__init__(reason)
+        self.reason, self.expired = reason, expired
+
+
+class Deadline:
+    """One command's choosing walk shares this much time (3.2)."""
+
+    def __init__(self, seconds: float | None = None, clock: Callable[[], float] = time.monotonic):
+        self._clock = clock
+        self._end = clock() + (DISCOVERY_DEADLINE_SECONDS if seconds is None else seconds)
+
+    def remaining(self) -> float:
+        return self._end - self._clock()
+
+    def timeout(self) -> float:
+        """The next request's timeout: the smaller of the per-request bound
+        and what remains. `DiscoveryFailure` once nothing remains."""
+        left = self.remaining()
+        if left <= 0:
+            raise DiscoveryFailure("the discovery time limit passed", expired=True)
+        return min(DISCOVERY_TIMEOUT_SECONDS, left)
+
+
+@dataclass(frozen=True)
+class Listing:
+    """What a source says it publishes. `complete` is false when the listing
+    may be truncated; `rejected` maps a version that looked like a release but
+    failed a rule (not immutable, assets missing) to why."""
+    versions: tuple[str, ...]
+    complete: bool = True
+    rejected: dict[str, str] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class Candidate:
+    version: str
+    pin: Pin
+    manifest: bytes
+
+
+def _read_capped(stream, cap: int, where: str, deadline: Deadline | None) -> bytes:
+    chunks, total = [], 0
+    # read1 returns after one socket read, so the deadline below is checked as
+    # often as bytes arrive; read(n) would block until n bytes or the end.
+    read = getattr(stream, "read1", stream.read)
+    while chunk := read(1 << 16):
+        total += len(chunk)
+        if total > cap:
+            raise ReleaseUnavailableError(f"{where} is larger than {cap} bytes",
+                                          kind="source-response")
+        chunks.append(chunk)
+        if deadline is not None:
+            deadline.timeout()
+    return b"".join(chunks)
+
+
+def _http_read(where: str, cap: int, deadline: Deadline | None, headers=None) -> bytes:
+    timeout = deadline.timeout() if deadline is not None else FETCH_TIMEOUT_SECONDS
+    _check_url(where)
+    if deadline is None:
+        return _http_fetch(where, cap, None, headers, timeout)
+    # The socket timeout bounds one operation, not the request: a server that
+    # trickles header bytes (or a TLS handshake) outlasts it. Run the request
+    # in a daemon thread and give up on it when the shared deadline passes.
+    outcome: list = []
+
+    def work():
+        try:
+            outcome.append((True, _http_fetch(where, cap, deadline, headers, timeout)))
+        except BaseException as exc:
+            outcome.append((False, exc))
+
+    worker = threading.Thread(target=work, daemon=True)
+    worker.start()
+    worker.join(max(deadline.remaining(), 0))
+    if not outcome:
+        raise DiscoveryFailure("the discovery time limit passed", expired=True)
+    ok, value = outcome[0]
+    if not ok:
+        raise value
+    return value
+
+
+def _http_fetch(where: str, cap: int, deadline: Deadline | None, headers, timeout: float) -> bytes:
+    opener = urllib.request.build_opener(_RedirectHandler)
+    request = urllib.request.Request(where, headers=headers or {})
+    try:
+        with opener.open(request, timeout=timeout) as stream:
+            return _read_capped(stream, cap, where, deadline)
+    except (OSError, urllib.error.URLError, ValueError) as exc:
+        raise ReleaseUnavailableError(f"cannot fetch {where}: {exc}", kind="fetch-url",
+                                      source=where) from exc
+
+
+def _list_directory(directory: Path) -> Listing:
+    try:
+        names = sorted(os.listdir(directory))
+    except OSError as exc:
+        raise DiscoveryFailure(f"cannot read {directory}: {exc}") from exc
+    versions = []
+    for name in names:
+        if not is_strict_version(name):
+            continue
+        folder = Path(directory) / name
+        wanted = (SUMS_NAME, archive_name(name), manifest_asset_name(name))
+        if folder.is_dir() and all((folder / asset).is_file() for asset in wanted):
+            versions.append(name)
+    return Listing(tuple(sorted(versions, key=_version_key)))
+
+
+def parse_github_listing(raw: bytes) -> Listing:
+    """The candidates in a GitHub releases listing: not a draft or prerelease,
+    a `vMAJOR.MINOR.PATCH` tag, the three assets, and `immutable: true` (the
+    field's absence is a failure). A listing of exactly one page may be
+    truncated. A malformed one is `DiscoveryFailure`."""
+    try:
+        data = json.loads(raw)
+    except ValueError as exc:
+        raise DiscoveryFailure(f"the releases listing is not JSON: {exc}") from exc
+    if not isinstance(data, list):
+        raise DiscoveryFailure("the releases listing is not a list")
+    versions, rejected = [], {}
+    for item in data:
+        if not isinstance(item, dict) or item.get("draft") or item.get("prerelease"):
+            continue
+        tag = item.get("tag_name")
+        if not isinstance(tag, str) or _STRICT_TAG.fullmatch(tag) is None:
+            continue
+        version = tag[1:]
+        assets = item.get("assets")
+        names = {a.get("name") for a in assets if isinstance(a, dict)} \
+            if isinstance(assets, list) else set()
+        wanted = {SUMS_NAME, archive_name(version), manifest_asset_name(version)}
+        if not wanted <= names:
+            rejected[version] = "it does not list its three assets"
+        elif item.get("immutable") is not True:
+            rejected[version] = "it is not marked immutable"
+        elif version not in versions:
+            versions.append(version)
+    return Listing(tuple(sorted(versions, key=_version_key)),
+                   complete=len(data) < LISTING_PAGE_SIZE, rejected=rejected)
+
+
+def derive_pin(version: str, sums_text: str) -> Pin:
+    """The pin a release's own `SHA256SUMS` gives: it must list exactly the
+    archive and the manifest asset, each with a well-formed digest."""
+    sums = _parse_sums_text(sums_text, SUMS_NAME)
+    archive, manifest = archive_name(version), manifest_asset_name(version)
+    if set(sums) != {archive, manifest}:
+        raise ReleaseIntegrityError(
+            f"release {version}'s {SUMS_NAME} lists {sorted(sums)}, not exactly "
+            f"{archive} and {manifest}", kind="digest")
+    return Pin(version=version, archive=archive, sha256=sums[archive],
+               manifest_sha256=sums[manifest])
+
+
 def _copy_capped(stream, dest: Path, where: str) -> None:
     total = 0
     with open(dest, "wb") as out:
@@ -255,15 +554,20 @@ def _copy_capped(stream, dest: Path, where: str) -> None:
             out.write(chunk)
 
 
-def _parse_sums(path: Path) -> dict[str, str]:
+def _parse_sums_text(text: str, name: str) -> dict[str, str]:
     sums = {}
-    for line in path.read_text("utf-8", "replace").splitlines():
+    for line in text.splitlines():
         match = re.fullmatch(r"([0-9a-f]{64})  (\S+)", line)
         if match is None:
-            raise ReleaseIntegrityError(f"{path.name} has a malformed line {line!r}",
-                                        kind="digest")
+            raise ReleaseIntegrityError(f"{name} has a malformed line {line!r}", kind="digest")
+        if match.group(2) in sums:
+            raise ReleaseIntegrityError(f"{name} lists {match.group(2)} twice", kind="digest")
         sums[match.group(2)] = match.group(1)
     return sums
+
+
+def _parse_sums(path: Path) -> dict[str, str]:
+    return _parse_sums_text(path.read_text("utf-8", "replace"), path.name)
 
 
 # ---------------------------------------------------------------------------
@@ -375,26 +679,124 @@ class ReleaseCache:
     #: the snapshot check, to stand in for a writer that ignores the lock.
     _after_snapshot_copy: Callable[[Path, Path], None] | None = None
 
-    def __init__(self, root: Path, source: ReleaseSource, pins: Pins):
+    def __init__(self, root: Path, source: ReleaseSource | None, pins: Pins, *,
+                 discover: bool = False, admit: Callable[[Release], object] | None = None):
         self.root = Path(root)
         self.source = source
         self.pins = pins
+        #: Whether a version with no pin may be installed (3.3); `--pinned-only` is False.
+        self.discover = discover
+        #: Called with the fetched release, still in private staging, before it
+        #: is promoted into the cache: an error it raises leaves the cache as it
+        #: was (the command's own refusals, such as `min_manager_version`).
+        self.admit = admit
 
     def entry(self, version: str) -> Path:
         return self.root / version
 
-    def cached(self, version: str) -> bool:
-        """Whether the entry holds the pinned package (no network, no lock)."""
-        pin = self._pin(version)
-        return self._is_hit(self.entry(version), pin)
+    def identity(self) -> str | None:
+        """Which source this run names (`github:<repository>`, `dir:`, `template:`)."""
+        return self.source.identity(self.pins.repository) if self.source is not None else None
 
-    def _pin(self, version: str) -> Pin:
+    def cached(self, version: str) -> bool:
+        """Whether the entry holds the package (no network, no lock)."""
         pin = self.pins.get(version)
-        if pin is None:
-            raise ReleaseNotPublishedError(
-                f"release {version} is not published: this Manager has no pin for it "
-                f"(pinned: {', '.join(self.pins.versions()) or 'none'})", kind="unpinned")
-        return pin
+        if pin is not None:
+            return self._is_hit(self.entry(version), pin, TRUST_PINNED)
+        if not self.discover or not is_strict_version(version):
+            raise self._unpinned(version)
+        local = self._local_pin(version)
+        return local is not None and self._is_hit(self.entry(version), local, TRUST_DISCOVERED)
+
+    def cached_manifest(self, version: str) -> bytes | None:
+        """The manifest of a cache entry this run trusts (a hit for its pin or
+        for this source), or None. No network, no lock."""
+        try:
+            pin = self.pins.get(version)
+            trust = TRUST_PINNED
+            if pin is None:
+                if not self.discover or not is_strict_version(version):
+                    return None
+                pin, trust = self._local_pin(version), TRUST_DISCOVERED
+            if pin is None or not self._is_hit(self.entry(version), pin, trust):
+                return None
+            data = (self.entry(version) / TREE_NAME / MANIFEST_NAME).read_bytes()
+            # The bytes just read are the ones the pin names: a concurrent
+            # replacement of the entry after the hit check is not served.
+            return data if hashlib.sha256(data).hexdigest() == pin.manifest_sha256 else None
+        except (ReleaseNotPublishedError, ReleaseIntegrityError, OSError):
+            return None
+
+    def _unpinned(self, version: str) -> ReleaseNotPublishedError:
+        return ReleaseNotPublishedError(
+            f"release {version} is not published: this Manager has no pin for it "
+            f"(pinned: {', '.join(self.pins.versions()) or 'none'})", kind="unpinned")
+
+    def _stored_source(self, entry: Path) -> dict | None:
+        """The entry's `SOURCE` record, or None when it has none or it is unreadable."""
+        try:
+            data = json.loads((entry / SOURCE_NAME).read_text())
+        except (OSError, ValueError):
+            return None
+        return data if isinstance(data, dict) else None
+
+    def _source_matches(self, entry: Path) -> bool:
+        stored = self._stored_source(entry)
+        return (stored is not None and stored.get("trust") == TRUST_DISCOVERED
+                and self.identity() is not None and stored.get("from") == self.identity())
+
+    def _local_pin(self, version: str) -> Pin | None:
+        """The derived pin of a discovered entry that this run's source wrote:
+        its own `SHA256SUMS` (a hit is still checked against it by `_is_hit`)."""
+        entry = self.entry(version)
+        try:
+            if entry.is_symlink() or not (entry / COMPLETE_NAME).is_file() \
+                    or not self._source_matches(entry):
+                return None
+            return derive_pin(version, (entry / SUMS_NAME).read_text("utf-8", "replace"))
+        except (OSError, ReleaseIntegrityError):
+            return None
+
+    def _derive(self, version: str) -> Pin:
+        """The derived pin from the source's own `SHA256SUMS` (3.3)."""
+        if self.source is None:
+            raise self._unpinned(version)
+        return derive_pin(version, self.source.read(version, SUMS_NAME, MAX_SUMS_BYTES)
+                          .decode("utf-8", "replace"))
+
+    def known_local(self) -> list[str]:
+        """Versions usable with no network, oldest first: the pins, and cache
+        entries that carry a `complete` marker and, when discovered, a `SOURCE`
+        equal to this run's source (3.1)."""
+        versions = set(self.pins.versions())
+        if self.discover and self.root.is_dir():
+            try:
+                names = os.listdir(self.root)
+            except OSError:
+                names = []
+            for name in names:
+                if is_strict_version(name) and name not in versions \
+                        and self._local_pin(name) is not None:
+                    versions.add(name)
+        return sorted(versions, key=_version_key)
+
+    def _trust(self, version: str) -> tuple[Pin, str]:
+        """The pin that binds `version`, and why it is trusted: `pinned` (the
+        shipped pin) or `discovered` (derived from the source's `SHA256SUMS`,
+        or from the entry this run's source already wrote)."""
+        pin = self.pins.get(version)
+        if pin is not None:
+            return pin, TRUST_PINNED
+        if not self.discover or not is_strict_version(version):
+            raise self._unpinned(version)
+        return (self._local_pin(version) or self._derive(version)), TRUST_DISCOVERED
+
+    def _record(self, pin: Pin, trust: str) -> dict:
+        """The installation record's `source` for bytes bound this way."""
+        if trust == TRUST_PINNED:
+            return self.pins.source_record(pin.version)
+        return {"kind": "package", "repository": self.pins.repository, "archive": pin.archive,
+                "sha256": pin.sha256, "trust": TRUST_DISCOVERED, "from": self.identity()}
 
     @contextmanager
     def _locked(self, version: str, read_only: bool = False) -> Iterator[None]:
@@ -419,8 +821,13 @@ class ReleaseCache:
             finally:
                 fcntl.flock(handle, fcntl.LOCK_UN)
 
-    def _is_hit(self, entry: Path, pin: Pin) -> bool:
+    def _is_hit(self, entry: Path, pin: Pin, trust: str = TRUST_PINNED, *,
+                any_source: bool = False) -> bool:
         try:
+            if trust == TRUST_DISCOVERED:
+                if not (any_source or self._source_matches(entry)) or derive_pin(
+                        pin.version, (entry / SUMS_NAME).read_text("utf-8", "replace")) != pin:
+                    return False
             if (entry / COMPLETE_NAME).read_text().strip() != pin.sha256:
                 return False
             if file_sha256(entry / pin.archive) != pin.sha256:
@@ -430,8 +837,21 @@ class ReleaseCache:
                 return False
             release = Release(tree)
             return release.version == pin.version and not release.verify()
-        except (OSError, ValueError, KeyError, TypeError):
+        except (OSError, ValueError, KeyError, TypeError, ReleaseIntegrityError):
             return False
+
+    def _trusted_elsewhere(self, entry: Path, version: str) -> bool:
+        """Whether `entry` is an intact discovered entry another source wrote:
+        trusted for that source, so it is replaced only once its successor is
+        admitted (`_fetch`), never discarded ahead of a refusal."""
+        stored = self._stored_source(entry)
+        if entry.is_symlink() or stored is None or stored.get("trust") != TRUST_DISCOVERED:
+            return False
+        try:
+            own = derive_pin(version, (entry / SUMS_NAME).read_text("utf-8", "replace"))
+        except (OSError, ReleaseIntegrityError):
+            return False
+        return self._is_hit(entry, own, TRUST_DISCOVERED, any_source=True)
 
     def _discard(self, entry: Path, why: str) -> None:
         if entry.exists() or entry.is_symlink():
@@ -447,9 +867,11 @@ class ReleaseCache:
                     f"by hand, or choose another cache with --release-cache or "
                     f"${CACHE_ENV}", kind="cache-unusable") from exc
 
-    def _fetch(self, pin: Pin) -> None:
+    def _fetch(self, pin: Pin, trust: str = TRUST_PINNED, why: str | None = None) -> None:
         """Fetch, check and extract the package into a temporary sibling of
-        the entry, then rename it into place. The entry must be absent."""
+        the entry, admit it (`admit`), and only then discard the entry still
+        there (for `why`) and rename the sibling into place. A refusal at any
+        step leaves that entry as it was."""
         version = pin.version
         staging = Path(tempfile.mkdtemp(prefix=f".{version}.", dir=self.root))
         try:
@@ -462,6 +884,10 @@ class ReleaseCache:
             self.source.fetch(version, manifest_name, manifest)
 
             sums = _parse_sums(sums_path)
+            if trust == TRUST_DISCOVERED and set(sums) != {pin.archive, manifest_name}:
+                raise ReleaseIntegrityError(
+                    f"release {version}'s {SUMS_NAME} lists {sorted(sums)}, not exactly "
+                    f"{pin.archive} and {manifest_name}", kind="digest")
             archive_digest = file_sha256(archive)
             if archive_digest != pin.sha256 or sums.get(pin.archive) != pin.sha256:
                 raise ReleaseIntegrityError(
@@ -481,7 +907,14 @@ class ReleaseCache:
                 raise ReleaseIntegrityError(
                     f"release {version}'s archive carries a manifest other than the pinned one",
                     kind="digest")
+            if trust == TRUST_DISCOVERED:
+                (staging / SOURCE_NAME).write_text(
+                    json.dumps({"trust": TRUST_DISCOVERED, "from": self.identity()}) + "\n")
             (staging / COMPLETE_NAME).write_text(pin.sha256 + "\n")
+            if self.admit is not None:
+                self.admit(Release(staging / TREE_NAME))
+            if why is not None:
+                self._discard(self.entry(version), why)
             os.rename(staging, self.entry(version))
         except OSError as exc:
             raise ReleaseUnavailableError(
@@ -490,19 +923,31 @@ class ReleaseCache:
         finally:
             shutil.rmtree(staging, ignore_errors=True)
 
-    def _ensure_locked(self, pin: Pin) -> None:
+    def _ensure_locked(self, pin: Pin, trust: str = TRUST_PINNED) -> Pin:
+        """Make the entry hold the package; returns the pin that bound it (a
+        discovered release is re-derived from the source on a refetch)."""
         entry = self.entry(pin.version)
-        if self._is_hit(entry, pin):
-            return
-        self._discard(entry, "it does not match the pin")
-        self._fetch(pin)
+        if self._is_hit(entry, pin, trust):
+            return pin
+        why = ("it does not match the pin" if trust == TRUST_PINNED
+               else "it does not match its recorded checksums or source")
+        if not self._trusted_elsewhere(entry, pin.version):
+            self._discard(entry, why)     # a broken entry goes now, whatever follows
+            why = None
+        return self._refetch(pin, trust, why)
+
+    def _refetch(self, pin: Pin, trust: str, why: str | None = None) -> Pin:
+        if trust == TRUST_DISCOVERED:
+            pin = self._derive(pin.version)
+        self._fetch(pin, trust, why)
+        return pin
 
     def ensure(self, version: str) -> Path:
-        """Make the entry hold the pinned package, fetching only on a miss.
-        Returns the entry. Installs nothing, so it takes no snapshot."""
-        pin = self._pin(version)
+        """Make the entry hold the package, fetching only on a miss. Returns
+        the entry. Installs nothing, so it takes no snapshot."""
+        pin, trust = self._trust(version)
         with self._locked(version):
-            self._ensure_locked(pin)
+            self._ensure_locked(pin, trust)
         return self.entry(version)
 
     def resolve(self, version: str, *, snapshot_parent: Path | None = None,
@@ -516,9 +961,9 @@ class ReleaseCache:
         `ReleaseUnavailableError` when that refetch cannot be made,
         `ReleaseIntegrityError` when its snapshot fails too.
         """
-        pin = self._pin(version)
+        pin, trust = self._trust(version)
         with self._locked(version, read_only):
-            self._ensure_locked(pin)
+            pin = self._ensure_locked(pin, trust)
             for attempt in (1, 2):
                 entry = self.entry(version)
                 try:
@@ -534,7 +979,10 @@ class ReleaseCache:
                         shutil.rmtree(snapshot, ignore_errors=True)
                         raise
                     if not problems:
-                        return SnapshotRelease(snapshot, self.pins.source_record(version))
+                        if trust == TRUST_DISCOVERED:
+                            _log(f"using release {version}, discovered from {self.identity()}: "
+                                 f"this Manager has no pin for it")
+                        return SnapshotRelease(snapshot, self._record(pin, trust))
                     shutil.rmtree(snapshot, ignore_errors=True)
                 if attempt == 2:
                     raise ReleaseIntegrityError(
@@ -542,8 +990,90 @@ class ReleaseCache:
                         f"twice: {'; '.join(problems)}", kind="cache-changed")
                 self._discard(entry, "it changed while it was being copied: "
                               + "; ".join(problems))
-                self._fetch(pin)
+                pin = self._refetch(pin, trust)
         raise AssertionError("unreachable")
+
+
+# ---------------------------------------------------------------------------
+# Choosing a release (`D-Discover`)
+# ---------------------------------------------------------------------------
+
+
+class Chooser:
+    """The releases a command with no version given may mean, newest first.
+
+    Candidates come from the pins, the cache entries this run's source wrote,
+    `local` (the `--manager-root` alias) and, unless `--pinned-only`, the
+    source's own listing. A listed release with no pin is *inspected* (its
+    `SHA256SUMS` and manifest asset are read, in memory, and checked against
+    each other) before it is offered. Nothing here raises on a network problem:
+    a failed listing or a failed candidate is one stderr line and the walk goes
+    on, ending at the newest local release. The installed release is a
+    `floor`: nothing older is offered, and `cut_by_floor` says the walk stopped
+    for it (3.2).
+
+    The generator is lazy, so a caller that takes the first usable candidate
+    reads no more than that candidate's metadata."""
+
+    def __init__(self, cache: ReleaseCache, *, local=(), floor: str | None = None):
+        self.cache = cache
+        self.local = set(local)
+        self.floor = floor
+        self.cut_by_floor = False
+        #: Why discovery found nothing (offline, deadline), or None.
+        self.offline: str | None = None
+        #: Versions whose metadata could be read but which were skipped, with why.
+        self.skipped: dict[str, str] = {}
+        self.deadline = Deadline()
+
+    def _newest_usable(self, known: list[str]) -> str:
+        usable = [v for v in known if self.floor is None
+                  or _version_key(v) >= _version_key(self.floor)]
+        return usable[-1] if usable else "no release known locally"
+
+    def _go_offline(self, reason: str, known: list[str]) -> None:
+        self.offline = reason
+        _log(f"could not look for newer releases: {reason}; using {self._newest_usable(known)}")
+
+    def candidates(self) -> Iterator[str]:
+        known = sorted(set(self.cache.known_local()) | self.local, key=_version_key)
+        listed: tuple[str, ...] = ()
+        if self.cache.discover and self.cache.source is not None:
+            try:
+                listing = self.cache.source.listing(self.cache.pins.repository, self.deadline)
+            except (DiscoveryFailure, ReleaseUnavailableError, OSError) as exc:
+                self._go_offline(getattr(exc, "reason", None) or str(exc), known)
+            else:
+                if listing is not None:
+                    listed = listing.versions
+                    for version, why in listing.rejected.items():
+                        self.skipped[version] = why
+                        _log(f"skipping release {version}: {why}")
+        for version in sorted(set(known) | set(listed), key=_version_key, reverse=True):
+            if self.floor is not None and _version_key(version) < _version_key(self.floor):
+                self.cut_by_floor = True
+                return
+            if version in known:
+                yield version
+                continue
+            if self.offline is not None:
+                continue
+            try:
+                self.cache.source.inspect(version, self.deadline)
+            except DiscoveryFailure as exc:
+                if exc.expired:
+                    self._go_offline(exc.reason, known)
+                else:
+                    self._skip(version, exc.reason)
+                continue
+            except (ReleaseUnavailableError, ReleaseIntegrityError, OSError, ValueError) as exc:
+                self._skip(version, str(exc))
+                continue
+            yield version
+
+    def _skip(self, version: str, reason: str) -> None:
+        self.skipped[version] = reason
+        _log(f"could not use release {version}: {reason}; skipping it")
 
 
 # ---------------------------------------------------------------------------

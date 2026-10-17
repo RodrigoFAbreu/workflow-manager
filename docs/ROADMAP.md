@@ -7,14 +7,14 @@ The full text of earlier versions is in this file's git history; the last long v
 ## How to read this roadmap
 
 - Read **What's next** for the order of work, **Done** for what already shipped, and **Later** for open items that have no slot yet.
-- Status words: **Done** (merged and released), **Next** (the item to start now), **Later** (wanted, not scheduled), **Waiting on ...** (blocked until the named thing exists).
+- Status words: **Done** (merged and released), **In progress** (a milestone is under way), **Next** (the item to start now), **Later** (wanted, not scheduled), **Waiting on ...** (blocked until the named thing exists).
 - This file covers the Workflow Manager (the installer and updater) and the order of work across this repository and the `workflow` repository. M1, M2 and M3 are this file's milestone names.
 - The Workflow's own plans and defects are in [the Workflow roadmap](https://github.com/RodrigoFAbreu/workflow/blob/main/docs/ROADMAP.md). The Controller's are in [the Controller roadmap](https://github.com/RodrigoFAbreu/workflow-controller/blob/main/docs/ROADMAP.md). They are linked, not copied.
 - Controller releases are installed into the shared Controller only between milestones, when no lane is running one.
 
 ## What's next
 
-Items 1 to 4 and item 7 (Operator UX) are done. Items 5 and 6 wait on the Controller.
+Items 1 to 4 and item 7 (Operator UX) are done. Item 8 (the release-agnostic Manager) is done. Items 5 and 6 wait on the Controller.
 
 The end goal is a loop where the Controller takes the next roadmap item, plans, implements, reviews, tests, merges and releases it, then starts the next one. The order below is the owner's agreed order across this lane.
 
@@ -27,15 +27,21 @@ The end goal is a loop where the Controller takes the next roadmap item, plans, 
 | 5 | Controller C10 (gate policy and automatic acceptance) | The Controller can use Workflow 2.8's gate policy | Waiting on the Controller; tracked in [the Controller repository](https://github.com/RodrigoFAbreu/workflow-controller/blob/main/docs/ROADMAP.md) |
 | 6 | **M3**: this repository and `workflow` driven by the Controller's loop | Roadmap items worked, merged and released with no hand-driving | Waiting on the Controller's kanban runner (C11) |
 | 7 | Operator UX | Error messages that name the cause and the next command, and `status` showing the work in flight | Done (accepted by policy 2026-10-10; Manager 1.8.0 releases when its pull request merges) |
+| 8 | Release-agnostic Manager | A Workflow release installs without a Manager pin pull request or a Manager release | Done (accepted by policy 2026-10-17; Manager release follows the merge) |
 
 ### 7. Operator UX (Done)
 
 The documentation clean-up delivered most of this: install, update and verify guides, a common-problems page, and a documentation index. What remains is in the tool, not the docs, and this item delivers it: every error, refusal, warning and note names its cause and one concrete next step (a command, a flag or a page), using the real program name and options; recovery instructions appear in the output; and `status` shows the work in flight, so an operator does not need to read the state JSON. Exit codes stay as `docs/exit-codes.md` documents them. Plan: `docs/ai-workflow/WORKFLOW_MANAGER_OPERATOR_UX_PLAN.md`. A `feat:` title, so it releases Manager 1.8.0.
 
+### 8. Release-agnostic Manager (Done)
+
+Every Workflow release forces a Manager pin pull request and a Manager release that adds nothing but the pin. This item removes that: the Manager discovers published Workflow releases and verifies each by its published `SHA256SUMS` and manifest digest, instead of only the digests pinned in `src/workflow_manager/published_releases.json`. Existing pins stay, are never changed, and stay authoritative for the releases they name. A release's manifest may carry the data the Manager hard-codes today (downgrade boundary, new-work-only fixes, gate-default change, frozen suite counts, portability exceptions, `min_manager_version`); an older Manager refuses a release that needs a newer one, and releases up to 2.12.0 keep the built-in data. Manager CI stays deterministic: a lock file names the Workflow releases it tests, and the nightly tests the newest published one. The Workflow-side change (writing those manifest fields) is a separate milestone in the `workflow` repository; its contract is [`release-metadata.md`](release-metadata.md). Plan: `docs/ai-workflow/WORKFLOW_MANAGER_RELEASE_AGNOSTIC_PLAN.md`. A `feat:` title, so it releases a Manager minor.
+
 ## Done
 
 Newest first.
 
+- **Release-agnostic Manager** (2026-10-17, accepted by policy; the Manager release follows the pull request's merge, #38). A Workflow release published after a Manager release installs without a Manager pin pull request or a Manager release: the Manager discovers published releases and verifies each by its published `SHA256SUMS` and manifest digest; a release's manifest may carry the per-release compatibility data and `min_manager_version`; releases up to 2.12.0 keep their pins and built-in data; CI tests the releases a lock file names, and the nightly the newest published one. Plan: `docs/ai-workflow/WORKFLOW_MANAGER_RELEASE_AGNOSTIC_PLAN.md`.
 - **Workflow 2.12.0 pinned** (2026-10-16). Published by the `workflow` repository (W8, workflow#28): from round 2 a plan or implementation review is given the changes since the last reviewed bundle in a gitignored `CHANGES_SINCE_REVIEW.md`, and a verdict is checked for shape before it becomes state. It writes no new key or value; Orchestration Protocol 1.4.
 - **Workflow 2.11.0 pinned** (2026-10-13). Published by the `workflow` repository (W7, workflow#23): a plan revision's checkpoint anchors are checked when the revision is published, bound or turned into a plan-review bundle, instead of first at plan approval. It writes nothing new; Orchestration Protocol stays 1.3.
 - **Workflow 2.10.0 pinned** (2026-10-12). Published by the `workflow` repository (W5, workflow#24): creating a new work item is refused while `default_workflow_version` is `"2.1"`; Orchestration Protocol 1.3; the managed CI workflow runs its suites in parallel and cancels a superseded pull-request run. `workflow-manager doctor` and `update --dry-run` warn about a `"2.1"` default whatever release is installed.
@@ -67,6 +73,34 @@ Not scheduled. Each is small unless noted.
   - a cleanup failure after the report can turn a printed exit 0 into exit 2;
   - an interrupt inside the fork-to-exec window of a spawned process is not covered.
 - **A 5-minute CI target.** It needs about 24 shards; the account's cap is 20 parallel jobs. Revisit if the cap changes or the test set shrinks.
+
+### Review follow-ups: release-agnostic Manager (item 8)
+
+These are the Optional review findings deferred at acceptance (the owner's rule of 2026-10-16). Each is a complete disposition, and a later clean-up milestone works them off. Issues are disabled in this repository, so the list lives here.
+
+**Floor and choosing**
+1. RA-L4-O2 / RA-L5-001 (local plan review): the floor's edges outside bare `update` are unstated. Two cases:
+   - `--pinned-only` with an installed discovered release, where the newest pin is below the floor;
+   - `doctor`'s output and exit code when nothing usable reaches the floor.
+2. RA-IMPL-R1-O3: the floor refusal has a fixed set of REASON strings; one more may be needed for the `--pinned-only` case above.
+3. RA-IMPL-R1-O4 / RA-IMPL-R2-O2: on an explicit `--release-version` run, `doctor`'s "Latest available" still comes from the newest pin, so the `[pinned]` marker can hide a newer discovered release.
+4. RA-IMPL-R7-O1: under discovery, a malformed version such as `v2.12.0` gets "not published / no pin" advice instead of "name a release as X.Y.Z". Add a dedicated `not-a-version` kind.
+
+**Metadata and verification**
+
+5. Codex plan round 1: the behaviour of partial metadata objects is unspecified, for example `conformance: {}` or a single missing nested field. Specify per-field defaults or required fields, and add tests.
+6. RA-IMPL-R1-O1: a manager block of the wrong shape refuses the whole release (plan 3.4, "fail closed"). Revisit whether an older, compatible release should be offered instead. This would be a plan change.
+7. RA-IMPL-R1-O2: pre-screen the binding check from the manifest asset before fetching the archive. An optimisation only; the check on the installed bytes stays.
+8. Codex implementation round 1: `SHA256SUMS` parsing silently keeps the last of duplicate filenames, though the contract says exactly two lines. Refuse duplicates.
+9. RA-IMPL-R8-001: `ReleaseFloorError`'s docstring (`src/workflow_manager/source.py:131`) does not name the `none-at-floor` kind.
+
+**Tests and runner**
+
+10. RA-IMPL-R7-O2: add a CLI-level test of a traversal version (`"../escaped"`) through an installation record, checking that nothing is created or removed outside the cache.
+11. Local implementation round 4: add a CLI test that `doctor` exits 0 on an up-to-date post-2.12.0 installation whose source is unreadable.
+12. Local implementation round 4: when the deadline expires, `_http_read` abandons its worker thread and socket. That is harmless in the one-shot CLI, but it accumulates in long-lived callers such as a test process.
+13. RA-LOC-R5-O2: in `tests/parallel/resources.json`, a concrete `frozen:<v>/...` key and a `frozen:*/...` key for the same unit silently overwrite each other. Refuse the overlap or document it.
+14. RA-L2-002: the nightly saves a new cache entry per run. Save only when the nightly's lock differs from the committed one, or document the noise.
 
 ## Principles
 

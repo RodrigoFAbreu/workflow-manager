@@ -11,10 +11,12 @@
     workflow-manager package verify <archive> [--sha256 H]
     workflow-manager --version
 
-Releases are published packages, pinned in the Manager's
-`published_releases.json` and fetched through a verified cache
-(`--release-source`, `--release-cache`); `--release-dir` installs an
-unpackaged release directory instead. `--release-version` picks the release.
+Releases are published packages fetched through a verified cache
+(`--release-source`, `--release-cache`). The Manager's `published_releases.json`
+pins the releases it shipped with; a release published later is found by
+listing the source and verified by its own `SHA256SUMS` and manifest digest
+(`--pinned-only` turns that off). `--release-dir` installs an unpackaged
+release directory instead. `--release-version` picks the release.
 Without it, the two commands that *change* which release a repository is on
 -- `bootstrap` and `update` -- mean the newest published release, and the two
 that *report on* an installation -- `status` and `verify` -- mean the release
@@ -44,6 +46,8 @@ from . import advice
 from . import source as release_source
 from .compatibility import (
     ContainmentError,
+    has_builtin_data,
+    is_comparable,
     Destinations,
     data_files,
     data_findings,
@@ -70,6 +74,7 @@ from .install import (
     verify,
 )
 from .installation import CorruptInstallationError, Installation, is_managed, not_managed_text
+from .coverage import gather_metadata
 from .package import build_package, extract_package, file_sha256
 from .release import (
     INSTALL_PROFILE_FULL,
@@ -77,14 +82,24 @@ from .release import (
     Release,
     ReleaseIntegrityError,
     _version_key,
+    manager_version_ok,
 )
 from .source import (
+    AVAILABILITY_KINDS,
+    Chooser,
+    Deadline,
+    DiscoveryFailure,
     ReleaseCache,
+    ReleaseFloorError,
+    ReleaseIncompatibleError,
     ReleaseNotPublishedError,
     ReleaseSource,
     ReleaseUnavailableError,
     cache_root,
+    incompatible,
+    is_strict_version,
     local_release,
+    pinned_only,
 )
 
 MANAGER_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -182,7 +197,8 @@ class _VersionAction(argparse.Action):
 # ---------------------------------------------------------------------------
 
 #: The errors that mean "no usable release": exit 1, with actionable text.
-RELEASE_ERRORS = (ReleaseNotPublishedError, ReleaseUnavailableError, ReleaseIntegrityError)
+RELEASE_ERRORS = (ReleaseNotPublishedError, ReleaseUnavailableError, ReleaseIntegrityError,
+                  ReleaseFloorError, ReleaseIncompatibleError)
 
 MANAGER_ROOT_DEPRECATION = (
     "workflow-manager: --manager-root is deprecated and will be removed in a later release. "
@@ -195,9 +211,15 @@ def _pins():
     return release_source.load_pins(release_source.PINS_PATH)
 
 
-def _cache(args, pins) -> ReleaseCache:
+def _discovering(args) -> bool:
+    """Whether a release with no pin may be installed (`--pinned-only` says not)."""
+    return not pinned_only(getattr(args, "pinned_only", False))
+
+
+def _cache(args, pins, admit=None) -> ReleaseCache:
     return ReleaseCache(cache_root(args.release_cache),
-                        ReleaseSource.select(args.release_source), pins)
+                        ReleaseSource.select(args.release_source), pins,
+                        discover=_discovering(args), admit=admit)
 
 
 def _checkout_releases(checkout: Path) -> dict[str, Path]:
@@ -224,7 +246,8 @@ def _default_version(args, pins) -> str:
     return versions[-1]
 
 
-def _resolve(args, version: str | None, destinations: Destinations | None = None):
+def _resolve(args, version: str | None, destinations: Destinations | None = None,
+             admit=None):
     """The release `version` (default: the newest) as a verified private
     snapshot. Precedence: `--release-dir`, the `--manager-root` alias when its
     checkout holds the version, then the pins through the cache, which refuse
@@ -232,7 +255,8 @@ def _resolve(args, version: str | None, destinations: Destinations | None = None
 
     `destinations` is the read-only commands' (`doctor`, `update --dry-run`):
     the validated snapshot parent and the no-follow lock leaf, threaded down so
-    no hop falls back to the default temporary directory."""
+    no hop falls back to the default temporary directory. `admit` is the
+    cache's check of a fetched release before it is stored (`ReleaseCache`)."""
     pins = _pins()
     parent = destinations.snapshot_parent if destinations else None
     if args.release_dir is not None:
@@ -244,13 +268,151 @@ def _resolve(args, version: str | None, destinations: Destinations | None = None
     candidates = _alias_releases(args)
     if version in candidates:
         return local_release(candidates[version], version, pins, parent)
-    return _cache(args, pins).resolve(version, snapshot_parent=parent,
-                                      read_only=destinations is not None)
+    return _cache(args, pins, admit).resolve(version, snapshot_parent=parent,
+                                             read_only=destinations is not None)
+
+
+def _needs_newer_manager(release) -> str | None:
+    """The `min_manager_version` of `release` when this Manager is older than it
+    (3.4), else None. A release whose data is built in ignores its block. A bad
+    block is `ReleaseIntegrityError(kind="manifest-shape")`."""
+    if has_builtin_data(release.version):
+        return None
+    block = release.manager
+    minimum = block.min_manager_version if block is not None else None
+    return None if manager_version_ok(minimum, _installed_version()) else minimum
+
+
+def _close(release) -> None:
+    close = getattr(release, "close", None)
+    if close is not None:
+        close()
+
+
+def _require_compatible(release):
+    """`release`, or `ReleaseIncompatibleError` (the release is closed first)
+    when it needs a newer Manager: an explicit choice is refused (3.4). A bad
+    `manager` block is `ReleaseIntegrityError`, naming the release."""
+    try:
+        needs = _needs_newer_manager(release)
+    except ReleaseIntegrityError as exc:
+        _close(release)
+        exc.version = getattr(exc, "version", None) or release.version
+        raise
+    if needs is not None:
+        _close(release)
+        raise incompatible(release.version, needs, _installed_version())
+    return release
+
+
+def _resolve_compatible(args, version: str | None, destinations: Destinations | None = None):
+    """`_resolve` for a command that refuses a release needing a newer Manager
+    or carrying a bad `manager` block: the same check runs on a fetched
+    release before the cache stores it, so a refusal leaves the cache as it was."""
+    return _require_compatible(_resolve(args, version, destinations, admit=_require_compatible))
+
+
+def _note_incompatible(error: ReleaseIncompatibleError) -> None:
+    print(f"workflow-manager: {error}; to install it, upgrade the Manager first "
+          f"({advice.page(*advice.PAGE_UPDATE_MANAGER)})", file=sys.stderr)
+
+
+def _note_release_needs(release) -> None:
+    """`status` and `verify` only read, so a release that needs a newer Manager
+    is a note, never a refusal (3.4)."""
+    try:
+        needs = _needs_newer_manager(release)
+    except ReleaseIntegrityError:
+        return
+    if needs is not None:
+        print(f"workflow-manager: note: {incompatible(release.version, needs, _installed_version())}",
+              file=sys.stderr)
+
+
+def _floor(args) -> str | None:
+    """The installed release, a floor for a bare `update` (3.2): the record's
+    version when it is one parseable `X.Y.Z`, else none, with a note."""
+    target = getattr(args, "target", None)
+    if target is None or not is_managed(target):
+        return None
+    try:
+        version = Installation.read(target).workflow_version
+    except Exception:  # noqa: BLE001 -- the command itself reports a damaged record
+        return None
+    if is_strict_version(version):
+        return version
+    print("workflow-manager: the installation record names no parseable release, so a bare "
+          "update cannot refuse an older one", file=sys.stderr)
+    return None
+
+
+def _floor_error(installed: str, chooser: Chooser, blocked: list[str]) -> ReleaseFloorError:
+    if blocked:
+        kind, reason = "archive", f"the archive of {blocked[0]} could not be fetched"
+    elif chooser.offline is not None:
+        kind, reason = "offline", "could not look for newer releases (offline)"
+    else:
+        kind, reason = "none-at-floor", "the release source offers no release at or above it"
+    return ReleaseFloorError(
+        f"no usable release at or above the installed Workflow {installed}: {reason}",
+        kind=kind, installed=installed, version=blocked[0] if blocked else None)
+
+
+def _choose_and_resolve(args, *, floor: str | None = None, installed: str | None = None,
+                        readonly: bool = False):
+    """Choose the newest usable release and acquire it, `(release, destinations)`.
+
+    Candidates are walked newest first (`source.Chooser`). For each, the
+    read-only commands plan their destinations on that candidate's cache leaves
+    (the containment checks are redone whenever the chosen version changes),
+    then the package is fetched and verified. An *availability* failure skips
+    the candidate with one stderr line; an integrity failure refuses (3.2)."""
+    pins = _pins()
+    chooser = Chooser(_cache(args, pins), local=_alias_releases(args), floor=floor)
+    first_error, blocked, skipped_for_manager = None, [], []
+    for version in chooser.candidates():
+        destinations = None
+        if readonly:
+            leaves = [version] + ([installed] if installed and isinstance(installed, str) else [])
+            destinations = plan_destinations(args, os.environ, args.target, leaves)
+        try:
+            try:
+                release = _resolve_compatible(args, version, destinations)
+            except ReleaseIncompatibleError as exc:
+                skipped_for_manager.append(exc)
+                continue
+            if skipped_for_manager:
+                _note_incompatible(skipped_for_manager[0])
+            return release, destinations
+        except ReleaseUnavailableError as exc:
+            if exc.kind not in AVAILABILITY_KINDS:
+                raise
+            first_error = first_error or exc
+            blocked.append(version)
+            print(f"workflow-manager: could not fetch release {version}: {exc}; "
+                  f"trying an older one", file=sys.stderr)
+    if skipped_for_manager:
+        newest = skipped_for_manager[0]
+        if floor is not None:
+            raise ReleaseFloorError(
+                f"no usable release at or above the installed Workflow {floor}: {newest}",
+                kind="manager", installed=floor, version=newest.version, needs=newest.needs)
+        raise newest
+    if chooser.cut_by_floor and floor is not None:
+        raise _floor_error(floor, chooser, blocked)
+    if first_error is not None:
+        raise first_error
+    raise ReleaseNotPublishedError(
+        "no Workflow release is published: this Manager pins none", kind="none-pinned")
 
 
 def _release(args):
-    """What `bootstrap` and `update` install."""
-    return _resolve(args, args.release_version)
+    """What `bootstrap` and `update` install: the version named, else the newest
+    usable release. A bare `update` never goes below the installed one."""
+    if args.release_version is not None or args.release_dir is not None:
+        return _resolve_compatible(args, args.release_version)
+    floor = _floor(args) if args.command == "update" else None
+    return _choose_and_resolve(args, floor=floor)[0]
 
 
 def _release_for_target(args):
@@ -272,8 +434,11 @@ def _describe_source(record: dict | None) -> str:
         return "not recorded"
     if record.get("kind") == "local":
         return "(local, unpublished)"
-    return (f"package {record.get('archive')} from {record.get('repository')} "
-            f"(sha256 {record.get('sha256')})")
+    described = (f"package {record.get('archive')} from {record.get('repository')} "
+                 f"(sha256 {record.get('sha256')})")
+    if record.get("trust") == "discovered":
+        described += f" (discovered from {record.get('from')}; no pin, verified by its SHA256SUMS)"
+    return described
 
 
 def _print_record(target: Path) -> None:
@@ -336,10 +501,49 @@ def cmd_releases(args) -> int:
               f"({release.upstream['commit'][:12]})  "
               f"[{release.provenance['origin']}]  "
               f"{len(release.installable(INSTALL_PROFILE_FULL))} files")
-    if not pins.versions() and not candidates:
+    discovered = _discovered_releases(args, pins, cache)
+    if not pins.versions() and not candidates and not discovered:
         print("workflow-manager: no Workflow release is published",
               file=sys.stderr)
     return 0
+
+
+def _discovered_releases(args, pins, cache) -> int:
+    """Print the published releases this Manager has no pin for, when it may
+    install them: the source's listing, each candidate inspected (3.2). A
+    failure is one stderr line; the pinned lines above stand on their own."""
+    if not _discovering(args) or args.release_dir is not None:
+        return 0
+    cache = ReleaseCache(cache.root, ReleaseSource.select(args.release_source), pins,
+                         discover=True)
+    deadline = Deadline()
+    try:
+        listing = cache.source.listing(pins.repository, deadline)
+    except (DiscoveryFailure, ReleaseUnavailableError, OSError) as exc:
+        print(f"workflow-manager: could not look for newer releases: "
+              f"{getattr(exc, 'reason', None) or exc}", file=sys.stderr)
+        listing = None
+    versions = {v for v in cache.known_local() if pins.get(v) is None}
+    if listing is not None:
+        versions |= {v for v in listing.versions if pins.get(v) is None}
+        for version, why in listing.rejected.items():
+            if pins.get(version) is None:
+                print(f"workflow-manager: skipping release {version}: {why}", file=sys.stderr)
+    printed = 0
+    for version in sorted(versions, key=_version_key):
+        try:
+            if cache.cached(version):
+                pin, state = cache._local_pin(version), "cached"
+            else:
+                pin, state = cache.source.inspect(version, deadline).pin, "not cached"
+        except (DiscoveryFailure, ReleaseUnavailableError, ReleaseIntegrityError, OSError) as exc:
+            print(f"workflow-manager: could not use release {version}: "
+                  f"{getattr(exc, 'reason', None) or exc}; skipping it", file=sys.stderr)
+            continue
+        print(f"{version}  {pin.archive}  sha256 {pin.sha256}  [discovered, {state}; "
+              f"no pin: verified by {cache.identity()}]")
+        printed += 1
+    return printed
 
 
 def _print_error(args, error, text=None) -> None:
@@ -385,6 +589,7 @@ def cmd_status(args) -> int:
         raise
     with release:
         result = status(args.target, release)
+        _note_release_needs(release)
     print(result)
     print(f"  source: {_describe_source(Installation.read(args.target).source)}")
     _print_in_flight(args)
@@ -395,9 +600,25 @@ def cmd_status(args) -> int:
     return 0 if (result.verified and not result.problems) else 1
 
 
+def _note_missing_metadata(release) -> None:
+    """A release after the built-in data whose `manager` block is absent or
+    incomplete installs, but `doctor` will report an incomplete inspection (3.4)."""
+    if has_builtin_data(release.version) or not is_comparable(release.version):
+        return
+    try:
+        block = release.manager
+    except ReleaseIntegrityError:
+        return
+    if block is None or block.missing_items():
+        print(f"workflow-manager: note: workflow {release.version} carries no complete `manager` "
+              "block, so its downgrade guarantees and notes are not assessed; `doctor` reports "
+              "an incomplete inspection", file=sys.stderr)
+
+
 def cmd_bootstrap(args) -> int:
     with _release(args) as release:
         installation = bootstrap(args.target, release, args.profile, force=args.force)
+        _note_missing_metadata(release)
     print(f"bootstrapped workflow {installation.workflow_version} "
           f"({installation.profile}) into {args.target}")
     print(f"  {len(installation.managed)} managed files, "
@@ -405,6 +626,11 @@ def cmd_bootstrap(args) -> int:
           f"{len(installation.merged)} merged files")
     print(f"next: {advice.success_step(_context(args))}")
     return 0
+
+
+def _chooses(args) -> bool:
+    """Whether the command means "the newest usable release": no version, no directory."""
+    return args.release_version is None and args.release_dir is None
 
 
 def _readonly_destinations(args, installed: str | None) -> Destinations:
@@ -458,13 +684,17 @@ def _compatibility_report(args, plan, refusal, release, installed_resolved: bool
         latest = _default_version(args, pins)
     except ReleaseNotPublishedError:
         latest = None
+    if _chooses(args) and (latest is None or _version_key(release.version) > _version_key(latest)):
+        latest = release.version
     facts = read_repository(args.target)
     context = _context(args)
     facts.options_for = lambda version: advice._options(context, version)[0]
+    installed = facts.installation.workflow_version if facts.installation else None
+    metadata = gather_metadata(_cache(args, pins), installed, release)
     return build_report(
         facts, plan, target_version=release.version, latest_version=latest,
         pinned_versions=versions, refusal=refusal, installed_resolved=installed_resolved,
-        target_arg=str(args.target))
+        target_arg=str(args.target), metadata=metadata)
 
 
 def _plan_or_refusal(args, release):
@@ -480,8 +710,13 @@ def cmd_dry_run(args) -> int:
     if not is_managed(args.target):
         raise NotManagedError(not_managed_text(args.target))
     installed = Installation.read(args.target).workflow_version
-    destinations = _readonly_destinations(args, installed)
-    with _resolve(args, args.release_version, destinations) as release:
+    if _chooses(args):
+        release, destinations = _choose_and_resolve(
+            args, floor=_floor(args), installed=installed, readonly=True)
+    else:
+        destinations = _readonly_destinations(args, installed)
+        release = _resolve_compatible(args, args.release_version, destinations)
+    with release:
         plan, refusal = _plan_or_refusal(args, release)
         installed_resolved = _installed_resolves(args, installed, destinations)
         if plan is not None:
@@ -516,9 +751,13 @@ def cmd_doctor(args) -> int:
     if not is_managed(args.target):
         raise NotManagedError(not_managed_text(args.target))
     installed = Installation.read(args.target).workflow_version
-    destinations = _readonly_destinations(args, installed)
     try:
-        release = _resolve(args, args.release_version, destinations)
+        if _chooses(args):
+            release, destinations = _choose_and_resolve(
+                args, floor=_floor(args), installed=installed, readonly=True)
+        else:
+            destinations = _readonly_destinations(args, installed)
+            release = _resolve_compatible(args, args.release_version, destinations)
     except RELEASE_ERRORS as error:
         print(f"error: could not resolve the target release: {error}", file=sys.stderr)
         step = advice.next_step(error, _context(args))
@@ -553,6 +792,7 @@ def cmd_verify(args) -> int:
         raise NotManagedError(not_managed_text(args.target))
     with release:
         problems = verify(args.target, release)
+        _note_release_needs(release)
     if not problems:
         print(f"{args.target}: installation matches workflow {release.version}")
         return 0
@@ -660,7 +900,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--version", action=_VersionAction)
     parser.add_argument("--release-version", default=None,
                         help="the Workflow release to use; goes before the command "
-                             "(default: bootstrap and update use the newest published "
+                             "(default: bootstrap and update use the newest usable published "
                              "release, status and verify the release the target records)")
     parser.add_argument("--release-source", default=None,
                         help="where packages come from: a URL template with {version}, "
@@ -669,6 +909,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--release-cache", default=None,
                         help=f"the release cache directory (default: ${release_source.CACHE_ENV}, "
                              "else the user cache directory); goes before the command")
+    parser.add_argument("--pinned-only", action="store_true",
+                        help="install only releases this Manager pins; never look for newer ones "
+                             f"(also ${release_source.PINNED_ONLY_ENV}=1); goes before the command")
     parser.add_argument("--release-dir", type=Path, default=None,
                         help="install an unpackaged release directory instead of a package; "
                              "goes before the command")
@@ -680,8 +923,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = command("releases", "list published releases",
                 "List the Workflow releases this Manager pins and whether each is in the "
-                "release cache. Reads the pin file and the cache; writes nothing. "
-                "Exit 0 when it lists.")
+                "release cache, then the published releases it has no pin for (unless "
+                "--pinned-only). Reads the pin file, the cache and the source's listing; "
+                "writes nothing. Exit 0 when it lists.")
 
     p = command("package", "build or verify a Workflow release package",
                 "`package build DIR --out OUT` writes a release directory's package, its "

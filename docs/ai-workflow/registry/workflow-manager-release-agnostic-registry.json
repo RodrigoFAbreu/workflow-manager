@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "work_item_id": "workflow-manager-release-agnostic",
+  "plan_revision": 5,
+  "checkpoints": [
+    {
+      "id": "CP1",
+      "name": "Discovery, trust and the cache: Discovery over directory, GitHub-listing and template sources, derived pins for unpinned releases, --pinned-only, offline-safe choosing path, source.trust in the record, hermetic test default",
+      "depends_on": [],
+      "complexity": 4,
+      "session_target": 1
+    },
+    {
+      "id": "CP2",
+      "name": "Release metadata: the manifest manager block, validated reader, built-in fallback for releases up to 2.12.0, compatibility resolver, incomplete-inspection findings for missing data and crossed-version coverage, min_manager_version refusal and skip",
+      "depends_on": [
+        "CP1"
+      ],
+      "complexity": 4,
+      "session_target": 1
+    },
+    {
+      "id": "CP3",
+      "name": "Deterministic CI: tests/tested_releases.json lock, tested set in support/priming/matrix, tools/release_lock.py, nightly on the newest published release, cache key, deterministic package proof",
+      "depends_on": [
+        "CP1",
+        "CP2"
+      ],
+      "complexity": 4,
+      "session_target": 1
+    },
+    {
+      "id": "CP4",
+      "name": "Version-free timing keys: timings.py normalisation, committed timings.json rewritten once",
+      "depends_on": [],
+      "complexity": 2,
+      "session_target": 1
+    },
+    {
+      "id": "CP5",
+      "name": "Documentation, roadmap item 8 and the Workflow-side contract (docs/release-metadata.md): RELEASING, ARCHITECTURE, CLAUDE.md, operator pages",
+      "depends_on": [
+        "CP1",
+        "CP2",
+        "CP3",
+        "CP4"
+      ],
+      "complexity": 3,
+      "session_target": 1
+    }
+  ]
+}

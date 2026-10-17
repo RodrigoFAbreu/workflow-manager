@@ -66,11 +66,245 @@ class ReleaseIntegrityError(RuntimeError):
     """Release content on disk does not match the digest its manifest records.
 
     `kind` names the cause for `advice` (which step the operator is told to
-    take); `None` is an unclassified cause with no step of its own."""
+    take); `None` is an unclassified cause with no step of its own. `version`
+    is the release the cause belongs to, when known; `newer_manager` says a
+    newer Manager may read what this one cannot (a `manager` block's schema or
+    detector kind)."""
 
-    def __init__(self, message: str = "", *, kind: str | None = None):
+    def __init__(self, message: str = "", *, kind: str | None = None,
+                 version: str | None = None, newer_manager: bool = False):
         super().__init__(message)
         self.kind = kind
+        self.version = version
+        self.newer_manager = newer_manager
+
+
+_VERSION_TEXT = re.compile(r"\d+(\.\d+)*")
+_KEBAB = re.compile(r"[a-z0-9]+(-[a-z0-9]+)*")
+MANAGER_SCHEMA_VERSION = 1
+#: The closed detector vocabulary of `manager` schema 1 (docs/release-metadata.md):
+#: kind -> the keys its `detect` object carries besides `kind`.
+DETECTOR_KINDS = {
+    "state-key": ("key",),
+    "state-value": ("key", "value"),
+    "item-governing": ("value",),
+    "item-phase": ("phases",),
+    "item-field": ("key", "value"),
+}
+
+
+def _shape(message: str, *, newer_manager: bool = False) -> ReleaseIntegrityError:
+    return ReleaseIntegrityError(f"manifest `manager` block: {message}", kind="manifest-shape",
+                                 newer_manager=newer_manager)
+
+
+def parse_version_tuple(text) -> tuple[int, ...]:
+    """`1.13.0` as `(1, 13, 0)`; anything but `\\d+(\\.\\d+)*` is a shape error."""
+    if not isinstance(text, str) or _VERSION_TEXT.fullmatch(text) is None:
+        raise _shape(f"{text!r} is not a version (digits separated by dots)")
+    return tuple(int(part) for part in text.split("."))
+
+
+def manager_version_ok(minimum: str | None, manager: str | None) -> bool:
+    """Whether a Manager of version `manager` satisfies `min_manager_version`.
+    A development build (no version, or `.dev` in it) satisfies every minimum:
+    an integer-tuple compare would otherwise refuse every release on it."""
+    if minimum is None or not manager or ".dev" in manager:
+        return True
+    try:
+        have = parse_version_tuple(manager)
+    except ReleaseIntegrityError:
+        return True
+    return have >= parse_version_tuple(minimum)
+
+
+@dataclass(frozen=True)
+class DetectorSpec:
+    kind: str
+    key: str | None = None
+    value: object = None
+    phases: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class SignalSpec:
+    name: str
+    label: str
+    detect: DetectorSpec
+
+
+@dataclass(frozen=True)
+class BoundarySpec:
+    posture: str
+    undetectable: str | None
+    signals: tuple[SignalSpec, ...]
+
+
+@dataclass(frozen=True)
+class PortabilityException:
+    suite: str
+    test: str
+    reason: str
+    requires: str | None = None
+    defect: str | None = None
+
+
+@dataclass(frozen=True)
+class Conformance:
+    suites: dict
+    portability_exceptions: tuple[PortabilityException, ...]
+
+
+@dataclass(frozen=True)
+class ManagerBlock:
+    """A release manifest's validated `manager` block. A field is `None` when
+    the block lacks that item (no data, not "nothing to say")."""
+    min_manager_version: str | None = None
+    downgrade_boundary: BoundarySpec | None = None
+    new_work_only: tuple[str, ...] | None = None
+    gate_default_change: str | None = None
+    conformance: Conformance | None = None
+
+    #: The items a block may carry, in the order a finding names them.
+    ITEMS = ("downgrade_boundary", "new_work_only", "gate_default_change", "conformance")
+
+    def missing_items(self) -> tuple[str, ...]:
+        return tuple(item for item in self.ITEMS if getattr(self, item) is None)
+
+
+def _object(value, where: str) -> dict:
+    if not isinstance(value, dict):
+        raise _shape(f"{where} must be an object")
+    return value
+
+
+def _text(value, where: str, *, optional: bool = False) -> str | None:
+    if value is None and optional:
+        return None
+    if not isinstance(value, str):
+        raise _shape(f"{where} must be a string")
+    return value
+
+
+def _required(mapping: dict, key: str, where: str):
+    if key not in mapping:
+        raise _shape(f"{where} needs `{key}`")
+    return mapping[key]
+
+
+def _scalar(value, where: str):
+    if value is None or isinstance(value, (str, bool)) or type(value) is int:
+        return value
+    raise _shape(f"{where} must be a string, an integer, a boolean or null")
+
+
+def _detector(raw, where: str) -> DetectorSpec:
+    raw = _object(raw, where)
+    kind = _required(raw, "kind", where)
+    if not isinstance(kind, str) or kind not in DETECTOR_KINDS:
+        raise _shape(f"{where} names the unknown detector kind {kind!r}; this Manager knows "
+                     f"{', '.join(DETECTOR_KINDS)} (a newer Manager may know more)",
+                     newer_manager=True)
+    wanted = DETECTOR_KINDS[kind]
+    key = value = None
+    phases: tuple[str, ...] = ()
+    if "key" in wanted:
+        key = _required(raw, "key", where)
+        if not isinstance(key, str) or not key:
+            raise _shape(f"{where} `key` must be a non-empty string")
+    if "value" in wanted:
+        value = _scalar(_required(raw, "value", where), f"{where} `value`")
+        if kind == "item-governing" and not isinstance(value, str):
+            raise _shape(f"{where} `value` must be a string")
+    if "phases" in wanted:
+        listed = _required(raw, "phases", where)
+        if not isinstance(listed, list) or not listed \
+                or not all(isinstance(p, str) for p in listed):
+            raise _shape(f"{where} `phases` must be a non-empty list of strings")
+        phases = tuple(listed)
+    return DetectorSpec(kind, key, value, phases)
+
+
+def _boundary(raw) -> BoundarySpec:
+    raw = _object(raw, "`downgrade_boundary`")
+    posture = _text(_required(raw, "posture", "`downgrade_boundary`"), "`posture`")
+    undetectable = _text(raw.get("undetectable"), "`undetectable`", optional=True)
+    listed = raw.get("signals", [])
+    if not isinstance(listed, list):
+        raise _shape("`signals` must be a list")
+    signals = []
+    for index, item in enumerate(listed):
+        where = f"signal {index}"
+        item = _object(item, where)
+        name = _text(_required(item, "name", where), f"{where} `name`")
+        if _KEBAB.fullmatch(name) is None:
+            raise _shape(f"{where} `name` {name!r} is not kebab-case")
+        signals.append(SignalSpec(
+            name, _text(_required(item, "label", where), f"{where} `label`"),
+            _detector(_required(item, "detect", where), f"{where} `detect`")))
+    return BoundarySpec(posture, undetectable, tuple(signals))
+
+
+def _conformance(raw) -> Conformance:
+    raw = _object(raw, "`conformance`")
+    suites = _object(_required(raw, "suites", "`conformance`"), "`suites`")
+    for name, count in suites.items():
+        if type(count) is not int or count < 0:
+            raise _shape(f"suite {name!r} needs a non-negative integer count")
+    listed = _required(raw, "portability_exceptions", "`conformance`")
+    if not isinstance(listed, list):
+        raise _shape("`portability_exceptions` must be a list")
+    found = []
+    for index, item in enumerate(listed):
+        where = f"portability exception {index}"
+        item = _object(item, where)
+        found.append(PortabilityException(
+            suite=_text(_required(item, "suite", where), f"{where} `suite`"),
+            test=_text(_required(item, "test", where), f"{where} `test`"),
+            reason=_text(_required(item, "reason", where), f"{where} `reason`"),
+            requires=_text(item.get("requires"), f"{where} `requires`", optional=True),
+            defect=_text(item.get("defect"), f"{where} `defect`", optional=True)))
+    return Conformance(dict(suites), tuple(found))
+
+
+def parse_manager_block(raw) -> ManagerBlock:
+    """Validate a `manager` block (docs/release-metadata.md); a wrong shape, an
+    unknown detector kind, a `schema_version` other than 1 or a bad version
+    string is `ReleaseIntegrityError(kind="manifest-shape")`."""
+    raw = _object(raw, "block")
+    schema = raw.get("schema_version")
+    if type(schema) is not int:
+        raise _shape("needs an integer `schema_version`")
+    if schema != MANAGER_SCHEMA_VERSION:
+        raise _shape(f"has schema_version {schema}, which needs a newer Manager than this one "
+                     f"(it reads {MANAGER_SCHEMA_VERSION})", newer_manager=True)
+    minimum = raw.get("min_manager_version")
+    if minimum is not None:
+        parse_version_tuple(minimum)
+    new_work = raw.get("new_work_only")
+    if new_work is not None:
+        if not isinstance(new_work, list) or not all(isinstance(t, str) for t in new_work):
+            raise _shape("`new_work_only` must be a list of strings")
+        new_work = tuple(new_work)
+    gate = _text(raw.get("gate_default_change"), "`gate_default_change`", optional=True)
+    return ManagerBlock(
+        min_manager_version=minimum,
+        downgrade_boundary=_boundary(raw["downgrade_boundary"]) if "downgrade_boundary" in raw
+        else None,
+        new_work_only=new_work,
+        gate_default_change=gate,
+        conformance=_conformance(raw["conformance"]) if "conformance" in raw else None)
+
+
+def parse_manifest_manager(manifest_bytes: bytes) -> ManagerBlock | None:
+    """The block of a manifest held as bytes (a fetched manifest asset), or None."""
+    try:
+        manifest = json.loads(manifest_bytes)
+    except ValueError as exc:
+        raise ReleaseIntegrityError(f"manifest is not JSON: {exc}", kind="manifest-shape") from exc
+    if not isinstance(manifest, dict):
+        raise ReleaseIntegrityError("manifest is not an object", kind="manifest-shape")
+    return parse_manager_block(manifest["manager"]) if "manager" in manifest else None
 
 
 @dataclass(frozen=True)
@@ -99,6 +333,20 @@ class Release:
         # so it defaults to the only origin that existed before an authored
         # (overlay-built) release could exist (D-Authored-Release-2).
         self.provenance = self.manifest.get("provenance", {"origin": "upstream"})
+        self._manager: ManagerBlock | None = None
+        self._manager_read = False
+
+    @property
+    def manager(self) -> ManagerBlock | None:
+        """The manifest's validated `manager` block, or None when it has none.
+        Read lazily, so a release whose data is built into the Manager (which
+        ignores the block) never fails on it; a bad block raises
+        `ReleaseIntegrityError(kind="manifest-shape")` here."""
+        if not self._manager_read:
+            raw = self.manifest.get("manager")
+            self._manager = parse_manager_block(raw) if "manager" in self.manifest else None
+            self._manager_read = True
+        return self._manager
 
     # -- artifacts ---------------------------------------------------------
 

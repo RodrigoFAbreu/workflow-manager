@@ -96,6 +96,20 @@ def load(repo_root: Path, host_unit_ids, *, orphan_unit_ids=None) -> Resources:
     return parse(raw, host_unit_ids, source=str(path), orphan_unit_ids=orphan_unit_ids)
 
 
+#: A frozen `orphan_sources` key may name the release as `*`
+#: (`frozen:*/<fixture>/<suite>::<Class>`): it declares that class in whichever
+#: release the run selects, so a lock that moves the matrix to a newer release
+#: needs no edit. It expands to every inventory unit it matches, and a key that
+#: matches none is as much a schema error as an unknown unit.
+ANY_RELEASE_PREFIX = "frozen:*/"
+
+
+def _any_release_matches(pattern: str, unit: str) -> bool:
+    head, _, rest = unit.partition("/")
+    return head.startswith("frozen:") and head != "frozen:*" and \
+        f"{ANY_RELEASE_PREFIX}{rest}" == pattern
+
+
 REQUIRED_KEYS = frozenset({"schema_version", "resources", "exclusive"})
 OPTIONAL_KEYS = frozenset({"orphan_sources"})
 
@@ -173,6 +187,20 @@ def parse(raw, host_unit_ids, *, source: str = "resources.json",
     inventory = set(known_units if orphan_unit_ids is None else orphan_unit_ids)
     orphan_sources: dict[str, OrphanSource] = {}
     for unit in sorted(raw_sources):
+        if unit.startswith(ANY_RELEASE_PREFIX):
+            spec = raw_sources[unit]
+            if not isinstance(spec, dict) or set(spec) != {"reason"}:
+                fail(f"orphan_sources {unit!r} must be an object with exactly reason")
+            reason = spec["reason"]
+            if not isinstance(reason, str) or not reason.strip():
+                fail(f"orphan_sources {unit!r}: reason must be a non-empty string")
+            matched = sorted(u for u in inventory if _any_release_matches(unit, u))
+            if not matched:
+                fail(f"orphan_sources unit {unit!r} matches nothing in the "
+                     f"{'host ' if orphan_unit_ids is None else ''}inventory")
+            for found in matched:
+                orphan_sources[found] = OrphanSource(found, reason)
+            continue
         spec = raw_sources[unit]
         if not isinstance(spec, dict) or set(spec) != {"reason"}:
             fail(f"orphan_sources {unit!r} must be an object with exactly reason")

@@ -17,7 +17,7 @@ import unittest
 import unittest.mock
 from pathlib import Path
 
-from support import NEWEST_RELEASE, REPO_ROOT
+from support import PINNED_NEWEST, REPO_ROOT
 
 import test_operator_ux as ux
 from test_operator_ux import next_lines, run
@@ -35,6 +35,13 @@ NOT_A_MESSAGE = (
     "`doctor` or `update --dry-run` reports a `blocked` finding",
     "`doctor` reports a `warning` finding",
     "`doctor` reports `incomplete-inspection`",
+    # Messages of the release-agnostic Manager, asserted against the real output in
+    # test_discovery.py and test_release_metadata.py.
+    "`Workflow X needs workflow-manager Y or newer; this is Z`",
+    "`could not look for newer releases: REASON; using X`",
+    "`no usable release at or above the installed Workflow X`",
+    "``manifest `manager` block: ...``",
+    "`doctor` reports `a release carries no compatibility data`",
     "A repository went wrong after an update to 2.8.0 and gates behave differently",
     "An interrupted `bootstrap` or `update`, or `[Errno 13] Permission denied` and other "
     "file errors (exit 1)",
@@ -61,7 +68,7 @@ class Docs(ux.ReleaseCase):
         return proc.returncode, proc.stdout + proc.stderr, " ".join(next_lines(proc.stdout + proc.stderr))
 
     def case_misplaced(self):
-        return run("update", str(self.empty()), "--release-version", NEWEST_RELEASE)
+        return run("update", str(self.empty()), "--release-version", PINNED_NEWEST)
 
     def case_no_command(self):
         return run()
@@ -108,7 +115,7 @@ class Docs(ux.ReleaseCase):
     def case_digest(self):
         work = self.workdir()
         mirror = self.mirror(work)
-        archive = mirror / NEWEST_RELEASE / f"workflow-{NEWEST_RELEASE}.tar.gz"
+        archive = mirror / PINNED_NEWEST / f"workflow-{PINNED_NEWEST}.tar.gz"
         archive.write_bytes(archive.read_bytes() + b"x")
         return run("--release-cache", str(work / "cache"), "--release-source", str(mirror),
                    "bootstrap", str(self.empty()))

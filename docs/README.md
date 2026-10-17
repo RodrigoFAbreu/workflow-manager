@@ -28,8 +28,9 @@ These pages are for people who maintain the Manager. They are not step-by-step g
 
 | Page | What it holds |
 |---|---|
-| [ARCHITECTURE.md](ARCHITECTURE.md) | The design: packages, pins, the release cache, what the installer owns, how the tests run. |
-| [RELEASING.md](RELEASING.md) | How the Manager is released and how a new Workflow release gets pinned. |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | The design: packages, pins, discovery and trust, the release cache, what the installer owns, how the tests run. |
+| [RELEASING.md](RELEASING.md) | How the Manager is released, and what a new Workflow release needs (nothing, or a lock `chore:`). |
+| [release-metadata.md](release-metadata.md) | The `manager` block a Workflow release carries in its manifest: the contract the `workflow` repository implements. |
 | [MIGRATION.md](MIGRATION.md) | The history of how the first Workflow packages were made. |
 | [ROADMAP.md](ROADMAP.md) | Where the work is heading. |
 | [defects/](defects/) | Problems found in Workflow releases, written up rather than repaired. |

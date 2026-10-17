@@ -25,7 +25,7 @@ python3 tests/run_all.py --jobs 1             # serial reference (slow) -- excep
 python3 tests/run_all.py --help               # every mode, flag and exit code
 ```
 
-Run what you touched with `--select`; gates run `python3 tests/run_all.py`. CI runs the same full selection on every pull request, every push to `main` and nightly: the Manager's own tests, and the newest pinned release's frozen suites in four fixtures, one of them a repository updated from the release below it.
+Run what you touched with `--select`; gates run `python3 tests/run_all.py`. CI runs the same full selection on every pull request, every push to `main` and nightly: the Manager's own tests, and the newest tested release's frozen suites in four fixtures, one of them a repository updated from the release below it.
 
 Every run first primes the release cache with every pinned version (the first time, from the network), then runs offline. A full-suite `--jobs 1` (or single-shard) run is exceptional evidence, run only when a plan requires it or to debug a serial or sharded difference. While a run is live, `src/` and `tools/` are read-only; see ["Verification execution"](ARCHITECTURE.md#verification-execution).
 
@@ -49,7 +49,7 @@ The documentation checks run inside the gate (`tests/test_docs.py`, using `tools
 | `2.11.0` | published by the Workflow repository (plan checkpoint anchors checked before any plan review; Orchestration Protocol 1.3) | 9 of 9, 2941 tests | 2941 of 2941 |
 | `2.12.0` | published by the Workflow repository (review rounds converge: `CHANGES_SINCE_REVIEW.md`, verdict shape checks; Orchestration Protocol 1.4) | 9 of 9, 2979 tests | 2979 of 2979 |
 
-The full test selection runs the newest pinned release's frozen suites; each older release was tested once, when it was built ([`MIGRATION.md`](MIGRATION.md)). Workflow releases are authored and published in the Workflow repository. The Manager learns of a new one through a pull request that adds its pin: see ["Workflow packages: adding a pin"](RELEASING.md#workflow-packages-adding-a-pin).
+The full test selection runs the newest tested release's frozen suites (the pins plus `tests/tested_releases.json`); each older release was tested once, when it was built ([`MIGRATION.md`](MIGRATION.md)). Workflow releases are authored and published in the Workflow repository. The Manager needs nothing to install a new one; a `chore:` pull request adds it to the tested set: see ["A new Workflow release"](RELEASING.md#a-new-workflow-release).
 
 ## Reading order
 
