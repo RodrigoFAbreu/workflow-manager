@@ -97,6 +97,10 @@ class TestTheBlockReader(unittest.TestCase):
             "a newer schema": {"schema_version": 2},
             "bad minimum": block(min_manager_version="1.x"),
             "numeric minimum": block(min_manager_version=1),
+            "detector kind as a list": block(downgrade_boundary={"posture": "p", "signals": [
+                {"name": "s", "label": "l", "detect": {"kind": []}}]}),
+            "detector kind as an object": block(downgrade_boundary={"posture": "p", "signals": [
+                {"name": "s", "label": "l", "detect": {"kind": {}}}]}),
             "empty minimum": block(min_manager_version=""),
             "new_work_only not a list": block(new_work_only="text"),
             "new_work_only item": block(new_work_only=[1]),
@@ -233,7 +237,9 @@ class TestTheResolver(unittest.TestCase):
                          "a downgrade reads the installed release itself")
         self.assertEqual(comp.coverage_findings("7.0.3", "7.0.2", metadata), [],
                          "the target of a downgrade is not crossed")
-        self.assertEqual(comp.coverage_findings("7.0.2", "7.0.2", metadata), [])
+        self.assertEqual(len(comp.coverage_findings("7.0.2", "7.0.2", metadata)), 1,
+                         "nothing is crossed, yet the release the report rests on has no data")
+        self.assertEqual(comp.coverage_findings("7.0.3", "7.0.3", metadata), [])
 
     def test_an_incomplete_catalog_is_one_finding_above_the_built_in_data(self):
         metadata = comp.ReleaseMetadata(catalog_incomplete="the listing may be truncated")
@@ -329,6 +335,37 @@ class TestReportsFromTheBlock(_Published):
         self.assertEqual(self._cli("update", str(self.target), source_dir=mirror), 0,
                          self.cli_output)
         self.assertEqual(Installation.read(self.target).workflow_version, UNPINNED)
+
+    def test_a_release_with_no_block_stays_incomplete_once_installed(self):
+        mirror = self.mirror_of({UNPINNED: None})
+        self.installed_at("7.0.1")
+        self.assertEqual(self._cli("update", str(self.target), source_dir=mirror), 0,
+                         self.cli_output)
+        self.assertEqual(Installation.read(self.target).workflow_version, UNPINNED)
+        for argv in (["doctor"], ["update", "--dry-run"]):
+            with self.subTest(argv=argv):
+                self._cli(*argv, str(self.target), source_dir=mirror)
+                self.assertIn(comp.NO_DATA_TITLE, self.cli_stdout)
+                self.assertNotIn("nothing found", self.cli_stdout)
+        self.assertEqual(self.doctor(source=mirror), 1, self.cli_output)
+
+    def test_bootstrap_notes_a_release_with_no_block(self):
+        mirror = self.mirror_of({UNPINNED: None})
+        self.assertEqual(self._cli("--release-version", UNPINNED, "bootstrap", str(self.target),
+                                   source_dir=mirror), 0, self.cli_output)
+        self.assertIn("carries no complete `manager` block", self.cli_stderr)
+
+    def test_a_malformed_detector_kind_follows_the_documented_exits(self):
+        bad = block(downgrade_boundary={"posture": "p", "signals": [
+            {"name": "s", "label": "l", "detect": {"kind": []}}]})
+        mirror = self.mirror_of({UNPINNED: bad})
+        self.installed_at("7.0.1")
+        self.assertEqual(self.doctor("--release-version", UNPINNED, source=mirror), 2,
+                         self.cli_output)
+        self.assertNotIn("Traceback", self.cli_stderr)
+        self.assertEqual(self._cli("update", str(self.target), source_dir=mirror), 1,
+                         self.cli_output)
+        self.assertNotIn("Traceback", self.cli_stderr)
 
     def test_a_block_of_the_wrong_shape_refuses_that_release(self):
         mirror = self.mirror_of({UNPINNED: block(min_manager_version="x")})
