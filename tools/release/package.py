@@ -15,6 +15,11 @@ fresh venv, where it requires:
 - `workflow-manager verify <this checkout>` to exit 0, resolving the
   checkout's recorded Workflow release through the release cache.
 
+Before it builds, it primes the release cache with every tested release (the
+pins plus `tests/tested_releases.json`, `tests/parallel/priming.py`, as every
+test run does), the one step that may download; the proof after it reads the
+primed cache.
+
 Every command runs outside any checkout, with this process's environment plus
 `WORKFLOW_MANAGER_PINNED_ONLY=1` (no discovery, so a release published since
 cannot change the proof): `WORKFLOW_MANAGER_RELEASE_CACHE` and
@@ -24,7 +29,8 @@ tested release that has no pin (a `tests/tested_releases.json` entry): it runs
 with discovery on, but its only source is a local directory holding that
 release's assets under the lock's digests, and a private cache
 (`tested_releases.self_verify_env`), so it is still the tested set and nothing
-published since. A recorded version outside the tested set is refused.
+published since. A recorded version outside the tested set is refused, and
+so is one the cache does not already hold: that `verify` never fetches.
 
 Finally it writes DIR/SHA256SUMS (`sha256sum`-compatible, sorted by name,
 over every other file in DIR). The build frontend is CI's own
@@ -50,6 +56,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(REPO_ROOT / "src"))
 sys.path.insert(0, str(REPO_ROOT / "tests"))
 import tested_releases  # noqa: E402
+from parallel import priming  # noqa: E402
 from release import VERSION_RE, ReleaseError, set_version  # noqa: E402
 
 from workflow_manager import package as workflow_package  # noqa: E402
@@ -151,6 +158,16 @@ def wheel_env() -> dict[str, str]:
     return {**os.environ, PINNED_ONLY_ENV: "1"}
 
 
+def prime() -> None:
+    """Put every tested release in the release cache this process's
+    environment names, fetching only what it lacks: kept apart from the proof,
+    whose lock-only `verify` reads the cache and never fetches (#56)."""
+    try:
+        priming.prime(REPO_ROOT)
+    except priming.PrimingError as exc:
+        raise PackageError(str(exc)) from exc
+
+
 def self_verify(command: list[str], repo: Path, workdir: Path) -> None:
     """`<command> verify <repo>` must exit 0, run from `workdir` with
     `wheel_env()`, or, when `repo` records a tested release that has no pin,
@@ -188,6 +205,7 @@ def package(version: str, out: Path) -> None:
     out.mkdir(parents=True, exist_ok=True)
     if any(out.iterdir()):
         raise PackageError(f"{out} is not empty: SHA256SUMS must cover only this build")
+    prime()
     with tempfile.TemporaryDirectory(prefix="workflow-manager-package-") as tmp:
         project = Path(tmp) / "project"
         project.mkdir()

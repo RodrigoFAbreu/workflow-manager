@@ -483,8 +483,8 @@ class TestSelfVerifyOfAnUnpinnedInstallation(_LockedRelease):
     def setUp(self):
         super().setUp()
         self.write_lock({SYNTHETIC: self.entry(suites=SUITES)})
-        # The release cache the self-checks read: empty, so the lock-only
-        # release is fetched from the mirror by version under the lock's digests.
+        # The release cache the self-checks read, empty until `prime()` puts
+        # the lock-only release in it, as the runner and package.py do first.
         self.primed = self.tmp / "primed"
         patcher = unittest.mock.patch.dict(os.environ, {
             "PYTHONPATH": str(REPO_ROOT / "src"),
@@ -508,7 +508,40 @@ class TestSelfVerifyOfAnUnpinnedInstallation(_LockedRelease):
     def workdir(self) -> Path:
         return Path(tempfile.mkdtemp(dir=self.tmp))
 
+    def prime(self) -> Path:
+        """The lock-only release in the primed cache under the lock's digests."""
+        where = release_source.ReleaseSource.select(
+            environ={release_source.SOURCE_ENV: str(self.mirror)})
+        pins = tested_releases.tested_pins(lock=tested_releases.load_lock(self.lock_file))
+        return release_source.ReleaseCache(self.primed, where, pins).ensure(SYNTHETIC)
+
+    def blocked_network(self) -> list:
+        """Every way the Manager reaches a release source, made to record the
+        attempt and fail; the list it returns holds the attempts."""
+        attempts = []
+
+        def blocked(name):
+            def refuse(*args, **kwargs):
+                attempts.append(name)
+                raise AssertionError(f"{name} reached the network")
+            return refuse
+        for name in ("fetch", "read", "listing", "inspect"):
+            patcher = unittest.mock.patch.object(release_source.ReleaseSource, name,
+                                                 blocked(name))
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        patcher = unittest.mock.patch("urllib.request.urlopen", blocked("urlopen"))
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        # The default source: GitHub, which the reviewer's probe saw fetched.
+        patcher = unittest.mock.patch.dict(os.environ)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        os.environ.pop(release_source.SOURCE_ENV)
+        return attempts
+
     def test_the_environment_is_the_lock_release_alone_offline(self):
+        self.prime()
         env = tested_releases.self_verify_env(self.installed_at(SYNTHETIC), self.workdir())
         self.assertEqual(env[release_source.PINNED_ONLY_ENV], "0")
         mirror = Path(env[release_source.SOURCE_ENV])
@@ -524,8 +557,33 @@ class TestSelfVerifyOfAnUnpinnedInstallation(_LockedRelease):
             self.assertEqual(env[release_source.SOURCE_ENV], str(self.mirror))
         self.assertFalse((self.primed / NEWER).exists())
 
+    def test_a_cache_miss_fails_without_a_fetch(self):
+        target = self.installed_at(SYNTHETIC)
+        attempts = self.blocked_network()
+        with self.assertRaisesRegex(LockError, r"never fetches.*python3 tests/run_all\.py --list"):
+            tested_releases.self_verify_env(target, self.workdir())
+        tool = TestThePackageProofIsDeterministic._load_package_tool()
+        with self.assertRaisesRegex(tool.PackageError, "never fetches"):
+            tool.self_verify([sys.executable, "-B", "-m", "workflow_manager"], target,
+                             self.workdir())
+        self.assertEqual(attempts, [])
+        self.assertFalse((self.primed / SYNTHETIC).exists())
+
+    def test_an_invalid_cache_entry_fails_without_a_fetch(self):
+        target = self.installed_at(SYNTHETIC)
+        entry = self.prime()
+        archive = entry / self.built[SYNTHETIC].archive.name
+        archive.write_bytes(archive.read_bytes() + b"tampered")
+        before = archive.read_bytes()
+        attempts = self.blocked_network()
+        with self.assertRaisesRegex(LockError, "never fetches"):
+            tested_releases.self_verify_env(target, self.workdir())
+        self.assertEqual(attempts, [])
+        self.assertEqual(archive.read_bytes(), before, "neither repaired nor refetched")
+
     def test_a_lock_digest_the_assets_do_not_match_is_refused(self):
         target = self.installed_at(SYNTHETIC)
+        self.prime()
         wrong = self.entry(suites=SUITES)
         wrong["sha256"] = DIGEST
         self.write_lock({SYNTHETIC: wrong})
@@ -535,6 +593,7 @@ class TestSelfVerifyOfAnUnpinnedInstallation(_LockedRelease):
                              self.workdir())
 
     def test_package_py_verifies_a_lock_only_installation(self):
+        self.prime()
         tool = TestThePackageProofIsDeterministic._load_package_tool()
         command = [sys.executable, "-B", "-m", "workflow_manager"]
         tool.self_verify(command, self.installed_at(SYNTHETIC), self.workdir())
@@ -544,6 +603,7 @@ class TestSelfVerifyOfAnUnpinnedInstallation(_LockedRelease):
     def test_the_runner_verifies_a_lock_only_installation(self):
         from test_parallel_runner import self_verify
 
+        self.prime()
         proc = self_verify(self.installed_at(SYNTHETIC), self)
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
         self.assertIn(f"installation matches workflow {SYNTHETIC}", proc.stdout)

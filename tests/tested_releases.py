@@ -180,6 +180,11 @@ def lock_conformance(entry: LockEntry, manifest: bytes | None) -> tuple[dict, tu
     return dict(entry.suites), tuple(entry.portability_exceptions or ())
 
 
+#: A command that puts every tested release in the release cache and runs
+#: nothing else (every runner mode but `--restore-barrier` primes first).
+PRIME_COMMAND = "python3 tests/run_all.py --list"
+
+
 def self_verify_env(repo_root: Path, workdir: Path, environ=None) -> dict[str, str]:
     """The environment of `workflow-manager verify <repo_root>` in this
     repository's own self-checks (`tools/release/package.py`, the runner's
@@ -188,11 +193,12 @@ def self_verify_env(repo_root: Path, workdir: Path, environ=None) -> dict[str, s
 
     When the checkout's installation records a tested release that has no pin
     (a lock entry), discovery is on, but its only source is a directory under
-    `workdir` holding that release's three assets, taken from the release cache
-    under the lock's digests (`ReleaseCache.ensure`, as priming does: a miss is
-    fetched from `environ`'s source by that version alone) and checked against
-    them again once copied, with a private cache under `workdir`. Any other
-    recorded version stays pinned-only, so `verify` refuses it as unpinned.
+    `workdir` holding that release's three assets, copied from an entry of the
+    release cache that is already complete under the lock's digests and checked
+    against them again once copied, with a private cache under `workdir`. Any
+    other recorded version stays pinned-only, so `verify` refuses it as
+    unpinned. This never fetches: a missing or invalid entry is a `LockError`
+    naming the priming the cache needs first (#56).
     `workdir` must not hold a `mirror` or `cache` directory yet."""
     environ = dict(os.environ if environ is None else environ)
     env = {**environ, source.PINNED_ONLY_ENV: "1"}
@@ -205,10 +211,15 @@ def self_verify_env(repo_root: Path, workdir: Path, environ=None) -> dict[str, s
     if version in pins.releases or version not in lock:
         return env
     pin = lock[version].pin()
-    cache = source.ReleaseCache(source.cache_root(environ=environ),
-                                source.ReleaseSource.select(environ=environ),
-                                tested_pins(pins, lock))
-    entry = cache.ensure(version)
+    # No source: the cache is only read, never filled (#56).
+    cache = source.ReleaseCache(source.cache_root(environ=environ), None, tested_pins(pins, lock))
+    if not cache.cached(version):
+        raise LockError(
+            f"{version}: the release cache {cache.root} holds no complete entry for it under "
+            f"the lock's digests, and the self-verify never fetches: prime the tested set into "
+            f"it first (`{PRIME_COMMAND}`; `tools/release/package.py` and every runner mode "
+            f"prime it before they run)")
+    entry = cache.entry(version)
     mirror = Path(workdir) / "mirror"
     (mirror / version).mkdir(parents=True)
     for name in (SUMS_NAME, archive_name(version), manifest_asset_name(version)):
