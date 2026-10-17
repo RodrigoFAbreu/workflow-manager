@@ -321,6 +321,103 @@ once pull request #26 has merged.
 
 ## Functional review checklist
 
+Milestone `workflow-manager-release-agnostic` (implementation revision 7,
+technical approval by policy). Put findings in
+`.ai-review/workflow-manager-release-agnostic/feedback/FUNCTIONAL_REVIEW.md`.
+
+**Setup.** From this checkout, no feature flags, no seeded data:
+
+```bash
+export M=~/Workspace/workflow-manager PYTHONPATH=~/Workspace/workflow-manager/src
+export T=$(mktemp -d)       # every flow works under $T
+```
+
+Flow 1 needs the network once (GitHub releases listing of
+`RodrigoFAbreu/workflow`); flows 3-4 are offline.
+
+1. **Discovery lists releases, pinned first.**
+   - `python3 -m workflow_manager releases` lists the pins `2.3.1` to `2.12.0`.
+   - `python3 -m workflow_manager --pinned-only releases` lists the same pins
+     and no discovered one. `WORKFLOW_MANAGER_PINNED_ONLY=1` does the same.
+   - Expected: both exit 0; no pin differs between the two; nothing under `$M`
+     changes (`git -C $M status` clean).
+2. **A pinned release still installs exactly as before.**
+   ```bash
+   git init -q $T/a && git -C $T/a commit -q --allow-empty -m init
+   python3 -m workflow_manager bootstrap $T/a --release-version 2.12.0
+   python3 -m workflow_manager verify $T/a
+   cat $T/a/.workflow-manager/installation.json
+   ```
+   - Expected: `verify` reports the installation matches 2.12.0; the record's
+     `source` has no `trust` or `from` key (a pinned release carries neither).
+3. **A directory mirror serves a release offline.** No release newer than
+   2.12.0 exists yet, so a hand-built unpinned release cannot be made to verify
+   (its `SHA256SUMS` and manifest must agree). Check the offline path with a
+   real one:
+   ```bash
+   mkdir -p $T/mirror/2.12.0
+   for f in SHA256SUMS workflow-2.12.0.manifest.json workflow-2.12.0.tar.gz; do
+     cp ~/.cache/workflow-manager/releases/2.12.0/$f $T/mirror/2.12.0/; done
+   git init -q $T/b && git -C $T/b commit -q --allow-empty -m init
+   python3 -m workflow_manager --release-source $T/mirror --release-cache $T/cache bootstrap $T/b --release-version 2.12.0
+   python3 -m workflow_manager --release-source $T/mirror --release-cache $T/cache verify $T/b
+   ```
+   - Expected: bootstrap and verify succeed with no network; corrupting one
+     byte of the mirror's archive (in a fresh `--release-cache`) is a named
+     integrity refusal, exit non-zero, nothing written to the target.
+4. **A failed listing is soft.** `python3 -m workflow_manager --release-source
+   http://127.0.0.1:9 --release-cache $T/cache2 update $T/b --dry-run`.
+   - Expected: at most one stderr line about the listing, no traceback, and a
+     report against the newest local release; a bare `update` never goes below
+     the installed release (`ReleaseFloorError`, exit 1, nothing written).
+5. **Unpinned discovery, trust, metadata and `min_manager_version`: the
+   automated evidence.** These need a post-2.12.0 release, which only the
+   hermetic tests fabricate (directory mirrors and loopback servers, private
+   caches). Run and record the final lines:
+   ```bash
+   python3 $M/tests/run_all.py --select test_discovery.py --select test_release_metadata.py --select test_tested_releases.py
+   ```
+   - Expected: exit 0. Read the test names to confirm coverage of: a discovered
+     release records `trust: "discovered"` and `from`; a corrupted archive or
+     disagreeing `SHA256SUMS`/manifest is refused; `--pinned-only` restores
+     pin-only; a `min_manager_version` above the Manager refuses an explicit
+     version and is skipped by a bare command; a bad `manager` block is
+     `manifest-shape`; a release without the block gives `incomplete-inspection`
+     and `doctor` exits 1.
+6. **Block contract doc.** `docs/release-metadata.md` describes the block, the
+   detector table and the Workflow-side follow-up; its example JSON is valid
+   (`python3 -m unittest` is not needed: `tests/test_docs.py` checks it).
+7. **Docs for the operator.** `docs/update.md`, `docs/install.md` and
+   `docs/common-problems.md` explain what to do when a release is published,
+   `--pinned-only`, the offline line, the floor and the
+   `min_manager_version`/no-compatibility-data messages.
+8. **The lock tool.** `python3 tools/release_lock.py check` exits 0 on the
+   committed (empty) lock. `python3 tools/release_lock.py add 2.12.0` is
+   refused or a no-op because 2.12.0 is pinned (read the message; it must say
+   why). Do not commit anything it writes (`git -C $M status`).
+9. **Timing keys are version-free.** `grep -c '"frozen:[^"]*[0-9]\.[0-9]*\.[0-9]' tests/parallel/timings.json`
+   prints `0`; keys look like `frozen:<fixture>/<suite>::<Class>`. (The file's
+   prose notes mention `2.9.1`; that is not a key.)
+10. **Docs.** Read `docs/RELEASING.md` "A new Workflow release" and
+    `docs/update.md`: the procedure for a new Workflow release is the `chore:`
+    lock bump, with no pin, no Manager release. No page still tells the
+    maintainer to add a pin.
+11. **Required: the full gate result.** Do not rerun the 5-minute suite; cite
+    the implementation-stage `python3 tests/run_all.py` run recorded for this
+    revision in `.ai-review/workflow-manager-release-agnostic/current/TEST_RESULTS.md`
+    (verdict, `selection_digest`) and confirm it names revision 7's head.
+
+**Known limitations and out of scope.**
+- The Workflow-side change (the `workflow` repository writing the `manager`
+  block into manifests) is a separate follow-up, not tested here.
+- Releases up to 2.12.0 keep their built-in data; a `manager` block in their
+  manifest is ignored with a note. Pins are never changed.
+- A real post-2.12.0 release does not exist yet, so unpinned-release behaviour is evidenced by the hermetic tests (flow 5); the live GitHub listing was checked once on 2026-10-16
+  (13 releases, `immutable: true`).
+- This repository's unrelated working-tree state is not part of the milestone.
+
+## Functional review checklist
+
 Technical approval: the latest technical approval (basis `POLICY_SATISFIED`;
 its commit and implementation revision are in `WORKFLOW_STATE.json`). You are
 testing the Manager CLI as an operator would: every error, refusal and note
