@@ -194,7 +194,7 @@ def _scalar(value, where: str):
 def _detector(raw, where: str) -> DetectorSpec:
     raw = _object(raw, where)
     kind = _required(raw, "kind", where)
-    if kind not in DETECTOR_KINDS:
+    if not isinstance(kind, str) or kind not in DETECTOR_KINDS:
         raise _shape(f"{where} names the unknown detector kind {kind!r}; this Manager knows "
                      f"{', '.join(DETECTOR_KINDS)} (a newer Manager may know more)")
     wanted = DETECTOR_KINDS[kind]
