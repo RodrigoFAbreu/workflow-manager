@@ -6,7 +6,9 @@
 #
 # Before publishing, the target's own verification plan must be the full
 # selection of exactly that tree, against the inventory rediscovered here
-# (`assert-full-plan`); a range of `none`-only commits releases nothing; and
+# with the tested releases primed into the release cache, as the plan job
+# rediscovered it (`assert-full-plan`); a range of `none`-only commits
+# releases nothing; and
 # a commit a newer release already covers is never tagged
 # (`assert-not-superseded`, exit 3). `gh release create` creates the tag and
 # the release in one call, so a failure before it leaves no tag. Releases are
@@ -61,7 +63,17 @@ jobs:
           path: ${{ runner.temp }}/plan
           run-id: ${{ steps.target.outputs.target_run }}
           github-token: ${{ github.token }}
+      # The verification workflow's cache, under its key (the pins and the
+      # tested-releases lock): assert-full-plan primes the tested set into it
+      # before it rediscovers the inventory, and the build reads it (#58).
+      - name: Restore the release cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/workflow-manager-releases
+          key: workflow-releases-${{ hashFiles('src/workflow_manager/published_releases.json', 'tests/tested_releases.json') }}
       - name: Require the full plan
+        env:
+          WORKFLOW_MANAGER_RELEASE_CACHE: ${{ runner.temp }}/workflow-manager-releases
         run: |
           mkdir -p "$RUNNER_TEMP/tmp"
           export TMPDIR="$RUNNER_TEMP/tmp"
@@ -84,12 +96,6 @@ jobs:
             exit 0
           fi
           exit "$status"
-      - name: Restore the release cache
-        if: steps.version.outputs.version != '' && steps.superseded.outputs.superseded != 'true'
-        uses: actions/cache@v4
-        with:
-          path: ${{ runner.temp }}/workflow-manager-releases
-          key: workflow-releases-${{ hashFiles('src/workflow_manager/published_releases.json') }}
       - name: Build and verify the package
         if: steps.version.outputs.version != '' && steps.superseded.outputs.superseded != 'true'
         env:

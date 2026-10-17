@@ -37,6 +37,8 @@ from support import REPO_ROOT
 
 import test_parallel_runner as runner_tests
 from parallel import canonical_json
+from workflow_manager import package as package_module
+from workflow_manager import source as release_source
 
 WORKFLOWS = REPO_ROOT / ".github" / "workflows"
 RELEASE_WORKFLOW = WORKFLOWS / "release.yml"
@@ -81,6 +83,11 @@ def _uses(step: dict, action: str) -> bool:
 
 
 # -- T-REL-1: the release workflow ----------------------------------------------------------
+
+#: The verification workflow's release-cache key, without the nightly's suffix (#58).
+RELEASE_CACHE_KEY = ("workflow-releases-${{ hashFiles('src/workflow_manager/published_releases.json', "
+                     "'tests/tested_releases.json') }}")
+
 
 def release_workflow_problems(doc: dict, verify_name: str) -> list[str]:
     """T-REL-1's structural checks over the parsed release workflow; `[]`
@@ -171,14 +178,19 @@ def release_workflow_problems(doc: dict, verify_name: str) -> list[str]:
     need(full_plan < version < superseded < package < publish,
          "the order is not assert-full-plan, next-version, assert-not-superseded, package, "
          "gh release create")
-    # The release cache (plan 5.6): restored just before the build and named
-    # to it, so the wheel's `verify` downloads only on a cache miss.
+    # The release cache (plan 5.6, #58): the verification workflow's, under its
+    # key without the nightly's suffix (the pins and the lock), restored before
+    # assert-full-plan, which primes the tested set into it before it
+    # rediscovers the inventory, and named to the build, so the wheel's
+    # `verify` downloads only on a cache miss.
     cache_dir = "${{ runner.temp }}/workflow-manager-releases"
-    need(superseded < cache < package, "the release cache is not restored before the build")
-    need((steps[cache].get("with") or {}) == {
-        "path": cache_dir,
-        "key": "workflow-releases-${{ hashFiles('src/workflow_manager/published_releases.json') }}"},
-        "the release cache is not keyed on the pins")
+    need(download < cache < full_plan,
+         "the release cache is not restored before assert-full-plan")
+    need((steps[cache].get("with") or {}) == {"path": cache_dir, "key": RELEASE_CACHE_KEY},
+         "the release cache is not keyed on the pins and the lock")
+    need("if" not in steps[cache], "the release cache is not restored for assert-full-plan")
+    need((steps[full_plan].get("env") or {}).get("WORKFLOW_MANAGER_RELEASE_CACHE") == cache_dir,
+         "assert-full-plan does not prime the restored release cache")
     need((steps[package].get("env") or {}).get("WORKFLOW_MANAGER_RELEASE_CACHE") == cache_dir,
          "the build does not use the restored release cache")
     need("--manager-root" not in steps[package]["run"],
@@ -190,7 +202,7 @@ def release_workflow_problems(doc: dict, verify_name: str) -> list[str]:
          "the release is not created at the resolved target")
     need((steps[publish].get("env") or {}).get("TARGET_SHA")
          == "${{ steps.target.outputs.target_sha }}", "TARGET_SHA is not the resolved target")
-    for index in (cache, package, publish):
+    for index in (package, publish):
         need("steps.superseded.outputs.superseded != 'true'" in (steps[index].get("if") or "")
              and "steps.version.outputs.version != ''" in (steps[index].get("if") or ""),
              f"step {index} runs with nothing to release or when superseded")
@@ -234,8 +246,16 @@ class TestReleaseWorkflow(unittest.TestCase):
             "python 3.11": ('python-version: "3.12"', 'python-version: "3.11"'),
             "no release cache": ("          WORKFLOW_MANAGER_RELEASE_CACHE: "
                                  "${{ runner.temp }}/workflow-manager-releases\n", ""),
-            "a cache key off the pins": ("hashFiles('src/workflow_manager/published_releases.json')",
-                                         "hashFiles('pyproject.toml')"),
+            "a cache key off the pins": ("hashFiles('src/workflow_manager/published_releases.json', ",
+                                         "hashFiles('pyproject.toml', "),
+            "a cache key off the lock": (", 'tests/tested_releases.json') }}", ") }}"),
+            "no cache for assert-full-plan": (
+                "      - name: Require the full plan\n        env:\n          "
+                "WORKFLOW_MANAGER_RELEASE_CACHE: ${{ runner.temp }}/workflow-manager-releases\n",
+                "      - name: Require the full plan\n"),
+            "the cache restored only for a release": (
+                "      - name: Restore the release cache\n",
+                "      - name: Restore the release cache\n        if: steps.version.outputs.version != ''\n"),
             "a checkout's releases": ('--out "$RUNNER_TEMP/assets"',
                                       '--out "$RUNNER_TEMP/assets" --manager-root "$GITHUB_WORKSPACE"'),
             "an upstream again": ("\njobs:\n", "\nenv:\n  UPSTREAM_URL: x\n\njobs:\n"),
@@ -246,6 +266,24 @@ class TestReleaseWorkflow(unittest.TestCase):
                 self.assertNotEqual(mutated, text, "the mutation did not apply")
                 self.assertNotEqual(release_workflow_problems(
                     runner_tests.load_workflow_yaml(mutated), self.verify_name), [])
+
+    def test_the_cache_restored_after_assert_full_plan_is_caught(self):
+        """#58: the inventory reads a lock-only release's counts from the cache."""
+        doc = _workflow(RELEASE_WORKFLOW)
+        steps = doc["jobs"]["release"]["steps"]
+        cache = _step_index(steps, lambda s: _uses(s, "actions/cache"), "restore the cache")
+        steps.insert(cache + 1, steps.pop(cache))
+        self.assertIn("the release cache is not restored before assert-full-plan",
+                      release_workflow_problems(doc, self.verify_name))
+
+    def test_the_cache_key_is_the_verification_workflows(self):
+        """The release restores what a green `main` run of the verification
+        workflow saved: its key without the nightly's suffix."""
+        for job in _workflow(VERIFY_WORKFLOW)["jobs"].values():
+            for step in job.get("steps") or []:
+                if _uses(step, "actions/cache"):
+                    self.assertEqual(step["with"]["restore-keys"].strip(), RELEASE_CACHE_KEY)
+                    self.assertTrue(step["with"]["key"].startswith(RELEASE_CACHE_KEY))
 
     def test_the_resolved_target_reaches_the_output_the_steps_read(self):
         """`resolve-target` prints the two `key=value` lines the later steps'
@@ -482,13 +520,46 @@ class TestRepositorySettings(unittest.TestCase):
 
 # -- assert-full-plan: the permanent cases --------------------------------------------------
 
-def run_assert_full_plan(scratch: Path, plan: Path, env: dict) -> subprocess.CompletedProcess:
+def run_assert_full_plan(scratch: Path, plan: Path, env: dict, *,
+                         cache: Path | None = None) -> subprocess.CompletedProcess:
     """The real `release.py assert-full-plan`, rediscovering `scratch`'s inventory
-    with `scratch`'s own runner."""
+    with `scratch`'s own runner, on `scratch`'s release source and private
+    cache (`cache` instead, when given)."""
+    env = {**env, **runner_tests.scratch_release_env(scratch)}
+    if cache is not None:
+        env[release_source.CACHE_ENV] = str(cache)
     return subprocess.run([sys.executable, str(RELEASE_PY), "assert-full-plan", "--repo-dir",
                            str(scratch), str(plan)], cwd=str(scratch), capture_output=True,
-                          text=True, env={**env, **runner_tests.scratch_release_env(scratch)},
-                          timeout=600)
+                          text=True, env=env, timeout=600)
+
+
+#: A release `lock_only_release` names in a scratch's lock alone.
+LOCK_ONLY = "0.0.2"
+
+
+def lock_only_release(scratch: Path, version: str = LOCK_ONLY) -> None:
+    """Publish `version` from `scratch`'s release source, its manifest's
+    `manager` block carrying the frozen suite counts, and name it in `scratch`'s
+    lock alone: no pin, and no counts in the lock entry, so only the cached
+    manifest can supply them (#58). Committed, so a plan sees it."""
+    releases = runner_tests.scratch_releases(scratch)
+    files = {"payload/scripts/tiny_test.py": runner_tests.SCRATCH_SUITE.encode()}
+    bodies = {t: body.encode() for t, body in runner_tests.SCRATCH_TEMPLATES.items()}
+    tree = releases / "trees" / version
+    for rel, data in [*files.items(), *((f"templates/{t}", b) for t, b in bodies.items())]:
+        (tree / rel).parent.mkdir(parents=True, exist_ok=True)
+        (tree / rel).write_bytes(data)
+    manifest = runner_tests._scratch_manifest(files, bodies, version)  # noqa: SLF001
+    manifest["manager"] = {"schema_version": 1, "conformance": {
+        "suites": {"tiny_test.py": runner_tests.SCRATCH_SUITE_TESTS},
+        "portability_exceptions": []}}
+    (tree / "manifest.json").write_text(canonical_json(manifest))
+    built = package_module.build_package(tree, releases / "source" / version)
+    (scratch / "tests" / "tested_releases.json").write_text(canonical_json(
+        {"schema_version": 1, "releases": {version: {
+            "archive": built.archive.name, "sha256": package_module.file_sha256(built.archive),
+            "manifest_sha256": package_module.file_sha256(built.manifest)}}}))
+    runner_tests._commit_all(scratch, "a lock-only release")  # noqa: SLF001
 
 
 def full_plan_units(plan: Path) -> dict:
@@ -506,6 +577,32 @@ class TestAssertFullPlan(runner_tests._CliCase):  # noqa: SLF001
         self.assertIn("the plan is the full selection of this tree", proc.stdout)
         self.assertEqual(runner_tests._git(scratch, "status", "--porcelain").strip(), "",  # noqa: SLF001
                          "the rediscovery wrote into the checkout")
+
+    def test_a_lock_only_release_is_primed_before_the_rediscovery(self):
+        """#58: with a release only the lock names, whose counts only its
+        manifest carries, the rediscovery from a cache that starts empty
+        succeeds because assert-full-plan primes the tested set first; the
+        same discovery unprimed is the Release run's failure."""
+        scratch = runner_tests.scratch_checkout(self.tmp / "scratch")
+        lock_only_release(scratch)
+        plan = runner_tests._plan_only(self, scratch, "--profile", "ci")  # noqa: SLF001
+        unprimed = subprocess.run(
+            [sys.executable, "-B", "-c", "from pathlib import Path\n"
+             "from parallel import inventory\ninventory.discover(Path('..'))"],
+            cwd=str(scratch / "tests"), capture_output=True, text=True, timeout=600,
+            env={**self.env, **runner_tests.scratch_release_env(scratch),
+                 release_source.CACHE_ENV: str(self.tmp / "unprimed"),
+                 "PYTHONPATH": str(scratch / "src")})
+        self.assertNotEqual(unprimed.returncode, 0, unprimed.stdout)
+        self.assertIn("neither its manifest nor its lock entry carries the frozen suite counts",
+                      unprimed.stderr)
+        cache = self.tmp / "release-cache"
+        proc = run_assert_full_plan(scratch, plan, self.env, cache=cache)
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        self.assertIn("the plan is the full selection of this tree", proc.stdout)
+        # Primed under the lock's digests, as the runner primes it.
+        self.assertTrue((cache / LOCK_ONLY / "complete").is_file())
+        self.assertFalse((cache / LOCK_ONLY / "SOURCE").exists())
 
     def test_a_targeted_plan_is_refused(self):
         scratch = runner_tests.scratch_checkout(self.tmp / "scratch")

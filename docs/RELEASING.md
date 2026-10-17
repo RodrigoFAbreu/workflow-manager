@@ -24,9 +24,12 @@ build time.
    (`workflow_run`). It:
    - picks the newest commit on `main`'s first parent whose own push run is
      green (`release.py resolve-target`), and checks it out;
-   - requires that run's plan to be the full selection of exactly that tree
-     (`release.py assert-full-plan`, against an inventory rediscovered
-     there), so a red or reduced run never releases;
+   - restores the release cache under the test jobs' key (the pins and the
+     lock), and requires that run's plan to be the full selection of exactly
+     that tree (`release.py assert-full-plan`, against an inventory
+     rediscovered there as the plan job did: after priming every tested
+     release into that cache, so a lock-only release's frozen suite counts
+     come from its manifest), so a red or reduced run never releases;
    - computes the next version from the highest reachable `vX.Y.Z` tag and
      the subjects since it (`release.py next-version`); nothing to release
      ends the job green;
@@ -36,10 +39,10 @@ build time.
      the wheel must carry `published_releases.json`, and, installed outside
      any checkout (with `WORKFLOW_MANAGER_PINNED_ONLY=1`, so nothing is
      discovered), its `releases` must list exactly the pins and its
-     `verify` of the checkout must pass, through a release cache restored
-     like the test jobs' (on a miss it downloads the checkout's release from
-     the published source). When the checkout records a tested release that
-     has no pin (a lock entry), `verify` alone reads it from a local
+     `verify` of the checkout must pass, through that release cache (on a
+     miss it downloads the checkout's release from the published source).
+     When the checkout records a tested release that has no pin (a lock
+     entry), `verify` alone reads it from a local
      directory of that release's assets, checked against the lock's
      digests, so the proof stays the tested set; a release outside it fails.
      That `verify` never fetches: `package.py` first primes the cache with
