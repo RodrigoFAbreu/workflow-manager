@@ -281,11 +281,15 @@ class _Published(_Mirror):
             tb.support.release(tb.NEWEST_RELEASE),
             self.tmp / "trees" / f"{version}-{len(list((self.tmp / 'trees').glob(version + '*')))
                                               if (self.tmp / 'trees').exists() else 0}", version)
-        if block is not None:
-            path = tree.root / "manifest.json"
-            manifest = json.loads(path.read_text())
+        # The newest tested release may carry its own `manager` block (2.13.0 does), so a
+        # release published with `block=None` drops it rather than inheriting it.
+        path = tree.root / "manifest.json"
+        manifest = json.loads(path.read_text())
+        if block is None:
+            manifest.pop("manager", None)
+        else:
             manifest["manager"] = block
-            path.write_text(json.dumps(manifest, indent=2) + "\n")
+        path.write_text(json.dumps(manifest, indent=2) + "\n")
         package_module.build_package(tree.root, mirror / version)
 
     def mirror_of(self, releases: dict) -> Path:
