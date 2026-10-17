@@ -17,7 +17,7 @@ import unittest
 import unittest.mock
 from pathlib import Path
 
-from support import NEWEST_RELEASE, REPO_ROOT
+from support import PINNED_NEWEST, REPO_ROOT
 
 import test_operator_ux as ux
 from test_operator_ux import next_lines, run
@@ -67,7 +67,7 @@ class Docs(ux.ReleaseCase):
         return proc.returncode, proc.stdout + proc.stderr, " ".join(next_lines(proc.stdout + proc.stderr))
 
     def case_misplaced(self):
-        return run("update", str(self.empty()), "--release-version", NEWEST_RELEASE)
+        return run("update", str(self.empty()), "--release-version", PINNED_NEWEST)
 
     def case_no_command(self):
         return run()
@@ -114,7 +114,7 @@ class Docs(ux.ReleaseCase):
     def case_digest(self):
         work = self.workdir()
         mirror = self.mirror(work)
-        archive = mirror / NEWEST_RELEASE / f"workflow-{NEWEST_RELEASE}.tar.gz"
+        archive = mirror / PINNED_NEWEST / f"workflow-{PINNED_NEWEST}.tar.gz"
         archive.write_bytes(archive.read_bytes() + b"x")
         return run("--release-cache", str(work / "cache"), "--release-source", str(mirror),
                    "bootstrap", str(self.empty()))

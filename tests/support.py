@@ -37,6 +37,11 @@ NEWEST_RELEASE = TESTED_VERSIONS[-1]
 #: The release the `updated` fixture bootstraps before updating it to
 #: `NEWEST_RELEASE`: the one below it, or None when only one is tested.
 UPGRADE_FROM = TESTED_VERSIONS[-2] if len(TESTED_VERSIONS) > 1 else None
+#: The newest pin and the one below it: what a suite that means the pins alone
+#: (`pinned_env`) runs against, whatever the lock names. Equal to
+#: `NEWEST_RELEASE`/`UPGRADE_FROM` while the lock is empty.
+PINNED_NEWEST = PINNED_VERSIONS[-1]
+PINNED_UPGRADE_FROM = PINNED_VERSIONS[-2] if len(PINNED_VERSIONS) > 1 else None
 
 _RELEASES: dict = {}
 
@@ -81,9 +86,27 @@ def cli_env(**extra: str) -> dict[str, str]:
     It always names the parent's resolved release cache in
     `WORKFLOW_MANAGER_RELEASE_CACHE`, so a test that moves `HOME` on purpose
     still reads the cache every other test reads, and it carries
-    `WORKFLOW_MANAGER_RELEASE_SOURCE` through when that is set. Those are
-    defaults: `extra` is applied last and overrides them.
+    `WORKFLOW_MANAGER_RELEASE_SOURCE` through when that is set. It sets the
+    lock override to this process's own, empty when there is none, so a child
+    that imports this module tests the same set, never an inherited one.
+    Those are defaults: `extra` is applied last and overrides them.
     """
+    env = pinned_env()
+    if LOCK:
+        # A lock-only release is not pinned: reach it through the hermetic
+        # mirror and a process-private cache, as `mirror_env` does (plan 3.5).
+        env.update({_source.SOURCE_ENV: str(mirror_dir()), _source.PINNED_ONLY_ENV: "0",
+                    _source.CACHE_ENV: str(_lock_cache())})
+    env.update(extra)
+    return env
+
+
+def pinned_env(**extra: str) -> dict[str, str]:
+    """`cli_env` as it is while the lock is empty, whatever the lock names:
+    pinned-only, on the parent's resolved release cache. For a suite that
+    means the pins alone -- the pinned-only Manager's messages and exit codes,
+    against `PINNED_NEWEST` -- never one that reaches a lock-only release.
+    `extra` is applied last and overrides it."""
     from workflow_manager import source
 
     env = {
@@ -92,15 +115,11 @@ def cli_env(**extra: str) -> dict[str, str]:
         "HOME": str(Path.home()),
         source.CACHE_ENV: str(source.cache_root()),
         source.PINNED_ONLY_ENV: "1",
+        tested_releases.OVERRIDE_ENV: os.environ.get(tested_releases.OVERRIDE_ENV, ""),
         **HERMETIC_GIT_ENV,
     }
     if os.environ.get(source.SOURCE_ENV):
         env[source.SOURCE_ENV] = os.environ[source.SOURCE_ENV]
-    if LOCK:
-        # A lock-only release is not pinned: reach it through the hermetic
-        # mirror and a process-private cache, as `mirror_env` does (plan 3.5).
-        env.update({source.SOURCE_ENV: str(mirror_dir()), source.PINNED_ONLY_ENV: "0",
-                    source.CACHE_ENV: str(_lock_cache())})
     env.update(extra)
     return env
 

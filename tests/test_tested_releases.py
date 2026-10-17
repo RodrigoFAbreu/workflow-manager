@@ -17,6 +17,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import types
 import unittest
 import unittest.mock
 from pathlib import Path
@@ -39,6 +40,9 @@ RELEASE_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "release.yml"
 LOCK_TOOL = REPO_ROOT / "tools" / "release_lock.py"
 SYNTHETIC = "7.0.2"
 NEWER = "7.0.3"
+#: The release a regression's child process has in its own lock, committed or
+#: overriding: never one a `_LockedRelease` of that child builds.
+LOCKED = "7.1.0"
 SUITES = {"workflow_state_test.py": 12, "workflow_fingerprint_test.py": 3}
 DIGEST = "ab" * 32
 
@@ -154,18 +158,21 @@ class _LockedRelease(unittest.TestCase):
     """A synthetic `7.0.2` published into a release-source directory beside
     symlinks to every real tested release, and a lock naming it."""
 
+    #: The synthetic releases the class builds, each from the newest pin.
+    synthetic = (SYNTHETIC, NEWER)
+
     @classmethod
     def setUpClass(cls):
         cls._class_tmp = tempfile.TemporaryDirectory()
         root = Path(cls._class_tmp.name)
-        base = support.release(support.NEWEST_RELEASE)
+        base = support.release(support.PINNED_VERSIONS[-1])
         cls.mirror = root / "mirror"
         cls.mirror.mkdir()
         for version in support.TESTED_VERSIONS:
             (cls.mirror / version).symlink_to(support.mirror_dir() / version)
         cls.trees = root / "trees"
         cls.built = {}
-        for version in (SYNTHETIC, NEWER):
+        for version in cls.synthetic:
             tree = tb.synthesize_next_release(base, cls.trees / version, version)
             cls.built[version] = package_module.build_package(tree.root, cls.mirror / version)
 
@@ -191,10 +198,13 @@ class _LockedRelease(unittest.TestCase):
 
     def env(self, **extra) -> dict:
         """A subprocess environment: the mirror as the source, a private cache,
-        the lock as the override, discovery off (the tests' default)."""
+        the lock as the override, discovery off (the tests' default). Each is
+        set here, never inherited: `cli_env` turns discovery on for the
+        parent's own nonempty lock."""
         return cli_env(**{release_source.SOURCE_ENV: str(self.mirror),
                           release_source.CACHE_ENV: str(self.cache),
-                          tested_releases.OVERRIDE_ENV: str(self.lock_file)}, **extra)
+                          release_source.PINNED_ONLY_ENV: "1",
+                          tested_releases.OVERRIDE_ENV: str(self.lock_file), **extra})
 
     def python(self, code: str, env: dict | None = None, cwd: Path = TESTS):
         env = dict(env or self.env())
@@ -260,7 +270,8 @@ class TestTheTestedSetFromALock(_LockedRelease):
         self.write_lock({SYNTHETIC: self.entry(suites=SUITES)})
         locked = self.python(code)
         self.assertEqual((plain.returncode, locked.returncode), (0, 0), plain.stderr + locked.stderr)
-        self.assertEqual(json.loads(plain.stdout.splitlines()[1]), [support.NEWEST_RELEASE])
+        # An empty lock tests the pins alone, whatever this process's own lock.
+        self.assertEqual(json.loads(plain.stdout.splitlines()[1]), [support.PINNED_VERSIONS[-1]])
         self.assertEqual(json.loads(locked.stdout.splitlines()[1]), [SYNTHETIC])
 
 
@@ -393,7 +404,9 @@ class TestTheLockTool(_LockedRelease):
     def test_latest_changes_nothing_when_nothing_newer_is_published(self):
         only_pins = self.tmp / "pins-only"
         only_pins.mkdir()
-        for version in support.TESTED_VERSIONS:
+        # Built from the pins, never from the tested set: a release in this
+        # process's own lock would be the newer one `latest` adds.
+        for version in support.PINNED_VERSIONS:
             (only_pins / version).symlink_to(support.mirror_dir() / version)
         self.write_lock({})
         out = self.tmp / "nightly.json"
@@ -537,14 +550,68 @@ class TestTheScratchCheckoutsCarryTheLock(unittest.TestCase):
 
 class TestANonEmptyLockKeepsTheRunnerAndTheHostTestsGreen(_LockedRelease):
     """RA-EXT-001: the committed lock is empty, so nothing else exercises a lock
-    that selects a newer release. The runner plans through the real
-    `resources.json` and the host tests that read the lock run under it."""
+    that selects a newer release. A child process gets a lock naming `7.1.0`,
+    once as its committed file and once as the nightly's override, and the
+    runner's planning and the host tests that read the lock run under it: an
+    empty-committed-lock assertion, frozen orphan ids naming a fixed release, a
+    pinned-only expectation or a "pins only" mirror built from the tested set
+    fails here."""
 
-    def locked(self):
-        # The synthetic release carries the newest real release's suites, so
-        # its counts are theirs.
-        self.write_lock({SYNTHETIC: self.entry(suites=support.CI_SUITES[support.NEWEST_RELEASE])})
+    synthetic = (SYNTHETIC, NEWER, LOCKED)
+
+    #: Host tests whose expectation depends on the lock the process reads.
+    HOST_TARGETS = (
+        "test_tested_releases.TestLockShape.test_the_committed_lock_is_valid_whether_empty_or_not",
+        "test_tested_releases.TestTheTestedSetFromALock.test_the_selection_differs_when_the_lock_does",
+        "test_tested_releases.TestTheLockTool."
+        "test_latest_changes_nothing_when_nothing_newer_is_published",
+        "test_discovery.TestTestsStayHermetic.test_the_default_test_environment_is_pinned_only",
+    )
+
+    def locked(self) -> str:
+        """Prime `7.1.0` into the private cache and return its lock text, in
+        the committed file's own format."""
+        lock = tested_releases.parse_lock(lock_text({LOCKED: self.entry(
+            LOCKED, suites=support.CI_SUITES[support.PINNED_VERSIONS[-1]],
+            portability_exceptions=[])}))
+        text = tested_releases.dump_lock(lock)
+        self.lock_file.write_text(text)
         priming.prime(self.checkout(), self.env())
+        return text
+
+    def committed_tests_dir(self, text: str) -> Path:
+        """This tree's `tests/` with `text` as its committed lock: every entry
+        a symlink except the lock reader, copied so that its `LOCK_PATH` is
+        the lock beside it."""
+        root = self.tmp / "committed-tests"
+        root.mkdir()
+        for entry in TESTS.iterdir():
+            if entry.name not in ("tested_releases.py", "tested_releases.json", "__pycache__"):
+                (root / entry.name).symlink_to(entry)
+        shutil.copy2(TESTS / "tested_releases.py", root / "tested_releases.py")
+        (root / "tested_releases.json").write_text(text)
+        return root
+
+    def run_targets(self, env: dict, tests_dir: Path) -> None:
+        env = {**env, "PYTHONPATH": os.pathsep.join([str(REPO_ROOT / "src"), str(tests_dir)])}
+        for target in self.HOST_TARGETS:
+            with self.subTest(target=target):
+                proc = subprocess.run(
+                    [sys.executable, "-B", "-c",
+                     "import sys, unittest, support\n"
+                     f"assert support.NEWEST_RELEASE == {LOCKED!r}, support.NEWEST_RELEASE\n"
+                     "sys.exit(not unittest.main(module=None, argv=['x', sys.argv[1]], "
+                     "exit=False).result.wasSuccessful())", target],
+                    cwd=str(tests_dir), env=env, capture_output=True, text=True)
+                self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+
+    def test_the_host_tests_pass_under_a_nonempty_committed_lock(self):
+        tests_dir = self.committed_tests_dir(self.locked())
+        self.run_targets(self.env(**{tested_releases.OVERRIDE_ENV: ""}), tests_dir)
+
+    def test_the_host_tests_pass_under_the_nightly_override(self):
+        self.locked()
+        self.run_targets(self.env(), TESTS)
 
     def test_the_runner_plans_with_the_committed_orphan_declarations(self):
         self.locked()
@@ -562,20 +629,23 @@ class TestANonEmptyLockKeepsTheRunnerAndTheHostTestsGreen(_LockedRelease):
         self.assertEqual(proc.returncode, 0, proc.stderr)
         got = json.loads(proc.stdout)
         self.assertEqual(len(got["frozen"]), 4)
-        self.assertTrue(all(u.startswith(f"frozen:{SYNTHETIC}/") for u in got["frozen"]), got)
+        self.assertTrue(all(u.startswith(f"frozen:{LOCKED}/") for u in got["frozen"]), got)
         self.assertTrue(got["alone"], got)
 
-    def test_the_host_tests_that_read_the_lock_pass_under_it(self):
-        self.locked()
-        for target in ("test_tested_releases.TestLockShape."
-                       "test_the_committed_lock_is_valid_whether_empty_or_not",
-                       "test_discovery.TestTestsStayHermetic."
-                       "test_the_default_test_environment_is_pinned_only"):
-            with self.subTest(target=target):
-                proc = self.python(f"import sys, unittest\n"
-                                   f"sys.exit(not unittest.main(module=None, argv=['x', "
-                                   f"{target!r}], exit=False).result.wasSuccessful())")
-                self.assertEqual(proc.returncode, 0, proc.stderr)
+
+class TestLockedReleaseEnvironment(unittest.TestCase):
+    def test_the_subprocess_environment_is_pinned_only_whatever_the_lock(self):
+        """`_LockedRelease.env` sets discovery off itself: with this process's
+        own lock nonempty, `cli_env` alone would turn it on."""
+        case = types.SimpleNamespace(mirror=Path("/m"), cache=Path("/c"), lock_file=Path("/l"))
+        with unittest.mock.patch.object(support, "LOCK", {"9.9.9": object()}), \
+                unittest.mock.patch.object(support, "mirror_dir", return_value=Path("/x")), \
+                unittest.mock.patch.object(support, "_lock_cache", return_value=Path("/y")):
+            env = _LockedRelease.env(case)
+        self.assertEqual(env[release_source.PINNED_ONLY_ENV], "1")
+        self.assertEqual(env[release_source.SOURCE_ENV], "/m")
+        self.assertEqual(env[release_source.CACHE_ENV], "/c")
+        self.assertEqual(env[tested_releases.OVERRIDE_ENV], "/l")
 
 
 class TestCliEnvFollowsTheLock(unittest.TestCase):
@@ -591,6 +661,16 @@ class TestCliEnvFollowsTheLock(unittest.TestCase):
             self.assertEqual(cli_env(**{source.PINNED_ONLY_ENV: "1"})[source.PINNED_ONLY_ENV], "1")
         with unittest.mock.patch.object(support, "LOCK", {}):
             self.assertEqual(cli_env()[source.PINNED_ONLY_ENV], "1")
+
+    def test_a_child_reads_the_lock_this_process_reads(self):
+        """The override is set in every `cli_env`, never inherited from
+        elsewhere: this process's own, or empty for the committed file."""
+        override = tested_releases.OVERRIDE_ENV
+        with unittest.mock.patch.dict(os.environ, {override: "/nightly.json"}):
+            self.assertEqual(cli_env()[override], "/nightly.json")
+        with unittest.mock.patch.dict(os.environ):
+            os.environ.pop(override, None)
+            self.assertEqual(cli_env()[override], "")
 
 
 if __name__ == "__main__":
