@@ -321,91 +321,155 @@ once pull request #26 has merged.
 
 ## Functional review checklist
 
-Milestone `workflow-manager-release-agnostic` (implementation revision 7,
-technical approval by policy). Put findings in
+Milestone `workflow-manager-release-agnostic` (technical approval by policy;
+re-reviewed after functional review round 1, see the note at the end). Put
+findings in
 `.ai-review/workflow-manager-release-agnostic/feedback/FUNCTIONAL_REVIEW.md`.
 
-**Setup.** From this checkout, no feature flags, no seeded data:
+**Setup.** Offline: no live GitHub, no `~/.cache`. Every path is a variable,
+so the checklist runs from a disposable clone and a private cache:
 
 ```bash
-export M=~/Workspace/workflow-manager PYTHONPATH=~/Workspace/workflow-manager/src
-export T=$(mktemp -d)       # every flow works under $T
+export M=/path/to/this/checkout          # the checkout (or a disposable clone) under test
+export SRC=/path/to/assets-2.12.0        # the published 2.12.0 assets: SHA256SUMS,
+                                         # workflow-2.12.0.manifest.json, workflow-2.12.0.tar.gz
+                                         # (e.g. a release cache's 2.12.0/ entry, or the GitHub
+                                         # release v2.12.0 downloaded once beforehand)
+export PYTHONPATH=$M/src T=$(mktemp -d)  # every flow works under $T
+export XDG_CACHE_HOME=$T/xdg WORKFLOW_MANAGER_RELEASE_CACHE=$T/cache   # a private cache
+mkdir -p $T/mirror/2.12.0
+for f in SHA256SUMS workflow-2.12.0.manifest.json workflow-2.12.0.tar.gz; do
+  command cp -f $SRC/$f $T/mirror/2.12.0/; done
+export WORKFLOW_MANAGER_RELEASE_SOURCE=$T/mirror   # an offline directory mirror
+wm() { python3 -m workflow_manager "$@"; }
+newrepo() { git init -q "$1" && git -C "$1" commit -q --allow-empty -m init; }
 ```
 
-Flow 1 needs the network once (GitHub releases listing of
-`RodrigoFAbreu/workflow`); flows 3-4 are offline.
+Global options (`--release-version`, `--release-source`, `--release-cache`,
+`--release-dir`, `--pinned-only`) go **before** the command:
+`wm --release-version 2.12.0 bootstrap TARGET`.
 
 1. **Discovery lists releases, pinned first.**
-   - `python3 -m workflow_manager releases` lists the pins `2.3.1` to `2.12.0`.
-   - `python3 -m workflow_manager --pinned-only releases` lists the same pins
-     and no discovered one. `WORKFLOW_MANAGER_PINNED_ONLY=1` does the same.
-   - Expected: both exit 0; no pin differs between the two; nothing under `$M`
-     changes (`git -C $M status` clean).
+   - `wm releases` lists the pins `2.3.1` to `2.12.0` (the mirror holds only
+     a pinned release, so nothing is discovered).
+   - `wm --pinned-only releases` lists the same pins. `WORKFLOW_MANAGER_PINNED_ONLY=1
+     wm releases` does the same.
+   - Expected: all exit 0; no pin differs; `git -C $M status` stays clean.
 2. **A pinned release still installs exactly as before.**
    ```bash
-   git init -q $T/a && git -C $T/a commit -q --allow-empty -m init
-   python3 -m workflow_manager bootstrap $T/a --release-version 2.12.0
-   python3 -m workflow_manager verify $T/a
+   newrepo $T/a
+   wm --release-version 2.12.0 bootstrap $T/a
+   wm verify $T/a
    cat $T/a/.workflow-manager/installation.json
    ```
    - Expected: `verify` reports the installation matches 2.12.0; the record's
      `source` has no `trust` or `from` key (a pinned release carries neither).
-3. **A directory mirror serves a release offline.** No release newer than
-   2.12.0 exists yet, so a hand-built unpinned release cannot be made to verify
-   (its `SHA256SUMS` and manifest must agree). Check the offline path with a
-   real one:
+     This bootstrap also populates the private cache `$T/cache` used below.
+3. **A directory mirror serves a release offline; corruption is refused.**
    ```bash
-   mkdir -p $T/mirror/2.12.0
-   for f in SHA256SUMS workflow-2.12.0.manifest.json workflow-2.12.0.tar.gz; do
-     cp ~/.cache/workflow-manager/releases/2.12.0/$f $T/mirror/2.12.0/; done
-   git init -q $T/b && git -C $T/b commit -q --allow-empty -m init
-   python3 -m workflow_manager --release-source $T/mirror --release-cache $T/cache bootstrap $T/b --release-version 2.12.0
-   python3 -m workflow_manager --release-source $T/mirror --release-cache $T/cache verify $T/b
+   newrepo $T/b
+   wm --release-cache $T/cache-b --release-version 2.12.0 bootstrap $T/b
+   wm --release-cache $T/cache-b verify $T/b
+   mkdir -p $T/bad && command cp -rf $T/mirror/2.12.0 $T/bad/ \
+     && printf 'X' | dd of=$T/bad/2.12.0/workflow-2.12.0.tar.gz bs=1 seek=100 conv=notrunc
+   newrepo $T/c
+   wm --release-source $T/bad --release-cache $T/cache-c --release-version 2.12.0 bootstrap $T/c; echo rc=$?
    ```
-   - Expected: bootstrap and verify succeed with no network; corrupting one
-     byte of the mirror's archive (in a fresh `--release-cache`) is a named
-     integrity refusal, exit non-zero, nothing written to the target.
-4. **A failed listing is soft.** `python3 -m workflow_manager --release-source
-   http://127.0.0.1:9 --release-cache $T/cache2 update $T/b --dry-run`.
-   - Expected: at most one stderr line about the listing, no traceback, and a
-     report against the newest local release; a bare `update` never goes below
-     the installed release (`ReleaseFloorError`, exit 1, nothing written).
+   - Expected: bootstrap and verify of `$T/b` succeed offline; the corrupted
+     archive is `archive does not match its pin`, `rc=1`, with a `next:` step;
+     `$T/c` holds only `.git`, and `$T/cache`/`$T/cache-b` are unchanged.
+4. **A failed listing is soft; the floor names its real reason.**
+   ```bash
+   wm --release-source $T/absent update $T/a --dry-run; echo rc=$?
+   command cp -rf $T/a $T/f
+   python3 -c "import json,sys;p=sys.argv[1];d=json.load(open(p));d['workflow_version']='99.0.0';json.dump(d,open(p,'w'))" \
+     $T/f/.workflow-manager/installation.json
+   wm --release-source $T/absent update $T/f; echo rc=$?
+   wm update $T/f; echo rc=$?
+   wm update $T/f --dry-run; echo rc=$?
+   ```
+   `$T/absent` does not exist: the listing fails, and the private cache
+   `$T/cache` (populated by flow 2) is the local fallback.
+   - Expected: the first command prints one stderr line `could not look for
+     newer releases: ...; using 2.12.0`, no traceback, a report, `rc=0`.
+     Against `$T/absent`, the floor refusal says `no usable release at or above
+     the installed Workflow 99.0.0: could not look for newer releases
+     (offline)`; against the readable mirror it says `... the release source
+     offers no release at or above it` (never "offline") with its own `next:`
+     step. Each refusal is `rc=1` and writes nothing to `$T/f`.
 5. **Unpinned discovery, trust, metadata and `min_manager_version`: the
-   automated evidence.** These need a post-2.12.0 release, which only the
-   hermetic tests fabricate (directory mirrors and loopback servers, private
-   caches). Run and record the final lines:
+   automated evidence.** A post-2.12.0 release exists only in the hermetic
+   tests (directory mirrors and loopback servers, private caches). Run the
+   classes that use only directories:
    ```bash
-   python3 $M/tests/run_all.py --select test_discovery.py --select test_release_metadata.py --select test_tested_releases.py
+   cd $M && python3 tests/run_all.py \
+     --select test_discovery.py::TestDiscoveryOverADirectory \
+     --select test_discovery.py::TestTheCacheIsBoundToItsSource \
+     --select test_discovery.py::TestOnlyAStrictVersionBuildsAPath \
+     --select test_discovery.py::TestChooser \
+     --select test_release_metadata.py::TestReportsFromTheBlock \
+     --select test_release_metadata.py::TestMinManagerVersion \
+     --select test_release_metadata.py::TestTheBlockReader \
+     --select test_tested_releases.py
    ```
-   - Expected: exit 0. Read the test names to confirm coverage of: a discovered
-     release records `trust: "discovered"` and `from`; a corrupted archive or
-     disagreeing `SHA256SUMS`/manifest is refused; `--pinned-only` restores
-     pin-only; a `min_manager_version` above the Manager refuses an explicit
-     version and is skipped by a bare command; a bad `manager` block is
-     `manifest-shape`; a release without the block gives `incomplete-inspection`
-     and `doctor` exits 1.
+   - Expected: `verdict: exit 0`. The classes that need loopback sockets
+     (`TestEveryRefusalFailsClosed`, `TestOffline`, `TestArchiveAvailability`,
+     `TestTemplateMirror`, `TestABodyReadKeepsToTheDeadline`, `TestTheFloor`,
+     `TestCrossedVersionCoverage`) are not to be run here: cite the full gate
+     in flow 11, which ran every class of these files. Read the test names to
+     confirm coverage of: a discovered release records `trust: "discovered"`
+     and `from`; a corrupted archive or disagreeing `SHA256SUMS`/manifest is
+     refused; `--pinned-only` restores pin-only; a `min_manager_version` above
+     the Manager refuses an explicit version and is skipped by a bare command;
+     a bad `manager` block is `manifest-shape` with advice for a published
+     release (`test_malformed_published_metadata_gets_advice_for_its_source`);
+     a refused release leaves the cache and the target exactly as they were
+     (`assertRefusalWritesNothing` in the refusal tests,
+     `test_a_refusal_never_replaces_an_entry_another_source_trusts`); a
+     release without the block gives `incomplete-inspection` and `doctor`
+     exits 1.
 6. **Block contract doc.** `docs/release-metadata.md` describes the block, the
-   detector table and the Workflow-side follow-up; its example JSON is valid
-   (`python3 -m unittest` is not needed: `tests/test_docs.py` checks it).
+   detector table and the Workflow-side follow-up; its example is a manifest
+   member fragment (`tests/test_docs.py` wraps it in braces and parses it).
 7. **Docs for the operator.** `docs/update.md`, `docs/install.md` and
    `docs/common-problems.md` explain what to do when a release is published,
-   `--pinned-only`, the offline line, the floor and the
-   `min_manager_version`/no-compatibility-data messages.
-8. **The lock tool.** `python3 tools/release_lock.py check` exits 0 on the
-   committed (empty) lock. `python3 tools/release_lock.py add 2.12.0` is
-   refused or a no-op because 2.12.0 is pinned (read the message; it must say
-   why). Do not commit anything it writes (`git -C $M status`).
-9. **Timing keys are version-free.** `grep -c '"frozen:[^"]*[0-9]\.[0-9]*\.[0-9]' tests/parallel/timings.json`
+   `--pinned-only` (remove it or choose a pinned release; upgrading the
+   Manager does not add a pin), the offline line, the floor, the
+   `min_manager_version`/no-compatibility-data messages and a malformed
+   `manager` block.
+8. **The lock tool.** `cd $M && python3 tools/release_lock.py --release-source
+   $T/mirror check` exits 0 on the committed (empty) lock. `python3
+   tools/release_lock.py --release-source $T/mirror add 2.12.0` exits 1: the
+   message says 2.12.0 is pinned, that pins are already tested in every run
+   and no lock change is needed. `docs/exit-codes.md` "Maintainer tools" lists
+   the tool's exit codes, linked from `docs/RELEASING.md`. `git -C $M status`
+   stays clean.
+9. **Timing keys are version-free.** `grep -c '"frozen:[^"]*[0-9]\.[0-9]*\.[0-9]' $M/tests/parallel/timings.json`
    prints `0`; keys look like `frozen:<fixture>/<suite>::<Class>`. (The file's
    prose notes mention `2.9.1`; that is not a key.)
 10. **Docs.** Read `docs/RELEASING.md` "A new Workflow release" and
     `docs/update.md`: the procedure for a new Workflow release is the `chore:`
-    lock bump, with no pin, no Manager release. No page still tells the
-    maintainer to add a pin.
-11. **Required: the full gate result.** Do not rerun the 5-minute suite; cite
-    the implementation-stage `python3 tests/run_all.py` run recorded for this
-    revision in `.ai-review/workflow-manager-release-agnostic/current/TEST_RESULTS.md`
-    (verdict, `selection_digest`) and confirm it names revision 7's head.
+    lock bump, with no pin, no Manager release. No page tells the maintainer
+    to add a pin, including `docs/ARCHITECTURE.md`'s index line for
+    `RELEASING.md`.
+11. **Required: the full gate result.** Do not rerun the suite. The full gate
+    after functional review round 1's fix, `python3 tests/run_all.py`:
+    ```
+    evidence: full selection, local, 8 worker(s), head
+    481d0dd52d68af49081d50fe8080c11ddd9f573b, 2084/2084 units, 13301 tests,
+    selection_digest
+    230734d921f08e34130380f3b9b6fea8b3b099299102e167ac0128940eb45b67,
+    tests_digest
+    8cc5a8edc8985ac6b7e9d05e70362b7de38af33ae7531300fb92c21158e2ef24,
+    tree_digest
+    9b9519cefc75da21d3fb81be906a613c8e1d43e2d2f6a79af7edcb840bb68da7
+    verdict: exit 0
+    ```
+    Confirm `head` is the fix commit (`git -C $M log --oneline -1 481d0dd`
+    names `fix: keep refused releases out of the trusted cache ...`) and that
+    only the checklist, state and bundle-record commits follow it (`git -C $M
+    log --oneline 481d0dd..HEAD`; docs and state commits are not changes to
+    code, tests or the runner).
 
 **Known limitations and out of scope.**
 - The Workflow-side change (the `workflow` repository writing the `manager`
@@ -415,6 +479,26 @@ Flow 1 needs the network once (GitHub releases listing of
 - A real post-2.12.0 release does not exist yet, so unpinned-release behaviour is evidenced by the hermetic tests (flow 5); the live GitHub listing was checked once on 2026-10-16
   (13 releases, `immutable: true`).
 - This repository's unrelated working-tree state is not part of the milestone.
+
+**Functional review round 1** (11 findings, one bounded fix, `481d0dd`).
+Fixed: a release refused for its `manager` block or `min_manager_version` is
+checked in private staging before the cache stores it, so a refused
+`doctor`, `update`, `update --dry-run` or `bootstrap` leaves every trusted
+cache entry (one another source wrote included) and the target as they were
+(finding 5); malformed published metadata gets source-aware advice
+(`--release-version VERSION`, a corrected mirror or a newer Workflow release,
+a newer Manager for an unknown schema or detector kind; finding 6); the floor
+refusal says "offline" only when the listing failed (finding 7);
+`docs/update.md` no longer sends an unpinned `--pinned-only` release to a
+Manager upgrade (finding 8); `release_lock.py`'s pinned refusal names the next
+step and its exit codes are in `docs/exit-codes.md` (finding 9);
+`docs/ARCHITECTURE.md` no longer says `RELEASING.md` explains adding a pin, and
+the docs check catches that wording (finding 10). Checklist corrections, no
+code change: parameterized paths and an offline directory-mirror setup
+(finding 1), global options before the command (2), a failed listing from an
+absent directory mirror with a prepopulated private cache (3), loopback-socket
+classes cited from the gate (4), the full-gate evidence quoted in flow 11 (11).
+Nothing was deferred. **Re-test flows 2, 3, 4, 5, 7, 8, 10 and 11.**
 
 ## Functional review checklist
 
