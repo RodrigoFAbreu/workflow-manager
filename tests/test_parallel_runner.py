@@ -54,6 +54,7 @@ from pathlib import Path
 from unittest import mock
 
 import support
+import tested_releases
 from support import CI_SUITES, NEWEST_RELEASE, REPO_ROOT
 
 import frozen_runs
@@ -2658,9 +2659,12 @@ def synthetic_release_env(releases: Path) -> dict[str, str]:
     """`WORKFLOW_MANAGER_RELEASE_SOURCE`/`_CACHE` for a synthetic release
     published under `releases` by `publish_synthetic_release`: its `file://`
     source and its private cache. These override the real cache the runner
-    exports, which is the only thing keeping a synthetic run off it (7.1)."""
+    exports, which is the only thing keeping a synthetic run off it (7.1).
+    The lock override is cleared, never inherited: a synthetic run tests the
+    lock its own checkout commits, and its source serves no other release."""
     return {release_source.SOURCE_ENV: (releases / "source").as_uri() + "/{version}/",
-            release_source.CACHE_ENV: str(releases / "cache")}
+            release_source.CACHE_ENV: str(releases / "cache"),
+            tested_releases.OVERRIDE_ENV: ""}
 
 
 def publish_synthetic_release(checkout: Path, releases: Path, suite: str, *,
@@ -2801,7 +2805,8 @@ def resources_module_load(root: Path) -> resources.Resources:
     declared = json.loads(resources.resources_path(root).read_text()).get("orphan_sources")
     with mock.patch.dict(os.environ, scratch_release_env(root)):
         every = inventory.discover(root).unit_ids() if declared else None
-    return resources.load(root, inventory.discover_host(root), orphan_unit_ids=every)
+        host = inventory.discover_host(root)
+    return resources.load(root, host, orphan_unit_ids=every)
 
 
 def scratch_worktree(scratch: Path) -> Path:
@@ -3833,6 +3838,25 @@ class _CliCase(_ScratchCase):
             patcher.start()
             self.addCleanup(patcher.stop)
         self.env = dict(os.environ)
+
+
+class TestAScratchRunTestsItsOwnLock(_CliCase):
+    """RA-EXT-006: the nightly's lock override never reaches a scratch run. A
+    scratch source serves only its own `0.0.1`, so priming a release the
+    override names from it is a `PrimingError` (exit 2)."""
+
+    def test_an_override_naming_another_release_leaves_the_scratch_runs_green(self):
+        scratch = scratch_checkout(self.tmp / "scratch")
+        self.assertEqual(scratch_release_env(scratch)[tested_releases.OVERRIDE_ENV], "")
+        nightly = self.tmp / "nightly.json"
+        nightly.write_text(json.dumps({"schema_version": 1, "releases": {"9.0.0": {
+            "archive": package_module.archive_name("9.0.0"), "sha256": "ab" * 32,
+            "manifest_sha256": "cd" * 32}}}))
+        with mock.patch.dict(os.environ, {tested_releases.OVERRIDE_ENV: str(nightly)}):
+            proc = run_cli(scratch, "--select", "test_scratch_shared.py", env=dict(os.environ))
+            self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+            code, out, err = main_in_process(scratch, "--select", "test_scratch_shared.py")
+            self.assertEqual(code, 0, out + err)
 
 
 # -- T-EXE-1: the exit-code contract ----------------------------------------------------
