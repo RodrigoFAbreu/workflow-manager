@@ -395,13 +395,18 @@ def assert_full_plan(plan_path: Path, repo: Path) -> None:
     The plan must also load as a runnable plan there: its `plan_digest`
     matches its content, its `tree_digest` is this checkout's, and it
     partitions its own selection. The inventory is never taken from the plan
-    or its artifact, which would only prove the plan agrees with itself."""
+    or its artifact, which would only prove the plan agrees with itself.
+
+    The rediscovery runs as the plan job's did: with the tested set (the pins
+    plus the lock) primed into the release cache this process's environment
+    names, and exported, so a lock-only release's frozen suite counts come
+    from its cached manifest (#58)."""
     tests_dir = str(Path(repo).resolve() / "tests")
     sys.dont_write_bytecode = True
     if tests_dir not in sys.path:
         sys.path.insert(0, tests_dir)
     try:
-        from parallel import inventory, planner
+        from parallel import inventory, planner, priming
     except ImportError as exc:
         raise ReleaseError(f"cannot import the runner from {tests_dir}: {exc}") from exc
     try:
@@ -409,7 +414,12 @@ def assert_full_plan(plan_path: Path, repo: Path) -> None:
     except (planner.PlanError, subprocess.CalledProcessError, OSError) as exc:
         raise ReleaseError(f"the plan is not runnable here: {exc}") from exc
     try:
-        found = inventory.discover(Path(repo))
+        primed = priming.prime(Path(repo))
+    except priming.PrimingError as exc:
+        raise ReleaseError(f"cannot rediscover the inventory: {exc}") from exc
+    try:
+        with priming.exported(primed["cache"]):
+            found = inventory.discover(Path(repo))
     except (inventory.InventoryError, subprocess.CalledProcessError, OSError) as exc:
         raise ReleaseError(f"cannot rediscover the inventory: {exc}") from exc
     check_full_plan(plan, tree_digest=found.tree_digest, unit_ids=found.unit_ids())
