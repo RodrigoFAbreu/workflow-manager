@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "workflow_version": "2.16.0",
+  "workflow_version": "2.17.0",
   "profile": "full",
   "upstream": {
     "repository": "repflow-android",
@@ -14,16 +14,16 @@
   "source": {
     "kind": "package",
     "repository": "RodrigoFAbreu/workflow",
-    "archive": "workflow-2.16.0.tar.gz",
-    "sha256": "3b583bffcb9176513b6deb4517ea43bffbf44c3eb460e189fc3e8ac0871d6a88",
+    "archive": "workflow-2.17.0.tar.gz",
+    "sha256": "caf4bc2573b4672a14524526c553a437049bb0cd4282a0cfe9b5be9426c67f70",
     "trust": "discovered",
     "from": "github:RodrigoFAbreu/workflow"
   },
   "installed_at": "2026-09-08T19:40:56Z",
-  "updated_at": "2026-10-19T08:02:26Z",
+  "updated_at": "2026-10-19T18:30:26Z",
   "managed": {
     ".claude/commands/accept-milestone.md": {
-      "sha256": "c16b3c2558b3a0e6cb3e38b31f8c92149c86da3137a5f82e0b7c99119e7c0234",
+      "sha256": "20cf8f8ea58947d109cebb5b2a73855d2d2f855a1ca3ea23f5de543e45c7edae",
       "executable": false
     },
     ".claude/commands/adopt-gate-policy.md": {
@@ -59,7 +59,7 @@
       "executable": false
     },
     ".claude/commands/milestone-plan.md": {
-      "sha256": "0ad1bb0a7c04cdc0abb7b1dc8d01755a75fa33eb585e7031285681d6ab06b64c",
+      "sha256": "54fca55ff02d76b8f11ee185f0ecc7786fe1fc1fe9886dd786ba72be2477d6be",
       "executable": false
     },
     ".claude/commands/prepare-functional-review.md": {
@@ -107,11 +107,15 @@
       "executable": false
     },
     ".claude/commands/satisfy-gate.md": {
-      "sha256": "371b60cf6456b34045b38cc62cabebb46479ff223c3c630121cba5a522802e0a",
+      "sha256": "5c4a3b0d6f0c7d2a9cff32f0a6fe612e7eed53cb779160340d8fe99060678633",
       "executable": false
     },
     ".github/workflows/workflow-conformance.yml": {
       "sha256": "96c5448aac6457ca0867aec0b0bcef7e60bca0e9d0db853d0d99d58ab87ea9c9",
+      "executable": false
+    },
+    "docs/ai-workflow/BACKLOG_FILE.md": {
+      "sha256": "db5c20bfe6e50dc5489ed0cc03e4e55795d21d05e239f8ecdb8645d4c10f9742",
       "executable": false
     },
     "docs/ai-workflow/GATE_POLICY.md": {
@@ -123,11 +127,11 @@
       "executable": false
     },
     "docs/ai-workflow/MILESTONE_WORKFLOW.md": {
-      "sha256": "5d830412a9e231a03ba296f31e3d021ba9dddc2315ce5561fc5b1ffaa0b65cec",
+      "sha256": "53aabd48dc6408b994cf23095d90337e345856988cb93ae3f8a59016ecd2c2e8",
       "executable": false
     },
     "docs/ai-workflow/ORCHESTRATION_PROTOCOL.md": {
-      "sha256": "f079cc5c0b73c75dc830d928afc0014c81695cb1c1030d8900d6be68e38fbce5",
+      "sha256": "a5b78be083340cb2fe8e3d3870a207694e9b3e06066575fa776839f2c52d3f17",
       "executable": false
     },
     "docs/ai-workflow/PLAN_REVIEW_WORKFLOW.md": {
@@ -139,7 +143,7 @@
       "executable": false
     },
     "docs/ai-workflow/WORKFLOW_V2_1_OPERATOR_REFERENCE.md": {
-      "sha256": "532c43de37784ec63de987efdcdb3cb6709c98bfa337db23f7793496e9830d14",
+      "sha256": "5ab36dfc02f7bedad34db79d3fcd91f811ee44fdc73c4c4c886b7a2623dfe23c",
       "executable": false
     },
     "docs/ai-workflow/WORKFLOW_V2_3_FOLLOWUPS.md": {
@@ -255,7 +259,11 @@
       "executable": true
     },
     "scripts/workflow_acceptance_matrix_test.py": {
-      "sha256": "406ebf2f4bc37ba0e8815046a9c1ab1186ff2cfb4dab868d1e0a8e4486b6879b",
+      "sha256": "64d20b58eaee879f1a37f744d473c12aefcf4458b71585b873abac3eda374dab",
+      "executable": false
+    },
+    "scripts/workflow_backlog.py": {
+      "sha256": "e3f9d228c7bc2496600ca2ca6cf4ef51e674a38881eb1d6bf33b3266bbc90a1d",
       "executable": false
     },
     "scripts/workflow_fingerprint.py": {
@@ -267,7 +275,7 @@
       "executable": false
     },
     "scripts/workflow_fingerprint_generalization_test.py": {
-      "sha256": "5c7f3a8c58588bbd264b371b8c9566d8782058f7307f18f13d771cd8c1f7a9a5",
+      "sha256": "bca1a9051a6923e6915dfa8926173155f0db198462337e36a624f592dde6cfd1",
       "executable": false
     },
     "scripts/workflow_fingerprint_test.py": {
@@ -287,23 +295,23 @@
       "executable": false
     },
     "scripts/workflow_integration_test.py": {
-      "sha256": "8ce44f7854bf7017f2ff8e252b1c881e1107b7a995c5b0acd485126baa91b319",
+      "sha256": "509c4af71b0946bb6cc3e1668a2e4b0aa276ac316ae93456e9cbc5e6f2b617e9",
       "executable": false
     },
     "scripts/workflow_protocol.py": {
-      "sha256": "52d3e82a49d0d5ef07365cd580957ca9e07f751a402430988de8be54076a1912",
+      "sha256": "f47b6c273d5335858f2bbd10597b2beb790483c928fab0d79ebeb3c0dea5de08",
       "executable": false
     },
     "scripts/workflow_protocol_test.py": {
-      "sha256": "eb1e281b461f21b009039a2672f667dcf5c64ef50d10e015fa995f5da0849200",
+      "sha256": "fe3792addfe2701f20223233141d985148d6f2b54e736dc7de1f99c9af7e32c3",
       "executable": false
     },
     "scripts/workflow_state.py": {
-      "sha256": "afb4654a36a2413c9a1131311aff0b94d2f33baa137de74b65d6f7ce5e448497",
+      "sha256": "ae4798ef2da81049e5a1dc5e373622c93327fa79b3cd1697523642c6e39508a4",
       "executable": false
     },
     "scripts/workflow_state_completion_obligations_test.py": {
-      "sha256": "3adb03f2954a49bac1a339a5c3015c3dffa30984d4589cd5ee55f85bac22c8fd",
+      "sha256": "5f33f61d2892ac30bf0401252c2f4ce27b270bdfcf32332e0edb77b73ad9618a",
       "executable": false
     },
     "scripts/workflow_state_demo_test.py": {
@@ -311,11 +319,11 @@
       "executable": false
     },
     "scripts/workflow_state_test.py": {
-      "sha256": "589155fb88b867e011f2e909d30296053f768e08dfbb55253ef5b9e123e5856a",
+      "sha256": "d8ba58ea925a5f4dbbeb30ed20935b909c7ec86c6425c8d13c4e912c3c453576",
       "executable": false
     },
     "scripts/workflow_test_harness.py": {
-      "sha256": "cf0c4c7dc40b50a025ba8783930f67fb3d013326424e22703ba380add9eee73d",
+      "sha256": "d258faf2948eebaef3bd1537cccd88a9822c25fd3463c3510b2f6ea10551a18b",
       "executable": false
     },
     "scripts/workflow_test_harness_test.py": {

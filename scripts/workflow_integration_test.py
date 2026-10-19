@@ -767,6 +767,9 @@ class TestVersion21OnlyCommandsRefuseCleanlyForV1(unittest.TestCase):
 # below, for the two files where a real pre-v2.1 copy is actually
 # available to diff against.
 _GOLDEN_COMMAND_FILE_SHA256 = {
+    # workflow-2.17.0 (backlog-file, CP3): `milestone-plan.md` and `accept-milestone.md` gain the
+    # declared-backlog branch (D-Select, D-Accept) and `milestone-plan.md` passes `repo_root` to
+    # `generate_artifacts_declarations` (D-Classify) -- intentional content changes.
     # workflow-2.14.0 (finding-dispositions, CP4): `milestone-plan.md` and `apply-plan-review.md`
     # gain the declaration-coverage call and the Files advisory; `review-plan.md` states the
     # Files-paragraph notation (D-Coverage).
@@ -903,7 +906,7 @@ _GOLDEN_COMMAND_FILE_SHA256 = {
     # workflow-2.10.0 (retire-21-for-new-work, CP3): step 0 stops a fresh milestone
     # under a "2.1" default with DefaultWorkflowVersionRetiredError -- intentional
     # content change.
-    "milestone-plan.md": "0ad1bb0a7c04cdc0abb7b1dc8d01755a75fa33eb585e7031285681d6ab06b64c",
+    "milestone-plan.md": "54fca55ff02d76b8f11ee185f0ecc7786fe1fc1fe9886dd786ba72be2477d6be",
     # milestone-implement.md further updated, OPUS-R129-001: step 1f's
     # checkpoint-completion commit instruction now states explicitly that
     # the Workflow-Checkpoint/Workflow-Work-Item trailer must be the
@@ -1105,7 +1108,7 @@ _GOLDEN_COMMAND_FILE_SHA256 = {
     # user-only /resume-implementation for a 2.1/2.2 item and drops the wrong
     # "legacy promotion" origin -- intentional content change, outside every
     # "1"-inert span.
-    "accept-milestone.md": "c16b3c2558b3a0e6cb3e38b31f8c92149c86da3137a5f82e0b7c99119e7c0234",
+    "accept-milestone.md": "20cf8f8ea58947d109cebb5b2a73855d2d2f855a1ca3ea23f5de543e45c7edae",
     # prepare-functional-review.md further updated, baseline-portability
     # correctness fix (OPUS-R129-001): step 3a's checklist-evidence
     # provenance commit instruction now states the same "trailers must be
@@ -3885,7 +3888,13 @@ class TestGoldenV1BehaviorAgainstPreV21BaseCommit(unittest.TestCase):
         )
         self.assertEqual(
             hashlib.sha256(normalized.encode()).hexdigest(),
-            "e70115cd0afe40d04d92c1895623f2500d7d210ca5912966a740a04ef3728fb3",
+            # workflow-2.17.0 (backlog-file, CP3): recomputed for the one version-independent
+            # "Backlog declared" bullet of step 1 (the undeclared branch is the rest of the
+            # text, byte-identical: removing that bullet restores the previous constant,
+            # e70115cd0afe40d04d92c1895623f2500d7d210ca5912966a740a04ef3728fb3).
+            # Functional review round 1: the bullet's refusal sentence now says to report
+            # stderr verbatim (every diagnostic and the next step) instead of "the two lines".
+            "814f7c636fa8023b1a34c5b04dfb5e8ffd2155f5946b6e4c7fafb191ed7dad50",
         )
 
     def test_milestone_plan_step7_wfr67_addition_is_present_and_version_unconditional(self):
@@ -8238,6 +8247,139 @@ class TestApproveReviewLifecycleEntryTable(unittest.TestCase):
         entries = [row for row in rows if row not in ("Entry", "---")]
         self.assertEqual(entries, ["4b", "4c", "4d", "5, 6.x", "6a", "6a1", "6b",
                                    "6c → 6c1 → 6d", "6a `AMBIGUOUS`"])
+
+
+class TestBacklogCommandConformance(unittest.TestCase):
+    """workflow-2.17.0 (backlog-file, CP3): `/milestone-plan`, `/accept-milestone` and
+    `/satisfy-gate` carry the declared-backlog branch (D-Select, D-Accept), and every
+    sentence they carried before it is still present, so a repository that declares no
+    backlog reads exactly today's text (the undeclared branch is byte-for-byte)."""
+
+    # Sentences of the 2.16.0 texts, whitespace-normalised, that the backlog branch must
+    # leave in place. `repo_root=<repo_root>` in milestone-plan step 3 is the one
+    # deliberate edit of an existing sentence (D-Classify) and is pinned separately.
+    PRE_EXISTING = {
+        "milestone-plan.md": (
+            "Inspect Git state (`git status --short`, `git log --oneline -10`) and read "
+            "`docs/ACTIVE_MILESTONE.md` and `docs/ROADMAP.md` to identify the next "
+            "incomplete milestone/checkpoint.",
+            "**no argument** -- identify the milestone from "
+            "`docs/ACTIVE_MILESTONE.md`/`docs/ROADMAP.md` (step 1) and use the "
+            "milestone's starting commit",
+            "Derive a `work_item_id` slug from the milestone",
+        ),
+        "accept-milestone.md": (
+            "3. Update `docs/ROADMAP.md` to mark the milestone complete.",
+            "7. Set `docs/ACTIVE_MILESTONE.md`'s \"Next action\" to point at the next "
+            "incomplete milestone in `docs/ROADMAP.md`, ready for `PLANNING`.",
+            "The commit stages the paths step 5a returned",
+            "`complete_work_item` re-checks the same condition below.",
+        ),
+        "satisfy-gate.md": (
+            "1. **Open with the Workflow's own query.**",
+            "4. **The remaining steps.** Run `/accept-milestone` steps 2b and 3 to 8 as "
+            "written",
+            "5. **Record the floor, after the satisfying commit**",
+        ),
+    }
+
+    def _text(self, filename):
+        return _squash(_command_text(filename))
+
+    def test_every_pre_existing_sentence_is_still_present(self):
+        for filename, sentences in self.PRE_EXISTING.items():
+            text = self._text(filename)
+            for sentence in sentences:
+                with self.subTest(filename=filename, sentence=sentence[:48]):
+                    self.assertIn(_squash(sentence), text)
+
+    def test_plan_takes_the_next_item_from_the_declared_backlog(self):
+        text = self._text("milestone-plan.md")
+        for needle in ("python3 scripts/workflow_backlog.py next",
+                       "`{\"declared\": false}`", "use `item.id` as the work item id",
+                       "`item.detail`", "do not read `docs/ROADMAP.md`",
+                       "`no_ready_item`", "**stop**, having written nothing",
+                       "This command never writes the backlog file",
+                       "print one advisory line naming both ids",
+                       "`/milestone-plan <active id>`", "never a stop"):
+            with self.subTest(needle=needle):
+                self.assertIn(_squash(needle), text)
+        self.assertLess(text.index("Backlog declared"), text.index("Derive a `work_item_id` slug"))
+
+    def test_plan_passes_repo_root_to_the_artifact_declaration(self):
+        text = self._text("milestone-plan.md")
+        self.assertIn("work_item_type=<this item's own work_item_type>, "
+                      "repo_root=<repo_root>)", text)
+
+    def test_explicit_id_forms_do_not_read_the_backlog(self):
+        self.assertIn("an explicit work-item-id form never reads the backlog",
+                      self._text("milestone-plan.md"))
+
+    def test_accept_preflight_precedes_every_write(self):
+        text = self._text("accept-milestone.md")
+        preflight = text.index("**Backlog pre-flight** (workflow-2.17.0")
+        self.assertLess(text.index("**Optional-finding dispositions pre-flight**"), preflight)
+        self.assertLess(preflight, text.index("**`requires_pr_approved` pre-flight**"))
+        self.assertLess(preflight, text.index("Otherwise, call `workflow_state.complete_work_item("))
+        self.assertIn("python3 scripts/workflow_backlog.py preflight-accept <work_item_id>", text)
+        self.assertIn("`WORKFLOW_STATE.json` stays byte-identical", text)
+
+    def test_accept_makes_no_promise_for_an_item_with_no_state_entry(self):
+        text = self._text("accept-milestone.md")
+        self.assertNotIn("Backlog pre-flight for an item with no state entry", text)
+        self.assertIn("non-terminal `work_items` entry", text)
+
+    def test_refusals_are_reported_verbatim_not_as_two_lines(self):
+        for name in ("milestone-plan.md", "accept-milestone.md", "satisfy-gate.md"):
+            with self.subTest(command=name):
+                text = _squash(self._text(name))
+                self.assertNotIn("the two stderr lines", text)
+                self.assertIn("report stderr verbatim", text)
+
+    def test_accept_step_3_runs_accept_and_names_the_recovery(self):
+        text = self._text("accept-milestone.md")
+        for needle in ("python3 scripts/workflow_backlog.py accept <work_item_id>",
+                       "`--release <version>` only when the milestone itself names a release",
+                       "do not edit `docs/ROADMAP.md` or the declared page by hand",
+                       "the completion commit stages exactly those paths together with "
+                       "step 5a's", "`MILESTONE_COMPLETE` and this command cannot be re-run",
+                       "**write nothing else**", "continue this command at step 4, then 5, 5a, 6",
+                       "`generator_failed`", "idempotent"):
+            with self.subTest(needle=needle):
+                self.assertIn(_squash(needle), text)
+
+    def test_accept_step_7_runs_next_read_only(self):
+        text = self._text("accept-milestone.md")
+        self.assertIn("run `python3 scripts/workflow_backlog.py next` (read-only)", text)
+        self.assertIn("no item is ready: <reason>", text)
+
+    def test_policy_acceptance_runs_the_preflight_before_it_stores_anything(self):
+        text = self._text("satisfy-gate.md")
+        self.assertLess(text.index("0. **Backlog pre-flight, before the first step**"),
+                        text.index("1. **Open with the Workflow's own query.**"))
+        for needle in ("python3 scripts/workflow_backlog.py preflight-accept <work-item-id>",
+                       "not even the pull-request fact", "byte-identical"):
+            with self.subTest(needle=needle):
+                self.assertIn(needle, text)
+
+    def test_policy_acceptance_states_the_policy_path_recovery(self):
+        text = self._text("satisfy-gate.md")
+        for needle in ("`/accept-milestone` steps 3 to 7 carry the backlog branch",
+                       "continue **this stage** at step 4",
+                       "`Workflow-Gate-Satisfied-By: policy:<first 12 characters of the policy "
+                       "digest>` as well as `Workflow-Work-Item: <id>`",
+                       "then step 5 (the floor", "step 6 (report the milestone as accepted "
+                       "**by policy**)", "is not a substitute"):
+            with self.subTest(needle=needle):
+                self.assertIn(_squash(needle), text)
+
+    def test_lifecycle_documents_name_the_backlog(self):
+        root = _repo_root() / "docs" / "ai-workflow"
+        workflow = _squash((root / "MILESTONE_WORKFLOW.md").read_text())
+        reference = _squash((root / "WORKFLOW_V2_1_OPERATOR_REFERENCE.md").read_text())
+        self.assertIn("takes the next ready item from that file", workflow)
+        self.assertIn("sets the item `done` and regenerates the page", workflow)
+        self.assertIn("the next ready item of that file", reference)
 
 
 if __name__ == "__main__":

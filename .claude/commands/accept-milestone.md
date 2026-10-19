@@ -117,6 +117,22 @@ missing, ask for it and stop — do not proceed on an inferred "yes."
       `InvalidFindingDispositionsError` stops here too, naming every problem in
       the file. The file is not committed on its own; step 6 stages it.
       `complete_work_item` re-checks the same condition below.
+    - **Backlog pre-flight** (workflow-2.17.0, `D-Accept`; applies to every
+      item, a remediation child excepted, which skips the roadmap step; runs
+      **after the optional-finding dispositions pre-flight above and before
+      the `requires_pr_approved` pre-flight below**, so a refusal happens
+      before the `workflow_gh` fact is stored or `complete_work_item`
+      writes anything, and `WORKFLOW_STATE.json` stays byte-identical):
+      run `python3 scripts/workflow_backlog.py preflight-accept
+      <work_item_id>`. It writes nothing. `{"declared": false}` means the
+      repository declares no backlog: nothing more to do here, steps 3 to 7
+      are today's. On a refusal (`declaration_invalid`, `backlog_missing`,
+      `backlog_invalid`, `item_unknown`, `status_not_acceptable`,
+      `roadmap_not_generated`, `generator_failed`, `declaration_conflict`),
+      report stderr verbatim -- every diagnostic and the next step -- and
+      stop: nothing has been written. `item_unknown` names the fix (add an item with this id and
+      status `in-progress`); a refusal is never worked around by editing the
+      generated page.
     - **`requires_pr_approved` pre-flight** (`workflow-2.8.0`, `D-GP-Acceptance`;
       added only when the effective policy sets `requires_pr_approved`, which is
       off by default, so a repository without it behaves as 2.7.0): call
@@ -180,6 +196,26 @@ missing, ask for it and stop — do not proceed on an inferred "yes."
     6 and 8 apply unchanged. Every other work item runs steps 3-7 as
     written.
 3. Update `docs/ROADMAP.md` to mark the milestone complete.
+   **Backlog declared** (workflow-2.17.0, `D-Accept`; the pre-flight above
+   answered `declared: true`): do not edit `docs/ROADMAP.md` or the declared
+   page by hand. Run `python3 scripts/workflow_backlog.py accept
+   <work_item_id>` (add `--release <version>` only when the milestone itself
+   names a release). It sets the item `done`, regenerates the page and
+   prints the two changed paths as JSON; the completion commit stages
+   exactly those paths together with step 5a's. A re-accepted `done` item
+   changes nothing but still regenerates. When `accept` refuses after the
+   state completion (`generator_failed`, `backlog_invalid`,
+   `roadmap_not_generated`, `declaration_invalid` or `declaration_conflict`:
+   the pre-flight cannot catch a change made since), the work item is
+   already `MILESTONE_COMPLETE` and this command cannot be re-run (step 0
+   refuses a terminal item): report the refusal with its recovery and
+   **write nothing else**. The recovery is one named step: fix the cause
+   (the generator or the file; `accept` has restored both the file and the
+   page), run `python3 scripts/workflow_backlog.py accept <work_item_id>` by
+   hand (idempotent; it reads no Workflow state), then continue this
+   command at step 4, then 5, 5a, 6 (the completion commit, trailer
+   `Workflow-Work-Item: <work_item_id>`, staging the printed paths), 7 and 8.
+   An undeclared repository runs the sentence above unchanged.
 4. Update `docs/ACTIVE_MILESTONE.md`: move this milestone's summary into the
    factual "complete" state, clear the active plan section.
 5. Archive this milestone's execution/reference plans to
@@ -222,9 +258,15 @@ missing, ask for it and stop — do not proceed on an inferred "yes."
    trailer by search -- `/accept-milestone` is a terminal, one-way
    transition -- but the same layout rule still applies so the trailer is
    a genuine Git trailer rather than merely trailer-shaped text. The commit
-   stages the paths step 5a returned.
+   stages the paths step 5a returned (and, for a declared backlog, the two
+   paths step 3's `accept` printed).
 7. Set `docs/ACTIVE_MILESTONE.md`'s "Next action" to point at the next
    incomplete milestone in `docs/ROADMAP.md`, ready for `PLANNING`.
+   **Backlog declared** (workflow-2.17.0): run `python3
+   scripts/workflow_backlog.py next` (read-only) and set "Next action" to
+   the item it returns, by id and title, ready for `PLANNING`, or to "no
+   item is ready: <reason>" when it refuses. That is a report, not a
+   failure; step 8 reports the same.
 8. Report the milestone as complete and the next action as
    `/milestone-plan`. Do not begin implementing the next milestone in this
    command. (For a remediation child, step 2b's report replaces this

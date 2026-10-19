@@ -10333,9 +10333,61 @@ def _implementation_stage_default(
     }
 
 
+class BacklogScriptUnavailableError(Exception):
+    """`generate_artifacts_declarations(repo_root=...)` could not import
+    `workflow_backlog`: the code is `declaration_invalid`, the D-Classify
+    refusal. A repository that declared a backlog but lacks the script must not
+    silently lose its classification."""
+
+    code = "declaration_invalid"
+
+
+_BACKLOG_PATHS_JUSTIFICATION = (
+    "the repository's declared backlog file or its generated roadmap page -- repository "
+    "territory that acceptance edits (workflow-2.17.0 D-Classify), never this item's own "
+    "deliverable"
+)
+_BACKLOG_ITEM_PAGES_JUSTIFICATION = (
+    "the declared backlog's item pages (`detail` is always under this prefix) -- repository "
+    "territory a consumer edits, never this item's own deliverable (workflow-2.17.0 D-Classify)"
+)
+
+
+def _classify_declared_backlog(declarations: dict, repo_root) -> dict:
+    """workflow-2.17.0 (`backlog-file`, D-Classify): when `repo_root` declares
+    a valid backlog, refuse a declared path the declaration protects
+    (`declaration_conflict`), then classify the declared `file` and `roadmap`
+    and `docs/items/` as excluded at both stages (`setdefault`, so no entry
+    already present changes). Undeclared or invalid: `declarations`
+    unchanged."""
+    try:
+        import workflow_backlog
+    except ImportError as exc:
+        raise BacklogScriptUnavailableError(
+            "declaration_invalid: scripts/workflow_backlog.py cannot be imported "
+            f"({exc}); restore the script or remove the `backlog` key"
+        ) from exc
+    paths = workflow_backlog.declared_paths(repo_root)
+    if not paths:
+        return declarations
+    conflicts = workflow_backlog.protected_conflicts(
+        [*paths, workflow_backlog.REPRESENTATIVE_ITEM_PAGE], declarations,
+    )
+    if conflicts:
+        raise workflow_backlog._conflict_error(conflicts)
+    for stage in ("plan_stage", "implementation_stage"):
+        half = declarations[stage]
+        for path in paths:
+            half["excluded_paths"].setdefault(path, _BACKLOG_PATHS_JUSTIFICATION)
+        half["excluded_prefixes"].setdefault(
+            workflow_backlog.DETAIL_PREFIX, _BACKLOG_ITEM_PAGES_JUSTIFICATION,
+        )
+    return declarations
+
+
 def generate_artifacts_declarations(
     work_item_id: str, plan_path: str, registry_path: str, mapping_path: str,
-    *, work_item_type: str,
+    *, work_item_type: str, repo_root=None,
 ) -> dict:
     """The default `<work_item_id>-artifacts.json` template
     (`D-Fingerprint-Generalization`, `OPUS-R25-004`): the item's own three
@@ -10373,7 +10425,13 @@ def generate_artifacts_declarations(
     with. They are excluded here, by exact path, as another work item's
     plan-stage content -- unless this item's own `plan_path`/
     `registry_path`/`mapping_path` names one of them, in which case
-    `classify_path`'s protected-first ordering keeps it protected."""
+    `classify_path`'s protected-first ordering keeps it protected.
+
+    **`repo_root`** (workflow-2.17.0, `backlog-file`, D-Classify): optional. When
+    given and the repository declares a valid backlog, the declared backlog
+    file, roadmap page and `docs/items/` are classified as excluded at both
+    stages, after a `declaration_conflict` check; omitted (every existing
+    caller) or undeclared, the result is byte-for-byte what it was."""
     validate_work_item_id(work_item_id)
     validate_work_item_type(work_item_type)
     own_artifacts_path = str(fingerprint.artifacts_path_for_work_item(work_item_id).as_posix())
@@ -10440,7 +10498,7 @@ def generate_artifacts_declarations(
             "plan-stage design content for this item (salvage audit I8)",
         )
 
-    return {
+    declarations = {
         "schema_version": 2,
         "work_item_id": work_item_id,
         "plan_stage": {
@@ -10452,6 +10510,9 @@ def generate_artifacts_declarations(
             work_item_type, own_artifacts_path, plan_path, registry_path, mapping_path,
         ),
     }
+    if repo_root is not None:
+        declarations = _classify_declared_backlog(declarations, repo_root)
+    return declarations
 
 
 # ---------------------------------------------------------------------------

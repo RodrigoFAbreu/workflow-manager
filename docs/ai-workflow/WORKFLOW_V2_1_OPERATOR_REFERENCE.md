@@ -270,7 +270,9 @@ test fails and is authoritative about which one moved.
   existing work item — including a remediation child, which is never the
   active item.
 - **Arguments**: none → derive the milestone from
-  `docs/ACTIVE_MILESTONE.md`/`docs/ROADMAP.md`. One argument → a
+  `docs/ACTIVE_MILESTONE.md`/`docs/ROADMAP.md`, or, when `WORKFLOW_CONFIG.json`
+  declares a `backlog` (workflow-2.17.0), the next ready item of that file
+  (`python3 scripts/workflow_backlog.py next`; the id forms never read it). One argument → a
   `work_items` key selects that work item, anything else is a base SHA
   (so the old `/milestone-plan <base-sha>` form is unchanged). Two →
   `<work-item-id> <base-sha>`. Nothing is guessed; the id selects an
