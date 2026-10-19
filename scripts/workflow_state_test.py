@@ -39,6 +39,7 @@ from unittest import mock
 from pathlib import Path
 
 import workflow_fingerprint as fingerprint
+import workflow_backlog
 import workflow_state as ws
 import workflow_test_harness as h
 
@@ -20933,6 +20934,159 @@ class TestReviewRoundCountsDowngrade(unittest.TestCase):
                 _s2_state, s2 = self._scenario(repo, tamper=tamper)
                 with self.assertRaises(ws.MalformedBundleGenerationRecordCommitError):
                     ws.validate_bundle_generation_record_commit(repo.root, s2, "wi")
+
+
+# ---------------------------------------------------------------------------
+# workflow-2.17.0 (`backlog-file`) CP2, D-Classify: the artifact template
+# classifies the declared backlog paths, only for a valid declaration.
+# ---------------------------------------------------------------------------
+
+# SHA-256 of the canonical JSON (`sort_keys`) of the declaration the function
+# produced before `repo_root` existed, for the ids and paths below: a literal
+# golden copy taken from 2.16.0's bytes, not derived from the function.
+_GOLDEN_UNDECLARED_DIGESTS = {
+    "process": "6ea4e01ed3e8efb93ffc48225a644c661c4b19845e97f6c8ffeea83be6f1a19d",
+    "product": "bf57b963f89bbfae242421f40df778e1080d356dd48582c0d7d0fe41959058b4",
+}
+
+
+class GeneratedDeclarationsBacklogClassificationTest(unittest.TestCase):
+    PLAN = "docs/P.md"
+    REGISTRY = "docs/ai-workflow/registry/some-item-registry.json"
+    MAPPING = "docs/ai-workflow/requirements/some-item-mapping.json"
+
+    def _generate(self, work_item_type, **kwargs):
+        return ws.generate_artifacts_declarations(
+            "some-item", self.PLAN, self.REGISTRY, self.MAPPING, work_item_type=work_item_type, **kwargs,
+        )
+
+    def _root(self, backlog=None, *, raw=None):
+        tmp = tempfile.TemporaryDirectory(prefix="wf-classify-")
+        self.addCleanup(tmp.cleanup)
+        root = Path(tmp.name)
+        config = root / "docs" / "ai-workflow" / "WORKFLOW_CONFIG.json"
+        config.parent.mkdir(parents=True)
+        if raw is not None:
+            config.write_text(raw)
+        elif backlog is not None:
+            config.write_text(json.dumps({"backlog": backlog}))
+        return root
+
+    def _plan(self, declarations, path):
+        stage = declarations["plan_stage"]
+        return fingerprint.classify_path(
+            path, frozenset(stage["protected_paths"]), stage["excluded_paths"], stage["excluded_prefixes"],
+        )
+
+    def _impl(self, declarations, path):
+        stage = declarations["implementation_stage"]
+        return fingerprint.classify_path_implementation_stage(
+            path, stage["protected_paths"], stage["protected_prefixes"],
+            stage["excluded_paths"], stage["excluded_prefixes"],
+        )
+
+    def test_undeclared_is_byte_for_byte_the_unchanged_declaration(self):
+        undeclared = {
+            "no config file": self._root(),
+            "no key": self._root(raw='{"other": 1}'),
+            "unparsable": self._root(raw="{nope"),
+            "array": self._root(raw="[1]"),
+            "invalid declaration": self._root(backlog={"file": "/abs.yaml"}),
+        }
+        for work_item_type, digest in _GOLDEN_UNDECLARED_DIGESTS.items():
+            plain = self._generate(work_item_type)
+            self.assertEqual(hashlib.sha256(json.dumps(plain, sort_keys=True).encode()).hexdigest(), digest)
+            for label, root in undeclared.items():
+                with self.subTest(f"{work_item_type} {label}"):
+                    self.assertEqual(self._generate(work_item_type, repo_root=root), plain)
+            for stage_check in (self._plan, self._impl):
+                for path in ("docs/backlog.yaml", "docs/items/a.md"):
+                    with self.assertRaises(fingerprint.UnclassifiedPathError):
+                        stage_check(plain, path)
+
+    def test_declared_paths_and_item_pages_are_excluded_at_both_stages(self):
+        for backlog in ({"file": "docs/backlog.yaml"},
+                        {"file": "roadmap/backlog.yaml", "roadmap": "ROADMAP.md"}):
+            root = self._root(backlog)
+            for work_item_type in ("process", "product"):
+                declarations = self._generate(work_item_type, repo_root=root)
+                roadmap = backlog.get("roadmap", "docs/ROADMAP.md")
+                for path in (backlog["file"], roadmap, "docs/items/anything.md"):
+                    with self.subTest(f"{work_item_type} {path}"):
+                        self.assertEqual(self._plan(declarations, path), "excluded")
+                        self.assertEqual(self._impl(declarations, path), "excluded")
+                # nothing else changed: only the new entries differ from the plain declaration
+                plain = self._generate(work_item_type)
+                for stage in ("plan_stage", "implementation_stage"):
+                    for key in ("excluded_paths", "excluded_prefixes"):
+                        extra = set(declarations[stage][key]) - set(plain[stage][key])
+                        self.assertLessEqual(extra, {backlog["file"], roadmap, "docs/items/"})
+                    self.assertEqual(declarations[stage].get("protected_paths"), plain[stage].get("protected_paths"))
+
+    def test_an_existing_entry_is_not_overwritten(self):
+        declarations = self._generate("process", repo_root=self._root({"file": "docs/backlog.yaml"}))
+        plain = self._generate("process")
+        self.assertEqual(declarations["implementation_stage"]["excluded_paths"]["docs/ROADMAP.md"],
+                         plain["implementation_stage"]["excluded_paths"]["docs/ROADMAP.md"])
+        self.assertEqual(declarations["plan_stage"]["excluded_paths"]["docs/ROADMAP.md"],
+                         plain["plan_stage"]["excluded_paths"]["docs/ROADMAP.md"])
+
+    def test_collisions_are_refused_before_anything_is_written(self):
+        cases = (
+            ("product", {"file": "config/backlog.yaml"}, "config/backlog.yaml", "implementation"),
+            ("product", {"file": "docs/backlog.yaml", "roadmap": "app/roadmap.md"}, "app/roadmap.md", "implementation"),
+            ("process", {"file": "scripts/backlog.yaml"}, "scripts/backlog.yaml", "implementation"),
+            ("process", {"file": "docs/backlog.yaml", "roadmap": ".claude/commands/ROADMAP.md"},
+             ".claude/commands/ROADMAP.md", "implementation"),
+            ("process", {"file": "docs/P.md"}, "docs/P.md", "plan"),
+            ("process", {"file": "docs/ai-workflow/registry/some-item-registry.json"},
+             "docs/ai-workflow/registry/some-item-registry.json", "plan"),
+            ("process", {"file": "docs/ai-workflow/requirements/some-item-mapping.json"},
+             "docs/ai-workflow/requirements/some-item-mapping.json", "plan"),
+        )
+        for work_item_type, backlog, path, stage in cases:
+            with self.subTest(f"{work_item_type} {path}"):
+                root = self._root(backlog)
+                with self.assertRaises(workflow_backlog.BacklogError) as cm:
+                    self._generate(work_item_type, repo_root=root)
+                self.assertEqual(cm.exception.code, "declaration_conflict")
+                self.assertIn(path, cm.exception.message)
+                self.assertIn(f"{stage} stage", cm.exception.message)
+
+    def test_the_item_page_prefix_is_checked_too(self):
+        # a product item protects `docs/adr/`, not `docs/items/`, so it is fine; a hand-built
+        # declaration that protected the prefix is a conflict
+        declarations = self._generate("product")
+        declarations["implementation_stage"]["protected_prefixes"]["docs/items/"] = "x"
+        self.assertEqual(
+            workflow_backlog.protected_conflicts(["docs/items/x.md"], declarations),
+            [("implementation_stage", "docs/items/x.md")],
+        )
+
+    def test_an_unavailable_script_is_a_refusal_not_an_empty_list(self):
+        root = self._root({"file": "docs/backlog.yaml"})
+        with mock.patch.dict(sys.modules, {"workflow_backlog": None}):
+            with self.assertRaises(ws.BacklogScriptUnavailableError) as cm:
+                self._generate("process", repo_root=root)
+        self.assertEqual(cm.exception.code, "declaration_invalid")
+        self.assertIn("workflow_backlog.py", str(cm.exception))
+
+    def test_omitting_repo_root_never_imports_the_script(self):
+        with mock.patch.dict(sys.modules, {"workflow_backlog": None}):
+            self.assertEqual(self._generate("process"), self._generate("process", repo_root=None))
+
+    def test_in_flight_declaration_without_the_entries_is_unclassified_until_repaired(self):
+        declarations = self._generate("process")
+        for stage_check in (self._plan, self._impl):
+            for path in ("docs/backlog.yaml", "docs/items/a.md"):
+                with self.assertRaises(fingerprint.UnclassifiedPathError):
+                    stage_check(declarations, path)
+        for stage in ("plan_stage", "implementation_stage"):  # the shipped document's hand repair
+            declarations[stage]["excluded_paths"]["docs/backlog.yaml"] = "repair"
+            declarations[stage]["excluded_prefixes"]["docs/items/"] = "repair"
+        for stage_check in (self._plan, self._impl):
+            self.assertEqual(stage_check(declarations, "docs/backlog.yaml"), "excluded")
+            self.assertEqual(stage_check(declarations, "docs/items/a.md"), "excluded")
 
 
 if __name__ == "__main__":

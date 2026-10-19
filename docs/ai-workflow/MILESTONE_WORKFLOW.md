@@ -38,7 +38,10 @@ system audit, convergence pass 12, ledger row `O34`).
   or the user asks to start the next one.
 - **Allowed actions**: read `docs/ACTIVE_MILESTONE.md`, `docs/ROADMAP.md`, and
   only the milestone/reference/ADR docs relevant to the target checkpoint;
-  draft or update the execution/reference plan.
+  draft or update the execution/reference plan. A repository that declares a
+  `backlog` in `WORKFLOW_CONFIG.json` (workflow-2.17.0) takes the next ready
+  item from that file (`python3 scripts/workflow_backlog.py next`) in place of
+  reading `docs/ROADMAP.md`.
 - **Artifacts**: draft execution plan (and reference plan, if new decisions
   are introduced).
 - **Exit**: a concrete, checkpointed plan exists.
@@ -748,7 +751,9 @@ this value is still honoured — nothing writes it.
   block itself stays, and the `AWAITING_FUNCTIONAL_REVIEW` section above
   lists the supported ways forward when it fires.
 - **Allowed actions**: final verification confirmation; update
-  `docs/ROADMAP.md` and `docs/ACTIVE_MILESTONE.md`; archive the milestone's
+  `docs/ROADMAP.md` and `docs/ACTIVE_MILESTONE.md` (with a declared `backlog`,
+  `python3 scripts/workflow_backlog.py accept <id>` sets the item `done` and
+  regenerates the page instead of a hand edit of the roadmap); archive the milestone's
   plans to `docs/milestones/completed/`; create the final completion commit
   if one is still needed; prepare `docs/ACTIVE_MILESTONE.md` for the next
   milestone's `PLANNING` state.
