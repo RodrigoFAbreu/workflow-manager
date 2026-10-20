@@ -1945,7 +1945,8 @@ def _assert_technical_review_block_pins_monotonic(previous_state: dict, new_stat
             )
 
 
-def state_transaction(repo_root: Path, mutator, *, path: Path = DEFAULT_STATE_PATH, before_publish=None) -> dict:
+def state_transaction(repo_root: Path, mutator, *, path: Path = DEFAULT_STATE_PATH, before_publish=None,
+                      on_failure=None) -> dict:
     """The single required entry point for every production writer of
     `WORKFLOW_STATE.json` (item 354): holds `state_lock` across the
     **complete** critical section -- re-read `path` from disk, call
@@ -1969,15 +1970,29 @@ def state_transaction(repo_root: Path, mutator, *, path: Path = DEFAULT_STATE_PA
     `_publish_state_file` -- a check added later goes before it. An
     exception from it aborts the transaction with nothing published.
     `ingest_manual_review_verdict` writes its feedback file here, so the
-    file and the state it records are one critical section."""
+    file and the state it records are one critical section.
+
+    `on_failure` (workflow-2.18.1, 39a): an optional no-argument callable
+    run inside the lock when the mutator, the pin check, `before_publish` or
+    the publish raises (any `BaseException`), before the exception
+    propagates -- the undo of a side effect the mutator or hook left outside
+    the state file, so no other writer can interleave between the failure
+    and the undo. The original exception always propagates; one raised by
+    `on_failure` is suppressed. Never called on success."""
     full_path = repo_root / path
     with state_lock(repo_root):
-        state = _load_json(full_path) or {}
-        new_state = mutator(state)
-        _assert_technical_review_block_pins_monotonic(state, new_state)
-        if before_publish is not None:
-            before_publish(new_state)
-        _publish_state_file(full_path, new_state)
+        try:
+            state = _load_json(full_path) or {}
+            new_state = mutator(state)
+            _assert_technical_review_block_pins_monotonic(state, new_state)
+            if before_publish is not None:
+                before_publish(new_state)
+            _publish_state_file(full_path, new_state)
+        except BaseException:
+            if on_failure is not None:
+                with contextlib.suppress(Exception):
+                    on_failure()
+            raise
     return new_state
 
 
@@ -15153,7 +15168,10 @@ def validate_bundle_generation_record_commit(repo_root: Path, commit: str, work_
             f"{commit}'s own {work_item_id!r} field changes are {sorted(field_diff)}, "
             f"not a non-empty subset of {sorted(RECOVERED_BUNDLE_GENERATION_RECORD_FIELDS)} "
             f"(recovered role) -- reviewed_implementation_head/implementation_revision "
-            f"must never change in a recovered-role commit"
+            f"must never change in a recovered-role commit. Keep this commit's state "
+            f"change to the listed fields and put any other change in its own commit; "
+            f"if the repository was moved back to a release older than the one that "
+            f"wrote this commit, update to that release or later and run the command again"
         )
     # workflow-2.5.0 CP3: a membership test, not a single-valued equality
     # (D-Implementation-Review-Stages "Provenance-interval interaction",
@@ -16124,9 +16142,19 @@ def finding_dispositions_report(repo_root: Path, state: dict, work_item_id: str)
     ]
 
 
+FINDING_LABEL_LIMIT = 240
+
+
 def _finding_label(item: dict) -> str:
+    """The refusal's label for a finding (workflow-2.18.1, 45a): the first
+    line of the stored text, cut to `FINDING_LABEL_LIMIT` characters (239 plus
+    `\u2026` when longer). The ledger, the dispositions skeleton and the
+    `--finding-dispositions` listing keep the whole stored text."""
     ref = item["raised"][0]
-    return f"{item['key']} ({ref['stage']} {ref['role']} round {ref['round']}): {item['text']}"
+    first = item["text"].split("\n", 1)[0]
+    if len(first) > FINDING_LABEL_LIMIT:
+        first = first[:FINDING_LABEL_LIMIT - 1] + "\u2026"
+    return f"{item['key']} ({ref['stage']} {ref['role']} round {ref['round']}): {first}"
 
 
 def assert_finding_dispositions_recorded(repo_root: Path, state: dict, work_item_id: str) -> None:
@@ -18070,13 +18098,12 @@ def _ingest_two_stage_manual_verdict(repo_root: Path, work_item_id: str, *, stag
         outcome["feedback_written"] = _store_manual_verdict(
             repo_root, work_item_id, verdict_text, state=outcome.pop("_state"))
 
-    try:
-        state_transaction(repo_root, mutator, before_publish=before_publish)
-    except BaseException:
+    def undo_baseline() -> None:
         if baseline["revision"] is not None:
             fingerprint.remove_stage_baseline(
                 repo_root, work_item_id, _STAGE_BASELINE_ROLES[stage], only_state_revision=baseline["revision"])
-        raise
+
+    state_transaction(repo_root, mutator, before_publish=before_publish, on_failure=undo_baseline)
     return outcome
 
 

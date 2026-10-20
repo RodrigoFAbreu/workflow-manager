@@ -65,7 +65,8 @@ Rules for adapters:
   without it, and a body whose argument is optional applies its own stated default:
   for most, the active work item; `milestone-plan.md` identifies the milestone from
   the active-milestone, roadmap and backlog documents; `prepare-review.md` uses the
-  flat review path with no work item and never resolves one from
+  flat review path with no work item (except at the plan stage, where the id is
+  required) and never resolves one from
   `active_work_item_id`. There is no universal default, and not every body spells out
   its empty case.
 - **Rule for bodies:** every command whose `argument-hint` is non-empty names

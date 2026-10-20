@@ -2464,6 +2464,17 @@ class BacklogParser(unittest.TestCase):
         self.assertEqual(len(data["items"]), 1)
         self.assertEqual(wb.parse_backlog("version: 1\nitems: [] # none\n")[0]["items"], [])
 
+    def test_a_quoted_question_mark_entry_is_still_accepted(self):
+        data, _ = wb.parse_backlog(_bl('    depends_on: ["a?b"]'))
+        self.assertEqual(data["items"][0]["depends_on"], ["a?b"])
+
+    def test_a_trailing_comment_on_a_key_with_no_inline_value_is_accepted(self):
+        # As YAML does: `items: # x` and `depends_on: # x` open their block like the bare key.
+        data, _ = wb.parse_backlog(_BACKLOG_SAMPLE.replace("items:", "items: # x", 1))
+        self.assertEqual([i["id"] for i in data["items"]], ["alpha", "beta", "gamma"])
+        data, _ = wb.parse_backlog(_BACKLOG_SAMPLE.replace("    depends_on:\n", "    depends_on: # x\n", 1))
+        self.assertEqual(data["items"][2]["depends_on"], ["alpha", "beta"])
+
     def test_empty_depends_on_forms(self):
         self.assertEqual(wb.parse_backlog(_bl("    depends_on: []"))[0]["items"][0]["depends_on"], [])
 
@@ -2545,6 +2556,7 @@ class BacklogParser(unittest.TestCase):
             "flow list space before ]": (_bl("    depends_on: [a, b ]"), 7),
             "flow list space before comma": (_bl("    depends_on: [a , b]"), 7),
             "flow list unterminated": (_bl("    depends_on: [a, b"), 7),
+            "question mark in a plain flow entry": (_bl("    depends_on: [a?b]"), 7),
             "empty depends_on at end of file": (_bl("    depends_on:"), 7),
             "empty depends_on before a key": (_bl("    depends_on:", "    size: 3"), 7),
             "empty depends_on before an item": (_bl("    depends_on:", "  - id: b"), 7),
@@ -3118,6 +3130,32 @@ class BacklogDeclaration(unittest.TestCase):
                           ("implementation_stage", "a/own.json")])
         self.assertEqual(wb.protected_conflicts(["docs/backlog.yaml"], {}), [])
 
+    def test_protected_conflicts_reports_any_protected_item_page_path_or_prefix(self):
+        paths = ["docs/backlog.yaml", wb.REPRESENTATIVE_ITEM_PAGE]
+
+        def conflicts(**stages):
+            return wb.protected_conflicts(paths, stages)
+
+        self.assertEqual(
+            conflicts(plan_stage={"protected_paths": ["docs/items/foo.md"]}),
+            [("plan_stage", "docs/items/foo.md")])
+        self.assertEqual(
+            conflicts(implementation_stage={"protected_paths": {"docs/items/foo.md": "x"}}),
+            [("implementation_stage", "docs/items/foo.md")])
+        self.assertEqual(
+            conflicts(implementation_stage={"protected_prefixes": {"docs/items/team/": "x"}}),
+            [("implementation_stage", "docs/items/team/")])
+        # A prefix that is the page prefix itself, or shorter, is caught through the representative page.
+        self.assertEqual(
+            conflicts(plan_stage={"protected_prefixes": ["docs/items/"]}),
+            [("plan_stage", wb.REPRESENTATIVE_ITEM_PAGE)])
+        for unrelated in ({"protected_paths": ["docs/other.md"]}, {"protected_prefixes": ["docs/other/"]}):
+            self.assertEqual(conflicts(plan_stage=unrelated), [])
+        # Without a path under the item-page prefix the extra rule does not apply.
+        self.assertEqual(
+            wb.protected_conflicts(["docs/backlog.yaml"], {"plan_stage": {"protected_paths": ["docs/items/foo.md"]}}),
+            [])
+
 
 class BacklogCli(unittest.TestCase):
     def test_status_next_and_the_usage_error(self):
@@ -3446,6 +3484,23 @@ class BacklogDeclarationConflict(unittest.TestCase):
                     self.assertIn("move the path out of the protected area", err)
                 self.assertEqual(d.tree(), before)
 
+    def test_an_exact_item_page_or_a_prefix_under_the_page_prefix_is_a_conflict(self):
+        for label, kwargs, named, stage in (
+                ("exact page", {"protected_paths": ["docs/items/foo.md"]}, "docs/items/foo.md", "plan stage"),
+                ("prefix under the pages", {"protected_prefixes": ["docs/items/team/"]},
+                 "docs/items/team/", "implementation stage")):
+            with self.subTest(label), _Decl() as d:
+                self.artifacts(d, **kwargs)
+                before = d.tree()
+                for args in (["preflight-accept", "alpha"], ["accept", "alpha"]):
+                    code, err = d.refused(*args)
+                    self.assertEqual(code, "declaration_conflict")
+                    self.assertIn(f"`{named}` ({stage})", err)
+                self.assertEqual(d.tree(), before)
+        with _Decl() as d:
+            self.artifacts(d, protected_paths=["docs/other.md"], protected_prefixes=["docs/other/"])
+            d.ok("preflight-accept", "alpha")
+
     def test_an_unprotected_or_unreadable_declaration_is_not_a_conflict(self):
         with _Decl() as d:
             self.artifacts(d, protected_paths=["docs/P.md"], protected_prefixes=["scripts/"])
@@ -3493,6 +3548,16 @@ class BacklogDocument(unittest.TestCase):
             self.assertEqual(d.ok("next")["item"]["id"], "profile")
             d.ok("generate")
             d.ok("check")
+
+    def test_trailing_comment_after_a_block_list_key_is_documented(self):
+        doc = " ".join(_backlog_doc().split())
+        self.assertIn("A trailing comment is also allowed after `items:` and after `depends_on:` "
+                      "when the value is a block list on the following lines", doc)
+
+    def test_way_back_says_the_copied_page_header_is_not_edited(self):
+        doc = " ".join(_backlog_doc().split())
+        self.assertIn("still name `scripts/workflow_backlog.py`", doc)
+        self.assertIn("must not be hand-edited, because `check` compares the page byte for byte", doc)
 
     def test_every_error_code_of_the_script_is_documented(self):
         source = Path(wb.__file__).read_text(encoding="utf-8")

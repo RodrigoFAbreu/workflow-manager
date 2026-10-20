@@ -91,7 +91,9 @@ everything else is refused with `<file>:<line>: <what>`.
   characters (`R&D` and `"a *b"` are fine).
 - The top level has exactly two keys at column 0, in either order:
   `version: 1` and `items:`. `items:` is followed by a block sequence, or on the
-  same line by `[]` for an empty backlog.
+  same line by `[]` for an empty backlog. A trailing comment is also allowed after
+  `items:` and after `depends_on:` when the value is a block list on the following
+  lines (the key has no inline value).
 - Each item starts with `  - ` (two spaces, a dash, a space) and its first
   `key: value`; its other keys are at four spaces. The keys are `id`, `title`,
   `status`, `order`, `depends_on`, `size`, `detail` and `release`, each at most
@@ -437,6 +439,10 @@ generated page** (when `roadmap` is the default `docs/ROADMAP.md`), after which
 the generated page is untouched, `check` still passes, and the backlog silently
 stops advancing. Nothing in `WORKFLOW_STATE.json`, the ledgers or the commit
 shapes changes in either direction.
+
+The copied script's built-in page header and next-step lines still name
+`scripts/workflow_backlog.py` after you move it; that is expected, and they must
+not be hand-edited, because `check` compares the page byte for byte.
 
 Before updating down, finish or accept the items in flight. Afterwards choose
 one:

@@ -9935,6 +9935,12 @@ if mode == "dirfile":
     os.remove("docs/backlog.yaml")
     os.mkdir("docs/backlog.yaml")
     sys.exit(0)
+if mode == "chmodpage":
+    os.chmod("docs/ROADMAP.md", 0o600)
+    sys.exit(3)
+if mode == "chmodfile":
+    os.chmod("docs/backlog.yaml", 0o600)
+    sys.exit(3)
 digest = os.environ["WORKFLOW_BACKLOG_SHA256"]
 rows = [line for line in open("docs/backlog.yaml") if line.lstrip().startswith(("- id:", "title:", "status:"))]
 with open("docs/ROADMAP.md", "w") as page:
@@ -10284,6 +10290,23 @@ class BacklogLifecycle(MatrixCase):
                                   "page": self.scratch.read("docs/ROADMAP.md")})
         self.assertNotIn(BACKLOG_FILE, self.committed())
 
+    def test_a_malformed_chain_at_the_line_cap_is_reported_without_a_traceback(self):
+        # `version:`, `items:` and 999 two-line items: 2,000 lines, the longest chain the cap
+        # allows. Every item lacks its required fields; a recursive cycle check would run out
+        # of stack on the 999-deep chain.
+        chain = "".join(f"  - id: n{i}\n    depends_on: [n{i + 1}]\n" for i in range(998))
+        chain += "  - id: n998\n    depends_on: []\n"
+        text = "version: 1\nitems:\n" + chain
+        self.assertEqual(text.count("\n"), 2000)
+        self.scratch.write(BACKLOG_FILE, text)
+        done = self.run_backlog("status", check=False)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertNotIn("Traceback", done.stderr)
+        report = json.loads(done.stdout)
+        self.assertIs(report["valid"], False)
+        self.assertEqual(report["error"]["code"], "backlog_invalid")
+        self.assertIn("the item has no `title`", report["error"]["message"])
+
     # ---------------- an `accept` refusal after the state completion ----------------
 
     def break_the_generator(self):
@@ -10393,6 +10416,21 @@ class BacklogLifecycleDeclaredGenerator(BacklogLifecycle):
                 self.assertEqual((self.scratch.read(BACKLOG_FILE), self.scratch.read("docs/ROADMAP.md")),
                                  (backlog, page))
 
+
+    def test_a_failed_generator_leaves_the_original_modes_of_the_page_and_the_file(self):
+        self.reach_acceptance()
+        for mode, touched in (("chmodpage", "docs/ROADMAP.md"), ("chmodfile", BACKLOG_FILE)):
+            with self.subTest(generator_changes_the_mode_of=touched):
+                self.env["GEN_MODE"] = mode
+                for rel in (BACKLOG_FILE, "docs/ROADMAP.md"):
+                    (self.scratch.root / rel).chmod(0o640)
+                backlog, page = self.scratch.read(BACKLOG_FILE), self.scratch.read("docs/ROADMAP.md")
+                done = self.run_backlog("accept", self.item.wid, check=False)
+                self.assertEqual(self.refusal_code(done), "generator_failed")
+                self.assertEqual((self.scratch.read(BACKLOG_FILE), self.scratch.read("docs/ROADMAP.md")),
+                                 (backlog, page))
+                for rel in (BACKLOG_FILE, "docs/ROADMAP.md"):
+                    self.assertEqual((self.scratch.root / rel).stat().st_mode & 0o777, 0o640, rel)
 
     def test_a_generator_that_deletes_or_replaces_the_backlog_file_is_generator_failed(self):
         self.reach_acceptance()

@@ -248,7 +248,7 @@ mode.
 
 ## Command reference
 
-`.claude/commands/` holds 16 files today, and all 16 are sectioned below
+`.claude/commands/` holds 22 files today, and all 22 are sectioned below
 — including `/review-implementation` and `/review-functional`
 (`workflow-v2-3`) and `/request-plan-amendment` (`workflow-2.4.0`),
 previously undocumented here. `[work-item-id]` defaults
@@ -263,8 +263,8 @@ What is actually guaranteed about that inventory, precisely:
 set of `### /<name>` sections in this document and the set of
 `.claude/commands/*.md` stems on disk and asserts the two are **equal** —
 that part is derived, so a command added or removed without a section here
-fails. The number 16 itself is *not* derived: it is a hardcoded tripwire
-in that same test (`assertEqual(len(on_disk), 16)`) whose job is to make a
+fails. The number 22 itself is *not* derived: it is a hardcoded tripwire
+in that same test (`assertEqual(len(on_disk), 22)`) whose job is to make a
 change in the roster size a deliberate, reviewed edit. So the set equality
 is mechanical; the count in this paragraph and in the test is a
 hand-maintained pair that must be updated together. If they disagree, the
@@ -1003,7 +1003,7 @@ committed"); if a round was refused with "must always transition phase", see
   file says it is "retired — deleted — only at this work item's own
   `MILESTONE_COMPLETE`". That condition is now met — `workflow-v2-1-core`
   is `MILESTONE_COMPLETE` — but the file has not been deleted, so the
-  command is still on disk and still in this reference's roster of 16.
+  command is still on disk and still in this reference's roster of 22.
   Retiring it is a scoped act of its own (the way
   `/accept-scoped-remediation`'s retirement was); until then, treat it as
   live-but-unreachable: its target is terminal, so every invocation refuses
