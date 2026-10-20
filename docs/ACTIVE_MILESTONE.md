@@ -32,6 +32,45 @@ with `TMPDIR` below an empty and below a valid planted `.git` failed only on
 `test_sigterm_and_sigint_kill_the_chunk_restore_the_barrier_and_exit_2` (the
 known SIGINT flake), which passes alone; `git diff 2d1d5af -- src tools` is empty.
 
+## Functional review checklist
+
+Technical approval: gate policy, implementation revision 1 (`a3e0bbe`). Test and
+runner code only; nothing in `src/` or `tools/` changes. Put findings in
+`.ai-review/read-only-test-git-isolation/feedback/FUNCTIONAL_REVIEW.md`.
+
+**Setup.** From this checkout, on branch `milestone/read-only-test-git-isolation`
+with a clean tree. No feature flags; the release cache must be primed (network or
+`WORKFLOW_MANAGER_RELEASE_SOURCE`). Test data: a scratch directory with a planted
+`.git`, created in flow 3.
+
+1. **Product code is untouched.** `git diff 2d1d5af -- src tools` prints nothing.
+   Expected: empty output.
+2. **The named tests pass.**
+   `python3 tests/run_all.py --select test_read_only.py --select test_orphan_processes.py --select test_tested_releases.py`.
+   Expected: green (the pinned `GIT_CEILING_DIRECTORIES` and
+   `TestAncestorRepositoryIsolation` tests included).
+3. **The fix holds under a stray `.git` above the scratch.**
+   ```bash
+   export D=$(mktemp -d); git init -q $D; mkdir $D/t
+   TMPDIR=$D/t python3 tests/run_all.py --select test_read_only.py
+   ```
+   Expected: green. Then `rm -rf $D`.
+4. **The regression test bites.** In `tests/support.py` make
+   `no_repository_above` a no-op, plant a `.git` above the scratch as in flow 3,
+   rerun `--select test_read_only.py`: `TestAncestorRepositoryIsolation` fails.
+   Restore with `git checkout tests/support.py`; `git status` is clean.
+5. **Docs.** `docs/ARCHITECTURE.md` "Verification execution" and
+   `docs/development.md` "Tests" describe the Git discovery ceiling and
+   `no_repository_above` accurately.
+6. **Full gate (optional, ~5 min).** `python3 tests/run_all.py`. Expected: green,
+   except the known SIGINT flake
+   (`test_sigterm_and_sigint_kill_the_chunk_restore_the_barrier_and_exit_2`),
+   which passes alone.
+
+**Known limitations / out of scope.** The product's own `.git` walk is not
+changed (by design); only tests and the runner are isolated. The SIGINT flake is
+pre-existing.
+
 ---
 
 Previous milestone, kept as its permanent record:
