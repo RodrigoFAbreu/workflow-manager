@@ -460,7 +460,7 @@ class TestReviewImplementationCommandStaticConformance(unittest.TestCase):
         self.assertIn(
             "Implements a model-independent\n**review role**, not a specific model: "
             "nothing in this contract, in the\nreport it produces, or in any check it "
-            "performs names a model — running it\nfrom any capable Claude model produces "
+            "performs names a model — running it\nfrom any capable model produces "
             "the same behavior.",
             self.text,
         )
@@ -656,7 +656,7 @@ class TestReviewFunctionalCommandStaticConformance(unittest.TestCase):
         self.assertIn(
             "Implements a model-independent\n**review role**, not a specific model: "
             "nothing in this contract, in the\nreport it produces, or in any check it "
-            "performs names a model — running it\nfrom any capable Claude model produces "
+            "performs names a model — running it\nfrom any capable model produces "
             "the same behavior.",
             self.text,
         )
@@ -767,6 +767,8 @@ class TestVersion21OnlyCommandsRefuseCleanlyForV1(unittest.TestCase):
 # below, for the two files where a real pre-v2.1 copy is actually
 # available to diff against.
 _GOLDEN_COMMAND_FILE_SHA256 = {
+    # workflow-2.18.0 (harness-neutral-commands, CP2): six rows re-recorded and five added (see the end
+    # of the table) -- intentional content changes, not regressions.
     # workflow-2.17.0 (backlog-file, CP3): `milestone-plan.md` and `accept-milestone.md` gain the
     # declared-backlog branch (D-Select, D-Accept) and `milestone-plan.md` passes `repo_root` to
     # `generate_artifacts_declarations` (D-Classify) -- intentional content changes.
@@ -1068,7 +1070,7 @@ _GOLDEN_COMMAND_FILE_SHA256 = {
     # approval commit keeps its whole-file pin and
     # verify_plan_approval_commit applies the gate-policy content check --
     # intentional content change.
-    "approve-review.md": "6dedae58154bb4be4604154c6034ece138d57bc9f45eb96367eba3f73b7d63c1",
+    "approve-review.md": "14b0ba887b4b33320216d65e796af1bd09c292eb3b728253a611826989c96d06",
     # accept-milestone.md updated, baseline-freeze correctness fix
     # (OPUS-R129-001): step 6's completion-commit instruction now states
     # the same "trailers must be the commit message's own final paragraph"
@@ -1108,7 +1110,7 @@ _GOLDEN_COMMAND_FILE_SHA256 = {
     # user-only /resume-implementation for a 2.1/2.2 item and drops the wrong
     # "legacy promotion" origin -- intentional content change, outside every
     # "1"-inert span.
-    "accept-milestone.md": "20cf8f8ea58947d109cebb5b2a73855d2d2f855a1ca3ea23f5de543e45c7edae",
+    "accept-milestone.md": "151a2c31a753b0434f08dedb5a07854d07070f12465ebe841179194a21e41d87",
     # prepare-functional-review.md further updated, baseline-portability
     # correctness fix (OPUS-R129-001): step 3a's checklist-evidence
     # provenance commit instruction now states the same "trailers must be
@@ -1227,7 +1229,7 @@ _GOLDEN_COMMAND_FILE_SHA256 = {
     # review-plan.md further updated, D-Consumed-History (workflow-2.7.0,
     # CP2, v2.6.0-001): REVISE also adds the id to the durable
     # consumed_plan_review_content_ids history -- intentional content change.
-    "review-plan.md": "da33b018547181c63372be027e2cfd538f5e25d8623bd1c9f44c530b6ed92f79",
+    "review-plan.md": "0625c33a415c70453832d4c8bda4cd83c9b7c28b95f7a4888c948a218ba27f39",
     # record-manual-plan-review.md further updated, D-Feedback-Layout
     # (workflow-2.6.0, CP3): preamble states feedback_layout-keyed
     # resolution; step 4 prints the exact resolved paste path and adds the
@@ -1340,7 +1342,7 @@ _GOLDEN_COMMAND_FILE_SHA256 = {
     # review-implementation.md further updated, workflow-2.7.0
     # (ORCHESTRATION_PROTOCOL_V1_PLAN.md, CP4): step 4's bundle check is
     # verify_implementation_review_bundle -- intentional content change.
-    "review-implementation.md": "e357c7616bbc15ea6a740cb8055958e1b309368f3d4fa978b7e47044f3ebb7ca",
+    "review-implementation.md": "ea453e94d90cbff500d8312cb01d600fd8ae0fe404a59933680c45a1d4df2ab9",
     # review-functional.md: new, workflow-v2-3 CP2 -- the first recorded
     # hash, not a change.
     #
@@ -1353,7 +1355,7 @@ _GOLDEN_COMMAND_FILE_SHA256 = {
     # (workflow-2.6.0, CP3): the preamble now states resolve_feedback_dir's
     # feedback_layout-keyed resolution (scoped by construction, legacy rule
     # otherwise) -- intentional content change.
-    "review-functional.md": "e65e4218d1a7c7870b37ca36e5a2e3c0b7264a685a4a1f8bd7a4904b5e4a24f9",
+    "review-functional.md": "29f3693b774979f0aa83331ec3e6622313eab04f27b49d4ba3c6250b53f16edd",
     # apply-functional-review.md (O2, workflow-v2-3-followups REVISE round
     # 2, external cross-model review): this roster's own scope was fixed
     # to "every command file workflow-v2-1-core's own dual-mode
@@ -1440,7 +1442,15 @@ _GOLDEN_COMMAND_FILE_SHA256 = {
     "apply-functional-review.md": "fb014dca648d03a1593005f85b06185a6ae7974773f1310eb9850cf5ecabdf28",
     # workflow-2.10.0 (retire-21-for-new-work, CP3): first recorded hash; the broad
     # fix's refusal under a "2.1" default and the re-run from `already_reopened`.
-    "apply-pr-review.md": "218ee7107a9af1450e1c34c67f374edcf6a40788b13377247c809ff5eff0d269",
+    "apply-pr-review.md": "a3a29923ca6333090cd54ea819f73964eeb73c58980cee08f6bddb3305347a18",
+    # workflow-2.18.0 (harness-neutral-commands, CP2): the command bodies name the model "the agent"
+    # and restate the six user-only guards (D-Guard); `apply-pr-review.md` and `prepare-review.md` gain
+    # `$ARGUMENTS` (D-Args); the five rows below are first recorded hashes -- intentional content changes.
+    "adopt-gate-policy.md": "5efb67e6f0c9c0bb1b2e8a5fad5c6e64c9fe7cc6fcf2c3f4569fa16a9a7c7775",
+    "request-plan-amendment.md": "8a4a8ccce763d40a73462f3030c248ad122a1cafdb2fcd5e3e76321ecd25579e",
+    "resume-implementation.md": "f1bed19f19f5323c5940a7b25a90a5f9111fcc0ebbee9e61e553151f816a1168",
+    "retire-legacy-work-item.md": "c4f4a22f1002dbcc1e70781f4453492b83c882f49d390b3578b00dd9cc6e0662",
+    "prepare-review.md": "de05a427f90087dd56703162e56fb388d86e74f090c95d6953590884d18bda1a",
 }
 
 
@@ -8380,6 +8390,181 @@ class TestBacklogCommandConformance(unittest.TestCase):
         self.assertIn("takes the next ready item from that file", workflow)
         self.assertIn("sets the item `done` and regenerates the page", workflow)
         self.assertIn("the next ready item of that file", reference)
+
+
+class TestCommandFilesContractDocument(unittest.TestCase):
+    """harness-neutral-commands (workflow-2.18.0, CP1): `COMMAND_FILES.md`
+    is the one shipped place that states the command-file contract, and
+    this suite keeps it and the files it describes from drifting apart."""
+
+    CLASSES = {"Honour", "Carry", "Hint"}
+    # D-Term's neutrality pattern: the model's name (not the
+    # `Claude-Session:` trailer key), the harness tool name and the
+    # harness product name.
+    NEUTRALITY = re.compile(r"Claude(?!-Session)|SlashCommand")
+
+    def _doc(self) -> str:
+        return (_repo_root() / "docs" / "ai-workflow" / "COMMAND_FILES.md").read_text()
+
+    def _frontmatter(self, filename: str) -> dict[str, str]:
+        lines = _command_text(filename).split("\n")
+        self.assertEqual(lines[0], "---", filename)
+        end = lines.index("---", 1)
+        pairs = {}
+        for line in lines[1:end]:
+            key, _, value = line.partition(":")
+            pairs[key.strip()] = value.strip()
+        return pairs
+
+    def _key_rows(self) -> dict[str, str]:
+        section = self._doc().split("## The keys", 1)[1].split("\n## ", 1)[0]
+        rows = {}
+        for line in section.splitlines():
+            cells = [c.strip() for c in line.strip().strip("|").split("|")]
+            if line.startswith("| `") and len(cells) >= 3:
+                rows[cells[0].strip("`")] = cells[1].strip("*")
+        return rows
+
+    def test_every_key_in_use_has_a_row_and_every_row_is_in_use(self):
+        used = set()
+        for filename in _command_filenames():
+            used |= set(self._frontmatter(filename))
+        rows = self._key_rows()
+        self.assertEqual(used, set(rows))
+        for key, cls in rows.items():
+            with self.subTest(key=key):
+                self.assertIn(cls, self.CLASSES)
+
+    def test_the_document_defines_the_term_and_the_placeholder(self):
+        doc = _squash(self._doc())
+        for needle in ("**The agent**: whatever carries out the steps of a command body",
+                       "`$ARGUMENTS` is the Workflow's argument placeholder",
+                       "exactly as the user typed it after the command name, verbatim and "
+                       "unparsed, at every occurrence of the token",
+                       "no argument given is substituted as the empty string",
+                       "The body's own argument grammar decides what that means",
+                       "There is no universal default"):
+            with self.subTest(needle=needle):
+                self.assertIn(needle, doc)
+
+    def test_the_documents_user_only_list_equals_the_flagged_commands(self):
+        section = self._doc().split("## The user-only commands", 1)[1].split("\n## ", 1)[0]
+        listed = set(re.findall(r"^- `/([a-z-]+)`$", section, re.MULTILINE))
+        flagged = {
+            filename[: -len(".md")]
+            for filename in _command_filenames()
+            if self._frontmatter(filename).get("disable-model-invocation") == "true"
+        }
+        self.assertEqual(len(listed), 6)
+        self.assertEqual(listed, flagged)
+
+    def test_the_neutral_documents_pass_the_neutrality_pattern(self):
+        root = _repo_root() / "docs" / "ai-workflow"
+        for name in ("MILESTONE_WORKFLOW.md", "REVIEW_PROTOCOL.md",
+                     "WORKFLOW_V2_1_OPERATOR_REFERENCE.md"):
+            with self.subTest(document=name):
+                self.assertIsNone(self.NEUTRALITY.search((root / name).read_text()))
+                self.assertNotIn("Claude Code", (root / name).read_text())
+
+    def test_the_neutral_documents_never_claim_the_agent_cannot_run_a_command(self):
+        # D-Guard: the flag blocks a user-only command only where the harness
+        # enforces it; the documents state the duty, never an impossibility.
+        root = _repo_root() / "docs" / "ai-workflow"
+        for name in ("MILESTONE_WORKFLOW.md", "REVIEW_PROTOCOL.md",
+                     "WORKFLOW_V2_1_OPERATOR_REFERENCE.md"):
+            with self.subTest(document=name):
+                self.assertIsNone(re.search(
+                    r"agent cannot (run|invoke)", _squash((root / name).read_text())))
+
+    def test_the_operator_reference_points_to_the_contract(self):
+        text = (_repo_root() / "docs" / "ai-workflow"
+                / "WORKFLOW_V2_1_OPERATOR_REFERENCE.md").read_text()
+        self.assertIn("docs/ai-workflow/COMMAND_FILES.md", text)
+        self.assertIn("under every harness", _squash(text))
+
+
+class TestHarnessNeutralCommandBodies(unittest.TestCase):
+    """harness-neutral-commands (workflow-2.18.0, CP2): the command bodies
+    name the model "the agent", carry `$ARGUMENTS` where they take
+    arguments, and each user-only body still carries its own
+    literal-confirmation check."""
+
+    NEUTRALITY = re.compile(r"Claude(?!-Session)|SlashCommand|Claude Code")
+    PINNED = "the control this command carries itself, under every harness"
+    NEVER_INVOKE = "The agent must never invoke"
+    # The needles of each user-only command's own check, from the 2.17.0 text.
+    USER_ONLY = {
+        "approve-review.md": (
+            "validate_user_confirmation", "the exact `work_item_id` and the exact stage",
+            "refuse to write anything unless", "Never fabricate, infer, or carry over this text"),
+        "accept-milestone.md": (
+            "validate_user_confirmation", 'stage="acceptance"', "refuse to write anything unless",
+            "Never fabricate, infer, or carry over this text", "ask for it and stop"),
+        "adopt-gate-policy.md": (
+            "validate_gate_policy_confirmation", "the literal `gate_policy`",
+            "refuse to write anything unless", "Never fabricate, infer or carry over"),
+        "request-plan-amendment.md": (
+            "the exact literal word `amendment`", "refuse to write anything unless",
+            "Never fabricate, infer, or carry over either", "ask for it naming the exact `work_item_id`"),
+        "resume-implementation.md": (
+            "validate_user_only_confirmation", 'stage="resumption"', "the word `resumption`",
+            "refuse to write anything unless", "Never fabricate, infer or carry over this text",
+            "ask for it, naming the exact `work_item_id`, and stop"),
+        "retire-legacy-work-item.md": (
+            "validate_user_only_confirmation", 'stage="retirement"', "the word `retirement`",
+            "refuse to write anything unless", "Never fabricate, infer or carry over this text",
+            "ask for it and stop"),
+    }
+
+    @staticmethod
+    def _split(filename: str) -> tuple[str, str]:
+        _, frontmatter, body = _command_text(filename).split("---\n", 2)
+        return frontmatter, body
+
+    def test_no_command_file_names_the_model_or_a_harness(self):
+        for filename in _command_filenames():
+            with self.subTest(filename=filename):
+                self.assertIsNone(self.NEUTRALITY.search(_command_text(filename)))
+
+    def test_the_session_trailer_key_is_still_named(self):
+        named = [f for f in _command_filenames() if "Claude-Session:" in _command_text(f)]
+        # Fourteen at 2.17.0 and unchanged by the rename (the plan's "sixteen" miscounted).
+        self.assertEqual(len(named), 14)
+
+    def test_every_command_with_an_argument_hint_names_the_placeholder_in_its_body(self):
+        for filename in _command_filenames():
+            frontmatter, body = self._split(filename)
+            self.assertNotIn("$ARGUMENTS", frontmatter, filename)
+            hint = ""
+            for line in frontmatter.splitlines():
+                key, _, value = line.partition(":")
+                if key.strip() == "argument-hint":
+                    hint = value.strip()
+                    if len(hint) >= 2 and hint[0] == hint[-1] and hint[0] in "\"'":
+                        hint = hint[1:-1]
+            with self.subTest(filename=filename):
+                if hint:
+                    self.assertIn("$ARGUMENTS", body)
+
+    def test_each_user_only_body_keeps_its_literal_confirmation_step(self):
+        flagged = {
+            f for f in _command_filenames()
+            if "disable-model-invocation: true" in self._split(f)[0]
+        }
+        self.assertEqual(flagged, set(self.USER_ONLY))
+        for filename, needles in self.USER_ONLY.items():
+            text = " ".join(_command_text(filename).split())
+            for needle in needles + (self.PINNED, self.NEVER_INVOKE):
+                with self.subTest(filename=filename, needle=needle):
+                    self.assertIn(needle, text)
+
+    def test_the_history_moved_out_of_approve_review_into_the_contract(self):
+        body = _command_text("approve-review.md")
+        self.assertNotIn("SlashCommand", body)
+        self.assertNotIn("changelog", body)
+        doc = (_repo_root() / "docs" / "ai-workflow" / "COMMAND_FILES.md").read_text()
+        self.assertIn("SlashCommand", doc)
+        self.assertIn("changelog", doc)
 
 
 if __name__ == "__main__":

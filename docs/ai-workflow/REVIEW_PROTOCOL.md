@@ -283,7 +283,7 @@ all, and no supported invocation is blocked here — only delayed by one
 retry, with the error naming the directory to author into.
 
 `.ai-review/` is entirely gitignored, including `.ai-review/source/` —
-files a human places there as raw proposal material for Claude to read,
+files a human places there as raw proposal material for the agent to read,
 never review-bundle content. `CONTEXT_FILES.txt` must never list a path
 under `.ai-review/source/`; `scripts/prepare-ai-review.sh` skips (and
 warns on) any such entry as defense in depth.
@@ -598,7 +598,7 @@ still classify `.workflow-manager/` itself.
 
 ### What the script does NOT do
 
-- It does not judge relevance — `CONTEXT_FILES.txt` is a human/Claude
+- It does not judge relevance — `CONTEXT_FILES.txt` is a human/agent
   decision.
 - It does not include build outputs, `.gradle/`, APKs, generated binaries,
   secrets, or the full repository — only files that are part of the diff or
@@ -874,7 +874,7 @@ User functional-testing feedback is placed at:
 has no `bundle_id`/`review_content_id` of its own to bind against —
 `/apply-functional-review` classifies each finding.)
 
-**Claude must validate feedback, never apply it blindly.** Every blocking and
+**The agent must validate feedback, never apply it blindly.** Every blocking and
 important finding must end up either resolved, or explicitly rejected in the
 plan/summary with repository evidence (file, line, test, or doc reference)
 and a clear explanation.
@@ -1169,4 +1169,4 @@ and keep `Co-Authored-By:` out of the trailer paragraph. Downgrading to
   boundaries when the session has grown large.
 - Never list a `.ai-review/source/` path in `CONTEXT_FILES.txt` or treat it
   as review content — it is raw proposal material a human places there for
-  Claude to read, not part of any bundle (`WFR-16`).
+  the agent to read, not part of any bundle (`WFR-16`).

@@ -17,7 +17,7 @@ has since changed, so `/prepare-functional-review` would refuse to promote it
 (`LegacyAdoptionStaleApprovalError`).
 
 **This command is user-only by construction**, the same two mechanisms as
-`/accept-milestone`: (1) `disable-model-invocation: true`; (2) refuse to write
+`/accept-milestone`: (1) `disable-model-invocation: true`, an additional layer where the harness enforces it; (2) refuse to write
 anything unless the user's own current-turn message supplies literal
 confirmation text naming the exact `work_item_id` and the word `retirement`.
 The writer validates it itself with
@@ -25,7 +25,7 @@ The writer validates it itself with
 which requires the id as an exact token (a confirmation naming only
 `milestone-80` or `milestone-8-b` never authorizes `milestone-8`). Never
 fabricate, infer or carry over this text from a prior turn. If it is missing,
-ask for it and stop.
+ask for it and stop. Mechanism (2) is the control this command carries itself, under every harness; the flag does not replace it. The agent must never invoke this command on the user's behalf, including as a step of another command's execution, whatever the flag says.
 
 1. **Resolve the id** from `$ARGUMENTS` only, never from the confirmation text
    (the confirmation is checked *against* the resolved id). Refuse with a named

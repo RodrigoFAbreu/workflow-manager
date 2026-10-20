@@ -1,5 +1,5 @@
 ---
-description: Resume implementation of an outstanding checkpoint from the functional gate. User-only -- never invoked by Claude autonomously.
+description: Resume implementation of an outstanding checkpoint from the functional gate. User-only -- never invoked by the agent autonomously.
 argument-hint: "<work-item-id>"
 disable-model-invocation: true
 state_writer: true
@@ -20,12 +20,9 @@ leave `IMPLEMENTING` with a checkpoint outstanding, and a promoted legacy item
 has no plan approval (the writer refuses it).
 
 **This command is user-only by construction**, the same two mechanisms as
-`/accept-milestone` and `/retire-legacy-work-item`: (1)
-`disable-model-invocation: true`; (2) refuse to write anything unless the
+`/accept-milestone` and `/retire-legacy-work-item`: (1) `disable-model-invocation: true`, an additional layer where the harness enforces it; (2) refuse to write anything unless the
 user's own current-turn message supplies literal confirmation text naming the
-exact resolved `work_item_id` and the word `resumption`. Claude must never
-invoke this command on the user's behalf, including as a step of another
-command's execution. The writer validates the confirmation itself with
+exact resolved `work_item_id` and the word `resumption`. Mechanism (2) is the control this command carries itself, under every harness; the flag does not replace it. The agent must never invoke this command on the user's behalf, including as a step of another command's execution, whatever the flag says. The writer validates the confirmation itself with
 `workflow_state.validate_user_only_confirmation(text, work_item_id=..., stage="resumption")`,
 which requires the id as an exact token (a confirmation naming only
 `milestone-80` or `milestone-8-b` never authorizes `milestone-8`) and the

@@ -1,5 +1,5 @@
 ---
-description: Adopt the repository's gate policy file (docs/ai-workflow/GATE_POLICY.json) by digest -- the only way to loosen the effective policy. User-only -- never invoked by Claude autonomously.
+description: Adopt the repository's gate policy file (docs/ai-workflow/GATE_POLICY.json) by digest -- the only way to loosen the effective policy. User-only -- never invoked by the agent autonomously.
 argument-hint: ""
 disable-model-invocation: true
 state_writer: true
@@ -14,10 +14,7 @@ it names no work item, touches no work item's entry and no approval stage, and i
 is not a state of `MILESTONE_WORKFLOW.md`.
 
 **This command is user-only by construction**, the same authority shape
-`/approve-review` and `/request-plan-amendment` use. `disable-model-invocation:
-true` is the primary, harness-enforced control. Claude must never invoke it on the
-user's own behalf, including as a step of another command's execution,
-independent of that flag.
+`/approve-review` and `/request-plan-amendment` use. The literal-confirmation check (the user-only guard below) is the control this command carries itself, under every harness; `disable-model-invocation: true` is an additional layer where the harness enforces it, and it does not replace the check. The agent must never invoke this command on the user's behalf, including as a step of another command's execution, whatever the flag says.
 
 Why it exists: the effective policy is, field by field, the **stricter** of the
 last adopted policy, the recorded floor and `docs/ai-workflow/GATE_POLICY.json`.

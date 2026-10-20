@@ -1,5 +1,5 @@
 ---
-description: Request an amendment to an already-approved plan, mid-implementation. User-only -- never invoked by Claude autonomously.
+description: Request an amendment to an already-approved plan, mid-implementation. User-only -- never invoked by the agent autonomously.
 argument-hint: "[work-item-id]"
 disable-model-invocation: true
 state_writer: true
@@ -28,11 +28,7 @@ Enter the `AMENDING_PLAN` state of `docs/ai-workflow/MILESTONE_WORKFLOW.md`
 
 **This command is user-only by construction**, the same authority shape
 `/approve-review` and `/accept-milestone` already use, and deliberately
-distinct from `USER_OVERRIDE` (`D-Plan-Amendment-2`). `disable-model-
-invocation: true` is the primary, harness-enforced control (blocks the
-SlashCommand tool). Claude must never invoke it on the user's own behalf,
-including as a step of another command's execution, independent of that
-flag. It never reads, writes, or compares against the literal string
+distinct from `USER_OVERRIDE` (`D-Plan-Amendment-2`). The literal-confirmation check below is the control this command carries itself, under every harness; `disable-model-invocation: true` is an additional layer where the harness enforces it, and it does not replace the check. The agent must never invoke this command on the user's behalf, including as a step of another command's execution, whatever the flag says. It never reads, writes, or compares against the literal string
 `USER_OVERRIDE` -- that sentinel stays reserved for `/approve-review`'s
 existing approval-basis fallback and is not reused, generalized, or
 aliased here.

@@ -33,9 +33,14 @@ Where they disagree, see [Known discrepancies](#known-discrepancies).
   `AWAITING_MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW` sections below.
 - **User-only commands** (`/approve-review`, `/accept-milestone`) carry
   `disable-model-invocation: true`.
-  Claude cannot run them, and they refuse to write anything unless *your
+  The control each of them carries itself, under every harness, is the
+  literal-confirmation check: they refuse to write anything unless *your
   current-turn message* contains literal confirmation text naming the exact
-  work item and stage. They also do not appear in Claude's skill list.
+  work item and stage. The flag is an additional layer where the harness
+  enforces it; it does not replace the check. The agent must never run them;
+  where the harness enforces the flag they cannot be launched for it and do
+  not appear in its command list. To run the commands from
+  another harness, see `docs/ai-workflow/COMMAND_FILES.md`.
 - **Every command stops.** None of them chain into the next command, even
   when the next step is obvious.
 
@@ -94,7 +99,7 @@ They are not interchangeable and neither one approves the plan.
 
 | Step | Who | Command | Records |
 |---|---|---|---|
-| 1. Local model review | Claude, ideally a fresh session | `/review-plan` | Writes `REVIEW_FEEDBACK.md` itself; on `APPROVE` records the `LOCAL_MODEL_PLAN_REVIEW` ledger stage |
+| 1. Local model review | The agent, ideally a fresh session | `/review-plan` | Writes `REVIEW_FEEDBACK.md` itself; on `APPROVE` records the `LOCAL_MODEL_PLAN_REVIEW` ledger stage |
 | 2. Manual external review | **You** — upload the bundle to an external reviewer, paste its verdict into `REVIEW_FEEDBACK.md` | `/record-manual-plan-review` | Ingests and binds the verdict you already pasted; on `APPROVE` records the `MANUAL_EXTERNAL_PLAN_REVIEW` ledger stage |
 | 3. Approval | **You**, or the Workflow where the gate is automatic (`/satisfy-gate plan`, `GATE_POLICY.md`) | `/approve-review plan` | The only approval gate; requires **both** ledger stages recorded against the *current* `review_content_id` |
 
