@@ -120,6 +120,8 @@ def pinned_env(**extra: str) -> dict[str, str]:
     }
     if os.environ.get(source.SOURCE_ENV):
         env[source.SOURCE_ENV] = os.environ[source.SOURCE_ENV]
+    if os.environ.get("GIT_CEILING_DIRECTORIES"):
+        env["GIT_CEILING_DIRECTORIES"] = os.environ["GIT_CEILING_DIRECTORIES"]
     env.update(extra)
     return env
 

@@ -53,6 +53,7 @@ def _frozen_scripts() -> Path:
 #: operator's `GIT_CONFIG_*` series and `-c` parameters, a template, and the
 #: user and system config (an `init.templateDir` there included).
 _INHERITED_GIT = ("GIT_CONFIG_COUNT", "GIT_CONFIG_PARAMETERS", "GIT_TEMPLATE_DIR",
+                  "GIT_CEILING_DIRECTORIES",
                   "GIT_CONFIG_SYSTEM")
 
 
@@ -167,6 +168,37 @@ class TestChunkEnvGitConfig(_Tmp):
         once = self.chunk_env(stripped_env())
         twice = self.chunk_env(once)
         self.assertEqual(series(twice), series(once))
+
+    def test_the_ceiling_is_the_private_tmpdir(self):
+        env = self.chunk_env(stripped_env())
+        self.assertEqual(env["GIT_CEILING_DIRECTORIES"], str(self.tmp / "chunk-tmp"))
+
+    def test_an_inherited_ceiling_entry_is_kept_after_ours(self):
+        env = self.chunk_env(stripped_env(GIT_CEILING_DIRECTORIES="/mnt/net"))
+        self.assertEqual(env["GIT_CEILING_DIRECTORIES"],
+                         os.pathsep.join([str(self.tmp / "chunk-tmp"), "/mnt/net"]))
+
+    def test_the_ceiling_is_idempotent(self):
+        once = self.chunk_env(stripped_env(GIT_CEILING_DIRECTORIES="/mnt/net"))
+        self.assertEqual(self.chunk_env(once)["GIT_CEILING_DIRECTORIES"],
+                         once["GIT_CEILING_DIRECTORIES"])
+
+    def test_a_stray_ancestor_repository_is_not_discovered(self):
+        stray = self.tmp / "stray"
+        init_git_repo(stray)
+        chunk_tmp = stray / "run" / "tmp" / "chunk"
+        scratch = chunk_tmp / "scratch"
+        scratch.mkdir(parents=True)
+        found = git(scratch, "rev-parse", "--git-dir", env=stripped_env(), check=False)
+        self.assertEqual(found.returncode, 0)
+        env = isolation.chunk_env(chunk_tmp, base=stripped_env())
+        gone = git(scratch, "rev-parse", "--git-dir", env=env, check=False)
+        self.assertNotEqual(gone.returncode, 0)
+        self.assertIn("not a git repository", gone.stderr)
+        # a repository below the ceiling still resolves
+        init_git_repo(scratch / "inner")
+        self.assertEqual(git(scratch / "inner", "rev-parse", "--git-dir", env=env).stdout.strip(),
+                         ".git")
 
     def test_a_malformed_count_is_refused(self):
         for base in (stripped_env(GIT_CONFIG_COUNT="x"), stripped_env(GIT_CONFIG_COUNT="-1"),

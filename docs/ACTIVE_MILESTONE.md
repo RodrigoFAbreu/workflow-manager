@@ -2,6 +2,28 @@
 
 ## Milestone
 
+`read-only-test-git-isolation` (`governing_workflow_version: "2.2"`, `process`,
+plan revision 3, base `2d1d5af`, branch `milestone/read-only-test-git-isolation`):
+roadmap row 9, issue #66. A change stays green when another process leaves a
+`.git` above the test scratch (the shared `/tmp`). Test and runner code only; a
+`test:` title, so it releases nothing. Plan:
+`docs/ai-workflow/WORKFLOW_MANAGER_READ_ONLY_TEST_GIT_ISOLATION_PLAN.md`.
+
+### CP1: the runner's Git discovery ceiling -- complete
+
+`isolation.chunk_env` sets `GIT_CEILING_DIRECTORIES` to the chunk's private
+`TMPDIR` (inherited entries kept after it, idempotent), `support.pinned_env`
+forwards it, and `test_orphan_processes.py` / `test_tested_releases.py` pin both.
+Verified: `--select test_orphan_processes.py`, `test_parallel_runner.py` and
+`test_tested_releases.py` green; the full gate is recorded in the CP1 commit
+report. CP2 (the product-path helper, the two tests, the docs) is next.
+
+---
+
+Previous milestone, kept as its permanent record:
+
+## Milestone
+
 `workflow-manager-release-agnostic` (`governing_workflow_version: "2.2"`,
 `process`, plan revision 1, base `dff497d`, branch
 `milestone/workflow-manager-release-agnostic`): roadmap item 8, the

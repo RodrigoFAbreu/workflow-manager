@@ -812,6 +812,16 @@ class TestCliEnvFollowsTheLock(unittest.TestCase):
             os.environ.pop(override, None)
             self.assertEqual(cli_env()[override], "")
 
+    def test_the_runners_git_ceiling_is_carried_and_only_when_set(self):
+        name = "GIT_CEILING_DIRECTORIES"
+        with unittest.mock.patch.dict(os.environ, {name: "/chunk:/mnt"}):
+            self.assertEqual(support.pinned_env()[name], "/chunk:/mnt")
+            self.assertEqual(cli_env()[name], "/chunk:/mnt")
+        with unittest.mock.patch.dict(os.environ):
+            os.environ.pop(name, None)
+            self.assertNotIn(name, support.pinned_env())
+            self.assertNotIn(name, cli_env())
+
 
 if __name__ == "__main__":
     unittest.main()
