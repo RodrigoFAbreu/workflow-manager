@@ -356,6 +356,52 @@ class TestAncestorRepositoryIsolation(unittest.TestCase):
         self.assertEqual(os.environ.get("GIT_CEILING_DIRECTORIES"), before)
         self.assertTrue(comp._has_dot_git_above(plain.parent))
 
+    def test_the_helper_keeps_every_inherited_ceiling_component_and_restores_the_value(self):
+        plain = self.plant("empty")
+        inherited = "/mnt/a::/mnt/b"
+        with mock.patch.dict(os.environ, {"GIT_CEILING_DIRECTORIES": inherited}):
+            with support.no_repository_above(plain.parent):
+                self.assertEqual(os.environ["GIT_CEILING_DIRECTORIES"],
+                                 os.pathsep.join([str(plain.parent), "/mnt/a", "", "/mnt/b"]))
+            self.assertEqual(os.environ["GIT_CEILING_DIRECTORIES"], inherited)
+
+    def test_the_helper_adds_no_empty_ceiling_entry_for_an_unset_or_empty_value(self):
+        plain = self.plant("empty")
+        for value in (None, ""):
+            with self.subTest(value=value):
+                env = {k: v for k, v in os.environ.items() if k != "GIT_CEILING_DIRECTORIES"}
+                if value is not None:
+                    env["GIT_CEILING_DIRECTORIES"] = value
+                with mock.patch.dict(os.environ, env, clear=True):
+                    with support.no_repository_above(plain.parent):
+                        self.assertEqual(os.environ["GIT_CEILING_DIRECTORIES"], str(plain.parent))
+
+    def test_a_dot_git_directly_in_the_root_is_refused_for_the_root_and_for_a_target_below_it(self):
+        plain = self.plant("empty")
+        root = plain.parent
+        (root / ".git").mkdir(exist_ok=True)
+        with support.no_repository_above(root):
+            self.assertTrue(comp._has_dot_git_above(root))
+            self.assertTrue(comp._has_dot_git_above(plain))
+            with self.assertRaises(ContainmentError):
+                self.destinations(plain)
+
+    def test_a_dot_git_strictly_above_the_root_is_still_ignored(self):
+        plain = self.plant("empty")
+        with support.no_repository_above(plain.parent):
+            self.assertFalse(comp._has_dot_git_above(plain.parent))
+            self.assertFalse(comp._has_dot_git_above(plain))
+
+    def test_the_subprocess_of_the_named_tests_run_is_bounded_by_a_120_second_timeout(self):
+        done = subprocess.CompletedProcess([], 0, stdout="", stderr="Ran 2 tests")
+        with mock.patch.object(subprocess, "run", return_value=done) as run:
+            self.test_the_two_named_tests_pass_with_a_stray_repository_above_their_temporary_directory()
+        # `plant` also runs Git through `subprocess.run`; only the unittest child counts
+        named = [c for c in run.call_args_list if "unittest" in c.args[0]]
+        self.assertEqual(len(named), len(self.FORMS))
+        for call in named:
+            self.assertEqual(call.kwargs.get("timeout"), 120)
+
     def test_the_two_named_tests_pass_with_a_stray_repository_above_their_temporary_directory(self):
         for form in self.FORMS:
             with self.subTest(form=form):
@@ -365,7 +411,7 @@ class TestAncestorRepositoryIsolation(unittest.TestCase):
                 env["TMPDIR"] = str(tmpdir)
                 proc = subprocess.run([sys.executable, "-m", "unittest", *NAMED_TESTS],
                                       cwd=str(REPO_ROOT / "tests"), env=env,
-                                      capture_output=True, text=True)
+                                      capture_output=True, text=True, timeout=120)
                 self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
                 self.assertIn("Ran 2 tests", proc.stderr)
 

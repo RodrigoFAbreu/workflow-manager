@@ -183,6 +183,20 @@ class TestChunkEnvGitConfig(_Tmp):
         self.assertEqual(self.chunk_env(once)["GIT_CEILING_DIRECTORIES"],
                          once["GIT_CEILING_DIRECTORIES"])
 
+    def test_an_inherited_empty_ceiling_component_is_kept(self):
+        chunk_tmp = str(self.tmp / "chunk-tmp")
+        env = self.chunk_env(stripped_env(GIT_CEILING_DIRECTORIES="/mnt/a::/mnt/b"))
+        self.assertEqual(env["GIT_CEILING_DIRECTORIES"],
+                         os.pathsep.join([chunk_tmp, "/mnt/a", "", "/mnt/b"]))
+        self.assertEqual(self.chunk_env(env)["GIT_CEILING_DIRECTORIES"],
+                         env["GIT_CEILING_DIRECTORIES"])
+
+    def test_an_empty_or_unset_inherited_ceiling_adds_no_empty_entry(self):
+        chunk_tmp = str(self.tmp / "chunk-tmp")
+        self.assertEqual(self.chunk_env(stripped_env(GIT_CEILING_DIRECTORIES=""))
+                         ["GIT_CEILING_DIRECTORIES"], chunk_tmp)
+        self.assertEqual(self.chunk_env(stripped_env())["GIT_CEILING_DIRECTORIES"], chunk_tmp)
+
     def test_a_stray_ancestor_repository_is_not_discovered(self):
         stray = self.tmp / "stray"
         init_git_repo(stray)

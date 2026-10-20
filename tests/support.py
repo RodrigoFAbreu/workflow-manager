@@ -135,8 +135,9 @@ def no_repository_above(root):
     cannot change a test's result. Git discovery stops at `root` through
     `GIT_CEILING_DIRECTORIES` (kept in front of any inherited entries), and the
     product's `.git` path walk (`compatibility._has_dot_git_above`, which does
-    not ask Git) stops there too, `root` itself excluded the way Git treats a
-    ceiling. `.git` entries at or below the target and inside `root` still
+    not ask Git) stops there too, after looking at `root/.git` (the product
+    refuses a `.git` in `root`); only entries strictly above `root` are
+    excluded. `.git` entries at or below the target and inside `root` still
     count. Both are restored on exit. A `workflow_manager` subprocess run
     against a plain directory still meets the unbounded walk: a test that
     starts one creates its directory where no ancestor can hold a `.git`."""
@@ -145,16 +146,16 @@ def no_repository_above(root):
     ceiling = str(root)
     stop = Path(os.path.realpath(root))
     previous = os.environ.get("GIT_CEILING_DIRECTORIES")
-    inherited = [e for e in (previous or "").split(os.pathsep) if e and e != ceiling]
+    inherited = [e for e in (previous.split(os.pathsep) if previous else []) if e != ceiling]
     os.environ["GIT_CEILING_DIRECTORIES"] = os.pathsep.join([ceiling, *inherited])
 
     def bounded(target) -> bool:
         real = Path(os.path.realpath(target))
         for directory in (real, *real.parents):
-            if directory == stop:
-                return False
             if os.path.lexists(directory / ".git"):
                 return True
+            if directory == stop:
+                return False
         return False
 
     try:
