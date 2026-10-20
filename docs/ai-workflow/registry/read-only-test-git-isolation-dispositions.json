@@ -1,0 +1,37 @@
+{
+  "dispositions": {
+    "F-1e1a48979a55": {
+      "disposition": "fixed",
+      "note": "Plan revision 3 section 4.1 (line 104) names executor.prepare_merge as the second chunk_env caller."
+    },
+    "F-2343a1c1b179": {
+      "disposition": "fixed",
+      "note": "Plan revision 3 section 7 (lines 202-203) names the cwd-equals-ceiling case: Git still ascends from a cwd that equals the ceiling."
+    },
+    "F-266de4cc4fc2": {
+      "disposition": "fixed",
+      "note": "Plan revision 3 section 4.2 (lines 122-123) and tests/support.py no_repository_above compare real paths (os.path.realpath(root))."
+    },
+    "F-56c12238bbbc": {
+      "disposition": "fixed",
+      "note": "The pinned_env/cli_env ceiling check landed in tests/test_tested_releases.py (CP1/CP2), and the path is classified at both stages."
+    },
+    "F-96038a9f0e75": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#74",
+      "note": "Keep empty components of an inherited GIT_CEILING_DIRECTORIES in ceiling_with and no_repository_above, with a test."
+    },
+    "F-a134fdb274e8": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#74",
+      "note": "Check directory/.git before the stop comparison in no_repository_above so root/.git counts when the target is root, with a test."
+    },
+    "F-f14d4bdab8c7": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#74",
+      "note": "Give the TestAncestorRepositoryIsolation subprocess.run call a timeout like the other subprocess tests."
+    }
+  },
+  "schema_version": 1,
+  "work_item_id": "read-only-test-git-isolation"
+}

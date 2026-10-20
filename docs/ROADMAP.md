@@ -28,6 +28,7 @@ The end goal is a loop where the Controller takes the next roadmap item, plans, 
 | 6 | **M3**: this repository and `workflow` driven by the Controller's loop | Roadmap items worked, merged and released with no hand-driving | Waiting on the Controller's kanban runner (C11) |
 | 7 | Operator UX | Error messages that name the cause and the next command, and `status` showing the work in flight | Done (accepted by policy 2026-10-10; Manager 1.8.0 releases when its pull request merges) |
 | 8 | Release-agnostic Manager | A Workflow release installs without a Manager pin pull request or a Manager release | Done (accepted by policy 2026-10-17; Manager release follows the merge) |
+| 9 | Host tests isolated from a stray ancestor `.git` (#66) | A green change no longer looks red when another process leaves a `.git` in the shared `/tmp` | Done (accepted by policy; a `test:` change, no release) |
 
 ### 7. Operator UX (Done)
 
@@ -36,6 +37,10 @@ The documentation clean-up delivered most of this: install, update and verify gu
 ### 8. Release-agnostic Manager (Done)
 
 Every Workflow release forces a Manager pin pull request and a Manager release that adds nothing but the pin. This item removes that: the Manager discovers published Workflow releases and verifies each by its published `SHA256SUMS` and manifest digest, instead of only the digests pinned in `src/workflow_manager/published_releases.json`. Existing pins stay, are never changed, and stay authoritative for the releases they name. A release's manifest may carry the data the Manager hard-codes today (downgrade boundary, new-work-only fixes, gate-default change, frozen suite counts, portability exceptions, `min_manager_version`); an older Manager refuses a release that needs a newer one, and releases up to 2.12.0 keep the built-in data. Manager CI stays deterministic: a lock file names the Workflow releases it tests, and the nightly tests the newest published one. The Workflow-side change (writing those manifest fields) is a separate milestone in the `workflow` repository; its contract is [`release-metadata.md`](release-metadata.md). Plan: `docs/ai-workflow/WORKFLOW_MANAGER_RELEASE_AGNOSTIC_PLAN.md`. A `feat:` title, so it releases a Manager minor.
+
+### 9. Host tests isolated from a stray ancestor `.git`
+
+Two `tests/test_read_only.py` tests expect a plain scratch directory to be "no repository", but the runner puts scratch under `/tmp/wm-run-*/tmp/`, so a stray `/tmp/.git` left by another process makes Git discover it and the full gate fails with nothing wrong in the change under test (#66; seen on 2026-10-18 and 2026-10-19). Isolate Git discovery for the tests (for example `GIT_CEILING_DIRECTORIES` at the scratch root, in the runner or in those tests), with a regression test that plants a `.git` above the scratch root. Test and runner code only: no Manager behaviour change, so no Manager release (`test:`).
 
 ## Done
 

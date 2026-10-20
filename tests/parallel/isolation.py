@@ -498,6 +498,15 @@ def build_git_template(run_dir: Path) -> Path:
     return template
 
 
+def ceiling_with(first: str, inherited: str | None) -> str:
+    """A `GIT_CEILING_DIRECTORIES` value led by `first`, followed by any
+    inherited entries; `first` is not repeated when it already leads."""
+    entries = [entry for entry in (inherited or "").split(os.pathsep) if entry]
+    if entries[:1] == [first]:
+        return os.pathsep.join(entries)
+    return os.pathsep.join([first, *entries])
+
+
 def chunk_env(tmpdir: Path, extra: dict | None = None, base: dict | None = None, *,
               git_template: Path | None = None) -> dict:
     """Today's environment minus `PYTHONPATH`/`FORCE_COLOR`, plus bytecode and
@@ -505,7 +514,10 @@ def chunk_env(tmpdir: Path, extra: dict | None = None, base: dict | None = None,
     the test-cleanup plan): `THROWAWAY_GIT_CONFIG` appended to the
     `GIT_CONFIG_*` series, and `GIT_TEMPLATE_DIR` set to `git_template` --
     or, when none is given, removed, so an inherited template never reaches
-    a chunk. Raises `GitConfigEnvError` on an inherited series it cannot
+    a chunk, plus `GIT_CEILING_DIRECTORIES` led by the private `TMPDIR`, so
+    Git never ascends above the chunk's scratch into a stray ancestor
+    repository (an inherited entry stays after it; a nested call is a
+    no-op). Raises `GitConfigEnvError` on an inherited series it cannot
     extend."""
     env = dict(os.environ if base is None else base)
     env.pop("PYTHONPATH", None)
@@ -514,6 +526,7 @@ def chunk_env(tmpdir: Path, extra: dict | None = None, base: dict | None = None,
     env["PYTHON_COLORS"] = "0"
     env["TMPDIR"] = str(tmpdir)
     env.update(extra or {})
+    env["GIT_CEILING_DIRECTORIES"] = ceiling_with(str(tmpdir), env.get("GIT_CEILING_DIRECTORIES"))
     if git_template is None:
         env.pop("GIT_TEMPLATE_DIR", None)
     else:

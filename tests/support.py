@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import subprocess
 import sys
 from pathlib import Path
+from unittest import mock
 
 #: Importing payload modules must not leave `__pycache__` inside a cached
 #: release tree -- it is meant to be byte-for-byte inspectable.
@@ -120,8 +122,49 @@ def pinned_env(**extra: str) -> dict[str, str]:
     }
     if os.environ.get(source.SOURCE_ENV):
         env[source.SOURCE_ENV] = os.environ[source.SOURCE_ENV]
+    if os.environ.get("GIT_CEILING_DIRECTORIES"):
+        env["GIT_CEILING_DIRECTORIES"] = os.environ["GIT_CEILING_DIRECTORIES"]
     env.update(extra)
     return env
+
+
+@contextlib.contextmanager
+def no_repository_above(root):
+    """Bound both "is there a repository above here" answers at `root`, so a
+    stray `.git` in a directory above the test scratch (the shared `/tmp`)
+    cannot change a test's result. Git discovery stops at `root` through
+    `GIT_CEILING_DIRECTORIES` (kept in front of any inherited entries), and the
+    product's `.git` path walk (`compatibility._has_dot_git_above`, which does
+    not ask Git) stops there too, `root` itself excluded the way Git treats a
+    ceiling. `.git` entries at or below the target and inside `root` still
+    count. Both are restored on exit. A `workflow_manager` subprocess run
+    against a plain directory still meets the unbounded walk: a test that
+    starts one creates its directory where no ancestor can hold a `.git`."""
+    from workflow_manager import compatibility
+
+    ceiling = str(root)
+    stop = Path(os.path.realpath(root))
+    previous = os.environ.get("GIT_CEILING_DIRECTORIES")
+    inherited = [e for e in (previous or "").split(os.pathsep) if e and e != ceiling]
+    os.environ["GIT_CEILING_DIRECTORIES"] = os.pathsep.join([ceiling, *inherited])
+
+    def bounded(target) -> bool:
+        real = Path(os.path.realpath(target))
+        for directory in (real, *real.parents):
+            if directory == stop:
+                return False
+            if os.path.lexists(directory / ".git"):
+                return True
+        return False
+
+    try:
+        with mock.patch.object(compatibility, "_has_dot_git_above", bounded):
+            yield
+    finally:
+        if previous is None:
+            os.environ.pop("GIT_CEILING_DIRECTORIES", None)
+        else:
+            os.environ["GIT_CEILING_DIRECTORIES"] = previous
 
 
 def run_suite(repo: Path, suite: str, timeout: int = 1800,
