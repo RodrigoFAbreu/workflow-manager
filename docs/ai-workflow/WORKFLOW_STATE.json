@@ -9605,7 +9605,7 @@
       "registry_path": "docs/ai-workflow/registry/read-only-test-git-isolation-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/read-only-test-git-isolation-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "AWAITING_FUNCTIONAL_REVIEW",
       "plan_revision": 3,
       "implementation_revision": 1,
       "functional_review_round": null,
@@ -9714,7 +9714,126 @@
           "workflow_release": "2.18.1"
         }
       },
-      "technical_approval": null,
+      "technical_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "8730db64cf195491d6b8e62d069c65edb9722a9802418bb89d53d1df0cf72371",
+        "approved_review_content_id": "2df62797aed39d6dc79589b51cc3a56e1dcbee42919242932f4842427f05d2aa",
+        "review_content_manifest": [
+          {
+            "path": "docs/ARCHITECTURE.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "e6bcddb55775f00af83fe6df6fce725e0070ea37"
+          },
+          {
+            "path": "docs/ai-workflow/registry/read-only-test-git-isolation-artifacts.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "6b5825b83df8c916cae54384dcebfea04668af64"
+          },
+          {
+            "path": "docs/development.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "12650299541670a02ea3f1c9e2137a2b216d5805"
+          },
+          {
+            "path": "tests/parallel/isolation.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "14f3cd504e2c740c1d175f0b181628754a3ffcb8"
+          },
+          {
+            "path": "tests/support.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "50ea9d8e5ee130086cc0b197f0cfd0507bfbcfbd"
+          },
+          {
+            "path": "tests/test_orphan_processes.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "761485a84ef197c592bad2b0d4ddcd81bce1d2f9"
+          },
+          {
+            "path": "tests/test_read_only.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "d553ed418bcd6cc84bd3a9c2bd63c22300459ac1"
+          },
+          {
+            "path": "tests/test_tested_releases.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "88939f4c5f495b5dbe50ab84a0cc8407e938066b"
+          }
+        ],
+        "reviewed_content_commit": "762f4b3f301a9d9c681c431248998d75981c9c23",
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-10-20T20:13:41Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "2df62797aed39d6dc79589b51cc3a56e1dcbee42919242932f4842427f05d2aa",
+            "ledger": {
+              "local": {
+                "bundle_id": "8730db64cf195491d6b8e62d069c65edb9722a9802418bb89d53d1df0cf72371",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "f3f168b991712af6894ad1968ff8f5e5513f4884efea7f1f806acf8128230452",
+                "ledger_entry_sha256": "a666581b4578471ce66b8818280b435f32d9cd07d5d164adccb7a86878cd2f83",
+                "run_ref": "session:local .ai-review/read-only-test-git-isolation/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "8730db64cf195491d6b8e62d069c65edb9722a9802418bb89d53d1df0cf72371",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "a45e0e8c1021978b55194377705db9751659d2e34668ba71397d726b0186c295",
+                "ledger_entry_sha256": "2fcb24a25550fb3a407d6e4c06fa93b7a2800a5e18a92e9f7f87dafd614d8f31",
+                "run_ref": "session:local .ai-review/read-only-test-git-isolation/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-10-20T20:13:41Z",
+          "workflow_release": "2.18.1"
+        }
+      },
       "technical_review_block_pins": [],
       "plan_review_stages": {
         "review_content_id": "931b4eeddeb74459f00c59fa9ef36d487f7fd62e43af3e6ada538dbd99ec0872",
@@ -9745,12 +9864,12 @@
           "external": 2
         },
         "implementation": {
-          "local": 0,
-          "external": 0
+          "local": 1,
+          "external": 1
         }
       },
-      "state_revision": 18,
-      "last_transition": "2026-10-20T19:59:47Z",
+      "state_revision": 21,
+      "last_transition": "2026-10-20T20:13:41Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -9830,6 +9949,69 @@
               "at": "2026-10-20T18:07:16Z"
             }
           ]
+        },
+        "F-a134fdb274e8": {
+          "digest": "a134fdb274e86077850f173e1c9235a9790dbde48a9f4348e8bdd7c8c33ca4ac",
+          "text": "`tests/support.py` `no_repository_above`: when the target *is* `root`, the bounded walk returns False before it checks `root/.git`. Git with cwd equal to the ceiling still examines cwd (plan section 7), and the docstring says \".git entries at or below the target ... still count\". So an invalid `.git` directly in `root`, with `root` as the target, would be accepted where the product refuses it. No current caller passes target == root (both named tests target a child of `self.work`). Checking `real/.git` before the stop comparison would close it.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "2df62797aed39d6dc79589b51cc3a56e1dcbee42919242932f4842427f05d2aa",
+              "verdict": "APPROVE",
+              "at": "2026-10-20T20:04:39Z"
+            }
+          ]
+        },
+        "F-f14d4bdab8c7": {
+          "digest": "f14d4bdab8c7c47cfd1035bbaea1665aaff036c96705e515865fe44572d2c298",
+          "text": "`tests/test_read_only.py` `test_the_two_named_tests_pass_with_a_stray_repository_above_their_temporary_directory`: `subprocess.run` has no `timeout`, so a hang inside the child is bounded only by the runner's chunk timeout. A timeout of the kind the other subprocess tests use would fail faster and with a clearer message.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "2df62797aed39d6dc79589b51cc3a56e1dcbee42919242932f4842427f05d2aa",
+              "verdict": "APPROVE",
+              "at": "2026-10-20T20:04:39Z"
+            }
+          ]
+        },
+        "F-96038a9f0e75": {
+          "digest": "96038a9f0e75d0e468d64b146050d0508512982ddc19152f062f48faf050b37b",
+          "text": "**EIR-001 [apparatus] — Preserve inherited empty-entry markers.** `tests/parallel/isolation.py:504` and `tests/support.py:148` remove empty components from inherited ceiling lists. Git uses an empty component to skip symlink resolution for subsequent entries, so `/mnt/a::/mnt/b` loses that optimization. Preserve these markers and add coverage alongside empty/unset values. This does not defeat the new scratch ceiling.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "2df62797aed39d6dc79589b51cc3a56e1dcbee42919242932f4842427f05d2aa",
+              "verdict": "APPROVE",
+              "at": "2026-10-20T20:13:18Z"
+            }
+          ]
+        }
+      },
+      "implementation_review_stages": {
+        "review_content_id": "2df62797aed39d6dc79589b51cc3a56e1dcbee42919242932f4842427f05d2aa",
+        "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "8730db64cf195491d6b8e62d069c65edb9722a9802418bb89d53d1df0cf72371",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-10-20T20:04:39Z",
+          "verdict_sha256": "f3f168b991712af6894ad1968ff8f5e5513f4884efea7f1f806acf8128230452",
+          "run_ref": "session:local .ai-review/read-only-test-git-isolation/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "8730db64cf195491d6b8e62d069c65edb9722a9802418bb89d53d1df0cf72371",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-10-20T20:13:18Z",
+          "verdict_sha256": "a45e0e8c1021978b55194377705db9751659d2e34668ba71397d726b0186c295",
+          "run_ref": "session:local .ai-review/read-only-test-git-isolation/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "openai/gpt-6.1-sol"
         }
       }
     }
