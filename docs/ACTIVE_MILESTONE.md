@@ -2,6 +2,84 @@
 
 ## Milestone
 
+`test-git-isolation-followups` (`governing_workflow_version: "2.2"`, `process`,
+plan revision 2, base `2d44ed1`, branch `milestone/test-git-isolation-followups`):
+roadmap row 10, issue #74. The three test-helper fixes the reviews of
+`read-only-test-git-isolation` deferred. Test code only; a `test:` title, so it
+releases nothing. Plan:
+`docs/ai-workflow/WORKFLOW_MANAGER_TEST_GIT_ISOLATION_FOLLOWUPS_PLAN.md`.
+
+### CP1: the three #74 test-helper fixes -- complete
+
+- `tests/parallel/isolation.py` `ceiling_with` and `tests/support.py`
+  `no_repository_above` keep every component of an inherited
+  `GIT_CEILING_DIRECTORIES`, empty ones included (`/mnt/a::/mnt/b` stays
+  `/mnt/a::/mnt/b` behind the scratch ceiling); an unset or empty inherited
+  value adds no empty entry.
+- `no_repository_above`'s bounded walk looks at `directory/.git` before the
+  stop comparison, so `root/.git` counts for a target at or below `root`, as
+  the product's `compatibility._has_dot_git_above` does; entries strictly above
+  `root` stay excluded.
+- `TestAncestorRepositoryIsolation`'s `unittest` subprocess runs with
+  `timeout=120`.
+- Commit `8e2f90f`.
+
+Red-first evidence (the new tests run against `2d44ed1`'s `isolation.py` and
+`support.py`, and without the `timeout=` argument):
+
+| Test | Without the fix |
+| --- | --- |
+| `test_an_inherited_empty_ceiling_component_is_kept` | red (`...:/mnt/a:/mnt/b` != `...:/mnt/a::/mnt/b`) |
+| `test_the_helper_keeps_every_inherited_ceiling_component_and_restores_the_value` | red (same) |
+| `test_a_dot_git_directly_in_the_root_is_refused_for_the_root_and_for_a_target_below_it` | red (`False is not true`; the base walk also returns False for the target below `root`) |
+| `test_the_subprocess_of_the_named_tests_run_is_bounded_by_a_120_second_timeout` | red (`None != 120`) |
+| `test_an_empty_or_unset_inherited_ceiling_adds_no_empty_entry` | guard (passes) |
+| `test_the_helper_adds_no_empty_ceiling_entry_for_an_unset_or_empty_value` | guard (passes) |
+| `test_a_dot_git_strictly_above_the_root_is_still_ignored` | guard (passes) |
+
+All seven pass at `8e2f90f`. `git diff 2d44ed1 -- src tools` is empty.
+
+## Current checkpoint
+
+**Implementation complete; self-review and the full gate done.** CP1 is
+complete and the phase is `SELF_REVIEWING_IMPLEMENTATION`. Self-review found no
+code defect; it added the red-first evidence above and this record. Full gate
+`python3 tests/run_all.py` at `8e2f90f` -> exit 0 (full selection, 8 workers,
+2242/2242 units, 14615 tests, `selection_digest 40b010f9...`, `tests_digest
+313c8f8c...`). Next: the implementation review bundle.
+
+## Functional review checklist
+
+Test code only; nothing in `src/` or `tools/` changes. Put findings in
+`.ai-review/test-git-isolation-followups/feedback/FUNCTIONAL_REVIEW.md`.
+
+**Setup.** From this checkout, on branch `milestone/test-git-isolation-followups`
+with a clean tree. The release cache must be primed (network or
+`WORKFLOW_MANAGER_RELEASE_SOURCE`).
+
+1. **Product code is untouched.** `git diff 2d44ed1 -- src tools` prints nothing.
+2. **The changed suites pass.**
+   `python3 tests/run_all.py --select test_orphan_processes.py --select test_read_only.py`.
+   Expected: green.
+3. **Empty ceiling components survive.**
+   `GIT_CEILING_DIRECTORIES=/mnt/a::/mnt/b python3 tests/run_all.py --select test_read_only.py`.
+   Expected: green.
+4. **The `root/.git` regression bites.** In `tests/support.py`, move the
+   `if directory == stop: return False` check back above the `.git` check, rerun
+   `--select test_read_only.py`: the `root/.git` test fails. Restore with
+   `git checkout tests/support.py`; `git status` is clean.
+5. **Full gate (optional, ~5 min).** `python3 tests/run_all.py`. Expected: green,
+   except the known SIGINT flake of workflow#32, which passes alone.
+
+**Known limitations / out of scope.** The product's own `.git` walk is not
+changed; only the test helpers are.
+
+---
+
+Previous milestone, kept as its permanent record:
+
+## Milestone
+
 `read-only-test-git-isolation` (`governing_workflow_version: "2.2"`, `process`,
 plan revision 3, base `2d1d5af`, branch `milestone/read-only-test-git-isolation`):
 roadmap row 9, issue #66. A change stays green when another process leaves a
