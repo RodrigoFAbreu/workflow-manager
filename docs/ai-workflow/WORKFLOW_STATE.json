@@ -9605,12 +9605,12 @@
       "registry_path": "docs/ai-workflow/registry/read-only-test-git-isolation-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/read-only-test-git-isolation-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "SELF_REVIEWING_IMPLEMENTATION",
+      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
       "plan_revision": 3,
-      "implementation_revision": null,
+      "implementation_revision": 1,
       "functional_review_round": null,
       "base_commit": "2d1d5af389130d63e9b250d81c923e2c4dc8f81d",
-      "reviewed_implementation_head": null,
+      "reviewed_implementation_head": "762f4b3f301a9d9c681c431248998d75981c9c23",
       "current_checkpoint_id": null,
       "last_completed_checkpoint_id": "CP2",
       "checkpoints": {
@@ -9749,8 +9749,8 @@
           "external": 0
         }
       },
-      "state_revision": 17,
-      "last_transition": "2026-10-20T19:43:48Z",
+      "state_revision": 18,
+      "last_transition": "2026-10-20T19:59:47Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
