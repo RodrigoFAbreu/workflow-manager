@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "work_item_id": "test-git-isolation-followups",
+  "requirements": {
+    "R1": {
+      "description": "Empty components of an inherited GIT_CEILING_DIRECTORIES are kept when re-joining (isolation.ceiling_with, support.no_repository_above)",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R2": {
+      "description": "no_repository_above counts root/.git for a target at or below root (the product's walk does)",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R3": {
+      "description": "The TestAncestorRepositoryIsolation subprocess has a timeout",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R4": {
+      "description": "Test code only: src/ and tools/ unchanged, so the pull request is test: and releases nothing",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    }
+  }
+}

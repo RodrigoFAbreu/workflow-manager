@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "work_item_id": "test-git-isolation-followups",
+  "plan_revision": 2,
+  "checkpoints": [
+    {
+      "id": "CP1",
+      "name": "The three #74 test-helper fixes, each with a test that fails without it",
+      "depends_on": [],
+      "complexity": 2,
+      "session_target": 1
+    }
+  ]
+}
