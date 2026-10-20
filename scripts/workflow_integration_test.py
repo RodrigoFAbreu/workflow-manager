@@ -3601,6 +3601,13 @@ class TestGenerationDiagnosticMetadataCallerWordingConformance(unittest.TestCase
         self.assertIn("/review-plan", section)
         self.assertIn("/review-implementation", section)
 
+    def test_review_protocol_states_the_leading_trailing_and_wrapping_placeholder_rule(self):
+        """workflow-2.18.1, 31b: the document states the rule `_is_placeholder` enforces."""
+        text = (_repo_root() / "docs" / "ai-workflow" / "REVIEW_PROTOCOL.md").read_text()
+        self.assertIn(
+            "leading, trailing and wrapping punctuation or symbols on `None` are ignored",
+            " ".join(text.split()))
+
     def test_worktree_or_head_mismatch_docstring_is_non_exclusive(self):
         repo_root = _repo_root()
         text = (repo_root / "scripts" / "workflow_fingerprint.py").read_text()
@@ -7450,7 +7457,12 @@ class TestOperatorReferenceMatchesReality(unittest.TestCase):
         equality is derived; the count is a hardcoded tripwire."""
         text = _operator_reference_text()
         self.assertNotIn("not\nhand-maintained", text)
-        self.assertIn("assertEqual(len(on_disk), 16)", text)
+        self.assertIn("assertEqual(len(on_disk), 22)", text)
+        for stale in ("holds 16", "all 16", "number 16", "roster of 16", "len(on_disk), 16"):
+            self.assertNotIn(stale, text, stale)
+        for current in ("holds 22 files today, and all 22", "number 22 itself",
+                        "len(on_disk), 22", "roster of 22"):
+            self.assertIn(current, text, current)
         self.assertIn("hardcoded tripwire", text)
         # And the claim it makes about the derivation is itself true.
         sections = re.findall(r"(?m)^### `/([a-z0-9-]+)", text)
@@ -8406,6 +8418,14 @@ class TestCommandFilesContractDocument(unittest.TestCase):
     def _doc(self) -> str:
         return (_repo_root() / "docs" / "ai-workflow" / "COMMAND_FILES.md").read_text()
 
+    def test_the_confirmation_and_empty_case_clauses_are_pinned(self):
+        """64b and 64f: a later edit cannot silently undo them."""
+        doc = " ".join(self._doc().split())
+        for needle in ("under every harness, is the literal-confirmation check",
+                       "An adapter that cannot tell refuses the command",
+                       "(except at the plan stage, where the id is required)"):
+            self.assertIn(needle, doc, needle)
+
     def _frontmatter(self, filename: str) -> dict[str, str]:
         lines = _command_text(filename).split("\n")
         self.assertEqual(lines[0], "---", filename)
@@ -8565,6 +8585,32 @@ class TestHarnessNeutralCommandBodies(unittest.TestCase):
         doc = (_repo_root() / "docs" / "ai-workflow" / "COMMAND_FILES.md").read_text()
         self.assertIn("SlashCommand", doc)
         self.assertIn("changelog", doc)
+
+
+class TestReviewProtocolBaselineClauses(unittest.TestCase):
+    """39c to 39f: the baseline sentences of `REVIEW_PROTOCOL.md`."""
+
+    def _doc(self) -> str:
+        text = (_repo_root() / "docs" / "ai-workflow" / "REVIEW_PROTOCOL.md").read_text()
+        return " ".join(text.split())
+
+    def test_equal_ids_read_as_cannot_be_identified(self):
+        self.assertIn("the round is identified and there is no change since it, and the section "
+                      'reads "cannot be identified"', self._doc())
+
+    def test_plan_stage_protected_paths_is_a_sorted_list(self):
+        self.assertIn("at the plan stage `classification.protected_paths` is a sorted list", self._doc())
+        self.assertIn("at the implementation stage it is an object of path to reason", self._doc())
+
+    def test_implementation_stage_known_to_state_rule(self):
+        doc = self._doc()
+        self.assertIn("a `REVISE` record is known to the item's state when its revision is at most "
+                      "`implementation_revision`", doc)
+        self.assertIn("an `APPROVE` record when the manual ledger entry's `bundle_id` equals the record's", doc)
+
+    def test_union_diff_shows_earlier_excluded_edits(self):
+        self.assertIn("for a newly protected path that union diff also shows the edits made while "
+                      "the path was excluded", self._doc())
 
 
 if __name__ == "__main__":

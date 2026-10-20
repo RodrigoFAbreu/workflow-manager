@@ -32,6 +32,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from typing import NamedTuple
 
 VERSION = 1
 MAX_BYTES = 256 * 1024
@@ -168,8 +169,10 @@ def _check_plain(value: str, line: int, *, flow: bool = False) -> str:
     for ch in _PLAIN_FORBIDDEN:
         if ch in value:
             raise BacklogFormatError(line, f"a plain value cannot contain `{ch}`; quote it")
-    if flow and ":" in value:
-        raise BacklogFormatError(line, "a plain entry of a flow list cannot contain `:`; quote it")
+    if flow:
+        for ch in ":?":
+            if ch in value:
+                raise BacklogFormatError(line, f"a plain entry of a flow list cannot contain `{ch}`; quote it")
     return value
 
 
@@ -458,28 +461,30 @@ def _find_cycle(items: list[dict]) -> list[str] | None:
              for it in items if isinstance(it.get("id"), str)}
     state: dict[str, int] = {}
     stack: list[str] = []
-
-    def visit(node: str) -> list[str] | None:
-        state[node] = 1
-        stack.append(node)
-        for dep in graph.get(node, []):
-            if dep not in graph:
-                continue
-            if state.get(dep) == 1:
-                return stack[stack.index(dep):] + [dep]
-            if dep not in state:
-                found = visit(dep)
-                if found:
-                    return found
-        stack.pop()
-        state[node] = 2
-        return None
-
-    for node in graph:
-        if node not in state:
-            found = visit(node)
-            if found:
-                return found
+    # Iterative depth-first search (a long chain must not exhaust the interpreter's
+    # recursion limit): each frame is a node and its next dependency to try.
+    for root in graph:
+        if root in state:
+            continue
+        state[root] = 1
+        stack.append(root)
+        frames = [(root, iter(graph[root]))]
+        while frames:
+            node, deps = frames[-1]
+            for dep in deps:
+                if dep not in graph:
+                    continue
+                if state.get(dep) == 1:
+                    return stack[stack.index(dep):] + [dep]
+                if dep not in state:
+                    state[dep] = 1
+                    stack.append(dep)
+                    frames.append((dep, iter(graph[dep])))
+                    break
+            else:
+                frames.pop()
+                stack.pop()
+                state[node] = 2
     return None
 
 
@@ -817,11 +822,14 @@ def declared_paths(repo_root) -> list[str]:
 
 
 def protected_conflicts(paths, declaration) -> list[tuple[str, str]]:
-    """D-Classify's shared predicate: the `(stage, path)` pairs among `paths`
-    that an artifact `declaration` (its `plan_stage` and `implementation_stage`
-    halves) classifies as *protected*. A protected entry wins over an excluded
-    one, so such a path could not be edited by acceptance."""
+    """D-Classify's shared predicate: the `(stage, path)` pairs among `paths`,
+    plus, for any path under the item-page prefix, the exact protected paths and
+    protected prefixes under that prefix, that an artifact `declaration` (its
+    `plan_stage` and `implementation_stage` halves) classifies as *protected*.
+    A protected entry wins over an excluded one, so such a path could not be
+    edited by acceptance."""
     found = []
+    under_pages = any(path.startswith(DETAIL_PREFIX) for path in paths)
     for stage in ("plan_stage", "implementation_stage"):
         half = declaration.get(stage) or {}
         exact = set(half.get("protected_paths") or ())
@@ -829,6 +837,13 @@ def protected_conflicts(paths, declaration) -> list[tuple[str, str]]:
         for path in paths:
             if path in exact or (prefixes and path.startswith(prefixes)):
                 found.append((stage, path))
+        if under_pages:
+            # An item page can be any file under the prefix, not only the representative one.
+            found.extend((stage, path) for path in sorted(exact)
+                         if path.startswith(DETAIL_PREFIX) and (stage, path) not in found)
+            found.extend((stage, prefix) for prefix in prefixes
+                         if prefix.startswith(DETAIL_PREFIX) and prefix != DETAIL_PREFIX
+                         and (stage, prefix) not in found)
     return found
 
 
@@ -904,9 +919,15 @@ def _publish_mode(path: Path) -> int:
     return 0o666 & ~umask
 
 
-def _write_atomic(path: Path, data: bytes) -> None:
+class _Snapshot(NamedTuple):
+    data: bytes
+    mode: int
+
+
+def _write_atomic(path: Path, data: bytes, mode: int | None = None) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    mode = _publish_mode(path)
+    if mode is None:
+        mode = _publish_mode(path)
     fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=".backlog-")
     try:
         with os.fdopen(fd, "wb") as handle:
@@ -921,16 +942,22 @@ def _write_atomic(path: Path, data: bytes) -> None:
         raise
 
 
-def _snapshot(path: Path, shown: str) -> bytes | None:
-    """The bytes of a regular file, or `None` when nothing is there. Anything
-    else at the path is refused before a restore could ever remove it."""
+def _snapshot(path: Path, shown: str) -> _Snapshot | None:
+    """The bytes and permission bits of a regular file, or `None` when nothing
+    is there. Anything else at the path is refused before a restore could ever
+    remove it."""
     try:
         mode = os.lstat(path).st_mode
     except FileNotFoundError:
         return None
     if not stat.S_ISREG(mode):
         raise _declaration_error(f"`backlog.roadmap` `{shown}` exists and is not a regular file")
-    return path.read_bytes()
+    return _Snapshot(path.read_bytes(), stat.S_IMODE(mode))
+
+
+def _file_snapshot(path: Path, raw: bytes) -> _Snapshot:
+    """The backlog file's already-read bytes with its permission bits."""
+    return _Snapshot(raw, stat.S_IMODE(os.stat(path).st_mode))
 
 
 def _clear(path: Path) -> None:
@@ -944,7 +971,7 @@ def _clear(path: Path) -> None:
         pass
 
 
-def _restore(path: Path, snapshot: bytes | None) -> None:
+def _restore(path: Path, snapshot: _Snapshot | None) -> None:
     if snapshot is None:
         _clear(path)
         return
@@ -952,11 +979,13 @@ def _restore(path: Path, snapshot: bytes | None) -> None:
         _clear(path)
     else:
         try:
-            if path.read_bytes() == snapshot:
+            if path.read_bytes() == snapshot.data:
+                if stat.S_IMODE(os.stat(path).st_mode) != snapshot.mode:
+                    os.chmod(path, snapshot.mode)  # only the mode changed
                 return  # untouched: a refusal before any mutation rewrites nothing
         except OSError:
             pass
-    _write_atomic(path, snapshot)
+    _write_atomic(path, snapshot.data, snapshot.mode)
 
 
 def _split_lines(raw: bytes) -> list[bytes]:
@@ -1226,7 +1255,7 @@ def cmd_accept(repo_root, item_id: str, release: str | None = None) -> dict:
         new_data, _ = parse_and_validate(new_bytes, repo_root, declaration["file"])
         if not declaration["generator"]:
             _builtin_replaceable(_page_state(repo_root, declaration), declaration, False)
-        snapshots = (raw, _snapshot(page_path, declaration["roadmap"]))
+        snapshots = (_file_snapshot(file_path, raw), _snapshot(page_path, declaration["roadmap"]))
         if new_bytes != raw:
             _write_atomic(file_path, new_bytes)
         _generate_page(repo_root, declaration, new_data, new_bytes)
@@ -1253,11 +1282,12 @@ def cmd_generate(repo_root, replace: bool = False) -> dict:
         return {"declared": False}
     raw, data, _ = _read_backlog(repo_root, declaration)
     file_path, page_path = _abs(repo_root, declaration["file"]), _abs(repo_root, declaration["roadmap"])
+    file_snapshot = _file_snapshot(file_path, raw)
     snapshot = _snapshot(page_path, declaration["roadmap"])
     try:
         kind = _generate_page(repo_root, declaration, data, raw, replace=replace)
     except BaseException:
-        _restore(file_path, raw)
+        _restore(file_path, file_snapshot)
         _restore(page_path, snapshot)
         raise
     return {"declared": True, "generated": declaration["roadmap"], "generator": kind}

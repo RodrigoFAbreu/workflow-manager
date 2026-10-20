@@ -7192,6 +7192,11 @@ class TestSameContentRepublicationEndToEnd(unittest.TestCase):
             # satisfying this assertion for the wrong reason.
             self.assertIn(s2, str(ctx.exception))
             self.assertIn("reviewed_implementation_head", str(ctx.exception))
+            # workflow-2.18.1, 52f: the refusal ends with the next step.
+            message = str(ctx.exception)
+            self.assertIn("its own commit", message)
+            self.assertIn("update to that release or later", message)
+            self.assertTrue(message.endswith("and run the command again"), message)
 
     def test_terminal_commit_with_wrong_target_phase_refuses(self):
         """Item 276 (`WF8c`): an otherwise well-formed ordinary `T` that
@@ -18842,6 +18847,68 @@ class TestManualVerdictIngestCrashWindow(unittest.TestCase):
                 self.assertEqual(_harness.read_state(repo)["work_items"][_CP4_WI]["state_revision"], revision)
 
 
+class TestStateTransactionOnFailure(unittest.TestCase):
+    """workflow-2.18.1, 39a: `on_failure` runs inside the lock, on any failure, never on success."""
+
+    def _seed(self, repo):
+        path = repo.root / ws.DEFAULT_STATE_PATH
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(_base_state(wi=_base_work_item())))
+        return path
+
+    @staticmethod
+    def _pin(state):
+        return ws.record_technical_review_block_pin(state, "wi", bundle_id="b1", review_content_id="c1", now="t1")
+
+    def _run(self, repo, mutator, **kwargs):
+        calls = []
+
+        def on_failure():
+            calls.append(ws.held_primitives())
+
+        try:
+            ws.state_transaction(repo.root, mutator, on_failure=on_failure, **kwargs)
+        except BaseException as exc:  # noqa: BLE001 - the test inspects what propagates
+            return calls, exc
+        return calls, None
+
+    def test_each_failure_point_runs_it_inside_the_lock_and_the_original_exception_propagates(self):
+        def raising(exc):
+            def hook(*_args):
+                raise exc
+            return hook
+
+        cases = {
+            "mutator": (raising(RuntimeError("m")), {}, mock.patch.object(ws, "_publish_state_file")),
+            "before_publish": (self._pin, {"before_publish": raising(RuntimeError("m"))},
+                               mock.patch.object(ws, "_publish_state_file")),
+            "interrupt in before_publish": (self._pin, {"before_publish": raising(KeyboardInterrupt())},
+                                            mock.patch.object(ws, "_publish_state_file")),
+            "publish": (self._pin, {}, mock.patch.object(ws, "_publish_state_file", side_effect=RuntimeError("m"))),
+            "monotonicity": (self._pin, {}, mock.patch.object(
+                ws, "_assert_technical_review_block_pins_monotonic", side_effect=RuntimeError("m"))),
+        }
+        for name, (mutator, kwargs, patch) in cases.items():
+            with self.subTest(failure=name), ScratchRepo() as repo:
+                self._seed(repo)
+                with patch:
+                    calls, exc = self._run(repo, mutator, **kwargs)
+                self.assertEqual(len(calls), 1)
+                self.assertIn("2", [held for held, _key in calls[0]])
+                self.assertIsInstance(exc, (RuntimeError, KeyboardInterrupt))
+                self.assertEqual(ws.held_primitives(), ())
+
+    def test_a_failing_on_failure_is_suppressed_and_a_success_never_calls_it(self):
+        with ScratchRepo() as repo:
+            self._seed(repo)
+            with self.assertRaisesRegex(RuntimeError, "original"):
+                ws.state_transaction(
+                    repo.root, lambda state: (_ for _ in ()).throw(RuntimeError("original")),
+                    on_failure=lambda: (_ for _ in ()).throw(ValueError("undo")))
+            calls, exc = self._run(repo, self._pin)
+            self.assertEqual((calls, exc), ([], None))
+
+
 class TestStateTransactionBeforePublish(unittest.TestCase):
     def _seed(self, repo, **item):
         path = repo.root / ws.DEFAULT_STATE_PATH
@@ -20061,7 +20128,13 @@ class TestCommitPendingApplyingReviewFeedbackEntry(unittest.TestCase):
             # D-Downgrade: the item's own pending state, once committed, leaves no hunk
             # for it; only the other item's still-pending ledger remains in the diff.
             diff = _git_out(repo, ["diff", "HEAD", "--", STATE_REL_PATH])
-            self.assertNotIn(self.WID, diff)
+            # Exactly the other item's ledger hunk: its `plan_review_stages` line gains a
+            # comma and the ledger block follows; no changed line names the committed item.
+            ledger_block = json.dumps({"optional_findings": ledger}, indent=2).splitlines()[1:-1]
+            self.assertEqual(
+                [line for line in diff.splitlines() if line[:1] in "+-" and line[:3] not in ("+++", "---")],
+                ['-      "plan_review_stages": null', '+      "plan_review_stages": null,']
+                + ["+    " + line for line in ledger_block])
             self.assertIn('"phase": "IMPLEMENTING"', diff)  # the other item's context
         with ScratchRepo() as repo:
             self._setup(repo, self.LOCAL, self.APPLYING, working_extra={"optional_findings": ledger})
@@ -20469,6 +20542,28 @@ class TestStageBaselineRecording(unittest.TestCase):
             _harness.write_state(repo, state)
             self.assertIsNone(fingerprint.read_stage_baseline(repo.root, _CP4_WI, _CP5_PLAN_ROLE))
 
+    def test_a_manual_revise_ingest_gives_the_next_bundle_a_manual_basis(self):
+        """End to end: a real manual `REVISE` ingest, an edit of the plan, and the real
+        generator. The ingest's baseline is what gives `CHANGES_SINCE_REVIEW.md`'s manual
+        section a basis; without it the section is the "not available" fallback."""
+        def manual_section(repo):
+            text = (repo.root / ".ai-review" / _CP4_WI / "CHANGES_SINCE_REVIEW.md").read_text()
+            head = f"## {_CP5_PLAN_ROLE}\n"
+            self.assertIn(head, text)
+            return text.split(head, 1)[1].split("\n## LOCAL_MODEL_PLAN_REVIEW\n", 1)[0]
+
+        with _harness.ScratchRepo() as repo:
+            content_id, bundle_id = _cp5_plan_at_manual(repo)
+            self._ingest(repo, "plan", "REVISE", content_id, bundle_id, _CP5_PLAN_ROLE)
+            self.assertTrue((self._role_dir(repo, _CP5_PLAN_ROLE) / "BASELINE.json").is_file())
+            plan_path = repo.root / "docs" / "ai-workflow" / "WORKFLOW_V2_PLAN.md"
+            plan_path.write_text(plan_path.read_text() + "line added after the manual review\n")
+            _harness.generate_plan_bundle(repo)
+            section = manual_section(repo)
+            self.assertIn(f"previous_review_content_id: {content_id}", section)
+            self.assertIn("+line added after the manual review", section)
+            self.assertNotIn("not available", section)
+
     def test_a_plan_baseline_survives_a_plan_revision_bump(self):
         with _harness.ScratchRepo() as repo:
             content_id, bundle_id = _cp5_plan_at_manual(repo)
@@ -20527,6 +20622,28 @@ class TestStageBaselineRecording(unittest.TestCase):
                     with self.assertRaises(OSError):
                         _cp5_ingest(repo, stage, text)
                 self.assertFalse(self._role_dir(repo, role).exists())
+
+    def test_the_undo_of_a_failed_ingest_runs_inside_the_state_lock(self):
+        """workflow-2.18.1, 39a: nothing can write a same-revision baseline between the failure and the undo."""
+        for stage, (build, role, _writer) in _CP5_STAGES.items():
+            for failure in (OSError("boom"), KeyboardInterrupt()):
+                with self.subTest(stage=stage, failure=type(failure).__name__), _harness.ScratchRepo() as repo:
+                    content_id, bundle_id = build(repo)
+                    text = _cp4_verdict("REVISE", rcid=content_id, bundle=bundle_id, base=repo.base, role=role)
+                    held, real_remove = [], fingerprint.remove_stage_baseline
+
+                    def remove(*args, **kwargs):
+                        if "only_state_revision" in kwargs:  # the undo, not the recorder's own replace
+                            held.append(ws.held_primitives())
+                        return real_remove(*args, **kwargs)
+
+                    with mock.patch.object(ws, "_store_manual_verdict", side_effect=failure), \
+                            mock.patch.object(fingerprint, "remove_stage_baseline", side_effect=remove), \
+                            self.assertRaises(type(failure)):
+                        _cp5_ingest(repo, stage, text)
+                    self.assertEqual(len(held), 1)
+                    self.assertIn("2", [name for name, _key in held[0]])
+                    self.assertFalse(self._role_dir(repo, role).exists())
 
     def test_the_directory_changes_no_identifier(self):
         with _harness.ScratchRepo() as repo:
@@ -20765,6 +20882,38 @@ class TestReviewRoundCounts(unittest.TestCase):
                     call(wrong_phase, "APPROVE")
                 self.assertEqual(wrong_phase, before)
 
+    def test_a_duplicate_ingest_and_a_stale_content_id_change_nothing(self):
+        manual = {
+            "plan_external": (ws.record_manual_plan_review, "MANUAL_EXTERNAL_PLAN_REVIEW"),
+            "implementation_external": (ws.record_manual_implementation_review,
+                                        "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW"),
+        }
+        for name, stage, role, build, call in _count_writers():
+            if name not in manual:
+                continue
+            writer, feedback_role = manual[name]
+
+            def ingest(state, feedback_id=_RC):
+                return writer(state, "wi", verdict="APPROVE", bundle_id="b1", round=1, now="t1",
+                              current_review_content_id=_RC, feedback_role=feedback_role,
+                              feedback_review_content_id=feedback_id)
+
+            counts = _counts(dict(_ZERO_PAIR), dict(_ZERO_PAIR))
+            with self.subTest(writer=name, case="duplicate"):
+                once = call(_base_state(wi=build(review_round_counts=counts)), "APPROVE")
+                self.assertEqual(once["work_items"]["wi"]["review_round_counts"][stage][role], 1)
+                before = copy.deepcopy(once)
+                with self.assertRaises(Exception):
+                    ingest(once)  # the same call on the post-state
+                self.assertEqual(once, before)
+            with self.subTest(writer=name, case="stale content id"):
+                state = _base_state(wi=build(review_round_counts=counts))
+                before = copy.deepcopy(state)
+                with self.assertRaises(Exception):
+                    ingest(state, feedback_id="stale-" + _RC)
+                self.assertEqual(state, before)
+                self.assertEqual(state["work_items"]["wi"]["review_round_counts"], counts)
+
     def test_rounds_accumulate_across_fix_rounds_and_nothing_resets(self):
         item = _v21_work_item(governing_workflow_version="2.2", state_revision=1,
                               review_round_counts=_counts(dict(_ZERO_PAIR), dict(_ZERO_PAIR)))
@@ -20867,8 +21016,43 @@ class TestReviewRoundCounts(unittest.TestCase):
                          ws.initial_review_round_counts(ws.default_config()["default_workflow_version"]))
 
     def test_the_key_is_outside_both_content_identities(self):
-        source = (Path(__file__).resolve().parent / "workflow_fingerprint.py").read_text()
-        self.assertNotIn("review_round_counts", source)
+        """In one repository, the plan-stage and implementation-stage `review_content_id` are
+        unchanged when the item's `review_round_counts` changes from the initial value to a
+        counted one. (One repository, because the base commit is part of the identity; and
+        `bundle_id` is not compared: the bundle ships a copy of the state file, so it covers
+        the counter by design -- the approval binds `review_content_id`.)"""
+        counted = _counts({"local": 3, "external": 1}, {"local": 2, "external": 0})
+        initial = ws.initial_review_round_counts("2.2")
+        self.assertNotEqual(initial, counted)
+
+        def set_counts(repo, counts):
+            state = _harness.read_state(repo)
+            state["work_items"][_CP4_WI]["review_round_counts"] = counts
+            _harness.write_state(repo, state)
+
+        def plan_id(repo):
+            return fingerprint.compute_review_content_id_plan_stage_for_work_item(repo.root, _CP4_WI)[0]
+
+        def implementation_id(repo):
+            item = _harness.read_state(repo)["work_items"][_CP4_WI]
+            return ws.approval_review_content_id(
+                repo.root, stage="implementation", base_commit=item["base_commit"], work_item_type="process",
+                work_item_id=_CP4_WI, head="HEAD", artifacts_path=fingerprint.artifacts_path_for_work_item(_CP4_WI))
+
+        with _harness.ScratchRepo() as repo:
+            _harness.seed_bundle_item(repo, governing_workflow_version="2.2", phase="PLANNING",
+                                      review_round_counts=initial)
+            before = plan_id(repo)
+            set_counts(repo, counted)
+            self.assertEqual(plan_id(repo), before)
+        with _harness.ScratchRepo() as repo:
+            _harness.seed_bundle_item(repo, governing_workflow_version="2.2",
+                                      phase="SELF_REVIEWING_IMPLEMENTATION", review_round_counts=initial)
+            repo.commit("implement", filename=_harness.BUNDLE_ITEM_IMPLEMENTATION_PATH)
+            _harness.generate_implementation_bundle(repo)
+            before = implementation_id(repo)
+            set_counts(repo, counted)
+            self.assertEqual(implementation_id(repo), before)
 
     def test_the_four_commit_field_sets_admit_the_key(self):
         for name in ("ORDINARY_BUNDLE_GENERATION_RECORD_FIELDS", "RECOVERED_BUNDLE_GENERATION_RECORD_FIELDS",
@@ -20888,6 +21072,25 @@ class TestReviewRoundCounts(unittest.TestCase):
             self.assertNotIn("review_round_unknown", getattr(ws, name))
 
 
+# The four commit-field sets exactly as published in 2.14.0 (`workflow_state.py` at v2.14.0),
+# frozen as literals so the downgrade tests do not derive "2.14.0" from the current sets.
+_RELEASE_2_14_0_COMMIT_FIELDS = {
+    "ORDINARY_BUNDLE_GENERATION_RECORD_FIELDS": frozenset({
+        "phase", "reviewed_implementation_head", "implementation_revision", "state_revision",
+        "last_transition", "implementation_review_stages", "gate_evidence", "reopenings",
+        "optional_findings"}),
+    "RECOVERED_BUNDLE_GENERATION_RECORD_FIELDS": frozenset({
+        "phase", "state_revision", "last_transition", "implementation_review_stages",
+        "gate_evidence", "reopenings", "optional_findings"}),
+    "REVIEW_STAGE_WRITE_COMMIT_FIELDS": frozenset({
+        "phase", "state_revision", "last_transition", "implementation_review_stages",
+        "gate_evidence", "reopenings", "optional_findings"}),
+    "TECHNICAL_APPROVAL_COMMIT_FIELDS": frozenset({
+        "technical_approval", "phase", "state_revision", "last_transition",
+        "implementation_review_stages", "gate_evidence", "reopenings", "optional_findings"}),
+}
+
+
 class TestReviewRoundCountsDowngrade(unittest.TestCase):
     """`D-Downgrade`, consequence 2: a counter-bearing recovered generation record
     in the provenance interval is accepted by 2.15.0's helpers and refused by
@@ -20898,10 +21101,14 @@ class TestReviewRoundCountsDowngrade(unittest.TestCase):
         spec = importlib.util.spec_from_file_location("workflow_state_as_2_14_0", Path(ws.__file__))
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
-        for name in ("ORDINARY_BUNDLE_GENERATION_RECORD_FIELDS", "RECOVERED_BUNDLE_GENERATION_RECORD_FIELDS",
-                     "REVIEW_STAGE_WRITE_COMMIT_FIELDS", "TECHNICAL_APPROVAL_COMMIT_FIELDS"):
-            setattr(module, name, getattr(module, name) - {"review_round_counts"})
+        for name, fields in _RELEASE_2_14_0_COMMIT_FIELDS.items():
+            setattr(module, name, fields)
         return module
+
+    def test_2_14_0_field_sets_are_the_current_ones_minus_the_counter_key(self):
+        for name, frozen in _RELEASE_2_14_0_COMMIT_FIELDS.items():
+            with self.subTest(name=name):
+                self.assertEqual(getattr(ws, name), frozen | {"review_round_counts"})
 
     def _scenario(self, repo, *, tamper=None):
         _write_test_artifacts_declaration(repo, "wi")

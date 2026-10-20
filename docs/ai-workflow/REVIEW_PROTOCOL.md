@@ -355,7 +355,10 @@ findings are the baseline's stored verdict text (never `REVIEW_FEEDBACK.md`),
 at the plan stage the diff is the baseline's pin against the staging pin, and
 at the implementation stages it is the baseline's reviewed head against the
 working tree over the union of the recorded and the current protected
-classifications. A manual round with no valid baseline (the first one after
+classifications; for a newly protected path that union diff also shows the edits made while
+the path was excluded, which is the safe direction. When the baseline's `review_content_id` equals this generation's, the round is
+identified and there is no change since it, and the section reads "cannot be
+identified". A manual round with no valid baseline (the first one after
 updating to 2.13.0, or after `review-baselines/` was deleted) is a full review.
 The file stays outside `bundle_id` and `review_content_id` and is a reviewer
 aid, never a gate: since every `APPROVE` is a full review, a wrong baseline can
@@ -389,7 +392,11 @@ returns the record only when it is consistent with itself and the repository:
 the key set and types, the item and role, `VERDICT.md`'s header, the content id
 recomputed from the copied `pin/` (plan stage) or from the reachable recorded
 head (implementation stage) with the record's own revision and classification,
-and the id being known to the item's state; anything else is `None`, the
+and the id being known to the item's state (at the plan stage `classification.protected_paths`
+is a sorted list, the plan-stage metadata carrying no reasons; at the implementation stage it is
+an object of path to reason; at the implementation stage a `REVISE` record is known to the
+item's state when its revision is at most `implementation_revision`, and an `APPROVE` record
+when the manual ledger entry's `bundle_id` equals the record's); anything else is `None`, the
 explicit full-review fallback.
 
 The baseline is a reviewer aid, never a gate: it is outside `bundle_id` and
@@ -761,8 +768,9 @@ the whole bundle: a header line `Review scope: full|changes` is optional, and
 `APPROVE`'s header has exactly one `Review scope: full` line or none; any
 other or conflicting value is refused. A finding is a list item
 or a `### ` heading in its section; write `None.` in a section with no
-finding (trailing punctuation or symbols on `None` are ignored, and an entry
-made only of punctuation or symbols is also a placeholder). The shape check
+finding (leading, trailing and wrapping punctuation or symbols on `None` are
+ignored, and an entry made only of punctuation or symbols is also a
+placeholder). The shape check
 refuses an `APPROVE` that lists a Blocking finding; it does not refuse an
 `APPROVE` whose Important section holds an entry. By the severity meaning that
 is the reviewer's own contradiction: the reviewer should reissue it as a
