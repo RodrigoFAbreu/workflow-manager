@@ -57,4 +57,4 @@ The full test selection runs the newest tested release's frozen suites (the pins
 2. [`RELEASING.md`](RELEASING.md): how the Manager is versioned and released, how a Workflow release is pinned, and installing without a checkout.
 3. [`MIGRATION.md`](MIGRATION.md): the historical record of the first five packages and how they came to be.
 4. [`defects/`](defects/): upstream defects found, documented rather than repaired.
-5. [`../CLAUDE.md`](../CLAUDE.md): the hard rules for working in this repository, including the downgrade posture.
+5. [`../CLAUDE.md`](../CLAUDE.md): the hard rules for working in this repository; the per-release downgrade posture is in [DOWNGRADE_POSTURE.md](DOWNGRADE_POSTURE.md).
