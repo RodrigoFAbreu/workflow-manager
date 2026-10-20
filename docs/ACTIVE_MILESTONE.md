@@ -41,12 +41,24 @@ All seven pass at `8e2f90f`. `git diff 2d44ed1 -- src tools` is empty.
 
 ## Current checkpoint
 
-**Implementation complete; self-review and the full gate done.** CP1 is
-complete and the phase is `SELF_REVIEWING_IMPLEMENTATION`. Self-review found no
-code defect; it added the red-first evidence above and this record. Full gate
-`python3 tests/run_all.py` at `8e2f90f` -> exit 0 (full selection, 8 workers,
-2242/2242 units, 14615 tests, `selection_digest 40b010f9...`, `tests_digest
-313c8f8c...`). Next: the implementation review bundle.
+**Milestone complete.** `test-git-isolation-followups` reached
+`MILESTONE_COMPLETE` through `/satisfy-gate acceptance` on 2026-10-20, by
+policy (the default gate policy; no person's decision), and
+`active_work_item_id` is unchanged (null).
+- **Checkpoints:** CP1 is complete.
+- **Functional evidence:** flows tf-f1 to tf-f4 passed at `a72cf90` (run
+  `manager-orchestrator:runs/tf-functional-r1`); the optional full gate (flow 5)
+  is covered by the pull request's CI full run.
+- **Pull request:** #76, CI green at `a72cf90` (the Workflow's own `gh` query).
+- **Findings:** twelve Optional findings dispositioned (five fixed, seven
+  follow-up in #74); record in
+  `docs/milestones/completed/test-git-isolation-followups-findings.md`.
+
+## Next action
+
+No roadmap item is ready for planning: item 10 is done, items 5 and 6 wait on
+the Controller, and the rest is in the roadmap's Later list. Ask the owner what
+to plan next.
 
 ## Functional review checklist
 
