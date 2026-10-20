@@ -1,5 +1,5 @@
 ---
-description: Approve the plan or implementation stage for the active (or named) work item. User-only -- never invoked by Claude autonomously.
+description: Approve the plan or implementation stage for the active (or named) work item. User-only -- never invoked by the agent autonomously.
 argument-hint: <plan|implementation> [work-item-id]
 disable-model-invocation: true
 state_writer: true
@@ -37,10 +37,7 @@ command's steps by number. This command stays the human path for every gate in
 either mode, unchanged, and records `EXTERNAL_APPROVE` or `USER_OVERRIDE`
 exactly as before; it never writes `POLICY_SATISFIED`.
 
-**This command is user-only by construction.** `disable-model-invocation:
-true` is the primary, harness-enforced control (blocks the SlashCommand
-tool). Claude must never invoke it on the user's own behalf, including as a
-step of another command's execution, independent of that flag.
+**This command is user-only by construction.** The literal-confirmation check below is the control this command carries itself, under every harness; `disable-model-invocation: true` is an additional layer where the harness enforces it, and it does not replace the check. The agent must never invoke this command on the user's behalf, including as a step of another command's execution, whatever the flag says.
 
 **User-only guard, mechanism (2)**: refuse to write anything unless the
 user's own current-turn message supplies literal confirmation text naming
@@ -48,23 +45,8 @@ the exact `work_item_id` and the exact stage (`plan`/`implementation`)
 being approved (`workflow_state.validate_user_confirmation`). Never
 fabricate, infer, or carry over this text from a prior turn.
 
-**Verified coverage of mechanism (1)** (`docs/ai-workflow/WORKFLOW_V2_PLAN.md`
-D2, resolves `OPUS-R6-010`): this installation's own bundled frontmatter
-reference documents `disable-model-invocation: true` as blocking only "the
-SlashCommand tool" -- it does not name the Skill exposure path at all. The
-installed Claude Code changelog separately confirms skill-aware handling of
-`disable-model-invocation: true` (a fix for skills with that flag failing
-when invoked via `/<skill>` mid-message), suggesting real coverage there
-too. A same-session empirical test was inconclusive: this harness's model
-tool surface exposes commands to Claude exclusively through the `Skill`
-tool (no distinct `SlashCommand` tool is present in the available tool
-set), but the skill-routing table is fixed at session start, so a
-newly-flagged command reliably returns "Unknown skill" whether or not the
-flag actually gates it -- a decisive test requires invoking a flagged
-command via `Skill` from a **fresh session** after this file lands. Until
-that fresh-session result is recorded, treat mechanism (2) above as the
-actually load-bearing control for the Skill exposure path, not mechanism
-(1) alone.
+How the `disable-model-invocation` flag is enforced differs by harness; the harness notes in
+`docs/ai-workflow/COMMAND_FILES.md` record what is known per harness.
 
 0. **Dual-mode branch** (Workflow v2.1, `WF4a-ii`; widened workflow-2.5.0 to
    a third `governing_workflow_version` branch): resolve the target work

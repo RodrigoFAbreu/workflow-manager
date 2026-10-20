@@ -19832,7 +19832,7 @@ class TestResumeImplementationCommandFile(unittest.TestCase):
                          "assert_gate_policy_fields_unchanged_or_tightened", "AmendmentInFlightError",
                          "StalePlanApprovalRegistryReadError", "the word `resumption`",
                          "Never fabricate, infer or carry over this text from a previous turn",
-                         "Claude must never invoke this command on the user's behalf",
+                         "The agent must never invoke this command on the user's behalf",
                          "never from the confirmation text"):
             self.assertIn(sentence, text)
 
