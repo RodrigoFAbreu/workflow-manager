@@ -10236,7 +10236,7 @@
       "registry_path": "docs/ai-workflow/registry/test-git-isolation-followups-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/test-git-isolation-followups-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "AWAITING_FUNCTIONAL_REVIEW",
       "plan_revision": 2,
       "implementation_revision": 1,
       "functional_review_round": null,
@@ -10341,7 +10341,108 @@
           "workflow_release": "2.18.1"
         }
       },
-      "technical_approval": null,
+      "technical_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "b5afbd40b25906dff5a7ff64573ff1178456c435eb9c55ebc9d88af7671b34d8",
+        "approved_review_content_id": "13f13f350f99cec268c593fb880d2197d1070b9f15da5b91a460806984aef6be",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/registry/test-git-isolation-followups-artifacts.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "1d56019544bbc6c521c9bdd73813fda220f24c18"
+          },
+          {
+            "path": "tests/parallel/isolation.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "b104e0bff9b39994ff306a38e0972341f5884b64"
+          },
+          {
+            "path": "tests/support.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "18d71457c1af6edf18f7fbfcf8a16a8fc1391401"
+          },
+          {
+            "path": "tests/test_orphan_processes.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "92405d71e3054f9c734d0eb45e2dce611a8335d6"
+          },
+          {
+            "path": "tests/test_read_only.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "a427212cd12b502bc094b9a3a62d1c5b83da4b9e"
+          }
+        ],
+        "reviewed_content_commit": "ff1c1788e35448ae1de1fb6d90bbc08fb9c64359",
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-10-20T23:02:41Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "13f13f350f99cec268c593fb880d2197d1070b9f15da5b91a460806984aef6be",
+            "ledger": {
+              "local": {
+                "bundle_id": "b5afbd40b25906dff5a7ff64573ff1178456c435eb9c55ebc9d88af7671b34d8",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "54d0d9504bb5e8892430cf06f575112399c0e401cd4fb9d45913dbfe3b1cda53",
+                "ledger_entry_sha256": "7b580794cd3d0772ae4a147d99ce81785d65ad1760957e1fd9ace855782c5257",
+                "run_ref": "session:local /home/rodrigo/Workspace/workflow-manager/.ai-review/test-git-isolation-followups/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "b5afbd40b25906dff5a7ff64573ff1178456c435eb9c55ebc9d88af7671b34d8",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "237ccf1c408624bf0999edb52a3942fa391234aa6604609a2933528487e13a12",
+                "ledger_entry_sha256": "2897195975c473ed581447ff881f9a155d43ac001939d3d647808694f872f985",
+                "run_ref": "session:local .ai-review/test-git-isolation-followups/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-10-20T23:02:41Z",
+          "workflow_release": "2.18.1"
+        }
+      },
       "technical_review_block_pins": [],
       "plan_review_stages": {
         "review_content_id": "f8087dfc266b4b998ddf1edb5b64245cf6392cbfe65df0f637dc7e34354acb59",
@@ -10372,12 +10473,12 @@
           "external": 2
         },
         "implementation": {
-          "local": 0,
-          "external": 0
+          "local": 1,
+          "external": 1
         }
       },
-      "state_revision": 13,
-      "last_transition": "2026-10-20T22:53:09Z",
+      "state_revision": 16,
+      "last_transition": "2026-10-20T23:02:41Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -10509,11 +10610,88 @@
               "at": "2026-10-20T22:32:15.499652+00:00"
             }
           ]
+        },
+        "F-69c0a01690c7": {
+          "digest": "69c0a01690c7bc5b81d445480e90f718fc7c08bb96e9b3c61cf48aac983d14d1",
+          "text": "**LIR-001: The docstring still leaves out the valid-repository-at-`root`\n  qualification (LPR2-002, EPR-004 second half).** The `no_repository_above`\n  docstring now says that `root/.git` counts. It does not say what happens\n  with a *valid* repository at `root` and a target below it: Git's ceiling\n  hides that repository, so the helper refuses where the unbounded product\n  would protect it. It also does not say that a fixture needing such a\n  repository should pass a `root` above it. This is safe (it fails closed)\n  and affects no caller today. Add one sentence, or record a disposition at\n  acceptance.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "13f13f350f99cec268c593fb880d2197d1070b9f15da5b91a460806984aef6be",
+              "verdict": "APPROVE",
+              "at": "2026-10-20T22:55:31Z"
+            }
+          ]
+        },
+        "F-52b178ebf616": {
+          "digest": "52b178ebf616720e04fc7360c965f33ada5b69ef18b0eb7cb2e630e5e505d3e6",
+          "text": "**LIR-002: Empty markers are tested only in the middle (EPR-005).** Both\n  new empty-component tests use `/mnt/a::/mnt/b`. Leading (`:/mnt/a`),\n  trailing (`/mnt/a:`) and repeated (`/mnt/a:::/mnt/b`) markers are not\n  exercised. The plain split handles them correctly; for example, a leading\n  empty component does not count as `first` leading, so `first` is\n  prepended. Parameterizing them would pin that down.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "13f13f350f99cec268c593fb880d2197d1070b9f15da5b91a460806984aef6be",
+              "verdict": "APPROVE",
+              "at": "2026-10-20T22:55:31Z"
+            }
+          ]
+        },
+        "F-3cf8a8d1c65f": {
+          "digest": "3cf8a8d1c65f7a35c88cec341ba08be61adac8c8e5072ec75334c00d3f3fcf5c",
+          "text": "**EIR-001 [substantive] — Clarify the valid-repository boundary.** `tests/support.py:138` says the product refuses a `.git` in `root`, without distinguishing invalid metadata from a valid repository. For a valid repository at `root` and a target below it, the helper’s ceiling hides the repository and containment refuses; the unbounded product discovers and protects its Git directory. This safely fails closed. Carrying LIR-001/EPR-004: document the qualification and advise fixtures needing that repository to place their ceiling above it.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "13f13f350f99cec268c593fb880d2197d1070b9f15da5b91a460806984aef6be",
+              "verdict": "APPROVE",
+              "at": "2026-10-20T23:02:21Z"
+            }
+          ]
+        },
+        "F-86be27a2a901": {
+          "digest": "86be27a2a9018a06b127eea216c6799e39009dcabf5f8922dd7c6b0f522463ae",
+          "text": "**EIR-002 [apparatus] — Persist coverage for other empty-marker positions.** `tests/test_orphan_processes.py:188` and `tests/test_read_only.py:361` exercise only internal empty components. Leading, trailing and repeated markers passed independent probes, but lack committed regression coverage. Carrying LIR-002/EPR-005: parameterize those positions in both tests.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "13f13f350f99cec268c593fb880d2197d1070b9f15da5b91a460806984aef6be",
+              "verdict": "APPROVE",
+              "at": "2026-10-20T23:02:21Z"
+            }
+          ]
         }
       },
       "consumed_plan_review_content_ids": [
         "7c8b576ad91bd682a8708a78cbd2bb3450b4253d8b6a8a6c2cadf22a135be754"
-      ]
+      ],
+      "implementation_review_stages": {
+        "review_content_id": "13f13f350f99cec268c593fb880d2197d1070b9f15da5b91a460806984aef6be",
+        "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "b5afbd40b25906dff5a7ff64573ff1178456c435eb9c55ebc9d88af7671b34d8",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-10-20T22:55:31Z",
+          "verdict_sha256": "54d0d9504bb5e8892430cf06f575112399c0e401cd4fb9d45913dbfe3b1cda53",
+          "run_ref": "session:local /home/rodrigo/Workspace/workflow-manager/.ai-review/test-git-isolation-followups/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "b5afbd40b25906dff5a7ff64573ff1178456c435eb9c55ebc9d88af7671b34d8",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-10-20T23:02:21Z",
+          "verdict_sha256": "237ccf1c408624bf0999edb52a3942fa391234aa6604609a2933528487e13a12",
+          "run_ref": "session:local .ai-review/test-git-isolation-followups/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "openai/gpt-6.1-sol"
+        }
+      }
     }
   }
 }
