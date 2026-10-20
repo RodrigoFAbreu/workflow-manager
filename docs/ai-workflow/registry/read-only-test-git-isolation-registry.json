@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "work_item_id": "read-only-test-git-isolation",
+  "plan_revision": 3,
+  "checkpoints": [
+    {
+      "id": "CP1",
+      "name": "The runner's Git discovery ceiling: chunk_env sets GIT_CEILING_DIRECTORIES to the chunk's private TMPDIR and support.pinned_env forwards it, with unit tests and an unplanted full gate",
+      "depends_on": [],
+      "complexity": 2,
+      "session_target": 1
+    },
+    {
+      "id": "CP2",
+      "name": "The product-path helper support.no_repository_above, its use in the two named tests, the end-to-end regression class, and the docs",
+      "depends_on": [
+        "CP1"
+      ],
+      "complexity": 3,
+      "session_target": 1
+    }
+  ]
+}

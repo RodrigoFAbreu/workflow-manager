@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "work_item_id": "read-only-test-git-isolation",
+  "requirements": {
+    "R1": {
+      "description": "Git discovery cannot see a repository above a chunk's scratch (runner-wide ceiling at the private TMPDIR)",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R2": {
+      "description": "The two named tests accept a plain directory whatever sits above their scratch, including the product's path-based .git walk",
+      "checkpoint_ids": [
+        "CP2"
+      ]
+    },
+    "R3": {
+      "description": "A regression test plants a .git above a disposable scratch root and fails without the fix",
+      "checkpoint_ids": [
+        "CP1",
+        "CP2"
+      ]
+    },
+    "R4": {
+      "description": "No product behaviour change (src/ and tools/ unchanged); the docs state the ceiling rule",
+      "checkpoint_ids": [
+        "CP2"
+      ]
+    }
+  }
+}
