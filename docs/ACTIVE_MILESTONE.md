@@ -32,6 +32,27 @@ with `TMPDIR` below an empty and below a valid planted `.git` failed only on
 `test_sigterm_and_sigint_kill_the_chunk_restore_the_barrier_and_exit_2` (the
 known SIGINT flake), which passes alone; `git diff 2d1d5af -- src tools` is empty.
 
+## Current checkpoint
+
+**Milestone complete.** `read-only-test-git-isolation` reached
+`MILESTONE_COMPLETE` through `/satisfy-gate acceptance` on 2026-10-20, by
+policy (the default gate policy; no person's decision), and
+`active_work_item_id` is unchanged (null).
+- **Checkpoints:** CP1 and CP2 are complete.
+- **Functional evidence:** flows ti-f1 to ti-f5 passed at `c4aaaeb` (run
+  `manager-orchestrator:runs/ti-functional-r1`); the optional full gate (flow 6)
+  is covered by the pull request's CI full run.
+- **Pull request:** #75, CI green at `c4aaaeb` (the Workflow's own `gh` query).
+- **Findings:** seven Optional findings dispositioned (four fixed, three
+  follow-up in #74); record in
+  `docs/milestones/completed/read-only-test-git-isolation-findings.md`.
+
+## Next action
+
+No roadmap item is ready for planning: item 9 is done, items 5 and 6 wait on the
+Controller, and the rest is in the roadmap's Later list. Ask the owner what to
+plan next.
+
 ## Functional review checklist
 
 Technical approval: gate policy, implementation revision 1 (`a3e0bbe`). Test and

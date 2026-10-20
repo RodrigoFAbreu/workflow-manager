@@ -28,7 +28,7 @@ The end goal is a loop where the Controller takes the next roadmap item, plans, 
 | 6 | **M3**: this repository and `workflow` driven by the Controller's loop | Roadmap items worked, merged and released with no hand-driving | Waiting on the Controller's kanban runner (C11) |
 | 7 | Operator UX | Error messages that name the cause and the next command, and `status` showing the work in flight | Done (accepted by policy 2026-10-10; Manager 1.8.0 releases when its pull request merges) |
 | 8 | Release-agnostic Manager | A Workflow release installs without a Manager pin pull request or a Manager release | Done (accepted by policy 2026-10-17; Manager release follows the merge) |
-| 9 | Host tests isolated from a stray ancestor `.git` (#66) | A green change no longer looks red when another process leaves a `.git` in the shared `/tmp` | Current |
+| 9 | Host tests isolated from a stray ancestor `.git` (#66) | A green change no longer looks red when another process leaves a `.git` in the shared `/tmp` | Done (accepted by policy; a `test:` change, no release) |
 
 ### 7. Operator UX (Done)
 
