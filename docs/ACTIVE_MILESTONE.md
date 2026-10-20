@@ -16,7 +16,21 @@ roadmap row 9, issue #66. A change stays green when another process leaves a
 forwards it, and `test_orphan_processes.py` / `test_tested_releases.py` pin both.
 Verified: `--select test_orphan_processes.py`, `test_parallel_runner.py` and
 `test_tested_releases.py` green; the full gate is recorded in the CP1 commit
-report. CP2 (the product-path helper, the two tests, the docs) is next.
+report.
+
+### CP2: the product-path helper, the two tests, the regression, docs -- complete
+
+`support.no_repository_above(root)` bounds Git discovery (`GIT_CEILING_DIRECTORIES`)
+and the product's `.git` path walk at `root`; the two named tests in
+`test_read_only.py` use it, and `TestAncestorRepositoryIsolation` pins the
+unpatched product behaviour, the helper (both plantings), its restore, and an
+end-to-end rerun of the two tests below a planted `.git`. Docs:
+`ARCHITECTURE.md` "Verification execution", `development.md` "Tests".
+Verified: `--select test_read_only.py` and `test_docs.py` green; the regression
+class fails with the helper neutralised (shown once, restored); the full gate
+with `TMPDIR` below an empty and below a valid planted `.git` failed only on
+`test_sigterm_and_sigint_kill_the_chunk_restore_the_barrier_and_exit_2` (the
+known SIGINT flake), which passes alone; `git diff 2d1d5af -- src tools` is empty.
 
 ---
 

@@ -29,6 +29,8 @@ Run what you touched with `--select`; gates run `python3 tests/run_all.py`. CI r
 
 Every run first primes the release cache with every pinned version (the first time, from the network), then runs offline. A full-suite `--jobs 1` (or single-shard) run is exceptional evidence, run only when a plan requires it or to debug a serial or sharded difference. While a run is live, `src/` and `tools/` are read-only; see ["Verification execution"](ARCHITECTURE.md#verification-execution).
 
+A new test that needs a plain directory (one with no repository) wraps its body in `support.no_repository_above(<scratch root>)` and never relies on `/tmp` being free of a `.git`; a `workflow_manager` subprocess started against that directory still meets the product's unbounded `.git` walk, so there the test creates the directory where no ancestor can hold a `.git`.
+
 The documentation checks run inside the gate (`tests/test_docs.py`, using `tools/check_docs.py`). They check links and anchors, that task-page commands parse against the real command line, the page header, and that no internal ids leak onto user pages. Run them alone with `python3 tests/run_all.py --select test_docs.py`.
 
 ## The pinned Workflow releases

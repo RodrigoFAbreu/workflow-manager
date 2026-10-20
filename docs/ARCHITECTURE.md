@@ -526,6 +526,16 @@ but a *timing key* does not, see below). Discovery is
   must not overlap anything and the guarded trees each one may write. Today
   it declares none (`resources: {}`, `exclusive: {}`); its `orphan_sources`
   are described below.
+- **A stray ancestor `.git` cannot turn a change red.** The runner gives
+  every chunk a Git discovery ceiling (`GIT_CEILING_DIRECTORIES`) at its
+  private `TMPDIR`, so Git never ascends into the shared `/tmp` from a
+  test's scratch; `support.pinned_env` forwards it to the `workflow_manager`
+  CLI subprocesses host tests start. The product's own `.git` walk
+  (`compatibility._has_dot_git_above`) is path-based, asks no Git, and stays
+  fail-closed; a test that needs a plain directory bounds it with
+  `support.no_repository_above`. One limit remains: a CLI subprocess run
+  against a plain directory still meets the unbounded walk, so such a test
+  creates its directory where no ancestor can hold a `.git`.
 - **Timing data is not Workflow state.** `timings.json` only orders and
   balances work. It never selects, adds or drops a test. Observed timings
   go to a per-user cache outside the checkout.

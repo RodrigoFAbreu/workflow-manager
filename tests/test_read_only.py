@@ -212,9 +212,10 @@ class TestPlanDestinations(Base):
     def test_a_target_with_no_git_directory_protects_its_work_tree(self):
         bare = self.work / "plain"
         bare.mkdir()
-        with self.assertRaises(ContainmentError):
-            self.destinations(cache=bare / "c", repo=bare)
-        self.assertEqual(self.destinations(repo=bare).protected, (bare.resolve(),))
+        with support.no_repository_above(self.work):
+            with self.assertRaises(ContainmentError):
+                self.destinations(cache=bare / "c", repo=bare)
+            self.assertEqual(self.destinations(repo=bare).protected, (bare.resolve(),))
 
 
 class TestContainmentFailsClosed(Base):
@@ -277,9 +278,10 @@ class TestContainmentFailsClosed(Base):
     def test_a_plain_directory_that_git_reports_as_no_repository_is_still_accepted(self):
         plain = self.work / "plain-dir"
         plain.mkdir()
-        self.assertEqual(plan_destinations(mock.Mock(release_cache=str(self.cache)),
-                                           {"HOME": str(self.work)}, plain, ()).protected,
-                         (plain.resolve(),))
+        with support.no_repository_above(self.work):
+            self.assertEqual(plan_destinations(mock.Mock(release_cache=str(self.cache)),
+                                               {"HOME": str(self.work)}, plain, ()).protected,
+                             (plain.resolve(),))
 
     def test_a_timed_out_lookup_in_a_plain_directory_is_refused(self):
         plain = self.work / "plain-dir"
@@ -293,6 +295,79 @@ class TestContainmentFailsClosed(Base):
 def support_main(argv):
     from workflow_manager import cli
     return cli.main(argv)
+
+
+NAMED_TESTS = (
+    "test_read_only.TestPlanDestinations.test_a_target_with_no_git_directory_protects_its_work_tree",
+    "test_read_only.TestContainmentFailsClosed."
+    "test_a_plain_directory_that_git_reports_as_no_repository_is_still_accepted",
+)
+
+
+class TestAncestorRepositoryIsolation(unittest.TestCase):
+    """A `.git` left above the test scratch (the shared `/tmp`) must not change
+    a test's result. The planting is always below this test's own scratch."""
+
+    FORMS = ("empty", "valid")
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.base = Path(self._tmp.name).resolve()
+
+    def plant(self, form: str) -> Path:
+        """A directory holding a stray `.git` (an empty one, or a real
+        repository) with a `scratch/plain` directory below it."""
+        top = self.base / form
+        plain = top / "scratch" / "plain"
+        plain.mkdir(parents=True)
+        if form == "empty":
+            (top / ".git").mkdir()
+        else:
+            init_git_repo(top)
+        return plain
+
+    def destinations(self, plain: Path):
+        return plan_destinations(mock.Mock(release_cache=str(self.base / "cache")),
+                                 {"HOME": str(self.base)}, plain, ())
+
+    def test_the_product_still_refuses_or_reports_the_stray_repository_without_the_helper(self):
+        with self.assertRaises(ContainmentError):
+            self.destinations(self.plant("empty"))
+        valid = self.plant("valid")
+        self.assertNotEqual(self.destinations(valid).protected, (valid.resolve(),))
+
+    def test_the_helper_accepts_the_plain_directory_for_both_plantings(self):
+        for form in self.FORMS:
+            with self.subTest(form=form):
+                plain = self.plant(form)
+                with support.no_repository_above(plain.parent):
+                    self.assertEqual(self.destinations(plain).protected, (plain.resolve(),))
+
+    def test_the_helper_restores_the_walk_and_the_ceiling(self):
+        plain = self.plant("empty")
+        before = os.environ.get("GIT_CEILING_DIRECTORIES")
+        walk = comp._has_dot_git_above
+        with support.no_repository_above(plain.parent):
+            self.assertFalse(comp._has_dot_git_above(plain))
+            (plain / ".git").mkdir()
+            self.assertTrue(comp._has_dot_git_above(plain))
+        self.assertIs(comp._has_dot_git_above, walk)
+        self.assertEqual(os.environ.get("GIT_CEILING_DIRECTORIES"), before)
+        self.assertTrue(comp._has_dot_git_above(plain.parent))
+
+    def test_the_two_named_tests_pass_with_a_stray_repository_above_their_temporary_directory(self):
+        for form in self.FORMS:
+            with self.subTest(form=form):
+                tmpdir = self.plant(form).parent / "tmp"
+                tmpdir.mkdir()
+                env = {k: v for k, v in os.environ.items() if k != "GIT_CEILING_DIRECTORIES"}
+                env["TMPDIR"] = str(tmpdir)
+                proc = subprocess.run([sys.executable, "-m", "unittest", *NAMED_TESTS],
+                                      cwd=str(REPO_ROOT / "tests"), env=env,
+                                      capture_output=True, text=True)
+                self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+                self.assertIn("Ran 2 tests", proc.stderr)
 
 
 class TestResolverIsReadOnly(Base):
