@@ -499,9 +499,11 @@ def build_git_template(run_dir: Path) -> Path:
 
 
 def ceiling_with(first: str, inherited: str | None) -> str:
-    """A `GIT_CEILING_DIRECTORIES` value led by `first`, followed by any
-    inherited entries; `first` is not repeated when it already leads."""
-    entries = [entry for entry in (inherited or "").split(os.pathsep) if entry]
+    """A `GIT_CEILING_DIRECTORIES` value led by `first`, followed by every
+    inherited component (empty ones included); `first` is not repeated when it already leads."""
+    # An empty component is meaningful to Git (it stops symlink resolution for
+    # the entries after it), so every inherited component is kept as is.
+    entries = inherited.split(os.pathsep) if inherited else []
     if entries[:1] == [first]:
         return os.pathsep.join(entries)
     return os.pathsep.join([first, *entries])

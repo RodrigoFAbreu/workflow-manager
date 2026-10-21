@@ -29,6 +29,7 @@ The end goal is a loop where the Controller takes the next roadmap item, plans, 
 | 7 | Operator UX | Error messages that name the cause and the next command, and `status` showing the work in flight | Done (accepted by policy 2026-10-10; Manager 1.8.0 releases when its pull request merges) |
 | 8 | Release-agnostic Manager | A Workflow release installs without a Manager pin pull request or a Manager release | Done (accepted by policy 2026-10-17; Manager release follows the merge) |
 | 9 | Host tests isolated from a stray ancestor `.git` (#66) | A green change no longer looks red when another process leaves a `.git` in the shared `/tmp` | Done (accepted by policy; a `test:` change, no release) |
+| 10 | Follow-ups to the host-test Git isolation (#74) | The three small test-helper fixes the reviews of row 9 deferred | Done (accepted by policy; a test change, no release) |
 
 ### 7. Operator UX (Done)
 
@@ -41,6 +42,10 @@ Every Workflow release forces a Manager pin pull request and a Manager release t
 ### 9. Host tests isolated from a stray ancestor `.git`
 
 Two `tests/test_read_only.py` tests expect a plain scratch directory to be "no repository", but the runner puts scratch under `/tmp/wm-run-*/tmp/`, so a stray `/tmp/.git` left by another process makes Git discover it and the full gate fails with nothing wrong in the change under test (#66; seen on 2026-10-18 and 2026-10-19). Isolate Git discovery for the tests (for example `GIT_CEILING_DIRECTORIES` at the scratch root, in the runner or in those tests), with a regression test that plants a `.git` above the scratch root. Test and runner code only: no Manager behaviour change, so no Manager release (`test:`).
+
+### 10. Follow-ups to the host-test Git isolation
+
+Three Optional review findings from row 9 (#74), test code only: keep the empty-entry markers of an inherited `GIT_CEILING_DIRECTORIES` (`tests/parallel/isolation.py` `ceiling_with`, `tests/support.py` `no_repository_above`); make `no_repository_above` count `root/.git` for a target at or below `root`; give the `TestAncestorRepositoryIsolation` subprocess a timeout. No Manager behaviour change, so no Manager release (`test:`).
 
 ## Done
 

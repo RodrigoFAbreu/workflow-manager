@@ -1,0 +1,61 @@
+{
+  "dispositions": {
+    "F-2c52a5cf0fe8": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#74",
+      "note": "Document in no_repository_above that a valid repository at root is hidden by the ceiling for a target below it (fails closed), and advise such fixtures to pass a root above it."
+    },
+    "F-2cf8093ce6be": {
+      "disposition": "fixed",
+      "note": "Plan revision 2 section 3 separates red regressions from passing guards; the implementation labels them (confirmed by the Codex implementation review)."
+    },
+    "F-3cf8a8d1c65f": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#74",
+      "note": "Distinguish invalid metadata from a valid repository at root in the no_repository_above docstring."
+    },
+    "F-52b178ebf616": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#74",
+      "note": "Add leading (:/mnt/a), trailing (/mnt/a:) and repeated (/mnt/a:::/mnt/b) empty-marker cases to both tests."
+    },
+    "F-6041b05fabee": {
+      "disposition": "fixed",
+      "note": "Plan revision 2 fix 3 and tests/test_read_only.py:414 use timeout=120 with an identifiable TimeoutExpired failure."
+    },
+    "F-63e4d6589214": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#74",
+      "note": "Parameterize leading, trailing and repeated empty ceiling markers in both helper tests."
+    },
+    "F-68f0d76e8e42": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#74",
+      "note": "Second half still open: add the valid-repository-at-root qualification to the no_repository_above docstring (the 'root excluded' sentence is fixed)."
+    },
+    "F-69c0a01690c7": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#74",
+      "note": "Add the valid-repository-at-root qualification and the fixture advice to the no_repository_above docstring."
+    },
+    "F-750b1f664dcd": {
+      "disposition": "fixed",
+      "note": "Plan revision 2 fix 3 states the 120-second value and the support.run_suite precedent; the code uses timeout=120."
+    },
+    "F-86be27a2a901": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#74",
+      "note": "Commit regression coverage for leading, trailing and repeated empty markers in tests/test_orphan_processes.py and tests/test_read_only.py."
+    },
+    "F-aff8cb6e5dd9": {
+      "disposition": "fixed",
+      "note": "tests/support.py no_repository_above docstring now says root/.git is looked at and only entries strictly above root are excluded."
+    },
+    "F-f6d6ad3dfd39": {
+      "disposition": "fixed",
+      "note": "Plan revision 2 section 3 records red evidence per defect and names the remaining cases as guards."
+    }
+  },
+  "schema_version": 1,
+  "work_item_id": "test-git-isolation-followups"
+}
