@@ -34,7 +34,44 @@ expected `protected` tuple to the plain target plus the repository's `.git`);
 
 ## Next action
 
-Implementation wrap-up: the full gate, then the implementation review bundle.
+Functional review (manual gate), then `/accept-milestone`.
+
+## Functional review checklist
+
+Test code only; nothing in `src/` or `tools/` changes. Findings go in
+`.ai-review/test-git-isolation-followups-2/feedback/FUNCTIONAL_REVIEW.md`.
+Every flow is offline, read-only on the clone, and needs no `gh`, `claude`,
+`codex` or `ssh`.
+
+**Setup.** This checkout, branch `milestone/test-git-isolation-followups-2`,
+clean tree. No test data. `tests/run_all.py` needs the release cache primed
+(network or `WORKFLOW_MANAGER_RELEASE_SOURCE`).
+
+1. **Product code is untouched.** `git diff 7ac6c26 HEAD -- src tools` prints
+   nothing; `git diff --stat 7ac6c26 HEAD -- tests` lists only `tests/support.py`,
+   `tests/test_orphan_processes.py`, `tests/test_read_only.py`.
+2. **Docstring states the boundary.** Read `no_repository_above` in
+   `tests/support.py`: it says a valid repository at `root` is hidden from Git by
+   the ceiling but counted by the `.git` walk, so a target below it is refused
+   (fails closed), and a fixture needing it passes a `root` above it.
+3. **Marker positions (orphan processes).**
+   `python3 tests/run_all.py --select test_orphan_processes.py`. Expected: green,
+   including `test_an_inherited_empty_ceiling_component_is_kept_at_every_position`
+   (internal, leading, trailing, repeated empty marker; nested call stable).
+4. **Marker positions and guard (read-only).**
+   `python3 tests/run_all.py --select test_read_only.py`. Expected: green,
+   including `test_the_helper_keeps_every_inherited_ceiling_component_and_restores_the_value`
+   (four `subTest`s) and
+   `test_guard_a_valid_repository_at_the_root_is_refused_unless_the_root_is_above_it`.
+5. **Inherited value is preserved end to end.**
+   `GIT_CEILING_DIRECTORIES=/mnt/a::/mnt/b python3 tests/run_all.py --select test_read_only.py`.
+   Expected: green.
+6. **Full gate (optional, ~5 min).** `python3 tests/run_all.py`. Expected: green,
+   except the known SIGINT flake of workflow#32, which passes alone.
+
+**Known limitations / out of scope.** All new tests are guards: the behaviour
+already existed at `7ac6c26`, none was red first. The product's `.git` walk and
+the helpers' behaviour are unchanged; only the docstring and tests are.
 
 
 ## Milestone
