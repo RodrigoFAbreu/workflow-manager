@@ -767,6 +767,10 @@ class TestVersion21OnlyCommandsRefuseCleanlyForV1(unittest.TestCase):
 # below, for the two files where a real pre-v2.1 copy is actually
 # available to diff against.
 _GOLDEN_COMMAND_FILE_SHA256 = {
+    # workflow-2.18.2 (review-followups-2, CP1): `milestone-plan.md` gains the declared-backlog collision
+    # check (60e); `accept-milestone.md`, `approve-review.md`, `adopt-gate-policy.md`,
+    # `request-plan-amendment.md`, `resume-implementation.md` and `retire-legacy-work-item.md` have
+    # their long guard lines re-wrapped (64c) -- intentional content changes, not regressions.
     # workflow-2.18.0 (harness-neutral-commands, CP2): six rows re-recorded and five added (see the end
     # of the table) -- intentional content changes, not regressions.
     # workflow-2.17.0 (backlog-file, CP3): `milestone-plan.md` and `accept-milestone.md` gain the
@@ -908,7 +912,7 @@ _GOLDEN_COMMAND_FILE_SHA256 = {
     # workflow-2.10.0 (retire-21-for-new-work, CP3): step 0 stops a fresh milestone
     # under a "2.1" default with DefaultWorkflowVersionRetiredError -- intentional
     # content change.
-    "milestone-plan.md": "54fca55ff02d76b8f11ee185f0ecc7786fe1fc1fe9886dd786ba72be2477d6be",
+    "milestone-plan.md": "874d6615fa1b8e5b5a4f6a3d9b3aebf6074b1a57a5860e1234fedcb0c0e5c934",
     # milestone-implement.md further updated, OPUS-R129-001: step 1f's
     # checkpoint-completion commit instruction now states explicitly that
     # the Workflow-Checkpoint/Workflow-Work-Item trailer must be the
@@ -1070,7 +1074,7 @@ _GOLDEN_COMMAND_FILE_SHA256 = {
     # approval commit keeps its whole-file pin and
     # verify_plan_approval_commit applies the gate-policy content check --
     # intentional content change.
-    "approve-review.md": "14b0ba887b4b33320216d65e796af1bd09c292eb3b728253a611826989c96d06",
+    "approve-review.md": "0dbb264f2a946e7dc4b7c0e8844a2e09f379513247cee8b2b1e4a71ce9f3edc9",
     # accept-milestone.md updated, baseline-freeze correctness fix
     # (OPUS-R129-001): step 6's completion-commit instruction now states
     # the same "trailers must be the commit message's own final paragraph"
@@ -1110,7 +1114,7 @@ _GOLDEN_COMMAND_FILE_SHA256 = {
     # user-only /resume-implementation for a 2.1/2.2 item and drops the wrong
     # "legacy promotion" origin -- intentional content change, outside every
     # "1"-inert span.
-    "accept-milestone.md": "151a2c31a753b0434f08dedb5a07854d07070f12465ebe841179194a21e41d87",
+    "accept-milestone.md": "8eb653d3352bb4dba6efc4fb637a12b8d16ad71b857a33a366f13b7851e8f8f7",
     # prepare-functional-review.md further updated, baseline-portability
     # correctness fix (OPUS-R129-001): step 3a's checklist-evidence
     # provenance commit instruction now states the same "trailers must be
@@ -1446,10 +1450,10 @@ _GOLDEN_COMMAND_FILE_SHA256 = {
     # workflow-2.18.0 (harness-neutral-commands, CP2): the command bodies name the model "the agent"
     # and restate the six user-only guards (D-Guard); `apply-pr-review.md` and `prepare-review.md` gain
     # `$ARGUMENTS` (D-Args); the five rows below are first recorded hashes -- intentional content changes.
-    "adopt-gate-policy.md": "5efb67e6f0c9c0bb1b2e8a5fad5c6e64c9fe7cc6fcf2c3f4569fa16a9a7c7775",
-    "request-plan-amendment.md": "8a4a8ccce763d40a73462f3030c248ad122a1cafdb2fcd5e3e76321ecd25579e",
-    "resume-implementation.md": "f1bed19f19f5323c5940a7b25a90a5f9111fcc0ebbee9e61e553151f816a1168",
-    "retire-legacy-work-item.md": "c4f4a22f1002dbcc1e70781f4453492b83c882f49d390b3578b00dd9cc6e0662",
+    "adopt-gate-policy.md": "c3787bfc199956d4ffb57500448da6ef2aaf613f51d696d4785a6764a48ab247",
+    "request-plan-amendment.md": "ffdc4d7901132022ac74524bd9fabd7354ee6bc96082d3836276fe25b16fbd15",
+    "resume-implementation.md": "1da12ec1248b71a9f614f0dbb66f0e6652e78e2652948e4463703fe567e6368e",
+    "retire-legacy-work-item.md": "71e14a3e363ebdd0a31473424fbd44adadfff97bde0250bd359fb37925202625",
     "prepare-review.md": "de05a427f90087dd56703162e56fb388d86e74f090c95d6953590884d18bda1a",
 }
 
@@ -2756,6 +2760,38 @@ class TestGoldenCommandFileHashes(unittest.TestCase):
                     f"{filename} content changed since this golden hash was recorded -- "
                     f"if intentional, update _GOLDEN_COMMAND_FILE_SHA256",
                 )
+
+
+class TestUserOnlyCommandLineWidth(unittest.TestCase):
+    """workflow-2.18.2 (review-followups-2, 64c): the guard lines of the six user-only command
+    bodies stay at the files' usual width. Exempt: the front matter, code-fence lines, table rows,
+    headings, and a line whose only content past its indentation is one span with no space inside
+    it (it cannot be broken at a space)."""
+
+    FILES = ("accept-milestone.md", "approve-review.md", "adopt-gate-policy.md",
+             "request-plan-amendment.md", "resume-implementation.md", "retire-legacy-work-item.md")
+    LIMIT = 90
+
+    def test_no_prose_line_exceeds_the_limit(self):
+        for filename in self.FILES:
+            lines = _command_text(filename).split("\n")
+            front_matter = True
+            fence = False
+            for number, line in enumerate(lines, start=1):
+                if number == 1 and line.startswith("---"):
+                    continue
+                if front_matter and number > 1 and lines[0].startswith("---"):
+                    front_matter = not line.startswith("---")
+                    continue
+                if line.lstrip().startswith(("```", "~~~")):
+                    fence = not fence
+                    continue
+                if fence or len(line) <= self.LIMIT or line.lstrip().startswith(("|", "#")):
+                    continue
+                if " " not in re.sub(r"^\s*(?:[-*+]|\d+[.)])?\s*", "", line).strip():
+                    continue
+                with self.subTest(filename=filename, line=number):
+                    self.fail(f"{filename}:{number} is {len(line)} columns (limit {self.LIMIT})")
 
 
 class TestCheckpointAnchorsEarlyCommandConformance(unittest.TestCase):
@@ -8332,6 +8368,19 @@ class TestBacklogCommandConformance(unittest.TestCase):
         text = self._text("milestone-plan.md")
         self.assertIn("work_item_type=<this item's own work_item_type>, "
                       "repo_root=<repo_root>)", text)
+
+    def test_plan_refuses_a_declared_backlog_collision_before_routing(self):
+        # workflow-2.18.2 (review-followups-2, 60e): the dry call precedes `route_work_item`.
+        text = self._text("milestone-plan.md")
+        check = text.index("**Declared-backlog collision check**")
+        for needle in ("workflow_state.generate_artifacts_declarations(<work_item_id>, <plan_path>, "
+                       "<registry_path>, <mapping_path>, work_item_type=<this item's own work_item_type>, "
+                       "repo_root=<repo_root>)",
+                       "`declaration_conflict`", "`declaration_invalid`",
+                       "**stops with nothing written**: no work item, no registry, no mapping"):
+            with self.subTest(needle=needle):
+                self.assertIn(_squash(needle), text[check:check + 1500])
+        self.assertLess(check, text.index("Call `workflow_state.route_work_item(...)`, passing all four"))
 
     def test_explicit_id_forms_do_not_read_the_backlog(self):
         self.assertIn("an explicit work-item-id form never reads the backlog",

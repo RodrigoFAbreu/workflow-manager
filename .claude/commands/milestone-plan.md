@@ -218,6 +218,19 @@ until that final rename (`REVIEW_PROTOCOL.md`'s "Bundle location").
      `docs/ai-workflow/WORKFLOW_V2_PLAN.md`-equivalent, `docs/ai-workflow/registry/<work_item_id>-registry.json`,
      `docs/ai-workflow/requirements/<work_item_id>-mapping.json`, and the
      resolved base commit respectively (`D-Fingerprint-Generalization`).
+     **Declared-backlog collision check** (workflow-2.18.2, `60e`), before
+     the `route_work_item` call below: call
+     `workflow_state.generate_artifacts_declarations(<work_item_id>,
+     <plan_path>, <registry_path>, <mapping_path>,
+     work_item_type=<this item's own work_item_type>,
+     repo_root=<repo_root>)` with the four facts just derived, and discard
+     the result. It writes nothing, and for an undeclared repository it
+     returns the plain template and does nothing. A refusal
+     (`workflow_backlog.BacklogError` with code `declaration_conflict`, or
+     `workflow_state.BacklogScriptUnavailableError`, code
+     `declaration_invalid`) is reported verbatim, with its next step, and the
+     run **stops with nothing written**: no work item, no registry, no
+     mapping. Step 3's generation stays, because it produces the file.
      Call `workflow_state.route_work_item(...)`, passing all four **and
      `repo_root`**, (D1's create-or-resume routing: creates a fresh
      `work_items[id]` entry fixing `governing_workflow_version` from the
