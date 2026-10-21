@@ -18908,6 +18908,20 @@ class TestStateTransactionOnFailure(unittest.TestCase):
             calls, exc = self._run(repo, self._pin)
             self.assertEqual((calls, exc), ([], None))
 
+    def test_the_docstring_says_an_exception_not_a_base_exception_is_suppressed(self):
+        doc = ws.state_transaction.__doc__
+        self.assertIn("an `Exception` raised by `on_failure` is suppressed", doc)
+        self.assertNotIn("one raised by\n    `on_failure` is suppressed", doc)
+
+    def test_an_interrupt_raised_by_on_failure_propagates_and_replaces_the_original(self):
+        with ScratchRepo() as repo:
+            self._seed(repo)
+            with self.assertRaises(KeyboardInterrupt):
+                ws.state_transaction(
+                    repo.root, lambda state: (_ for _ in ()).throw(RuntimeError("original")),
+                    on_failure=lambda: (_ for _ in ()).throw(KeyboardInterrupt()))
+            self.assertEqual(ws.held_primitives(), ())
+
 
 class TestStateTransactionBeforePublish(unittest.TestCase):
     def _seed(self, repo, **item):
@@ -21259,6 +21273,30 @@ class GeneratedDeclarationsBacklogClassificationTest(unittest.TestCase):
                 self.assertEqual(cm.exception.code, "declaration_conflict")
                 self.assertIn(path, cm.exception.message)
                 self.assertIn(f"{stage} stage", cm.exception.message)
+
+    def test_the_early_dry_call_refuses_a_collision_and_writes_nothing(self):
+        # workflow-2.18.2 (review-followups-2, 60e): `/milestone-plan` step 1 makes this call before
+        # `route_work_item`; it is a pure check, so a refusal leaves no state, registry, mapping or
+        # artifacts file behind.
+        def tree(root):
+            return {str(p.relative_to(root)): p.read_bytes() for p in sorted(root.rglob("*")) if p.is_file()}
+
+        for work_item_type in ("process", "product"):
+            with self.subTest(work_item_type):
+                root = self._root({"file": self.PLAN})
+                before = tree(root)
+                with self.assertRaises(workflow_backlog.BacklogError) as cm:
+                    self._generate(work_item_type, repo_root=root)
+                self.assertEqual(cm.exception.code, "declaration_conflict")
+                self.assertEqual(tree(root), before)
+                for rel in (self.REGISTRY, self.MAPPING, "docs/ai-workflow/WORKFLOW_STATE.json",
+                            "docs/ai-workflow/registry/some-item-artifacts.json"):
+                    self.assertFalse((root / rel).exists(), rel)
+
+    def test_the_early_dry_call_on_an_undeclared_repository_is_the_plain_template(self):
+        for work_item_type in ("process", "product"):
+            root = self._root()
+            self.assertEqual(self._generate(work_item_type, repo_root=root), self._generate(work_item_type))
 
     def test_the_item_page_prefix_is_checked_too(self):
         # a product item protects `docs/adr/`, not `docs/items/`, so it is fine; a hand-built

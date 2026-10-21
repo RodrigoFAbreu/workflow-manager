@@ -6,7 +6,18 @@ state_writer: true
 review-subject: none
 ---
 
-**State-writer discipline (D1, item 354):** every `docs/ai-workflow/WORKFLOW_STATE.json` write this command performs -- everywhere a step below says "persist the returned state" -- is performed by calling `workflow_state.state_transaction(repo_root, mutator)`, never by a separate read-then-write: `state_transaction` holds `.ai-review/runtime/WORKFLOW_STATE.lock` (`workflow_state.state_lock`, `fcntl.flock(LOCK_EX)`) across the complete re-read -> apply-the-named-function -> canonical-serialize -> atomic-publish sequence in one process invocation, so `mutator` is the exact transition function each step below names (e.g. `lambda state: workflow_state.<fn>(state, ...)`), applied to freshly re-read state rather than to a snapshot taken before the lock was acquired.
+**State-writer discipline (D1, item 354):** every
+`docs/ai-workflow/WORKFLOW_STATE.json` write this command performs --
+everywhere a step below says "persist the returned state" -- is performed by
+calling `workflow_state.state_transaction(repo_root, mutator)`, never by a
+separate read-then-write: `state_transaction` holds
+`.ai-review/runtime/WORKFLOW_STATE.lock` (`workflow_state.state_lock`,
+`fcntl.flock(LOCK_EX)`) across the complete re-read ->
+apply-the-named-function -> canonical-serialize -> atomic-publish sequence in
+one process invocation, so `mutator` is the exact transition function each
+step below names (e.g. `lambda state: workflow_state.<fn>(state, ...)`),
+applied to freshly re-read state rather than to a snapshot taken before the
+lock was acquired.
 
 Where the gate policy makes acceptance automatic and its evidence is met,
 `/satisfy-gate acceptance` accepts the milestone from evidence in place of this
@@ -20,12 +31,18 @@ it before proceeding.
 
 **This command is user-only by construction** (`docs/ai-workflow/WORKFLOW_V2_PLAN.md`
 D2, resolves `OPUS-R6-010`), the same two mechanisms as `/approve-review`:
-(1) `disable-model-invocation: true`, an additional layer where the harness enforces it (the harness notes in `docs/ai-workflow/COMMAND_FILES.md` record what is known per harness); (2) refuse to write anything unless the user's own
+(1) `disable-model-invocation: true`, an additional layer where the harness
+enforces it (the harness notes in `docs/ai-workflow/COMMAND_FILES.md` record
+what is known per harness); (2) refuse to write anything unless the user's own
 current-turn message supplies literal confirmation text naming the exact
 `work_item_id` and the `acceptance` stage
 (`workflow_state.validate_user_confirmation(text, work_item_id=..., stage="acceptance")`).
 Never fabricate, infer, or carry over this text from a prior turn. If it is
-missing, ask for it and stop — do not proceed on an inferred "yes." Mechanism (2) is the control this command carries itself, under every harness; the flag does not replace it. The agent must never invoke this command on the user's behalf, including as a step of another command's execution, whatever the flag says.
+missing, ask for it and stop — do not proceed on an inferred "yes." Mechanism
+(2) is the control this command carries itself, under every harness; the flag
+does not replace it. The agent must never invoke this command on the user's
+behalf, including as a step of another command's execution, whatever the flag
+says.
 
 0. **Dual-mode branch** (Workflow v2.1, `WF4a-ii`, extended `WF4c`): resolve
    the target work item first -- the id named in `$ARGUMENTS`, or
@@ -128,7 +145,8 @@ missing, ask for it and stop — do not proceed on an inferred "yes." Mechanism 
       `backlog_invalid`, `item_unknown`, `status_not_acceptable`,
       `roadmap_not_generated`, `generator_failed`, `declaration_conflict`),
       report stderr verbatim -- every diagnostic and the next step -- and
-      stop: nothing has been written. `item_unknown` names the fix (add an item with this id and
+      stop: nothing has been written. `item_unknown` names the fix (add an
+      item with this id and
       status `in-progress`); a refusal is never worked around by editing the
       generated page.
     - **`requires_pr_approved` pre-flight** (`workflow-2.8.0`, `D-GP-Acceptance`;
