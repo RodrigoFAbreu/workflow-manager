@@ -2,6 +2,43 @@
 
 ## Milestone
 
+`test-git-isolation-followups-2` (`governing_workflow_version: "2.2"`, `process`,
+plan revision 1, base `7ac6c26`, branch `milestone/test-git-isolation-followups-2`):
+roadmap row 11, issue #74. The last two items #74 lists after
+`test-git-isolation-followups` (PR #76). Test code only; a `test:` title, so it
+releases nothing. Plan:
+`docs/ai-workflow/WORKFLOW_MANAGER_TEST_GIT_ISOLATION_FOLLOWUPS_2_PLAN.md`.
+
+### CP1: the valid-repository docstring and guard, empty ceiling markers at every position -- complete
+
+- `tests/support.py` `no_repository_above`: the docstring now states the
+  valid-repository boundary (a valid repository at `root` is hidden from Git by
+  the ceiling but counted by the `.git` walk, so a target below it is refused,
+  failing closed; a fixture needing it passes a `root` above it). No behaviour
+  change.
+- `tests/test_read_only.py`, `TestAncestorRepositoryIsolation`:
+  `test_the_helper_keeps_every_inherited_ceiling_component_and_restores_the_value`
+  now runs the internal, leading, trailing and repeated marker by `subTest`; new
+  `test_guard_a_valid_repository_at_the_root_is_refused_unless_the_root_is_above_it`.
+- `tests/test_orphan_processes.py`, `TestChunkEnvGitConfig`:
+  `test_an_inherited_empty_ceiling_component_is_kept_at_every_position` runs the
+  same four values by `subTest` (value, then a nested call stable).
+
+Every new test is a **guard**: the behaviour exists at `7ac6c26`, none was red
+first and none is claimed as a regression test. Each passes.
+
+Verification so far: `python3 tests/run_all.py --select test_orphan_processes.py`
+exit 0; `--select test_read_only.py` exit 0 (after correcting the guard's
+expected `protected` tuple to the plain target plus the repository's `.git`);
+`git diff 7ac6c26 -- src tools` is empty. The full gate runs in step 3.
+
+## Next action
+
+Implementation wrap-up: the full gate, then the implementation review bundle.
+
+
+## Milestone
+
 `test-git-isolation-followups` (`governing_workflow_version: "2.2"`, `process`,
 plan revision 2, base `2d44ed1`, branch `milestone/test-git-isolation-followups`):
 roadmap row 10, issue #74. The three test-helper fixes the reviews of

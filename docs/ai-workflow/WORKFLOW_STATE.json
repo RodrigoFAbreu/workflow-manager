@@ -10893,15 +10893,20 @@
       "registry_path": "docs/ai-workflow/registry/test-git-isolation-followups-2-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/test-git-isolation-followups-2-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "IMPLEMENTING",
+      "phase": "SELF_REVIEWING_IMPLEMENTATION",
       "plan_revision": 1,
       "implementation_revision": null,
       "functional_review_round": null,
       "base_commit": "7ac6c26cc19ec6c683d5bac688c94e39c2d84589",
       "reviewed_implementation_head": null,
       "current_checkpoint_id": null,
-      "last_completed_checkpoint_id": null,
-      "checkpoints": {},
+      "last_completed_checkpoint_id": "CP1",
+      "checkpoints": {
+        "CP1": {
+          "status": "COMPLETE",
+          "start_commit": "0a3f3172a7773348f59288f76f9806e5050429c2"
+        }
+      },
       "current_bundle_id": "1e31875972bbcf4320406390c6c73f908b81ff3e566acf87f955249b8f08deb9",
       "plan_approval": {
         "status": "CURRENT",
@@ -11028,8 +11033,8 @@
           "external": 0
         }
       },
-      "state_revision": 6,
-      "last_transition": "2026-10-21T20:28:18Z",
+      "state_revision": 8,
+      "last_transition": "2026-10-21T20:31:46Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",

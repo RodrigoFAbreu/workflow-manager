@@ -183,13 +183,23 @@ class TestChunkEnvGitConfig(_Tmp):
         self.assertEqual(self.chunk_env(once)["GIT_CEILING_DIRECTORIES"],
                          once["GIT_CEILING_DIRECTORIES"])
 
-    def test_an_inherited_empty_ceiling_component_is_kept(self):
+    # Guards (the behaviour exists): an empty component is kept at any position.
+    EMPTY_MARKER_VALUES = (
+        ("internal", "/mnt/a::/mnt/b"),
+        ("leading", ":/mnt/a"),
+        ("trailing", "/mnt/a:"),
+        ("repeated", "/mnt/a:::/mnt/b"),
+    )
+
+    def test_an_inherited_empty_ceiling_component_is_kept_at_every_position(self):
         chunk_tmp = str(self.tmp / "chunk-tmp")
-        env = self.chunk_env(stripped_env(GIT_CEILING_DIRECTORIES="/mnt/a::/mnt/b"))
-        self.assertEqual(env["GIT_CEILING_DIRECTORIES"],
-                         os.pathsep.join([chunk_tmp, "/mnt/a", "", "/mnt/b"]))
-        self.assertEqual(self.chunk_env(env)["GIT_CEILING_DIRECTORIES"],
-                         env["GIT_CEILING_DIRECTORIES"])
+        for position, inherited in self.EMPTY_MARKER_VALUES:
+            with self.subTest(position=position):
+                env = self.chunk_env(stripped_env(GIT_CEILING_DIRECTORIES=inherited))
+                self.assertEqual(env["GIT_CEILING_DIRECTORIES"],
+                                 os.pathsep.join([chunk_tmp, *inherited.split(os.pathsep)]))
+                self.assertEqual(self.chunk_env(env)["GIT_CEILING_DIRECTORIES"],
+                                 env["GIT_CEILING_DIRECTORIES"])
 
     def test_an_empty_or_unset_inherited_ceiling_adds_no_empty_entry(self):
         chunk_tmp = str(self.tmp / "chunk-tmp")
