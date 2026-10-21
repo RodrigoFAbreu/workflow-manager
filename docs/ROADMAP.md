@@ -30,6 +30,7 @@ The end goal is a loop where the Controller takes the next roadmap item, plans, 
 | 8 | Release-agnostic Manager | A Workflow release installs without a Manager pin pull request or a Manager release | Done (accepted by policy 2026-10-17; Manager release follows the merge) |
 | 9 | Host tests isolated from a stray ancestor `.git` (#66) | A green change no longer looks red when another process leaves a `.git` in the shared `/tmp` | Done (accepted by policy; a `test:` change, no release) |
 | 10 | Follow-ups to the host-test Git isolation (#74) | The three small test-helper fixes the reviews of row 9 deferred | Done (accepted by policy; a test change, no release) |
+| 11 | Host-test Git isolation: the last two follow-ups (#74) | The helper documents its valid-repository boundary, and empty ceiling markers are tested at every position | Next |
 
 ### 7. Operator UX (Done)
 
@@ -46,6 +47,10 @@ Two `tests/test_read_only.py` tests expect a plain scratch directory to be "no r
 ### 10. Follow-ups to the host-test Git isolation
 
 Three Optional review findings from row 9 (#74), test code only: keep the empty-entry markers of an inherited `GIT_CEILING_DIRECTORIES` (`tests/parallel/isolation.py` `ceiling_with`, `tests/support.py` `no_repository_above`); make `no_repository_above` count `root/.git` for a target at or below `root`; give the `TestAncestorRepositoryIsolation` subprocess a timeout. No Manager behaviour change, so no Manager release (`test:`).
+
+### 11. Host-test Git isolation: the last two follow-ups
+
+What #74 still lists after row 10, test code only: `tests/support.py` `no_repository_above` documents that a *valid* repository at `root` is hidden by the Git ceiling for a target below it (the helper then refuses, where the unbounded product would protect it: fails closed), and advises a fixture that needs such a repository to pass a `root` above it; and the empty-ceiling-marker tests in `tests/test_orphan_processes.py` and `tests/test_read_only.py` cover leading (`:/mnt/a`), trailing (`/mnt/a:`) and repeated (`/mnt/a:::/mnt/b`) markers, not only an internal one. No Manager behaviour change, so no Manager release (`test:`).
 
 ## Done
 
