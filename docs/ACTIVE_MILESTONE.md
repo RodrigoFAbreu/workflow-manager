@@ -77,6 +77,38 @@ Verification: `--select test_discovery.py` green (68 tests); full gate
 `python3 tests/run_all.py` exit 0 (14669 tests, head `1d6ea94` plus this
 checkpoint's working tree).
 
+## CP4 -- orphan-key overlap, the nightly cache entry, the roadmap (#51, #52)
+
+- #51: `resources.parse` records which `orphan_sources` key declared each unit and
+  refuses a second declaration with a `ResourcesFileError` naming both keys and
+  the unit (a concrete `frozen:<v>/...` key and a `frozen:*/...` key for the same
+  unit; the later one used to overwrite the earlier). Test in
+  `test_parallel_runner.py`: the overlap is refused with both keys named, and a
+  wildcard plus a concrete key for different units load.
+- #52: `tools/lock_digest.py` (`digest(lock, committed)`, plus a command line
+  printing the key suffix: empty for an equal lock, else `-` and 16 hex digits).
+  In `workflow-manager-verify.yml`, `plan`, `shard` and `aggregate` compute the
+  suffix in a `digest` step before the cache step and use
+  `steps.digest.outputs.suffix`; `package` keeps the base key. No cache key uses
+  `github.run_id` any more. Tests in `test_release_workflows.py`
+  (`TestLockDigest`, the key test). `ARCHITECTURE.md`'s "Nightly" bullet says it.
+- The first full run found three existing tests that pinned the run-id key
+  (`TestCiWorkflowStructure` and `TestOneRequiredCheck` in
+  `test_parallel_runner.py`, `TestTheVerifyWorkflow` in `test_tested_releases.py`,
+  which the plan's file list does not name); they now pin the digest suffix, the
+  unsuffixed `package` key and the plan job's seven steps.
+- Roadmap: the row and section 12 no longer list #50 among the fixes; the "Later"
+  list keeps only #50 (the thirteen closed issues are gone). Row 12 turns Done at
+  acceptance, not here.
+- Dispositions (plan section 1): #44 and #45 dropped, #43 and #46 tests only,
+  #50 follow-up, the rest fixed.
+
+Verification: `--select test_parallel_runner.py` and
+`--select test_release_workflows.py` green; the workflow file parses (its tests
+load it). Full gate `python3 tests/run_all.py` exit 0 (14674 tests, head `db3ab6a`
+plus this checkpoint's working tree) after fixing the first run's three failures.
+
 ## Next action
 
-CP4 (orphan-key overlap, the nightly cache entry and the roadmap).
+All checkpoints complete: step 2 (enter `SELF_REVIEWING_IMPLEMENTATION`), step 3
+(full verification) and step 4 (the review bundle).

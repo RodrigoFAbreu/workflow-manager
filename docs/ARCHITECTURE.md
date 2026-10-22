@@ -624,7 +624,14 @@ update` owns it and may rename its job.
   own per-commit group and is never cancelled.
 - **Nightly.** The `schedule` run is the full selection of the default
   branch. A red nightly shows on the README's badge and in the Actions tab;
-  nothing opens an issue.
+  nothing opens an issue. Its release-cache key is the pull-request key plus
+  a suffix from `tools/lock_digest.py`: nothing while the nightly's lock
+  equals `tests/tested_releases.json` (parsed, so formatting is irrelevant),
+  so it hits the entry the `main` push run saved and saves nothing, and `-`
+  with the first 16 hex digits of the lock's canonical SHA-256 once a release
+  is new, so that night saves one entry and later nights hit it. `plan`,
+  `shard` and `aggregate` compute the suffix; `package` primes only the
+  committed set and keeps the unsuffixed key.
 - **Release.** `.github/workflows/release.yml` publishes the Manager package
   from `main` after `main`'s full run is green; see `docs/RELEASING.md`.
 

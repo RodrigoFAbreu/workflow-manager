@@ -186,6 +186,15 @@ def parse(raw, host_unit_ids, *, source: str = "resources.json",
         fail("orphan_sources must be an object")
     inventory = set(known_units if orphan_unit_ids is None else orphan_unit_ids)
     orphan_sources: dict[str, OrphanSource] = {}
+    declared_by: dict[str, str] = {}
+
+    def declare(found: str, key: str, reason: str) -> None:
+        if found in declared_by:
+            fail(f"orphan_sources {declared_by[found]!r} and {key!r} both "
+                 f"declare {found!r}")
+        declared_by[found] = key
+        orphan_sources[found] = OrphanSource(found, reason)
+
     for unit in sorted(raw_sources):
         if unit.startswith(ANY_RELEASE_PREFIX):
             spec = raw_sources[unit]
@@ -199,7 +208,7 @@ def parse(raw, host_unit_ids, *, source: str = "resources.json",
                 fail(f"orphan_sources unit {unit!r} matches nothing in the "
                      f"{'host ' if orphan_unit_ids is None else ''}inventory")
             for found in matched:
-                orphan_sources[found] = OrphanSource(found, reason)
+                declare(found, unit, reason)
             continue
         spec = raw_sources[unit]
         if not isinstance(spec, dict) or set(spec) != {"reason"}:
@@ -210,6 +219,6 @@ def parse(raw, host_unit_ids, *, source: str = "resources.json",
         if unit not in inventory:
             fail(f"orphan_sources unit {unit!r} is not in the "
                  f"{'host ' if orphan_unit_ids is None else ''}inventory")
-        orphan_sources[unit] = OrphanSource(unit, reason)
+        declare(unit, unit, reason)
 
     return Resources(resources, exclusive, orphan_sources)

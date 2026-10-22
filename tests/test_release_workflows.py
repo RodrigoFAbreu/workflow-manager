@@ -285,6 +285,32 @@ class TestReleaseWorkflow(unittest.TestCase):
                     self.assertEqual(step["with"]["restore-keys"].strip(), RELEASE_CACHE_KEY)
                     self.assertTrue(step["with"]["key"].startswith(RELEASE_CACHE_KEY))
 
+    def test_no_cache_key_uses_the_run_id_and_package_has_no_digest(self):
+        """#52: the nightly's key was unique per run, so it saved an entry every
+        night. The digest suffix replaces it in `plan`, `shard` and `aggregate`;
+        `package` primes only the committed set and keeps the base key."""
+        jobs = _workflow(VERIFY_WORKFLOW)["jobs"]
+        keys = {}
+        for name, job in jobs.items():
+            for step in job.get("steps") or []:
+                if _uses(step, "actions/cache"):
+                    keys[name] = step["with"]["key"]
+        self.assertEqual(sorted(keys), ["aggregate", "package", "plan", "shard"])
+        for name, key in keys.items():
+            with self.subTest(job=name):
+                self.assertNotIn("run_id", key)
+                self.assertTrue(key.startswith(RELEASE_CACHE_KEY))
+        self.assertEqual(keys["package"], RELEASE_CACHE_KEY)
+        for name in ("plan", "shard", "aggregate"):
+            with self.subTest(job=name):
+                self.assertEqual(keys[name], RELEASE_CACHE_KEY + "${{ steps.digest.outputs.suffix }}")
+                steps = jobs[name]["steps"]
+                digest = _step_index(steps, lambda st: st.get("id") == "digest", "digest")
+                cache = _step_index(steps, lambda st: _uses(st, "actions/cache"), "cache")
+                self.assertLess(digest, cache)
+                self.assertIn("tools/lock_digest.py", steps[digest]["run"])
+        self.assertNotIn("run_id", VERIFY_WORKFLOW.read_text(encoding="utf-8").split("\njobs:\n", 1)[1])
+
     def test_the_resolved_target_reaches_the_output_the_steps_read(self):
         """`resolve-target` prints the two `key=value` lines the later steps'
         `steps.target.outputs.*` expressions read."""
@@ -358,6 +384,62 @@ def env_context_violations(workflow: dict) -> list[str]:
             for context in sorted(_contexts(value) - JOB_ENV_CONTEXTS):
                 found.append(f"jobs.{job_id}.env.{name}: {context}")
     return found
+
+
+class TestLockDigest(unittest.TestCase):
+    """#52: `tools/lock_digest.py`, the nightly's cache-key suffix."""
+
+    LOCK = {"schema_version": 1, "releases": {"2.18.3": {"a": 1, "b": [1, 2]}}}
+
+    def setUp(self):
+        spec = importlib.util.spec_from_file_location(
+            "lock_digest", REPO_ROOT / "tools" / "lock_digest.py")
+        self.module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self.module)
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.tmp = Path(self._tmp.name)
+
+    def write(self, name, text):
+        path = self.tmp / name
+        path.write_text(text, encoding="utf-8")
+        return path
+
+    def test_an_equal_lock_gives_nothing_even_when_reformatted(self):
+        committed = self.write("committed.json", json.dumps(self.LOCK, indent=2) + "\n")
+        compact = self.write("lock.json", json.dumps(self.LOCK, separators=(",", ":")))
+        reordered = self.write("reordered.json", json.dumps(self.LOCK, sort_keys=True))
+        self.assertEqual(self.module.digest(compact, committed), "")
+        self.assertEqual(self.module.digest(reordered, committed), "")
+
+    def test_another_lock_gives_a_stable_sixteen_hex_digest(self):
+        committed = self.write("committed.json", json.dumps(self.LOCK))
+        other = dict(self.LOCK, releases={**self.LOCK["releases"], "2.19.0": {"a": 2}})
+        first = self.write("first.json", json.dumps(other, indent=4))
+        second = self.write("second.json", json.dumps(other, separators=(",", ":")))
+        found = self.module.digest(first, committed)
+        self.assertRegex(found, r"^[0-9a-f]{16}$")
+        self.assertEqual(self.module.digest(second, committed), found)
+        self.assertNotEqual(found, self.module.digest(
+            self.write("third.json", json.dumps(dict(other, releases={}))), committed))
+
+    def test_the_command_line_prints_the_suffix_and_refuses_bad_input(self):
+        committed = self.write("committed.json", json.dumps(self.LOCK))
+        same = self.write("same.json", json.dumps(self.LOCK))
+        other = self.write("other.json", json.dumps({"releases": {}}))
+
+        def run(*args):
+            return subprocess.run(
+                [sys.executable, "-I", str(REPO_ROOT / "tools" / "lock_digest.py"), *args],
+                capture_output=True, text=True)
+
+        proc = run(str(same), str(committed))
+        self.assertEqual((proc.returncode, proc.stdout), (0, "\n"))
+        proc = run(str(other), str(committed))
+        self.assertEqual(proc.returncode, 0)
+        self.assertRegex(proc.stdout, r"^-[0-9a-f]{16}\n$")
+        self.assertEqual(run(str(self.tmp / "missing.json"), str(committed)).returncode, 2)
+        self.assertEqual(run(str(same)).returncode, 2)
 
 
 class TestEnvExpressionContexts(unittest.TestCase):

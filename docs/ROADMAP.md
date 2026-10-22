@@ -55,7 +55,7 @@ What #74 still lists after row 10, test code only: `tests/support.py` `no_reposi
 
 ### 12. Review follow-up clean-up
 
-The release-agnostic Manager (row 8, PR #38) left fourteen Optional review findings as `review-follow-up` issues, #39 to #52. The owner's rule (2026-10-16): acceptance never waits for them, and a clean-up milestone works them off from time to time; the owner said go on 2026-10-22. Fix the contained, clearly specified ones: the floor's edges outside bare `update` (`--pinned-only` with an installed discovered release, `doctor` at the floor, #39) and the REASON they need (#40); `doctor`'s "Latest available" on an explicit `--release-version` run (#41); a dedicated refusal for a malformed version such as `v2.12.0` (#42); specified behaviour, with tests, for partial `manager`-block objects (#43); refusing duplicate filenames in `SHA256SUMS` (#46); `ReleaseFloorError`'s docstring (#47); two CLI tests (#48, #49); `_http_read`'s abandoned worker thread and socket (#50); overlapping orphan keys in `tests/parallel/resources.json` (#51); and the nightly's cache entry per run (#52). #44 (offer an older release instead of refusing a release whose `manager` block has the wrong shape) keeps today's fail-closed behaviour, which needs no change; #45 (pre-screen the pin binding before fetching the archive) is an optimisation the plan does only if it stays small. A `fix:` change, so a Manager patch release follows the merge.
+The release-agnostic Manager (row 8, PR #38) left fourteen Optional review findings as `review-follow-up` issues, #39 to #52. The owner's rule (2026-10-16): acceptance never waits for them, and a clean-up milestone works them off from time to time; the owner said go on 2026-10-22. Fix the contained, clearly specified ones: the floor's edges outside bare `update` (`--pinned-only` with an installed discovered release, `doctor` at the floor, #39) and the REASON they need (#40); `doctor`'s "Latest available" on an explicit `--release-version` run (#41); a dedicated refusal for a malformed version such as `v2.12.0` (#42); specified behaviour, with tests, for partial `manager`-block objects (#43); refusing duplicate filenames in `SHA256SUMS` (#46); `ReleaseFloorError`'s docstring (#47); two CLI tests (#48, #49); overlapping orphan keys in `tests/parallel/resources.json` (#51); and the nightly's cache entry per run (#52). #44 (offer an older release instead of refusing a release whose `manager` block has the wrong shape) keeps today's fail-closed behaviour, which needs no change; #45 (pre-screen the pin binding before fetching the archive) is dropped: `ReleaseSource.inspect` already cross-checks the digests before any archive is fetched. #50 (`_http_read`'s abandoned worker thread and socket) was removed from this milestone by the owner (2026-10-22) and stays open for its own milestone, as the "Later" list says. A `fix:` change, so a Manager patch release follows the merge.
 
 ## Done
 
@@ -98,20 +98,7 @@ Not scheduled. Each is small unless noted.
 
 These are the Optional review findings deferred at acceptance (the owner's rule of 2026-10-16). Each one is an issue labelled [`review-follow-up`](https://github.com/RodrigoFAbreu/workflow-manager/issues?q=is%3Aissue+label%3Areview-follow-up), and a later clean-up milestone works them off:
 
-- #39: Floor edges outside bare update: --pinned-only with an installed discovered release, and doctor at the floor
-- #40: Floor refusal: add a REASON for the --pinned-only case
-- #41: doctor's "Latest available" on an explicit --release-version run can hide a newer discovered release
-- #42: A malformed version such as v2.12.0 gets "not published" advice instead of "name a release as X.Y.Z"
-- #43: Specify partial manager-block objects (conformance: {} and missing nested fields)
-- #44: Revisit refusing the whole release for a manager block of the wrong shape
-- #45: Pre-screen the pin binding from the manifest asset before fetching the archive
-- #46: Refuse duplicate filenames in SHA256SUMS
-- #47: ReleaseFloorError's docstring does not name the none-at-floor kind
-- #48: CLI test: a traversal version through an installation record stays inside the cache
-- #49: CLI test: doctor exits 0 on an up-to-date post-2.12.0 installation with an unreadable source
-- #50: _http_read abandons its worker thread and socket when the deadline expires
-- #51: Overlapping frozen orphan keys in tests/parallel/resources.json silently overwrite each other
-- #52: The nightly saves a new cache entry on every run
+- #50: _http_read abandons its worker thread and socket when the deadline expires (open for its own milestone; the owner removed it from the review follow-up clean-up on 2026-10-22, and the issue records what three review rounds learned)
 
 ## Principles
 

@@ -633,10 +633,11 @@ class TestTheVerifyWorkflow(unittest.TestCase):
             key = caches[0]["with"]["key"]
             for name in ("src/workflow_manager/published_releases.json", "tests/tested_releases.json"):
                 self.assertIn(name, key, job)
-            # The nightly's set is not in the repository: its key adds the run id and the
-            # restore key is the prefix of pins and lock alone, so pinned releases are restored.
-            self.assertIn("github.run_id", key, job)
-            self.assertIn("github.event_name == 'schedule'", key, job)
+            # The nightly's set is not in the repository: its key adds the lock's digest
+            # (`tools/lock_digest.py`; `package` primes only the committed set, so none) and
+            # the restore key is the prefix of pins and lock alone, so pinned releases are restored.
+            self.assertNotIn("github.run_id", key, job)
+            self.assertEqual("steps.digest.outputs.suffix" in key, job != "package", job)
             restore = caches[0]["with"]["restore-keys"].strip()
             self.assertTrue(key.startswith(restore.split("${{")[0]), job)
             self.assertNotIn("run_id", restore, job)
