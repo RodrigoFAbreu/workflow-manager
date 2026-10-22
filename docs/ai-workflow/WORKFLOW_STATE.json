@@ -11473,7 +11473,7 @@
       "registry_path": "docs/ai-workflow/registry/manager-review-followups-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/manager-review-followups-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "APPLYING_REVIEW_FEEDBACK",
       "plan_revision": 10,
       "implementation_revision": 1,
       "functional_review_round": null,
@@ -11621,12 +11621,12 @@
           "external": 5
         },
         "implementation": {
-          "local": 0,
+          "local": 1,
           "external": 0
         }
       },
-      "state_revision": 46,
-      "last_transition": "2026-10-22T14:29:25Z",
+      "state_revision": 47,
+      "last_transition": "2026-10-22T14:35:19Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -11977,6 +11977,76 @@
               "review_content_id": "7d3c33893c05216fde34952d6f9b3a643637a62f640e697f76443a1795c5fa80",
               "verdict": "APPROVE",
               "at": "2026-10-22T12:15:09Z"
+            }
+          ]
+        },
+        "F-eab329d4fb24": {
+          "digest": "eab329d4fb2404f955573ac09d888691e6afcdcca2c63bf30c0245e2569e545e",
+          "text": "**MRF-IL1-O1: on an explicit run, \"Latest available\" can name a release this Manager cannot use.** `newest_read` and `known_local` are not filtered by `min_manager_version`, so a read or cached release that needs a newer Manager can be shown as the latest. This conforms to plan 2.2's literal set but not to its own principle (\"nor present a release as usable that it has not shown to be\"). Consider excluding a block whose `min_manager_version` this Manager does not meet, or recording it as a follow-up.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "55f4582d9829c7ce52ccf316534d39324774c3dff889306f8b5232a10d1269e2",
+              "verdict": "REVISE",
+              "at": "2026-10-22T14:35:19Z"
+            }
+          ]
+        },
+        "F-fc6c6b0d00d8": {
+          "digest": "fc6c6b0d00d83e6ad20693cd53e71ddcdc3f8f058867de6028c370c6582336fd",
+          "text": "**MRF-IL1-O2: the `(the release source has no listing)` suffix is never asserted.** The `no-listing` value that `coverage.gather_metadata` assigns for a URL-template source has no test (`truncated` is covered only at the unit level). One case through a URL-template source would pin it.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "55f4582d9829c7ce52ccf316534d39324774c3dff889306f8b5232a10d1269e2",
+              "verdict": "REVISE",
+              "at": "2026-10-22T14:35:19Z"
+            }
+          ]
+        },
+        "F-ad7970b743c0": {
+          "digest": "ad7970b743c0bc45c0c3add54b621749a581dd9002a4d13430c34e91fb8b8d5c",
+          "text": "**MRF-IL1-O3: the mixed readable/unreadable test admits more requests than the plan allows.** `test_an_unreadable_newest_release_does_not_hide_a_lower_readable_one`'s allowed set includes the archives of `7.0.2` and `7.0.3`. The plan allows the listing and the range's manifests only. More importantly, an archive fetch of the lower release would make it `known_local` and stop the test proving `newest_read`. Assert that no `/dl/7.0.2/workflow-7.0.2.tar.gz` request was made.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "55f4582d9829c7ce52ccf316534d39324774c3dff889306f8b5232a10d1269e2",
+              "verdict": "REVISE",
+              "at": "2026-10-22T14:35:19Z"
+            }
+          ]
+        },
+        "F-6b01bf1d544d": {
+          "digest": "6b01bf1d544deacf1a261883b6275b210b253ddb9b228d295603d3cacad99c88",
+          "text": "**MRF-IL1-O4: `test_an_update_naming_the_release_is_the_repair_and_is_not_refused` checks only the absence of the refusal text.** Assert exit 0 and that the record now names the release, so the \"repair route\" the steps advertise is pinned.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "55f4582d9829c7ce52ccf316534d39324774c3dff889306f8b5232a10d1269e2",
+              "verdict": "REVISE",
+              "at": "2026-10-22T14:35:19Z"
+            }
+          ]
+        },
+        "F-31a8a1d82228": {
+          "digest": "31a8a1d8222898df9b76726f5a67ba393e5878ba38653b8d1f1d8f6557deec64",
+          "text": "**MRF-IL1-O5: a test comment points to the wrong document.** `test_a_traversal_version_in_the_record_is_refused_per_command_and_touches_nothing` cites \"docs/ARCHITECTURE.md's table\", but the per-command table is in the plan's section 2.3; `ARCHITECTURE.md` has a prose paragraph only.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "55f4582d9829c7ce52ccf316534d39324774c3dff889306f8b5232a10d1269e2",
+              "verdict": "REVISE",
+              "at": "2026-10-22T14:35:19Z"
             }
           ]
         }
