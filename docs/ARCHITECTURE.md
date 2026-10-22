@@ -131,6 +131,15 @@ offered nor counted as "newest known locally" under another). `--pinned-only`
 discovery, an unpinned version is `ReleaseNotPublishedError` as before. Stderr
 names a discovered release whenever it is used.
 
+A name that is not `X.Y.Z` (`v2.12.0`, `2.12`, a path) is a different refusal,
+`ReleaseNotPublishedError` of kind `not-a-version`, raised before any pin or
+discovery question wherever the source or the cache first sees it, so it never
+becomes a path. Its `origin` is `option` (a name the operator typed) or
+`record` (the target's installation record, refused by `cli.py`'s
+`_refuse_unparseable_record` in `status`, `verify`, `doctor`, `update --dry-run`
+and a bare `update`; a bare `update` therefore never installs over a damaged
+record). `advice` reads `origin` and the command for the step.
+
 ### Release metadata
 
 A release's manifest may carry an optional `manager` block with what the

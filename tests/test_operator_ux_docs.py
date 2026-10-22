@@ -123,6 +123,9 @@ class Docs(ux.ReleaseCase):
     def case_unpublished(self):
         return run("--release-version", "9.9.9", "bootstrap", str(self.empty()))
 
+    def case_not_a_version(self):
+        return run("--release-version", "v2.12.0", "bootstrap", str(self.empty()))
+
     def case_unreadable(self):
         repo = self.fresh()
         (repo / RECORD).write_text("{")
@@ -171,6 +174,9 @@ class Docs(ux.ReleaseCase):
         "`release X is not published: this Manager has no pin for it`":
             ("unpublished", ["is not published: this Manager has no pin for it"],
              ["update.md#update-the-manager"]),
+        "`release X is not a version` or `the installation record names X, which is not a "
+        "version`":
+            ("not_a_version", ["release 'v2.12.0' is not a version"], ["--release-version"]),
         "`the installation record at ... is unreadable`":
             ("unreadable", ["the installation record at", "is unreadable"], ["bootstrap"]),
         "`was written by a newer Manager`":

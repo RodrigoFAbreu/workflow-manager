@@ -107,11 +107,23 @@ def is_strict_version(text) -> bool:
 class ReleaseNotPublishedError(InstallError):
     """The version has no pin, so no package of it can be installed.
 
-    `kind` is `none-pinned` (the Manager pins nothing) or `unpinned`."""
+    `kind` is `none-pinned` (the Manager pins nothing), `unpinned` or
+    `not-a-version` (the name is not `X.Y.Z`). `origin` says where a
+    `not-a-version` name came from: `option` (typed, or a pin lookup) or
+    `record` (the target's installation record)."""
 
-    def __init__(self, message: str = "", *, kind: str | None = None):
+    def __init__(self, message: str = "", *, kind: str | None = None, origin: str = "option"):
         super().__init__(message)
-        self.kind = kind
+        self.kind, self.origin = kind, origin
+
+
+def not_a_version(version, *, origin: str = "option") -> ReleaseNotPublishedError:
+    """The refusal of a release name that is not `X.Y.Z` (it never becomes a path)."""
+    what = "the installation record names" if origin == "record" else "release"
+    glue = ", which" if origin == "record" else ""
+    return ReleaseNotPublishedError(
+        f"{what} {version!r}{glue} is not a version: a release is named X.Y.Z",
+        kind="not-a-version", origin=origin)
 
 
 class ReleaseUnavailableError(InstallError):
@@ -295,8 +307,7 @@ class ReleaseSource:
     def location(self, version: str, name: str) -> str:
         if not is_strict_version(version):
             # A version becomes a path or a URL here: only X.Y.Z does.
-            raise ReleaseNotPublishedError(
-                f"release {version!r} is not a version (X.Y.Z)", kind="unpinned")
+            raise not_a_version(version)
         if self.directory is not None:
             return str(self.directory / version / name)
         base = self.value.replace("{version}", urllib.parse.quote(version, safe=""))
@@ -713,7 +724,9 @@ class ReleaseCache:
         pin = self.pins.get(version)
         if pin is not None:
             return self._is_hit(self.entry(version), pin, TRUST_PINNED)
-        if not self.discover or not is_strict_version(version):
+        if not is_strict_version(version):
+            raise not_a_version(version)
+        if not self.discover:
             raise self._unpinned(version)
         local = self._local_pin(version)
         return local is not None and self._is_hit(self.entry(version), local, TRUST_DISCOVERED)
@@ -797,7 +810,9 @@ class ReleaseCache:
         pin = self.pins.get(version)
         if pin is not None:
             return pin, TRUST_PINNED
-        if not self.discover or not is_strict_version(version):
+        if not is_strict_version(version):
+            raise not_a_version(version)
+        if not self.discover:
             raise self._unpinned(version)
         return (self._local_pin(version) or self._derive(version)), TRUST_DISCOVERED
 

@@ -137,6 +137,32 @@ class TestTheBlockReader(unittest.TestCase):
                 "suites": {"x": True}, "portability_exceptions": []}),
             "exception without reason": block(conformance={
                 "suites": {}, "portability_exceptions": [{"suite": "a", "test": "b"}]}),
+            "exception without suite": block(conformance={
+                "suites": {}, "portability_exceptions": [{"test": "b", "reason": "r"}]}),
+            "exception without test": block(conformance={
+                "suites": {}, "portability_exceptions": [{"suite": "a", "reason": "r"}]}),
+            "exception not an object": block(conformance={
+                "suites": {}, "portability_exceptions": ["a::b"]}),
+            "exception requires of the wrong type": block(conformance={
+                "suites": {}, "portability_exceptions": [
+                    {"suite": "a", "test": "b", "reason": "r", "requires": 1}]}),
+            "exception defect of the wrong type": block(conformance={
+                "suites": {}, "portability_exceptions": [
+                    {"suite": "a", "test": "b", "reason": "r", "defect": ["d"]}]}),
+            "suites not an object": block(conformance={
+                "suites": [], "portability_exceptions": []}),
+            "portability_exceptions an object": block(conformance={
+                "suites": {}, "portability_exceptions": {}}),
+            "signal without name": block(downgrade_boundary={"posture": "", "signals": [
+                {"label": "l", "detect": {"kind": "state-key", "key": "k"}}]}),
+            "signal without label": block(downgrade_boundary={"posture": "", "signals": [
+                {"name": "a", "detect": {"kind": "state-key", "key": "k"}}]}),
+            "signal not an object": block(downgrade_boundary={"posture": "", "signals": ["a"]}),
+            "undetectable of the wrong type": block(downgrade_boundary={
+                "posture": "", "undetectable": 3}),
+            "posture null": block(downgrade_boundary={"posture": None}),
+            "boundary null": block(downgrade_boundary=None),
+            "conformance null": block(conformance=None),
         }
         for name, raw in cases.items():
             with self.subTest(name), self.assertRaises(ReleaseIntegrityError) as caught:
@@ -154,6 +180,28 @@ class TestTheBlockReader(unittest.TestCase):
         self.assertEqual(parsed.downgrade_boundary.signals, ())
         exception = parsed.conformance.portability_exceptions[0]
         self.assertEqual((exception.requires, exception.defect), (None, None))
+
+    def test_the_accepted_partials_take_the_documented_defaults(self):
+        exception = {"suite": "a", "test": "b", "reason": "r"}
+        for name, raw in {
+                "boundary with only a posture": {"downgrade_boundary": {"posture": "p"}},
+                "explicit null undetectable": {"downgrade_boundary": {
+                    "posture": "p", "undetectable": None}},
+                "explicit empty signals": {"downgrade_boundary": {"posture": "p", "signals": []}},
+                "explicit null requires and defect": {"conformance": {
+                    "suites": {}, "portability_exceptions": [
+                        {**exception, "requires": None, "defect": None}]}},
+                "no requires and no defect": {"conformance": {
+                    "suites": {}, "portability_exceptions": [exception]}},
+        }.items():
+            with self.subTest(name):
+                parsed = parse_manager_block({"schema_version": 1, **raw})
+                if parsed.downgrade_boundary is not None:
+                    self.assertIsNone(parsed.downgrade_boundary.undetectable)
+                    self.assertEqual(parsed.downgrade_boundary.signals, ())
+                if parsed.conformance is not None:
+                    found = parsed.conformance.portability_exceptions
+                    self.assertEqual([(e.requires, e.defect) for e in found], [(None, None)])
 
     def test_minimum_version_comparison(self):
         for minimum, manager, ok in (

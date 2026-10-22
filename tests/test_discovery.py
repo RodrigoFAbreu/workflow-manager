@@ -407,14 +407,17 @@ class TestOnlyAStrictVersionBuildsAPath(_Mirror):
             with self.subTest(version=bad):
                 with self.assertRaises(release_source.ReleaseNotPublishedError) as caught:
                     cache.resolve(bad)
-                self.assertEqual(caught.exception.kind, "unpinned")
+                self.assertEqual((caught.exception.kind, caught.exception.origin),
+                                 ("not-a-version", "option"))
+                self.assertEqual(str(caught.exception),
+                                 f"release {bad!r} is not a version: a release is named X.Y.Z")
                 self.assertRaises(release_source.ReleaseNotPublishedError, cache.cached, bad)
                 self.assertIsNone(cache.cached_manifest(bad))
                 self.assertRaises(release_source.ReleaseNotPublishedError,
                                   cache.source.inspect, bad)
         self.assertFalse(self.cache.exists() and any(self.cache.iterdir()))
 
-    def test_verify_after_a_scalar_record_gives_the_release_dir_advice_under_discovery(self):
+    def test_verify_after_a_scalar_record_names_the_record_as_the_cause(self):
         for value in (123, ""):
             with self.subTest(value=value):
                 repo = tb.empty_repo(self.tmp / f"repo-{len(list(self.tmp.glob('repo-*')))}")
@@ -426,8 +429,10 @@ class TestOnlyAStrictVersionBuildsAPath(_Mirror):
                                                f'"workflow_version": {json.dumps(value)}'))
                 code = self._cli("verify", str(repo), source_dir=self.mirror)
                 self.assertNotIn("Traceback", self.cli_output)
-                self.assertIn("--release-dir DIR", self.cli_output)
-                self.assertNotEqual(code, 0)
+                self.assertIn("installation record names", self.cli_output)
+                self.assertIn("`workflow-manager --release-version X.Y.Z ", self.cli_output)
+                self.assertIn(" verify ", self.cli_output.split("next:")[1])
+                self.assertEqual(code, 1)
 
 
 class TestOffline(_Mirror):
@@ -578,6 +583,24 @@ class TestTheCacheIsBoundToItsSource(_Mirror):
                                    release_source.load_pins(self.pins_path))
         self.assertNotIn(UNPINNED, pinned_only.known_local())
 
+    def test_a_cache_entry_whose_stored_sums_repeat_a_filename_is_not_trusted_or_served(self):
+        self.assertEqual(self._cli("--release-version", UNPINNED, "bootstrap", str(self.target),
+                                   source_dir=self.mirror), 0, self.cli_output)
+        cache = self.cache_for(self.mirror)
+        self.assertTrue(cache.cached(UNPINNED))
+        self.assertIsNotNone(cache.cached_manifest(UNPINNED))
+        sums = self.cache / UNPINNED / "SHA256SUMS"
+        sums.write_text(sums.read_text() + sums.read_text().splitlines()[0] + "\n")
+        self.assertIsNone(cache._local_pin(UNPINNED))
+        self.assertNotIn(UNPINNED, cache.known_local())
+        self.assertFalse(cache.cached(UNPINNED))
+        self.assertIsNone(cache.cached_manifest(UNPINNED))
+        # Trust is re-derived from the source (which publishes it once), so the
+        # entry is replaced by a verified one rather than served as it was.
+        with cache.resolve(UNPINNED) as release:
+            self.assertEqual(release.version, UNPINNED)
+        self.assertEqual(sums.read_text(), (self.mirror / UNPINNED / "SHA256SUMS").read_text())
+
     def test_another_source_refetches_and_records_itself(self):
         self._cli("--release-version", UNPINNED, "bootstrap", str(self.target),
                   source_dir=self.mirror)
@@ -687,6 +710,20 @@ class TestTheSumsFile(unittest.TestCase):
         with self.assertRaises(release_source.ReleaseIntegrityError):
             release_source._parse_sums_text(
                 line + "\n" + "b" * 64 + "  workflow-1.0.0.manifest.json\n" + line + "\n", "SHA256SUMS")
+
+    def test_a_repeated_filename_gives_no_pin(self):
+        archive, manifest = package_module.archive_name("1.0.0"), \
+            package_module.manifest_asset_name("1.0.0")
+        for name, text in (
+                ("the archive twice", f"{'a' * 64}  {archive}\n{'b' * 64}  {manifest}\n"
+                                      f"{'c' * 64}  {archive}\n"),
+                ("the manifest twice", f"{'a' * 64}  {archive}\n{'b' * 64}  {manifest}\n"
+                                       f"{'b' * 64}  {manifest}\n"),
+                ("both twice", (f"{'a' * 64}  {archive}\n{'b' * 64}  {manifest}\n") * 2)):
+            with self.subTest(name), self.assertRaises(release_source.ReleaseIntegrityError) as c:
+                release_source.derive_pin("1.0.0", text)
+            self.assertEqual(c.exception.kind, "digest")
+            self.assertIn("twice", str(c.exception))
 
 
 class TestLatestAvailableOnAnExplicitRun(_Mirror):
@@ -892,15 +929,16 @@ class TestTheFloor(_Mirror):
                                    source_dir=self.tmp / "absent"), 0, self.cli_output)
         self.assertEqual(Installation.read(self.target).workflow_version, "7.0.1")
 
-    def test_an_unreadable_installed_version_has_no_floor_and_says_so(self):
-        err = io.StringIO()
+    def test_a_record_that_is_not_a_version_is_refused_not_a_floor_of_none(self):
         with mock.patch.object(tb.cli_module, "is_managed", return_value=True), \
                 mock.patch.object(tb.cli_module.Installation, "read",
-                                  return_value=mock.Mock(workflow_version="weird")), \
-                contextlib.redirect_stderr(err):
-            floor = tb.cli_module._floor(mock.Mock(target=self.target))
-        self.assertIsNone(floor)
-        self.assertIn("names no parseable release", err.getvalue())
+                                  return_value=mock.Mock(workflow_version="weird")):
+            with self.assertRaises(release_source.ReleaseNotPublishedError) as caught:
+                tb.cli_module._floor(mock.Mock(target=self.target))
+        self.assertEqual((caught.exception.kind, caught.exception.origin),
+                         ("not-a-version", "record"))
+        self.assertIn("the installation record names 'weird', which is not a version",
+                      str(caught.exception))
 
 
 class TestChooser(_Mirror):

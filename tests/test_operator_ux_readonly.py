@@ -1000,9 +1000,9 @@ class TestPrintedCommandsParse(ux.TargetCase):
                 out = proc.stdout + proc.stderr
                 self.assertNotIn("Traceback", out)
                 self.assertNotIn("leave out", out, out)
+                self.assertEqual(proc.returncode, 1, out)
+                self.assertIn("the installation record names", out)
                 self.assertIn("--release-dir DIR", out)
-                if version is None:     # only `null` resolves to the newest pin, so it compares
-                    self.assertIn("a release directory holding None", out, out)
                 again = run("--release-dir", str(directory), "verify", str(repo))
                 commands = ux.manager_commands(again.stdout)
                 update = next(a for a in commands if "update" in a and "--dry-run" not in a)
