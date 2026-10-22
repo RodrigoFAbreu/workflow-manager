@@ -11473,12 +11473,12 @@
       "registry_path": "docs/ai-workflow/registry/manager-review-followups-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/manager-review-followups-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "APPLYING_REVIEW_FEEDBACK",
+      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
       "plan_revision": 10,
-      "implementation_revision": 2,
+      "implementation_revision": 3,
       "functional_review_round": null,
       "base_commit": "3c7ad523eb9194269897e0586ad37aab508e5f66",
-      "reviewed_implementation_head": "de841183f6f80c420933dae3ca8341bcb8e27bb8",
+      "reviewed_implementation_head": "88f10d504b2581007482ba21ddc0db41f2c18dbb",
       "current_checkpoint_id": null,
       "last_completed_checkpoint_id": "CP4",
       "checkpoints": {
@@ -11625,8 +11625,8 @@
           "external": 1
         }
       },
-      "state_revision": 50,
-      "last_transition": "2026-10-22T16:08:25Z",
+      "state_revision": 51,
+      "last_transition": "2026-10-22T16:35:28Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
