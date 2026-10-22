@@ -18,6 +18,7 @@ import io
 import json
 import os
 import shutil
+import subprocess
 import threading
 import time
 import unittest
@@ -42,6 +43,11 @@ from workflow_manager.source import (
 UNPINNED = "7.0.2"
 NEWER = "7.0.3"
 FIXTURE = REPO_ROOT / "tests" / "fixtures" / "github_releases_listing.json"
+
+
+def _files(root: Path) -> dict:
+    return {p.relative_to(root).as_posix(): p.read_bytes()
+            for p in root.rglob("*") if p.is_file() and ".git/" not in p.as_posix()}
 
 
 def _listing(versions, *, immutable=True, draft=False, prerelease=False, extra=()):
@@ -433,6 +439,72 @@ class TestOnlyAStrictVersionBuildsAPath(_Mirror):
                 self.assertIn("`workflow-manager --release-version X.Y.Z ", self.cli_output)
                 self.assertIn(" verify ", self.cli_output.split("next:")[1])
                 self.assertEqual(code, 1)
+
+
+    def test_a_traversal_version_in_the_record_is_refused_per_command_and_touches_nothing(self):
+        # RA-IMPL-R7-O2 (#48): the refusal, cause, step and exit code each command
+        # gives for a record naming "../escaped" (docs/ARCHITECTURE.md's table), and
+        # no path created or removed around the cache.
+        self.bootstrap_at("7.0.0")
+        record = self.target / ".workflow-manager" / "installation.json"
+        fields = json.loads(record.read_text())
+        fields["workflow_version"] = "../escaped"
+        record.write_text(json.dumps(fields))
+        cause = "the installation record names '../escaped', which is not a version: " \
+                "a release is named X.Y.Z"
+        repair = "next: repair or re-bootstrap the installation record"
+        everywhere = lambda: sorted(  # noqa: E731 -- every path under the test's tree
+            (p.relative_to(self.tmp).as_posix(), p.stat().st_size if p.is_file() else -1)
+            for p in self.tmp.rglob("*") if ".git" not in p.relative_to(self.tmp).parts)
+        before_files = _files(self.target)
+        rows = (
+            ("status", ["status"], 1, "status", cause),
+            ("verify", ["verify"], 1, "verify", cause),
+            ("doctor", ["doctor"], 2, "update", "error: could not resolve the target release: " + cause),
+            ("doctor, valid option", ["--release-version", "7.0.1", "doctor"], 2, "update",
+             "error: could not resolve the target release: " + cause),
+            ("dry run", ["update", "--dry-run"], 1, "update", cause),
+            ("dry run, valid option", ["--release-version", "7.0.1", "update", "--dry-run"], 1,
+             "update", cause),
+            ("bare update", ["update"], 1, "update", cause),
+        )
+        for name, argv, exit_code, command, first in rows:
+            with self.subTest(command=name):
+                tree = everywhere()
+                global_options = argv[:2] if argv[0] == "--release-version" else []
+                rest = argv[len(global_options):]
+                code = self._cli(*global_options, *rest, str(self.target), source_dir=self.mirror)
+                self.assertEqual(code, exit_code, self.cli_output)
+                self.assertNotIn("Traceback", self.cli_output)
+                self.assertIn(first, self.cli_stderr)
+                step = self.cli_stderr.split("next:", 1)[1]
+                self.assertIn(repair[len("next:"):], step)
+                self.assertIn("workflow-manager --release-version X.Y.Z ", step)
+                self.assertIn(f" {command} ", step)
+                self.assertNotIn("7.0.1", step)
+                self.assertNotIn("--dry-run", step)
+                if command == "update":
+                    self.assertNotIn(" doctor ", step)
+                self.assertEqual(everywhere(), tree)
+                self.assertEqual(_files(self.target), before_files)
+        # A valid option names the release, so status and verify do not refuse on
+        # the record: they compare against it and report the mismatch.
+        for command in ("status", "verify"):
+            with self.subTest(command=f"{command}, valid option"):
+                tree = everywhere()
+                code = self._cli("--release-version", "7.0.0", command, str(self.target),
+                                 source_dir=self.mirror)
+                self.assertEqual(code, 1, self.cli_output)
+                self.assertNotIn("Traceback", self.cli_output)
+                self.assertNotIn("is not a version", self.cli_output)
+                self.assertIn("installed ../escaped, release 7.0.0", self.cli_stdout)
+                self.assertIn("you compared with a release other than the installed one",
+                              self.cli_output)
+                outside = [e for e in everywhere() if not e[0].startswith("cache")]
+                self.assertEqual(outside, [e for e in tree if not e[0].startswith("cache")])
+                self.assertFalse((self.tmp / "escaped").exists())
+                self.assertFalse((self.cache / "escaped").exists())
+                self.assertFalse((self.cache.parent / "escaped").exists())
 
 
 class TestOffline(_Mirror):
@@ -901,6 +973,31 @@ class TestTheFloor(_Mirror):
                               f"at or above the installed Workflow {NEWER}", self.cli_stderr)
                 self.assertIn("next: run the command again without --pinned-only", self.cli_stderr)
         self.assertEqual(self.snapshot(), before)
+
+
+    def test_doctor_on_an_up_to_date_discovered_release_exits_0_when_the_source_is_unreadable(self):
+        # RA-IMPL-R7-O2's sibling (#49): the installed release is the candidate at the
+        # floor; the cache holds it, bound to this very source, which is now gone.
+        source = self.variant(lambda directory: None, NEWER)
+        self.assertEqual(self._cli("--release-version", NEWER, "bootstrap", str(self.target),
+                                   source_dir=source), 0, self.cli_output)
+        for args in (("add", "-A"), ("-c", "user.name=t", "-c", "user.email=t@example.invalid",
+                                     "commit", "-q", "-m", "install")):
+            subprocess.run(["git", "-C", str(self.target), *args], check=True,
+                           capture_output=True)
+        source.rename(self.tmp / "gone")
+        before = self.snapshot()
+        cache_before = sorted(p.relative_to(self.cache).as_posix() for p in self.cache.rglob("*"))
+        code = self._cli("doctor", str(self.target), source_dir=source)
+        self.assertEqual(code, 0, self.cli_output)
+        self.assertIn("could not look for newer releases", self.cli_stderr)
+        self.assertIn(f"using {NEWER}", self.cli_stderr)
+        self.assertIn("Findings -- nothing found", self.cli_stdout)
+        self.assertIn(f"Target of this check {NEWER}", self.cli_stdout)
+        self.assertNotIn("error:", self.cli_stderr)
+        self.assertEqual(self.snapshot(), before)
+        self.assertEqual(sorted(p.relative_to(self.cache).as_posix()
+                                for p in self.cache.rglob("*")), cache_before)
 
     def test_a_blocked_archive_installs_nothing(self):
         self.install_discovered()

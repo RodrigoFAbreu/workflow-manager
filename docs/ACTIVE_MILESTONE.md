@@ -54,6 +54,29 @@ test_operator_ux_readonly, test_release_metadata green; full gate
 `python3 tests/run_all.py` exit 0 (14667 tests, head `51f3a22` plus this
 checkpoint's working tree) after one fix of the first run's single failure.
 
+## CP3 -- the two CLI tests (#48, #49)
+
+- #48, `TestOnlyAStrictVersionBuildsAPath` in `tests/test_discovery.py`: a record
+  naming `../escaped` is driven through `status`, `verify`, `doctor`,
+  `doctor --release-version`, `update --dry-run` (with and without an option) and a
+  bare `update`; each gives its row's cause, step and exit code, and the tree
+  around the cache and the target's files are unchanged. `status`/`verify` with a
+  valid option report the version mismatch, not a refusal, and create nothing
+  outside the cache.
+- #49, `TestTheFloor` in `tests/test_discovery.py` (it has the mirror; the
+  `doctor`-at-the-floor tests already live there since CP1, so
+  `test_doctor_cli.py` is unchanged): `doctor` exits 0 on an up-to-date discovered
+  installation whose cache entry is bound to a source that is now gone; the
+  offline line is on stderr, nothing is written. The cache entry is only trusted
+  for the very source that wrote it, so the source is the same path, removed.
+- The synthesized mirror release carries no `manager` block; `doctor` still
+  reports "nothing found" for it. Tests only; `src/` unchanged. The tests passed on
+  the first run (the behaviour existed); I did not run them red.
+
+Verification: `--select test_discovery.py` green (68 tests); full gate
+`python3 tests/run_all.py` exit 0 (14669 tests, head `1d6ea94` plus this
+checkpoint's working tree).
+
 ## Next action
 
-CP3 (the two CLI tests).
+CP4 (orphan-key overlap, the nightly cache entry and the roadmap).
