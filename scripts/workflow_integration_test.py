@@ -1452,8 +1452,11 @@ _GOLDEN_COMMAND_FILE_SHA256 = {
     # `$ARGUMENTS` (D-Args); the five rows below are first recorded hashes -- intentional content changes.
     "adopt-gate-policy.md": "c3787bfc199956d4ffb57500448da6ef2aaf613f51d696d4785a6764a48ab247",
     "request-plan-amendment.md": "ffdc4d7901132022ac74524bd9fabd7354ee6bc96082d3836276fe25b16fbd15",
-    "resume-implementation.md": "1da12ec1248b71a9f614f0dbb66f0e6652e78e2652948e4463703fe567e6368e",
-    "retire-legacy-work-item.md": "71e14a3e363ebdd0a31473424fbd44adadfff97bde0250bd359fb37925202625",
+    # workflow-2.18.4 (review-followups-4, CP2): step 3 of the next two rows says the unknown-id
+    # refusal is the same `...WrongPhaseError` with the message "<id> names no work item" --
+    # intentional content change.
+    "resume-implementation.md": "cc9f6264706f96c4e769410e7346e15de8e759690a1ba908f93fc5b6ad0e55f0",
+    "retire-legacy-work-item.md": "d6c6586626714156193455d01609e50dd3a0ac8b63a669a5afa0e907f7736a8f",
     "prepare-review.md": "de05a427f90087dd56703162e56fb388d86e74f090c95d6953590884d18bda1a",
 }
 
@@ -8625,6 +8628,19 @@ class TestHarnessNeutralCommandBodies(unittest.TestCase):
             text = " ".join(_command_text(filename).split())
             for needle in needles + (self.PINNED, self.NEVER_INVOKE):
                 with self.subTest(filename=filename, needle=needle):
+                    self.assertIn(needle, text)
+
+    def test_the_unknown_id_refusal_is_described_in_step_three(self):
+        # workflow-2.18.4 (review-followups-4, CP2): both step 3s say the same `...WrongPhaseError`
+        # also covers an id that is not a key of `work_items`.
+        for filename, error in (("retire-legacy-work-item.md", "LegacyRetirementWrongPhaseError"),
+                                ("resume-implementation.md", "ResumeImplementationWrongPhaseError")):
+            text = " ".join(_command_text(filename).split())
+            with self.subTest(filename=filename):
+                self.assertIn(f"The same `{error}` is also raised, with the message "
+                              '"<id> names no work item", for an id that is not a key of `work_items`',
+                              text)
+                for needle in self.USER_ONLY[filename] + (self.PINNED, self.NEVER_INVOKE):
                     self.assertIn(needle, text)
 
     def test_the_history_moved_out_of_approve_review_into_the_contract(self):
