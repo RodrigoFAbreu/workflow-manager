@@ -309,6 +309,10 @@ class TestReleaseWorkflow(unittest.TestCase):
                 cache = _step_index(steps, lambda st: _uses(st, "actions/cache"), "cache")
                 self.assertLess(digest, cache)
                 self.assertIn("tools/lock_digest.py", steps[digest]["run"])
+                # An assignment, so `bash -e` fails the step when the tool exits 2
+                # (an echo of a command substitution would hide it and drop the suffix).
+                self.assertIn('suffix="$(python3 tools/lock_digest.py ', steps[digest]["run"])
+                self.assertNotIn('echo "suffix=$(', steps[digest]["run"])
         self.assertNotIn("run_id", VERIFY_WORKFLOW.read_text(encoding="utf-8").split("\njobs:\n", 1)[1])
 
     def test_the_resolved_target_reaches_the_output_the_steps_read(self):
@@ -440,6 +444,8 @@ class TestLockDigest(unittest.TestCase):
         self.assertRegex(proc.stdout, r"^-[0-9a-f]{16}\n$")
         self.assertEqual(run(str(self.tmp / "missing.json"), str(committed)).returncode, 2)
         self.assertEqual(run(str(same)).returncode, 2)
+        self.assertIn("tools/lock_digest.py",
+                      (REPO_ROOT / "docs" / "exit-codes.md").read_text(encoding="utf-8"))
 
 
 class TestEnvExpressionContexts(unittest.TestCase):

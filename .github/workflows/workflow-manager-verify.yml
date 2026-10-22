@@ -91,7 +91,8 @@ jobs:
         id: digest
         if: ${{ github.event_name == 'schedule' }}
         run: |
-          echo "suffix=$(python3 tools/lock_digest.py "$RUNNER_TEMP/tested_releases.json" tests/tested_releases.json)" >> "$GITHUB_OUTPUT"
+          suffix="$(python3 tools/lock_digest.py "$RUNNER_TEMP/tested_releases.json" tests/tested_releases.json)"
+          echo "suffix=$suffix" >> "$GITHUB_OUTPUT"
       - name: Restore the release cache
         uses: actions/cache@v4
         with:
@@ -143,7 +144,8 @@ jobs:
         id: digest
         if: ${{ github.event_name == 'schedule' }}
         run: |
-          echo "suffix=$(python3 tools/lock_digest.py "$RUNNER_TEMP/tested_releases.json" tests/tested_releases.json)" >> "$GITHUB_OUTPUT"
+          suffix="$(python3 tools/lock_digest.py "$RUNNER_TEMP/tested_releases.json" tests/tested_releases.json)"
+          echo "suffix=$suffix" >> "$GITHUB_OUTPUT"
       - name: Restore the release cache
         uses: actions/cache@v4
         with:
@@ -231,7 +233,8 @@ jobs:
         id: digest
         if: ${{ github.event_name == 'schedule' }}
         run: |
-          echo "suffix=$(python3 tools/lock_digest.py "$RUNNER_TEMP/tested_releases.json" tests/tested_releases.json)" >> "$GITHUB_OUTPUT"
+          suffix="$(python3 tools/lock_digest.py "$RUNNER_TEMP/tested_releases.json" tests/tested_releases.json)"
+          echo "suffix=$suffix" >> "$GITHUB_OUTPUT"
       - name: Restore the release cache
         uses: actions/cache@v4
         with:
