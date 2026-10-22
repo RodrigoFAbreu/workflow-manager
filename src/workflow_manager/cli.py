@@ -339,24 +339,28 @@ def _refuse_unparseable_record(installed) -> None:
         raise not_a_version(installed, origin="record")
 
 
-def _record_version(args) -> str | None:
-    """The managed target's recorded version, or None when the target is not managed
-    or its record cannot be read (the command reports that itself)."""
+_UNREAD = object()
+
+
+def _record_version(args):
+    """The managed target's recorded version as the record names it (any value,
+    `None` for a `null`), or `_UNREAD` when the target is not managed or its record
+    cannot be read (the command reports that itself)."""
     target = getattr(args, "target", None)
     if target is None or not is_managed(target):
-        return None
+        return _UNREAD
     try:
         return Installation.read(target).workflow_version
     except Exception:  # noqa: BLE001 -- the command itself reports a damaged record
-        return None
+        return _UNREAD
 
 
 def _floor(args) -> str | None:
     """The installed release, a floor for a bare `update` (3.2): the record's
-    version when it is one parseable `X.Y.Z`; a record that names anything else
-    is refused (`not-a-version`)."""
+    version when it is one parseable `X.Y.Z`; a record that reads and names
+    anything else, `null` included, is refused (`not-a-version`)."""
     version = _record_version(args)
-    if version is None:
+    if version is _UNREAD:
         return None
     _refuse_unparseable_record(version)
     return version

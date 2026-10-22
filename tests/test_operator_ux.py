@@ -1075,9 +1075,10 @@ class TestNotAVersionRows(TargetCase):
     def damaged(self, value="../escaped"):
         repo = self.fresh()
         record = repo / RECORD
+        literal = "null" if value is None else f'"{value}"'
         record.write_text(record.read_text().replace(
-            f'"workflow_version": "{PINNED_NEWEST}"', f'"workflow_version": "{value}"'))
-        self.assertIn(value, record.read_text())
+            f'"workflow_version": "{PINNED_NEWEST}"', f'"workflow_version": {literal}'))
+        self.assertIn(f'"workflow_version": {literal}', record.read_text())
         return repo
 
     def test_a_typed_option_is_the_cause_and_the_step_names_a_release(self):
@@ -1134,9 +1135,20 @@ class TestNotAVersionRows(TargetCase):
                         step=("repair or re-bootstrap the installation record",)))
         self.assertEqual(tree_hash(repo), before)
 
+    def test_a_null_record_is_refused_by_a_bare_update_as_by_the_dry_run(self):
+        repo = self.damaged(None)
+        before = tree_hash(repo)
+        for argv in (["update", str(repo)], ["update", "--dry-run", str(repo)]):
+            self.check(Case(" ".join(argv), argv, exit_code=1,
+                            cause=self.CAUSE_RECORD.format(None),
+                            step=("repair or re-bootstrap the installation record",)))
+        self.assertEqual(tree_hash(repo), before)
+
     def test_an_update_naming_the_release_is_the_repair_and_is_not_refused(self):
         repo = self.damaged("garbage")
         proc = run("--release-version", PINNED_NEWEST, "update", str(repo))
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn(f'"workflow_version": "{PINNED_NEWEST}"', (repo / RECORD).read_text())
         self.assertNotIn("is not a version", proc.stdout + proc.stderr)
         self.assertNotIn("Traceback", proc.stdout + proc.stderr)
 
