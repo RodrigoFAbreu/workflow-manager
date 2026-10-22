@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "work_item_id": "manager-review-followups",
+  "requirements": {
+    "R1": {
+      "description": "The floor's edges are specified and tested: --pinned-only with a discovered installed release (new pinned-only refusal kind with its own reason and step) and doctor at the floor (exit 2); ReleaseFloorError names every kind",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R2": {
+      "description": "doctor's Latest available on an explicit --release-version run does not hide a newer locally known or read discovered release (the newest listed release whose manifest was read, even when a newer listed one is unreadable), and never presents a listed release whose manifest was not read as usable",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R3": {
+      "description": "A malformed version such as v2.12.0 gets the not-a-version refusal with one next step, name a release as X.Y.Z",
+      "checkpoint_ids": [
+        "CP2"
+      ]
+    },
+    "R4": {
+      "description": "Partial manager-block objects are specified in docs/release-metadata.md and every field is tested, failing closed; a repeated SHA256SUMS filename is refused and tested at both callers",
+      "checkpoint_ids": [
+        "CP2"
+      ]
+    },
+    "R5": {
+      "description": "The traversal-version and unreadable-source doctor CLI tests exist",
+      "checkpoint_ids": [
+        "CP3"
+      ]
+    },
+    "R6": {
+      "description": "An overlap of a concrete frozen key and a frozen:* orphan key is refused, with a test",
+      "checkpoint_ids": [
+        "CP4"
+      ]
+    },
+    "R7": {
+      "description": "The nightly saves a cache entry only when its lock differs from the committed one",
+      "checkpoint_ids": [
+        "CP4"
+      ]
+    },
+    "R8": {
+      "description": "Each of #39 to #52 has one recorded disposition; #44 and #45 are dropped with reasons and #50 is a follow-up for its own later milestone; the change is a fix: title and no pin, version or frozen semantic changes",
+      "checkpoint_ids": [
+        "CP1",
+        "CP2",
+        "CP3",
+        "CP4"
+      ]
+    }
+  }
+}

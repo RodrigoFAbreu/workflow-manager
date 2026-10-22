@@ -1063,6 +1063,96 @@ class TestWorkflowDataWithheld(TargetCase):
                             or " --no-pager show --no-textconv " in text), text)
 
 
+class TestNotAVersionRows(TargetCase):
+    """`not-a-version` (#42): the cause names the input the operator gave, or the
+    installation record when that is the damaged input, and the step never names
+    an option they did not use nor a run the same command refuses."""
+
+    CAUSE_OPTION = "release {!r} is not a version: a release is named X.Y.Z"
+    CAUSE_RECORD = ("the installation record names {!r}, which is not a version: "
+                    "a release is named X.Y.Z")
+
+    def damaged(self, value="../escaped"):
+        repo = self.fresh()
+        record = repo / RECORD
+        literal = "null" if value is None else f'"{value}"'
+        record.write_text(record.read_text().replace(
+            f'"workflow_version": "{PINNED_NEWEST}"', f'"workflow_version": {literal}'))
+        self.assertIn(f'"workflow_version": {literal}', record.read_text())
+        return repo
+
+    def test_a_typed_option_is_the_cause_and_the_step_names_a_release(self):
+        repo = self.fresh()
+        for bad in ("v2.12.0", "2.12", "2.12.0-rc1"):
+            for command, code in (("status", 1), ("verify", 1), ("update", 1)):
+                argv = ["--release-version", bad, command, str(repo)]
+                if command == "update":
+                    argv = ["--release-version", bad, "update", "--dry-run", str(repo)]
+                proc = self.check(Case(
+                    f"{command} {bad}", argv, exit_code=code,
+                    cause=self.CAUSE_OPTION.format(bad),
+                    step=("name a release as X.Y.Z", "`--release-version 2.12.0`",
+                          "(without a leading v)", "`workflow-manager releases`")))
+                self.assertNotIn("installation record", proc.stderr)
+
+    def test_a_bootstrap_with_a_typed_option_names_a_release(self):
+        proc = self.check(Case(
+            "bootstrap v2.12.0", ["--release-version", "v2.12.0", "bootstrap", str(self.empty())],
+            exit_code=1, cause=self.CAUSE_OPTION.format("v2.12.0"),
+            step=("name a release as X.Y.Z", "`workflow-manager releases`")))
+        self.assertNotIn("pins", proc.stderr)
+
+    def test_the_record_is_the_cause_for_each_command_and_its_own_step(self):
+        repo = self.damaged()
+        cause = self.CAUSE_RECORD.format("../escaped")
+        fix = f"`workflow-manager --release-version X.Y.Z update {repo}`"
+        repair = "repair or re-bootstrap the installation record"
+        cases = (
+            ("status", ["status"], 1, f"`workflow-manager --release-version X.Y.Z status {repo}`"),
+            ("verify", ["verify"], 1, f"`workflow-manager --release-version X.Y.Z verify {repo}`"),
+            ("doctor", ["doctor"], 2, fix),
+            ("doctor with a valid option", ["--release-version", "2.12.0", "doctor"], 2, fix),
+            ("dry-run", ["update", "--dry-run"], 1, fix),
+            ("dry-run with a valid option",
+             ["--release-version", "2.12.0", "update", "--dry-run"], 1, fix),
+            ("bare update", ["update"], 1, fix),
+        )
+        for name, argv, code, command in cases:
+            global_options = [a for a in argv if a == "--release-version" or a == "2.12.0"]
+            rest = [a for a in argv if a not in global_options]
+            proc = self.check(Case(name, [*global_options, *rest, str(repo)], exit_code=code,
+                                   cause=cause, step=(repair, command)))
+            with self.subTest(case=name):
+                self.assertNotIn("2.12.0", next_lines(proc.stderr)[0])
+                self.assertNotIn("--dry-run", next_lines(proc.stderr)[0])
+                self.assertNotIn("name a release as", proc.stderr)
+
+    def test_a_bare_update_installs_nothing_over_a_damaged_record(self):
+        repo = self.damaged()
+        before = tree_hash(repo)
+        self.check(Case("bare update", ["update", str(repo)], exit_code=1,
+                        cause=self.CAUSE_RECORD.format("../escaped"),
+                        step=("repair or re-bootstrap the installation record",)))
+        self.assertEqual(tree_hash(repo), before)
+
+    def test_a_null_record_is_refused_by_a_bare_update_as_by_the_dry_run(self):
+        repo = self.damaged(None)
+        before = tree_hash(repo)
+        for argv in (["update", str(repo)], ["update", "--dry-run", str(repo)]):
+            self.check(Case(" ".join(argv), argv, exit_code=1,
+                            cause=self.CAUSE_RECORD.format(None),
+                            step=("repair or re-bootstrap the installation record",)))
+        self.assertEqual(tree_hash(repo), before)
+
+    def test_an_update_naming_the_release_is_the_repair_and_is_not_refused(self):
+        repo = self.damaged("garbage")
+        proc = run("--release-version", PINNED_NEWEST, "update", str(repo))
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn(f'"workflow_version": "{PINNED_NEWEST}"', (repo / RECORD).read_text())
+        self.assertNotIn("is not a version", proc.stdout + proc.stderr)
+        self.assertNotIn("Traceback", proc.stdout + proc.stderr)
+
+
 class TestAdviceCp2Units(unittest.TestCase):
     def ctx(self, **kw):
         args = argparse.Namespace(command="bootstrap", target=Path("/t"), release_version=None,
@@ -1754,6 +1844,19 @@ class TestAdviceCp3Units(unittest.TestCase):
                       release_source.ReleaseUnavailableError("m"),
                       ReleaseIntegrityError("m"), comp.ContainmentError("m")):
             self.assertIsNone(advice.next_step(error, self.ctx()), error)
+
+    def test_every_floor_kind_has_a_step_naming_a_way_forward(self):
+        for kind, words in (("offline", "connect to the network"),
+                            ("archive", "serves the release's archive"),
+                            ("manager", "upgrade the Manager"),
+                            ("none-at-floor", "holds no release at or above it"),
+                            ("pinned-only", "without --pinned-only")):
+            with self.subTest(kind=kind):
+                error = release_source.ReleaseFloorError("m", kind=kind, installed="2.13.0")
+                self.assertIn(words, advice.next_step(error, self.ctx(command="update")))
+        step = advice.next_step(release_source.ReleaseFloorError(
+            "m", kind="pinned-only", installed="2.13.0"), self.ctx(command="update"))
+        self.assertIn("WORKFLOW_MANAGER_PINNED_ONLY", step)
 
     def test_the_kind_defaults_so_every_untouched_raise_site_compiles(self):
         self.assertIsNone(ReleaseIntegrityError("m").kind)

@@ -46,6 +46,7 @@ from . import advice
 from . import source as release_source
 from .compatibility import (
     ContainmentError,
+    explicit_latest,
     has_builtin_data,
     is_comparable,
     Destinations,
@@ -99,6 +100,7 @@ from .source import (
     incompatible,
     is_strict_version,
     local_release,
+    not_a_version,
     pinned_only,
 )
 
@@ -329,26 +331,49 @@ def _note_release_needs(release) -> None:
               file=sys.stderr)
 
 
-def _floor(args) -> str | None:
-    """The installed release, a floor for a bare `update` (3.2): the record's
-    version when it is one parseable `X.Y.Z`, else none, with a note."""
+def _refuse_unparseable_record(installed) -> None:
+    """Refuse an installation record whose `workflow_version` is not one `X.Y.Z`
+    (`not-a-version`, origin `record`): a damaged record is never a floor of none,
+    and never a name that reaches the cache."""
+    if not is_strict_version(installed):
+        raise not_a_version(installed, origin="record")
+
+
+_UNREAD = object()
+
+
+def _record_version(args):
+    """The managed target's recorded version as the record names it (any value,
+    `None` for a `null`), or `_UNREAD` when the target is not managed or its record
+    cannot be read (the command reports that itself)."""
     target = getattr(args, "target", None)
     if target is None or not is_managed(target):
-        return None
+        return _UNREAD
     try:
-        version = Installation.read(target).workflow_version
+        return Installation.read(target).workflow_version
     except Exception:  # noqa: BLE001 -- the command itself reports a damaged record
+        return _UNREAD
+
+
+def _floor(args) -> str | None:
+    """The installed release, a floor for a bare `update` (3.2): the record's
+    version when it is one parseable `X.Y.Z`; a record that reads and names
+    anything else, `null` included, is refused (`not-a-version`)."""
+    version = _record_version(args)
+    if version is _UNREAD:
         return None
-    if is_strict_version(version):
-        return version
-    print("workflow-manager: the installation record names no parseable release, so a bare "
-          "update cannot refuse an older one", file=sys.stderr)
-    return None
+    _refuse_unparseable_record(version)
+    return version
 
 
 def _floor_error(installed: str, chooser: Chooser, blocked: list[str]) -> ReleaseFloorError:
     if blocked:
         kind, reason = "archive", f"the archive of {blocked[0]} could not be fetched"
+    elif not chooser.cache.discover:
+        newest = chooser.cache.pins.versions()[-1:]
+        kind = "pinned-only"
+        reason = ("--pinned-only offers only the releases this Manager pins, and the newest "
+                  f"of them is {newest[0] if newest else 'none'}")
     elif chooser.offline is not None:
         kind, reason = "offline", "could not look for newer releases (offline)"
     else:
@@ -426,7 +451,10 @@ def _release_for_target(args):
         return _resolve(args, args.release_version)
     if not is_managed(args.target):
         return None
-    return _resolve(args, Installation.read(args.target).workflow_version)
+    installed = Installation.read(args.target).workflow_version
+    if args.release_dir is None:    # a named release directory is the release asked for
+        _refuse_unparseable_record(installed)
+    return _resolve(args, installed)
 
 
 def _describe_source(record: dict | None) -> str:
@@ -576,6 +604,8 @@ def cmd_status(args) -> int:
     # nothing in the repository or its `.git` directory (3.5a).
     installed = Installation.read(args.target).workflow_version
     try:
+        if args.release_version is None and args.release_dir is None:
+            _refuse_unparseable_record(installed)
         destinations = _readonly_destinations(args, installed)
         release = _resolve(args, args.release_version or installed, destinations)
     except ContainmentError as error:
@@ -690,11 +720,17 @@ def _compatibility_report(args, plan, refusal, release, installed_resolved: bool
     context = _context(args)
     facts.options_for = lambda version: advice._options(context, version)[0]
     installed = facts.installation.workflow_version if facts.installation else None
-    metadata = gather_metadata(_cache(args, pins), installed, release)
+    cache = _cache(args, pins)
+    metadata = gather_metadata(cache, installed, release)
+    latest_note = ""
+    if not _chooses(args) and _discovering(args):
+        # An explicit run still shows the newest release this run knows to be usable.
+        known = list(versions) + list(cache.known_local()) + ([latest] if latest else [])
+        latest, latest_note = explicit_latest(known, metadata)
     return build_report(
         facts, plan, target_version=release.version, latest_version=latest,
         pinned_versions=versions, refusal=refusal, installed_resolved=installed_resolved,
-        target_arg=str(args.target), metadata=metadata)
+        target_arg=str(args.target), metadata=metadata, latest_note=latest_note)
 
 
 def _plan_or_refusal(args, release):
@@ -710,6 +746,7 @@ def cmd_dry_run(args) -> int:
     if not is_managed(args.target):
         raise NotManagedError(not_managed_text(args.target))
     installed = Installation.read(args.target).workflow_version
+    _refuse_unparseable_record(installed)
     if _chooses(args):
         release, destinations = _choose_and_resolve(
             args, floor=_floor(args), installed=installed, readonly=True)
@@ -752,6 +789,7 @@ def cmd_doctor(args) -> int:
         raise NotManagedError(not_managed_text(args.target))
     installed = Installation.read(args.target).workflow_version
     try:
+        _refuse_unparseable_record(installed)
         if _chooses(args):
             release, destinations = _choose_and_resolve(
                 args, floor=_floor(args), installed=installed, readonly=True)

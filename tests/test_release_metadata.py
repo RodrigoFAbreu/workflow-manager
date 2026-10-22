@@ -137,6 +137,32 @@ class TestTheBlockReader(unittest.TestCase):
                 "suites": {"x": True}, "portability_exceptions": []}),
             "exception without reason": block(conformance={
                 "suites": {}, "portability_exceptions": [{"suite": "a", "test": "b"}]}),
+            "exception without suite": block(conformance={
+                "suites": {}, "portability_exceptions": [{"test": "b", "reason": "r"}]}),
+            "exception without test": block(conformance={
+                "suites": {}, "portability_exceptions": [{"suite": "a", "reason": "r"}]}),
+            "exception not an object": block(conformance={
+                "suites": {}, "portability_exceptions": ["a::b"]}),
+            "exception requires of the wrong type": block(conformance={
+                "suites": {}, "portability_exceptions": [
+                    {"suite": "a", "test": "b", "reason": "r", "requires": 1}]}),
+            "exception defect of the wrong type": block(conformance={
+                "suites": {}, "portability_exceptions": [
+                    {"suite": "a", "test": "b", "reason": "r", "defect": ["d"]}]}),
+            "suites not an object": block(conformance={
+                "suites": [], "portability_exceptions": []}),
+            "portability_exceptions an object": block(conformance={
+                "suites": {}, "portability_exceptions": {}}),
+            "signal without name": block(downgrade_boundary={"posture": "", "signals": [
+                {"label": "l", "detect": {"kind": "state-key", "key": "k"}}]}),
+            "signal without label": block(downgrade_boundary={"posture": "", "signals": [
+                {"name": "a", "detect": {"kind": "state-key", "key": "k"}}]}),
+            "signal not an object": block(downgrade_boundary={"posture": "", "signals": ["a"]}),
+            "undetectable of the wrong type": block(downgrade_boundary={
+                "posture": "", "undetectable": 3}),
+            "posture null": block(downgrade_boundary={"posture": None}),
+            "boundary null": block(downgrade_boundary=None),
+            "conformance null": block(conformance=None),
         }
         for name, raw in cases.items():
             with self.subTest(name), self.assertRaises(ReleaseIntegrityError) as caught:
@@ -154,6 +180,34 @@ class TestTheBlockReader(unittest.TestCase):
         self.assertEqual(parsed.downgrade_boundary.signals, ())
         exception = parsed.conformance.portability_exceptions[0]
         self.assertEqual((exception.requires, exception.defect), (None, None))
+
+    def test_the_accepted_partials_take_the_documented_defaults(self):
+        exception = {"suite": "a", "test": "b", "reason": "r"}
+        for name, raw in {
+                "boundary with only a posture": {"downgrade_boundary": {"posture": "p"}},
+                "explicit null undetectable": {"downgrade_boundary": {
+                    "posture": "p", "undetectable": None}},
+                "explicit empty signals": {"downgrade_boundary": {"posture": "p", "signals": []}},
+                "explicit null requires and defect": {"conformance": {
+                    "suites": {}, "portability_exceptions": [
+                        {**exception, "requires": None, "defect": None}]}},
+                "no requires and no defect": {"conformance": {
+                    "suites": {}, "portability_exceptions": [exception]}},
+        }.items():
+            with self.subTest(name):
+                parsed = parse_manager_block({"schema_version": 1, **raw})
+                if parsed.downgrade_boundary is not None:
+                    self.assertIsNone(parsed.downgrade_boundary.undetectable)
+                    self.assertEqual(parsed.downgrade_boundary.signals, ())
+                if parsed.conformance is not None:
+                    found = parsed.conformance.portability_exceptions
+                    self.assertEqual([(e.requires, e.defect) for e in found], [(None, None)])
+
+    def test_null_signals_is_refused_not_defaulted(self):
+        with self.assertRaises(ReleaseIntegrityError) as caught:
+            parse_manager_block({"schema_version": 1, "downgrade_boundary": {
+                "posture": "p", "signals": None}})
+        self.assertEqual(caught.exception.kind, "manifest-shape")
 
     def test_minimum_version_comparison(self):
         for minimum, manager, ok in (
@@ -658,6 +712,33 @@ class TestMinManagerVersion(_Published):
         self.assertIsNone(cli_module._needs_newer_manager(
             SimpleNamespace(version="2.12.0", manager=parse_manager_block(
                 block(min_manager_version=self.NEEDS)))))
+
+
+class TestTheListedReleasesOfTheMetadata(unittest.TestCase):
+    """`newest_listed` serves the suffix and `newest_read` the line of an explicit run."""
+
+    def test_nothing_listed_has_neither(self):
+        metadata = comp.ReleaseMetadata()
+        self.assertEqual((metadata.listing, metadata.newest_listed, metadata.newest_read),
+                         ("not-listed", None, None))
+
+    def test_the_newest_read_is_the_newest_listed_release_whose_manifest_was_read(self):
+        metadata = comp.ReleaseMetadata(
+            listed=("7.0.2", "7.0.10", "7.0.9"), listing="read",
+            blocks={"7.0.2": None, "7.0.9": None, "7.0.1": None},
+            unreadable={"7.0.10": "digest"})
+        self.assertEqual(metadata.newest_listed, "7.0.10")
+        self.assertEqual(metadata.newest_read, "7.0.9")
+
+    def test_the_latest_of_an_explicit_run_and_its_note(self):
+        metadata = comp.ReleaseMetadata(
+            listed=("7.0.2", "7.0.3"), listing="truncated", blocks={"7.0.2": None},
+            unreadable={"7.0.3": "digest"})
+        self.assertEqual(comp.explicit_latest(["7.0.0", "7.0.1"], metadata), (
+            "7.0.2", "7.0.3 is listed but its manifest could not be read; "
+                     "the release source listing may be truncated"))
+        self.assertEqual(comp.explicit_latest(["7.0.1"], comp.ReleaseMetadata(listing="read")),
+                         ("7.0.1", ""))
 
 
 class TestTheDocs(unittest.TestCase):

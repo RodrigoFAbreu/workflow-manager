@@ -762,6 +762,20 @@ class TestPinChecks(_SourceTest):
             self.cache().ensure("1.0.0")
         self.assertFalse(self.cache_dir.exists())
 
+    def test_a_name_that_is_not_a_version_is_told_from_an_unpinned_one(self):
+        # Pinned-only (the default of this helper): the name is checked first.
+        for bad in ("v1.0.0", "1.0", "../x", 7):
+            with self.subTest(bad=bad):
+                for call in (self.cache().resolve, self.cache().ensure, self.cache().cached):
+                    with self.assertRaises(source.ReleaseNotPublishedError) as caught:
+                        call(bad)
+                    self.assertEqual(caught.exception.kind, "not-a-version")
+                    self.assertEqual(caught.exception.origin, "option")
+        with self.assertRaises(source.ReleaseNotPublishedError) as caught:
+            self.cache().resolve("1.0.0")
+        self.assertEqual(caught.exception.kind, "unpinned")
+        self.assertFalse(self.cache_dir.exists())
+
 
 class TestCache(_SourceTest):
     def test_an_entry_holds_the_assets_the_tree_and_complete(self):

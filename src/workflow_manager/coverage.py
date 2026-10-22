@@ -54,18 +54,23 @@ def gather_metadata(cache: ReleaseCache, installed, target: Release, *,
             listing = source.listing(cache.pins.repository, deadline)
         except (DiscoveryFailure, ReleaseUnavailableError, OSError) as exc:
             metadata.catalog_incomplete = f"the listing could not be read: {_cause(exc)}"
+            metadata.listing = "failed"
             listing = None
         else:
             if listing is None:
+                metadata.listing = "no-listing"
                 metadata.catalog_incomplete = (
                     "the source is a URL template and has no listing; name a directory mirror, "
                     "or leave --release-source unset")
             else:
                 candidates |= set(listing.versions)
+                metadata.listed = tuple(v for v in listing.versions if is_strict_version(v))
+                metadata.listing = "read"
                 for version, why in listing.rejected.items():
                     candidates.add(version)
                     metadata.unreadable[version] = why
                 if not listing.complete:
+                    metadata.listing = "truncated"
                     metadata.catalog_incomplete = "the listing may be truncated"
     wanted = sorted((v for v in candidates
                      if is_comparable(v) and not has_builtin_data(v)

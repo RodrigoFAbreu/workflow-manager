@@ -1,0 +1,141 @@
+{
+ "schema_version": 1,
+ "work_item_id": "manager-review-followups",
+ "dispositions": {
+  "F-07007a1495cd": {
+   "disposition": "follow-up",
+   "link": "https://github.com/RodrigoFAbreu/workflow-manager/issues/50",
+   "note": "HTTPS proxy CONNECT-before-TLS concerns the removed _http_read design (former section 2.6); recorded in the plan's section 1 #50 paragraph for #50's own milestone."
+  },
+  "F-2c8b42c387ad": {
+   "disposition": "fixed",
+   "note": "src/workflow_manager/cli.py:607-608: cmd_status calls _refuse_unparseable_record inside its existing try, before _readonly_destinations; plan section 2.3 table row says so."
+  },
+  "F-2ed70c9db706": {
+   "disposition": "fixed",
+   "note": "Plan section 2.3 table describes cmd_verify separately (no try, helper before _release_for_target); code: cli.py:453-456 in _release_for_target, cmd_verify (cli.py:827) unchanged."
+  },
+  "F-31a8a1d82228": {
+   "disposition": "fixed",
+   "note": "de84118: tests/test_discovery.py:446 comment now cites 'the per-command table of the plan's section 2.3'."
+  },
+  "F-339dd7bad09c": {
+   "disposition": "fixed",
+   "note": "docs/update.md:45 rewords Latest available with the suffixes and is in CP1's Files; plan section 2.2 states build_report's explicit flag is unchanged and its consequence intended."
+  },
+  "F-3af53df04ad3": {
+   "disposition": "fixed",
+   "note": "The rule is tools/lock_digest.py (digest() and a CLI), listed in CP4's Files; unit-tested in tests/test_release_workflows.py:412 onwards."
+  },
+  "F-409bc63f1761": {
+   "disposition": "fixed",
+   "note": "docs/ROADMAP.md:97-101: the Later 'Review follow-ups' list now holds only #50's line (plan section 2.8 records the intent)."
+  },
+  "F-5e660343b204": {
+   "disposition": "dropped",
+   "reason": "Bundle bookkeeping only: technical approval is recorded (22c27fa) and no further implementation bundle is generated; the gate evidence for the round-2 and round-3 heads is in IMPLEMENTATION_SUMMARY.md, and acceptance records its own gate run."
+  },
+  "F-5f9f901fd902": {
+   "disposition": "dropped",
+   "reason": "Same as MRF-IL3-O1: the stale TEST_RESULTS.md header is review-bundle bookkeeping, the item is technically approved (22c27fa) with no further bundle, and the current-head gate evidence is in IMPLEMENTATION_SUMMARY.md."
+  },
+  "F-63ac8dcd767b": {
+   "disposition": "fixed",
+   "note": "Plan section 2.7 (lines 316-318) names the main push run as the saver and says a scheduled run restores only default-branch caches."
+  },
+  "F-660d0798de33": {
+   "disposition": "follow-up",
+   "link": "https://github.com/RodrigoFAbreu/workflow-manager/issues/50",
+   "note": "The dup descriptor and TCP-connect window belong to the removed _http_read cancellation design; carried to #50's own milestone."
+  },
+  "F-69c5a96955b0": {
+   "disposition": "follow-up",
+   "link": "https://github.com/RodrigoFAbreu/workflow-manager/issues/50",
+   "note": "Socket ownership on cancellation is part of the removed _http_read design; the rule (worker closes, caller only shuts down) is recorded in the plan's section 1 #50 paragraph."
+  },
+  "F-6b01bf1d544d": {
+   "disposition": "fixed",
+   "note": "tests/test_operator_ux.py:1147-1153 now asserts exit 0 and that the record names the release, besides the absent refusal."
+  },
+  "F-7b3d6173123a": {
+   "disposition": "fixed",
+   "note": "Plan section 2.5 states status/verify with a valid option report normally against the explicit release; tests/test_discovery.py:488-505 checks that, not a refusal."
+  },
+  "F-7e73c5a54881": {
+   "disposition": "fixed",
+   "note": "tests/test_discovery.py:488-505 asserts one outcome: --release-version 7.0.0 over a ../escaped record, exit 1, 'installed ../escaped, release 7.0.0' and the compared-with-another-release text, for status and verify."
+  },
+  "F-7f0491268f5d": {
+   "disposition": "fixed",
+   "note": "src/workflow_manager/advice.py:574-577: the pinned-only step is the single rerun without --pinned-only (variable unset); no downgrade alternative. Plan section 2.1 says why."
+  },
+  "F-8b25b56dd9f8": {
+   "disposition": "follow-up",
+   "link": "https://github.com/RodrigoFAbreu/workflow-manager/issues/50",
+   "note": "TLS origin host identity and a certificate fixture concern the removed _http_read design; the plan's section 1 #50 paragraph carries it to #50's milestone."
+  },
+  "F-8c3cdc18bedd": {
+   "disposition": "fixed",
+   "note": "Plan section 2.2 names post-2.12.0 versions; the test (tests/test_discovery.py:864) uses 7.0.1-7.0.3, all above 2.12.0."
+  },
+  "F-9899152e338e": {
+   "disposition": "fixed",
+   "note": "Plan CP2 evidence (lines 447-448) puts the global options before update: workflow-manager --release-version v2.12.0 --release-source <mirror> update <target>."
+  },
+  "F-99d701ac4f7d": {
+   "disposition": "follow-up",
+   "link": "https://github.com/RodrigoFAbreu/workflow-manager/issues/50",
+   "note": "Caller shutdown vs worker close on expiry is part of the removed _http_read cancellation design; carried to #50."
+  },
+  "F-a89663787ca4": {
+   "disposition": "follow-up",
+   "link": "https://github.com/RodrigoFAbreu/workflow-manager/issues/50",
+   "note": "Proxy tunnelling in the recording connection classes belongs to the removed _http_read design; recorded in the plan's #50 paragraph."
+  },
+  "F-ad7970b743c0": {
+   "disposition": "fixed",
+   "note": "de84118: tests/test_discovery.py:885 asserts no archive request for the lower release 7.0.2, so the test proves newest_read rather than known_local."
+  },
+  "F-b4abab582772": {
+   "disposition": "fixed",
+   "note": "compatibility.py:1243 ReleaseMetadata.newest_read and explicit_latest (2040) use max(known, newest read listed release); newest_listed serves the suffix only; regression at tests/test_discovery.py:864."
+  },
+  "F-c228aae77671": {
+   "disposition": "fixed",
+   "note": "cmd_verify (cli.py:827) gained no try; the helper runs inside _release_for_target on the managed branch (cli.py:453-456) and the error propagates."
+  },
+  "F-c8ee34b7847f": {
+   "disposition": "follow-up",
+   "link": "https://github.com/RodrigoFAbreu/workflow-manager/issues/50",
+   "note": "The resolver-stall test (single sleeping process) belongs to the removed _http_read design; carried to #50."
+  },
+  "F-cccda41b6196": {
+   "disposition": "fixed",
+   "note": "tests/test_discovery.py:658 test_a_cache_entry_whose_stored_sums_repeat_a_filename_is_not_trusted_or_served asserts _local_pin is None and known_local omits it; plan section 2.4 worded so."
+  },
+  "F-d3df15161dde": {
+   "disposition": "fixed",
+   "note": "coverage.py:57-73 records listing failed/no-listing/read/truncated and listed from listing.versions only; compatibility.py:2032 _LISTING_NOTES gives each suffix."
+  },
+  "F-f2f1d292ba3b": {
+   "disposition": "follow-up",
+   "link": "https://github.com/RodrigoFAbreu/workflow-manager/issues/50",
+   "note": "The certificate-free stalling TLS test belongs to the removed _http_read design; carried to #50."
+  },
+  "F-eab329d4fb24": {
+   "disposition": "follow-up",
+   "link": "https://github.com/RodrigoFAbreu/workflow-manager/issues/85",
+   "note": "Still unfiltered: explicit_latest takes pins, known_local and newest_read without a min_manager_version check; filed with a test plan."
+  },
+  "F-fc6c6b0d00d8": {
+   "disposition": "follow-up",
+   "link": "https://github.com/RodrigoFAbreu/workflow-manager/issues/85",
+   "note": "No test asserts the no-listing suffix; the URL-template doctor test is the place to add it."
+  },
+  "F-f65cf7114362": {
+   "disposition": "follow-up",
+   "link": "https://github.com/RodrigoFAbreu/workflow-manager/issues/85",
+   "note": "MRF-IL1-O1 and O2 are recorded together in one review-follow-up issue, as this finding asked."
+  }
+ }
+}

@@ -571,6 +571,10 @@ def _floor(error, context):
     elif error.kind == "archive":
         step = ("connect to a network that serves the release's archive, or point the Manager "
                 "at a mirror that holds it with --release-source")
+    elif error.kind == "pinned-only":
+        step = ("run the command again without --pinned-only (and with "
+                "WORKFLOW_MANAGER_PINNED_ONLY unset) so the Manager may install the release "
+                "it discovers")
     elif error.kind == "none-at-floor":
         step = ("the source was read and holds no release at or above it: point the Manager at "
                 "a source that does with --release-source, or name a release with "
@@ -616,6 +620,26 @@ def _unpinned(error, context):
         return f"{upgrade}; {_held_rerun(context)}"
     return (f"{upgrade}, then run the command again. An unpublished release directory "
             f"installs with `{_operator_command(context, directory='DIR')}`")
+
+
+def _not_a_version(error, context):
+    if getattr(error, "origin", "option") != "record":
+        releases, _ = _command(context, "releases", target=None, version=None)
+        step = (f"name a release as X.Y.Z, for example `--release-version 2.12.0` (without a "
+                f"leading v); `{releases}` lists the names")
+        return f"{step}; {_held_rerun(context)}" if _writes_held(context) else step
+    # The installation record is the damaged input: never tell the operator to
+    # change an option they did not type, and never name a run that is refused.
+    record = "repair or re-bootstrap the installation record (.workflow-manager/installation.json)"
+    if getattr(context.args, "command", None) in ("status", "verify"):
+        same, _ = _command(context, context.args.command, version="X.Y.Z")
+        local = _operator_command(context, directory="DIR", version=None)
+        return (f"{record}, or run `{same}` against an explicit release, or `{local}` against "
+                "an unpackaged release directory")
+    fix, _ = _command(context, "update", version="X.Y.Z")
+    if fix is None:     # a write is withheld while the Workflow data is incomplete
+        return _held_rerun(context)
+    return f"{record}, or fix it with `{fix}`"
 
 
 def _fetch_url(error, context):
@@ -791,7 +815,8 @@ _row(UnknownProfileError, _unknown_profile, predicate=True)
 _row(DriftError, _drift, predicate=True)
 _row(CollisionError, _collision, predicate=True)
 _row(OSError, _os_error)
-_row(ReleaseNotPublishedError, _by_kind({"none-pinned": _none_pinned, "unpinned": _unpinned}),
+_row(ReleaseNotPublishedError, _by_kind({"none-pinned": _none_pinned, "unpinned": _unpinned,
+                                         "not-a-version": _not_a_version}),
      on_write=True)
 _row(ReleaseFloorError, _floor, on_write=True)
 _row(ReleaseIncompatibleError, _incompatible, on_write=True)

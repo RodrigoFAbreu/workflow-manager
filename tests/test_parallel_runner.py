@@ -317,6 +317,30 @@ class TestResourcesContract(_RealHostInventory):
         self.assertEqual(loaded.trees_for("host:test_b.py::C"), ())
         self.assertFalse(loaded.is_exclusive("host:test_b.py::C"))
 
+    def test_a_concrete_and_a_wildcard_orphan_key_for_one_unit_are_refused(self):
+        """#51: `frozen:*/...` expands to every release's unit, so a concrete key
+        for one of them declares the same unit twice; the later one used to
+        overwrite the earlier silently."""
+        units = ["frozen:2.18.2/clean/suite.py::Cls", "frozen:2.18.3/clean/suite.py::Cls",
+                 "frozen:2.18.3/clean/suite.py::Other"]
+        wild = "frozen:*/clean/suite.py::Cls"
+        concrete = "frozen:2.18.3/clean/suite.py::Cls"
+        other = "frozen:2.18.3/clean/suite.py::Other"
+
+        def doc(*keys):
+            return _resources_doc(
+                resources={}, exclusive={},
+                orphan_sources={k: {"reason": "why"} for k in keys})
+
+        with self.assertRaises(resources.ResourcesFileError) as ctx:
+            resources.parse(doc(wild, concrete), SYNTHETIC, orphan_unit_ids=units)
+        message = str(ctx.exception)
+        for named in (wild, concrete):
+            self.assertIn(named, message)
+        self.assertIn(concrete, message)
+        loaded = resources.parse(doc(wild, other), SYNTHETIC, orphan_unit_ids=units)
+        self.assertEqual(sorted(loaded.orphan_sources), sorted(units))
+
     def test_load_reads_the_file_under_the_given_root(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = resources.resources_path(Path(tmp))
@@ -4958,16 +4982,18 @@ CI_SHARD_IF = "${{ !cancelled() && needs.plan.result == 'success' }}"
 CI_MATRIX = "${{ fromJSON(needs.plan.outputs.shards) }}"
 #: The release cache every test job primes (plan 7.1, 7.3): its directory, and
 #: the `actions/cache` inputs that restore it, keyed on the pins and the
-#: tested-releases lock; the nightly's key adds the run id and restores the
+#: tested-releases lock; the nightly's key adds the lock's digest and restores the
 #: pinned releases by the prefix (plan 3.5).
 CI_RELEASE_CACHE = "${{ runner.temp }}/workflow-manager-releases"
 CI_CACHE_HASH = ("${{ hashFiles('src/workflow_manager/published_releases.json', "
                  "'tests/tested_releases.json') }}")
+#: `plan`, `shard` and `aggregate` add the digest step's suffix (#52); `package`
+#: primes only the committed set and keeps the base key.
 CI_RELEASE_CACHE_INPUTS = {
     "path": CI_RELEASE_CACHE,
-    "key": f"workflow-releases-{CI_CACHE_HASH}"
-           "${{ github.event_name == 'schedule' && format('-{0}', github.run_id) || '' }}",
+    "key": f"workflow-releases-{CI_CACHE_HASH}${{{{ steps.digest.outputs.suffix }}}}",
     "restore-keys": f"workflow-releases-{CI_CACHE_HASH}\n"}
+CI_PACKAGE_CACHE_INPUTS = {**CI_RELEASE_CACHE_INPUTS, "key": f"workflow-releases-{CI_CACHE_HASH}"}
 #: `run_all.py`'s path flags, each of which must name a path under `$RUNNER_TEMP`.
 CI_PATH_FLAG_RE = re.compile(r'(--(?:out|plan|results|aggregate))\s+("[^"]*"|\S+)')
 _YAML_KEY_RE = re.compile(r"([A-Za-z0-9_.-]+):(?: +(.*))?$")
@@ -5222,8 +5248,8 @@ def ci_workflow_problems(doc: dict) -> list[str]:
     need(sorted(plan.get("outputs") or {}) == ["lock", "shards"],
          "the plan job exports more than shards and the nightly's lock")
     need("permissions" not in plan, "the plan job has its own permissions")
-    need(len(plan.get("steps") or []) == 6,
-         "the plan job is not checkout, python, lock, cache, plan and upload")
+    need(len(plan.get("steps") or []) == 7,
+         "the plan job is not checkout, python, lock, digest, cache, plan and upload")
 
     plan_steps = [s for s in plan.get("steps") or [] if s.get("id") == "plan"]
     need(len(plan_steps) == 1 and '"shards=' in plan_steps[0].get("run", "")
@@ -5435,7 +5461,7 @@ class TestOneRequiredCheck(unittest.TestCase):
         self.assertEqual(len(restore), 1)
         self.assertEqual(len(build), 1)
         self.assertLess(restore[0], build[0])
-        self.assertEqual(steps[restore[0]]["with"], CI_RELEASE_CACHE_INPUTS)
+        self.assertEqual(steps[restore[0]]["with"], CI_PACKAGE_CACHE_INPUTS)
         self.assertEqual(steps[build[0]]["env"], {"WORKFLOW_MANAGER_RELEASE_CACHE": cache_dir})
 
     def test_only_a_pull_request_run_is_cancelled(self):

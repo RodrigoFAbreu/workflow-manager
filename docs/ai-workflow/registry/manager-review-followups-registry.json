@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "work_item_id": "manager-review-followups",
+  "plan_revision": 10,
+  "checkpoints": [
+    {
+      "id": "CP1",
+      "name": "The floor's edges and the explicit-run \"Latest available\"",
+      "depends_on": [],
+      "complexity": 3,
+      "session_target": 1
+    },
+    {
+      "id": "CP2",
+      "name": "A not-a-version refusal, partial metadata and checksum tests",
+      "depends_on": [
+        "CP1"
+      ],
+      "complexity": 2,
+      "session_target": 1
+    },
+    {
+      "id": "CP3",
+      "name": "The two CLI tests",
+      "depends_on": [
+        "CP1",
+        "CP2"
+      ],
+      "complexity": 1,
+      "session_target": 1
+    },
+    {
+      "id": "CP4",
+      "name": "Orphan-key overlap, the nightly cache entry and the roadmap",
+      "depends_on": [],
+      "complexity": 2,
+      "session_target": 1
+    }
+  ]
+}

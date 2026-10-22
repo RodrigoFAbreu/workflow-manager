@@ -131,6 +131,15 @@ offered nor counted as "newest known locally" under another). `--pinned-only`
 discovery, an unpinned version is `ReleaseNotPublishedError` as before. Stderr
 names a discovered release whenever it is used.
 
+A name that is not `X.Y.Z` (`v2.12.0`, `2.12`, a path) is a different refusal,
+`ReleaseNotPublishedError` of kind `not-a-version`, raised before any pin or
+discovery question wherever the source or the cache first sees it, so it never
+becomes a path. Its `origin` is `option` (a name the operator typed) or
+`record` (the target's installation record, refused by `cli.py`'s
+`_refuse_unparseable_record` in `status`, `verify`, `doctor`, `update --dry-run`
+and a bare `update`; a bare `update` therefore never installs over a damaged
+record). `advice` reads `origin` and the command for the step.
+
 ### Release metadata
 
 A release's manifest may carry an optional `manager` block with what the
@@ -328,7 +337,17 @@ catalog that could not be read in full (a URL-template mirror, an unreachable
 or truncated listing) adds one `incomplete-inspection` warning. A bare `update`
 never downgrades: the installed release is a floor on every rule of the
 choosing path, and a run with nothing usable at or above it stops with
-`ReleaseFloorError` (exit 1, nothing written).
+`ReleaseFloorError` (exit 1, nothing written). Its kinds are `offline`, `archive`,
+`manager`, `none-at-floor` and `pinned-only`; the last is a `--pinned-only` run
+(or `WORKFLOW_MANAGER_PINNED_ONLY`) whose newest pin is below the installed
+release, so the floor wins and the one step is to run again without it.
+`archive` is chosen before `pinned-only`, and `pinned-only` before `offline`
+and `none-at-floor`, since a run that never reads the source cannot be offline.
+`doctor` chooses the release the way `update --dry-run` does, so the same
+refusal makes it exit 2 ("could not check") with the `next:` line; it never
+exits 0 or 1 for a release it did not measure. When the installed release is
+itself usable (a pin, or a cache entry for this source) it is the candidate at
+the floor and `doctor` reports on it normally.
 
 ## Interruption
 
@@ -605,7 +624,14 @@ update` owns it and may rename its job.
   own per-commit group and is never cancelled.
 - **Nightly.** The `schedule` run is the full selection of the default
   branch. A red nightly shows on the README's badge and in the Actions tab;
-  nothing opens an issue.
+  nothing opens an issue. Its release-cache key is the pull-request key plus
+  a suffix from `tools/lock_digest.py`: nothing while the nightly's lock
+  equals `tests/tested_releases.json` (parsed, so formatting is irrelevant),
+  so it hits the entry the `main` push run saved and saves nothing, and `-`
+  with the first 16 hex digits of the lock's canonical SHA-256 once a release
+  is new, so that night saves one entry and later nights hit it. `plan`,
+  `shard` and `aggregate` compute the suffix; `package` primes only the
+  committed set and keeps the unsuffixed key.
 - **Release.** `.github/workflows/release.yml` publishes the Manager package
   from `main` after `main`'s full run is green; see `docs/RELEASING.md`.
 

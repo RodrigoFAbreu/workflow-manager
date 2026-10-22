@@ -29,8 +29,10 @@
 # (tests/tested_releases.json), so a normal run downloads nothing. What a run
 # tests is that data, never what the network says that day; only the nightly
 # adds the newest published release (the plan job's `latest` output, handed to
-# every job as WORKFLOW_MANAGER_TESTED_RELEASES), and its cache key adds the
-# run id and restores the pinned releases by prefix. This workflow is
+# every job as WORKFLOW_MANAGER_TESTED_RELEASES), and its cache key adds a
+# digest of that lock (tools/lock_digest.py; nothing while the lock equals the
+# committed one, so a nightly saves an entry only when a release is new) and
+# restores the pinned releases by prefix. This workflow is
 # not managed by workflow-manager; workflow-conformance.yml is, and stays as
 # installed. See docs/ARCHITECTURE.md, "Verification execution".
 name: Workflow manager verification
@@ -85,11 +87,17 @@ jobs:
           python3 tools/release_lock.py latest --out "$RUNNER_TEMP/tested_releases.json"
           echo "lock=$(python3 -c 'import json, sys; print(json.dumps(json.load(open(sys.argv[1])), separators=(",", ":")))' "$RUNNER_TEMP/tested_releases.json")" >> "$GITHUB_OUTPUT"
           echo "WORKFLOW_MANAGER_TESTED_RELEASES=$RUNNER_TEMP/tested_releases.json" >> "$GITHUB_ENV"
+      - name: Key the release cache on the nightly's lock
+        id: digest
+        if: ${{ github.event_name == 'schedule' }}
+        run: |
+          suffix="$(python3 tools/lock_digest.py "$RUNNER_TEMP/tested_releases.json" tests/tested_releases.json)"
+          echo "suffix=$suffix" >> "$GITHUB_OUTPUT"
       - name: Restore the release cache
         uses: actions/cache@v4
         with:
           path: ${{ runner.temp }}/workflow-manager-releases
-          key: workflow-releases-${{ hashFiles('src/workflow_manager/published_releases.json', 'tests/tested_releases.json') }}${{ github.event_name == 'schedule' && format('-{0}', github.run_id) || '' }}
+          key: workflow-releases-${{ hashFiles('src/workflow_manager/published_releases.json', 'tests/tested_releases.json') }}${{ steps.digest.outputs.suffix }}
           restore-keys: |
             workflow-releases-${{ hashFiles('src/workflow_manager/published_releases.json', 'tests/tested_releases.json') }}
       - name: Plan
@@ -132,11 +140,17 @@ jobs:
         run: |
           printf '%s' "$LOCK" > "$RUNNER_TEMP/tested_releases.json"
           echo "WORKFLOW_MANAGER_TESTED_RELEASES=$RUNNER_TEMP/tested_releases.json" >> "$GITHUB_ENV"
+      - name: Key the release cache on the nightly's lock
+        id: digest
+        if: ${{ github.event_name == 'schedule' }}
+        run: |
+          suffix="$(python3 tools/lock_digest.py "$RUNNER_TEMP/tested_releases.json" tests/tested_releases.json)"
+          echo "suffix=$suffix" >> "$GITHUB_OUTPUT"
       - name: Restore the release cache
         uses: actions/cache@v4
         with:
           path: ${{ runner.temp }}/workflow-manager-releases
-          key: workflow-releases-${{ hashFiles('src/workflow_manager/published_releases.json', 'tests/tested_releases.json') }}${{ github.event_name == 'schedule' && format('-{0}', github.run_id) || '' }}
+          key: workflow-releases-${{ hashFiles('src/workflow_manager/published_releases.json', 'tests/tested_releases.json') }}${{ steps.digest.outputs.suffix }}
           restore-keys: |
             workflow-releases-${{ hashFiles('src/workflow_manager/published_releases.json', 'tests/tested_releases.json') }}
       - uses: actions/download-artifact@v4
@@ -176,7 +190,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ runner.temp }}/workflow-manager-releases
-          key: workflow-releases-${{ hashFiles('src/workflow_manager/published_releases.json', 'tests/tested_releases.json') }}${{ github.event_name == 'schedule' && format('-{0}', github.run_id) || '' }}
+          key: workflow-releases-${{ hashFiles('src/workflow_manager/published_releases.json', 'tests/tested_releases.json') }}
           restore-keys: |
             workflow-releases-${{ hashFiles('src/workflow_manager/published_releases.json', 'tests/tested_releases.json') }}
       - name: Build and verify the package
@@ -215,11 +229,17 @@ jobs:
         run: |
           printf '%s' "$LOCK" > "$RUNNER_TEMP/tested_releases.json"
           echo "WORKFLOW_MANAGER_TESTED_RELEASES=$RUNNER_TEMP/tested_releases.json" >> "$GITHUB_ENV"
+      - name: Key the release cache on the nightly's lock
+        id: digest
+        if: ${{ github.event_name == 'schedule' }}
+        run: |
+          suffix="$(python3 tools/lock_digest.py "$RUNNER_TEMP/tested_releases.json" tests/tested_releases.json)"
+          echo "suffix=$suffix" >> "$GITHUB_OUTPUT"
       - name: Restore the release cache
         uses: actions/cache@v4
         with:
           path: ${{ runner.temp }}/workflow-manager-releases
-          key: workflow-releases-${{ hashFiles('src/workflow_manager/published_releases.json', 'tests/tested_releases.json') }}${{ github.event_name == 'schedule' && format('-{0}', github.run_id) || '' }}
+          key: workflow-releases-${{ hashFiles('src/workflow_manager/published_releases.json', 'tests/tested_releases.json') }}${{ steps.digest.outputs.suffix }}
           restore-keys: |
             workflow-releases-${{ hashFiles('src/workflow_manager/published_releases.json', 'tests/tested_releases.json') }}
       - uses: actions/download-artifact@v4
