@@ -689,6 +689,92 @@ class TestTheSumsFile(unittest.TestCase):
                 line + "\n" + "b" * 64 + "  workflow-1.0.0.manifest.json\n" + line + "\n", "SHA256SUMS")
 
 
+class TestLatestAvailableOnAnExplicitRun(_Mirror):
+    """`doctor --release-version <v>` shows the newest release this run knows to
+    be usable, and says what it left out."""
+
+    def latest_line(self):
+        lines = [line for line in self.cli_stdout.splitlines()
+                 if line.startswith("Latest available")]
+        self.assertEqual(len(lines), 1, self.cli_stdout)
+        return " ".join(lines[0].split())
+
+    def pins_note(self):
+        return "(this Manager pins 7.0.0 ... 7.0.1)"
+
+    def test_a_newer_cached_discovered_release_is_the_latest(self):
+        self.bootstrap_at("7.0.0")
+        self._cli("update", str(self.target), source_dir=self.mirror)
+        self._cli("--release-version", "7.0.1", "doctor", str(self.target), source_dir=self.mirror)
+        self.assertEqual(self.latest_line(),
+                         f"Latest available {NEWER} [discovered, not pinned] {self.pins_note()}")
+
+    def test_pinned_only_shows_the_pins_alone(self):
+        self.bootstrap_at("7.0.0")
+        self._cli("update", str(self.target), source_dir=self.mirror)
+        self._cli("--pinned-only", "--release-version", "7.0.1", "doctor", str(self.target),
+                  source_dir=self.mirror)
+        self.assertEqual(self.latest_line(), f"Latest available 7.0.1 [pinned] {self.pins_note()}")
+
+    def test_a_listed_release_above_the_inspected_range_is_named_as_not_assessed(self):
+        self.bootstrap_at("7.0.0")
+        self._cli("--release-version", "7.0.1", "doctor", str(self.target), source_dir=self.mirror)
+        self.assertEqual(
+            self.latest_line(),
+            f"Latest available 7.0.1 [pinned] {self.pins_note()} ({NEWER} is listed but was not "
+            "assessed)")
+
+    def test_a_listed_release_in_the_range_whose_manifest_was_read_is_the_latest(self):
+        self.bootstrap_at("7.0.0")
+        self._cli("--release-version", UNPINNED, "doctor", str(self.target), source_dir=self.mirror)
+        self.assertEqual(
+            self.latest_line(),
+            f"Latest available {UNPINNED} [discovered, not pinned] {self.pins_note()} "
+            f"({NEWER} is listed but was not assessed)")
+
+    def test_a_failing_listing_is_named(self):
+        self.bootstrap_at("7.0.1")
+        other = tb.empty_repo(self.tmp / "other")
+        self.assertEqual(self._cli("--pinned-only", "--release-version", "7.0.0", "bootstrap",
+                                   str(other), source_dir=self.source_dir), 0, self.cli_output)
+        self._cli("--release-version", "7.0.0", "doctor", str(self.target),
+                  source_dir=self.tmp / "absent")
+        self.assertEqual(
+            self.latest_line(),
+            f"Latest available 7.0.1 [pinned] {self.pins_note()} "
+            "(the release source could not be listed)")
+
+    def test_an_unlisted_run_is_named(self):
+        self.bootstrap_at("7.0.0")
+        self._cli("--release-version", "7.0.0", "doctor", str(self.target), source_dir=self.mirror)
+        self.assertEqual(
+            self.latest_line(),
+            f"Latest available 7.0.1 [pinned] {self.pins_note()} "
+            "(the release source was not listed)")
+
+    def test_an_unreadable_newest_release_does_not_hide_a_lower_readable_one(self):
+        self.assertEqual(self._cli("--release-version", NEWER, "bootstrap", str(self.target),
+                                   source_dir=self.mirror), 0, self.cli_output)
+        shutil.rmtree(self.cache)
+
+        def corrupt(directory):
+            asset = directory / package_module.manifest_asset_name(NEWER)
+            asset.write_bytes(asset.read_bytes() + b" ")
+
+        variant = self.variant(corrupt, NEWER)
+        stub = self.stub(variant, _listing([*self.PINNED, *self.UNPINNED_VERSIONS]))
+        self.run_default("--release-version", "7.0.1", "doctor", str(self.target))
+        self.assertEqual(
+            self.latest_line(),
+            f"Latest available {UNPINNED} [discovered, not pinned] {self.pins_note()} "
+            f"({NEWER} is listed but its manifest could not be read)")
+        allowed = {f"/dl/{v}/{asset}" for v in (UNPINNED, NEWER, "7.0.1")
+                   for asset in ("SHA256SUMS", package_module.manifest_asset_name(v),
+                                 package_module.archive_name(v))}
+        self.assertLessEqual(set(stub.requests) - {"/releases"}, allowed)
+        self.assertFalse([r for r in stub.requests if r.startswith("/dl/7.0.0/")])
+
+
 class TestTheFloor(_Mirror):
     """A bare `update` never installs a release older than the installed one."""
 
@@ -732,6 +818,51 @@ class TestTheFloor(_Mirror):
                 self.assertNotIn("offline", self.cli_stderr)
                 self.assertIn("next: the source was read and holds no release at or above it",
                               self.cli_stderr)
+        self.assertEqual(self.snapshot(), before)
+
+    def test_pinned_only_below_a_discovered_installed_release_installs_nothing(self):
+        self.install_discovered()
+        before = self.snapshot()
+        for argv, env in ((("--pinned-only",), {}),
+                          ((), {release_source.PINNED_ONLY_ENV: "1"})):
+            for command in (("update",), ("update", "--dry-run")):
+                with self.subTest(argv=argv, env=env, command=command), \
+                        mock.patch.dict(os.environ, env):
+                    code = self._cli(*argv, *command, str(self.target), source_dir=self.mirror)
+                    self.assertEqual(code, 1, self.cli_output)
+                    self.assertIn(
+                        f"error: no usable release at or above the installed Workflow {NEWER}: "
+                        "--pinned-only offers only the releases this Manager pins, and the "
+                        "newest of them is 7.0.1", self.cli_stderr)
+                    self.assertIn("next: run the command again without --pinned-only",
+                                  self.cli_stderr)
+                    self.assertIn("WORKFLOW_MANAGER_PINNED_ONLY", self.cli_stderr)
+                    self.assertNotIn("the source was read", self.cli_stderr)
+                    self.assertNotIn("offline", self.cli_stderr)
+        self.assertEqual(self.snapshot(), before)
+
+    def test_a_blocked_archive_wins_over_pinned_only(self):
+        self.install_discovered()
+        chooser = release_source.Chooser(
+            ReleaseCache(self.cache, ReleaseSource.select(str(self.mirror)), tb.cli_module._pins(),
+                         discover=False), floor=NEWER)
+        list(chooser.candidates())
+        error = tb.cli_module._floor_error(NEWER, chooser, ["7.0.1"])
+        self.assertEqual((error.kind, error.version), ("archive", "7.0.1"))
+        self.assertEqual(tb.cli_module._floor_error(NEWER, chooser, []).kind, "pinned-only")
+
+    def test_doctor_with_nothing_at_the_floor_could_not_check_and_exits_2(self):
+        self.install_discovered()
+        before = self.snapshot()
+        for argv, env in ((("--pinned-only",), {}),
+                          ((), {release_source.PINNED_ONLY_ENV: "1"})):
+            with self.subTest(argv=argv, env=env), mock.patch.dict(os.environ, env):
+                code = self._cli(*argv, "doctor", str(self.target), source_dir=self.mirror)
+                self.assertEqual(code, 2, self.cli_output)
+                self.assertEqual(self.cli_stdout, "")
+                self.assertIn("error: could not resolve the target release: no usable release "
+                              f"at or above the installed Workflow {NEWER}", self.cli_stderr)
+                self.assertIn("next: run the command again without --pinned-only", self.cli_stderr)
         self.assertEqual(self.snapshot(), before)
 
     def test_a_blocked_archive_installs_nothing(self):

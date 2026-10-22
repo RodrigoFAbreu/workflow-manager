@@ -1223,11 +1223,27 @@ class ReleaseMetadata:
     `blocks` maps a version whose manifest was read to its block (None: none);
     `unreadable` maps a version whose manifest could not be read to why;
     `catalog_incomplete` is why the releases above `BUILTIN_THROUGH` could not
-    all be listed, or None."""
+    all be listed, or None. `listed` are the strict versions the source's
+    listing named (never the ones it rejected) and `listing` what happened to
+    it: `not-listed` (no listing was attempted), `failed`, `no-listing` (a
+    URL-template source), `truncated` or `read`."""
     versions: tuple[str, ...] = ()
     blocks: dict[str, ManagerBlock | None] = field(default_factory=dict)
     unreadable: dict[str, str] = field(default_factory=dict)
     catalog_incomplete: str | None = None
+    listed: tuple[str, ...] = ()
+    listing: str = "not-listed"
+
+    @property
+    def newest_listed(self) -> str | None:
+        """The newest release the listing named, or None."""
+        return max(self.listed, key=version_key) if self.listed else None
+
+    @property
+    def newest_read(self) -> str | None:
+        """The newest listed release whose manifest this run read, or None."""
+        read = [v for v in self.listed if v in self.blocks]
+        return max(read, key=version_key) if read else None
 
     def data(self, version: str) -> tuple[ReleaseData, tuple[str, ...]]:
         """`(data, missing)`: the resolved data for `version` and the items it
@@ -1503,6 +1519,8 @@ class Report:
     recovery: tuple[RecoveryStep, ...]
     inspection_complete: bool
     updated_at: str | None = None
+    #: The parenthesis after "Latest available" on an explicit run, or "".
+    latest_note: str = ""
 
     @property
     def headline(self) -> str:
@@ -2011,11 +2029,40 @@ def recovery_steps(facts: RepositoryFacts, findings: list[Finding], *, target_ar
     return steps
 
 
+_LISTING_NOTES = {
+    "not-listed": "the release source was not listed",
+    "failed": "the release source could not be listed",
+    "truncated": "the release source listing may be truncated",
+    "no-listing": "the release source has no listing",
+}
+
+
+def explicit_latest(known: list[str], metadata: ReleaseMetadata) -> tuple[str | None, str]:
+    """`(latest, note)` for an explicit run: the newest of the pins and locally
+    known releases (`known`) and the newest listed release whose manifest was
+    read, and the words saying what that leaves out (a newer listed release
+    that was not assessed or whose manifest could not be read, and why the
+    listing is incomplete)."""
+    candidates = [v for v in known if is_comparable(v)]
+    if metadata.newest_read:
+        candidates.append(metadata.newest_read)
+    latest = max(candidates, key=version_key) if candidates else None
+    parts = []
+    newest = metadata.newest_listed
+    if newest and (latest is None or version_key(newest) > version_key(latest)):
+        parts.append(f"{newest} is listed but its manifest could not be read"
+                     if newest in metadata.unreadable else f"{newest} is listed but was not assessed")
+    if metadata.listing in _LISTING_NOTES:
+        parts.append(_LISTING_NOTES[metadata.listing])
+    return latest, "; ".join(parts)
+
+
 def build_report(facts: RepositoryFacts, plan: UpdatePlan | None, *, target_version: str | None,
                  latest_version: str | None, pinned_versions: list[str],
                  refusal: Exception | None = None, installed_resolved: bool = True,
                  target_arg: str | None = None,
-                 metadata: ReleaseMetadata | None = None) -> Report:
+                 metadata: ReleaseMetadata | None = None,
+                 latest_note: str = "") -> Report:
     explicit = target_version if target_version and target_version != latest_version else None
     findings = build_findings(facts, plan, target=target_version,
                               installed_resolved=installed_resolved, refusal=refusal,
@@ -2055,6 +2102,7 @@ def build_report(facts: RepositoryFacts, plan: UpdatePlan | None, *, target_vers
                                       downgrade=bool(installed and target_version
                                                      and _lt(target_version, installed)))),
         inspection_complete=not any(f.id == "incomplete-inspection" for f in findings),
+        latest_note=latest_note,
     )
 
 
@@ -2090,7 +2138,8 @@ def render_report(report: Report) -> str:
         pins = f"  (this Manager pins {report.pinned[0]} ... {report.pinned[-1]})" if report.pinned else ""
         kind = "" if not report.pinned else (
             "  [pinned]" if report.latest in report.pinned else "  [discovered, not pinned]")
-        lines.append(f"Latest available    {report.latest}{kind}{pins}")
+        note = f"  ({report.latest_note})" if report.latest_note else ""
+        lines.append(f"Latest available    {report.latest}{kind}{pins}{note}")
     if report.target:
         lines.append(f"Target of this check {report.target}  (--release-version, else latest)")
     lines += ["", "Work items (governing version is a protocol version, not a release)"]

@@ -46,6 +46,7 @@ from . import advice
 from . import source as release_source
 from .compatibility import (
     ContainmentError,
+    explicit_latest,
     has_builtin_data,
     is_comparable,
     Destinations,
@@ -349,6 +350,11 @@ def _floor(args) -> str | None:
 def _floor_error(installed: str, chooser: Chooser, blocked: list[str]) -> ReleaseFloorError:
     if blocked:
         kind, reason = "archive", f"the archive of {blocked[0]} could not be fetched"
+    elif not chooser.cache.discover:
+        newest = chooser.cache.pins.versions()[-1:]
+        kind = "pinned-only"
+        reason = ("--pinned-only offers only the releases this Manager pins, and the newest "
+                  f"of them is {newest[0] if newest else 'none'}")
     elif chooser.offline is not None:
         kind, reason = "offline", "could not look for newer releases (offline)"
     else:
@@ -690,11 +696,17 @@ def _compatibility_report(args, plan, refusal, release, installed_resolved: bool
     context = _context(args)
     facts.options_for = lambda version: advice._options(context, version)[0]
     installed = facts.installation.workflow_version if facts.installation else None
-    metadata = gather_metadata(_cache(args, pins), installed, release)
+    cache = _cache(args, pins)
+    metadata = gather_metadata(cache, installed, release)
+    latest_note = ""
+    if not _chooses(args) and _discovering(args):
+        # An explicit run still shows the newest release this run knows to be usable.
+        known = list(versions) + list(cache.known_local()) + ([latest] if latest else [])
+        latest, latest_note = explicit_latest(known, metadata)
     return build_report(
         facts, plan, target_version=release.version, latest_version=latest,
         pinned_versions=versions, refusal=refusal, installed_resolved=installed_resolved,
-        target_arg=str(args.target), metadata=metadata)
+        target_arg=str(args.target), metadata=metadata, latest_note=latest_note)
 
 
 def _plan_or_refusal(args, release):

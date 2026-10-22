@@ -660,6 +660,33 @@ class TestMinManagerVersion(_Published):
                 block(min_manager_version=self.NEEDS)))))
 
 
+class TestTheListedReleasesOfTheMetadata(unittest.TestCase):
+    """`newest_listed` serves the suffix and `newest_read` the line of an explicit run."""
+
+    def test_nothing_listed_has_neither(self):
+        metadata = comp.ReleaseMetadata()
+        self.assertEqual((metadata.listing, metadata.newest_listed, metadata.newest_read),
+                         ("not-listed", None, None))
+
+    def test_the_newest_read_is_the_newest_listed_release_whose_manifest_was_read(self):
+        metadata = comp.ReleaseMetadata(
+            listed=("7.0.2", "7.0.10", "7.0.9"), listing="read",
+            blocks={"7.0.2": None, "7.0.9": None, "7.0.1": None},
+            unreadable={"7.0.10": "digest"})
+        self.assertEqual(metadata.newest_listed, "7.0.10")
+        self.assertEqual(metadata.newest_read, "7.0.9")
+
+    def test_the_latest_of_an_explicit_run_and_its_note(self):
+        metadata = comp.ReleaseMetadata(
+            listed=("7.0.2", "7.0.3"), listing="truncated", blocks={"7.0.2": None},
+            unreadable={"7.0.3": "digest"})
+        self.assertEqual(comp.explicit_latest(["7.0.0", "7.0.1"], metadata), (
+            "7.0.2", "7.0.3 is listed but its manifest could not be read; "
+                     "the release source listing may be truncated"))
+        self.assertEqual(comp.explicit_latest(["7.0.1"], comp.ReleaseMetadata(listing="read")),
+                         ("7.0.1", ""))
+
+
 class TestTheDocs(unittest.TestCase):
     def test_the_new_error_has_an_advice_row_and_an_exit_code_row(self):
         error = release_source.incompatible("7.0.2", "1.14.0", "1.13.0")

@@ -127,8 +127,18 @@ class ReleaseUnavailableError(InstallError):
 
 
 class ReleaseFloorError(InstallError):
-    """A bare `update` found no usable release at or above the installed one
-    (3.2): `kind` is `offline`, `archive` or `manager`, `installed` the floor."""
+    """A bare `update` (or `doctor`) found no usable release at or above the
+    installed one (3.2). `installed` is the floor, always set. `kind` is:
+
+    * `offline`: the source could not be read; `version` and `needs` are unset;
+    * `archive`: a candidate's archive could not be fetched; `version` is that
+      release;
+    * `manager`: the newest candidate needs a newer Manager; `version` is that
+      release and `needs` the Manager version it asks for;
+    * `none-at-floor`: the source was read and holds nothing at or above the
+      floor; `version` and `needs` are unset;
+    * `pinned-only`: `--pinned-only` offers only the pins and the newest is below
+      the floor; `version` and `needs` are unset."""
 
     def __init__(self, message: str = "", *, kind: str | None = None,
                  installed: str | None = None, version: str | None = None,

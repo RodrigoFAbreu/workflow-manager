@@ -328,7 +328,17 @@ catalog that could not be read in full (a URL-template mirror, an unreachable
 or truncated listing) adds one `incomplete-inspection` warning. A bare `update`
 never downgrades: the installed release is a floor on every rule of the
 choosing path, and a run with nothing usable at or above it stops with
-`ReleaseFloorError` (exit 1, nothing written).
+`ReleaseFloorError` (exit 1, nothing written). Its kinds are `offline`, `archive`,
+`manager`, `none-at-floor` and `pinned-only`; the last is a `--pinned-only` run
+(or `WORKFLOW_MANAGER_PINNED_ONLY`) whose newest pin is below the installed
+release, so the floor wins and the one step is to run again without it.
+`archive` is chosen before `pinned-only`, and `pinned-only` before `offline`
+and `none-at-floor`, since a run that never reads the source cannot be offline.
+`doctor` chooses the release the way `update --dry-run` does, so the same
+refusal makes it exit 2 ("could not check") with the `next:` line; it never
+exits 0 or 1 for a release it did not measure. When the installed release is
+itself usable (a pin, or a cache entry for this source) it is the candidate at
+the floor and `doctor` reports on it normally.
 
 ## Interruption
 

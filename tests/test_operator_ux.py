@@ -1755,6 +1755,19 @@ class TestAdviceCp3Units(unittest.TestCase):
                       ReleaseIntegrityError("m"), comp.ContainmentError("m")):
             self.assertIsNone(advice.next_step(error, self.ctx()), error)
 
+    def test_every_floor_kind_has_a_step_naming_a_way_forward(self):
+        for kind, words in (("offline", "connect to the network"),
+                            ("archive", "serves the release's archive"),
+                            ("manager", "upgrade the Manager"),
+                            ("none-at-floor", "holds no release at or above it"),
+                            ("pinned-only", "without --pinned-only")):
+            with self.subTest(kind=kind):
+                error = release_source.ReleaseFloorError("m", kind=kind, installed="2.13.0")
+                self.assertIn(words, advice.next_step(error, self.ctx(command="update")))
+        step = advice.next_step(release_source.ReleaseFloorError(
+            "m", kind="pinned-only", installed="2.13.0"), self.ctx(command="update"))
+        self.assertIn("WORKFLOW_MANAGER_PINNED_ONLY", step)
+
     def test_the_kind_defaults_so_every_untouched_raise_site_compiles(self):
         self.assertIsNone(ReleaseIntegrityError("m").kind)
         self.assertIsNone(release_source.ReleaseUnavailableError("m").kind)

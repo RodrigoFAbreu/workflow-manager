@@ -571,6 +571,10 @@ def _floor(error, context):
     elif error.kind == "archive":
         step = ("connect to a network that serves the release's archive, or point the Manager "
                 "at a mirror that holds it with --release-source")
+    elif error.kind == "pinned-only":
+        step = ("run the command again without --pinned-only (and with "
+                "WORKFLOW_MANAGER_PINNED_ONLY unset) so the Manager may install the release "
+                "it discovers")
     elif error.kind == "none-at-floor":
         step = ("the source was read and holds no release at or above it: point the Manager at "
                 "a source that does with --release-source, or name a release with "
