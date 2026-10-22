@@ -108,7 +108,35 @@ Verification: `--select test_parallel_runner.py` and
 load it). Full gate `python3 tests/run_all.py` exit 0 (14674 tests, head `db3ab6a`
 plus this checkpoint's working tree) after fixing the first run's three failures.
 
+## Self-review and the full gate
+
+The full milestone diff (`3c7ad52..0110581`) was reviewed against the plan.
+Corrections (`0110581`):
+
+- The nightly's digest step now assigns `tools/lock_digest.py`'s output before
+  writing it, so `bash -e` fails the step when the tool exits 2; an `echo` of
+  the command substitution hid the failure and dropped the suffix. A test pins
+  the assignment form.
+- `docs/exit-codes.md`'s "Maintainer tools", which the tool's docstring cites,
+  documents `tools/lock_digest.py`; a test pins the mention.
+
+Red-first evidence (plan CP1, run after the fact): a clone at `0110581` with
+`src/`, `tests/parallel/resources.py` and the verify workflow restored to
+`3c7ad52` and `tools/lock_digest.py` removed, `--select` test_discovery,
+test_operator_ux, test_operator_ux_readonly, test_release_metadata,
+test_release_source, test_parallel_runner, test_release_workflows and
+test_tested_releases: exit 1. 26 of the 32 new tests fail there (every
+changed behaviour: the `pinned-only` kind, the explicit-run latest and its
+suffixes, `not-a-version` and its record-sourced steps, the bare update over a
+damaged record, the orphan-key overlap, the digest). The other six are guards,
+as the plan says: the repeated-filename pin and cache-entry tests (#46), the
+accepted partials (#43), `doctor` with an unreadable source (#49), the
+`--pinned-only` latest line and the `update --release-version` repair route
+(both unchanged). Five existing tests this milestone updated also fail there.
+
+Full gate: `python3 tests/run_all.py` exit 0 at `0110581` (2250/2250 units,
+14674 tests, selection_digest `a900814635eb`..., tests_digest `fa2ca93dbb9e`...).
+
 ## Next action
 
-All checkpoints complete: step 2 (enter `SELF_REVIEWING_IMPLEMENTATION`), step 3
-(full verification) and step 4 (the review bundle).
+Step 4: record the bundle generation and build the implementation review bundle.
