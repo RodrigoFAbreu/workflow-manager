@@ -32,9 +32,25 @@ exit 0; `--select test_read_only.py` exit 0 (after correcting the guard's
 expected `protected` tuple to the plain target plus the repository's `.git`);
 `git diff 7ac6c26 -- src tools` is empty. The full gate runs in step 3.
 
+## Current checkpoint
+
+**Milestone complete.** `test-git-isolation-followups-2` reached
+`MILESTONE_COMPLETE` through `/satisfy-gate acceptance` on 2026-10-22, by
+policy (the default gate policy; no person's decision), and
+`active_work_item_id` is unchanged (null).
+- **Checkpoints:** CP1 is complete.
+- **Functional evidence:** flows tg-f1 to tg-f6 passed at `0737500` (run
+  `manager-orchestrator:runs/tg-functional-r1`, an independent Claude executor,
+  the full gate included).
+- **Pull request:** #80, CI green at `0737500` (the Workflow's own `gh` query).
+- **Findings:** four Optional findings dispositioned (one fixed, three dropped);
+  record in `docs/milestones/completed/test-git-isolation-followups-2-findings.md`.
+
 ## Next action
 
-Functional review (manual gate), then `/accept-milestone`.
+No roadmap item is ready for planning: item 11 is done, items 5 and 6 wait on
+the Controller, and the rest is in the roadmap's Later list. Ask the owner what
+to plan next.
 
 ## Functional review checklist
 
