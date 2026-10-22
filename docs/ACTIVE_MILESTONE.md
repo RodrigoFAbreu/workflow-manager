@@ -137,6 +137,92 @@ accepted partials (#43), `doctor` with an unreadable source (#49), the
 Full gate: `python3 tests/run_all.py` exit 0 at `0110581` (2250/2250 units,
 14674 tests, selection_digest `a900814635eb`..., tests_digest `fa2ca93dbb9e`...).
 
+## Functional review checklist
+
+Scope: `manager-review-followups` (issues #39-#49, #51, #52; #50 stays open).
+Every flow below runs offline against the pinned release cache, a scratch
+target and the repository checkout; none needs GitHub, `claude`, `codex` or
+`ssh`. Run them from a scratch directory outside the clone; the clone is
+read-only.
+
+### Setup
+
+```bash
+REPO=/home/rodrigo/Workspace/workflow-manager
+S=$(mktemp -d); export HOME=$S/home XDG_CACHE_HOME=$S/cache PYTHONPATH=$REPO/src
+mkdir -p $HOME $S/t && git -C $S/t init -q
+wm() { python3 -m workflow_manager "$@"; }
+```
+
+Test data: none to seed. A bootstrap installs the pinned 2.12.0 into `$S/t`.
+Needs the release cache (primed by a prior `run_all.py`) or a
+`WORKFLOW_MANAGER_RELEASE_SOURCE` mirror.
+
+### Flows
+
+1. **Offline bootstrap with `--pinned-only`.**
+   `wm --pinned-only bootstrap $S/t` then `wm --pinned-only status $S/t`.
+   Expect: exit 0, "bootstrapped workflow 2.12.0 (full)", status names the same
+   version and a package source.
+2. **Damaged record: a non-version name (#42, #48).** Replace the record's
+   `workflow_version` with `../escaped`:
+   `sed -i 's/"workflow_version": "[^"]*"/"workflow_version": "..\/escaped"/' $S/t/.workflow-manager/installation.json`.
+   Run `wm --pinned-only doctor $S/t`, `wm --pinned-only update --dry-run $S/t`,
+   `wm --pinned-only update $S/t`, `wm --pinned-only verify $S/t`.
+   Expect for each: exit 1 (doctor included), cause "the installation record
+   names '../escaped', which is not a version: a release is named X.Y.Z", a
+   `next:` step that names repairing the record or
+   `--release-version X.Y.Z update`, and nothing created outside `$S/cache`
+   (`find $S -newer` / compare `ls $S`); `$S/t` is unchanged by the bare
+   `update`.
+3. **Typed non-version option (#42).** `wm --release-version v2.12.0 status $S/t`
+   (restore the record first). Expect exit 1, cause "release 'v2.12.0' is not a
+   version: a release is named X.Y.Z", step "name a release as X.Y.Z" with
+   `--release-version 2.12.0`; no mention of the installation record.
+4. **Null record version (bare update).** Set `"workflow_version": null` in the
+   record; `wm --pinned-only update $S/t`. Expect: refusal naming the record
+   (not an install over it), exit 1, files untouched.
+5. **Floor kind `pinned-only` (#39, #40, #47).** With the record restored and a
+   newer release discoverable only through a mirror, a bare
+   `wm --pinned-only update $S/t` that needs it: expect the floor error with
+   the step "run the command again without --pinned-only (and with
+   WORKFLOW_MANAGER_PINNED_ONLY unset)". Needs a mirror with a release above
+   2.12.0; skip if none (the tests `TestTheFloor` cover it).
+6. **Explicit-run "Latest available" (#41).** `wm --release-version 2.12.0
+   status $S/t`: the report's Latest available line reflects pins, cached
+   releases and the newest listed release whose manifest was read, with its
+   suffix; with `--pinned-only` it names the pins only.
+7. **`doctor` offline with a stale cache entry (#49).** On a clean
+   up-to-date install with no network, `wm doctor $S/t` exits 0 with the
+   offline line on stderr and writes nothing.
+8. **Orphan-key overlap (#51).** In a scratch copy of
+   `tests/parallel/resources.json` (never the clone's), declare both
+   `frozen:2.12.0/<unit>` and `frozen:*/<unit>` for the same unit and load it
+   with `python3 -c 'from tests.parallel import resources; ...'` from a
+   copy of the repo; expect `ResourcesFileError` naming both keys and the
+   unit. A wildcard plus a concrete key for different units loads. Simplest:
+   `python3 tests/run_all.py --select test_parallel_runner.py` (writes
+   scratch only if run from a writable copy).
+9. **Nightly cache key (#52).** `python3 tools/lock_digest.py` (lock vs the
+   committed one: run from the clone, read-only): an equal lock prints an
+   empty suffix; a modified copy prints `-` and 16 hex digits; an unreadable
+   lock exits 2. Confirm `.github/workflows/workflow-manager-verify.yml` uses
+   `steps.digest.outputs.suffix` in `plan`, `shard`, `aggregate` and no cache
+   key uses `github.run_id`.
+10. **Docs.** `docs/release-metadata.md` says `signals` is not nullable and
+    explicit `null` is accepted only on nullable fields; `exit-codes.md`,
+    `common-problems.md`, `update.md` and `ARCHITECTURE.md` describe
+    `pinned-only` and `not-a-version`.
+
+### Known limitations and out of scope
+
+- #50 (2.14.0 downgrade-posture wording) is a separate milestone.
+- #44 and #45 were dropped; #43 and #46 added tests only (no parser change).
+- Flow 5 needs a mirror holding a release above 2.12.0; the CI workflow change
+  (flow 9) is only exercised for real by the next nightly/PR run.
+- The red-first evidence is recorded above; no GitHub flow is needed.
+
 ## Next action
 
-Step 4: record the bundle generation and build the implementation review bundle.
+Functional testing by the user (gate); findings go to the scoped
+`FUNCTIONAL_REVIEW.md`, then `/accept-milestone` or `/apply-functional-review`.
