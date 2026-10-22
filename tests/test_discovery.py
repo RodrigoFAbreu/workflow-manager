@@ -443,7 +443,7 @@ class TestOnlyAStrictVersionBuildsAPath(_Mirror):
 
     def test_a_traversal_version_in_the_record_is_refused_per_command_and_touches_nothing(self):
         # RA-IMPL-R7-O2 (#48): the refusal, cause, step and exit code each command
-        # gives for a record naming "../escaped" (docs/ARCHITECTURE.md's table), and
+        # gives for a record naming "../escaped" (the per-command table of the plan's section 2.3), and
         # no path created or removed around the cache.
         self.bootstrap_at("7.0.0")
         record = self.target / ".workflow-manager" / "installation.json"
@@ -882,6 +882,7 @@ class TestLatestAvailableOnAnExplicitRun(_Mirror):
                                  package_module.archive_name(v))}
         self.assertLessEqual(set(stub.requests) - {"/releases"}, allowed)
         self.assertFalse([r for r in stub.requests if r.startswith("/dl/7.0.0/")])
+        self.assertNotIn(f"/dl/{UNPINNED}/{package_module.archive_name(UNPINNED)}", stub.requests)
 
 
 class TestTheFloor(_Mirror):
