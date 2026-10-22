@@ -1977,11 +1977,11 @@ def state_transaction(repo_root: Path, mutator, *, path: Path = DEFAULT_STATE_PA
     the publish raises (any `BaseException`), before the exception
     propagates -- the undo of a side effect the mutator or hook left outside
     the state file, so no other writer can interleave between the failure
-    and the undo. The original exception propagates;
-    an `Exception` raised by `on_failure` is suppressed, but a
-    `BaseException` that is not an `Exception` (`KeyboardInterrupt`,
-    `SystemExit`) is not -- it propagates and replaces the original, so an
-    operator interrupt during an undo is never hidden. Never called on
+    and the undo. The original exception propagates unless `on_failure`
+    raises a `BaseException` that is not an `Exception` (`KeyboardInterrupt`,
+    `SystemExit`), which then replaces it, so an operator interrupt during
+    an undo is never hidden;
+    an `Exception` raised by `on_failure` is suppressed. Never called on
     success."""
     full_path = repo_root / path
     with state_lock(repo_root):
