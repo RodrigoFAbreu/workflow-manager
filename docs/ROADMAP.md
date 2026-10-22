@@ -30,7 +30,7 @@ The end goal is a loop where the Controller takes the next roadmap item, plans, 
 | 8 | Release-agnostic Manager | A Workflow release installs without a Manager pin pull request or a Manager release | Done (accepted by policy 2026-10-17; Manager release follows the merge) |
 | 9 | Host tests isolated from a stray ancestor `.git` (#66) | A green change no longer looks red when another process leaves a `.git` in the shared `/tmp` | Done (accepted by policy; a `test:` change, no release) |
 | 10 | Follow-ups to the host-test Git isolation (#74) | The three small test-helper fixes the reviews of row 9 deferred | Done (accepted by policy; a test change, no release) |
-| 11 | Host-test Git isolation: the last two follow-ups (#74) | The helper documents its valid-repository boundary, and empty ceiling markers are tested at every position | Next |
+| 11 | Host-test Git isolation: the last two follow-ups (#74) | The helper documents its valid-repository boundary, and empty ceiling markers are tested at every position | Done (accepted by policy; a test change, no release) |
 
 ### 7. Operator UX (Done)
 

@@ -1,0 +1,22 @@
+{
+  "dispositions": {
+    "F-76bc4a678cf4": {
+      "disposition": "dropped",
+      "reason": "A local variable name in a test; behaviour is unaffected and the test name states what it checks."
+    },
+    "F-a31da7324f89": {
+      "disposition": "dropped",
+      "reason": "The docstring already states the boundary for a target below root (a target equal to root is the earlier, unchanged case its first sentence covers)."
+    },
+    "F-a5ac46339d6e": {
+      "disposition": "dropped",
+      "reason": "The guard pairs the same fixture with a higher ceiling that is protected, so the only difference between the refused and the accepted case is the ceiling position; an unrelated refusal such as no-tmp would fail the paired case."
+    },
+    "F-d8b97393b124": {
+      "disposition": "fixed",
+      "note": "The internal case is a row of the shared tables (tests/test_read_only.py:361, tests/test_orphan_processes.py:188); the single-value tests were folded into them."
+    }
+  },
+  "schema_version": 1,
+  "work_item_id": "test-git-isolation-followups-2"
+}

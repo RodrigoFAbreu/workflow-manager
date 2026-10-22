@@ -2,6 +2,96 @@
 
 ## Milestone
 
+`test-git-isolation-followups-2` (`governing_workflow_version: "2.2"`, `process`,
+plan revision 1, base `7ac6c26`, branch `milestone/test-git-isolation-followups-2`):
+roadmap row 11, issue #74. The last two items #74 lists after
+`test-git-isolation-followups` (PR #76). Test code only; a `test:` title, so it
+releases nothing. Plan:
+`docs/ai-workflow/WORKFLOW_MANAGER_TEST_GIT_ISOLATION_FOLLOWUPS_2_PLAN.md`.
+
+### CP1: the valid-repository docstring and guard, empty ceiling markers at every position -- complete
+
+- `tests/support.py` `no_repository_above`: the docstring now states the
+  valid-repository boundary (a valid repository at `root` is hidden from Git by
+  the ceiling but counted by the `.git` walk, so a target below it is refused,
+  failing closed; a fixture needing it passes a `root` above it). No behaviour
+  change.
+- `tests/test_read_only.py`, `TestAncestorRepositoryIsolation`:
+  `test_the_helper_keeps_every_inherited_ceiling_component_and_restores_the_value`
+  now runs the internal, leading, trailing and repeated marker by `subTest`; new
+  `test_guard_a_valid_repository_at_the_root_is_refused_unless_the_root_is_above_it`.
+- `tests/test_orphan_processes.py`, `TestChunkEnvGitConfig`:
+  `test_an_inherited_empty_ceiling_component_is_kept_at_every_position` runs the
+  same four values by `subTest` (value, then a nested call stable).
+
+Every new test is a **guard**: the behaviour exists at `7ac6c26`, none was red
+first and none is claimed as a regression test. Each passes.
+
+Verification so far: `python3 tests/run_all.py --select test_orphan_processes.py`
+exit 0; `--select test_read_only.py` exit 0 (after correcting the guard's
+expected `protected` tuple to the plain target plus the repository's `.git`);
+`git diff 7ac6c26 -- src tools` is empty. The full gate runs in step 3.
+
+## Current checkpoint
+
+**Milestone complete.** `test-git-isolation-followups-2` reached
+`MILESTONE_COMPLETE` through `/satisfy-gate acceptance` on 2026-10-22, by
+policy (the default gate policy; no person's decision), and
+`active_work_item_id` is unchanged (null).
+- **Checkpoints:** CP1 is complete.
+- **Functional evidence:** flows tg-f1 to tg-f6 passed at `0737500` (run
+  `manager-orchestrator:runs/tg-functional-r1`, an independent Claude executor,
+  the full gate included).
+- **Pull request:** #80, CI green at `0737500` (the Workflow's own `gh` query).
+- **Findings:** four Optional findings dispositioned (one fixed, three dropped);
+  record in `docs/milestones/completed/test-git-isolation-followups-2-findings.md`.
+
+## Next action
+
+No roadmap item is ready for planning: item 11 is done, items 5 and 6 wait on
+the Controller, and the rest is in the roadmap's Later list. Ask the owner what
+to plan next.
+
+## Functional review checklist
+
+Test code only; nothing in `src/` or `tools/` changes. Findings go in
+`.ai-review/test-git-isolation-followups-2/feedback/FUNCTIONAL_REVIEW.md`.
+Every flow is offline, read-only on the clone, and needs no `gh`, `claude`,
+`codex` or `ssh`.
+
+**Setup.** This checkout, branch `milestone/test-git-isolation-followups-2`,
+clean tree. No test data. `tests/run_all.py` needs the release cache primed
+(network or `WORKFLOW_MANAGER_RELEASE_SOURCE`).
+
+1. **Product code is untouched.** `git diff 7ac6c26 HEAD -- src tools` prints
+   nothing; `git diff --stat 7ac6c26 HEAD -- tests` lists only `tests/support.py`,
+   `tests/test_orphan_processes.py`, `tests/test_read_only.py`.
+2. **Docstring states the boundary.** Read `no_repository_above` in
+   `tests/support.py`: it says a valid repository at `root` is hidden from Git by
+   the ceiling but counted by the `.git` walk, so a target below it is refused
+   (fails closed), and a fixture needing it passes a `root` above it.
+3. **Marker positions (orphan processes).**
+   `python3 tests/run_all.py --select test_orphan_processes.py`. Expected: green,
+   including `test_an_inherited_empty_ceiling_component_is_kept_at_every_position`
+   (internal, leading, trailing, repeated empty marker; nested call stable).
+4. **Marker positions and guard (read-only).**
+   `python3 tests/run_all.py --select test_read_only.py`. Expected: green,
+   including `test_the_helper_keeps_every_inherited_ceiling_component_and_restores_the_value`
+   (four `subTest`s) and
+   `test_guard_a_valid_repository_at_the_root_is_refused_unless_the_root_is_above_it`.
+5. **Inherited value is preserved end to end.**
+   `GIT_CEILING_DIRECTORIES=/mnt/a::/mnt/b python3 tests/run_all.py --select test_read_only.py`.
+   Expected: green.
+6. **Full gate (optional, ~5 min).** `python3 tests/run_all.py`. Expected: green,
+   except the known SIGINT flake of workflow#32, which passes alone.
+
+**Known limitations / out of scope.** All new tests are guards: the behaviour
+already existed at `7ac6c26`, none was red first. The product's `.git` walk and
+the helpers' behaviour are unchanged; only the docstring and tests are.
+
+
+## Milestone
+
 `test-git-isolation-followups` (`governing_workflow_version: "2.2"`, `process`,
 plan revision 2, base `2d44ed1`, branch `milestone/test-git-isolation-followups`):
 roadmap row 10, issue #74. The three test-helper fixes the reviews of

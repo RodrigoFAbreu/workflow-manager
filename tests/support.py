@@ -138,7 +138,12 @@ def no_repository_above(root):
     not ask Git) stops there too, after looking at `root/.git` (the product
     refuses a `.git` in `root`); only entries strictly above `root` are
     excluded. `.git` entries at or below the target and inside `root` still
-    count. Both are restored on exit. A `workflow_manager` subprocess run
+    count. Both are restored on exit. A *valid* repository at `root` is not
+    found by Git (the ceiling hides it) while the walk still counts
+    `root/.git`, so a target below it is refused (`ContainmentError`) where
+    the unbounded product finds and protects the repository: this fails
+    closed and no current caller meets it. A fixture that needs such a
+    repository passes a `root` above it. A `workflow_manager` subprocess run
     against a plain directory still meets the unbounded walk: a test that
     starts one creates its directory where no ancestor can hold a `.git`."""
     from workflow_manager import compatibility

@@ -356,14 +356,35 @@ class TestAncestorRepositoryIsolation(unittest.TestCase):
         self.assertEqual(os.environ.get("GIT_CEILING_DIRECTORIES"), before)
         self.assertTrue(comp._has_dot_git_above(plain.parent))
 
+    # Guards (the behaviour exists): an empty component is kept at any position.
+    EMPTY_MARKER_VALUES = (
+        ("internal", "/mnt/a::/mnt/b"),
+        ("leading", ":/mnt/a"),
+        ("trailing", "/mnt/a:"),
+        ("repeated", "/mnt/a:::/mnt/b"),
+    )
+
     def test_the_helper_keeps_every_inherited_ceiling_component_and_restores_the_value(self):
         plain = self.plant("empty")
-        inherited = "/mnt/a::/mnt/b"
-        with mock.patch.dict(os.environ, {"GIT_CEILING_DIRECTORIES": inherited}):
-            with support.no_repository_above(plain.parent):
-                self.assertEqual(os.environ["GIT_CEILING_DIRECTORIES"],
-                                 os.pathsep.join([str(plain.parent), "/mnt/a", "", "/mnt/b"]))
-            self.assertEqual(os.environ["GIT_CEILING_DIRECTORIES"], inherited)
+        for position, inherited in self.EMPTY_MARKER_VALUES:
+            with self.subTest(position=position):
+                with mock.patch.dict(os.environ, {"GIT_CEILING_DIRECTORIES": inherited}):
+                    with support.no_repository_above(plain.parent):
+                        self.assertEqual(os.environ["GIT_CEILING_DIRECTORIES"],
+                                         os.pathsep.join([str(plain.parent),
+                                                          *inherited.split(os.pathsep)]))
+                    self.assertEqual(os.environ["GIT_CEILING_DIRECTORIES"], inherited)
+
+    def test_guard_a_valid_repository_at_the_root_is_refused_unless_the_root_is_above_it(self):
+        valid = self.plant("valid")
+        top = valid.parent.parent
+        protected = (valid.resolve(), top.resolve() / ".git")
+        self.assertEqual(self.destinations(valid).protected, protected)
+        with support.no_repository_above(top):
+            with self.assertRaises(ContainmentError):
+                self.destinations(valid)
+        with support.no_repository_above(top.parent):
+            self.assertEqual(self.destinations(valid).protected, protected)
 
     def test_the_helper_adds_no_empty_ceiling_entry_for_an_unset_or_empty_value(self):
         plain = self.plant("empty")

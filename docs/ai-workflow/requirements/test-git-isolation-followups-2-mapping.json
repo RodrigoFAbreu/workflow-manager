@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "work_item_id": "test-git-isolation-followups-2",
+  "requirements": {
+    "R1": {
+      "description": "no_repository_above documents that a valid repository at root is hidden by the ceiling for a target below it (fails closed) and advises a root above it, with a guard",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R2": {
+      "description": "Empty ceiling markers are tested leading, trailing, repeated and internal for ceiling_with and no_repository_above (guards, parameterised with subTest)",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R3": {
+      "description": "Test code only: src/ and tools/ unchanged, so the pull request is test: and releases nothing",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    }
+  }
+}

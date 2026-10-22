@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "work_item_id": "test-git-isolation-followups-2",
+  "plan_revision": 1,
+  "checkpoints": [
+    {
+      "id": "CP1",
+      "name": "The valid-repository docstring and guard, and empty ceiling markers at every position",
+      "depends_on": [],
+      "complexity": 2,
+      "session_target": 1
+    }
+  ]
+}
