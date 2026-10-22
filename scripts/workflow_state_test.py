@@ -18913,6 +18913,16 @@ class TestStateTransactionOnFailure(unittest.TestCase):
         self.assertIn("an `Exception` raised by `on_failure` is suppressed", doc)
         self.assertNotIn("one raised by\n    `on_failure` is suppressed", doc)
 
+    def test_the_docstring_clause_carries_its_own_exception(self):
+        doc = " ".join(ws.state_transaction.__doc__.split())
+        self.assertIn(
+            "The original exception propagates unless `on_failure` raises a "
+            "`BaseException` that is not an `Exception` (`KeyboardInterrupt`, "
+            "`SystemExit`), which then replaces it, so an operator interrupt during "
+            "an undo is never hidden; an `Exception` raised by `on_failure` is "
+            "suppressed.", doc)
+        self.assertNotIn("The original exception propagates; an `Exception`", doc)
+
     def test_an_interrupt_raised_by_on_failure_propagates_and_replaces_the_original(self):
         with ScratchRepo() as repo:
             self._seed(repo)
