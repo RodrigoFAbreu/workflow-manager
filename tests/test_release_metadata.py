@@ -203,6 +203,12 @@ class TestTheBlockReader(unittest.TestCase):
                     found = parsed.conformance.portability_exceptions
                     self.assertEqual([(e.requires, e.defect) for e in found], [(None, None)])
 
+    def test_null_signals_is_refused_not_defaulted(self):
+        with self.assertRaises(ReleaseIntegrityError) as caught:
+            parse_manager_block({"schema_version": 1, "downgrade_boundary": {
+                "posture": "p", "signals": None}})
+        self.assertEqual(caught.exception.kind, "manifest-shape")
+
     def test_minimum_version_comparison(self):
         for minimum, manager, ok in (
                 (None, "1.0.0", True), ("1.13.0", "1.13.0", True), ("1.13.0", "1.14.0", True),
