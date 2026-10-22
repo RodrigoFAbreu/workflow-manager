@@ -31,6 +31,7 @@ The end goal is a loop where the Controller takes the next roadmap item, plans, 
 | 9 | Host tests isolated from a stray ancestor `.git` (#66) | A green change no longer looks red when another process leaves a `.git` in the shared `/tmp` | Done (accepted by policy; a `test:` change, no release) |
 | 10 | Follow-ups to the host-test Git isolation (#74) | The three small test-helper fixes the reviews of row 9 deferred | Done (accepted by policy; a test change, no release) |
 | 11 | Host-test Git isolation: the last two follow-ups (#74) | The helper documents its valid-repository boundary, and empty ceiling markers are tested at every position | Done (accepted by policy; a test change, no release) |
+| 12 | Review follow-up clean-up (#39 to #52) | The fourteen Optional findings the release-agnostic Manager left open, worked off: clearer floor and version refusals, `doctor` edge cases, stricter release metadata and checksums, and test and CI hygiene | Next |
 
 ### 7. Operator UX (Done)
 
@@ -51,6 +52,10 @@ Three Optional review findings from row 9 (#74), test code only: keep the empty-
 ### 11. Host-test Git isolation: the last two follow-ups
 
 What #74 still lists after row 10, test code only: `tests/support.py` `no_repository_above` documents that a *valid* repository at `root` is hidden by the Git ceiling for a target below it (the helper then refuses, where the unbounded product would protect it: fails closed), and advises a fixture that needs such a repository to pass a `root` above it; and the empty-ceiling-marker tests in `tests/test_orphan_processes.py` and `tests/test_read_only.py` cover leading (`:/mnt/a`), trailing (`/mnt/a:`) and repeated (`/mnt/a:::/mnt/b`) markers, not only an internal one. No Manager behaviour change, so no Manager release (`test:`).
+
+### 12. Review follow-up clean-up
+
+The release-agnostic Manager (row 8, PR #38) left fourteen Optional review findings as `review-follow-up` issues, #39 to #52. The owner's rule (2026-10-16): acceptance never waits for them, and a clean-up milestone works them off from time to time; the owner said go on 2026-10-22. Fix the contained, clearly specified ones: the floor's edges outside bare `update` (`--pinned-only` with an installed discovered release, `doctor` at the floor, #39) and the REASON they need (#40); `doctor`'s "Latest available" on an explicit `--release-version` run (#41); a dedicated refusal for a malformed version such as `v2.12.0` (#42); specified behaviour, with tests, for partial `manager`-block objects (#43); refusing duplicate filenames in `SHA256SUMS` (#46); `ReleaseFloorError`'s docstring (#47); two CLI tests (#48, #49); `_http_read`'s abandoned worker thread and socket (#50); overlapping orphan keys in `tests/parallel/resources.json` (#51); and the nightly's cache entry per run (#52). #44 (offer an older release instead of refusing a release whose `manager` block has the wrong shape) keeps today's fail-closed behaviour, which needs no change; #45 (pre-screen the pin binding before fetching the archive) is an optimisation the plan does only if it stays small. A `fix:` change, so a Manager patch release follows the merge.
 
 ## Done
 
