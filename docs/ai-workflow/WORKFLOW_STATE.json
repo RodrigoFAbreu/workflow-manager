@@ -11473,7 +11473,7 @@
       "registry_path": "docs/ai-workflow/registry/manager-review-followups-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/manager-review-followups-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "APPLYING_REVIEW_FEEDBACK",
       "plan_revision": 10,
       "implementation_revision": 2,
       "functional_review_round": null,
@@ -11621,12 +11621,12 @@
           "external": 5
         },
         "implementation": {
-          "local": 1,
-          "external": 0
+          "local": 2,
+          "external": 1
         }
       },
-      "state_revision": 48,
-      "last_transition": "2026-10-22T15:47:44Z",
+      "state_revision": 50,
+      "last_transition": "2026-10-22T16:08:25Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -12049,7 +12049,48 @@
               "at": "2026-10-22T14:35:19Z"
             }
           ]
+        },
+        "F-5f9f901fd902": {
+          "digest": "5f9f901fd9020d30c4a3a6081437cf6ac59c8d0076363aac56c737fc4eb82955",
+          "text": "**MRF-IL2-O1: `TEST_RESULTS.md` still describes revision 1.** Its header says `implementation_revision: 1` and its full-gate evidence is at head 0110581. The round-2 gate (de84118, 14675 tests) appears only in `IMPLEMENTATION_SUMMARY.md`. Refresh `TEST_RESULTS.md` with the round-2 evidence at the next bundle, or at acceptance.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 2,
+              "review_content_id": "d64b3a40cd0b993959704559edf2983aa5806571af9d3db80c52b1ee7fd17a39",
+              "verdict": "APPROVE",
+              "at": "2026-10-22T16:01:15Z"
+            }
+          ]
+        },
+        "F-f65cf7114362": {
+          "digest": "f65cf7114362b530fbe707d13ab27131ea0af7796940c70af7eb8e2e6e27755a",
+          "text": "**MRF-IL2-O2: MRF-IL1-O1 and MRF-IL1-O2 still need a disposition.** O1 is that on an explicit run, \"Latest available\" is not filtered by `min_manager_version`. O2 is that the `no-listing` suffix is never asserted. The summary calls both follow-up candidates. Under the owner's rule (each Optional finding gets a recorded disposition at acceptance), file them as one `review-follow-up` issue, or record that they were dropped, before acceptance.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 2,
+              "review_content_id": "d64b3a40cd0b993959704559edf2983aa5806571af9d3db80c52b1ee7fd17a39",
+              "verdict": "APPROVE",
+              "at": "2026-10-22T16:01:15Z"
+            }
+          ]
         }
+      },
+      "implementation_review_stages": {
+        "review_content_id": "d64b3a40cd0b993959704559edf2983aa5806571af9d3db80c52b1ee7fd17a39",
+        "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "4833c5d1dba765aaf2a8aa449fe8707a3c56b7129bcb7824ac9da17f657c0060",
+          "verdict": "APPROVE",
+          "round": 2,
+          "completed_at": "2026-10-22T16:01:15Z",
+          "verdict_sha256": "4984753b019a68853ea03d9d2bed53ab577fc7b59fad2b9edf28e929b1ed1d1b",
+          "run_ref": "session:local /home/rodrigo/Workspace/workflow-manager/.ai-review/manager-review-followups/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": null
       }
     }
   }
