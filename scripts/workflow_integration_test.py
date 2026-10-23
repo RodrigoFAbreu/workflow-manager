@@ -60,6 +60,7 @@ import re
 import subprocess
 import tempfile
 import unittest
+from unittest import mock
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -5588,6 +5589,94 @@ class TestPlanApprovalMutationGuardAndTakeover(unittest.TestCase):
                     step="step-6.2-stage-ordinary", now="t3",
                 )
             self.assertEqual(ws.read_plan_approval_guard(repo.root), live)
+
+    # -- takeover-fence (#82, `D-Handoff`) -----------------------------------
+
+    def _takeover_journal(self, repo, now="t9"):
+        evidence = ws.plan_approval_takeover_evidence(repo.root)
+        guard = evidence["guard"]
+        release = (ws.plan_approval_guard_release_authorization_literal(guard)
+                   if guard is not None else None)
+        return ws.take_over_plan_approval_transaction(
+            repo.root, work_item_id="wi", now=now, evidence=evidence,
+            user_authorization=ws.plan_approval_takeover_authorization_literal(evidence),
+            guard_release_authorization=release,
+        )
+
+    def test_owner_cannot_enter_during_a_takeover_and_is_fenced_after_the_rotation(self):
+        for step in ("step-5-declaration-pin", "step-6.2-stage-ordinary"):
+            with self.subTest(step=step), h.ScratchRepo() as repo:
+                journal = self._open(repo)
+                token = journal["owner_token"]
+                real = ws._replace_plan_approval_journal
+                seen = {}
+
+                def attempt(key):
+                    ran = []
+                    try:
+                        with ws.plan_approval_guarded_mutation(
+                            repo.root, owner_token=token, step=step, now="t5",
+                        ):
+                            ran.append(step)
+                    except Exception as exc:  # noqa: BLE001 -- the class is asserted below
+                        seen[key] = exc
+                    seen[key + "_ran"] = ran
+
+                def wrapped(*args, **kwargs):
+                    attempt("before")
+                    seen["guard_before"] = ws.read_plan_approval_guard(repo.root)
+                    result = real(*args, **kwargs)
+                    attempt("after")
+                    return result
+
+                with mock.patch.object(ws, "_replace_plan_approval_journal", wrapped):
+                    new_token = self._takeover_journal(repo)
+                self.assertIsInstance(seen.get("before"), ws.PlanApprovalGuardHeldError)
+                self.assertIn("takeover", str(seen["before"]))
+                self.assertEqual(seen["before_ran"], [])
+                self.assertEqual(seen["guard_before"]["step"], "takeover")
+                self.assertIsInstance(seen.get("after"), ws.PlanApprovalOwnershipError)
+                self.assertEqual(seen["after_ran"], [])
+                self.assertNotEqual(new_token, token)
+                self.assertIsNone(ws.read_plan_approval_guard(repo.root))
+
+    def test_leftover_takeover_guard_names_the_route_and_the_route_clears_it(self):
+        with h.ScratchRepo() as repo:
+            journal = self._open(repo)
+            token = journal["owner_token"]
+            # A takeover that died between publishing its guard and rotating.
+            dead = ws.acquire_plan_approval_guard(
+                repo.root, holder_owner_token=token, step="takeover", now="t2", role="takeover",
+            )
+            with self.assertRaises(ws.PlanApprovalGuardHeldError) as ctx:
+                with ws.plan_approval_guarded_mutation(
+                    repo.root, owner_token=token, step="step-5-declaration-pin", now="t3",
+                ):
+                    self.fail("must not enter its own window against a takeover's guard")
+            message = str(ctx.exception)
+            self.assertIn("take_over_plan_approval_transaction", message)
+            self.assertIn(ws.plan_approval_guard_release_authorization_literal(dead), message)
+            self.assertEqual(ws.read_plan_approval_guard(repo.root)["lease_id"], dead["lease_id"])
+            new_token = self._takeover_journal(repo, now="t4")
+            self.assertIsNone(ws.read_plan_approval_guard(repo.root))
+            self.assertNotEqual(new_token, token)
+            with ws.plan_approval_guarded_mutation(
+                repo.root, owner_token=new_token, step="step-5-declaration-pin", now="t5",
+            ):
+                pass
+
+    def test_non_takeover_guard_of_the_same_token_is_still_reclaimed(self):
+        with h.ScratchRepo() as repo:
+            journal = self._open(repo)
+            ws.acquire_plan_approval_guard(
+                repo.root, holder_owner_token=journal["owner_token"],
+                step="step-5-declaration-pin", now="t2",
+            )
+            again = ws.acquire_plan_approval_guard(
+                repo.root, holder_owner_token=journal["owner_token"],
+                step="step-6.2-stage-ordinary", now="t3",
+            )
+            ws.release_plan_approval_guard(repo.root, again)
 
     # -- guarded_mutation fixed window -------------------------------------
 
