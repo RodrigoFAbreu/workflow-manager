@@ -49,6 +49,11 @@
       "archive": "workflow-2.18.4.tar.gz",
       "manifest_sha256": "70e47fd098e52e0475c3b72b7ae0c68fef9a38f9e29a70062ed8c7498ec9ae0d",
       "sha256": "04d9904cc95d1e6eb1ebb99d5658c24863f9e2e9c24c2e8d7705eed15e7332bf"
+    },
+    "2.18.5": {
+      "archive": "workflow-2.18.5.tar.gz",
+      "manifest_sha256": "9e6b73c7aeb1e479138ee56e581648c7d7dff021df54e82f7448d00206e805b0",
+      "sha256": "08f4cb16752ccfb23a992b53f6230a4079b29ac6ed13a96f9f3047a96fc20163"
     }
   },
   "schema_version": 1
