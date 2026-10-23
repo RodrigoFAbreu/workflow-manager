@@ -1,6 +1,6 @@
 # Workflow Manager Roadmap
 
-> For: anyone following where the Workflow Manager is going. Last checked with: Workflow Manager 1.7.0, Workflow 2.12.0.
+> For: anyone following where the Workflow Manager is going. Last checked with: Workflow Manager 1.13.2, Workflow 2.18.4.
 
 The full text of earlier versions is in this file's git history; the last long version is [here](https://github.com/RodrigoFAbreu/workflow-manager/blob/de95195/docs/ROADMAP.md).
 
@@ -32,6 +32,10 @@ The end goal is a loop where the Controller takes the next roadmap item, plans, 
 | 10 | Follow-ups to the host-test Git isolation (#74) | The three small test-helper fixes the reviews of row 9 deferred | Done (accepted by policy; a test change, no release) |
 | 11 | Host-test Git isolation: the last two follow-ups (#74) | The helper documents its valid-repository boundary, and empty ceiling markers are tested at every position | Done (accepted by policy; a test change, no release) |
 | 12 | Review follow-up clean-up (#39 to #52) | The fourteen Optional findings the release-agnostic Manager left open, worked off: clearer floor and version refusals, `doctor` edge cases, stricter release metadata and checksums, and test and CI hygiene | Done (accepted by policy; the Manager release follows the merge; #50 stays open for its own milestone) |
+| 13 | `doctor`'s "Latest available" names only releases this Manager can install (#85) | On an explicit `--release-version` run, `doctor`'s "Latest available" can name a release whose `min_manager_version` is newer than this Manager, where the bare update would refuse it. Filter the candidates by `min_manager_version` (or qualify the line), and pin the "(the release source has no listing)" suffix in a test. One behaviour fix and one test; a `fix:` patch. The only open defect in this repository | Next |
+| 14 | Operator polish from the functional review (#84) | `None` no longer leaks into a refusal for a null `workflow_version`; `doctor` prints its "discovered, no pin" note once; `status` stops after a not-a-version refusal; `docs/exit-codes.md` and `docs/update.md` list that refusal; and the nightly `package` job's cache key is confirmed or given the lock-digest suffix (a `ci:` change, in its own pull request, no release). Wording and docs only, no behaviour a script depends on; a `fix:` patch | Later: after row 13 |
+| 15 | `_http_read` releases its worker thread and socket at the deadline (#50) | When the deadline expires `_http_read` abandons its worker thread and socket. Harmless in the one-shot CLI, but it accumulates in a long-lived caller such as a test process. Three review rounds of the first attempt showed the cost: a read that must be cancellable is hard to do with a thread. The plan starts from what they learned (recorded on the issue): do the read in a subprocess child with a hard timeout, or give the connection its own socket timeout, whichever the plan can prove with a deterministic test. Small in scope, large in review surface, so plan it alone. A `fix:` patch | Later: low priority, no user-visible failure |
+| 16 | Test runner hardening | Two of the three follow-ups from the sharding and cleanup milestones are one change in `tests/run_all.py`: a handler of its own for SIGINT (a run started with `&` from a non-interactive shell ignores it, and one runner test times out), and a cleanup failure after the report must not turn a printed exit 0 into exit 2. The third, an interrupt inside the fork-to-exec window of a spawned process, is dropped unless the plan can reproduce it. Test and runner code only: a `test:` change, no release | Later: when a run is next lost to either |
 
 ### 7. Operator UX (Done)
 
@@ -87,18 +91,11 @@ Newest first.
 Not scheduled. Each is small unless noted.
 
 - **Controller repository policy for this repository.** What: a Controller policy file with milestone branches enabled and the release section disabled (this repository releases through `.github/workflows/release.yml`). Why: lets the Controller drive this repository, and it must reach `main` before the milestone that first uses it starts. Direction: validate it with the Controller's `inspect`. Belongs with M3.
-- **Retire the `--manager-root` alias.** It is kept as a deprecated alias of the old layout (`src/workflow_manager/cli.py`). Remove it in a later breaking release (`feat!:`).
-- **Test runner hardening.** Three small follow-ups from the sharding and cleanup milestones:
-  - the runner has no interrupt handler of its own, so a run started with `&` from a non-interactive shell ignores SIGINT and one runner test times out;
-  - a cleanup failure after the report can turn a printed exit 0 into exit 2;
-  - an interrupt inside the fork-to-exec window of a spawned process is not covered.
-- **A 5-minute CI target.** It needs about 24 shards; the account's cap is 20 parallel jobs. Revisit if the cap changes or the test set shrinks.
+- **Retire the `--manager-root` alias.** It is kept as a deprecated alias of the old layout (`src/workflow_manager/cli.py`). Removing it is a breaking `feat!:` and a Manager major release, for no operator benefit; keep it until a breaking release has another reason, then remove it in that one.
 
 ### Review follow-ups: release-agnostic Manager (item 8)
 
-These are the Optional review findings deferred at acceptance (the owner's rule of 2026-10-16). Each one is an issue labelled [`review-follow-up`](https://github.com/RodrigoFAbreu/workflow-manager/issues?q=is%3Aissue+label%3Areview-follow-up), and a later clean-up milestone works them off:
-
-- #50: _http_read abandons its worker thread and socket when the deadline expires (open for its own milestone; the owner removed it from the review follow-up clean-up on 2026-10-22, and the issue records what three review rounds learned)
+Each Optional review finding deferred at acceptance (the owner's rule of 2026-10-16) is an issue labelled [`review-follow-up`](https://github.com/RodrigoFAbreu/workflow-manager/issues?q=is%3Aissue+label%3Areview-follow-up). The open ones now have rows above: #85 (row 13), #84 (row 14) and #50 (row 15).
 
 ## Principles
 
