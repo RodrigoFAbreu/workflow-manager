@@ -871,18 +871,21 @@ orphans something.
   release as `*` (`frozen:*/<fixture>/<suite>::<Class>`): it expands to that
   class in whichever release the run selects, so a lock that moves the
   matrix needs no edit here, and a key that matches no unit is as much a
-  schema error as an unknown one. Only a chunk that contains a
+  schema error as an unknown one, unless the key carries `"optional": true`, which declares a class a later release introduced and is simply unused in an older inventory. Only a chunk that contains a
   declared unit has its orphans tolerated. A declared frozen class
   therefore runs in a chunk of its own (`<group>#<Class>`), and a chunk
   that mixes one with another unit is `OrphanDeclarationError`. The policy
   is to fix an orphan from this repository's own code at the source, and to
   declare it only when orphaning is the test's subject. An orphan from
   frozen code is declared with its class named. A declaration that
-  tolerated nothing in a run is listed as unused. Today there are nine
-  declarations: five host classes that kill chunk groups on purpose, and
-  the frozen `TestStateLock` in the selected release's four fixtures, whose
+  tolerated nothing in a run is listed as unused. Today there are thirteen
+  declarations: five host classes that kill chunk groups on purpose, the
+  frozen `TestStateLock` in the selected release's four fixtures, whose
   `multiprocessing` forkserver (the default on Python 3.14) outlives its
-  chunk.
+  chunk, and the frozen `TestLiveGuardVisibility` in the same four fixtures
+  (Workflow 2.18.6), whose forked-child test lets the child go just after the
+  chunk; the last four are dropped once the Workflow repository fixes the test
+  at the source.
 - **Whole-run use.** The same wrapper measures a whole run:
 
   ```bash

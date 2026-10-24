@@ -198,12 +198,19 @@ def parse(raw, host_unit_ids, *, source: str = "resources.json",
     for unit in sorted(raw_sources):
         if unit.startswith(ANY_RELEASE_PREFIX):
             spec = raw_sources[unit]
-            if not isinstance(spec, dict) or set(spec) != {"reason"}:
-                fail(f"orphan_sources {unit!r} must be an object with exactly reason")
+            if (not isinstance(spec, dict) or "reason" not in spec
+                    or set(spec) - {"reason", "optional"}):
+                fail(f"orphan_sources {unit!r} must be an object with reason "
+                     "and, for a release wildcard only, an optional flag")
             reason = spec["reason"]
             if not isinstance(reason, str) or not reason.strip():
                 fail(f"orphan_sources {unit!r}: reason must be a non-empty string")
+            optional = spec.get("optional", False)
+            if not isinstance(optional, bool):
+                fail(f"orphan_sources {unit!r}: optional must be true or false")
             matched = sorted(u for u in inventory if _any_release_matches(unit, u))
+            if not matched and optional:
+                continue  # a class a release introduced: absent from an older inventory
             if not matched:
                 fail(f"orphan_sources unit {unit!r} matches nothing in the "
                      f"{'host ' if orphan_unit_ids is None else ''}inventory")
