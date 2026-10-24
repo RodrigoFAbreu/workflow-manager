@@ -12660,7 +12660,7 @@
       "registry_path": "docs/ai-workflow/registry/explicit-latest-floor-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/explicit-latest-floor-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "AWAITING_FUNCTIONAL_REVIEW",
       "plan_revision": 2,
       "implementation_revision": 1,
       "functional_review_round": null,
@@ -12765,7 +12765,108 @@
           "workflow_release": "2.19.0"
         }
       },
-      "technical_approval": null,
+      "technical_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "865eca4d89d4393b789e18760db479437b3a5c144f646087f15a39c04d69eb2b",
+        "approved_review_content_id": "e23b84523ab4644a275da8c20b2208713f5451a17d3ad732e57b29984921336f",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/registry/explicit-latest-floor-artifacts.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "0c11258356239ab532bd2ecbe74df55707dea9e4"
+          },
+          {
+            "path": "docs/update.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "b77979d8a874de822aff6983175d333bca2a76c0"
+          },
+          {
+            "path": "src/workflow_manager/cli.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "775ea79903b86ab0ffd12fa1606bbc58f5164667"
+          },
+          {
+            "path": "src/workflow_manager/compatibility.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "178bb338578fdfbd319f56bee6de4335fff9675f"
+          },
+          {
+            "path": "tests/test_release_metadata.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "5f66759bf3b5c011bd054b13160e34423562649b"
+          }
+        ],
+        "reviewed_content_commit": "397ed561a76f0ac95c03af40df192500d34f1a22",
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-10-24T22:18:28Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "e23b84523ab4644a275da8c20b2208713f5451a17d3ad732e57b29984921336f",
+            "ledger": {
+              "local": {
+                "bundle_id": "865eca4d89d4393b789e18760db479437b3a5c144f646087f15a39c04d69eb2b",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "9ca6346eb55ab98fada7e23cd74a1e30200836666286b08893c10f52ae57c343",
+                "ledger_entry_sha256": "c79f12e42fb45fca513bf28bf619442f1c7d30c38b873f0fcea8c26d1615eee7",
+                "run_ref": "session:local .ai-review/explicit-latest-floor/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "865eca4d89d4393b789e18760db479437b3a5c144f646087f15a39c04d69eb2b",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "38acf0231eb6cf2fd70d020af6c0b4aed578357e1403b91e126482ac56bbddb7",
+                "ledger_entry_sha256": "c57e66690d0933426a58dd8aa31a1e2b9ece175c20be9c55a21c186a7aaccb51",
+                "run_ref": "session:local .ai-review/explicit-latest-floor/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-10-24T22:18:28Z",
+          "workflow_release": "2.19.0"
+        }
+      },
       "technical_review_block_pins": [],
       "plan_review_stages": {
         "review_content_id": "66751f7ca6910d4300af2660d4f2df5e9793bf8ffbfa0027eea0851cedd3e3f6",
@@ -12796,12 +12897,12 @@
           "external": 3
         },
         "implementation": {
-          "local": 0,
-          "external": 0
+          "local": 1,
+          "external": 1
         }
       },
-      "state_revision": 26,
-      "last_transition": "2026-10-24T22:02:24Z",
+      "state_revision": 29,
+      "last_transition": "2026-10-24T22:18:28Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -12870,6 +12971,69 @@
               "at": "2026-10-24T21:34:11Z"
             }
           ]
+        },
+        "F-3f7db2bbbb85": {
+          "digest": "3f7db2bbbb8597238335e7e7e9d9056ded15c835654683b1fe4c93690b4bd374",
+          "text": "**ELF-IR1-O1 (docs wording)**: `docs/update.md`'s \"Latest available\" bullet\n  says \"while a pin or the default version is always named\". Read on its own,\n  that contradicts the sentences before it, because a pin whose minimum *is*\n  read and not met, or whose cached block is unparseable, is dropped. The plan's\n  wording was \"a pin or the default version without a readable manifest always\n  is\". Suggested fix: \"while a pin or the default version with no readable\n  minimum is always kept\".",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "e23b84523ab4644a275da8c20b2208713f5451a17d3ad732e57b29984921336f",
+              "verdict": "APPROVE",
+              "at": "2026-10-24T22:12:42Z"
+            }
+          ]
+        },
+        "F-daa4a03cac37": {
+          "digest": "daa4a03cac3770421d99fd10c21894ae7bd6b2d44e4ce0abcb6f3938245bcc22",
+          "text": "**ELF-IR1-O2 (missing test, default version)**: no test pins the\n  `version == default` arm of `_latest_filter`. On a scratch clone, removing it\n  (`return None if version in pins else UNREADABLE`) leaves the four\n  latest-line test modules green. The arm only matters when the Manager pins\n  nothing and the default is an alias-checkout version (`_default_version`), so\n  the risk is low. A test with empty pins and an alias checkout would pin it.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "e23b84523ab4644a275da8c20b2208713f5451a17d3ad732e57b29984921336f",
+              "verdict": "APPROVE",
+              "at": "2026-10-24T22:12:42Z"
+            }
+          ]
+        },
+        "F-817a42530651": {
+          "digest": "817a4253065164bcf83c3e280f6744394743df6e18c43659d85a6857de236a29",
+          "text": "**EIR-001 [substantive] — Clarify the pin/default exception.** `docs/update.md:45` says “a pin or the default version is always named,” although a readable incompatible minimum or unparseable block excludes either. Qualify this statement as applying when no trusted cached manifest is readable. This confirms the local review’s wording observation.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "e23b84523ab4644a275da8c20b2208713f5451a17d3ad732e57b29984921336f",
+              "verdict": "APPROVE",
+              "at": "2026-10-24T22:18:01Z"
+            }
+          ]
+        }
+      },
+      "implementation_review_stages": {
+        "review_content_id": "e23b84523ab4644a275da8c20b2208713f5451a17d3ad732e57b29984921336f",
+        "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "865eca4d89d4393b789e18760db479437b3a5c144f646087f15a39c04d69eb2b",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-10-24T22:12:42Z",
+          "verdict_sha256": "9ca6346eb55ab98fada7e23cd74a1e30200836666286b08893c10f52ae57c343",
+          "run_ref": "session:local .ai-review/explicit-latest-floor/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "865eca4d89d4393b789e18760db479437b3a5c144f646087f15a39c04d69eb2b",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-10-24T22:18:01Z",
+          "verdict_sha256": "38acf0231eb6cf2fd70d020af6c0b4aed578357e1403b91e126482ac56bbddb7",
+          "run_ref": "session:local .ai-review/explicit-latest-floor/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "openai/gpt-6.1-sol"
         }
       }
     }
