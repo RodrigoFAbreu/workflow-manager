@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "work_item_id": "explicit-latest-floor",
+  "plan_revision": 2,
+  "checkpoints": [
+    {
+      "id": "CP1",
+      "name": "Filter the explicit run's latest by min_manager_version; pin the no-listing suffix",
+      "depends_on": [],
+      "complexity": 2,
+      "session_target": 1
+    }
+  ]
+}

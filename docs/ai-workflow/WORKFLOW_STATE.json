@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_work_item_id": null,
+  "active_work_item_id": "explicit-latest-floor",
   "work_items": {
     "plan-amendment-mechanism": {
       "work_item_type": "process",
@@ -12649,6 +12649,223 @@
         },
         "evaluated_at": "2026-10-22T17:35:11Z",
         "workflow_release": "2.18.3"
+      }
+    },
+    "explicit-latest-floor": {
+      "work_item_type": "process",
+      "work_item_kind": "process",
+      "work_item_id": "explicit-latest-floor",
+      "parent_work_item_id": null,
+      "plan_path": "docs/ai-workflow/WORKFLOW_MANAGER_EXPLICIT_LATEST_FLOOR_PLAN.md",
+      "registry_path": "docs/ai-workflow/registry/explicit-latest-floor-registry.json",
+      "mapping_path": "docs/ai-workflow/requirements/explicit-latest-floor-mapping.json",
+      "governing_workflow_version": "2.2",
+      "phase": "IMPLEMENTING",
+      "plan_revision": 2,
+      "implementation_revision": null,
+      "functional_review_round": null,
+      "base_commit": "0d6ee1f70cb33f555312267f9e63b9b130172189",
+      "reviewed_implementation_head": null,
+      "current_checkpoint_id": null,
+      "last_completed_checkpoint_id": null,
+      "checkpoints": {},
+      "current_bundle_id": "34182ba11ccafdfc1d3ba4987dd54a833c13792f4372f22e3d366baa3ebd7747",
+      "plan_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "34182ba11ccafdfc1d3ba4987dd54a833c13792f4372f22e3d366baa3ebd7747",
+        "approved_review_content_id": "66751f7ca6910d4300af2660d4f2df5e9793bf8ffbfa0027eea0851cedd3e3f6",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/WORKFLOW_MANAGER_EXPLICIT_LATEST_FLOOR_PLAN.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "eba5a379b2b7c69de9852c5d1bf862e5a41f4a0f"
+          },
+          {
+            "path": "docs/ai-workflow/registry/explicit-latest-floor-registry.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "d620453098f71b809467e1ee5557355255cec9dc"
+          },
+          {
+            "path": "docs/ai-workflow/requirements/explicit-latest-floor-mapping.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "2e5509c5c6f546be34a64a432e7cef08c756dfe3"
+          }
+        ],
+        "reviewed_content_commit": null,
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-10-24T21:37:28Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "66751f7ca6910d4300af2660d4f2df5e9793bf8ffbfa0027eea0851cedd3e3f6",
+            "ledger": {
+              "local": {
+                "bundle_id": "34182ba11ccafdfc1d3ba4987dd54a833c13792f4372f22e3d366baa3ebd7747",
+                "verdict": "APPROVE",
+                "round": 6,
+                "verdict_sha256": "5cbef6f9990fd6aed718551f6d162aed575f92c718747bb6ec403bb6d5b7e165",
+                "ledger_entry_sha256": "5b6badc0b7182683bfc86313c9adf30ad694bfe31a59f6fc67fc6755c11f3af6",
+                "run_ref": "session:local .ai-review/explicit-latest-floor/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "34182ba11ccafdfc1d3ba4987dd54a833c13792f4372f22e3d366baa3ebd7747",
+                "verdict": "APPROVE",
+                "round": 6,
+                "verdict_sha256": "f62bc60a314515a931c15f8eb61bd84a2a1b3db4b329168dd0cbc8902eeddfdf",
+                "ledger_entry_sha256": "9b1ab9875fef82ed642f44d7f90376059efbcc98501a22fbfd4f5d9920402950",
+                "run_ref": "session:local .ai-review/explicit-latest-floor/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-10-24T21:37:28Z",
+          "workflow_release": "2.19.0"
+        }
+      },
+      "technical_approval": null,
+      "technical_review_block_pins": [],
+      "plan_review_stages": {
+        "review_content_id": "66751f7ca6910d4300af2660d4f2df5e9793bf8ffbfa0027eea0851cedd3e3f6",
+        "LOCAL_MODEL_PLAN_REVIEW": {
+          "bundle_id": "34182ba11ccafdfc1d3ba4987dd54a833c13792f4372f22e3d366baa3ebd7747",
+          "verdict": "APPROVE",
+          "round": 6,
+          "completed_at": "2026-10-24T21:34:11Z",
+          "verdict_sha256": "5cbef6f9990fd6aed718551f6d162aed575f92c718747bb6ec403bb6d5b7e165",
+          "run_ref": "session:local .ai-review/explicit-latest-floor/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_PLAN_REVIEW": {
+          "bundle_id": "34182ba11ccafdfc1d3ba4987dd54a833c13792f4372f22e3d366baa3ebd7747",
+          "verdict": "APPROVE",
+          "round": 6,
+          "completed_at": "2026-10-24T21:36:38Z",
+          "verdict_sha256": "f62bc60a314515a931c15f8eb61bd84a2a1b3db4b329168dd0cbc8902eeddfdf",
+          "run_ref": "session:local .ai-review/explicit-latest-floor/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "openai/gpt-6.1-sol"
+        }
+      },
+      "functional_acceptance_status": null,
+      "blocking_decisions": [],
+      "review_round_counts": {
+        "plan": {
+          "local": 6,
+          "external": 3
+        },
+        "implementation": {
+          "local": 0,
+          "external": 0
+        }
+      },
+      "state_revision": 23,
+      "last_transition": "2026-10-24T21:37:28Z",
+      "feedback_layout": "scoped",
+      "plan_review_binding": {
+        "status": "BOUND",
+        "at": "2026-10-24T21:32:13Z",
+        "consumed": {
+          "review_content_id": "473809110d355df0d6ea85cebd3981699345820381fb05c81f3892a0acf75d06",
+          "plan_revision": 1,
+          "legacy": false
+        },
+        "published": {
+          "review_content_id": "66751f7ca6910d4300af2660d4f2df5e9793bf8ffbfa0027eea0851cedd3e3f6",
+          "plan_revision": 2
+        },
+        "bound": {
+          "review_content_id": "66751f7ca6910d4300af2660d4f2df5e9793bf8ffbfa0027eea0851cedd3e3f6",
+          "bundle_id": "34182ba11ccafdfc1d3ba4987dd54a833c13792f4372f22e3d366baa3ebd7747",
+          "plan_revision": 2
+        }
+      },
+      "consumed_plan_review_content_ids": [
+        "184ac1aba85194c07be27d9e7b58c138e41616234539031051d39de21807f284",
+        "473809110d355df0d6ea85cebd3981699345820381fb05c81f3892a0acf75d06",
+        "499b6bfe9ecaabe8eab6074ee19ba0e38f72d6c0ee8da7f79a046fd764cbe062",
+        "837c6b95da21898aac2e22c65a19c5a6f96adb501737e1d0ee3e098933313ccc",
+        "c4022c4a96c9c2ecfcadde05447ea74d91eda458cb65e4323503a0607a0ed42e"
+      ],
+      "optional_findings": {
+        "F-3a2dc228e44b": {
+          "digest": "3a2dc228e44b3d4573baad6f312a55269db66ec4edf70726498d46ca931c8bbb",
+          "text": "PLR-ELF-1-002: CP1's evidence says \"the new tests failing first at `0d6ee1f`\", but the section 3 no-listing assertion pins behaviour that already exists. With a URL-template source, `gather_metadata` sets `listing = \"no-listing\"` and `explicit_latest` already appends `the release source has no listing`, so that assertion passes at the base. Say that the fail-first evidence covers the `min_manager_version` tests, and that the no-listing assertion is green at the base and after.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "499b6bfe9ecaabe8eab6074ee19ba0e38f72d6c0ee8da7f79a046fd764cbe062",
+              "verdict": "REVISE",
+              "at": "2026-10-24T20:45:45Z"
+            }
+          ]
+        },
+        "F-bfc7cb97ad2f": {
+          "digest": "bfc7cb97ad2fc5d36d1aeaf9178c1c54d21af8ceaa2d4329b8baaa066fb9259d",
+          "text": "PLR-ELF-2-002: Section 2 says that under (b) a damaged cached entry is named \"as a bare `update` would still try it\". A bare `update` does not choose from `known_local()`; it resolves the default or discovered version (`_resolve`, `cli.py:251`), so whether it \"tries\" the damaged entry depends on that version being the one it picks. Say instead that resolving that version re-fetches the entry and then applies `_require_compatible`.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "c4022c4a96c9c2ecfcadde05447ea74d91eda458cb65e4323503a0607a0ed42e",
+              "verdict": "REVISE",
+              "at": "2026-10-24T20:49:35Z"
+            }
+          ]
+        },
+        "F-88a2e1a7e9aa": {
+          "digest": "88a2e1a7e9aab8a188d046547734bd7df054da2bd313de389d3d2ac554eab425",
+          "text": "PLR-ELF-6-001: `REVIEW_REQUEST.md` still says the plan is \"in two checkpoints\" in its first sentence, then says revision 2 is one checkpoint. The plan, registry and mapping agree on one checkpoint; correct the request's wording at the next regeneration.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 6,
+              "review_content_id": "66751f7ca6910d4300af2660d4f2df5e9793bf8ffbfa0027eea0851cedd3e3f6",
+              "verdict": "APPROVE",
+              "at": "2026-10-24T21:34:11Z"
+            }
+          ]
+        }
       }
     }
   }
