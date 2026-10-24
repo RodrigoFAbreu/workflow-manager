@@ -16,6 +16,7 @@ import hashlib
 import json
 import shutil
 import unittest
+from contextlib import nullcontext
 from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
@@ -26,6 +27,7 @@ from test_discovery import NEWER, UNPINNED, _listing, _Mirror, _Stub
 import workflow_manager.cli as cli_module
 import workflow_manager.compatibility as comp
 import workflow_manager.package as package_module
+import workflow_manager.release as release_module
 from workflow_manager import advice
 from workflow_manager import source as release_source
 from workflow_manager.installation import Installation
@@ -537,6 +539,9 @@ class TestCrossedVersionCoverage(_Published):
         self.assertIn(comp.CATALOG_TITLE, self.cli_stdout)
         self.assertIn("a URL template and has no listing", self.cli_stdout)
         self.assertIn("name a source that lists its releases", self.cli_stdout)
+        latest = [line for line in self.cli_stdout.splitlines() if line.startswith("Latest available")]
+        self.assertEqual(len(latest), 1, self.cli_stdout)
+        self.assertTrue(latest[0].endswith("(the release source has no listing)"), latest[0])
 
     def test_a_possibly_truncated_listing_is_incomplete(self):
         mirror = self.mirror_of({UNPINNED: block(), NEWER: block()})
@@ -708,6 +713,82 @@ class TestMinManagerVersion(_Published):
                 self.assertEqual(self._cli("--release-version", UNPINNED, "bootstrap", str(repo),
                                            source_dir=mirror), 0, self.cli_output)
 
+    def latest_line(self):
+        lines = [line for line in self.cli_stdout.splitlines()
+                 if line.startswith("Latest available")]
+        self.assertEqual(len(lines), 1, self.cli_stdout)
+        return " ".join(lines[0].split())
+
+    def cache_as_newer_manager(self, mirror, version, lenient=False):
+        """Cache `version` the way a newer Manager would (`lenient`: this Manager's
+        block parser accepts whatever the block holds while it is stored)."""
+        repo = tb.empty_repo(self.tmp / f"cacher-{len(list(self.tmp.glob('cacher-*')))}")
+        lenient_block = release_module.parse_manager_block({"schema_version": 1})
+        with mock.patch.object(cli_module, "_installed_version", return_value="99.1.0"), \
+                mock.patch.object(release_module, "parse_manager_block",
+                                  return_value=lenient_block) if lenient else nullcontext():
+            self.assertEqual(self._cli("--release-version", version, "bootstrap", str(repo),
+                                       source_dir=mirror), 0, self.cli_output)
+
+    PINS = "(this Manager pins 7.0.0 ... 7.0.1)"
+    UPGRADE = f"upgrade the Manager ({advice.page(*advice.PAGE_UPDATE_MANAGER)})"
+
+    def test_the_latest_of_an_explicit_run_never_names_a_release_that_needs_a_newer_manager(self):
+        mirror = self.mirror_of({NEWER: block(min_manager_version=self.NEEDS)})
+        self.installed_at("7.0.0")
+        without = self._cli("--release-version", "7.0.1", "doctor", str(self.target),
+                            source_dir=self.mirror_of({}))
+        self.cache_as_newer_manager(mirror, NEWER)
+        self.assertEqual(self._cli("--release-version", "7.0.1", "doctor", str(self.target),
+                                   source_dir=mirror), without, self.cli_output)
+        self.assertEqual(
+            self.latest_line(), f"Latest available 7.0.1 [pinned] {self.PINS} "
+                                f"({NEWER} needs workflow-manager {self.NEEDS} or newer: {self.UPGRADE})")
+        with mock.patch.object(cli_module, "_installed_version", return_value="0.0.0.dev0"):
+            self.assertEqual(self._cli("--release-version", "7.0.1", "doctor", str(self.target),
+                                       source_dir=mirror), without, self.cli_output)
+            self.assertEqual(self.latest_line(),
+                             f"Latest available {NEWER} [discovered, not pinned] {self.PINS}")
+
+    def test_a_cached_release_whose_block_this_manager_cannot_use_is_not_the_latest(self):
+        self.installed_at("7.0.0")
+        without = self._cli("--release-version", "7.0.1", "doctor", str(self.target),
+                            source_dir=self.mirror_of({}))
+        cases = (
+            ("newer", block(schema_version=2),
+             f"{NEWER} needs a newer workflow-manager: {self.UPGRADE}"),
+            ("malformed", block(min_manager_version="1.x"),
+             f"{NEWER} has a malformed manager block: use a newer Workflow release that corrects it"),
+        )
+        for name, published, words in cases:
+            with self.subTest(name):
+                self.cache = self.tmp / f"cache-{name}"
+                mirror = self.mirror_of({NEWER: published})
+                self.cache_as_newer_manager(mirror, NEWER, lenient=True)
+                code = self._cli("--release-version", "7.0.1", "doctor", str(self.target),
+                                 source_dir=mirror)
+                self.assertEqual(code, without, self.cli_output)
+                self.assertEqual(self.latest_line(),
+                                 f"Latest available 7.0.1 [pinned] {self.PINS} ({words})")
+
+    def test_a_cached_release_with_no_manager_block_stays_the_latest(self):
+        mirror = self.mirror_of({NEWER: None})
+        self.cache_as_newer_manager(mirror, NEWER)
+        self.installed_at("7.0.0")
+        self._cli("--release-version", "7.0.1", "doctor", str(self.target), source_dir=mirror)
+        self.assertEqual(self.latest_line(),
+                         f"Latest available {NEWER} [discovered, not pinned] {self.PINS}")
+
+    def test_a_damaged_cached_discovered_release_is_not_the_latest_and_is_not_named(self):
+        mirror = self.mirror_of({NEWER: block()})
+        self.cache_as_newer_manager(mirror, NEWER)
+        victim = next(p for p in sorted((self.cache / NEWER / release_source.TREE_NAME).rglob("*"))
+                      if p.is_file() and p.name != "manifest.json")
+        victim.write_bytes(victim.read_bytes() + b"damaged")
+        self.installed_at("7.0.0")
+        self._cli("--release-version", "7.0.1", "doctor", str(self.target), source_dir=mirror)
+        self.assertEqual(self.latest_line(), f"Latest available 7.0.1 [pinned] {self.PINS}")
+
     def test_a_built_in_release_ignores_its_block(self):
         self.assertIsNone(cli_module._needs_newer_manager(
             SimpleNamespace(version="2.12.0", manager=parse_manager_block(
@@ -739,6 +820,27 @@ class TestTheListedReleasesOfTheMetadata(unittest.TestCase):
                      "the release source listing may be truncated"))
         self.assertEqual(comp.explicit_latest(["7.0.1"], comp.ReleaseMetadata(listing="read")),
                          ("7.0.1", ""))
+
+    def test_a_release_the_manager_cannot_use_is_not_the_latest_and_is_named(self):
+        page = advice.page(*advice.PAGE_UPDATE_MANAGER)
+        metadata = comp.ReleaseMetadata(listed=("7.0.2", "7.0.3"), listing="read",
+                                        blocks={"7.0.2": None, "7.0.3": None})
+        needs = {"7.0.3": "99.0.0"}.get
+        latest, note = comp.explicit_latest(["7.0.0", "7.0.1"], metadata, needs, page)
+        self.assertEqual(latest, "7.0.2")
+        self.assertEqual(note, f"7.0.3 needs workflow-manager 99.0.0 or newer: "
+                               f"upgrade the Manager ({page})")
+        self.assertNotIn("not assessed", note)
+        for sentinel, words in ((comp.NEWER_BLOCK, f"7.0.3 needs a newer workflow-manager: "
+                                                   f"upgrade the Manager ({page})"),
+                                (comp.MALFORMED_BLOCK, "7.0.3 has a malformed manager block: "
+                                                       "use a newer Workflow release that corrects it")):
+            with self.subTest(sentinel=sentinel):
+                self.assertEqual(comp.explicit_latest(["7.0.1"], metadata, {"7.0.3": sentinel}.get,
+                                                      page), ("7.0.2", words))
+        self.assertEqual(comp.explicit_latest(["7.0.1", "7.0.3"], comp.ReleaseMetadata(listing="read"),
+                                              {"7.0.3": comp.UNREADABLE}.get, page), ("7.0.1", ""))
+        self.assertEqual(comp.explicit_latest(["7.0.1"], metadata), ("7.0.3", ""))
 
 
 class TestTheDocs(unittest.TestCase):

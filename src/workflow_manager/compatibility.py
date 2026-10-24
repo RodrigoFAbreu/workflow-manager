@@ -1240,9 +1240,14 @@ class ReleaseMetadata:
         return max(self.listed, key=version_key) if self.listed else None
 
     @property
+    def read_listed(self) -> tuple[str, ...]:
+        """The listed releases whose manifest this run read."""
+        return tuple(v for v in self.listed if v in self.blocks)
+
+    @property
     def newest_read(self) -> str | None:
         """The newest listed release whose manifest this run read, or None."""
-        read = [v for v in self.listed if v in self.blocks]
+        read = self.read_listed
         return max(read, key=version_key) if read else None
 
     def data(self, version: str) -> tuple[ReleaseData, tuple[str, ...]]:
@@ -2037,19 +2042,52 @@ _LISTING_NOTES = {
 }
 
 
-def explicit_latest(known: list[str], metadata: ReleaseMetadata) -> tuple[str | None, str]:
+# What `explicit_latest`'s `needs` returns besides None (the candidate stays) or a
+# `min_manager_version` string this Manager does not meet: a cached `manager` block
+# written for a newer Manager, one that is malformed, or no readable minimum at all.
+NEWER_BLOCK = object()
+MALFORMED_BLOCK = object()
+UNREADABLE = object()
+
+
+def _dropped_note(version: str, why, upgrade_page: str) -> str:
+    """The words saying why `version` is not the latest, and the next step."""
+    upgrade = f"upgrade the Manager ({upgrade_page})"
+    if why is NEWER_BLOCK:
+        return f"{version} needs a newer workflow-manager: {upgrade}"
+    if why is MALFORMED_BLOCK:
+        return f"{version} has a malformed manager block: use a newer Workflow release that corrects it"
+    return f"{version} needs workflow-manager {why} or newer: {upgrade}"
+
+
+def explicit_latest(known: list[str], metadata: ReleaseMetadata,
+                    needs: Callable[[str], object] | None = None,
+                    upgrade_page: str = "") -> tuple[str | None, str]:
     """`(latest, note)` for an explicit run: the newest of the pins and locally
-    known releases (`known`) and the newest listed release whose manifest was
-    read, and the words saying what that leaves out (a newer listed release
-    that was not assessed or whose manifest could not be read, and why the
-    listing is incomplete)."""
-    candidates = [v for v in known if is_comparable(v)]
-    if metadata.newest_read:
-        candidates.append(metadata.newest_read)
-    latest = max(candidates, key=version_key) if candidates else None
+    known releases (`known`) and the listed releases whose manifest was read that
+    `needs` does not reject, and the words saying what that leaves out (the newest
+    release dropped as unusable by this Manager, a newer listed release that was
+    not assessed or whose manifest could not be read, and why the listing is
+    incomplete). `needs(version)` is None to keep a candidate, a minimum string,
+    `NEWER_BLOCK` or `MALFORMED_BLOCK` to drop and name it, or `UNREADABLE` to
+    drop it unnamed."""
+    candidates = {v for v in known if is_comparable(v)} | set(metadata.read_listed)
+    dropped = {}
+    if needs is not None:
+        for version in candidates:
+            why = needs(version)
+            if why is not None:
+                dropped[version] = why
+    kept = candidates - set(dropped)
+    latest = max(kept, key=version_key) if kept else None
     parts = []
+    named = [v for v, why in dropped.items()
+             if why is not UNREADABLE and (latest is None or version_key(v) > version_key(latest))]
+    if named:
+        newest_dropped = max(named, key=version_key)
+        parts.append(_dropped_note(newest_dropped, dropped[newest_dropped], upgrade_page))
     newest = metadata.newest_listed
-    if newest and (latest is None or version_key(newest) > version_key(latest)):
+    if newest and newest not in dropped and (latest is None or version_key(newest) > version_key(latest)):
         parts.append(f"{newest} is listed but its manifest could not be read"
                      if newest in metadata.unreadable else f"{newest} is listed but was not assessed")
     if metadata.listing in _LISTING_NOTES:

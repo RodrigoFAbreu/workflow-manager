@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "work_item_id": "explicit-latest-floor",
+  "requirements": {
+    "R1": {
+      "description": "On an explicit --release-version run, doctor's Latest available names only releases this Manager can install: candidates whose min_manager_version this Manager does not meet, or whose cached manager block this Manager cannot parse, are dropped and the newest one dropped is named in the line's parenthesis with the upgrade-the-Manager next step",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R2": {
+      "description": "The (the release source has no listing) suffix of the Latest available line is asserted in test_a_template_mirror_cannot_enumerate_the_range",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    }
+  }
+}

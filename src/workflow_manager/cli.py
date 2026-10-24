@@ -46,6 +46,9 @@ from . import advice
 from . import source as release_source
 from .compatibility import (
     ContainmentError,
+    MALFORMED_BLOCK,
+    NEWER_BLOCK,
+    UNREADABLE,
     explicit_latest,
     has_builtin_data,
     is_comparable,
@@ -84,6 +87,7 @@ from .release import (
     ReleaseIntegrityError,
     _version_key,
     manager_version_ok,
+    parse_manifest_manager,
 )
 from .source import (
     AVAILABILITY_KINDS,
@@ -706,6 +710,30 @@ def _print_dry_run(args, plan, release) -> None:
         print(f"  {kept.path}   {kept.reason}")
 
 
+def _latest_filter(cache, metadata, pins, default):
+    """`explicit_latest`'s `needs`: what keeps a release this Manager cannot use out
+    of the explicit run's latest. A built-in release ignores its block; else the
+    block the run read, else the cache's trusted manifest. A pin and the default
+    version are never dropped for lack of a readable minimum, nor a manifest with
+    no `manager` block; a damaged discovered entry is."""
+    def needs(version):
+        if has_builtin_data(version):
+            return None
+        if version in metadata.blocks:
+            block = metadata.blocks[version]
+        else:
+            manifest = cache.cached_manifest(version)
+            if manifest is None:
+                return None if version in pins or version == default else UNREADABLE
+            try:
+                block = parse_manifest_manager(manifest)
+            except ReleaseIntegrityError as exc:
+                return NEWER_BLOCK if exc.newer_manager else MALFORMED_BLOCK
+        minimum = block.min_manager_version if block is not None else None
+        return None if manager_version_ok(minimum, _installed_version()) else minimum
+    return needs
+
+
 def _compatibility_report(args, plan, refusal, release, installed_resolved: bool):
     """The report for `release` as the target, with the facts read from `args.target`."""
     pins = _pins()
@@ -726,7 +754,9 @@ def _compatibility_report(args, plan, refusal, release, installed_resolved: bool
     if not _chooses(args) and _discovering(args):
         # An explicit run still shows the newest release this run knows to be usable.
         known = list(versions) + list(cache.known_local()) + ([latest] if latest else [])
-        latest, latest_note = explicit_latest(known, metadata)
+        latest, latest_note = explicit_latest(
+            known, metadata, _latest_filter(cache, metadata, versions, latest),
+            advice.page(*advice.PAGE_UPDATE_MANAGER))
     return build_report(
         facts, plan, target_version=release.version, latest_version=latest,
         pinned_versions=versions, refusal=refusal, installed_resolved=installed_resolved,
