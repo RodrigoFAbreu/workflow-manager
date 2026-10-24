@@ -1427,6 +1427,23 @@ class TestOrphanSourcesSchema(unittest.TestCase):
         with self.assertRaises(resources.ResourcesFileError):
             resources.parse(_doc({key: reason}), [HOST])  # host-only inventory
 
+    def test_an_optional_wildcard_may_match_nothing_in_an_older_release(self):
+        """A release-wildcard key flagged `optional` declares a class a later release
+        introduced: it matches nothing in an older inventory without an error, and
+        still declares the class where it exists. Only a boolean is accepted, and
+        a concrete key cannot be optional."""
+        key = "frozen:*/conformance/s.py::TestA"
+        spec = {"reason": "r", "optional": True}
+        older = resources.parse(_doc({key: spec}), [HOST], orphan_unit_ids=[HOST, FROZEN_B])
+        self.assertEqual(older.orphan_sources, {})
+        newer = resources.parse(_doc({key: spec}), [HOST], orphan_unit_ids=[HOST, FROZEN_A])
+        self.assertEqual(sorted(newer.orphan_sources), [FROZEN_A])
+        for what, doc in (
+                ("a non-boolean flag", _doc({key: {"reason": "r", "optional": "yes"}})),
+                ("a concrete key", _doc({FROZEN_A: spec}))):
+            with self.subTest(what=what), self.assertRaises(resources.ResourcesFileError):
+                resources.parse(doc, [HOST], orphan_unit_ids=[HOST, FROZEN_A])
+
     def chunks(self, res, whole_groups=False):
         units = [FROZEN_A, FROZEN_B, FROZEN_C, HOST]
         return [(c.id, c.units) for c in planner.make_chunks(

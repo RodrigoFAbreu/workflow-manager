@@ -4,14 +4,30 @@
     "frozen:*/bootstrapped/workflow_state_completion_obligations_test.py::TestStateLock": {
       "reason": "frozen code (unchangeable): TestStateLock starts multiprocessing workers with the default context, which on Python 3.14 is forkserver; the forkserver and resource tracker it starts exit only after the chunk does, re-parented to its wrapper"
     },
+    "frozen:*/bootstrapped/workflow_state_test.py::TestLiveGuardVisibility": {
+      "reason": "frozen code (unchangeable): TestLiveGuardVisibility.test_a_forked_child_owns_nothing_it_inherited forks a child of its worker, kills the worker, then lets the child go; the child exits on its own just after the chunk, re-parented to its wrapper (Workflow 2.18.6; fix at the source in the Workflow repository, then drop these four)",
+      "optional": true
+    },
     "frozen:*/conformance/workflow_state_completion_obligations_test.py::TestStateLock": {
       "reason": "frozen code (unchangeable): TestStateLock starts multiprocessing workers with the default context, which on Python 3.14 is forkserver; the forkserver and resource tracker it starts exit only after the chunk does, re-parented to its wrapper"
+    },
+    "frozen:*/conformance/workflow_state_test.py::TestLiveGuardVisibility": {
+      "reason": "frozen code (unchangeable): TestLiveGuardVisibility.test_a_forked_child_owns_nothing_it_inherited forks a child of its worker, kills the worker, then lets the child go; the child exits on its own just after the chunk, re-parented to its wrapper (Workflow 2.18.6; fix at the source in the Workflow repository, then drop these four)",
+      "optional": true
     },
     "frozen:*/target/workflow_state_completion_obligations_test.py::TestStateLock": {
       "reason": "frozen code (unchangeable): TestStateLock starts multiprocessing workers with the default context, which on Python 3.14 is forkserver; the forkserver and resource tracker it starts exit only after the chunk does, re-parented to its wrapper"
     },
+    "frozen:*/target/workflow_state_test.py::TestLiveGuardVisibility": {
+      "reason": "frozen code (unchangeable): TestLiveGuardVisibility.test_a_forked_child_owns_nothing_it_inherited forks a child of its worker, kills the worker, then lets the child go; the child exits on its own just after the chunk, re-parented to its wrapper (Workflow 2.18.6; fix at the source in the Workflow repository, then drop these four)",
+      "optional": true
+    },
     "frozen:*/updated/workflow_state_completion_obligations_test.py::TestStateLock": {
       "reason": "frozen code (unchangeable): TestStateLock starts multiprocessing workers with the default context, which on Python 3.14 is forkserver; the forkserver and resource tracker it starts exit only after the chunk does, re-parented to its wrapper"
+    },
+    "frozen:*/updated/workflow_state_test.py::TestLiveGuardVisibility": {
+      "reason": "frozen code (unchangeable): TestLiveGuardVisibility.test_a_forked_child_owns_nothing_it_inherited forks a child of its worker, kills the worker, then lets the child go; the child exits on its own just after the chunk, re-parented to its wrapper (Workflow 2.18.6; fix at the source in the Workflow repository, then drop these four)",
+      "optional": true
     },
     "host:test_orphan_processes.py::TestKilledChunks": {
       "reason": "T-OC-4 times out and interrupts chunks on purpose; a killed wrapper dies before it reaps the chunk, which is re-parented to this unit's wrapper (test-cleanup plan 5.6, a killed run's orphans)"
