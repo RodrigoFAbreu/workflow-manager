@@ -878,14 +878,11 @@ orphans something.
   is to fix an orphan from this repository's own code at the source, and to
   declare it only when orphaning is the test's subject. An orphan from
   frozen code is declared with its class named. A declaration that
-  tolerated nothing in a run is listed as unused. Today there are thirteen
-  declarations: five host classes that kill chunk groups on purpose, the
-  frozen `TestStateLock` in the selected release's four fixtures, whose
+  tolerated nothing in a run is listed as unused. Today there are nine
+  declarations: five host classes that kill chunk groups on purpose, and
+  the frozen `TestStateLock` in the selected release's four fixtures, whose
   `multiprocessing` forkserver (the default on Python 3.14) outlives its
-  chunk, and the frozen `TestLiveGuardVisibility` in the same four fixtures
-  (Workflow 2.18.6), whose forked-child test lets the child go just after the
-  chunk; the last four are dropped once the Workflow repository fixes the test
-  at the source.
+  chunk.
 - **Whole-run use.** The same wrapper measures a whole run:
 
   ```bash
