@@ -12660,15 +12660,20 @@
       "registry_path": "docs/ai-workflow/registry/explicit-latest-floor-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/explicit-latest-floor-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "IMPLEMENTING",
+      "phase": "SELF_REVIEWING_IMPLEMENTATION",
       "plan_revision": 2,
       "implementation_revision": null,
       "functional_review_round": null,
       "base_commit": "0d6ee1f70cb33f555312267f9e63b9b130172189",
       "reviewed_implementation_head": null,
       "current_checkpoint_id": null,
-      "last_completed_checkpoint_id": null,
-      "checkpoints": {},
+      "last_completed_checkpoint_id": "CP1",
+      "checkpoints": {
+        "CP1": {
+          "status": "COMPLETE",
+          "start_commit": "881ef23915d5cf197ed0f4a44f7e87d6e0bf38db"
+        }
+      },
       "current_bundle_id": "34182ba11ccafdfc1d3ba4987dd54a833c13792f4372f22e3d366baa3ebd7747",
       "plan_approval": {
         "status": "CURRENT",
@@ -12795,8 +12800,8 @@
           "external": 0
         }
       },
-      "state_revision": 23,
-      "last_transition": "2026-10-24T21:37:28Z",
+      "state_revision": 25,
+      "last_transition": "2026-10-24T21:42:35Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
