@@ -119,10 +119,15 @@ class ReleaseNotPublishedError(InstallError):
 
 def not_a_version(version, *, origin: str = "option") -> ReleaseNotPublishedError:
     """The refusal of a release name that is not `X.Y.Z` (it never becomes a path)."""
-    what = "the installation record names" if origin == "record" else "release"
-    glue = ", which" if origin == "record" else ""
+    if origin == "record" and version is None:
+        message = ("the installation record has no workflow_version (it is null), "
+                   "which is not a version: a release is named X.Y.Z")
+    else:
+        what = "the installation record names" if origin == "record" else "release"
+        glue = ", which" if origin == "record" else ""
+        message = f"{what} {version!r}{glue} is not a version: a release is named X.Y.Z"
     return ReleaseNotPublishedError(
-        f"{what} {version!r}{glue} is not a version: a release is named X.Y.Z",
+        message,
         kind="not-a-version", origin=origin)
 
 
@@ -178,6 +183,21 @@ def incompatible(version: str, needs: str, manager: str | None) -> ReleaseIncomp
 
 def _log(message: str) -> None:
     print(f"workflow-manager: {message}", file=sys.stderr)
+
+
+_LOGGED_ONCE: set[str] = set()
+
+
+def _log_once(message: str) -> None:
+    """`_log`, but an identical message prints once until `reset_logged_once`."""
+    if message not in _LOGGED_ONCE:
+        _LOGGED_ONCE.add(message)
+        _log(message)
+
+
+def reset_logged_once() -> None:
+    """Forget what `_log_once` printed (each CLI invocation starts afresh)."""
+    _LOGGED_ONCE.clear()
 
 
 # ---------------------------------------------------------------------------
@@ -1005,8 +1025,8 @@ class ReleaseCache:
                         raise
                     if not problems:
                         if trust == TRUST_DISCOVERED:
-                            _log(f"using release {version}, discovered from {self.identity()}: "
-                                 f"this Manager has no pin for it")
+                            _log_once(f"using release {version}, discovered from "
+                                      f"{self.identity()}: this Manager has no pin for it")
                         return SnapshotRelease(snapshot, self._record(pin, trust))
                     shutil.rmtree(snapshot, ignore_errors=True)
                 if attempt == 2:

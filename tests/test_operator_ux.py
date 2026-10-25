@@ -1140,7 +1140,8 @@ class TestNotAVersionRows(TargetCase):
         before = tree_hash(repo)
         for argv in (["update", str(repo)], ["update", "--dry-run", str(repo)]):
             self.check(Case(" ".join(argv), argv, exit_code=1,
-                            cause=self.CAUSE_RECORD.format(None),
+                            cause=("the installation record has no workflow_version (it is null), "
+                                   "which is not a version: a release is named X.Y.Z"),
                             step=("repair or re-bootstrap the installation record",)))
         self.assertEqual(tree_hash(repo), before)
 

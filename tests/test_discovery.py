@@ -377,6 +377,84 @@ class TestEveryRefusalFailsClosed(_Mirror):
         self.assertTrue(all(not p.endswith("SHA256SUMS") or "7.0.1" in p for p in stub.requests))
 
 
+class TestOperatorPolish(_Mirror):
+    """`operator-polish` (#84, items 1 to 3): a null record is refused as having no
+    `workflow_version`, each discovery note prints once per invocation, and a typed
+    name that is no version ends `status`."""
+
+    def note(self, version):
+        return f"using release {version}, discovered from dir:{self.mirror}"
+
+    def notes(self):
+        return [line for line in self.cli_stderr.splitlines() if "using release" in line]
+
+    def install_discovered(self, version):
+        self.bootstrap_at("7.0.0")
+        self.assertEqual(self._cli("--release-version", version, "update", str(self.target),
+                                   source_dir=self.mirror), 0, self.cli_output)
+
+    def test_a_null_record_is_refused_as_having_no_workflow_version(self):
+        self.bootstrap_at("7.0.0")
+        record = self.target / ".workflow-manager" / "installation.json"
+        data = json.loads(record.read_text())
+        data["workflow_version"] = None
+        record.write_text(json.dumps(data))
+        self.assertEqual(self._cli("update", str(self.target), source_dir=self.mirror), 1)
+        self.assertIn("has no workflow_version", self.cli_stderr)
+        self.assertNotIn("None", self.cli_stderr)
+        self.assertIn("next:", self.cli_stderr)
+
+    def test_a_typed_name_that_is_no_version_ends_status_with_the_refusal(self):
+        self.bootstrap_at("7.0.0")
+        before = _files(self.target)
+        self.assertEqual(self._cli("--release-version", "v2.12.0", "status", str(self.target),
+                                   source_dir=self.mirror), 1)
+        self.assertEqual(self.cli_stdout, "")
+        self.assertIn("is not a version", self.cli_stderr)
+        self.assertEqual(_files(self.target), before)
+
+    def fresh(self):
+        self.target = tb.empty_repo(self.tmp / f"polish-{len(list(self.tmp.glob('polish-*')))}")
+        shutil.rmtree(self.cache, ignore_errors=True)
+
+    def line(self, version):
+        return f"workflow-manager: {self.note(version)}: this Manager has no pin for it"
+
+    def test_the_discovery_note_prints_once_for_each_release_and_source(self):
+        for command in (["doctor"], ["update", "--dry-run"]):
+            with self.subTest(command=command, case="installed is the target"):
+                self.fresh()
+                self.install_discovered(NEWER)
+                self._cli(*command, str(self.target), source_dir=self.mirror)
+                self.assertEqual(self.notes(), [self.line(NEWER)], self.cli_stderr)
+            with self.subTest(command=command, case="pinned target"):
+                self.fresh()
+                self.install_discovered(UNPINNED)
+                self._cli("--release-version", "7.0.1", *command, str(self.target),
+                          source_dir=self.mirror)
+                self.assertEqual(self.notes(), [self.line(UNPINNED)], self.cli_stderr)
+            with self.subTest(command=command, case="two discovered releases"):
+                self.fresh()
+                self.install_discovered(UNPINNED)
+                self._cli("--release-version", NEWER, *command, str(self.target),
+                          source_dir=self.mirror)
+                self.assertCountEqual(self.notes(), [self.line(UNPINNED), self.line(NEWER)],
+                                      self.cli_stderr)
+            with self.subTest(command=command, case="pinned installed"):
+                self.fresh()
+                self.bootstrap_at("7.0.0")
+                self._cli("--release-version", NEWER, *command, str(self.target),
+                          source_dir=self.mirror)
+                self.assertEqual(self.notes(), [self.line(NEWER)], self.cli_stderr)
+
+    def test_each_invocation_prints_its_note_afresh(self):
+        self.install_discovered(UNPINNED)
+        for _ in range(2):
+            self._cli("--release-version", UNPINNED, "doctor", str(self.target),
+                      source_dir=self.mirror)
+            self.assertEqual(len(self.notes()), 1, self.cli_stderr)
+
+
 class TestOnlyAStrictVersionBuildsAPath(_Mirror):
     """RA-IMPL-R6-001: a version that is not `X.Y.Z` -- from `--release-version`
     or a target's record -- is refused before any cache path or source read, so

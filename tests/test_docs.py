@@ -425,6 +425,11 @@ class ReleaseAgnosticDocsTest(unittest.TestCase):
         self.assertIn("Upgrading does not help with `release X is not published", text)
         self.assertIn("remove `--pinned-only` or choose a pinned release", text)
 
+    def test_update_lists_the_not_a_version_refusal(self) -> None:
+        text = " ".join(self._read("docs/update.md").split())
+        self.assertIn("`is not a version`", text)
+        self.assertIn("[common problems](common-problems.md)", text)
+
     def test_the_contract_page_is_indexed_and_linked_from_the_pages_that_use_it(self) -> None:
         self.assertIn("(release-metadata.md)", self._read("docs/README.md"))
         self.assertIn("release-metadata.md", self._read("docs/ROADMAP.md"))
