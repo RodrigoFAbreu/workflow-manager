@@ -10682,6 +10682,16 @@ real_transaction = ws.state_transaction
 real_release_guard = ws.release_guard
 real_lifecycle_lock = ws.lifecycle_lock
 real_owner_mutation = ws.owner_mutation
+real_claim_path = ws.claim_path
+
+
+class _CrashAtUnlink(type(Path())):
+    def unlink(self, *args, **kwargs):
+        os._exit(0)
+
+
+def claim_path(*args, **kwargs):
+    return _CrashAtUnlink(real_claim_path(*args, **kwargs))
 
 
 def transaction(*args, **kwargs):
@@ -10716,6 +10726,8 @@ ws.state_transaction = transaction
 ws.release_guard = release_guard
 ws.lifecycle_lock = lifecycle_lock
 ws.owner_mutation = owner_mutation
+if mode == "crash_at_unlink":
+    ws.claim_path = claim_path
 try:
     ws.release_checkpoint_start(repo_root, work_item_id, checkpoint_id, now="t-worker")
     say(event="done", outcome="success")
@@ -11233,6 +11245,165 @@ class TestReleaseCheckpointStart(LiveGuardWorkerMixin, unittest.TestCase):
             (repo.root / _STATE_REL).write_bytes(saved)
             self._refuses(repo, ws.CheckpointOwnershipStateMismatchError)
 
+    # -- interleaving-pins P1 (#97 item 4) -------------------------------------
+    def _spy_guard_lock(self):
+        """Patch `owner_mutation` and `guard_mutation_lock` with spies. Returns the list
+        the lock spy appends to: `(function that entered the lock, whether the
+        `owner_mutation` body was open)`."""
+        body = {"open": False}
+        entered = []
+        real_window, real_lock = ws.owner_mutation, ws.guard_mutation_lock
+
+        @contextlib.contextmanager
+        def window(*args, **kwargs):
+            with real_window(*args, **kwargs):
+                body["open"] = True
+                try:
+                    yield
+                finally:
+                    body["open"] = False
+
+        @contextlib.contextmanager
+        def lock(*args, **kwargs):
+            entered.append((sys._getframe(2).f_code.co_name, body["open"]))
+            with real_lock(*args, **kwargs):
+                yield
+
+        for name, spy in (("owner_mutation", window), ("guard_mutation_lock", lock)):
+            patcher = mock.patch.object(ws, name, spy)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        return entered
+
+    def test_p1_the_release_window_takes_no_guardlock_inside_its_body(self):
+        """The guard re-read of `release_checkpoint_start` takes no checkpoint guardlock (6)
+        inside the body of its `owner_mutation` window: that would derive an undeclared
+        (5)->(6) edge. The three entries outside the body are the probe, the guard's
+        acquire and the lock under its release (`release_guard`'s `_release_guard_path`), so a spy that misses the release-time edge fails here."""
+        outside = [("guard_holder_is_running", False), ("acquire_guard", False),
+                   ("_release_guard_path", False)]
+        real_transaction, real_path = ws.state_transaction, ws.claim_path
+
+        def rotate_claim_after_write(repo):
+            def write_then_change(*args, **kwargs):
+                result = real_transaction(*args, **kwargs)
+                self._rewrite(ws.claim_path(repo.root, self.WI), owner_token="rotated")
+                return result
+            return write_then_change
+
+        scenarios = {
+            "a kind entry success": ({}, None, None),
+            "a kind baseline success": ({"window": False}, None, None),
+            "a failed unlink": (
+                {}, ws.CheckpointOwnershipUnavailableError,
+                lambda repo: mock.patch.object(
+                    ws, "claim_path", lambda *a, **k: _UnlinkFails(real_path(*a, **k)))),
+            "a refusal inside the restore mutator": (
+                {}, ws.CheckpointOwnershipStateMismatchError,
+                lambda repo: repo.commit("done", trailers={
+                    "Workflow-Checkpoint": self.CP, "Workflow-Work-Item": self.WI})),
+            "the re-read refusal": (
+                {}, ws.CheckpointOwnershipUnavailableError,
+                lambda repo: mock.patch.object(
+                    ws, "state_transaction", rotate_claim_after_write(repo))),
+        }
+        for name, (start_kwargs, error, prepare) in scenarios.items():
+            with self.subTest(name), ScratchRepo() as repo:
+                self._start(repo, **start_kwargs)
+                patch = prepare(repo) if prepare else None
+                entered = self._spy_guard_lock()
+                with contextlib.ExitStack() as stack:
+                    if isinstance(patch, contextlib.AbstractContextManager):
+                        stack.enter_context(patch)
+                    if error is None:
+                        self._release(repo)
+                    else:
+                        with self.assertRaises(error):
+                            self._release(repo)
+                self.assertEqual([e for e in entered if not e[1]], outside)
+                self.assertEqual([e for e in entered if e[1]], [])
+
+    # -- interleaving-pins P2 (#97 item 5) -------------------------------------
+    # The seams are patches of existing function boundaries, installed by the test or
+    # by the worker source: `S-write` (`state_transaction`, kind `entry` only),
+    # `S-unlink` (`claim_path`, whose `unlink` is the injection point) and `S-gap`
+    # (`release_guard`, the one call between the unlink and the guard's release). The
+    # entry branch's gap is T4's "after the unlink" subtest.
+    def _baseline_start(self, repo, demoted):
+        self._start(repo, demoted=demoted, window=False)
+        return self.DEMOTED if demoted else None
+
+    def test_p2_the_entry_absent_branch_writes_no_state(self):
+        """Why `S-write` cannot fire on kind `baseline`: no `state_transaction` call."""
+        real = ws.state_transaction
+        for demoted in (False, True):
+            with self.subTest(demoted=demoted), ScratchRepo() as repo:
+                expected = self._baseline_start(repo, demoted)
+                before = (repo.root / _STATE_REL).read_bytes()
+                calls = []
+
+                def counting(*args, **kwargs):
+                    calls.append(args)
+                    return real(*args, **kwargs)
+
+                with mock.patch.object(ws, "state_transaction", counting):
+                    self._release(repo)
+                self.assertEqual(calls, [])
+                self.assertEqual((repo.root / _STATE_REL).read_bytes(), before)
+                self._released(repo, expected)
+
+    def test_p2_a_crash_at_the_unlink_of_the_entry_absent_branch(self):
+        """`S-unlink` (the worker's `crash_at_unlink`): the claim is kept under a guard
+        whose holder is gone, and the next call completes."""
+        for demoted in (False, True):
+            with self.subTest(demoted=demoted), ScratchRepo() as repo:
+                expected = self._baseline_start(repo, demoted)
+                before = (repo.root / _STATE_REL).read_bytes()
+                self._crash_in(repo, "crash_at_unlink")
+                self.assertEqual((repo.root / _STATE_REL).read_bytes(), before)
+                self.assertIsNotNone(ws.resolve_claim(repo.root, self.WI))
+                self.assertIsNotNone(ws.read_guard(repo.root, self.WI))
+                self._release(repo)
+                self._released(repo, expected)
+
+    def test_p2_a_crash_in_the_gap_after_the_unlink_of_the_entry_absent_branch(self):
+        """`S-gap` (the worker's `crash_after_unlink`) on kind `baseline`: no claim, a
+        leftover guard with no holder, and the next call refuses and changes nothing."""
+        for demoted in (False, True):
+            with self.subTest(demoted=demoted), ScratchRepo() as repo:
+                self._baseline_start(repo, demoted)
+                before = (repo.root / _STATE_REL).read_bytes()
+                self._crash_in(repo, "crash_after_unlink")
+                self.assertEqual((repo.root / _STATE_REL).read_bytes(), before)
+                self.assertIsNone(ws.resolve_claim(repo.root, self.WI))
+                leftover = ws.read_guard(repo.root, self.WI)
+                self.assertIsNotNone(leftover)
+                self._refuses(repo, ws.CheckpointNotInProgressLocallyError, "nothing to release")
+                fresh = ws.acquire_guard(repo.root, self.WI, holder_owner_token="any",
+                                         checkpoint_id=self.CP, step="1d",
+                                         step_class=ws.DESTRUCTIVE, now="t5")
+                self.assertNotEqual(fresh["lease_id"], leftover["lease_id"])
+                ws.release_guard(repo.root, self.WI, fresh)
+
+    def test_p2_a_failed_unlink_of_the_entry_absent_branch(self):
+        """`S-unlink` (T7's analogue, in process): the call raises, the claim stays, the
+        guard is released, and the next call completes."""
+        for demoted in (False, True):
+            with self.subTest(demoted=demoted), ScratchRepo() as repo:
+                expected = self._baseline_start(repo, demoted)
+                before = (repo.root / _STATE_REL).read_bytes()
+                real = ws.claim_path
+                with mock.patch.object(ws, "claim_path",
+                                       lambda *a, **k: _UnlinkFails(real(*a, **k))):
+                    with self.assertRaises(ws.CheckpointOwnershipUnavailableError) as ctx:
+                        self._release(repo)
+                self.assertIn("claim was not unlinked", str(ctx.exception))
+                self.assertEqual((repo.root / _STATE_REL).read_bytes(), before)
+                self.assertIsNotNone(ws.resolve_claim(repo.root, self.WI))
+                self.assertIsNone(ws.read_guard(repo.root, self.WI))
+                self._release(repo)
+                self._released(repo, expected)
+
 
 def _with_entry(state, work_item_id, checkpoint_id, entry):
     state = copy.deepcopy(state)
@@ -11575,6 +11746,42 @@ class TestReleaseCheckpointStartCommand(LiveGuardWorkerMixin, unittest.TestCase)
                     self.assertEqual(self._snapshot(repo), before)
                 self.assertIsNone(ws.resolve_claim(repo.root, self.WI))
                 self._assert_amendment_accepted(repo)
+
+    # -- interleaving-pins P4 (#100) -------------------------------------------
+    def _amendment_state_over_disk_entry(self, repo, approved):
+        """The amendment state of `_assert_amendment_accepted` (`approved`, built once per
+        repository), with the work item's `checkpoints` and pointers replaced wholesale
+        by the entry on disk."""
+        state = copy.deepcopy(approved)
+        disk = _read_state(repo.root)["work_items"][self.WI]
+        item = state["work_items"][self.WI]
+        item["checkpoints"] = copy.deepcopy(disk.get("checkpoints") or {})
+        item["current_checkpoint_id"] = disk.get("current_checkpoint_id")
+        item["last_completed_checkpoint_id"] = disk.get("last_completed_checkpoint_id")
+        return state
+
+    def test_p4_the_in_progress_arm_over_the_real_entry_before_and_after_a_release(self):
+        for demoted in (False, True):
+            with self.subTest(demoted=demoted), ScratchRepo() as repo:
+                self._start(repo, demoted=demoted)
+                approved, _ = TestRequestPlanAmendment._state_with_approved_plan(
+                    repo, work_item_id=self.WI)
+                self.assertEqual(self._entry(repo)["status"], "IN_PROGRESS")
+                with self.assertRaises(ws.AmendmentCheckpointActiveError) as ctx:
+                    self._amend(repo, self._amendment_state_over_disk_entry(repo, approved))
+                message = str(ctx.exception)
+                self.assertIn("has a checkpoint IN_PROGRESS", message)
+                self.assertNotIn("outstanding checkpoint claim", message)
+                self.assertIn(f"/release-checkpoint-start {self.WI} {self.CP}", message)
+                self._plain_release(repo)
+                state = self._amendment_state_over_disk_entry(repo, approved)
+                self.assertNotEqual((state["work_items"][self.WI]["checkpoints"].get(self.CP)
+                                     or {}).get("status"), "IN_PROGRESS")
+                new_state = self._amend(repo, state)
+                item = new_state["work_items"][self.WI]
+                self.assertEqual(item["phase"], "AMENDING_PLAN")
+                self.assertNotEqual((item["checkpoints"].get(self.CP) or {}).get("status"),
+                                    "IN_PROGRESS")
 
 
 class TestExplicitTakeover(unittest.TestCase):
@@ -15648,6 +15855,22 @@ class TestAmendmentResolutionReservation(unittest.TestCase):
             with self.assertRaises(ws.AmendmentCheckpointActiveError):
                 _open_amendment_approval(repo, wt_a)
             self.assertIsNone(ws.read_plan_approval_journal(wt_a))
+
+    def test_the_journal_refusal_names_no_release_command(self):
+        """The plan-approval raise comes after the amendment is open, so a released start
+        does not lift it the way it does before the amendment is requested: it names no
+        `/release-checkpoint-start`."""
+        with ScratchRepo() as repo:
+            wt_a = self._amended(repo)
+            with ws.lifecycle_lock(repo.root, "wi"):
+                ws._claim_or_refuse(repo.root, "wi",
+                                    ws._build_claim_record(repo.root, "wi", "CP2", "t1"))
+            with self.assertRaises(ws.AmendmentCheckpointActiveError) as ctx:
+                _open_amendment_approval(repo, wt_a)
+            message = str(ctx.exception)
+            self.assertIn("open amendment and a live checkpoint claim", message)
+            self.assertIn("plan-approval transaction", message)
+            self.assertNotIn("release-checkpoint-start", message)
 
 
 class TestApplyPlanApprovalAmendmentBranch(unittest.TestCase):
