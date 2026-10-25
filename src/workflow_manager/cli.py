@@ -106,6 +106,7 @@ from .source import (
     local_release,
     not_a_version,
     pinned_only,
+    reset_logged_once,
 )
 
 MANAGER_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -617,7 +618,11 @@ def cmd_status(args) -> int:
         _print_in_flight(args)
         _print_error(args, error)
         return 1
-    except RELEASE_ERRORS:
+    except RELEASE_ERRORS as error:
+        if (isinstance(error, ReleaseNotPublishedError) and error.kind == "not-a-version"
+                and error.origin == "option"):
+            # A typed name that is no version: no report can be measured against it.
+            raise
         _print_record(args.target)
         _print_in_flight(args)
         raise
@@ -1074,6 +1079,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    reset_logged_once()
     if args.manager_root is not None:
         print(MANAGER_ROOT_DEPRECATION, file=sys.stderr)
 

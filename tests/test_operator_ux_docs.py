@@ -120,6 +120,12 @@ class Docs(ux.ReleaseCase):
         return run("--release-cache", str(work / "cache"), "--release-source", str(mirror),
                    "bootstrap", str(self.empty()))
 
+    def case_typed_status(self):
+        return run("--release-version", "v2.12.0", "status", str(self.fresh()))
+
+    def case_typed_doctor(self):
+        return run("--release-version", "v2.12.0", "doctor", str(self.fresh()))
+
     def case_unpublished(self):
         return run("--release-version", "9.9.9", "bootstrap", str(self.empty()))
 
@@ -223,6 +229,8 @@ class Docs(ux.ReleaseCase):
         "in_flight": ("every command", "It succeeded"),
         "doctor_unmanaged": ("`doctor`", "It could not check"),
         "status_unmanaged": ("every command", "or not managed"),
+        "typed_status": ("`status`", "is not `X.Y.Z`"),
+        "typed_doctor": ("`doctor`", "is not `X.Y.Z`"),
     }
     FRAGMENTS = {
         "misplaced": "unrecognized", "no_command": "required",
@@ -232,6 +240,7 @@ class Docs(ux.ReleaseCase):
         "digest": "does not match", "unreadable": "is unreadable",
         "newer": "newer Manager", "in_flight": "work in flight:",
         "doctor_unmanaged": "is not a managed", "status_unmanaged": "not a managed",
+        "typed_status": "is not a version", "typed_doctor": "is not a version",
     }
 
     @staticmethod
