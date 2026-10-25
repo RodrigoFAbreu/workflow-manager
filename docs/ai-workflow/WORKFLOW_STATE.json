@@ -13263,18 +13263,22 @@
       "registry_path": "docs/ai-workflow/registry/operator-polish-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/operator-polish-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "IMPLEMENTING",
+      "phase": "SELF_REVIEWING_IMPLEMENTATION",
       "plan_revision": 1,
       "implementation_revision": null,
       "functional_review_round": null,
       "base_commit": "5c06591abc3a270677853d0d9e49057b42a16e68",
       "reviewed_implementation_head": null,
       "current_checkpoint_id": null,
-      "last_completed_checkpoint_id": "CP1",
+      "last_completed_checkpoint_id": "CP2",
       "checkpoints": {
         "CP1": {
           "status": "COMPLETE",
           "start_commit": "dc1052b5e2dab7039fd5de14ed971401d93fa16e"
+        },
+        "CP2": {
+          "status": "COMPLETE",
+          "start_commit": "193f5c87cc7b9842364167925eaa000ee74d20fc"
         }
       },
       "current_bundle_id": "210fa5b2fe75d6acb0705d35218fa40370b6fbb1236f33daf5b49815c55e26ae",
@@ -13403,8 +13407,8 @@
           "external": 0
         }
       },
-      "state_revision": 16,
-      "last_transition": "2026-10-25T13:39:17Z",
+      "state_revision": 18,
+      "last_transition": "2026-10-25T13:40:12Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
