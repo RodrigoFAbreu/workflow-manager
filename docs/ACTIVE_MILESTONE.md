@@ -24,11 +24,29 @@ issue #84. A `fix:` pull request title (`src/` changes). Plan:
   acceptance. This file records the milestone. No version is edited.
 - The nightly `package` job's cache key (item 5) ships in its own `ci:` pull request.
 
+### Self-review and the full gate
+
+- The first full gate at `0ac15aa` failed one test:
+  `test_operator_ux_readonly.TestPrintedCommandsParse.test_i3_verify_without_release_dir_after_a_scalar_install_asks_for_one`
+  (subtest `version=None`) asserted the old `the installation record names` text
+  for a null record, a second assertion the plan did not list. Its null case now
+  expects CP1's cause (`76c63b3`); `123` and `""` keep the `names` wording.
+- Red-first, in a clone at `0ac15aa` with `src/`, `docs/exit-codes.md` and
+  `docs/update.md` restored to `5c06591`: 8 of the new or changed tests fail (the
+  null record, typed `status`, the per-invocation reset, the `installed is the
+  target` case for `doctor` and `update --dry-run`, both null-record subtests in
+  `test_operator_ux`, the `docs/update.md` bullet) and both new exit-code rows of
+  `test_operator_ux_docs` fail. Three discovery-note subtests (`pinned target`,
+  `two discovered releases`, `pinned installed`) are green there: they guard the
+  sole and distinct notes that must stay (EPR-001).
+- Full gate `python3 tests/run_all.py` at `76c63b3`: exit 0, 2279/2279 units,
+  14919 tests.
+
 ## Current checkpoint
 
-CP1 and CP2 are complete; the milestone is awaiting the full verification run and
-the implementation review.
+CP1 and CP2 are complete, and so are the self-review and the full gate. The
+milestone is awaiting the implementation review.
 
 ## Next action
 
-Full gate `python3 tests/run_all.py`, then the implementation review bundle.
+The implementation review of the bundle.
