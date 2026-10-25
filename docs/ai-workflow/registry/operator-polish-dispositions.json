@@ -1,0 +1,34 @@
+{
+ "schema_version": 1,
+ "work_item_id": "operator-polish",
+ "dispositions": {
+  "F-1621e87bde68": {
+   "disposition": "fixed",
+   "note": "A text assertion that docs/update.md holds the refusal sits in tests/test_docs.py."
+  },
+  "F-4286296012ce": {
+   "disposition": "dropped",
+   "reason": "Editorial wording of the plan, its mapping row or a docs row (an approved plan-stage path or a description-only difference); the shipped behaviour and tests are checked by the functional review (flows 1 to 5) and by Codex."
+  },
+  "F-47db0d086b6e": {
+   "disposition": "dropped",
+   "reason": "Editorial wording of the plan, its mapping row or a docs row (an approved plan-stage path or a description-only difference); the shipped behaviour and tests are checked by the functional review (flows 1 to 5) and by Codex."
+  },
+  "F-4ee77628c64e": {
+   "disposition": "dropped",
+   "reason": "Editorial wording of the plan, its mapping row or a docs row (an approved plan-stage path or a description-only difference); the shipped behaviour and tests are checked by the functional review (flows 1 to 5) and by Codex."
+  },
+  "F-bfeb3b43d05f": {
+   "disposition": "fixed",
+   "note": "The exit codes the docs table gives are checked by running the commands in tests/test_operator_ux_docs.py (EXIT_ROWS)."
+  },
+  "F-f4d7d5394f12": {
+   "disposition": "dropped",
+   "reason": "Editorial wording of the plan, its mapping row or a docs row (an approved plan-stage path or a description-only difference); the shipped behaviour and tests are checked by the functional review (flows 1 to 5) and by Codex."
+  },
+  "F-f9d2d6aeb855": {
+   "disposition": "dropped",
+   "reason": "Editorial wording of the plan, its mapping row or a docs row (an approved plan-stage path or a description-only difference); the shipped behaviour and tests are checked by the functional review (flows 1 to 5) and by Codex."
+  }
+ }
+}
