@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "work_item_id": "operator-polish",
+  "plan_revision": 1,
+  "checkpoints": [
+    {
+      "id": "CP1",
+      "name": "The four fixes: null-record cause, one discovery note, status stops, docs",
+      "depends_on": [],
+      "complexity": 2,
+      "session_target": 1
+    },
+    {
+      "id": "CP2",
+      "name": "Roadmap and active-milestone bookkeeping",
+      "depends_on": [
+        "CP1"
+      ],
+      "complexity": 1,
+      "session_target": 1
+    }
+  ]
+}

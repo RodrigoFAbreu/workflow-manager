@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_work_item_id": null,
+  "active_work_item_id": "operator-polish",
   "work_items": {
     "plan-amendment-mechanism": {
       "work_item_type": "process",
@@ -13252,6 +13252,262 @@
         },
         "evaluated_at": "2026-10-24T22:44:28Z",
         "workflow_release": "2.19.0"
+      }
+    },
+    "operator-polish": {
+      "work_item_type": "process",
+      "work_item_kind": "process",
+      "work_item_id": "operator-polish",
+      "parent_work_item_id": null,
+      "plan_path": "docs/ai-workflow/WORKFLOW_MANAGER_OPERATOR_POLISH_PLAN.md",
+      "registry_path": "docs/ai-workflow/registry/operator-polish-registry.json",
+      "mapping_path": "docs/ai-workflow/requirements/operator-polish-mapping.json",
+      "governing_workflow_version": "2.2",
+      "phase": "IMPLEMENTING",
+      "plan_revision": 1,
+      "implementation_revision": null,
+      "functional_review_round": null,
+      "base_commit": "5c06591abc3a270677853d0d9e49057b42a16e68",
+      "reviewed_implementation_head": null,
+      "current_checkpoint_id": null,
+      "last_completed_checkpoint_id": null,
+      "checkpoints": {},
+      "current_bundle_id": "210fa5b2fe75d6acb0705d35218fa40370b6fbb1236f33daf5b49815c55e26ae",
+      "plan_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "210fa5b2fe75d6acb0705d35218fa40370b6fbb1236f33daf5b49815c55e26ae",
+        "approved_review_content_id": "6258cbdda8204788039ad790223da2d8c59a9bed011d052e34c2ce0e7a59bef1",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/WORKFLOW_MANAGER_OPERATOR_POLISH_PLAN.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "b58fefb07ce193921be7e782f1543993f0667cbf"
+          },
+          {
+            "path": "docs/ai-workflow/registry/operator-polish-registry.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "49cd3b97f7d1979b6ddb08218b12b6bd0a122a44"
+          },
+          {
+            "path": "docs/ai-workflow/requirements/operator-polish-mapping.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "8b703f329d3b11cbf9c9e1e4622c086e3ca3d023"
+          }
+        ],
+        "reviewed_content_commit": null,
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-10-25T13:34:36Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "6258cbdda8204788039ad790223da2d8c59a9bed011d052e34c2ce0e7a59bef1",
+            "ledger": {
+              "local": {
+                "bundle_id": "210fa5b2fe75d6acb0705d35218fa40370b6fbb1236f33daf5b49815c55e26ae",
+                "verdict": "APPROVE",
+                "round": 3,
+                "verdict_sha256": "2e6e1ee2fb93bea93fcab571697fe603a1db8854f6f2308341a5421e491c082f",
+                "ledger_entry_sha256": "b666ad0ea99dd7d7356c99f973a9c1fa7d7e13ceee4771d8d7755228b43f3fa1",
+                "run_ref": "session:local .ai-review/operator-polish/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "210fa5b2fe75d6acb0705d35218fa40370b6fbb1236f33daf5b49815c55e26ae",
+                "verdict": "APPROVE",
+                "round": 3,
+                "verdict_sha256": "b744fceab03de519e1f4699a8fb5d3c4273d86fec91d271359c24280637f2520",
+                "ledger_entry_sha256": "0fa59b83e9d3bb4b5ace8b019d461d618052699ef3aba0a41dc6e992fc9ee003",
+                "run_ref": "session:local .ai-review/operator-polish/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-10-25T13:34:36Z",
+          "workflow_release": "2.19.2"
+        }
+      },
+      "technical_approval": null,
+      "technical_review_block_pins": [],
+      "plan_review_stages": {
+        "review_content_id": "6258cbdda8204788039ad790223da2d8c59a9bed011d052e34c2ce0e7a59bef1",
+        "LOCAL_MODEL_PLAN_REVIEW": {
+          "bundle_id": "210fa5b2fe75d6acb0705d35218fa40370b6fbb1236f33daf5b49815c55e26ae",
+          "verdict": "APPROVE",
+          "round": 3,
+          "completed_at": "2026-10-25T13:28:43Z",
+          "verdict_sha256": "2e6e1ee2fb93bea93fcab571697fe603a1db8854f6f2308341a5421e491c082f",
+          "run_ref": "session:local .ai-review/operator-polish/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_PLAN_REVIEW": {
+          "bundle_id": "210fa5b2fe75d6acb0705d35218fa40370b6fbb1236f33daf5b49815c55e26ae",
+          "verdict": "APPROVE",
+          "round": 3,
+          "completed_at": "2026-10-25T13:33:44Z",
+          "verdict_sha256": "b744fceab03de519e1f4699a8fb5d3c4273d86fec91d271359c24280637f2520",
+          "run_ref": "session:local .ai-review/operator-polish/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "openai/gpt-6.1-sol"
+        }
+      },
+      "functional_acceptance_status": null,
+      "blocking_decisions": [],
+      "review_round_counts": {
+        "plan": {
+          "local": 3,
+          "external": 2
+        },
+        "implementation": {
+          "local": 0,
+          "external": 0
+        }
+      },
+      "state_revision": 14,
+      "last_transition": "2026-10-25T13:34:36Z",
+      "feedback_layout": "scoped",
+      "plan_review_binding": {
+        "status": "BOUND",
+        "at": "2026-10-25T13:26:07Z",
+        "consumed": {
+          "review_content_id": "caee625f8069be33ae5680835b45d7b6bdee89a686912611717f189460390ebc",
+          "plan_revision": 1,
+          "legacy": false
+        },
+        "published": {
+          "review_content_id": "6258cbdda8204788039ad790223da2d8c59a9bed011d052e34c2ce0e7a59bef1",
+          "plan_revision": 1
+        },
+        "bound": {
+          "review_content_id": "6258cbdda8204788039ad790223da2d8c59a9bed011d052e34c2ce0e7a59bef1",
+          "bundle_id": "210fa5b2fe75d6acb0705d35218fa40370b6fbb1236f33daf5b49815c55e26ae",
+          "plan_revision": 1
+        }
+      },
+      "consumed_plan_review_content_ids": [
+        "ca3cde4221e73cc55c8ce20c4c3d9796009e5db50a074633f87ffa87b8f182e5",
+        "caee625f8069be33ae5680835b45d7b6bdee89a686912611717f189460390ebc"
+      ],
+      "optional_findings": {
+        "F-bfeb3b43d05f": {
+          "digest": "bfeb3b43d05f018587c4374466df9896855d53b0ffd9ee72faa97039dd9961f3",
+          "text": "**LPR-003 [substantive] — Check the exit codes by running the commands, as the repository already does.** `tests/test_operator_ux_docs.py` says that \"every message `docs/exit-codes.md` quotes is checked the same way, and so are the exit codes the table gives\", through `EXIT_ROWS`/`FRAGMENTS` and `documented_code`, which run the real command and compare the code the table gives. Section 2 puts the new check in `tests/test_docs.py` as a text check (the refusal is present, and `doctor` is named with exit 2), which does not prove that the exit-1 row's commands really exit 1. Consider adding the two new rows to `EXIT_ROWS` (for example a typed `status` case and a `doctor` case, with fragment `is not a version`), with meaning phrases that no other row's meaning contains, so `documented_code` returns one code each.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "ca3cde4221e73cc55c8ce20c4c3d9796009e5db50a074633f87ffa87b8f182e5",
+              "verdict": "REVISE",
+              "at": "2026-10-25T13:13:40Z"
+            }
+          ]
+        },
+        "F-f9d2d6aeb855": {
+          "digest": "f9d2d6aeb855f702b3fc20494d98d64a418ef217d0d46cc9ee3243d31480f7e4",
+          "text": "**LPR-004 [editorial] — Name where the typed not-a-version refusal is raised.** Item 3's guard keys on `kind == \"not-a-version\"` and `origin == \"option\"`. Stating that the error comes from `_resolve` (the cache's name check, `source.py:310/728/814`) after `_readonly_destinations` has run would make it explicit that a containment error still prints the record first, as today.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "ca3cde4221e73cc55c8ce20c4c3d9796009e5db50a074633f87ffa87b8f182e5",
+              "verdict": "REVISE",
+              "at": "2026-10-25T13:13:40Z"
+            }
+          ]
+        },
+        "F-f4d7d5394f12": {
+          "digest": "f4d7d5394f121727bceb87f91c3116cead70bccc14bb2b817981811334658581",
+          "text": "**LPR-005 [editorial] — The mapping's R4 omits `bootstrap`.** Item 4 lists exit 1 for `bootstrap`, `update`, `update --dry-run`, `verify` and `status`. `operator-polish-mapping.json` R4 says \"1 for update/verify/status\". The plan is authoritative and the difference is only a narrower description, but aligning R4 with item 4 would keep acceptance from reading it as a scope limit.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "caee625f8069be33ae5680835b45d7b6bdee89a686912611717f189460390ebc",
+              "verdict": "APPROVE",
+              "at": "2026-10-25T13:18:12Z"
+            }
+          ]
+        },
+        "F-1621e87bde68": {
+          "digest": "1621e87bde6823aae787d10bd573bbd5c542e33fb0d7b9b39d27c3560e09c56d",
+          "text": "**LPR-006 [substantive] — Consider checking the `docs/update.md` bullet against real output, not in the link checker.** `tests/test_docs.py` is the repository's link and anchor checker. A text assertion that `docs/update.md` holds the refusal fits better beside the other quoted-message checks in `tests/test_operator_ux_docs.py`, where the quoted fragment (`is not a version`) can be asserted as a substring of a real case's output (for example the existing `case_not_a_version`). Either placement satisfies the plan; this only keeps one kind of check in one place.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "caee625f8069be33ae5680835b45d7b6bdee89a686912611717f189460390ebc",
+              "verdict": "APPROVE",
+              "at": "2026-10-25T13:18:12Z"
+            }
+          ]
+        },
+        "F-47db0d086b6e": {
+          "digest": "47db0d086b6ee8a88672c0e2f230b64ba196d20fba3e5d8e94af876094ed50f2",
+          "text": "**LPR-005 [editorial] — Say which discovery-note cases are fail-first and which are guards.** Section 2's preamble says \"Each behaviour test fails at `5c06591`\", and CP1's evidence repeats it. Of the new discovery-note cases, only \"installed release that is also the target\" (and the two-invocation case) fail at the base, because they print the note twice there. The cases with a pinned target, two different discovered releases, and a pinned installed release pass at the base: they are regression guards against EPR-001's unconditional suppression. Calling them guards keeps the fail-first evidence honest when it is recorded at implementation.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 3,
+              "review_content_id": "6258cbdda8204788039ad790223da2d8c59a9bed011d052e34c2ce0e7a59bef1",
+              "verdict": "APPROVE",
+              "at": "2026-10-25T13:28:43Z"
+            }
+          ]
+        },
+        "F-4286296012ce": {
+          "digest": "4286296012ce495e59e55519040de837861e39a2da19f232e25f61397cb1800c",
+          "text": "**LPR-006 [editorial] — The mapping row still says \"note once per run\".** `docs/ai-workflow/requirements/operator-polish-mapping.json` describes item 2 as \"doctor prints the using release ... discovered, no pin note once per run\". The revised decision is \"each distinct discovery note prints once per invocation\". If the mapping is ever revised, aligning the wording avoids reading it as the earlier unconditional suppression.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 3,
+              "review_content_id": "6258cbdda8204788039ad790223da2d8c59a9bed011d052e34c2ce0e7a59bef1",
+              "verdict": "APPROVE",
+              "at": "2026-10-25T13:28:43Z"
+            }
+          ]
+        }
       }
     }
   }
