@@ -1001,7 +1001,8 @@ class TestPrintedCommandsParse(ux.TargetCase):
                 self.assertNotIn("Traceback", out)
                 self.assertNotIn("leave out", out, out)
                 self.assertEqual(proc.returncode, 1, out)
-                self.assertIn("the installation record names", out)
+                self.assertIn("the installation record has no workflow_version" if version is None
+                              else "the installation record names", out)
                 self.assertIn("--release-dir DIR", out)
                 again = run("--release-dir", str(directory), "verify", str(repo))
                 commands = ux.manager_commands(again.stdout)
