@@ -26,16 +26,16 @@ merge). Plan: `docs/ai-workflow/WORKFLOW_MANAGER_RETENTION_STATUS_PLAN.md`.
   subreaper, which the orphan check counts even though they are dead; with SIGTERM first
   a script reaps its own children and the check stays clean.
 
-### CP2: bookkeeping -- pending
+### CP2: bookkeeping -- complete
 
-Row 17 of `docs/ROADMAP.md` is Current; it becomes Done at acceptance. No version is
-edited.
+Row 17 of `docs/ROADMAP.md` is Current (set when the plan started); it becomes Done at
+acceptance. This file records the milestone. No version is edited.
 
 ## Current checkpoint
 
-CP2.
+None: every checkpoint is complete.
 
 ## Next action
 
-`/milestone-implement retention-status` for CP2, then the full gate and the implementation
-review bundle.
+`/milestone-implement retention-status` again: it enters self-review, runs the full gate
+and prepares the implementation review bundle.
