@@ -43,6 +43,10 @@ merge). Plan: `docs/ai-workflow/WORKFLOW_MANAGER_RETENTION_STATUS_PLAN.md`.
   in a scratch child subreaper, so the adopted child never reaches the runner's orphan
   check; at the CP2 head it times out (the call waited the child's full 60 seconds).
 - `docs/retention.md`: the case-6 row also names exit 2 without the refusal lines.
+- Fixed (found by the first full gate, at `7a6d4bf`): `tests/retention_recipe.py`'s
+  `init_origin` ran a bare `git init`, which `test_orphan_processes.py`'s `TestRoutingCheck`
+  refuses; it now calls `init_git_repo` (`src/workflow_manager/fixture.py`), so the
+  scratch repository gets the throwaway Git configuration every host test repository has.
 
 ### CP2: bookkeeping -- complete
 

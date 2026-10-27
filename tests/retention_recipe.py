@@ -14,6 +14,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from workflow_manager.fixture import init_git_repo
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SCRIPTS = ("workflow_retention.py", "workflow_forge.py")
 STATE = "docs/ai-workflow/WORKFLOW_STATE.json"
@@ -63,7 +65,7 @@ def complete(n: int) -> dict:
 
 
 def init_origin(repo: Path) -> None:
-    git(repo, "init", "-q")
+    init_git_repo(repo)
     git(repo, "remote", "add", "origin", "https://github.com/octo/example.git")
 
 
