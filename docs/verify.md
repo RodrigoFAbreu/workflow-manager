@@ -37,6 +37,8 @@ Goal: confirm that every installed Workflow file is exactly the one its release 
    workflow-manager releases
    ```
 
+To also see which finished work items keep review folders and which are archived, add `--retention` after the command (it makes a GitHub query per finished work item, so it takes longer): see [Retention report](retention.md).
+
 ## What you should see
 
 - Step 1 prints `workflow 2.12.0 (full profile) — clean`, then a `source:` line naming the package and its digest, then `work in flight:`: `none`, or one line per active work item with its phase, type and governing version. A `next:` line ends the output.

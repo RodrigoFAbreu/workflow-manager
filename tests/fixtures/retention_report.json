@@ -1,0 +1,103 @@
+{
+  "archive_dir": "/home/user/.local/share/workflow-archive/example",
+  "archives": [],
+  "complete": false,
+  "finished": [
+    {
+      "archive": {
+        "age_days": null,
+        "bytes": null,
+        "modified": null,
+        "present": false,
+        "prunable": false,
+        "readable": true
+      },
+      "last_transition": "2026-10-01T00:00:00Z",
+      "pull_request": {
+        "number": 7,
+        "url": "https://github.com/octo/example/pull/7"
+      },
+      "review_folder": {
+        "bytes": 7,
+        "complete": true,
+        "files": 1,
+        "present": true,
+        "tracked_files": 1
+      },
+      "work_item_id": "item-1"
+    }
+  ],
+  "generated_at": "2026-10-27T00:00:00Z",
+  "keep_recent": 3,
+  "kept_recent": [
+    {
+      "last_transition": "2026-10-04T00:00:00Z",
+      "pull_request": {
+        "number": 7,
+        "url": "https://github.com/octo/example/pull/7"
+      },
+      "review_folder": {
+        "bytes": 0,
+        "complete": true,
+        "files": 0,
+        "present": false,
+        "tracked_files": 0
+      },
+      "work_item_id": "item-4"
+    },
+    {
+      "last_transition": "2026-10-03T00:00:00Z",
+      "pull_request": {
+        "number": 7,
+        "url": "https://github.com/octo/example/pull/7"
+      },
+      "review_folder": {
+        "bytes": 0,
+        "complete": true,
+        "files": 0,
+        "present": false,
+        "tracked_files": 0
+      },
+      "work_item_id": "item-3"
+    },
+    {
+      "last_transition": "2026-10-02T00:00:00Z",
+      "pull_request": {
+        "number": 7,
+        "url": "https://github.com/octo/example/pull/7"
+      },
+      "review_folder": {
+        "bytes": 0,
+        "complete": true,
+        "files": 0,
+        "present": false,
+        "tracked_files": 0
+      },
+      "work_item_id": "item-2"
+    }
+  ],
+  "kind": "retention-report",
+  "not_finished": [
+    {
+      "phase": "IMPLEMENTING",
+      "reason": "open_phase",
+      "work_item_id": "open-item"
+    }
+  ],
+  "read_errors": [
+    {
+      "error": "symlink: not followed",
+      "path": "/home/user/.local/share/workflow-archive/example/.removing"
+    }
+  ],
+  "removing": [],
+  "repository": "octo/example",
+  "schema_version": 1,
+  "totals": {
+    "archives": 0,
+    "finished": 1,
+    "finished_folder_bytes": 7,
+    "prunable": 0
+  },
+  "ttl_days": 30
+}

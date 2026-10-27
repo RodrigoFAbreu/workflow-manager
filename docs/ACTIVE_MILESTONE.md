@@ -2,60 +2,40 @@
 
 ## Milestone
 
-`operator-polish` -- complete (accepted by policy; `governing_workflow_version: "2.2"`, `process`, plan
-revision 1, base `5c06591`, branch `milestone/operator-polish`): roadmap row 14,
-issue #84. A `fix:` pull request title (`src/` changes). Plan:
-`docs/ai-workflow/WORKFLOW_MANAGER_OPERATOR_POLISH_PLAN.md`.
+`retention-status` -- in progress (`governing_workflow_version: "2.2"`, `process`, plan
+revision 7, base `3019c95`, branch `milestone/retention-status`): roadmap row 17,
+issue #90. A `feat:` pull request title (`src/` changes; a Manager minor follows the
+merge). Plan: `docs/ai-workflow/WORKFLOW_MANAGER_RETENTION_STATUS_PLAN.md`.
 
-### CP1: the four fixes -- complete
+### CP1: the opt-in retention section -- complete
 
-- `source.py`: the null-record cause in `not_a_version`; `_log_once` carries the
-  `using release` log in `ReleaseCache.resolve`, so one invocation prints a
-  discovery note once.
-- `cli.py`: `main` clears the once-record on entry; `cmd_status` re-raises a typed
-  not-a-version refusal before printing the record.
-- Docs: `docs/exit-codes.md` and `docs/update.md` list the refusal with its exit codes.
-- Tests: `tests/test_discovery.py`, `tests/test_operator_ux.py`,
-  `tests/test_operator_ux_docs.py`, `tests/test_docs.py`. Commit `193f5c8`.
+- `src/workflow_manager/retention.py`: runs the repository's installed
+  `scripts/workflow_retention.py report --json` in a subprocess (`python3 -I -B`, resolved
+  absolute path, own session, 300-second timeout; on timeout the process group gets
+  SIGTERM, then SIGKILL after two seconds, and the leader is reaped), validates the
+  report's fields, and renders the section or one `retention: not available` note.
+- `cli.py`: `--retention` on `status` and `doctor`; no other behaviour changes, and the
+  option never changes an exit code.
+- Docs: `docs/retention.md` (registered in `tools/check_docs.py`), `docs/exit-codes.md`,
+  `docs/verify.md`, `docs/update.md`, `docs/README.md`.
+- Tests: `tests/test_retention_status.py`, `tests/retention_recipe.py` (the real script
+  driven through its `run`/`resolve` seams), `tests/fixtures/retention_report.json` (a
+  report captured from the real 2.22.0 script).
+- Deviation from the plan's text: the timeout ends the group with SIGTERM before SIGKILL
+  (two seconds of grace). A bare SIGKILL re-parents the script's children to the runner's
+  subreaper, which the orphan check counts even though they are dead; with SIGTERM first
+  a script reaps its own children and the check stays clean.
 
-### CP2: bookkeeping -- complete
+### CP2: bookkeeping -- pending
 
-- Row 14 of `docs/ROADMAP.md` is marked Current (`dc1052b`); it becomes Done at
-  acceptance. This file records the milestone. No version is edited.
-- The nightly `package` job's cache key (item 5) ships in its own `ci:` pull request.
-
-### Self-review and the full gate
-
-- The first full gate at `0ac15aa` failed one test:
-  `test_operator_ux_readonly.TestPrintedCommandsParse.test_i3_verify_without_release_dir_after_a_scalar_install_asks_for_one`
-  (subtest `version=None`) asserted the old `the installation record names` text
-  for a null record, a second assertion the plan did not list. Its null case now
-  expects CP1's cause (`76c63b3`); `123` and `""` keep the `names` wording.
-- Red-first, in a clone at `0ac15aa` with `src/`, `docs/exit-codes.md` and
-  `docs/update.md` restored to `5c06591`: 8 of the new or changed tests fail (the
-  null record, typed `status`, the per-invocation reset, the `installed is the
-  target` case for `doctor` and `update --dry-run`, both null-record subtests in
-  `test_operator_ux`, the `docs/update.md` bullet) and both new exit-code rows of
-  `test_operator_ux_docs` fail. Three discovery-note subtests (`pinned target`,
-  `two discovered releases`, `pinned installed`) are green there: they guard the
-  sole and distinct notes that must stay (EPR-001).
-- Full gate `python3 tests/run_all.py` at `76c63b3`: exit 0, 2279/2279 units,
-  14919 tests.
-
-## Functional review
-
-Five flows from the checklist and five from an independent executor passed at
-`35a2cad`; the seven Optional findings are dispositioned (2 fixed, 5 dropped,
-follow-ups on RodrigoFAbreu/workflow-manager#108). Record:
-`docs/milestones/completed/operator-polish-findings.md`.
+Row 17 of `docs/ROADMAP.md` is Current; it becomes Done at acceptance. No version is
+edited.
 
 ## Current checkpoint
 
-None: the milestone is complete. Pull request #109 awaits its merge; the Manager
-release follows the merge.
+CP2.
 
 ## Next action
 
-`/milestone-plan` for the next incomplete roadmap row: row 15 (`_http_read`
-releases its worker thread and socket at the deadline, #50), Later, low priority.
-Issue #84 item 5 (the nightly cache key) ships in its own `ci:` pull request.
+`/milestone-implement retention-status` for CP2, then the full gate and the implementation
+review bundle.
