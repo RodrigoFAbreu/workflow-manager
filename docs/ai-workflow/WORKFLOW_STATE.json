@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_work_item_id": null,
+  "active_work_item_id": "runner-hardening",
   "work_items": {
     "plan-amendment-mechanism": {
       "work_item_type": "process",
@@ -15727,6 +15727,240 @@
         },
         "evaluated_at": "2026-10-27T12:43:07Z",
         "workflow_release": "2.22.0"
+      }
+    },
+    "runner-hardening": {
+      "work_item_type": "process",
+      "work_item_kind": "process",
+      "work_item_id": "runner-hardening",
+      "parent_work_item_id": null,
+      "plan_path": "docs/ai-workflow/WORKFLOW_MANAGER_RUNNER_HARDENING_PLAN.md",
+      "registry_path": "docs/ai-workflow/registry/runner-hardening-registry.json",
+      "mapping_path": "docs/ai-workflow/requirements/runner-hardening-mapping.json",
+      "governing_workflow_version": "2.2",
+      "phase": "IMPLEMENTING",
+      "plan_revision": 1,
+      "implementation_revision": null,
+      "functional_review_round": null,
+      "base_commit": "f0ea500d2224ca6d6dc323b7b354a21156ce12b9",
+      "reviewed_implementation_head": null,
+      "current_checkpoint_id": null,
+      "last_completed_checkpoint_id": null,
+      "checkpoints": {},
+      "current_bundle_id": "0bd83648bb2f6a7afdf189dd86b1f36e6f57d7d9e2d7afe44a24ae55c9b57c87",
+      "plan_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "0bd83648bb2f6a7afdf189dd86b1f36e6f57d7d9e2d7afe44a24ae55c9b57c87",
+        "approved_review_content_id": "ce5abf8b2d6ffab840c2e4c6ccfe6aac4c4eaa075f27d6b150a0421b8597d768",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/WORKFLOW_MANAGER_RUNNER_HARDENING_PLAN.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "4f51fc1ba3d8a6c87bd4622fafaeb89c12426294"
+          },
+          {
+            "path": "docs/ai-workflow/registry/runner-hardening-registry.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "5e53f6299a6caef2a586209b6b3ee2a47d991ca7"
+          },
+          {
+            "path": "docs/ai-workflow/requirements/runner-hardening-mapping.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "c5d7500e2c112b81567affebbd86c00e1e3a4ee0"
+          }
+        ],
+        "reviewed_content_commit": null,
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-10-27T14:31:08Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "ce5abf8b2d6ffab840c2e4c6ccfe6aac4c4eaa075f27d6b150a0421b8597d768",
+            "ledger": {
+              "local": {
+                "bundle_id": "0bd83648bb2f6a7afdf189dd86b1f36e6f57d7d9e2d7afe44a24ae55c9b57c87",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "9b631c113ba2d4e284fd42515234719fc71c01fb15b072ea4643cee1df9eec9b",
+                "ledger_entry_sha256": "4dbd9483348fc09bfe72c4a9787ecdd87ff4213d530d151881d59ca14ea5770c",
+                "run_ref": "session:local .ai-review/runner-hardening/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "0bd83648bb2f6a7afdf189dd86b1f36e6f57d7d9e2d7afe44a24ae55c9b57c87",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "1f3bc520976f8190199485b8df150906bf2472423c401f54911bcfbda9f26232",
+                "ledger_entry_sha256": "00498cda59e094573592ad16a4d215584a3bb92d971ed78b4069007bf880e213",
+                "run_ref": "codex:20261027T142739Z-504c6232",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-10-27T14:31:08Z",
+          "workflow_release": "2.22.0"
+        }
+      },
+      "technical_approval": null,
+      "technical_review_block_pins": [],
+      "plan_review_stages": {
+        "review_content_id": "ce5abf8b2d6ffab840c2e4c6ccfe6aac4c4eaa075f27d6b150a0421b8597d768",
+        "LOCAL_MODEL_PLAN_REVIEW": {
+          "bundle_id": "0bd83648bb2f6a7afdf189dd86b1f36e6f57d7d9e2d7afe44a24ae55c9b57c87",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-10-27T14:27:23Z",
+          "verdict_sha256": "9b631c113ba2d4e284fd42515234719fc71c01fb15b072ea4643cee1df9eec9b",
+          "run_ref": "session:local .ai-review/runner-hardening/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_PLAN_REVIEW": {
+          "bundle_id": "0bd83648bb2f6a7afdf189dd86b1f36e6f57d7d9e2d7afe44a24ae55c9b57c87",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-10-27T14:30:19Z",
+          "verdict_sha256": "1f3bc520976f8190199485b8df150906bf2472423c401f54911bcfbda9f26232",
+          "run_ref": "codex:20261027T142739Z-504c6232",
+          "reviewer_model": "openai/gpt-6.1-sol"
+        }
+      },
+      "functional_acceptance_status": null,
+      "blocking_decisions": [],
+      "review_round_counts": {
+        "plan": {
+          "local": 1,
+          "external": 1
+        },
+        "implementation": {
+          "local": 0,
+          "external": 0
+        }
+      },
+      "state_revision": 6,
+      "last_transition": "2026-10-27T14:31:08Z",
+      "feedback_layout": "scoped",
+      "plan_review_binding": {
+        "status": "BOUND",
+        "at": "2026-10-27T14:24:07Z",
+        "consumed": null,
+        "published": {
+          "review_content_id": "ce5abf8b2d6ffab840c2e4c6ccfe6aac4c4eaa075f27d6b150a0421b8597d768",
+          "plan_revision": 1
+        },
+        "bound": {
+          "review_content_id": "ce5abf8b2d6ffab840c2e4c6ccfe6aac4c4eaa075f27d6b150a0421b8597d768",
+          "bundle_id": "0bd83648bb2f6a7afdf189dd86b1f36e6f57d7d9e2d7afe44a24ae55c9b57c87",
+          "plan_revision": 1
+        }
+      },
+      "optional_findings": {
+        "F-8ff500f96642": {
+          "digest": "8ff500f966424dd942fb3d83f4e51fbd851b76a8784beb196a01d7c380e562f4",
+          "text": "RH-L1-001 (tests): section 3 says the cleanup stub is \"filtered on the `wm-run-` name, so the chunks' own cleanups are untouched\", but each chunk's private `TMPDIR` is `<run_dir>/tmp/<chunk>` (`isolation.chunk_paths`), so its path also contains `wm-run-`. The filter must test the directory's own name (`Path(p).name.startswith(\"wm-run-\")`) or compare with the run directory itself, not a substring of the path; a substring filter would turn every chunk into an infrastructure fault. It would fail loudly rather than pass falsely, so this is a precision note for the implementation.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "ce5abf8b2d6ffab840c2e4c6ccfe6aac4c4eaa075f27d6b150a0421b8597d768",
+              "verdict": "APPROVE",
+              "at": "2026-10-27T14:27:23Z"
+            }
+          ]
+        },
+        "F-c885652eae98": {
+          "digest": "c885652eae98c488379b05b8ec712d81b0c242895e07ad4b1e0087c4e00ccbc4",
+          "text": "RH-L1-002 (docs): CP1's body marks row 16 of `docs/ROADMAP.md` Current, but CP1's `**Files:**` paragraph does not list `docs/ROADMAP.md`. The path is excluded at both stages, so classification is unaffected; listing it (or saying the write is bookkeeping) would make the checkpoint's write set explicit.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "ce5abf8b2d6ffab840c2e4c6ccfe6aac4c4eaa075f27d6b150a0421b8597d768",
+              "verdict": "APPROVE",
+              "at": "2026-10-27T14:27:23Z"
+            }
+          ]
+        },
+        "F-66d4af9ad9d7": {
+          "digest": "66d4af9ad9d73a385f903c10fa24327b69b271aea447dab62416339b6cdac14a",
+          "text": "RH-L1-003 (tests): the new tests drive `local_run` only; `run_shard` and `aggregate` gain the same `SIGINT` handler through the shared `_install_signal_handlers`. The unit test of the install/restore pair covers the shared code; a sentence in section 2 that the change applies to all three modes would make the scope explicit.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "ce5abf8b2d6ffab840c2e4c6ccfe6aac4c4eaa075f27d6b150a0421b8597d768",
+              "verdict": "APPROVE",
+              "at": "2026-10-27T14:27:23Z"
+            }
+          ]
+        },
+        "F-e7c64b3b77ba": {
+          "digest": "e7c64b3b77ba28f951a723818812c4f3f482f05ab7367c45d8676fd3b237a053",
+          "text": "RH-L1-004 (docs): the plan's sections jump from 5 to 8 (no 6 or 7). Cosmetic.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "ce5abf8b2d6ffab840c2e4c6ccfe6aac4c4eaa075f27d6b150a0421b8597d768",
+              "verdict": "APPROVE",
+              "at": "2026-10-27T14:27:23Z"
+            }
+          ]
+        },
+        "F-74f44045a7bd": {
+          "digest": "74f44045a7bd305b2058dc3ddb6cb6d1ad2787944542067d592615a329c8f1d6",
+          "text": "Section 3’s signal-test cleanup should explicitly wait for the chunk group to exit after releasing the stop file. Killing and reaping the executor alone does not establish that its separate chunk group has exited, particularly during the expected fail-first timeout.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "MANUAL_EXTERNAL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "ce5abf8b2d6ffab840c2e4c6ccfe6aac4c4eaa075f27d6b150a0421b8597d768",
+              "verdict": "APPROVE",
+              "at": "2026-10-27T14:30:19Z"
+            }
+          ]
+        }
       }
     }
   }
