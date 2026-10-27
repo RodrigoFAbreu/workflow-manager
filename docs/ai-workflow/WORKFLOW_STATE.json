@@ -14017,7 +14017,7 @@
       "registry_path": "docs/ai-workflow/registry/retention-status-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/retention-status-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "APPLYING_REVIEW_FEEDBACK",
       "plan_revision": 7,
       "implementation_revision": 1,
       "functional_review_round": null,
@@ -14157,12 +14157,12 @@
           "external": 3
         },
         "implementation": {
-          "local": 0,
-          "external": 0
+          "local": 1,
+          "external": 1
         }
       },
-      "state_revision": 31,
-      "last_transition": "2026-10-27T04:49:34Z",
+      "state_revision": 33,
+      "last_transition": "2026-10-27T05:02:37Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -14372,7 +14372,62 @@
               "at": "2026-10-27T04:01:05Z"
             }
           ]
+        },
+        "F-f6734004ee19": {
+          "digest": "f6734004ee192c32607bd1566c44201ef02dc61b2411d082ff5d350b0fbb2996",
+          "text": "LIR-001 (docs-test coverage): `TestDocs.test_every_cause_the_code_can_build_is_on_the_page` (`tests/test_retention_status.py:741`) builds only two causes from `retention.py`. It hard-codes the interpreter, malformed-report and forge causes as string literals, and it does not check the script-refusal row or the kind/schema row. Plan section 2 says \"a test builds each cause from `retention.py`\". Rewording one of those causes in code would not fail the docs test, so the page could drift. Suggested fix: derive each cause from a `retention` constant or builder, or from a stubbed `fetch`.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "8f3b093b65bedda1b3e41cc7ea078b6a74bfe5909d5d183fd7286fc621054256",
+              "verdict": "APPROVE",
+              "at": "2026-10-27T04:54:14Z"
+            }
+          ]
+        },
+        "F-0ec7ba6e5dc0": {
+          "digest": "0ec7ba6e5dc0efc8840a4c122f012c3f23c46b084dcb1ed6f3d910bfd853efd8",
+          "text": "LIR-002 (robustness): `_script_is_regular` (`src/workflow_manager/retention.py:82`) refuses a script file that is a link, but not a `scripts/` directory that is a link. The plan's case 2 names only the file, so this conforms. The installed script also guards its own paths (`path_unsafe`). Worth noting if the Manager ever wants to promise \"never runs a script from outside the repository\".",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "8f3b093b65bedda1b3e41cc7ea078b6a74bfe5909d5d183fd7286fc621054256",
+              "verdict": "APPROVE",
+              "at": "2026-10-27T04:54:14Z"
+            }
+          ]
+        },
+        "F-ffa239a0bf66": {
+          "digest": "ffa239a0bf66056a05ced66e5762278acf0318b95bd001b4d827ea90197ffafc",
+          "text": "LIR-003 (usability): the \"interrupted removals\" line lists every `removing` id with no limit. The INCOMPLETE lists stop at five, then a count. Using `_listed` here too would keep the section short in a pathological case.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "8f3b093b65bedda1b3e41cc7ea078b6a74bfe5909d5d183fd7286fc621054256",
+              "verdict": "APPROVE",
+              "at": "2026-10-27T04:54:14Z"
+            }
+          ]
         }
+      },
+      "implementation_review_stages": {
+        "review_content_id": "8f3b093b65bedda1b3e41cc7ea078b6a74bfe5909d5d183fd7286fc621054256",
+        "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "622c3f51b6f4cb4f9c83e338f2e14e93be1f7260c3bb6d29d2c5f41d4c336756",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-10-27T04:54:14Z",
+          "verdict_sha256": "4a0520835b810964246b0fb26c59596bdca2b442c84c8939c8426f3650547e5f",
+          "run_ref": "session:local .ai-review/retention-status/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": null
       }
     }
   }
