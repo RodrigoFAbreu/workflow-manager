@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_work_item_id": "runner-hardening",
+  "active_work_item_id": null,
   "work_items": {
     "plan-amendment-mechanism": {
       "work_item_type": "process",
@@ -15738,7 +15738,7 @@
       "registry_path": "docs/ai-workflow/registry/runner-hardening-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/runner-hardening-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_FUNCTIONAL_REVIEW",
+      "phase": "MILESTONE_COMPLETE",
       "plan_revision": 1,
       "implementation_revision": 1,
       "functional_review_round": null,
@@ -15977,8 +15977,8 @@
           "external": 1
         }
       },
-      "state_revision": 14,
-      "last_transition": "2026-10-27T15:55:21Z",
+      "state_revision": 15,
+      "last_transition": "2026-10-27T16:31:43Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -16142,6 +16142,305 @@
           "run_ref": "codex:20261027T155305Z-c83aa9cc",
           "reviewer_model": "openai/gpt-6.1-sol"
         }
+      },
+      "gate_evidence": {
+        "functional": {
+          "flow-1": {
+            "flow_id": "flow-1",
+            "status": "passed",
+            "head": "14eaa15b20e9efa9072afc0260e5379b394c9c24",
+            "ran_at": "2026-10-27T16:02:51Z",
+            "summary": {
+              "checklist_blob": "ef8a3f14d3a9ff0d03b572923a7cec895d0a29b2",
+              "text": "F1 (SIGINT ignored at start) exit 2 with InterruptedRunError, modes unchanged, no barrier.json; F2 SIGTERM exit 2, same checks clean; F3 exit 0, verdict: exit 0, no warning, no wm-run-* left; F4 exit 0, verdict: exit 0, one warning naming the kept wm-run dir, no error[ or traceback. Note: in one F1 run, nested scratch-load processes were still visible at the instant of the process check and gone within 5s; a repeat showed none."
+            },
+            "log_digest": "43de3ce221a896e00628bcecb261c1b97755d5a7405fa8bec23769a3e5f8bdd4",
+            "run_ref": "controller:20261027T155957Z-9154b80d",
+            "reporter": "workflow-controller 1.22.2",
+            "identity": "71ede94d0ec62f72de91bd75ef02a3e2ac54952e9359801db9b0806187d3c8a2",
+            "recorded_at": "2026-10-27T16:02:51Z"
+          },
+          "flow-2": {
+            "flow_id": "flow-2",
+            "status": "passed",
+            "head": "14eaa15b20e9efa9072afc0260e5379b394c9c24",
+            "ran_at": "2026-10-27T16:02:51Z",
+            "summary": {
+              "checklist_blob": "ef8a3f14d3a9ff0d03b572923a7cec895d0a29b2",
+              "text": "Checked by reading, not by running a review round (needs claude/gh). /apply-functional-review reads the scoped feedback/FUNCTIONAL_REVIEW.md and has a bounded-fix branch and a <parent-id>-remediation-<n> child branch."
+            },
+            "log_digest": "4d9c726e82ca03e58ab38a3cb5d68dff7597d5ce07d852ba07c8bb9723887eb0",
+            "run_ref": "controller:20261027T155957Z-9154b80d",
+            "reporter": "workflow-controller 1.22.2",
+            "identity": "71ede94d0ec62f72de91bd75ef02a3e2ac54952e9359801db9b0806187d3c8a2",
+            "recorded_at": "2026-10-27T16:02:51Z"
+          },
+          "flow-3": {
+            "flow_id": "flow-3",
+            "status": "passed",
+            "head": "14eaa15b20e9efa9072afc0260e5379b394c9c24",
+            "ran_at": "2026-10-27T16:02:51Z",
+            "summary": {
+              "checklist_blob": "ef8a3f14d3a9ff0d03b572923a7cec895d0a29b2",
+              "text": "Checked by reading, not by running /accept-milestone. State shows CP1 and CP2 COMPLETE at AWAITING_FUNCTIONAL_REVIEW. accept-milestone.md says no command records acceptance of a partial round."
+            },
+            "log_digest": "1131fd1bf4cece16a798212fdae5e76ab15875bc067efaafaee2e74fecebb3dd",
+            "run_ref": "controller:20261027T155957Z-9154b80d",
+            "reporter": "workflow-controller 1.22.2",
+            "identity": "71ede94d0ec62f72de91bd75ef02a3e2ac54952e9359801db9b0806187d3c8a2",
+            "recorded_at": "2026-10-27T16:02:51Z"
+          },
+          "flow-f1": {
+            "flow_id": "flow-f1",
+            "status": "passed",
+            "head": "14eaa15b20e9efa9072afc0260e5379b394c9c24",
+            "ran_at": "2026-10-27T16:13:03Z",
+            "summary": {
+              "flow": "SIGINT to a run started with it ignored: exit 2, barrier restored, no leftover process",
+              "result": "PASSED",
+              "results": "RESULTS.md",
+              "log": "F1.log"
+            },
+            "log_digest": "c21bef84319812768691ce08a437f94c9e4874f39eec7e0b11420db72e4d8539",
+            "run_ref": "manager-orchestrator:runs/md5-functional-r1",
+            "reporter": "manager-orchestrator (independent executor claude claude-sonnet-5-5)",
+            "identity": "71ede94d0ec62f72de91bd75ef02a3e2ac54952e9359801db9b0806187d3c8a2",
+            "recorded_at": "2026-10-27T16:13:03Z"
+          },
+          "flow-f2": {
+            "flow_id": "flow-f2",
+            "status": "passed",
+            "head": "14eaa15b20e9efa9072afc0260e5379b394c9c24",
+            "ran_at": "2026-10-27T16:13:03Z",
+            "summary": {
+              "flow": "SIGTERM control",
+              "result": "PASSED",
+              "results": "RESULTS.md",
+              "log": "F2.log"
+            },
+            "log_digest": "fbcc13ee194d25a791478f08fdad5476df9a305fcc9c026c772755f01b2a139c",
+            "run_ref": "manager-orchestrator:runs/md5-functional-r1",
+            "reporter": "manager-orchestrator (independent executor claude claude-sonnet-5-5)",
+            "identity": "71ede94d0ec62f72de91bd75ef02a3e2ac54952e9359801db9b0806187d3c8a2",
+            "recorded_at": "2026-10-27T16:13:03Z"
+          },
+          "flow-f3": {
+            "flow_id": "flow-f3",
+            "status": "passed",
+            "head": "14eaa15b20e9efa9072afc0260e5379b394c9c24",
+            "ran_at": "2026-10-27T16:13:03Z",
+            "summary": {
+              "flow": "ordinary run, no signal (control)",
+              "result": "PASSED",
+              "results": "RESULTS.md",
+              "log": "F3.log"
+            },
+            "log_digest": "3f8168a9eeb2471d135e024913f3143764918958e064baec5de43cbcb8c7d172",
+            "run_ref": "manager-orchestrator:runs/md5-functional-r1",
+            "reporter": "manager-orchestrator (independent executor claude claude-sonnet-5-5)",
+            "identity": "71ede94d0ec62f72de91bd75ef02a3e2ac54952e9359801db9b0806187d3c8a2",
+            "recorded_at": "2026-10-27T16:13:04Z"
+          },
+          "flow-f4": {
+            "flow_id": "flow-f4",
+            "status": "passed",
+            "head": "14eaa15b20e9efa9072afc0260e5379b394c9c24",
+            "ran_at": "2026-10-27T16:13:03Z",
+            "summary": {
+              "flow": "failed removal of the run directory after the report is a warning, exit 0",
+              "result": "PASSED",
+              "results": "RESULTS.md",
+              "log": "F4.log"
+            },
+            "log_digest": "47a784d255c6e58407989a4f0ed9589b56230dae861a98ddad460e818256c948",
+            "run_ref": "manager-orchestrator:runs/md5-functional-r1",
+            "reporter": "manager-orchestrator (independent executor claude claude-sonnet-5-5)",
+            "identity": "71ede94d0ec62f72de91bd75ef02a3e2ac54952e9359801db9b0806187d3c8a2",
+            "recorded_at": "2026-10-27T16:13:04Z"
+          },
+          "flow-x1": {
+            "flow_id": "flow-x1",
+            "status": "passed",
+            "head": "14eaa15b20e9efa9072afc0260e5379b394c9c24",
+            "ran_at": "2026-10-27T16:13:03Z",
+            "summary": {
+              "flow": "base f0ea500: SIGINT ignored is not interrupted (defect reproduced)",
+              "result": "PASSED",
+              "results": "RESULTS.md",
+              "log": "X1.log"
+            },
+            "log_digest": "90fa9b6f5c8db87932ac2c2240e2a57fcaed48d919384db637cf0fff7e586ff7",
+            "run_ref": "manager-orchestrator:runs/md5-functional-r1",
+            "reporter": "manager-orchestrator (independent executor claude claude-sonnet-5-5)",
+            "identity": "71ede94d0ec62f72de91bd75ef02a3e2ac54952e9359801db9b0806187d3c8a2",
+            "recorded_at": "2026-10-27T16:13:04Z"
+          },
+          "flow-x2": {
+            "flow_id": "flow-x2",
+            "status": "passed",
+            "head": "14eaa15b20e9efa9072afc0260e5379b394c9c24",
+            "ran_at": "2026-10-27T16:13:03Z",
+            "summary": {
+              "flow": "base f0ea500: post-report cleanup failure turns exit 0 into exit 2 (defect reproduced)",
+              "result": "PASSED",
+              "results": "RESULTS.md",
+              "log": "X2.log"
+            },
+            "log_digest": "0c7e0fe7d8b7a99352da07a0b0141a9dcfeb5bc3a271977c5085a618b7ef594d",
+            "run_ref": "manager-orchestrator:runs/md5-functional-r1",
+            "reporter": "manager-orchestrator (independent executor claude claude-sonnet-5-5)",
+            "identity": "71ede94d0ec62f72de91bd75ef02a3e2ac54952e9359801db9b0806187d3c8a2",
+            "recorded_at": "2026-10-27T16:13:04Z"
+          }
+        },
+        "pr": {
+          "pr": {
+            "number": 120,
+            "url": "https://github.com/RodrigoFAbreu/workflow-manager/pull/120"
+          },
+          "state": "open",
+          "head": "14eaa15b20e9efa9072afc0260e5379b394c9c24",
+          "review_decision": null,
+          "reviewed_head": null,
+          "checks": {
+            "state": "success",
+            "failing": []
+          },
+          "review_id": null,
+          "findings": null,
+          "identity_at_head": "71ede94d0ec62f72de91bd75ef02a3e2ac54952e9359801db9b0806187d3c8a2",
+          "observed_at": "2026-10-27T16:31:43Z",
+          "ingest_seq": 1,
+          "repository": "RodrigoFAbreu/workflow-manager",
+          "queried_commit": "b78d19b5686351cdb02404b0185b1327635048f6",
+          "provenance": {
+            "source": "workflow_gh",
+            "fetched_by": {
+              "name": "workflow-gh",
+              "version": "pr-list-v1"
+            },
+            "fetched_at": "2026-10-27T16:31:43Z",
+            "raw_sha256": "770812b343368f049cc1e23823a4cba61afca7dc08feacaddd6bc2df322c7b86",
+            "run_ref": null,
+            "gh_path": "/usr/bin/gh",
+            "gh_sha256": "9e824061111fe5f5b6a5d5690909ba37abafca4a4ca830bdf83246d3c94afd21"
+          },
+          "fact_id": "af10cc2944260bb9c450247815c0b2d2f9d4421ddb55cb0f2256190b54a8ed6a"
+        },
+        "pr_reported": null,
+        "pr_keys": {
+          "reopened_for": [],
+          "applied": [],
+          "ingest_seq": 1
+        }
+      },
+      "acceptance_satisfaction": {
+        "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "policy_source": "default",
+        "file_digest": null,
+        "adopted_digest": null,
+        "floor_digest": null,
+        "requirements": [
+          {
+            "id": "checkpoints_complete",
+            "met": true,
+            "detail": "every checkpoint of the item's own registry is COMPLETE"
+          },
+          {
+            "id": "technical_approval_current",
+            "met": true,
+            "detail": "the technical approval is CURRENT for the content now"
+          },
+          {
+            "id": "functional_flows_passed",
+            "met": true,
+            "detail": "flows ['flow-1', 'flow-2', 'flow-3', 'flow-f1', 'flow-f2', 'flow-f3', 'flow-f4', 'flow-x1', 'flow-x2'] passed at the approved content"
+          },
+          {
+            "id": "pr_fact_current",
+            "met": true,
+            "detail": "workflow_gh fact for PR #120 at 14eaa15b20e9efa9072afc0260e5379b394c9c24 is current"
+          },
+          {
+            "id": "no_standing_pr_objection",
+            "met": true,
+            "detail": "no CHANGES_REQUESTED decision and no failed check"
+          },
+          {
+            "id": "ci_green",
+            "met": true,
+            "detail": "checks are 'success'"
+          }
+        ],
+        "inputs": {
+          "anchor_commit": "b78d19b5686351cdb02404b0185b1327635048f6",
+          "anchor_identity": "71ede94d0ec62f72de91bd75ef02a3e2ac54952e9359801db9b0806187d3c8a2",
+          "technical_approval": {
+            "basis": "POLICY_SATISFIED",
+            "approved_review_content_id": "71ede94d0ec62f72de91bd75ef02a3e2ac54952e9359801db9b0806187d3c8a2",
+            "recorded_at": "2026-10-27T15:55:21Z"
+          },
+          "functional": {
+            "flow-1": {
+              "evidence_id": "7242cc2b6791068e11018b6ae015c4ae87127000fc3bdebb3ce9fb8af67f648d",
+              "log_digest": "43de3ce221a896e00628bcecb261c1b97755d5a7405fa8bec23769a3e5f8bdd4",
+              "run_ref": "controller:20261027T155957Z-9154b80d"
+            },
+            "flow-2": {
+              "evidence_id": "861b302454195772cc537f27469f056045d7a4ee5fba51a2b87189c4494c6c24",
+              "log_digest": "4d9c726e82ca03e58ab38a3cb5d68dff7597d5ce07d852ba07c8bb9723887eb0",
+              "run_ref": "controller:20261027T155957Z-9154b80d"
+            },
+            "flow-3": {
+              "evidence_id": "a28352bd5a168bd42d09fd3fe08d58d2cafe381e052d67807826a42517f2e69a",
+              "log_digest": "1131fd1bf4cece16a798212fdae5e76ab15875bc067efaafaee2e74fecebb3dd",
+              "run_ref": "controller:20261027T155957Z-9154b80d"
+            },
+            "flow-f1": {
+              "evidence_id": "e54a15125eab40e38b0978c003860496f5a3e8f106d498dabff762b16f4ce3fc",
+              "log_digest": "c21bef84319812768691ce08a437f94c9e4874f39eec7e0b11420db72e4d8539",
+              "run_ref": "manager-orchestrator:runs/md5-functional-r1"
+            },
+            "flow-f2": {
+              "evidence_id": "3325aef9a2a84cefeb757681feabd566ad7f5f687617920153308537f206d6de",
+              "log_digest": "fbcc13ee194d25a791478f08fdad5476df9a305fcc9c026c772755f01b2a139c",
+              "run_ref": "manager-orchestrator:runs/md5-functional-r1"
+            },
+            "flow-f3": {
+              "evidence_id": "61dcd0252ad2d53e2cf9003e9aeadbd9f5f9e0e946875e8cf15ced46cf831942",
+              "log_digest": "3f8168a9eeb2471d135e024913f3143764918958e064baec5de43cbcb8c7d172",
+              "run_ref": "manager-orchestrator:runs/md5-functional-r1"
+            },
+            "flow-f4": {
+              "evidence_id": "dc73a1d817718c5ebd190f4347bd2a321ce49de3c23ca623b6b8a57f85b4aad3",
+              "log_digest": "47a784d255c6e58407989a4f0ed9589b56230dae861a98ddad460e818256c948",
+              "run_ref": "manager-orchestrator:runs/md5-functional-r1"
+            },
+            "flow-x1": {
+              "evidence_id": "0b899c832a0b2ed21aab0b9fcc69d7cdef75c0b6517b5b095c12463086ebbbfc",
+              "log_digest": "90fa9b6f5c8db87932ac2c2240e2a57fcaed48d919384db637cf0fff7e586ff7",
+              "run_ref": "manager-orchestrator:runs/md5-functional-r1"
+            },
+            "flow-x2": {
+              "evidence_id": "82de82629014f3563e606c5280e17eefed39ac4bbd5d5cf3251e8d5efef17808",
+              "log_digest": "0c7e0fe7d8b7a99352da07a0b0141a9dcfeb5bc3a271977c5085a618b7ef594d",
+              "run_ref": "manager-orchestrator:runs/md5-functional-r1"
+            }
+          },
+          "pr": {
+            "fact_id": "af10cc2944260bb9c450247815c0b2d2f9d4421ddb55cb0f2256190b54a8ed6a",
+            "head": "14eaa15b20e9efa9072afc0260e5379b394c9c24",
+            "provenance": "workflow_gh",
+            "raw_sha256": "770812b343368f049cc1e23823a4cba61afca7dc08feacaddd6bc2df322c7b86"
+          }
+        },
+        "trust": {
+          "review_verdicts": "orchestrator",
+          "functional_evidence": "orchestrator",
+          "pr_fact": "workflow_gh"
+        },
+        "evaluated_at": "2026-10-27T16:31:43Z",
+        "workflow_release": "2.22.0"
       }
     }
   }
