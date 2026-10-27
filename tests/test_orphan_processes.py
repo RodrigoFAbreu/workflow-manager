@@ -350,7 +350,8 @@ class TestChunkEnvGhTelemetry(_Tmp):
         self.assertEqual({k: env.get(k) for k in self.QUIET}, self.QUIET)
 
     def test_an_inherited_value_is_overridden(self):
-        env = self.chunk_env(_telemetry_free_env(GH_TELEMETRY="true", DO_NOT_TRACK="0"))
+        base = {**_telemetry_free_env(), "GH_TELEMETRY": "true", "DO_NOT_TRACK": "0"}
+        env = self.chunk_env(base)
         self.assertEqual({k: env.get(k) for k in self.QUIET}, self.QUIET)
 
     def test_an_explicit_extra_overrides(self):
