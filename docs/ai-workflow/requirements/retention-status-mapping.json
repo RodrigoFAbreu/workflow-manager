@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "work_item_id": "retention-status",
+  "requirements": {
+    "R1": {
+      "description": "status and doctor print a retention section only with --retention; default output, options of other commands and every exit code are unchanged, and no subprocess runs by default",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R2": {
+      "description": "The section calls the installed scripts/workflow_retention.py report --json with python3 -I as a subprocess with a timeout, kills the whole process group on timeout, never imports it, and never runs archive or remove",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R3": {
+      "description": "A complete report shows finished count and review-folder bytes, finished items with an archive (counted from finished[].archive, not the archive store total), the archive store's own total and prunable archives, interrupted removals (absent key reported as not reported), and the Workflow's next command for the user to run",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R4": {
+      "description": "Every unavailable case (not managed, no script, no interpreter, timeout, script refusal, bad output, forge unreachable) prints one cause and one next step, never a traceback, and never changes an exit code",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R5": {
+      "description": "An incomplete report (complete false or query_failed entries) is shown as incomplete with lower-bound numbers, never as clean",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R6": {
+      "description": "Hermetic tests with a stub script, no orphan process after a timeout, and a no-write proof for the success path and every failure path, plus one real-script case",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R7": {
+      "description": "docs/retention.md, docs/exit-codes.md, docs/verify.md, docs/update.md and docs/README.md describe the option, its causes and steps and that exit codes do not change",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R8": {
+      "description": "Roadmap row 17 marked Current at planning and Done at acceptance; no version edit",
+      "checkpoint_ids": [
+        "CP2"
+      ]
+    }
+  }
+}

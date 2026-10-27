@@ -14007,6 +14007,1094 @@
         "evaluated_at": "2026-10-25T15:00:11Z",
         "workflow_release": "2.19.2"
       }
+    },
+    "retention-status": {
+      "work_item_type": "process",
+      "work_item_kind": "process",
+      "work_item_id": "retention-status",
+      "parent_work_item_id": null,
+      "plan_path": "docs/ai-workflow/WORKFLOW_MANAGER_RETENTION_STATUS_PLAN.md",
+      "registry_path": "docs/ai-workflow/registry/retention-status-registry.json",
+      "mapping_path": "docs/ai-workflow/requirements/retention-status-mapping.json",
+      "governing_workflow_version": "2.2",
+      "phase": "MILESTONE_COMPLETE",
+      "plan_revision": 7,
+      "implementation_revision": 3,
+      "functional_review_round": null,
+      "base_commit": "3019c9552ed0a4ee0bd0fd02255064d44ec80cad",
+      "reviewed_implementation_head": "7c1d8f06d4dd335bbf301a5ce369fa5bc3f5c034",
+      "current_checkpoint_id": null,
+      "last_completed_checkpoint_id": "CP2",
+      "checkpoints": {
+        "CP1": {
+          "status": "COMPLETE",
+          "start_commit": "ec6f3c2ffdb8e921231aff04265ee08aeb5092bc"
+        },
+        "CP2": {
+          "status": "COMPLETE",
+          "start_commit": "4782b2d1941cf57c0e562cb812b713015f8c6771"
+        }
+      },
+      "current_bundle_id": "c614208dd8e1e68a38d000f48f7fd736c7634eaf045cfdc86fe7a51796ef145e",
+      "plan_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "c614208dd8e1e68a38d000f48f7fd736c7634eaf045cfdc86fe7a51796ef145e",
+        "approved_review_content_id": "f87e48a013794db4d563cd35f24c2a13d97ef8fe35e3d821048ef0890b5712e0",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/WORKFLOW_MANAGER_RETENTION_STATUS_PLAN.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "34caefaad905397fd557a1658ce65f45ab22e65b"
+          },
+          {
+            "path": "docs/ai-workflow/registry/retention-status-registry.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "6e573beb3d6fccd08bc7fd5f2da9aa5b62a7e58e"
+          },
+          {
+            "path": "docs/ai-workflow/requirements/retention-status-mapping.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "9c308d76264d4c2ce8d3d0abef00536fc5b900a0"
+          }
+        ],
+        "reviewed_content_commit": null,
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-10-27T04:06:23Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "f87e48a013794db4d563cd35f24c2a13d97ef8fe35e3d821048ef0890b5712e0",
+            "ledger": {
+              "local": {
+                "bundle_id": "c614208dd8e1e68a38d000f48f7fd736c7634eaf045cfdc86fe7a51796ef145e",
+                "verdict": "APPROVE",
+                "round": 7,
+                "verdict_sha256": "e703cfcc3b25cd7286daf5b624c8f62f66161278c2e634c3314668b7f578ec8f",
+                "ledger_entry_sha256": "d4051904cc7fe0a28b72426a741a9a4045c47c92dcf119c8828a817cecf38cd3",
+                "run_ref": "session:local .ai-review/retention-status/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "c614208dd8e1e68a38d000f48f7fd736c7634eaf045cfdc86fe7a51796ef145e",
+                "verdict": "APPROVE",
+                "round": 7,
+                "verdict_sha256": "d50280fb9db89632e87f7481f4fb1ab833002b3d71d85e419b6a1c055cee8438",
+                "ledger_entry_sha256": "acccee03aa73e62f3de8773703e61a20acc3bb33abaf0db771b8dfca7a4d6a23",
+                "run_ref": "session:local .ai-review/retention-status/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-10-27T04:06:23Z",
+          "workflow_release": "2.22.0"
+        }
+      },
+      "technical_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "04593c6d4c8c3466d8db071a1376b52b7f19ac83c5108dd6d1cd2d42364603af",
+        "approved_review_content_id": "4c1405f6b10753265784c0864c923517d55d6c4d40ad87144d16ed3faa5e01a0",
+        "review_content_manifest": [
+          {
+            "path": "docs/README.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "5d8f2ecdf86d12b38166dbb09d8e0f72f29e032d"
+          },
+          {
+            "path": "docs/ai-workflow/registry/retention-status-artifacts.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "12fddf0ae73941da56e85a6940cd30735238a4e7"
+          },
+          {
+            "path": "docs/exit-codes.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "ca09d354bca57dec0068636826439fb46274e694"
+          },
+          {
+            "path": "docs/retention.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "41eb090fb47d0f5ebd8f29715e8108fe55e85a5b"
+          },
+          {
+            "path": "docs/update.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "a236ab72e9c5fec6991c9b03d5d3c4d3d2af3765"
+          },
+          {
+            "path": "docs/verify.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "2685dc60c3f0fa844ce60e948f4296a6c4bfbcdd"
+          },
+          {
+            "path": "src/workflow_manager/cli.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "2a13645e50458f7d6c9badb2fb4d3921f9bee996"
+          },
+          {
+            "path": "src/workflow_manager/retention.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "3e0680b0481c9061d5855225e657b1bdc74c8d23"
+          },
+          {
+            "path": "tests/fixtures/retention_report.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "b076f3c0b6996b5598e15e6718d3aee25e535431"
+          },
+          {
+            "path": "tests/retention_recipe.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "1342b7b3efe0361c1db7ba5556be65e035d19c13"
+          },
+          {
+            "path": "tests/test_retention_status.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "f1bfec9d0020831048a47d45b98b0039b248efe3"
+          },
+          {
+            "path": "tools/check_docs.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "4df342d5384e3291eb73fe18365ce3efd81a2cf0"
+          }
+        ],
+        "reviewed_content_commit": "7c1d8f06d4dd335bbf301a5ce369fa5bc3f5c034",
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-10-27T06:37:46Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "4c1405f6b10753265784c0864c923517d55d6c4d40ad87144d16ed3faa5e01a0",
+            "ledger": {
+              "local": {
+                "bundle_id": "04593c6d4c8c3466d8db071a1376b52b7f19ac83c5108dd6d1cd2d42364603af",
+                "verdict": "APPROVE",
+                "round": 3,
+                "verdict_sha256": "cf0888eeba907d0ec227c87114f7867ae8825df3b10ee806c5c7026c533a00bf",
+                "ledger_entry_sha256": "487cf7f112ba06affa2034a24c69f246d588a0a21ab93559865c0a71c8b19582",
+                "run_ref": "session:local .ai-review/retention-status/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "04593c6d4c8c3466d8db071a1376b52b7f19ac83c5108dd6d1cd2d42364603af",
+                "verdict": "APPROVE",
+                "round": 3,
+                "verdict_sha256": "16e6ea37fd257cf2e17d9b271202fafdebb5fc6d8381b4734b7f0798d78116a5",
+                "ledger_entry_sha256": "52523ad6dd04f12b68cb040964e6a7130f3978d5f4f367aba98d449706cfc9a4",
+                "run_ref": "session:local .ai-review/retention-status/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-10-27T06:37:46Z",
+          "workflow_release": "2.22.0"
+        }
+      },
+      "technical_review_block_pins": [],
+      "plan_review_stages": {
+        "review_content_id": "f87e48a013794db4d563cd35f24c2a13d97ef8fe35e3d821048ef0890b5712e0",
+        "LOCAL_MODEL_PLAN_REVIEW": {
+          "bundle_id": "c614208dd8e1e68a38d000f48f7fd736c7634eaf045cfdc86fe7a51796ef145e",
+          "verdict": "APPROVE",
+          "round": 7,
+          "completed_at": "2026-10-27T04:01:05Z",
+          "verdict_sha256": "e703cfcc3b25cd7286daf5b624c8f62f66161278c2e634c3314668b7f578ec8f",
+          "run_ref": "session:local .ai-review/retention-status/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_PLAN_REVIEW": {
+          "bundle_id": "c614208dd8e1e68a38d000f48f7fd736c7634eaf045cfdc86fe7a51796ef145e",
+          "verdict": "APPROVE",
+          "round": 7,
+          "completed_at": "2026-10-27T04:05:38.580149+00:00",
+          "verdict_sha256": "d50280fb9db89632e87f7481f4fb1ab833002b3d71d85e419b6a1c055cee8438",
+          "run_ref": "session:local .ai-review/retention-status/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "openai/gpt-6.1-sol"
+        }
+      },
+      "functional_acceptance_status": null,
+      "blocking_decisions": [],
+      "review_round_counts": {
+        "plan": {
+          "local": 7,
+          "external": 3
+        },
+        "implementation": {
+          "local": 3,
+          "external": 2
+        }
+      },
+      "state_revision": 40,
+      "last_transition": "2026-10-27T07:48:33Z",
+      "feedback_layout": "scoped",
+      "plan_review_binding": {
+        "status": "BOUND",
+        "at": "2026-10-27T03:29:52.292681Z",
+        "consumed": {
+          "review_content_id": "d38bebb8273c1c65d9402da88accf2f8e535db0a3ed8213d5f5c3391d04048ca",
+          "plan_revision": 6,
+          "legacy": false
+        },
+        "published": {
+          "review_content_id": "f87e48a013794db4d563cd35f24c2a13d97ef8fe35e3d821048ef0890b5712e0",
+          "plan_revision": 7
+        },
+        "bound": {
+          "review_content_id": "f87e48a013794db4d563cd35f24c2a13d97ef8fe35e3d821048ef0890b5712e0",
+          "bundle_id": "c614208dd8e1e68a38d000f48f7fd736c7634eaf045cfdc86fe7a51796ef145e",
+          "plan_revision": 7
+        }
+      },
+      "consumed_plan_review_content_ids": [
+        "022a341c8441d629475317bdabccf3126958dd8886c36d30fd339d2a2ea15f1e",
+        "11d40ac497cbc381d18224339ab4a07d3499d1d671d8711038f3c32092bc4fef",
+        "501648f2030ac445905e33e0414013c83ef525ba0d54191277670fcfaf0626d4",
+        "6ce00fd9a16613ad3ed91321ba0b11329e6daf7d693eeec294ab31041c72bb31",
+        "8d430b77968b0271a9028c5f998c358829309801390f3a399a037c8584f5df7f",
+        "d38bebb8273c1c65d9402da88accf2f8e535db0a3ed8213d5f5c3391d04048ca"
+      ],
+      "optional_findings": {
+        "F-dc8414a09447": {
+          "digest": "dc8414a0944782bca16053ee980f824e2b595810327e1c9c3da3333a4a86b917",
+          "text": "**RS-L1-003: `PYTHONDONTWRITEBYTECODE=1` has no effect under `-I`.** `-I` implies `-E`, which ignores every `PYTHON*` variable. The no-`__pycache__` property holds today only because the script sets `sys.dont_write_bytecode` before it imports `workflow_forge`. Use `-B` (`python3 -I -B ...`) so the guarantee is the Manager's own, or drop the variable and cite the script's docstring. Related wording: the plan writes `python3 -I` but runs `sys.executable`. Refusal case 3's step \"install Python 3.10 or later\" does not fit a missing `sys.executable` (the Manager itself requires 3.11). Word case 3 for the interpreter actually used.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "6ce00fd9a16613ad3ed91321ba0b11329e6daf7d693eeec294ab31041c72bb31",
+              "verdict": "REVISE",
+              "at": "2026-10-27T02:55:35Z"
+            }
+          ]
+        },
+        "F-1350e8c00b93": {
+          "digest": "1350e8c00b939536e0fd0ef4320e46fccf76b5c72ff7a82a69d6941d931c5d64",
+          "text": "**RS-L1-004: the real-script test reads the host's archive root.** With no `--archive-root`, the real script reads `~/.local/share/workflow-archive/<repo-name>/` (its `archives` and `removing` lists) on whatever machine runs the test. Set `HOME` (or pass the environment) to a scratch directory in that case so its output does not depend on the developer's machine.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "6ce00fd9a16613ad3ed91321ba0b11329e6daf7d693eeec294ab31041c72bb31",
+              "verdict": "REVISE",
+              "at": "2026-10-27T02:55:35Z"
+            }
+          ]
+        },
+        "F-81d2585c61a9": {
+          "digest": "81d2585c61a94011be5ae0be14f0e41093aa3b36179ce29a93a56af92f5c6228",
+          "text": "**RS-L1-005: case 7 needs at least one tried item.** \"Every item it tried is a `not_finished` entry with reason `query_failed:CODE`\" is vacuously true when no item was queried, for example when nothing is at `MILESTONE_COMPLETE`. That case must render as a complete report with nothing finished, not as \"forge unreachable\". State `N >= 1`, and say how mixed codes are shown (for example, the first code and the count).",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "6ce00fd9a16613ad3ed91321ba0b11329e6daf7d693eeec294ab31041c72bb31",
+              "verdict": "REVISE",
+              "at": "2026-10-27T02:55:35Z"
+            }
+          ]
+        },
+        "F-af125bbde08a": {
+          "digest": "af125bbde08a9aefdb080dc2e2cd00785270a038fccf7747cd6550730089010b",
+          "text": "**RS-L3-001: say whether an incomplete report still prints a Workflow command.** The incomplete rule gives the step \"fix what is named, then run the command again\", and the next-step rules say \"at most one next step\". It is not stated which wins when the report is incomplete but some item qualifies for `archive` or `remove`. The script refuses `unreadable` for any `read_errors` path under the archive directory (`_select_finished`) or under the item's folder, so a command printed from a partial view can be refused. State that an `INCOMPLETE` section prints only its own step and no Workflow command. Add one test where an item qualifies for `archive` and the report has `complete` false. Related wording: \"the script's own refusal names the fix\", for a `removing` id that gets no command, refers to a refusal the operator never sees, because the Manager prints no command for it. Name the step there instead (for example, run `remove ID` without `--apply` to see the reason).",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 3,
+              "review_content_id": "11d40ac497cbc381d18224339ab4a07d3499d1d671d8711038f3c32092bc4fef",
+              "verdict": "APPROVE",
+              "at": "2026-10-27T03:02:38Z"
+            }
+          ]
+        },
+        "F-35fa8431e8dc": {
+          "digest": "35fa8431e8dc67ddbfa51891acd46449801d379e0f996ae819462196aacb044a",
+          "text": "**EPR-004 [substantive] — Strengthen the default-output regression proof.**\n  Plan §2, lines 160–163, checks absence of a retention line, absence of script execution and baseline exit codes. Also compare stdout and stderr byte-for-byte with controlled base-commit fixtures: unrelated output changes would pass the currently specified assertions.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "MANUAL_EXTERNAL_PLAN_REVIEW",
+              "round": 3,
+              "review_content_id": "11d40ac497cbc381d18224339ab4a07d3499d1d671d8711038f3c32092bc4fef",
+              "verdict": "REVISE",
+              "at": "2026-10-27T03:09:30Z"
+            }
+          ]
+        },
+        "F-e8c98110d98a": {
+          "digest": "e8c98110d98ac1a5803b0684c5ba31d960ce4c70543669321b3d44780c361d26",
+          "text": "**RS-L4-003: case 6's step for an exit 2 without the refusal lines.** Line 89 makes it case 6 \"with the exit status and the first stderr line as the cause\" but does not name the step. By line 118 it becomes the case-4 step (run the script directly), which fits. Saying so on line 90 would remove the need to cross-reference.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 4,
+              "review_content_id": "501648f2030ac445905e33e0414013c83ef525ba0d54191277670fcfaf0626d4",
+              "verdict": "REVISE",
+              "at": "2026-10-27T03:12:54Z"
+            }
+          ]
+        },
+        "F-5e021218a259": {
+          "digest": "5e021218a2593f6eb5b97e357eef3243ec253149e03d82d689abe023ac2cef82",
+          "text": "**RS-L5-002: an \"unreadable path\" made with `chmod 000` is readable for root.** If the conformance run creates its read error by removing permissions, it yields no `read_errors` when the suite runs as root (some CI containers do). A symlinked `.removing` or archive directory gives a read error deterministically (lines 373-375 and 393-394). Name the mechanism, or skip the test when the error could not be produced.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 5,
+              "review_content_id": "8d430b77968b0271a9028c5f998c358829309801390f3a399a037c8584f5df7f",
+              "verdict": "REVISE",
+              "at": "2026-10-27T03:16:56Z"
+            }
+          ]
+        },
+        "F-328dbc9f82ee": {
+          "digest": "328dbc9f82ee8e8c70ec86df4541af64274b35725fed4cf92fd245a18c52fac0",
+          "text": "**RS-L6-001: the fixture's stated contents still say \"one kept item\".** Lines 106-108 describe the fixture as \"one finished item with its folder present, one kept item, ...\". Line 117 says \"the fixture's contents are exactly what this run emits\", and the recipe emits three `kept_recent` entries. Because the comparison is key for key and type for type, this does not break the test. An implementer may still trim the capture to match line 107. Say \"three kept items\" on line 107, or say that the stored fixture may drop list elements as long as each list keeps one element of each shape.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 6,
+              "review_content_id": "d38bebb8273c1c65d9402da88accf2f8e535db0a3ed8213d5f5c3391d04048ca",
+              "verdict": "APPROVE",
+              "at": "2026-10-27T03:20:45Z"
+            }
+          ]
+        },
+        "F-7565553f51e6": {
+          "digest": "7565553f51e6066b7b108c5a0129dbe4152526f9b555fc87b911b6ba5a94e514",
+          "text": "**RS-L6-002: the fixture's `removing` is an empty list, so its element type is never checked against the real script.** A symlinked `.removing` makes `_removing_ids` return `[]` (lines 141-143 say it \"also gives the `removing` key's list\"), so the conformance test cannot catch a change to the type of `removing`'s elements. The renderer's \"a list of strings\" check rests only on the hand-edited stub cases. A real `.removing/<id>/` directory in a second capture would cover it. Alternatively, accept the gap: only this script writes the key, and the ids are plain directory names.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 6,
+              "review_content_id": "d38bebb8273c1c65d9402da88accf2f8e535db0a3ed8213d5f5c3391d04048ca",
+              "verdict": "APPROVE",
+              "at": "2026-10-27T03:20:45Z"
+            }
+          ]
+        },
+        "F-ac89fc4a01f1": {
+          "digest": "ac89fc4a01f1fdbcc9872cf6c54ba3facfb86502703b1ead56866c05d3b5796d",
+          "text": "**EPR-004 [substantive] — Default-output comparison remains weaker than a base-output comparison.**\n  Plan §2, lines 248–258, compares three script variants under the same implementation. This proves independence from the installed script, but a default-output change shared by all three variants would pass. Controlled expected-output fixtures captured from the base would strengthen the guarantee without requiring Git history during CI. This remains Optional.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "MANUAL_EXTERNAL_PLAN_REVIEW",
+              "round": 6,
+              "review_content_id": "d38bebb8273c1c65d9402da88accf2f8e535db0a3ed8213d5f5c3391d04048ca",
+              "verdict": "REVISE",
+              "at": "2026-10-27T03:26:17.305809Z"
+            }
+          ]
+        },
+        "F-383e62820910": {
+          "digest": "383e6282091060d85d6efbb68268dcadeb267cbc5a367e91e6eb404d5f89af33",
+          "text": "**RS-L7-001: the EPR-005 fixture with an unreadable finished archive is not a state the real script emits with `complete: true`.** `_archive_fact` records a `read_errors` entry whenever it returns `readable: False`, so a real report with U > 0 always has `complete: false` and renders under `retention: INCOMPLETE` with lower-bound labels. The EPR-005 test should either set `complete: false` with a matching `read_errors` entry and assert U inside the incomplete section, or state that the combination is synthetic. That way the test does not pin a rendering of an impossible clean report.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 7,
+              "review_content_id": "f87e48a013794db4d563cd35f24c2a13d97ef8fe35e3d821048ef0890b5712e0",
+              "verdict": "APPROVE",
+              "at": "2026-10-27T04:01:05Z"
+            }
+          ]
+        },
+        "F-8132d888c8b3": {
+          "digest": "8132d888c8b327dd196ec91fd7560b9ac78140b4e312a6251b7c9c21f43209ce",
+          "text": "**RS-L7-002: \"1 archives\".** The template's store figure reads \"archive store: 1 archives\" for a count of one. Pluralise by count, or use \"archives in store: S\". Update the EPR-005 test strings and `docs/retention.md` to match.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 7,
+              "review_content_id": "f87e48a013794db4d563cd35f24c2a13d97ef8fe35e3d821048ef0890b5712e0",
+              "verdict": "APPROVE",
+              "at": "2026-10-27T04:01:05Z"
+            }
+          ]
+        },
+        "F-0f669b65f5a0": {
+          "digest": "0f669b65f5a00c08a1e6af36a416dd22120dca49f7d955d7e12ac24b25b8caf7",
+          "text": "**RS-L7-003: RS-L6-001 is still open.** Lines 106-108 still describe the fixture as having \"one kept item\", but the recipe it is captured from yields three `kept_recent` entries (`KEEP_RECENT = 3`). This finding is already recorded, and is restated here only so it is not lost.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 7,
+              "review_content_id": "f87e48a013794db4d563cd35f24c2a13d97ef8fe35e3d821048ef0890b5712e0",
+              "verdict": "APPROVE",
+              "at": "2026-10-27T04:01:05Z"
+            }
+          ]
+        },
+        "F-f6734004ee19": {
+          "digest": "f6734004ee192c32607bd1566c44201ef02dc61b2411d082ff5d350b0fbb2996",
+          "text": "LIR-001 (docs-test coverage): `TestDocs.test_every_cause_the_code_can_build_is_on_the_page` (`tests/test_retention_status.py:741`) builds only two causes from `retention.py`. It hard-codes the interpreter, malformed-report and forge causes as string literals, and it does not check the script-refusal row or the kind/schema row. Plan section 2 says \"a test builds each cause from `retention.py`\". Rewording one of those causes in code would not fail the docs test, so the page could drift. Suggested fix: derive each cause from a `retention` constant or builder, or from a stubbed `fetch`.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "8f3b093b65bedda1b3e41cc7ea078b6a74bfe5909d5d183fd7286fc621054256",
+              "verdict": "APPROVE",
+              "at": "2026-10-27T04:54:14Z"
+            }
+          ]
+        },
+        "F-0ec7ba6e5dc0": {
+          "digest": "0ec7ba6e5dc0efc8840a4c122f012c3f23c46b084dcb1ed6f3d910bfd853efd8",
+          "text": "LIR-002 (robustness): `_script_is_regular` (`src/workflow_manager/retention.py:82`) refuses a script file that is a link, but not a `scripts/` directory that is a link. The plan's case 2 names only the file, so this conforms. The installed script also guards its own paths (`path_unsafe`). Worth noting if the Manager ever wants to promise \"never runs a script from outside the repository\".",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "8f3b093b65bedda1b3e41cc7ea078b6a74bfe5909d5d183fd7286fc621054256",
+              "verdict": "APPROVE",
+              "at": "2026-10-27T04:54:14Z"
+            }
+          ]
+        },
+        "F-ffa239a0bf66": {
+          "digest": "ffa239a0bf66056a05ced66e5762278acf0318b95bd001b4d827ea90197ffafc",
+          "text": "LIR-003 (usability): the \"interrupted removals\" line lists every `removing` id with no limit. The INCOMPLETE lists stop at five, then a count. Using `_listed` here too would keep the section short in a pathological case.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "8f3b093b65bedda1b3e41cc7ea078b6a74bfe5909d5d183fd7286fc621054256",
+              "verdict": "APPROVE",
+              "at": "2026-10-27T04:54:14Z"
+            }
+          ]
+        },
+        "F-b9c3ce2ed6ac": {
+          "digest": "b9c3ce2ed6ac1822fb64c067019d56271f7525648ced94f321a268656ca83d9b",
+          "text": "**LIR2-003 (robustness): report strings are printed raw, so a control character can forge lines.** `_printable` rejects unpaired surrogates but accepts `\\n`, `\\r` and ANSI escapes. A `repository`, `archive_dir`, `read_errors[].path`/`error`, `work_item_id` or `removing` value containing `\"\\nnext: ...\"` would print a line that starts `next:` at column 0. That breaks the invariant `REVIEW_REQUEST.md` states, that the command's own `next:` line is the only one there. The source is the repository's own state and script, so the risk is low. Rejecting (case 6) or escaping control characters in `_printable` would close it.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 2,
+              "review_content_id": "fcac87e26a004a406748fb5bc8a1e2b61ee2ba3ce6feb18a6cd5f4fb72ee4c34",
+              "verdict": "REVISE",
+              "at": "2026-10-27T05:34:50Z"
+            }
+          ]
+        },
+        "F-b6e7af79d1ab": {
+          "digest": "b6e7af79d1ab373b8d8ee6354b0aecaf22dce46d48999a14bb47e3ccf13032b0",
+          "text": "**LIR3-001 (evidence wording): `TEST_RESULTS.md`'s opening paragraph still describes round 1.** It says \"The reviewed head `e36610b` is a docs commit ... (`cc0a217`, the generation record ...)\". The header and the \"Round 3\" section below it are correct. A reader who skims could take the stale sentence as this round's heads. Move the sentence under a round-1 heading in the next bundle, or drop it.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 3,
+              "review_content_id": "4c1405f6b10753265784c0864c923517d55d6c4d40ad87144d16ed3faa5e01a0",
+              "verdict": "APPROVE",
+              "at": "2026-10-27T06:25:18Z"
+            }
+          ]
+        },
+        "F-db231f050947": {
+          "digest": "db231f0509478e883b075f56a9eb18d1473237cf53dc5586c983e72588d73efd",
+          "text": "**LIR3-002 (usability): the kind and schema_version refusals print an unbounded `repr`.** At `retention.py:285-292`, the cause line embeds `repr(report.get(\"kind\"))`. A non-string `kind`, such as a large nested list, prints as one very long line. Everything stays escaped, so this is cosmetic. Truncate the `repr` (for example to 60 characters), or name only its type when the value is not a string.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 3,
+              "review_content_id": "4c1405f6b10753265784c0864c923517d55d6c4d40ad87144d16ed3faa5e01a0",
+              "verdict": "APPROVE",
+              "at": "2026-10-27T06:25:18Z"
+            }
+          ]
+        },
+        "F-7a4ee7df0784": {
+          "digest": "7a4ee7df0784782f05368fd344c846266ee920c3868fcedc61463b54af226e6b",
+          "text": "**EIR-003 [substantive] — Exceptional values do not uniformly use the requested fallback.** Validation at `src/workflow_manager/retention.py:198` and `src/workflow_manager/retention.py:216` accepts negative integers; both commands render `finished_folder_bytes: -1` as `-1 B`. Huge integers render safely through `src/workflow_manager/retention.py:307`, and million-character strings also render normally. Thus the requested blanket two-line fallback is not implemented for these values. Range and length limits with both-command regressions would close that gap. These probes preserved exit codes and produced no traceback, so this remains Optional under the supplied severity rules.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW",
+              "round": 3,
+              "review_content_id": "4c1405f6b10753265784c0864c923517d55d6c4d40ad87144d16ed3faa5e01a0",
+              "verdict": "APPROVE",
+              "at": "2026-10-27T06:37:10Z"
+            }
+          ]
+        }
+      },
+      "implementation_review_stages": {
+        "review_content_id": "4c1405f6b10753265784c0864c923517d55d6c4d40ad87144d16ed3faa5e01a0",
+        "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "04593c6d4c8c3466d8db071a1376b52b7f19ac83c5108dd6d1cd2d42364603af",
+          "verdict": "APPROVE",
+          "round": 3,
+          "completed_at": "2026-10-27T06:25:18Z",
+          "verdict_sha256": "cf0888eeba907d0ec227c87114f7867ae8825df3b10ee806c5c7026c533a00bf",
+          "run_ref": "session:local .ai-review/retention-status/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "04593c6d4c8c3466d8db071a1376b52b7f19ac83c5108dd6d1cd2d42364603af",
+          "verdict": "APPROVE",
+          "round": 3,
+          "completed_at": "2026-10-27T06:37:10Z",
+          "verdict_sha256": "16e6ea37fd257cf2e17d9b271202fafdebb5fc6d8381b4734b7f0798d78116a5",
+          "run_ref": "session:local .ai-review/retention-status/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "openai/gpt-6.1-sol"
+        }
+      },
+      "gate_evidence": {
+        "functional": {
+          "flow-1": {
+            "flow_id": "flow-1",
+            "status": "passed",
+            "head": "5b7238b910f799fe44209c036c17920bbcdc9f01",
+            "ran_at": "2026-10-27T07:30:27Z",
+            "summary": {
+              "flow": "default output unchanged",
+              "result": "PASSED",
+              "results": "RESULTS.md",
+              "log": "1.log"
+            },
+            "log_digest": "b9737a065f247ef1928de58f19b4f9ed411b3140237f4bc53292d16ba99c73e7",
+            "run_ref": "manager-orchestrator:runs/md3-functional-r1",
+            "reporter": "manager-orchestrator (independent executor claude claude-sonnet-5-5)",
+            "identity": "4c1405f6b10753265784c0864c923517d55d6c4d40ad87144d16ed3faa5e01a0",
+            "recorded_at": "2026-10-27T07:30:27Z"
+          },
+          "flow-2": {
+            "flow_id": "flow-2",
+            "status": "passed",
+            "head": "5b7238b910f799fe44209c036c17920bbcdc9f01",
+            "ran_at": "2026-10-27T07:30:27Z",
+            "summary": {
+              "flow": "status --retention, complete report",
+              "result": "PASSED",
+              "results": "RESULTS.md",
+              "log": "2.log"
+            },
+            "log_digest": "da551a48b63b98c35d98dd717687db4ea6375afba6babc1c25db158878285378",
+            "run_ref": "manager-orchestrator:runs/md3-functional-r1",
+            "reporter": "manager-orchestrator (independent executor claude claude-sonnet-5-5)",
+            "identity": "4c1405f6b10753265784c0864c923517d55d6c4d40ad87144d16ed3faa5e01a0",
+            "recorded_at": "2026-10-27T07:30:27Z"
+          },
+          "flow-3": {
+            "flow_id": "flow-3",
+            "status": "passed",
+            "head": "5b7238b910f799fe44209c036c17920bbcdc9f01",
+            "ran_at": "2026-10-27T07:30:27Z",
+            "summary": {
+              "flow": "doctor --retention",
+              "result": "PASSED",
+              "results": "RESULTS.md",
+              "log": "3.log"
+            },
+            "log_digest": "cae8d22fc22a69257cc9e352e3cc5ed16e5b1aae5de171e7a9b1208250139de6",
+            "run_ref": "manager-orchestrator:runs/md3-functional-r1",
+            "reporter": "manager-orchestrator (independent executor claude claude-sonnet-5-5)",
+            "identity": "4c1405f6b10753265784c0864c923517d55d6c4d40ad87144d16ed3faa5e01a0",
+            "recorded_at": "2026-10-27T07:30:27Z"
+          },
+          "flow-4": {
+            "flow_id": "flow-4",
+            "status": "passed",
+            "head": "5b7238b910f799fe44209c036c17920bbcdc9f01",
+            "ran_at": "2026-10-27T07:30:27Z",
+            "summary": {
+              "flow": "the removing key",
+              "result": "PASSED",
+              "results": "RESULTS.md",
+              "log": "4.log"
+            },
+            "log_digest": "61c531707ea234d1f0e6e1d77284bbf04387b87bc69955d5068eab7555b30377",
+            "run_ref": "manager-orchestrator:runs/md3-functional-r1",
+            "reporter": "manager-orchestrator (independent executor claude claude-sonnet-5-5)",
+            "identity": "4c1405f6b10753265784c0864c923517d55d6c4d40ad87144d16ed3faa5e01a0",
+            "recorded_at": "2026-10-27T07:30:27Z"
+          },
+          "flow-5": {
+            "flow_id": "flow-5",
+            "status": "passed",
+            "head": "5b7238b910f799fe44209c036c17920bbcdc9f01",
+            "ran_at": "2026-10-27T07:30:27Z",
+            "summary": {
+              "flow": "incomplete report",
+              "result": "PASSED",
+              "results": "RESULTS.md",
+              "log": "5.log"
+            },
+            "log_digest": "6ddcdba9dfb2ba439d571725bc6b540b5ad92c8c09cb84ba2361482ae5e1dafc",
+            "run_ref": "manager-orchestrator:runs/md3-functional-r1",
+            "reporter": "manager-orchestrator (independent executor claude claude-sonnet-5-5)",
+            "identity": "4c1405f6b10753265784c0864c923517d55d6c4d40ad87144d16ed3faa5e01a0",
+            "recorded_at": "2026-10-27T07:30:27Z"
+          },
+          "flow-6": {
+            "flow_id": "flow-6",
+            "status": "passed",
+            "head": "5b7238b910f799fe44209c036c17920bbcdc9f01",
+            "ran_at": "2026-10-27T07:30:27Z",
+            "summary": {
+              "flow": "next command and capability",
+              "result": "PASSED",
+              "results": "RESULTS.md",
+              "log": "6.log"
+            },
+            "log_digest": "20db975415e517df500a7bdafb070932705306416bd8fa8816168f0985d1920e",
+            "run_ref": "manager-orchestrator:runs/md3-functional-r1",
+            "reporter": "manager-orchestrator (independent executor claude claude-sonnet-5-5)",
+            "identity": "4c1405f6b10753265784c0864c923517d55d6c4d40ad87144d16ed3faa5e01a0",
+            "recorded_at": "2026-10-27T07:30:27Z"
+          },
+          "flow-7": {
+            "flow_id": "flow-7",
+            "status": "passed",
+            "head": "5b7238b910f799fe44209c036c17920bbcdc9f01",
+            "ran_at": "2026-10-27T07:30:27Z",
+            "summary": {
+              "flow": "refusals, each one cause and one step",
+              "result": "PASSED",
+              "results": "RESULTS.md",
+              "log": "7.log"
+            },
+            "log_digest": "574d0aeab1bb05a966cbc4fe7ae185dd12546075bdaa096970356183c6748cc3",
+            "run_ref": "manager-orchestrator:runs/md3-functional-r1",
+            "reporter": "manager-orchestrator (independent executor claude claude-sonnet-5-5)",
+            "identity": "4c1405f6b10753265784c0864c923517d55d6c4d40ad87144d16ed3faa5e01a0",
+            "recorded_at": "2026-10-27T07:30:27Z"
+          },
+          "flow-8": {
+            "flow_id": "flow-8",
+            "status": "passed",
+            "head": "5b7238b910f799fe44209c036c17920bbcdc9f01",
+            "ran_at": "2026-10-27T07:30:27Z",
+            "summary": {
+              "flow": "timeout leaves no process",
+              "result": "PASSED",
+              "results": "RESULTS.md",
+              "log": "8.log"
+            },
+            "log_digest": "53e873a2f5babdcc405e46ab7043ec1e7b18f81159080fe4272d38676daa42db",
+            "run_ref": "manager-orchestrator:runs/md3-functional-r1",
+            "reporter": "manager-orchestrator (independent executor claude claude-sonnet-5-5)",
+            "identity": "4c1405f6b10753265784c0864c923517d55d6c4d40ad87144d16ed3faa5e01a0",
+            "recorded_at": "2026-10-27T07:30:27Z"
+          },
+          "flow-9": {
+            "flow_id": "flow-9",
+            "status": "passed",
+            "head": "5b7238b910f799fe44209c036c17920bbcdc9f01",
+            "ran_at": "2026-10-27T07:30:27Z",
+            "summary": {
+              "flow": "no writes",
+              "result": "PASSED",
+              "results": "RESULTS.md",
+              "log": "9.log"
+            },
+            "log_digest": "2d8f125ce6bad991f0c17b00081bfe8c4bd9358da966c2fd540e07c8285f5d2b",
+            "run_ref": "manager-orchestrator:runs/md3-functional-r1",
+            "reporter": "manager-orchestrator (independent executor claude claude-sonnet-5-5)",
+            "identity": "4c1405f6b10753265784c0864c923517d55d6c4d40ad87144d16ed3faa5e01a0",
+            "recorded_at": "2026-10-27T07:30:27Z"
+          },
+          "flow-10": {
+            "flow_id": "flow-10",
+            "status": "passed",
+            "head": "5b7238b910f799fe44209c036c17920bbcdc9f01",
+            "ran_at": "2026-10-27T07:30:27Z",
+            "summary": {
+              "flow": "relative target and spaces",
+              "result": "PASSED",
+              "results": "RESULTS.md",
+              "log": "10.log"
+            },
+            "log_digest": "9d328b23865b13f2019104622aed7b65c84928bb7ccafca14c0f7bda5dc74ca1",
+            "run_ref": "manager-orchestrator:runs/md3-functional-r1",
+            "reporter": "manager-orchestrator (independent executor claude claude-sonnet-5-5)",
+            "identity": "4c1405f6b10753265784c0864c923517d55d6c4d40ad87144d16ed3faa5e01a0",
+            "recorded_at": "2026-10-27T07:30:27Z"
+          },
+          "flow-11": {
+            "flow_id": "flow-11",
+            "status": "passed",
+            "head": "5b7238b910f799fe44209c036c17920bbcdc9f01",
+            "ran_at": "2026-10-27T07:30:27Z",
+            "summary": {
+              "flow": "real script, no forge query",
+              "result": "PASSED",
+              "results": "RESULTS.md",
+              "log": "11.log"
+            },
+            "log_digest": "bd15945213ce86919e433f7e2900c01269a05c902daba296df3aaf9af9ed6897",
+            "run_ref": "manager-orchestrator:runs/md3-functional-r1",
+            "reporter": "manager-orchestrator (independent executor claude claude-sonnet-5-5)",
+            "identity": "4c1405f6b10753265784c0864c923517d55d6c4d40ad87144d16ed3faa5e01a0",
+            "recorded_at": "2026-10-27T07:30:27Z"
+          },
+          "flow-12": {
+            "flow_id": "flow-12",
+            "status": "passed",
+            "head": "5b7238b910f799fe44209c036c17920bbcdc9f01",
+            "ran_at": "2026-10-27T07:30:27Z",
+            "summary": {
+              "flow": "real forge, read-only",
+              "result": "PASSED",
+              "results": "RESULTS.md",
+              "log": "12.log"
+            },
+            "log_digest": "543063a0f04a31dc7491c6cf512841013383fa33641938edc5db762981f6aac6",
+            "run_ref": "manager-orchestrator:runs/md3-functional-r1",
+            "reporter": "manager-orchestrator (independent executor claude claude-sonnet-5-5)",
+            "identity": "4c1405f6b10753265784c0864c923517d55d6c4d40ad87144d16ed3faa5e01a0",
+            "recorded_at": "2026-10-27T07:30:27Z"
+          },
+          "flow-x1a": {
+            "flow_id": "flow-x1a",
+            "status": "passed",
+            "head": "5b7238b910f799fe44209c036c17920bbcdc9f01",
+            "ran_at": "2026-10-27T07:30:27Z",
+            "summary": {
+              "flow": "unpaired surrogate gives the two-line fallback",
+              "result": "PASSED",
+              "results": "RESULTS.md",
+              "log": "X.log"
+            },
+            "log_digest": "1dcf035ea7cb6063358858a8d30362c1e48825ac6dca81c14e96d877f62078df",
+            "run_ref": "manager-orchestrator:runs/md3-functional-r1",
+            "reporter": "manager-orchestrator (independent executor claude claude-sonnet-5-5)",
+            "identity": "4c1405f6b10753265784c0864c923517d55d6c4d40ad87144d16ed3faa5e01a0",
+            "recorded_at": "2026-10-27T07:30:28Z"
+          },
+          "flow-x1b": {
+            "flow_id": "flow-x1b",
+            "status": "passed",
+            "head": "5b7238b910f799fe44209c036c17920bbcdc9f01",
+            "ran_at": "2026-10-27T07:30:27Z",
+            "summary": {
+              "flow": "huge byte count renders safely with the original exit code (no fallback line; accepted by the reviewers)",
+              "result": "PASSED",
+              "results": "RESULTS.md",
+              "log": "X.log"
+            },
+            "log_digest": "1dcf035ea7cb6063358858a8d30362c1e48825ac6dca81c14e96d877f62078df",
+            "run_ref": "manager-orchestrator:runs/md3-functional-r1",
+            "reporter": "manager-orchestrator (independent executor claude claude-sonnet-5-5)",
+            "identity": "4c1405f6b10753265784c0864c923517d55d6c4d40ad87144d16ed3faa5e01a0",
+            "recorded_at": "2026-10-27T07:30:28Z"
+          },
+          "flow-x2": {
+            "flow_id": "flow-x2",
+            "status": "passed",
+            "head": "5b7238b910f799fe44209c036c17920bbcdc9f01",
+            "ran_at": "2026-10-27T07:30:27Z",
+            "summary": {
+              "flow": "negative byte count renders without traceback (known Optional)",
+              "result": "PASSED",
+              "results": "RESULTS.md",
+              "log": "X.log"
+            },
+            "log_digest": "1dcf035ea7cb6063358858a8d30362c1e48825ac6dca81c14e96d877f62078df",
+            "run_ref": "manager-orchestrator:runs/md3-functional-r1",
+            "reporter": "manager-orchestrator (independent executor claude claude-sonnet-5-5)",
+            "identity": "4c1405f6b10753265784c0864c923517d55d6c4d40ad87144d16ed3faa5e01a0",
+            "recorded_at": "2026-10-27T07:30:28Z"
+          },
+          "flow-x3": {
+            "flow_id": "flow-x3",
+            "status": "passed",
+            "head": "5b7238b910f799fe44209c036c17920bbcdc9f01",
+            "ran_at": "2026-10-27T07:30:27Z",
+            "summary": {
+              "flow": "default output byte-identical to the base commit",
+              "result": "PASSED",
+              "results": "RESULTS.md",
+              "log": "X3.log"
+            },
+            "log_digest": "ad9e2646476cc5f11c0ecdc4d9f257664a7e4c113deee2b5c789e30ca56fe7c0",
+            "run_ref": "manager-orchestrator:runs/md3-functional-r1",
+            "reporter": "manager-orchestrator (independent executor claude claude-sonnet-5-5)",
+            "identity": "4c1405f6b10753265784c0864c923517d55d6c4d40ad87144d16ed3faa5e01a0",
+            "recorded_at": "2026-10-27T07:30:28Z"
+          }
+        },
+        "pr": {
+          "pr": {
+            "number": 117,
+            "url": "https://github.com/RodrigoFAbreu/workflow-manager/pull/117"
+          },
+          "state": "open",
+          "head": "5b7238b910f799fe44209c036c17920bbcdc9f01",
+          "review_decision": null,
+          "reviewed_head": null,
+          "checks": {
+            "state": "success",
+            "failing": []
+          },
+          "review_id": null,
+          "findings": null,
+          "identity_at_head": "4c1405f6b10753265784c0864c923517d55d6c4d40ad87144d16ed3faa5e01a0",
+          "observed_at": "2026-10-27T07:48:33Z",
+          "ingest_seq": 1,
+          "repository": "RodrigoFAbreu/workflow-manager",
+          "queried_commit": "7c1d8f06d4dd335bbf301a5ce369fa5bc3f5c034",
+          "provenance": {
+            "source": "workflow_gh",
+            "fetched_by": {
+              "name": "workflow-gh",
+              "version": "pr-list-v1"
+            },
+            "fetched_at": "2026-10-27T07:48:33Z",
+            "raw_sha256": "9e7d545641d99b79e28770a9b56ddfcf9dbacf74b20253986abf7d33b07f5961",
+            "run_ref": null,
+            "gh_path": "/usr/bin/gh",
+            "gh_sha256": "9e824061111fe5f5b6a5d5690909ba37abafca4a4ca830bdf83246d3c94afd21"
+          },
+          "fact_id": "fdaae8feab7331cae659886663ca39e8d4155f50d23caa68b9698b629e1b53e0"
+        },
+        "pr_reported": null,
+        "pr_keys": {
+          "reopened_for": [],
+          "applied": [],
+          "ingest_seq": 1
+        }
+      },
+      "acceptance_satisfaction": {
+        "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "policy_source": "default",
+        "file_digest": null,
+        "adopted_digest": null,
+        "floor_digest": null,
+        "requirements": [
+          {
+            "id": "checkpoints_complete",
+            "met": true,
+            "detail": "every checkpoint of the item's own registry is COMPLETE"
+          },
+          {
+            "id": "technical_approval_current",
+            "met": true,
+            "detail": "the technical approval is CURRENT for the content now"
+          },
+          {
+            "id": "functional_flows_passed",
+            "met": true,
+            "detail": "flows ['flow-1', 'flow-10', 'flow-11', 'flow-12', 'flow-2', 'flow-3', 'flow-4', 'flow-5', 'flow-6', 'flow-7', 'flow-8', 'flow-9', 'flow-x1a', 'flow-x1b', 'flow-x2', 'flow-x3'] passed at the approved content"
+          },
+          {
+            "id": "pr_fact_current",
+            "met": true,
+            "detail": "workflow_gh fact for PR #117 at 5b7238b910f799fe44209c036c17920bbcdc9f01 is current"
+          },
+          {
+            "id": "no_standing_pr_objection",
+            "met": true,
+            "detail": "no CHANGES_REQUESTED decision and no failed check"
+          },
+          {
+            "id": "ci_green",
+            "met": true,
+            "detail": "checks are 'success'"
+          }
+        ],
+        "inputs": {
+          "anchor_commit": "7c1d8f06d4dd335bbf301a5ce369fa5bc3f5c034",
+          "anchor_identity": "4c1405f6b10753265784c0864c923517d55d6c4d40ad87144d16ed3faa5e01a0",
+          "technical_approval": {
+            "basis": "POLICY_SATISFIED",
+            "approved_review_content_id": "4c1405f6b10753265784c0864c923517d55d6c4d40ad87144d16ed3faa5e01a0",
+            "recorded_at": "2026-10-27T06:37:46Z"
+          },
+          "functional": {
+            "flow-1": {
+              "evidence_id": "bf61bd804c57cdb9713045024c2814c731c5e02c5f628417be8ecc4e396afa8e",
+              "log_digest": "b9737a065f247ef1928de58f19b4f9ed411b3140237f4bc53292d16ba99c73e7",
+              "run_ref": "manager-orchestrator:runs/md3-functional-r1"
+            },
+            "flow-10": {
+              "evidence_id": "fc8cfafae7669ce92535ec94fe1ac1fc4b225ddd4170cec10f14fc276ce42a82",
+              "log_digest": "9d328b23865b13f2019104622aed7b65c84928bb7ccafca14c0f7bda5dc74ca1",
+              "run_ref": "manager-orchestrator:runs/md3-functional-r1"
+            },
+            "flow-11": {
+              "evidence_id": "05efd27584486eba42b7dd8b27e2a7f47d7c1750da8fd2178e65b0df9ff29ba8",
+              "log_digest": "bd15945213ce86919e433f7e2900c01269a05c902daba296df3aaf9af9ed6897",
+              "run_ref": "manager-orchestrator:runs/md3-functional-r1"
+            },
+            "flow-12": {
+              "evidence_id": "a014aa8c83253e88a7b9e3f298fada744f312b8b689ebfd7554f10b4d9520222",
+              "log_digest": "543063a0f04a31dc7491c6cf512841013383fa33641938edc5db762981f6aac6",
+              "run_ref": "manager-orchestrator:runs/md3-functional-r1"
+            },
+            "flow-2": {
+              "evidence_id": "8b728e3b35076c17889e5c496b3c20bb45827144bbd5a782682b38dc16692251",
+              "log_digest": "da551a48b63b98c35d98dd717687db4ea6375afba6babc1c25db158878285378",
+              "run_ref": "manager-orchestrator:runs/md3-functional-r1"
+            },
+            "flow-3": {
+              "evidence_id": "1a3227b168e03d253ec6a28ff0fa198bb741fca6ad75c28c82c12609c267a936",
+              "log_digest": "cae8d22fc22a69257cc9e352e3cc5ed16e5b1aae5de171e7a9b1208250139de6",
+              "run_ref": "manager-orchestrator:runs/md3-functional-r1"
+            },
+            "flow-4": {
+              "evidence_id": "64ad1456bcb7e4a1597b08b3aec47d1d08979874a16f11337e950fe268ecdd6a",
+              "log_digest": "61c531707ea234d1f0e6e1d77284bbf04387b87bc69955d5068eab7555b30377",
+              "run_ref": "manager-orchestrator:runs/md3-functional-r1"
+            },
+            "flow-5": {
+              "evidence_id": "89d72a6e569b682633736d47f60b70dc94000a152f32f6238665ab4efba67dea",
+              "log_digest": "6ddcdba9dfb2ba439d571725bc6b540b5ad92c8c09cb84ba2361482ae5e1dafc",
+              "run_ref": "manager-orchestrator:runs/md3-functional-r1"
+            },
+            "flow-6": {
+              "evidence_id": "8f9e2291d2a2a2355e201a7da9ceb84d0e3ffda11d51b6239d9a1b7df5551661",
+              "log_digest": "20db975415e517df500a7bdafb070932705306416bd8fa8816168f0985d1920e",
+              "run_ref": "manager-orchestrator:runs/md3-functional-r1"
+            },
+            "flow-7": {
+              "evidence_id": "5e89fa7a2671471aeb2491a9db418a555ad32880690ffc68c9e35d117f876aae",
+              "log_digest": "574d0aeab1bb05a966cbc4fe7ae185dd12546075bdaa096970356183c6748cc3",
+              "run_ref": "manager-orchestrator:runs/md3-functional-r1"
+            },
+            "flow-8": {
+              "evidence_id": "736f15ecc6b56cf84f9df8cf99eadc80f3eec40dc73be6d9cb3c14aff91a9e8c",
+              "log_digest": "53e873a2f5babdcc405e46ab7043ec1e7b18f81159080fe4272d38676daa42db",
+              "run_ref": "manager-orchestrator:runs/md3-functional-r1"
+            },
+            "flow-9": {
+              "evidence_id": "f36d8d256d95cfedf9bf2ff00e8a891401b8fb6ea2910300f9dff31b8b4c0d7f",
+              "log_digest": "2d8f125ce6bad991f0c17b00081bfe8c4bd9358da966c2fd540e07c8285f5d2b",
+              "run_ref": "manager-orchestrator:runs/md3-functional-r1"
+            },
+            "flow-x1a": {
+              "evidence_id": "d3649e4d7b3c93a20593ee1367b46159f9f663732b7ae279c412469048fd7d70",
+              "log_digest": "1dcf035ea7cb6063358858a8d30362c1e48825ac6dca81c14e96d877f62078df",
+              "run_ref": "manager-orchestrator:runs/md3-functional-r1"
+            },
+            "flow-x1b": {
+              "evidence_id": "398f04c1ef2942bc0db084fb36a7ee40bc00c748230d68d5c59afd28e830dc23",
+              "log_digest": "1dcf035ea7cb6063358858a8d30362c1e48825ac6dca81c14e96d877f62078df",
+              "run_ref": "manager-orchestrator:runs/md3-functional-r1"
+            },
+            "flow-x2": {
+              "evidence_id": "b05258a27e198a607449fad1fd5fd509c9af9f9ab2af39bd5c5f64f1691b4602",
+              "log_digest": "1dcf035ea7cb6063358858a8d30362c1e48825ac6dca81c14e96d877f62078df",
+              "run_ref": "manager-orchestrator:runs/md3-functional-r1"
+            },
+            "flow-x3": {
+              "evidence_id": "256caad65d9cbe84690ba99f47c1afbef4c13dcf4d8cf5253a487fff1846f849",
+              "log_digest": "ad9e2646476cc5f11c0ecdc4d9f257664a7e4c113deee2b5c789e30ca56fe7c0",
+              "run_ref": "manager-orchestrator:runs/md3-functional-r1"
+            }
+          },
+          "pr": {
+            "fact_id": "fdaae8feab7331cae659886663ca39e8d4155f50d23caa68b9698b629e1b53e0",
+            "head": "5b7238b910f799fe44209c036c17920bbcdc9f01",
+            "provenance": "workflow_gh",
+            "raw_sha256": "9e7d545641d99b79e28770a9b56ddfcf9dbacf74b20253986abf7d33b07f5961"
+          }
+        },
+        "trust": {
+          "review_verdicts": "orchestrator",
+          "functional_evidence": "orchestrator",
+          "pr_fact": "workflow_gh"
+        },
+        "evaluated_at": "2026-10-27T07:48:33Z",
+        "workflow_release": "2.22.0"
+      }
     }
   }
 }

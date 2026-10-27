@@ -1,9 +1,9 @@
 """Command-line entry point.
 
-    workflow-manager status    <target>
+    workflow-manager status    <target> [--retention]
     workflow-manager bootstrap <target> [--profile full|runtime] [--force]
     workflow-manager update    <target> [--profile ...] [--force] [--dry-run]
-    workflow-manager doctor    <target>
+    workflow-manager doctor    <target> [--retention]
     workflow-manager verify    <target>
     workflow-manager uninstall <target>
     workflow-manager releases
@@ -42,7 +42,7 @@ from contextlib import nullcontext
 from importlib import metadata
 from pathlib import Path
 
-from . import advice
+from . import advice, retention
 from . import source as release_source
 from .compatibility import (
     ContainmentError,
@@ -594,6 +594,11 @@ def _print_in_flight(args) -> None:
         print(line)
 
 
+def _print_lines(lines) -> None:
+    for line in lines:
+        print(line)
+
+
 def cmd_status(args) -> int:
     if not is_managed(args.target):
         # Unchanged: nothing is resolved without --release-version, and no
@@ -602,6 +607,8 @@ def cmd_status(args) -> int:
         with release if release is not None else nullcontext():
             result = status(args.target, release)
         print(result)
+        if args.retention:
+            _print_lines(retention.render_note(retention.not_managed_note(args.target)))
         print(f"next: {advice.unmanaged_status_step(_context(args, with_data=True))}")
         return 0
     # A managed target: the record and the work in flight are read first, then the
@@ -632,6 +639,8 @@ def cmd_status(args) -> int:
     print(result)
     print(f"  source: {_describe_source(Installation.read(args.target).source)}")
     _print_in_flight(args)
+    if args.retention:
+        _print_lines(retention.section(args.target, installed))
     context = _context(args, with_data=bool(result.problems))
     step = advice.problem_step(context, result.problems)
     doctor = advice.doctor_step(context)
@@ -842,6 +851,8 @@ def cmd_doctor(args) -> int:
         installed_resolved = _installed_resolves(args, installed, destinations)
         report = _compatibility_report(args, plan, refusal, release, installed_resolved)
     print(render_report(report), end="")
+    if args.retention:
+        _print_lines(retention.section(args.target, installed))
     return report.doctor_exit_code
 
 
@@ -961,6 +972,12 @@ _EXIT_CODES = (
     + advice.page("exit-codes.md") + ".")
 
 
+_RETENTION_HELP = ("also report the repository's finished work items and their archives, by "
+                   "running its installed scripts/workflow_retention.py report (read-only; one "
+                   "forge query per finished item, so it can take a minute); never changes an "
+                   "exit code")
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = _Parser(
         prog=advice.PROGRAM, description=__doc__,
@@ -1026,6 +1043,7 @@ def build_parser() -> argparse.ArgumentParser:
                 "finding (notes alone still exit 0); 1: a blocked or warning finding, an "
                 "incomplete inspection included; 2: could not check.")
     p.add_argument("target", type=Path, help="the managed repository to inspect")
+    p.add_argument("--retention", action="store_true", help=_RETENTION_HELP)
     p.set_defaults(profile=None, force=False)
 
     p = command("status", "show a repository's installation and whether it is intact",
@@ -1034,6 +1052,7 @@ def build_parser() -> argparse.ArgumentParser:
                 "or not managed; 1: problems found or no usable release; 2: the record is "
                 "unreadable.")
     p.add_argument("target", type=Path, help="the repository to look at")
+    p.add_argument("--retention", action="store_true", help=_RETENTION_HELP)
 
     p = command("verify", "check that a repository matches its installed release",
                 "Compare a managed repository's installed files with its release and list "

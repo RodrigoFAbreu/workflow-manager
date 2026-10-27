@@ -42,6 +42,7 @@ USER_PAGES: tuple[str, ...] = (
     "docs/install.md",
     "docs/update.md",
     "docs/verify.md",
+    "docs/retention.md",
     "docs/common-problems.md",
     "docs/exit-codes.md",
     "docs/glossary.md",
@@ -55,6 +56,7 @@ COMMAND_PAGES: tuple[str, ...] = (
     "docs/install.md",
     "docs/update.md",
     "docs/verify.md",
+    "docs/retention.md",
     "docs/common-problems.md",
     "docs/development.md",
 )
