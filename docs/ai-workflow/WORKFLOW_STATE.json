@@ -15105,7 +15105,7 @@
       "registry_path": "docs/ai-workflow/registry/chunk-gh-telemetry-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/chunk-gh-telemetry-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "AWAITING_FUNCTIONAL_REVIEW",
       "plan_revision": 2,
       "implementation_revision": 2,
       "functional_review_round": null,
@@ -15214,7 +15214,108 @@
           "workflow_release": "2.22.0"
         }
       },
-      "technical_approval": null,
+      "technical_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "6e3bca86b5940276f59d95c9ce08a99a5880e66ba6e58765436c11a74cea4ddd",
+        "approved_review_content_id": "a9d01c429abb8ba5aeba6402e7b929fc182500eea6248fcbc570c0e5f8066219",
+        "review_content_manifest": [
+          {
+            "path": "docs/ARCHITECTURE.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "b83965669b86626e464d189f03b61ea98fceb34a"
+          },
+          {
+            "path": "docs/ai-workflow/registry/chunk-gh-telemetry-artifacts.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "741ac556b99d4e3d878a92f899115961d5cbba15"
+          },
+          {
+            "path": "tests/parallel/isolation.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "8a8196f946e1d8476356e474277528183fd07bb9"
+          },
+          {
+            "path": "tests/test_orphan_processes.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "6efe4d31e15181d770c460827065eea7c49c18a4"
+          },
+          {
+            "path": "tests/test_parallel_runner.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "6fdd0f55dcc6b7089c52bfd5ce0e051364ab1270"
+          }
+        ],
+        "reviewed_content_commit": "7a2ee7f53b2a01800e06832b42120288c22f45d6",
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-10-27T12:02:57Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "a9d01c429abb8ba5aeba6402e7b929fc182500eea6248fcbc570c0e5f8066219",
+            "ledger": {
+              "local": {
+                "bundle_id": "6e3bca86b5940276f59d95c9ce08a99a5880e66ba6e58765436c11a74cea4ddd",
+                "verdict": "APPROVE",
+                "round": 2,
+                "verdict_sha256": "5fb35a9144b095c95a9cdc1a701917297f42a39189ea09da30021a8b48469af8",
+                "ledger_entry_sha256": "6abd50b6ff3dd6fe4fe3450a3fe48ed7207dbcfeb9d70551251e70cb57c9b451",
+                "run_ref": "session:local .ai-review/chunk-gh-telemetry/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "6e3bca86b5940276f59d95c9ce08a99a5880e66ba6e58765436c11a74cea4ddd",
+                "verdict": "APPROVE",
+                "round": 2,
+                "verdict_sha256": "4fd1eec2c36035d526f8ecebe994ebaab0ef39b53827186b862d5f9127688d56",
+                "ledger_entry_sha256": "ceafc032b3d25cd11e06eec7158ec787eba762e8c21572ea0569ca659b219be6",
+                "run_ref": "session:local.ai-review/chunk-gh-telemetry/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-10-27T12:02:57Z",
+          "workflow_release": "2.22.0"
+        }
+      },
       "technical_review_block_pins": [],
       "plan_review_stages": {
         "review_content_id": "feafe52746b0461a0cabf0a96b8169d107a3a18c801cbc65321382202752eb1f",
@@ -15245,12 +15346,12 @@
           "external": 1
         },
         "implementation": {
-          "local": 1,
-          "external": 0
+          "local": 2,
+          "external": 1
         }
       },
-      "state_revision": 16,
-      "last_transition": "2026-10-27T11:51:22Z",
+      "state_revision": 19,
+      "last_transition": "2026-10-27T12:02:57Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -15343,6 +15444,27 @@
               "at": "2026-10-27T10:59:45Z"
             }
           ]
+        }
+      },
+      "implementation_review_stages": {
+        "review_content_id": "a9d01c429abb8ba5aeba6402e7b929fc182500eea6248fcbc570c0e5f8066219",
+        "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "6e3bca86b5940276f59d95c9ce08a99a5880e66ba6e58765436c11a74cea4ddd",
+          "verdict": "APPROVE",
+          "round": 2,
+          "completed_at": "2026-10-27T11:55:20Z",
+          "verdict_sha256": "5fb35a9144b095c95a9cdc1a701917297f42a39189ea09da30021a8b48469af8",
+          "run_ref": "session:local .ai-review/chunk-gh-telemetry/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "6e3bca86b5940276f59d95c9ce08a99a5880e66ba6e58765436c11a74cea4ddd",
+          "verdict": "APPROVE",
+          "round": 2,
+          "completed_at": "2026-10-27T12:02:17Z",
+          "verdict_sha256": "4fd1eec2c36035d526f8ecebe994ebaab0ef39b53827186b862d5f9127688d56",
+          "run_ref": "session:local.ai-review/chunk-gh-telemetry/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "openai/gpt-6.1-sol"
         }
       }
     }
