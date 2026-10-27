@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "work_item_id": "runner-hardening",
+  "requirements": {
+    "R1": {
+      "description": "The runner installs a SIGINT handler of its own beside SIGTERM and restores both; a run started with SIGINT ignored is interrupted by it, restores the barrier, kills the chunks and exits 2 (tested with a trap-'' INT start)",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R2": {
+      "description": "A failure to remove the run's temporary directory after the report is a stderr warning and never changes the printed exit code; pre-report and result-corrupting faults stay exit 2",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R3": {
+      "description": "The third follow-up (fork-to-exec interrupt) is dropped with its reproduction evidence recorded; docs/ARCHITECTURE.md Verification execution states R1 and R2",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R4": {
+      "description": "Roadmap row 16 Current in CP1 and Done at acceptance; test: change, no release, no src change",
+      "checkpoint_ids": [
+        "CP2"
+      ]
+    }
+  }
+}

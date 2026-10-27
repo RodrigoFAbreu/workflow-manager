@@ -470,20 +470,24 @@ class Guard:
 
 
 def _install_signal_handlers():
-    """SIGTERM raises like SIGINT does, so every `finally` (chunk kill, barrier
-    restore, lock release) runs. Only possible on the main thread."""
+    """SIGTERM and SIGINT raise, so every `finally` (chunk kill, barrier
+    restore, lock release) runs. SIGINT needs a handler of its own: the
+    interpreter's default one is installed only when SIGINT was not ignored at
+    start-up, and a `&` job of a non-interactive shell starts with it ignored.
+    Only possible on the main thread."""
     if threading.current_thread() is not threading.main_thread():
         return None
 
-    def on_term(signum, frame):
+    def on_signal(signum, frame):
         raise KeyboardInterrupt(f"signal {signum}")
 
-    return signal.signal(signal.SIGTERM, on_term)
+    return {signum: signal.signal(signum, on_signal)
+            for signum in (signal.SIGTERM, signal.SIGINT)}
 
 
 def _restore_signal_handlers(previous) -> None:
-    if previous is not None:
-        signal.signal(signal.SIGTERM, previous)
+    for signum, handler in (previous or {}).items():
+        signal.signal(signum, handler)
 
 
 def refuse_root(allow_root: bool) -> None:
@@ -618,6 +622,16 @@ def append_side_effect(write, what: str, path, err) -> None:
         write()
     except OSError as exc:
         err(f"warning: could not write the {what} to {path}: "
+            f"{exc.strerror or exc}; the verdict is unchanged")
+
+
+def remove_run_dir(run_dir, err) -> None:
+    """Remove the run's own temporary directory, after the report: an `OSError`
+    becomes a warning, never an exit code, and the directory stays where it is."""
+    try:
+        isolation.clean_tmpdir(run_dir)
+    except OSError as exc:
+        err(f"warning: could not remove the run directory {run_dir}: "
             f"{exc.strerror or exc}; the verdict is unchanged")
 
 
@@ -767,7 +781,7 @@ def local_run(repo_root: Path, lock: isolation.RunLock, *, specs, jobs, shuffle_
                                                   append=True),
                        "timing history", timings_mod.history_path(environ), err)
     if not keep:
-        isolation.clean_tmpdir(run_dir)
+        remove_run_dir(run_dir, err)
     return finish_verdict(verdict, err)
 
 

@@ -3739,9 +3739,13 @@ def run_cli(scratch_root, *argv, env, timeout=600) -> subprocess.CompletedProces
                           timeout=timeout)
 
 
-def start_cli(scratch_root, *argv, env) -> subprocess.Popen:
-    return subprocess.Popen([sys.executable, str(scratch_root / "tests" / "run_all.py"),
-                             *map(str, argv)], cwd=str(scratch_root), stdout=subprocess.PIPE,
+def start_cli(scratch_root, *argv, env, sigint_ignored=False) -> subprocess.Popen:
+    """`sigint_ignored` starts the run the way a `&` job of a non-interactive
+    shell starts: `SIGINT` ignored before `exec`, inherited by the run."""
+    command = [sys.executable, str(scratch_root / "tests" / "run_all.py"), *map(str, argv)]
+    if sigint_ignored:
+        command = ["sh", "-c", 'trap "" INT; exec "$@"', "sh", *command]
+    return subprocess.Popen(command, cwd=str(scratch_root), stdout=subprocess.PIPE,
                             stderr=subprocess.PIPE, text=True,
                             env={**env, **scratch_release_env(scratch_root)})
 
@@ -4740,6 +4744,148 @@ class TestLockAndRecoveryThroughTheCli(_CliCase):
         out, err = wt_run.communicate(timeout=120)
         self.assertEqual(wt_run.returncode, 0, out + err)
         self.assertEqual(_guarded_modes(worktree), wt_modes)
+
+    # A run started with `SIGINT` ignored (a `&` job of a non-interactive
+    # shell) is still interrupted cleanly by it: the interpreter installs its
+    # default handler only when `SIGINT` is not ignored, so the executor
+    # installs its own.
+    def _interrupt(self, signum):
+        scratch = scratch_checkout(self.tmp / signum.name,
+                                   modules={"test_scratch_wait.py": WAIT_MODULE})
+        pre_modes = _guarded_modes(scratch)
+        stop = self.tmp / f"stop-{signum.name}"   # only the signal ends the chunk
+        proc = start_cli(scratch, "--select", "test_scratch_wait.py", sigint_ignored=True,
+                         env=dict(self.env, WM_SCRATCH_STOP=str(stop)))
+        pgid = None
+        try:
+            self.assertTrue(_wait_until(lambda: bool(_lock_holder(scratch).get("chunk_pgids"))
+                                        or proc.poll() is not None, 60), "the chunk never started")
+            self.assertIsNone(proc.poll(), "the executor exited early")
+            pgid = _lock_holder(scratch)["chunk_pgids"][0]
+            os.kill(proc.pid, signum)
+            out, err = proc.communicate(timeout=60)
+        finally:
+            stop.write_text("")
+            if proc.poll() is None:
+                proc.kill()
+                proc.communicate()
+        assert_refusal(self, proc.returncode, err, "InterruptedRunError")
+        self.assertTrue(_dead(pgid))
+        self.assertEqual(_guarded_modes(scratch), pre_modes)
+        self.assertFalse((isolation.state_dir(scratch) / "barrier.json").exists())
+
+    def test_sigint_interrupts_a_run_that_started_with_it_ignored(self):
+        self._interrupt(signal.SIGINT)
+
+    def test_sigterm_interrupts_a_run_that_started_with_sigint_ignored(self):
+        self._interrupt(signal.SIGTERM)
+
+
+class TestSignalHandlerInstallation(unittest.TestCase):
+    def setUp(self):
+        self.saved = {s: signal.getsignal(s) for s in (signal.SIGINT, signal.SIGTERM)}
+        self.addCleanup(lambda: [signal.signal(s, h) for s, h in self.saved.items()])
+
+    def _raises_keyboard_interrupt(self, signum) -> bool:
+        try:
+            os.kill(os.getpid(), signum)
+            time.sleep(1)
+        except KeyboardInterrupt:
+            return True
+        return False
+
+    def test_both_signals_raise_and_both_previous_handlers_come_back(self):
+        def custom(signum, frame):
+            pass
+
+        for previous_int in (signal.SIG_IGN, custom):
+            for signum in (signal.SIGINT, signal.SIGTERM):
+                with self.subTest(previous=previous_int, signal=signum.name):
+                    signal.signal(signal.SIGINT, previous_int)
+                    signal.signal(signal.SIGTERM, signal.SIG_IGN)
+                    previous = executor._install_signal_handlers()
+                    try:
+                        self.assertTrue(self._raises_keyboard_interrupt(signum))
+                    finally:
+                        executor._restore_signal_handlers(previous)
+                    self.assertEqual(signal.getsignal(signal.SIGINT), previous_int)
+                    self.assertEqual(signal.getsignal(signal.SIGTERM), signal.SIG_IGN)
+
+    def test_off_the_main_thread_nothing_is_installed(self):
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
+        seen = {}
+
+        def worker():
+            seen["previous"] = executor._install_signal_handlers()
+            executor._restore_signal_handlers(seen["previous"])
+
+        thread = threading.Thread(target=worker)
+        thread.start()
+        thread.join()
+        self.assertIsNone(seen["previous"])
+        self.assertEqual(signal.getsignal(signal.SIGINT), signal.SIG_IGN)
+        self.assertEqual(signal.getsignal(signal.SIGTERM), self.saved[signal.SIGTERM])
+
+
+class TestPostReportCleanupFailure(_CliCase):
+    """A failure to remove the run's own temporary directory comes after the
+    printed verdict, so it is a warning, never the exit code."""
+
+    def _run(self, *, remove_raises, module=None, argv=("--select", "test_scratch_shared.py")):
+        scratch = scratch_checkout(self.tmp / "scratch",
+                                   modules={module[0]: module[1]} if module else None)
+        real = isolation.clean_tmpdir
+        attempted = []
+
+        def clean(path):
+            if Path(path).name.startswith("wm-run-"):
+                attempted.append(Path(path))
+                if remove_raises:
+                    raise OSError(16, "Device or resource busy")
+            return real(path)
+
+        with mock.patch.object(isolation, "clean_tmpdir", clean):
+            code, out, err = main_in_process(scratch, *argv)
+        return code, out, err, attempted
+
+    def test_a_failed_removal_after_a_green_report_stays_exit_0(self):
+        code, out, err, attempted = self._run(remove_raises=True)
+        self.assertEqual(code, 0, out + err)
+        self.assertTrue(out.rstrip().endswith("verdict: exit 0"), out[-500:])
+        self.assertEqual(len(attempted), 1)
+        self.assertIn("warning: could not remove the run directory", err)
+        self.assertIn(str(attempted[0]), err)
+        self.assertIn("the verdict is unchanged", err)
+        self.assertNotIn("error[", err)
+        self.assertTrue(attempted[0].exists())
+
+    def test_the_control_without_the_failure_has_no_warning(self):
+        code, out, err, attempted = self._run(remove_raises=False)
+        self.assertEqual(code, 0, out + err)
+        self.assertEqual(err, "")
+        self.assertEqual(len(attempted), 1)
+        self.assertFalse(attempted[0].exists())
+
+    def test_a_failing_run_keeps_its_directory_and_attempts_no_removal(self):
+        code, out, err, attempted = self._run(
+            remove_raises=True, module=("test_scratch_failing.py", FAILING_HOST_MODULE),
+            argv=("--select", "test_scratch_failing.py"))
+        self.assertEqual(code, 1, out + err)
+        self.assertEqual(attempted, [])
+        self.assertNotIn("warning: could not remove", err)
+
+    def test_a_barrier_restore_that_raises_stays_a_pre_report_exit_2(self):
+        scratch = scratch_checkout(self.tmp / "scratch")
+        real = isolation.restore_barrier
+
+        def restore(*args, **kwargs):
+            real(*args, **kwargs)
+            raise OSError(5, "restore failed")
+
+        with mock.patch.object(isolation, "restore_barrier", restore):
+            code, out, err = main_in_process(scratch, "--select", "test_scratch_shared.py")
+        assert_refusal(self, code, err, "OSError")
+        self.assertNotIn("verdict: exit 0", out)
 
 
 # -- CP5 unit-level pieces ------------------------------------------------------------------

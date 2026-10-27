@@ -2,44 +2,30 @@
 
 ## Milestone
 
-`chunk-gh-telemetry` -- complete, accepted by policy (`governing_workflow_version: "2.2"`, `process`, plan
-revision 2, base `184682b`, branch `milestone/chunk-gh-telemetry`): roadmap row 18. A
-`test:` pull request title (tests and docs only; nothing is released). Plan:
-`docs/ai-workflow/WORKFLOW_MANAGER_CHUNK_GH_TELEMETRY_PLAN.md`.
+`runner-hardening` -- complete (accepted by policy; `governing_workflow_version: "2.2"`, `process`, plan revision 1, implementation revision 1, base `f0ea500`, branch `milestone/runner-hardening`): roadmap row 16. A `test:` pull request title (tests and docs only; nothing is released). Plan: `docs/ai-workflow/WORKFLOW_MANAGER_RUNNER_HARDENING_PLAN.md`.
 
-### CP1: quiet gh telemetry in the chunk environment -- complete
+Two changes to the test runner (`tests/parallel/executor.py`):
 
-- `tests/parallel/isolation.py`: `chunk_env` sets `GH_TELEMETRY=false` and `DO_NOT_TRACK=1`
-  with the other fixed settings, before `extra`, so an inherited value never wins and an
-  explicit caller value may override.
-- `tests/test_orphan_processes.py`: `TestChunkEnvGhTelemetry` (six tests, a stub `gh` that
-  writes a marker instead of starting a process; five fail at `184682b`, the control that
-  proves the stub detects the difference passes there by design).
-- `tests/test_parallel_runner.py`: `test_the_chunk_environment_and_session` runs the real
-  chunk process under hostile outer values and asserts the quiet ones.
-- Checks: `--select test_orphan_processes.py` and `--select test_parallel_runner.py` green.
+- **SIGINT when ignored.** A run started with `SIGINT` ignored (a `&` job of a non-interactive shell) is interrupted by `SIGINT` like one started with it at its default: exit 2, `InterruptedRunError`, the chunks killed, the write barrier restored. One handler serves `SIGTERM` and `SIGINT`.
+- **Post-report cleanup.** Removing the run's temporary directory after the printed verdict is a warning on stderr (`warning: could not remove the run directory ...; the verdict is unchanged`), never the exit code. A printed `verdict: exit 0` stays exit 0.
 
-### CP2: architecture note and bookkeeping -- complete
+Not in this milestone: anything that judges a test, the barrier, the lock or the leak check; anything under `src/`; the third follow-up of the row (an interrupt in the fork-to-exec window), dropped with its evidence in the plan, section 4.
 
-- `docs/ARCHITECTURE.md`, "Verification execution": one bullet next to the Git discovery
-  ceiling bullet says a chunk runs with `gh` telemetry off, why (the orphan check), and that
-  an orphan exception is not the remedy.
-- Checks: `--select test_docs.py` green.
+Automated verification: the full gate (`python3 tests/run_all.py`) exited 0 at head `b78d19b` (2305 of 2305 units, 15231 tests, orphan check on). No file under `src/`, `tools/` or `tests/` has changed since that head.
 
-## Current checkpoint
+### CP1: SIGINT handler, post-report cleanup warning, tests and architecture note -- complete
 
-None: the milestone is complete (CP1 and CP2 complete, `MILESTONE_COMPLETE`).
+- `tests/parallel/executor.py`: `_install_signal_handlers` and `_restore_signal_handlers` (both signals, the previous handlers, including `SIG_IGN`); `remove_run_dir` in `local_run`.
+- `tests/test_parallel_runner.py`: `TestSigintWhenIgnored`, `TestPostReportCleanupFailure`, and a unit test of the install and restore pair.
+- `docs/ARCHITECTURE.md`, "Verification execution": two sentences (the barrier restore with `SIGINT` ignored; the cleanup warning).
 
+### CP2: bookkeeping -- complete
+
+- `docs/ROADMAP.md`: row 16 marked In progress, then Done at acceptance (by policy).
 ## Functional review
 
-Seven flows (flow-1 to flow-6 and flow-x1) passed at `3232e7e`, run by an independent
-executor; flow 6 used the real `gh` 2.102.1 under blocked network sockets. Acceptance was
-by policy from that evidence and the Workflow's own query of PR #118. The 5 Optional
-findings are dispositioned in `docs/milestones/completed/chunk-gh-telemetry-findings.md`.
+Flows F1 to F4 from the checklist passed on the candidate (`14eaa15`), and the extras X1 and X2 reproduce the two original defects on the base `f0ea500`, all as expected (independent executor, `claude-sonnet-5-5`, round 1). The milestone was accepted by policy; the Optional findings are dispositioned in `docs/ai-workflow/registry/runner-hardening-dispositions.json` (1 fixed, 6 follow-ups on RodrigoFAbreu/workflow-manager#119, 2 dropped) and recorded in `docs/milestones/completed/runner-hardening-findings.md`.
 
-### Known limitations
+## Next action
 
-- The CI symptom (`OrphanProcessError` on `gh send-telemetry`) is intermittent and does not
-  reproduce locally, so the flows prove the mechanism, not the CI symptom.
-- Unchanged by design: `orphan_sources`, anything under `src/`, the frozen Workflow
-  suites, and every version. The `test:` pull request title releases nothing.
+Roadmap row 16 is Done. The pull request (#120, a `test:` title, nothing released) merges after the acceptance commit. Next incomplete row: 17 (report the finished-work archive state on managed repos, #90), then `/milestone-plan`.

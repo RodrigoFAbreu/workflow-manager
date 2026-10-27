@@ -1,0 +1,48 @@
+{
+ "schema_version": 1,
+ "work_item_id": "runner-hardening",
+ "dispositions": {
+  "F-1489b6812740": {
+   "disposition": "follow-up",
+   "link": "RodrigoFAbreu/workflow-manager#119",
+   "note": "RH-LI1-002: assert the kept run directory (item 2)"
+  },
+  "F-18044b6d93bf": {
+   "disposition": "follow-up",
+   "link": "RodrigoFAbreu/workflow-manager#119",
+   "note": "RH-LI1-003: docstring wording 'may be left behind' (item 3)"
+  },
+  "F-64e323c12686": {
+   "disposition": "follow-up",
+   "link": "RodrigoFAbreu/workflow-manager#119",
+   "note": "RH-LI1-001: the interrupt test's cleanup kills only the executor (item 1)"
+  },
+  "F-66d4af9ad9d7": {
+   "disposition": "follow-up",
+   "link": "RodrigoFAbreu/workflow-manager#119",
+   "note": "RH-L1-003: scope sentence for run_shard and aggregate (item 4)"
+  },
+  "F-74f44045a7bd": {
+   "disposition": "follow-up",
+   "link": "RodrigoFAbreu/workflow-manager#119",
+   "note": "Codex plan Optional: wait for the chunk group's exit in the signal-test cleanup (item 1)"
+  },
+  "F-84ee1aafc0f7": {
+   "disposition": "follow-up",
+   "link": "RodrigoFAbreu/workflow-manager#119",
+   "note": "Codex implementation Optional: kill the known chunk process group on failure cleanup (item 1)"
+  },
+  "F-8ff500f96642": {
+   "disposition": "fixed",
+   "note": "RH-L1-001: the injection filters on the directory's own name; functional flow F4 shows the chunks untouched and exit 0 with one warning"
+  },
+  "F-c885652eae98": {
+   "disposition": "dropped",
+   "reason": "RH-L1-002: docs/ROADMAP.md is acceptance bookkeeping, excluded at both stages; listing it changes nothing"
+  },
+  "F-e7c64b3b77ba": {
+   "disposition": "dropped",
+   "reason": "RH-L1-004: the plan's section numbering jumps from 5 to 8; cosmetic"
+  }
+ }
+}
