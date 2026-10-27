@@ -555,6 +555,12 @@ but a *timing key* does not, see below). Discovery is
   `support.no_repository_above`. One limit remains: a CLI subprocess run
   against a plain directory still meets the unbounded walk, so such a test
   creates its directory where no ancestor can hold a `.git`.
+- **A chunk runs with `gh` telemetry off.** `isolation.chunk_env` sets
+  `GH_TELEMETRY=false` and `DO_NOT_TRACK=1`, overriding anything inherited
+  from the parent shell or CI runner. A real `gh` otherwise starts a detached
+  `gh send-telemetry` that outlives the chunk, and the orphan check rejects
+  it. A caller's explicit `extra` environment may still override them. An
+  orphan exception in `orphan_sources` is not the remedy for it.
 - **Timing data is not Workflow state.** `timings.json` only orders and
   balances work. It never selects, adds or drops a test. Observed timings
   go to a per-user cache outside the checkout.

@@ -19,4 +19,9 @@ revision 2, base `184682b`, branch `milestone/chunk-gh-telemetry`): roadmap row 
   chunk process under hostile outer values and asserts the quiet ones.
 - Checks: `--select test_orphan_processes.py` and `--select test_parallel_runner.py` green.
 
-### CP2: architecture note and bookkeeping -- pending
+### CP2: architecture note and bookkeeping -- complete
+
+- `docs/ARCHITECTURE.md`, "Verification execution": one bullet next to the Git discovery
+  ceiling bullet says a chunk runs with `gh` telemetry off, why (the orphan check), and that
+  an orphan exception is not the remedy.
+- Checks: `--select test_docs.py` green.
