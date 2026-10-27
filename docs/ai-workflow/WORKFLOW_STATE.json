@@ -15738,12 +15738,12 @@
       "registry_path": "docs/ai-workflow/registry/runner-hardening-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/runner-hardening-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "SELF_REVIEWING_IMPLEMENTATION",
+      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
       "plan_revision": 1,
-      "implementation_revision": null,
+      "implementation_revision": 1,
       "functional_review_round": null,
       "base_commit": "f0ea500d2224ca6d6dc323b7b354a21156ce12b9",
-      "reviewed_implementation_head": null,
+      "reviewed_implementation_head": "b78d19b5686351cdb02404b0185b1327635048f6",
       "current_checkpoint_id": null,
       "last_completed_checkpoint_id": "CP2",
       "checkpoints": {
@@ -15882,8 +15882,8 @@
           "external": 0
         }
       },
-      "state_revision": 10,
-      "last_transition": "2026-10-27T15:25:19Z",
+      "state_revision": 11,
+      "last_transition": "2026-10-27T15:40:22Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
