@@ -3121,12 +3121,14 @@ class TestRunChunk(_ScratchCase):
         for git_template in (None, template):
             with self.subTest(git_template=git_template), \
                     mock.patch.dict(os.environ, {"PYTHONPATH": "/nowhere", "FORCE_COLOR": "1",
-                                                 "GIT_TEMPLATE_DIR": "/elsewhere"}):
+                                                 "GIT_TEMPLATE_DIR": "/elsewhere",
+                                                 "GH_TELEMETRY": "true", "DO_NOT_TRACK": "0"}):
                 run = self.run_script("env", """
                     import json, os, sys
                     env = {k: os.environ.get(k) for k in
                            ("PYTHONPATH", "FORCE_COLOR", "PYTHONDONTWRITEBYTECODE",
-                            "PYTHON_COLORS", "TMPDIR", "WM_EXTRA", "GIT_TEMPLATE_DIR")}
+                            "PYTHON_COLORS", "TMPDIR", "WM_EXTRA", "GIT_TEMPLATE_DIR",
+                            "GH_TELEMETRY", "DO_NOT_TRACK")}
                     # The leak check's wrapper leads the session and group
                     # and is the chunk's parent (test-cleanup plan 5.4).
                     env["own_session"] = os.getsid(0) == os.getpgid(0) == os.getppid()
@@ -3142,6 +3144,7 @@ class TestRunChunk(_ScratchCase):
                 self.assertIsNone(env["FORCE_COLOR"])
                 self.assertEqual((env["PYTHONDONTWRITEBYTECODE"], env["PYTHON_COLORS"],
                                   env["WM_EXTRA"]), ("1", "0", "1"))
+                self.assertEqual((env["GH_TELEMETRY"], env["DO_NOT_TRACK"]), ("false", "1"))
                 self.assertEqual(env["TMPDIR"],
                                  str(isolation.chunk_paths(self.run_dir, "env").tmp))
                 self.assertEqual(env["GIT_TEMPLATE_DIR"],

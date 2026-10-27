@@ -315,6 +315,85 @@ class TestChunkEnvGitConfig(_Tmp):
         isolation.check_git_env(stripped_env())
 
 
+# -- gh telemetry: the chunk environment keeps the real `gh` from starting a process -----------
+
+_STUB_GH = """#!/bin/sh
+# Stands in for `gh`: logs the two switches and, as the real one does when
+# telemetry is not disabled, "sends" by writing a marker -- never a process.
+echo "GH_TELEMETRY=${GH_TELEMETRY-<unset>} DO_NOT_TRACK=${DO_NOT_TRACK-<unset>}" >> "$STUB_LOG"
+case "${GH_TELEMETRY-}" in false|0) exit 0;; esac
+if [ -z "${GH_TELEMETRY-}" ]; then
+  case "${DO_NOT_TRACK-}" in 1|true) exit 0;; esac
+fi
+: > "$STUB_SENT"
+"""
+
+
+def _telemetry_free_env(**extra: str) -> dict:
+    """`stripped_env()` without either telemetry switch: a chunk already
+    holds both, so a test must not read its base from `os.environ`."""
+    env = stripped_env(**extra)
+    env.pop("GH_TELEMETRY", None)
+    env.pop("DO_NOT_TRACK", None)
+    return env
+
+
+class TestChunkEnvGhTelemetry(_Tmp):
+
+    QUIET = {"GH_TELEMETRY": "false", "DO_NOT_TRACK": "1"}
+
+    def chunk_env(self, base: dict, extra: dict | None = None) -> dict:
+        return isolation.chunk_env(self.tmp / "chunk-tmp", extra=extra, base=base)
+
+    def test_both_variables_are_set(self):
+        env = self.chunk_env(_telemetry_free_env())
+        self.assertEqual({k: env.get(k) for k in self.QUIET}, self.QUIET)
+
+    def test_an_inherited_value_is_overridden(self):
+        env = self.chunk_env(_telemetry_free_env(GH_TELEMETRY="true", DO_NOT_TRACK="0"))
+        self.assertEqual({k: env.get(k) for k in self.QUIET}, self.QUIET)
+
+    def test_an_explicit_extra_overrides(self):
+        env = self.chunk_env(_telemetry_free_env(), extra={"GH_TELEMETRY": "true"})
+        self.assertEqual((env["GH_TELEMETRY"], env["DO_NOT_TRACK"]), ("true", "1"))
+
+    def test_nothing_else_changes(self):
+        base = _telemetry_free_env(PYTHONPATH="/nowhere", FORCE_COLOR="1", KEEP_ME="as-is")
+        env = self.chunk_env(base)
+        touched = {k for k in set(base) | set(env) if base.get(k) != env.get(k)}
+        allowed = {"PYTHONPATH", "FORCE_COLOR", "PYTHONDONTWRITEBYTECODE", "PYTHON_COLORS",
+                   "TMPDIR", "GIT_CEILING_DIRECTORIES", "GIT_TEMPLATE_DIR", "GIT_CONFIG_COUNT",
+                   *self.QUIET}
+        allowed |= {k for k in touched if k.startswith(("GIT_CONFIG_KEY_", "GIT_CONFIG_VALUE_"))}
+        self.assertEqual(touched - allowed, set())
+        self.assertTrue(set(self.QUIET) <= touched)
+        self.assertEqual(env["KEEP_ME"], "as-is")
+
+    def run_stub(self, env: dict) -> tuple[str, bool]:
+        bindir = self.tmp / "bin"
+        bindir.mkdir(exist_ok=True)
+        stub = bindir / "gh"
+        stub.write_text(_STUB_GH)
+        stub.chmod(0o755)
+        log, sent = self.tmp / "gh.log", self.tmp / "gh.sent"
+        for path in (log, sent):
+            path.unlink(missing_ok=True)
+        env = {**env, "PATH": f"{bindir}{os.pathsep}{env.get('PATH', '')}",
+               "STUB_LOG": str(log), "STUB_SENT": str(sent)}
+        subprocess.run(["gh", "send-telemetry"], env=env, check=True)
+        return log.read_text().strip(), sent.exists()
+
+    def test_the_stub_gh_stays_quiet_under_the_chunk_environment(self):
+        logged, sent = self.run_stub(self.chunk_env(_telemetry_free_env()))
+        self.assertEqual(logged, "GH_TELEMETRY=false DO_NOT_TRACK=1")
+        self.assertFalse(sent)
+
+    def test_the_stub_gh_sends_without_it(self):
+        logged, sent = self.run_stub(_telemetry_free_env())
+        self.assertEqual(logged, "GH_TELEMETRY=<unset> DO_NOT_TRACK=<unset>")
+        self.assertTrue(sent)
+
+
 # -- T-QG-2: the per-repository layer and the run's template ----------------------------------
 
 class TestThrowawayRepositories(_Tmp):

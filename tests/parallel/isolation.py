@@ -519,14 +519,18 @@ def chunk_env(tmpdir: Path, extra: dict | None = None, base: dict | None = None,
     a chunk, plus `GIT_CEILING_DIRECTORIES` led by the private `TMPDIR`, so
     Git never ascends above the chunk's scratch into a stray ancestor
     repository (an inherited entry stays after it; a nested call is a
-    no-op). Raises `GitConfigEnvError` on an inherited series it cannot
-    extend."""
+    no-op), plus `GH_TELEMETRY=false` and `DO_NOT_TRACK=1`, so a `gh` a test
+    runs never leaves a detached `send-telemetry` for the orphan check to
+    reject (an inherited value never wins; `extra` may override). Raises
+    `GitConfigEnvError` on an inherited series it cannot extend."""
     env = dict(os.environ if base is None else base)
     env.pop("PYTHONPATH", None)
     env.pop("FORCE_COLOR", None)
     env["PYTHONDONTWRITEBYTECODE"] = "1"
     env["PYTHON_COLORS"] = "0"
     env["TMPDIR"] = str(tmpdir)
+    env["GH_TELEMETRY"] = "false"
+    env["DO_NOT_TRACK"] = "1"
     env.update(extra or {})
     env["GIT_CEILING_DIRECTORIES"] = ceiling_with(str(tmpdir), env.get("GIT_CEILING_DIRECTORIES"))
     if git_template is None:
