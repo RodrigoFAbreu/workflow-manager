@@ -53,6 +53,21 @@ merge). Plan: `docs/ai-workflow/WORKFLOW_MANAGER_RETENTION_STATUS_PLAN.md`.
 Row 17 of `docs/ROADMAP.md` is Current (set when the plan started); it becomes Done at
 acceptance. This file records the milestone. No version is edited.
 
+### Verification
+
+- Full gate, first run at `7a6d4bf`: `python3 tests/run_all.py` -> exit 1, one failure
+  (`test_orphan_processes.py::TestRoutingCheck`, the recipe's bare `git init`; fixed in
+  `ef52005`).
+- Full gate, second run at `ef52005`: `python3 tests/run_all.py` -> exit 0 (full
+  selection, 8 workers, 2302/2302 units, 15212 tests, orphan check on; `selection_digest
+  20d92751...`, `tests_digest dfc9a75f...`, `tree_digest 2cb5d9dc...`).
+- `python3 tools/check_docs.py` -> exit 0.
+- Red first: with `3019c95`'s `src/` under `ef52005`'s tree (a scratch copy outside the
+  repository), `python3 -m unittest test_retention_status` fails to import
+  `workflow_manager.retention`, and `status --retention` and `doctor --retention` exit 2
+  (`unrecognized arguments: --retention`). The SIGTERM-ignoring-child test also fails
+  against `7a6d4bf`'s parent (it times out).
+
 ## Current checkpoint
 
 None: every checkpoint is complete; in self-review.
