@@ -15105,12 +15105,12 @@
       "registry_path": "docs/ai-workflow/registry/chunk-gh-telemetry-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/chunk-gh-telemetry-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "APPLYING_REVIEW_FEEDBACK",
+      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
       "plan_revision": 2,
-      "implementation_revision": 1,
+      "implementation_revision": 2,
       "functional_review_round": null,
       "base_commit": "184682b9e37325723e1143325a15aa911154bc9b",
-      "reviewed_implementation_head": "52524c4f5df4edc88b994b5f5829e8d099788e51",
+      "reviewed_implementation_head": "7a2ee7f53b2a01800e06832b42120288c22f45d6",
       "current_checkpoint_id": null,
       "last_completed_checkpoint_id": "CP2",
       "checkpoints": {
@@ -15249,8 +15249,8 @@
           "external": 0
         }
       },
-      "state_revision": 15,
-      "last_transition": "2026-10-27T11:25:07Z",
+      "state_revision": 16,
+      "last_transition": "2026-10-27T11:51:22Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
