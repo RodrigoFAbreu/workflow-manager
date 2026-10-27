@@ -14017,7 +14017,7 @@
       "registry_path": "docs/ai-workflow/registry/retention-status-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/retention-status-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "AWAITING_FUNCTIONAL_REVIEW",
       "plan_revision": 7,
       "implementation_revision": 3,
       "functional_review_round": null,
@@ -14126,7 +14126,150 @@
           "workflow_release": "2.22.0"
         }
       },
-      "technical_approval": null,
+      "technical_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "04593c6d4c8c3466d8db071a1376b52b7f19ac83c5108dd6d1cd2d42364603af",
+        "approved_review_content_id": "4c1405f6b10753265784c0864c923517d55d6c4d40ad87144d16ed3faa5e01a0",
+        "review_content_manifest": [
+          {
+            "path": "docs/README.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "5d8f2ecdf86d12b38166dbb09d8e0f72f29e032d"
+          },
+          {
+            "path": "docs/ai-workflow/registry/retention-status-artifacts.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "12fddf0ae73941da56e85a6940cd30735238a4e7"
+          },
+          {
+            "path": "docs/exit-codes.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "ca09d354bca57dec0068636826439fb46274e694"
+          },
+          {
+            "path": "docs/retention.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "41eb090fb47d0f5ebd8f29715e8108fe55e85a5b"
+          },
+          {
+            "path": "docs/update.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "a236ab72e9c5fec6991c9b03d5d3c4d3d2af3765"
+          },
+          {
+            "path": "docs/verify.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "2685dc60c3f0fa844ce60e948f4296a6c4bfbcdd"
+          },
+          {
+            "path": "src/workflow_manager/cli.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "2a13645e50458f7d6c9badb2fb4d3921f9bee996"
+          },
+          {
+            "path": "src/workflow_manager/retention.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "3e0680b0481c9061d5855225e657b1bdc74c8d23"
+          },
+          {
+            "path": "tests/fixtures/retention_report.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "b076f3c0b6996b5598e15e6718d3aee25e535431"
+          },
+          {
+            "path": "tests/retention_recipe.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "1342b7b3efe0361c1db7ba5556be65e035d19c13"
+          },
+          {
+            "path": "tests/test_retention_status.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "f1bfec9d0020831048a47d45b98b0039b248efe3"
+          },
+          {
+            "path": "tools/check_docs.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "4df342d5384e3291eb73fe18365ce3efd81a2cf0"
+          }
+        ],
+        "reviewed_content_commit": "7c1d8f06d4dd335bbf301a5ce369fa5bc3f5c034",
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-10-27T06:37:46Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "4c1405f6b10753265784c0864c923517d55d6c4d40ad87144d16ed3faa5e01a0",
+            "ledger": {
+              "local": {
+                "bundle_id": "04593c6d4c8c3466d8db071a1376b52b7f19ac83c5108dd6d1cd2d42364603af",
+                "verdict": "APPROVE",
+                "round": 3,
+                "verdict_sha256": "cf0888eeba907d0ec227c87114f7867ae8825df3b10ee806c5c7026c533a00bf",
+                "ledger_entry_sha256": "487cf7f112ba06affa2034a24c69f246d588a0a21ab93559865c0a71c8b19582",
+                "run_ref": "session:local .ai-review/retention-status/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "04593c6d4c8c3466d8db071a1376b52b7f19ac83c5108dd6d1cd2d42364603af",
+                "verdict": "APPROVE",
+                "round": 3,
+                "verdict_sha256": "16e6ea37fd257cf2e17d9b271202fafdebb5fc6d8381b4734b7f0798d78116a5",
+                "ledger_entry_sha256": "52523ad6dd04f12b68cb040964e6a7130f3978d5f4f367aba98d449706cfc9a4",
+                "run_ref": "session:local .ai-review/retention-status/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-10-27T06:37:46Z",
+          "workflow_release": "2.22.0"
+        }
+      },
       "technical_review_block_pins": [],
       "plan_review_stages": {
         "review_content_id": "f87e48a013794db4d563cd35f24c2a13d97ef8fe35e3d821048ef0890b5712e0",
@@ -14157,12 +14300,12 @@
           "external": 3
         },
         "implementation": {
-          "local": 2,
-          "external": 1
+          "local": 3,
+          "external": 2
         }
       },
-      "state_revision": 36,
-      "last_transition": "2026-10-27T06:10:20Z",
+      "state_revision": 39,
+      "last_transition": "2026-10-27T06:37:46Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -14428,20 +14571,70 @@
               "at": "2026-10-27T05:34:50Z"
             }
           ]
+        },
+        "F-b6e7af79d1ab": {
+          "digest": "b6e7af79d1ab373b8d8ee6354b0aecaf22dce46d48999a14bb47e3ccf13032b0",
+          "text": "**LIR3-001 (evidence wording): `TEST_RESULTS.md`'s opening paragraph still describes round 1.** It says \"The reviewed head `e36610b` is a docs commit ... (`cc0a217`, the generation record ...)\". The header and the \"Round 3\" section below it are correct. A reader who skims could take the stale sentence as this round's heads. Move the sentence under a round-1 heading in the next bundle, or drop it.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 3,
+              "review_content_id": "4c1405f6b10753265784c0864c923517d55d6c4d40ad87144d16ed3faa5e01a0",
+              "verdict": "APPROVE",
+              "at": "2026-10-27T06:25:18Z"
+            }
+          ]
+        },
+        "F-db231f050947": {
+          "digest": "db231f0509478e883b075f56a9eb18d1473237cf53dc5586c983e72588d73efd",
+          "text": "**LIR3-002 (usability): the kind and schema_version refusals print an unbounded `repr`.** At `retention.py:285-292`, the cause line embeds `repr(report.get(\"kind\"))`. A non-string `kind`, such as a large nested list, prints as one very long line. Everything stays escaped, so this is cosmetic. Truncate the `repr` (for example to 60 characters), or name only its type when the value is not a string.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 3,
+              "review_content_id": "4c1405f6b10753265784c0864c923517d55d6c4d40ad87144d16ed3faa5e01a0",
+              "verdict": "APPROVE",
+              "at": "2026-10-27T06:25:18Z"
+            }
+          ]
+        },
+        "F-7a4ee7df0784": {
+          "digest": "7a4ee7df0784782f05368fd344c846266ee920c3868fcedc61463b54af226e6b",
+          "text": "**EIR-003 [substantive] — Exceptional values do not uniformly use the requested fallback.** Validation at `src/workflow_manager/retention.py:198` and `src/workflow_manager/retention.py:216` accepts negative integers; both commands render `finished_folder_bytes: -1` as `-1 B`. Huge integers render safely through `src/workflow_manager/retention.py:307`, and million-character strings also render normally. Thus the requested blanket two-line fallback is not implemented for these values. Range and length limits with both-command regressions would close that gap. These probes preserved exit codes and produced no traceback, so this remains Optional under the supplied severity rules.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW",
+              "round": 3,
+              "review_content_id": "4c1405f6b10753265784c0864c923517d55d6c4d40ad87144d16ed3faa5e01a0",
+              "verdict": "APPROVE",
+              "at": "2026-10-27T06:37:10Z"
+            }
+          ]
         }
       },
       "implementation_review_stages": {
-        "review_content_id": "8f3b093b65bedda1b3e41cc7ea078b6a74bfe5909d5d183fd7286fc621054256",
+        "review_content_id": "4c1405f6b10753265784c0864c923517d55d6c4d40ad87144d16ed3faa5e01a0",
         "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {
-          "bundle_id": "622c3f51b6f4cb4f9c83e338f2e14e93be1f7260c3bb6d29d2c5f41d4c336756",
+          "bundle_id": "04593c6d4c8c3466d8db071a1376b52b7f19ac83c5108dd6d1cd2d42364603af",
           "verdict": "APPROVE",
-          "round": 1,
-          "completed_at": "2026-10-27T04:54:14Z",
-          "verdict_sha256": "4a0520835b810964246b0fb26c59596bdca2b442c84c8939c8426f3650547e5f",
+          "round": 3,
+          "completed_at": "2026-10-27T06:25:18Z",
+          "verdict_sha256": "cf0888eeba907d0ec227c87114f7867ae8825df3b10ee806c5c7026c533a00bf",
           "run_ref": "session:local .ai-review/retention-status/feedback/REVIEW_FEEDBACK.md",
           "reviewer_model": "anthropic/claude-opus-5-5"
         },
-        "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": null
+        "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "04593c6d4c8c3466d8db071a1376b52b7f19ac83c5108dd6d1cd2d42364603af",
+          "verdict": "APPROVE",
+          "round": 3,
+          "completed_at": "2026-10-27T06:37:10Z",
+          "verdict_sha256": "16e6ea37fd257cf2e17d9b271202fafdebb5fc6d8381b4734b7f0798d78116a5",
+          "run_ref": "session:local .ai-review/retention-status/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "openai/gpt-6.1-sol"
+        }
       }
     }
   }
