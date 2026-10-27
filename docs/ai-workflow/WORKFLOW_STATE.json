@@ -14017,7 +14017,7 @@
       "registry_path": "docs/ai-workflow/registry/retention-status-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/retention-status-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "APPLYING_REVIEW_FEEDBACK",
       "plan_revision": 7,
       "implementation_revision": 2,
       "functional_review_round": null,
@@ -14157,12 +14157,12 @@
           "external": 3
         },
         "implementation": {
-          "local": 1,
+          "local": 2,
           "external": 1
         }
       },
-      "state_revision": 34,
-      "last_transition": "2026-10-27T05:17:58Z",
+      "state_revision": 35,
+      "last_transition": "2026-10-27T05:34:50Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -14412,6 +14412,20 @@
               "review_content_id": "8f3b093b65bedda1b3e41cc7ea078b6a74bfe5909d5d183fd7286fc621054256",
               "verdict": "APPROVE",
               "at": "2026-10-27T04:54:14Z"
+            }
+          ]
+        },
+        "F-b9c3ce2ed6ac": {
+          "digest": "b9c3ce2ed6ac1822fb64c067019d56271f7525648ced94f321a268656ca83d9b",
+          "text": "**LIR2-003 (robustness): report strings are printed raw, so a control character can forge lines.** `_printable` rejects unpaired surrogates but accepts `\\n`, `\\r` and ANSI escapes. A `repository`, `archive_dir`, `read_errors[].path`/`error`, `work_item_id` or `removing` value containing `\"\\nnext: ...\"` would print a line that starts `next:` at column 0. That breaks the invariant `REVIEW_REQUEST.md` states, that the command's own `next:` line is the only one there. The source is the repository's own state and script, so the risk is low. Rejecting (case 6) or escaping control characters in `_printable` would close it.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 2,
+              "review_content_id": "fcac87e26a004a406748fb5bc8a1e2b61ee2ba3ce6feb18a6cd5f4fb72ee4c34",
+              "verdict": "REVISE",
+              "at": "2026-10-27T05:34:50Z"
             }
           ]
         }
