@@ -4745,15 +4745,10 @@ class TestLockAndRecoveryThroughTheCli(_CliCase):
         self.assertEqual(wt_run.returncode, 0, out + err)
         self.assertEqual(_guarded_modes(worktree), wt_modes)
 
-
-# -- runner hardening: SIGINT when ignored, cleanup after the report ---------------------------
-
-class TestSigintWhenIgnored(_CliCase):
-    """A run started with `SIGINT` ignored (a `&` job of a non-interactive
-    shell) is still interrupted cleanly by it: the interpreter installs its
-    default handler only when `SIGINT` is not ignored, so the executor
-    installs its own."""
-
+    # A run started with `SIGINT` ignored (a `&` job of a non-interactive
+    # shell) is still interrupted cleanly by it: the interpreter installs its
+    # default handler only when `SIGINT` is not ignored, so the executor
+    # installs its own.
     def _interrupt(self, signum):
         scratch = scratch_checkout(self.tmp / signum.name,
                                    modules={"test_scratch_wait.py": WAIT_MODULE})
