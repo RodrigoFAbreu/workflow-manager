@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_work_item_id": null,
+  "active_work_item_id": "chunk-gh-telemetry",
   "work_items": {
     "plan-amendment-mechanism": {
       "work_item_type": "process",
@@ -15094,6 +15094,247 @@
         },
         "evaluated_at": "2026-10-27T07:48:33Z",
         "workflow_release": "2.22.0"
+      }
+    },
+    "chunk-gh-telemetry": {
+      "work_item_type": "process",
+      "work_item_kind": "process",
+      "work_item_id": "chunk-gh-telemetry",
+      "parent_work_item_id": null,
+      "plan_path": "docs/ai-workflow/WORKFLOW_MANAGER_CHUNK_GH_TELEMETRY_PLAN.md",
+      "registry_path": "docs/ai-workflow/registry/chunk-gh-telemetry-registry.json",
+      "mapping_path": "docs/ai-workflow/requirements/chunk-gh-telemetry-mapping.json",
+      "governing_workflow_version": "2.2",
+      "phase": "IMPLEMENTING",
+      "plan_revision": 2,
+      "implementation_revision": null,
+      "functional_review_round": null,
+      "base_commit": "184682b9e37325723e1143325a15aa911154bc9b",
+      "reviewed_implementation_head": null,
+      "current_checkpoint_id": null,
+      "last_completed_checkpoint_id": null,
+      "checkpoints": {},
+      "current_bundle_id": "e10e73a61653f822e7f35ffd5db4348f52d38075c51424624bfb6ddcad859b44",
+      "plan_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "e10e73a61653f822e7f35ffd5db4348f52d38075c51424624bfb6ddcad859b44",
+        "approved_review_content_id": "feafe52746b0461a0cabf0a96b8169d107a3a18c801cbc65321382202752eb1f",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/WORKFLOW_MANAGER_CHUNK_GH_TELEMETRY_PLAN.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "9640f9dbf8efdcb88619ec01f395bdaeaaf172d7"
+          },
+          {
+            "path": "docs/ai-workflow/registry/chunk-gh-telemetry-registry.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "86da8ed536d05866cc62ba64509bc51b3adaadd0"
+          },
+          {
+            "path": "docs/ai-workflow/requirements/chunk-gh-telemetry-mapping.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "013f2a5db03851ccf9aa899bea875e1c1889085c"
+          }
+        ],
+        "reviewed_content_commit": null,
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-10-27T11:00:31Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "feafe52746b0461a0cabf0a96b8169d107a3a18c801cbc65321382202752eb1f",
+            "ledger": {
+              "local": {
+                "bundle_id": "e10e73a61653f822e7f35ffd5db4348f52d38075c51424624bfb6ddcad859b44",
+                "verdict": "APPROVE",
+                "round": 2,
+                "verdict_sha256": "bb2c9ec8dde4cc117768e97cb2f5165aa213ee9e5f5fb979d5d0ec3c1be642e8",
+                "ledger_entry_sha256": "110402377a9179e48cc2a21a7a6ec7d8ea5c3b5da5e5c8089bc0befdf257778e",
+                "run_ref": "session:local .ai-review/chunk-gh-telemetry/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "e10e73a61653f822e7f35ffd5db4348f52d38075c51424624bfb6ddcad859b44",
+                "verdict": "APPROVE",
+                "round": 2,
+                "verdict_sha256": "26049d1e13044ab82e6bf8c2b10dc4edd3978d07b679649f820ec8bf85ccb8da",
+                "ledger_entry_sha256": "f8e9b21d43a827ef92a109e251b6de557089398f0054fc9a4469aa8b20c5220b",
+                "run_ref": "session:local .ai-review/chunk-gh-telemetry/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-10-27T11:00:31Z",
+          "workflow_release": "2.22.0"
+        }
+      },
+      "technical_approval": null,
+      "technical_review_block_pins": [],
+      "plan_review_stages": {
+        "review_content_id": "feafe52746b0461a0cabf0a96b8169d107a3a18c801cbc65321382202752eb1f",
+        "LOCAL_MODEL_PLAN_REVIEW": {
+          "bundle_id": "e10e73a61653f822e7f35ffd5db4348f52d38075c51424624bfb6ddcad859b44",
+          "verdict": "APPROVE",
+          "round": 2,
+          "completed_at": "2026-10-27T10:53:27Z",
+          "verdict_sha256": "bb2c9ec8dde4cc117768e97cb2f5165aa213ee9e5f5fb979d5d0ec3c1be642e8",
+          "run_ref": "session:local .ai-review/chunk-gh-telemetry/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_PLAN_REVIEW": {
+          "bundle_id": "e10e73a61653f822e7f35ffd5db4348f52d38075c51424624bfb6ddcad859b44",
+          "verdict": "APPROVE",
+          "round": 2,
+          "completed_at": "2026-10-27T10:59:45Z",
+          "verdict_sha256": "26049d1e13044ab82e6bf8c2b10dc4edd3978d07b679649f820ec8bf85ccb8da",
+          "run_ref": "session:local .ai-review/chunk-gh-telemetry/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "openai/gpt-6.1-sol"
+        }
+      },
+      "functional_acceptance_status": null,
+      "blocking_decisions": [],
+      "review_round_counts": {
+        "plan": {
+          "local": 2,
+          "external": 1
+        },
+        "implementation": {
+          "local": 0,
+          "external": 0
+        }
+      },
+      "state_revision": 9,
+      "last_transition": "2026-10-27T11:00:31Z",
+      "feedback_layout": "scoped",
+      "plan_review_binding": {
+        "status": "BOUND",
+        "at": "2026-10-27T10:51:59Z",
+        "consumed": {
+          "review_content_id": "b7cc6ca568c92b83eac9a0a565bda9ae30b1ec7cf85e16797bf72fd5a27b2a9c",
+          "plan_revision": 1,
+          "legacy": false
+        },
+        "published": {
+          "review_content_id": "feafe52746b0461a0cabf0a96b8169d107a3a18c801cbc65321382202752eb1f",
+          "plan_revision": 2
+        },
+        "bound": {
+          "review_content_id": "feafe52746b0461a0cabf0a96b8169d107a3a18c801cbc65321382202752eb1f",
+          "bundle_id": "e10e73a61653f822e7f35ffd5db4348f52d38075c51424624bfb6ddcad859b44",
+          "plan_revision": 2
+        }
+      },
+      "consumed_plan_review_content_ids": [
+        "b7cc6ca568c92b83eac9a0a565bda9ae30b1ec7cf85e16797bf72fd5a27b2a9c"
+      ],
+      "optional_findings": {
+        "F-8f52355ad883": {
+          "digest": "8f52355ad8833f2340fc4dfec1a3ac455f73f1b371e88263af7aa3f812c3650c",
+          "text": "**LPR1-003: section 2's \"the runner passes none today\" is inaccurate.** `executor.py`'s phase B passes `extra_env` (`phase_b_env()`, `tests/parallel/executor.py:383-385, 400`: the records and context paths) through `run_one` -> `isolation.run_chunk` -> `chunk_env`. Only `prepare_merge` (line 375) calls `chunk_env` with the Git template alone. The conclusion holds, because no extra the runner passes names either variable, but the sentence should say that instead.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "b7cc6ca568c92b83eac9a0a565bda9ae30b1ec7cf85e16797bf72fd5a27b2a9c",
+              "verdict": "REVISE",
+              "at": "2026-10-27T10:50:21Z"
+            }
+          ]
+        },
+        "F-9afd3e0bfa1c": {
+          "digest": "9afd3e0bfa1c54c877bc6305a189e3ced59d04667d2297a0c9a8879b5384363c",
+          "text": "**LPR1-004: record why the fix reaches the `gh` that orphans.** The plan's correctness depends on the frozen suites' `gh`-calling children inheriting `os.environ` (true for 2.22.0: `{k: v for k, v in os.environ.items() if k not in (...)}`). An allowlisted environment (`support.pinned_env`/`cli_env`, `tests/retention_recipe.py:93`) would drop the variables. None of those reaches the real `gh` today. A sentence in section 5 would tell a later reader where the guarantee ends.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "b7cc6ca568c92b83eac9a0a565bda9ae30b1ec7cf85e16797bf72fd5a27b2a9c",
+              "verdict": "REVISE",
+              "at": "2026-10-27T10:50:21Z"
+            }
+          ]
+        },
+        "F-7c6e34e36e60": {
+          "digest": "7c6e34e36e60ef0aeba90b3d4042de9b5bd1562c38294f18de5bb657bd93a888",
+          "text": "**LPR2-001: \"Each test below fails at `184682b`\" includes the control.** `test_the_stub_gh_sends_without_it` runs the stub under `_telemetry_free_env()` and never calls `chunk_env`, so it passes at the base commit as well as after. That is correct for a control, but section 3 and CP1's evidence (\"the new tests fail first at `184682b`\") claim otherwise. The implementation should record the control as passing at the base, so the fail-first evidence is not misread as a gap.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "feafe52746b0461a0cabf0a96b8169d107a3a18c801cbc65321382202752eb1f",
+              "verdict": "APPROVE",
+              "at": "2026-10-27T10:53:27Z"
+            }
+          ]
+        },
+        "F-d7fff220d376": {
+          "digest": "d7fff220d376b8bb12512f302378a5db41be90e4ba09703ffe2456637fc72c8a",
+          "text": "**EPR-001 [substantive] — Exempt the control from the fail-first wording.**\n  Section 3, lines 80–100, says every listed test fails at the base; CP1, lines 130–138, repeats that expectation. The plain-environment control intentionally passes both before and after implementation. Record it as a passing control alongside failing regression assertions.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "MANUAL_EXTERNAL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "feafe52746b0461a0cabf0a96b8169d107a3a18c801cbc65321382202752eb1f",
+              "verdict": "APPROVE",
+              "at": "2026-10-27T10:59:45Z"
+            }
+          ]
+        },
+        "F-d011594ed212": {
+          "digest": "d011594ed212fc49e81485c92299f7ed94adec677f13e10fb6b3ed8f233f1600",
+          "text": "**EPR-002 [apparatus] — Reconcile the handoff’s revision label.**\n  The requested verdict specifies revision 1, but the plan header at line 1, bundle manifest, and work-item state identify revision 2. The supplied content ID recomputes using revision 2. Align the approval record with that bound revision; no design change or additional review round is needed.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "MANUAL_EXTERNAL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "feafe52746b0461a0cabf0a96b8169d107a3a18c801cbc65321382202752eb1f",
+              "verdict": "APPROVE",
+              "at": "2026-10-27T10:59:45Z"
+            }
+          ]
+        }
       }
     }
   }

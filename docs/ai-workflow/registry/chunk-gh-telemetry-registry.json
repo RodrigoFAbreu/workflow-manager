@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "work_item_id": "chunk-gh-telemetry",
+  "plan_revision": 2,
+  "checkpoints": [
+    {
+      "id": "CP1",
+      "name": "Quiet gh telemetry in the chunk environment, with tests",
+      "depends_on": [],
+      "complexity": 1,
+      "session_target": 1
+    },
+    {
+      "id": "CP2",
+      "name": "Architecture note and bookkeeping",
+      "depends_on": [
+        "CP1"
+      ],
+      "complexity": 1,
+      "session_target": 1
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "work_item_id": "chunk-gh-telemetry",
+  "requirements": {
+    "R1": {
+      "description": "chunk_env sets GH_TELEMETRY=false and DO_NOT_TRACK=1 before the extras; inherited values never win, an explicit extra may override; the rest of the environment is unchanged",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R2": {
+      "description": "Hermetic tests with a stub gh prove the chunk environment is quiet and the plain environment is not; the executor's chunk records both variables",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R3": {
+      "description": "docs/ARCHITECTURE.md Verification execution says a chunk runs with gh telemetry off",
+      "checkpoint_ids": [
+        "CP2"
+      ]
+    },
+    "R4": {
+      "description": "Roadmap row 18 Current at planning, Done at acceptance; no orphan exception, no src change, no release",
+      "checkpoint_ids": [
+        "CP2"
+      ]
+    }
+  }
+}
