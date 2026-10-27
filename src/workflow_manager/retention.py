@@ -175,7 +175,17 @@ def _need(obj, key, kinds, where):
         name = getattr(kinds, "__name__", "value")
         raise _Invalid(f"{where}.{key} is {_type_name(value)}, not {name}" if where
                        else f"{key} is {_type_name(value)}, not {name}")
+    if kinds is str:
+        _printable(value, f"{where}.{key}" if where else key)
     return value
+
+
+def _printable(text: str, name: str) -> None:
+    """A string the report carries must be printable (no unpaired surrogate)."""
+    try:
+        text.encode("utf-8")
+    except UnicodeEncodeError:
+        raise _Invalid(f"{name} is not valid text") from None
 
 
 def _validate(report: dict) -> None:
@@ -212,6 +222,8 @@ def _validate(report: dict) -> None:
         removing = report["removing"]
         if not isinstance(removing, list) or not all(isinstance(i, str) for i in removing):
             raise _Invalid(f"removing is {_type_name(removing)}, not a list of strings")
+        for item in removing:
+            _printable(item, "removing")
 
 
 def _first_line(text: str) -> str:
@@ -293,12 +305,13 @@ def fetch(target: Path) -> Outcome:
 # ---------------------------------------------------------------------------
 
 def _size(count: int) -> str:
-    value = float(count)
-    for unit in ("B", "KiB", "MiB"):
-        if value < 1024:
-            return f"{int(value)} B" if unit == "B" else f"{value:.1f} {unit}"
-        value /= 1024
-    return f"{value:.1f} GiB"
+    for unit, shift in (("B", 0), ("KiB", 10), ("MiB", 20)):
+        if count < 1 << (shift + 10):
+            return f"{count} B" if unit == "B" else f"{count / (1 << shift):.1f} {unit}"
+    try:
+        return f"{count / (1 << 30):.1f} GiB"
+    except OverflowError:  # beyond float range: whole GiB, never a traceback
+        return f"{count >> 30} GiB"
 
 
 def _listed(items: list[str], limit: int = 5) -> str:

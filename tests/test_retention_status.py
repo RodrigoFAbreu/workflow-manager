@@ -632,6 +632,34 @@ class TestMalformedReports(Scratch):
         del rep["finished"][0]["archive"]
         self.case_six(rep, "finished[].archive is missing")
 
+    def test_an_unpaired_surrogate_falls_back_for_both_commands(self):
+        # EIR-002: it cannot be printed, so it is refused before any output.
+        for command in ("status", "doctor"):
+            with self.subTest(command=command):
+                rep = report(finished())
+                rep["repository"] = "\ud800"
+                path = self.put_report(rep)
+                got = self.both(command, STUB_REPORT=str(path))[1]
+                self.one_note(got, "the script's report is malformed")
+                self.assertIn("repository is not valid text", got.stdout)
+
+    def test_a_huge_byte_count_is_rendered_without_a_traceback_for_both_commands(self):
+        # EIR-001: beyond float range the size is whole GiB, the exit code unchanged.
+        for command in ("status", "doctor"):
+            with self.subTest(command=command):
+                rep = report(finished())
+                rep["totals"]["finished_folder_bytes"] = 10 ** 400
+                path = self.put_report(rep)
+                got = self.both(command, STUB_REPORT=str(path))[1]
+                self.assertNotIn("not available", got.stdout)
+
+    def test_size_is_exact_for_ordinary_counts_and_safe_beyond_float_range(self):
+        self.assertEqual(retention._size(5), "5 B")
+        self.assertEqual(retention._size(1536), "1.5 KiB")
+        self.assertEqual(retention._size(3 << 20), "3.0 MiB")
+        self.assertEqual(retention._size(5 << 30), "5.0 GiB")
+        self.assertTrue(retention._size(10 ** 400).endswith(" GiB"))
+
     def test_a_bool_is_not_an_int_and_a_string_is_not_a_bool(self):
         rep = report(finished())
         rep["ttl_days"] = True
