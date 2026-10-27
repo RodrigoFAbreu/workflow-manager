@@ -1,0 +1,26 @@
+{
+ "schema_version": 1,
+ "work_item_id": "chunk-gh-telemetry",
+ "dispositions": {
+  "F-7c6e34e36e60": {
+   "disposition": "fixed",
+   "note": "LPR2-001: the control passes before and after by design; the functional checklist (flow 5) and the implementation state it, and flow 5 confirmed it"
+  },
+  "F-8f52355ad883": {
+   "disposition": "fixed",
+   "note": "LPR1-003: section 2's runner statement was corrected in the plan revision; Codex plan round 1 confirmed the executor and frozen-suite paths"
+  },
+  "F-9afd3e0bfa1c": {
+   "disposition": "fixed",
+   "note": "LPR1-004: the plan records why the fix reaches the gh that orphans and the allowlisted-environment bypass; Codex plan and implementation rounds confirmed it"
+  },
+  "F-d7fff220d376": {
+   "disposition": "fixed",
+   "note": "EPR-001: the control is exempt from the fail-first wording; flow 5 shows the control passing by design"
+  },
+  "F-d011594ed212": {
+   "disposition": "dropped",
+   "reason": "EPR-002: the review handoff's revision label (1) differed from the bound revision (2); the ingest accepted it and no design change was needed"
+  }
+ }
+}

@@ -15095,6 +15095,639 @@
         "evaluated_at": "2026-10-27T07:48:33Z",
         "workflow_release": "2.22.0"
       }
+    },
+    "chunk-gh-telemetry": {
+      "work_item_type": "process",
+      "work_item_kind": "process",
+      "work_item_id": "chunk-gh-telemetry",
+      "parent_work_item_id": null,
+      "plan_path": "docs/ai-workflow/WORKFLOW_MANAGER_CHUNK_GH_TELEMETRY_PLAN.md",
+      "registry_path": "docs/ai-workflow/registry/chunk-gh-telemetry-registry.json",
+      "mapping_path": "docs/ai-workflow/requirements/chunk-gh-telemetry-mapping.json",
+      "governing_workflow_version": "2.2",
+      "phase": "MILESTONE_COMPLETE",
+      "plan_revision": 2,
+      "implementation_revision": 2,
+      "functional_review_round": null,
+      "base_commit": "184682b9e37325723e1143325a15aa911154bc9b",
+      "reviewed_implementation_head": "7a2ee7f53b2a01800e06832b42120288c22f45d6",
+      "current_checkpoint_id": null,
+      "last_completed_checkpoint_id": "CP2",
+      "checkpoints": {
+        "CP1": {
+          "status": "COMPLETE",
+          "start_commit": "a2d04607c1e52a9fba1f5425ff292039277e5ca5"
+        },
+        "CP2": {
+          "status": "COMPLETE",
+          "start_commit": "c4ef7269d2c959a6262b82e098c6f18a9fece126"
+        }
+      },
+      "current_bundle_id": "e10e73a61653f822e7f35ffd5db4348f52d38075c51424624bfb6ddcad859b44",
+      "plan_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "e10e73a61653f822e7f35ffd5db4348f52d38075c51424624bfb6ddcad859b44",
+        "approved_review_content_id": "feafe52746b0461a0cabf0a96b8169d107a3a18c801cbc65321382202752eb1f",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/WORKFLOW_MANAGER_CHUNK_GH_TELEMETRY_PLAN.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "9640f9dbf8efdcb88619ec01f395bdaeaaf172d7"
+          },
+          {
+            "path": "docs/ai-workflow/registry/chunk-gh-telemetry-registry.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "86da8ed536d05866cc62ba64509bc51b3adaadd0"
+          },
+          {
+            "path": "docs/ai-workflow/requirements/chunk-gh-telemetry-mapping.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "013f2a5db03851ccf9aa899bea875e1c1889085c"
+          }
+        ],
+        "reviewed_content_commit": null,
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-10-27T11:00:31Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "feafe52746b0461a0cabf0a96b8169d107a3a18c801cbc65321382202752eb1f",
+            "ledger": {
+              "local": {
+                "bundle_id": "e10e73a61653f822e7f35ffd5db4348f52d38075c51424624bfb6ddcad859b44",
+                "verdict": "APPROVE",
+                "round": 2,
+                "verdict_sha256": "bb2c9ec8dde4cc117768e97cb2f5165aa213ee9e5f5fb979d5d0ec3c1be642e8",
+                "ledger_entry_sha256": "110402377a9179e48cc2a21a7a6ec7d8ea5c3b5da5e5c8089bc0befdf257778e",
+                "run_ref": "session:local .ai-review/chunk-gh-telemetry/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "e10e73a61653f822e7f35ffd5db4348f52d38075c51424624bfb6ddcad859b44",
+                "verdict": "APPROVE",
+                "round": 2,
+                "verdict_sha256": "26049d1e13044ab82e6bf8c2b10dc4edd3978d07b679649f820ec8bf85ccb8da",
+                "ledger_entry_sha256": "f8e9b21d43a827ef92a109e251b6de557089398f0054fc9a4469aa8b20c5220b",
+                "run_ref": "session:local .ai-review/chunk-gh-telemetry/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-10-27T11:00:31Z",
+          "workflow_release": "2.22.0"
+        }
+      },
+      "technical_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "6e3bca86b5940276f59d95c9ce08a99a5880e66ba6e58765436c11a74cea4ddd",
+        "approved_review_content_id": "a9d01c429abb8ba5aeba6402e7b929fc182500eea6248fcbc570c0e5f8066219",
+        "review_content_manifest": [
+          {
+            "path": "docs/ARCHITECTURE.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "b83965669b86626e464d189f03b61ea98fceb34a"
+          },
+          {
+            "path": "docs/ai-workflow/registry/chunk-gh-telemetry-artifacts.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "741ac556b99d4e3d878a92f899115961d5cbba15"
+          },
+          {
+            "path": "tests/parallel/isolation.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "8a8196f946e1d8476356e474277528183fd07bb9"
+          },
+          {
+            "path": "tests/test_orphan_processes.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "6efe4d31e15181d770c460827065eea7c49c18a4"
+          },
+          {
+            "path": "tests/test_parallel_runner.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "6fdd0f55dcc6b7089c52bfd5ce0e051364ab1270"
+          }
+        ],
+        "reviewed_content_commit": "7a2ee7f53b2a01800e06832b42120288c22f45d6",
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-10-27T12:02:57Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "a9d01c429abb8ba5aeba6402e7b929fc182500eea6248fcbc570c0e5f8066219",
+            "ledger": {
+              "local": {
+                "bundle_id": "6e3bca86b5940276f59d95c9ce08a99a5880e66ba6e58765436c11a74cea4ddd",
+                "verdict": "APPROVE",
+                "round": 2,
+                "verdict_sha256": "5fb35a9144b095c95a9cdc1a701917297f42a39189ea09da30021a8b48469af8",
+                "ledger_entry_sha256": "6abd50b6ff3dd6fe4fe3450a3fe48ed7207dbcfeb9d70551251e70cb57c9b451",
+                "run_ref": "session:local .ai-review/chunk-gh-telemetry/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "6e3bca86b5940276f59d95c9ce08a99a5880e66ba6e58765436c11a74cea4ddd",
+                "verdict": "APPROVE",
+                "round": 2,
+                "verdict_sha256": "4fd1eec2c36035d526f8ecebe994ebaab0ef39b53827186b862d5f9127688d56",
+                "ledger_entry_sha256": "ceafc032b3d25cd11e06eec7158ec787eba762e8c21572ea0569ca659b219be6",
+                "run_ref": "session:local.ai-review/chunk-gh-telemetry/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-10-27T12:02:57Z",
+          "workflow_release": "2.22.0"
+        }
+      },
+      "technical_review_block_pins": [],
+      "plan_review_stages": {
+        "review_content_id": "feafe52746b0461a0cabf0a96b8169d107a3a18c801cbc65321382202752eb1f",
+        "LOCAL_MODEL_PLAN_REVIEW": {
+          "bundle_id": "e10e73a61653f822e7f35ffd5db4348f52d38075c51424624bfb6ddcad859b44",
+          "verdict": "APPROVE",
+          "round": 2,
+          "completed_at": "2026-10-27T10:53:27Z",
+          "verdict_sha256": "bb2c9ec8dde4cc117768e97cb2f5165aa213ee9e5f5fb979d5d0ec3c1be642e8",
+          "run_ref": "session:local .ai-review/chunk-gh-telemetry/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_PLAN_REVIEW": {
+          "bundle_id": "e10e73a61653f822e7f35ffd5db4348f52d38075c51424624bfb6ddcad859b44",
+          "verdict": "APPROVE",
+          "round": 2,
+          "completed_at": "2026-10-27T10:59:45Z",
+          "verdict_sha256": "26049d1e13044ab82e6bf8c2b10dc4edd3978d07b679649f820ec8bf85ccb8da",
+          "run_ref": "session:local .ai-review/chunk-gh-telemetry/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "openai/gpt-6.1-sol"
+        }
+      },
+      "functional_acceptance_status": null,
+      "blocking_decisions": [],
+      "review_round_counts": {
+        "plan": {
+          "local": 2,
+          "external": 1
+        },
+        "implementation": {
+          "local": 2,
+          "external": 1
+        }
+      },
+      "state_revision": 20,
+      "last_transition": "2026-10-27T12:43:07Z",
+      "feedback_layout": "scoped",
+      "plan_review_binding": {
+        "status": "BOUND",
+        "at": "2026-10-27T10:51:59Z",
+        "consumed": {
+          "review_content_id": "b7cc6ca568c92b83eac9a0a565bda9ae30b1ec7cf85e16797bf72fd5a27b2a9c",
+          "plan_revision": 1,
+          "legacy": false
+        },
+        "published": {
+          "review_content_id": "feafe52746b0461a0cabf0a96b8169d107a3a18c801cbc65321382202752eb1f",
+          "plan_revision": 2
+        },
+        "bound": {
+          "review_content_id": "feafe52746b0461a0cabf0a96b8169d107a3a18c801cbc65321382202752eb1f",
+          "bundle_id": "e10e73a61653f822e7f35ffd5db4348f52d38075c51424624bfb6ddcad859b44",
+          "plan_revision": 2
+        }
+      },
+      "consumed_plan_review_content_ids": [
+        "b7cc6ca568c92b83eac9a0a565bda9ae30b1ec7cf85e16797bf72fd5a27b2a9c"
+      ],
+      "optional_findings": {
+        "F-8f52355ad883": {
+          "digest": "8f52355ad8833f2340fc4dfec1a3ac455f73f1b371e88263af7aa3f812c3650c",
+          "text": "**LPR1-003: section 2's \"the runner passes none today\" is inaccurate.** `executor.py`'s phase B passes `extra_env` (`phase_b_env()`, `tests/parallel/executor.py:383-385, 400`: the records and context paths) through `run_one` -> `isolation.run_chunk` -> `chunk_env`. Only `prepare_merge` (line 375) calls `chunk_env` with the Git template alone. The conclusion holds, because no extra the runner passes names either variable, but the sentence should say that instead.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "b7cc6ca568c92b83eac9a0a565bda9ae30b1ec7cf85e16797bf72fd5a27b2a9c",
+              "verdict": "REVISE",
+              "at": "2026-10-27T10:50:21Z"
+            }
+          ]
+        },
+        "F-9afd3e0bfa1c": {
+          "digest": "9afd3e0bfa1c54c877bc6305a189e3ced59d04667d2297a0c9a8879b5384363c",
+          "text": "**LPR1-004: record why the fix reaches the `gh` that orphans.** The plan's correctness depends on the frozen suites' `gh`-calling children inheriting `os.environ` (true for 2.22.0: `{k: v for k, v in os.environ.items() if k not in (...)}`). An allowlisted environment (`support.pinned_env`/`cli_env`, `tests/retention_recipe.py:93`) would drop the variables. None of those reaches the real `gh` today. A sentence in section 5 would tell a later reader where the guarantee ends.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "b7cc6ca568c92b83eac9a0a565bda9ae30b1ec7cf85e16797bf72fd5a27b2a9c",
+              "verdict": "REVISE",
+              "at": "2026-10-27T10:50:21Z"
+            }
+          ]
+        },
+        "F-7c6e34e36e60": {
+          "digest": "7c6e34e36e60ef0aeba90b3d4042de9b5bd1562c38294f18de5bb657bd93a888",
+          "text": "**LPR2-001: \"Each test below fails at `184682b`\" includes the control.** `test_the_stub_gh_sends_without_it` runs the stub under `_telemetry_free_env()` and never calls `chunk_env`, so it passes at the base commit as well as after. That is correct for a control, but section 3 and CP1's evidence (\"the new tests fail first at `184682b`\") claim otherwise. The implementation should record the control as passing at the base, so the fail-first evidence is not misread as a gap.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "feafe52746b0461a0cabf0a96b8169d107a3a18c801cbc65321382202752eb1f",
+              "verdict": "APPROVE",
+              "at": "2026-10-27T10:53:27Z"
+            }
+          ]
+        },
+        "F-d7fff220d376": {
+          "digest": "d7fff220d376b8bb12512f302378a5db41be90e4ba09703ffe2456637fc72c8a",
+          "text": "**EPR-001 [substantive] — Exempt the control from the fail-first wording.**\n  Section 3, lines 80–100, says every listed test fails at the base; CP1, lines 130–138, repeats that expectation. The plain-environment control intentionally passes both before and after implementation. Record it as a passing control alongside failing regression assertions.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "MANUAL_EXTERNAL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "feafe52746b0461a0cabf0a96b8169d107a3a18c801cbc65321382202752eb1f",
+              "verdict": "APPROVE",
+              "at": "2026-10-27T10:59:45Z"
+            }
+          ]
+        },
+        "F-d011594ed212": {
+          "digest": "d011594ed212fc49e81485c92299f7ed94adec677f13e10fb6b3ed8f233f1600",
+          "text": "**EPR-002 [apparatus] — Reconcile the handoff’s revision label.**\n  The requested verdict specifies revision 1, but the plan header at line 1, bundle manifest, and work-item state identify revision 2. The supplied content ID recomputes using revision 2. Align the approval record with that bound revision; no design change or additional review round is needed.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "MANUAL_EXTERNAL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "feafe52746b0461a0cabf0a96b8169d107a3a18c801cbc65321382202752eb1f",
+              "verdict": "APPROVE",
+              "at": "2026-10-27T10:59:45Z"
+            }
+          ]
+        }
+      },
+      "implementation_review_stages": {
+        "review_content_id": "a9d01c429abb8ba5aeba6402e7b929fc182500eea6248fcbc570c0e5f8066219",
+        "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "6e3bca86b5940276f59d95c9ce08a99a5880e66ba6e58765436c11a74cea4ddd",
+          "verdict": "APPROVE",
+          "round": 2,
+          "completed_at": "2026-10-27T11:55:20Z",
+          "verdict_sha256": "5fb35a9144b095c95a9cdc1a701917297f42a39189ea09da30021a8b48469af8",
+          "run_ref": "session:local .ai-review/chunk-gh-telemetry/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "6e3bca86b5940276f59d95c9ce08a99a5880e66ba6e58765436c11a74cea4ddd",
+          "verdict": "APPROVE",
+          "round": 2,
+          "completed_at": "2026-10-27T12:02:17Z",
+          "verdict_sha256": "4fd1eec2c36035d526f8ecebe994ebaab0ef39b53827186b862d5f9127688d56",
+          "run_ref": "session:local.ai-review/chunk-gh-telemetry/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "openai/gpt-6.1-sol"
+        }
+      },
+      "gate_evidence": {
+        "functional": {
+          "flow-1": {
+            "flow_id": "flow-1",
+            "status": "passed",
+            "head": "3232e7ec668cfe41205b28233ea0db918e61a30c",
+            "ran_at": "2026-10-27T12:25:27Z",
+            "summary": {
+              "flow": "chunk environment, unit level",
+              "result": "PASSED",
+              "results": "RESULTS.md",
+              "log": "flow1.log"
+            },
+            "log_digest": "557f3e1ba8f8552229dc01f58820e7f18a7aa0d0093735371c89cd32e1abab86",
+            "run_ref": "manager-orchestrator:runs/md4-functional-r1",
+            "reporter": "manager-orchestrator (independent executor claude claude-sonnet-5-5)",
+            "identity": "a9d01c429abb8ba5aeba6402e7b929fc182500eea6248fcbc570c0e5f8066219",
+            "recorded_at": "2026-10-27T12:25:27Z"
+          },
+          "flow-2": {
+            "flow_id": "flow-2",
+            "status": "passed",
+            "head": "3232e7ec668cfe41205b28233ea0db918e61a30c",
+            "ran_at": "2026-10-27T12:25:27Z",
+            "summary": {
+              "flow": "chunk environment in a real chunk process with a hostile outer shell",
+              "result": "PASSED",
+              "results": "RESULTS.md",
+              "log": "flow2.log"
+            },
+            "log_digest": "7198a52b1289356b05cb7c29bc1fcb351629ce63a0e8eb5531de40bbc28948bb",
+            "run_ref": "manager-orchestrator:runs/md4-functional-r1",
+            "reporter": "manager-orchestrator (independent executor claude claude-sonnet-5-5)",
+            "identity": "a9d01c429abb8ba5aeba6402e7b929fc182500eea6248fcbc570c0e5f8066219",
+            "recorded_at": "2026-10-27T12:25:27Z"
+          },
+          "flow-3": {
+            "flow_id": "flow-3",
+            "status": "passed",
+            "head": "3232e7ec668cfe41205b28233ea0db918e61a30c",
+            "ran_at": "2026-10-27T12:25:27Z",
+            "summary": {
+              "flow": "architecture note and docs check",
+              "result": "PASSED",
+              "results": "RESULTS.md",
+              "log": "flow3.log"
+            },
+            "log_digest": "8ea7fffe53b4f36098c7f1250f8a9e4564c466aee2a87489143b1a7b9d28e5bd",
+            "run_ref": "manager-orchestrator:runs/md4-functional-r1",
+            "reporter": "manager-orchestrator (independent executor claude claude-sonnet-5-5)",
+            "identity": "a9d01c429abb8ba5aeba6402e7b929fc182500eea6248fcbc570c0e5f8066219",
+            "recorded_at": "2026-10-27T12:25:27Z"
+          },
+          "flow-4": {
+            "flow_id": "flow-4",
+            "status": "passed",
+            "head": "3232e7ec668cfe41205b28233ea0db918e61a30c",
+            "ran_at": "2026-10-27T12:25:27Z",
+            "summary": {
+              "flow": "touched selections together (358 tests)",
+              "result": "PASSED",
+              "results": "RESULTS.md",
+              "log": "flow4.log"
+            },
+            "log_digest": "d9ee021ba8eaef10bdc21c87426e002d971081f28fb902236090b13f2eb27ef6",
+            "run_ref": "manager-orchestrator:runs/md4-functional-r1",
+            "reporter": "manager-orchestrator (independent executor claude claude-sonnet-5-5)",
+            "identity": "a9d01c429abb8ba5aeba6402e7b929fc182500eea6248fcbc570c0e5f8066219",
+            "recorded_at": "2026-10-27T12:25:27Z"
+          },
+          "flow-5": {
+            "flow_id": "flow-5",
+            "status": "passed",
+            "head": "3232e7ec668cfe41205b28233ea0db918e61a30c",
+            "ran_at": "2026-10-27T12:25:27Z",
+            "summary": {
+              "flow": "regression proof in a scratch copy",
+              "result": "PASSED",
+              "results": "RESULTS.md",
+              "log": "flow5.log"
+            },
+            "log_digest": "cdc919fe1d0e98c874e2933ebed795c54c1a807c70f41231a6d8d662b1192814",
+            "run_ref": "manager-orchestrator:runs/md4-functional-r1",
+            "reporter": "manager-orchestrator (independent executor claude claude-sonnet-5-5)",
+            "identity": "a9d01c429abb8ba5aeba6402e7b929fc182500eea6248fcbc570c0e5f8066219",
+            "recorded_at": "2026-10-27T12:25:28Z"
+          },
+          "flow-6": {
+            "flow_id": "flow-6",
+            "status": "passed",
+            "head": "3232e7ec668cfe41205b28233ea0db918e61a30c",
+            "ran_at": "2026-10-27T12:25:27Z",
+            "summary": {
+              "flow": "real gh: detached telemetry process without the variables, none with them",
+              "result": "PASSED",
+              "results": "RESULTS.md",
+              "log": "flow6.log"
+            },
+            "log_digest": "2729d7fc7d636d15147d082a200ab49a8c74ba4d43aabf2317f0a0cdcc3bb7d6",
+            "run_ref": "manager-orchestrator:runs/md4-functional-r1",
+            "reporter": "manager-orchestrator (independent executor claude claude-sonnet-5-5)",
+            "identity": "a9d01c429abb8ba5aeba6402e7b929fc182500eea6248fcbc570c0e5f8066219",
+            "recorded_at": "2026-10-27T12:25:28Z"
+          },
+          "flow-x1": {
+            "flow_id": "flow-x1",
+            "status": "passed",
+            "head": "3232e7ec668cfe41205b28233ea0db918e61a30c",
+            "ran_at": "2026-10-27T12:25:27Z",
+            "summary": {
+              "flow": "chunk_env output identical to the base except the two variables",
+              "result": "PASSED",
+              "results": "RESULTS.md",
+              "log": "X1.log"
+            },
+            "log_digest": "6f6b7049384974c31554d52d17cfc7d8b490704ffee620d2c92fc32995a90f42",
+            "run_ref": "manager-orchestrator:runs/md4-functional-r1",
+            "reporter": "manager-orchestrator (independent executor claude claude-sonnet-5-5)",
+            "identity": "a9d01c429abb8ba5aeba6402e7b929fc182500eea6248fcbc570c0e5f8066219",
+            "recorded_at": "2026-10-27T12:25:28Z"
+          }
+        },
+        "pr": {
+          "pr": {
+            "number": 118,
+            "url": "https://github.com/RodrigoFAbreu/workflow-manager/pull/118"
+          },
+          "state": "open",
+          "head": "3232e7ec668cfe41205b28233ea0db918e61a30c",
+          "review_decision": null,
+          "reviewed_head": null,
+          "checks": {
+            "state": "success",
+            "failing": []
+          },
+          "review_id": null,
+          "findings": null,
+          "identity_at_head": "a9d01c429abb8ba5aeba6402e7b929fc182500eea6248fcbc570c0e5f8066219",
+          "observed_at": "2026-10-27T12:43:07Z",
+          "ingest_seq": 1,
+          "repository": "RodrigoFAbreu/workflow-manager",
+          "queried_commit": "7a2ee7f53b2a01800e06832b42120288c22f45d6",
+          "provenance": {
+            "source": "workflow_gh",
+            "fetched_by": {
+              "name": "workflow-gh",
+              "version": "pr-list-v1"
+            },
+            "fetched_at": "2026-10-27T12:43:07Z",
+            "raw_sha256": "f9b22e3022a58061af53e899a4e0899b630dac4211eaa2ade81f55c8d8ee30b9",
+            "run_ref": null,
+            "gh_path": "/usr/bin/gh",
+            "gh_sha256": "9e824061111fe5f5b6a5d5690909ba37abafca4a4ca830bdf83246d3c94afd21"
+          },
+          "fact_id": "5f743aed3263cdf8d3ee5efaef7723c3d523e7f0a402d64436b8deb9eebe7a2f"
+        },
+        "pr_reported": null,
+        "pr_keys": {
+          "reopened_for": [],
+          "applied": [],
+          "ingest_seq": 1
+        }
+      },
+      "acceptance_satisfaction": {
+        "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "policy_source": "default",
+        "file_digest": null,
+        "adopted_digest": null,
+        "floor_digest": null,
+        "requirements": [
+          {
+            "id": "checkpoints_complete",
+            "met": true,
+            "detail": "every checkpoint of the item's own registry is COMPLETE"
+          },
+          {
+            "id": "technical_approval_current",
+            "met": true,
+            "detail": "the technical approval is CURRENT for the content now"
+          },
+          {
+            "id": "functional_flows_passed",
+            "met": true,
+            "detail": "flows ['flow-1', 'flow-2', 'flow-3', 'flow-4', 'flow-5', 'flow-6', 'flow-x1'] passed at the approved content"
+          },
+          {
+            "id": "pr_fact_current",
+            "met": true,
+            "detail": "workflow_gh fact for PR #118 at 3232e7ec668cfe41205b28233ea0db918e61a30c is current"
+          },
+          {
+            "id": "no_standing_pr_objection",
+            "met": true,
+            "detail": "no CHANGES_REQUESTED decision and no failed check"
+          },
+          {
+            "id": "ci_green",
+            "met": true,
+            "detail": "checks are 'success'"
+          }
+        ],
+        "inputs": {
+          "anchor_commit": "7a2ee7f53b2a01800e06832b42120288c22f45d6",
+          "anchor_identity": "a9d01c429abb8ba5aeba6402e7b929fc182500eea6248fcbc570c0e5f8066219",
+          "technical_approval": {
+            "basis": "POLICY_SATISFIED",
+            "approved_review_content_id": "a9d01c429abb8ba5aeba6402e7b929fc182500eea6248fcbc570c0e5f8066219",
+            "recorded_at": "2026-10-27T12:02:57Z"
+          },
+          "functional": {
+            "flow-1": {
+              "evidence_id": "0268548c0244f4079fc6efd4edb7520f862e11a340b669e009e58ad5dd076c7b",
+              "log_digest": "557f3e1ba8f8552229dc01f58820e7f18a7aa0d0093735371c89cd32e1abab86",
+              "run_ref": "manager-orchestrator:runs/md4-functional-r1"
+            },
+            "flow-2": {
+              "evidence_id": "3b63d8250188821230fa7b2d1d3964c497441164c23e926b860d401af6f67754",
+              "log_digest": "7198a52b1289356b05cb7c29bc1fcb351629ce63a0e8eb5531de40bbc28948bb",
+              "run_ref": "manager-orchestrator:runs/md4-functional-r1"
+            },
+            "flow-3": {
+              "evidence_id": "1112e8785334ab97ccb8a22ed29b25a8ac4decc5cc579b3294b9791d61eee604",
+              "log_digest": "8ea7fffe53b4f36098c7f1250f8a9e4564c466aee2a87489143b1a7b9d28e5bd",
+              "run_ref": "manager-orchestrator:runs/md4-functional-r1"
+            },
+            "flow-4": {
+              "evidence_id": "e8d7b7d72607d1974b5f483115c8785023f43dbe0c5035a69095891a91238cef",
+              "log_digest": "d9ee021ba8eaef10bdc21c87426e002d971081f28fb902236090b13f2eb27ef6",
+              "run_ref": "manager-orchestrator:runs/md4-functional-r1"
+            },
+            "flow-5": {
+              "evidence_id": "fc3ac04ef2337b38214474bc4371ba61e7d724b6326086baf01bbd894241cdfe",
+              "log_digest": "cdc919fe1d0e98c874e2933ebed795c54c1a807c70f41231a6d8d662b1192814",
+              "run_ref": "manager-orchestrator:runs/md4-functional-r1"
+            },
+            "flow-6": {
+              "evidence_id": "8f138af577803d6a477dc4b3ae2b7d9bf210034db4d924dbc720afcdbbe19628",
+              "log_digest": "2729d7fc7d636d15147d082a200ab49a8c74ba4d43aabf2317f0a0cdcc3bb7d6",
+              "run_ref": "manager-orchestrator:runs/md4-functional-r1"
+            },
+            "flow-x1": {
+              "evidence_id": "8bf14ef69eac181376243af691e94a560d74f53ee256d481910c6194ffacb98d",
+              "log_digest": "6f6b7049384974c31554d52d17cfc7d8b490704ffee620d2c92fc32995a90f42",
+              "run_ref": "manager-orchestrator:runs/md4-functional-r1"
+            }
+          },
+          "pr": {
+            "fact_id": "5f743aed3263cdf8d3ee5efaef7723c3d523e7f0a402d64436b8deb9eebe7a2f",
+            "head": "3232e7ec668cfe41205b28233ea0db918e61a30c",
+            "provenance": "workflow_gh",
+            "raw_sha256": "f9b22e3022a58061af53e899a4e0899b630dac4211eaa2ade81f55c8d8ee30b9"
+          }
+        },
+        "trust": {
+          "review_verdicts": "orchestrator",
+          "functional_evidence": "orchestrator",
+          "pr_fact": "workflow_gh"
+        },
+        "evaluated_at": "2026-10-27T12:43:07Z",
+        "workflow_release": "2.22.0"
+      }
     }
   }
 }
