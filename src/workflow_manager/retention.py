@@ -17,6 +17,7 @@ import shlex
 import signal
 import subprocess
 import sys
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -92,19 +93,42 @@ def _script_is_regular(script: Path) -> bool:
 GRACE_SECONDS = 2
 
 
+def _signal_group(proc: subprocess.Popen, sig) -> None:
+    try:
+        os.killpg(proc.pid, sig)
+    except (ProcessLookupError, PermissionError):
+        pass
+
+
+def _leader_exited(proc: subprocess.Popen) -> bool:
+    """Whether the leader has exited, without reaping it (`WNOWAIT`): an
+    unreaped leader keeps its pid, the group's id, from being reused."""
+    try:
+        return os.waitid(os.P_PID, proc.pid, os.WEXITED | os.WNOHANG | os.WNOWAIT) is not None
+    except ChildProcessError:
+        return True
+
+
 def _stop_group(proc: subprocess.Popen) -> None:
     """End the script's whole process group and reap its leader: SIGTERM first,
-    so the script can reap what it started, then SIGKILL after a short grace."""
-    for sig, wait in ((signal.SIGTERM, GRACE_SECONDS), (signal.SIGKILL, None)):
-        try:
-            os.killpg(proc.pid, sig)
-        except (ProcessLookupError, PermissionError):
-            pass
-        try:
-            proc.wait(timeout=wait)
-            return
-        except subprocess.TimeoutExpired:
-            continue
+    so the script can reap what it started, then, once the leader has exited or
+    after a short grace, SIGKILL for whatever is left in the group (a child
+    that ignores SIGTERM included), and only then the reap."""
+    _signal_group(proc, signal.SIGTERM)
+    deadline = time.monotonic() + GRACE_SECONDS
+    while time.monotonic() < deadline:
+        if hasattr(os, "waitid") and _leader_exited(proc):
+            break
+        time.sleep(0.05)
+    _signal_group(proc, signal.SIGKILL)
+    try:
+        proc.communicate(timeout=GRACE_SECONDS)
+    except subprocess.TimeoutExpired:
+        # Something that left the group still holds the pipes: stop reading.
+        for pipe in (proc.stdout, proc.stderr):
+            if pipe is not None:
+                pipe.close()
+        proc.wait()
 
 
 def _run(root: Path):
@@ -124,7 +148,6 @@ def _run(root: Path):
         out, err = proc.communicate(timeout=TIMEOUT_SECONDS)
     except subprocess.TimeoutExpired:
         _stop_group(proc)
-        proc.communicate()
         return NotAvailable(
             f"the report did not finish within {TIMEOUT_SECONDS} seconds", STEP_RUN_DIRECTLY)
     except BaseException:

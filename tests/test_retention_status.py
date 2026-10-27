@@ -15,6 +15,7 @@ import json
 import os
 import re
 import shlex
+import subprocess
 import sys
 import tempfile
 import time
@@ -59,7 +60,50 @@ elif mode == "sleep":
         sys.exit(0)
     signal.signal(signal.SIGTERM, stop)
     time.sleep(60)
+elif mode == "stubborn":
+    import subprocess
+    child = subprocess.Popen([sys.executable, "-c", "import signal, time; "
+                              "signal.signal(signal.SIGTERM, signal.SIG_IGN); time.sleep(60)"])
+    with open(os.environ["STUB_PIDFILE"], "w") as handle:
+        handle.write(str(child.pid))
+    time.sleep(60)
 '''
+
+
+# Runs `retention.fetch` with a 1-second timeout as a child subreaper: the
+# script's orphaned child is re-parented here, not to the runner's wrapper.
+SUBREAPER = r"""
+import ctypes, json, os, sys, time
+from pathlib import Path
+libc = ctypes.CDLL(None, use_errno=True)
+if getattr(libc, "prctl", None) is None or libc.prctl(36, 1, 0, 0, 0) != 0:
+    sys.exit(3)
+sys.path.insert(0, os.environ["PYTHONPATH"])
+from workflow_manager import retention
+retention.TIMEOUT_SECONDS = 1
+started = time.monotonic()
+outcome = retention.fetch(Path(sys.argv[1]))
+elapsed = time.monotonic() - started
+pid = int(Path(sys.argv[2]).read_text())
+def alive():
+    try:
+        text = Path(f"/proc/{pid}/stat").read_text()
+    except OSError:
+        return False
+    return text.rsplit(")", 1)[1].split()[0] != "Z"
+deadline = time.monotonic() + 5
+while alive() and time.monotonic() < deadline:
+    time.sleep(0.05)
+survived = alive()
+if survived:
+    os.kill(pid, 9)
+while True:
+    try:
+        os.waitpid(-1, 0)
+    except ChildProcessError:
+        break
+print(json.dumps({"cause": outcome.refusal.cause, "elapsed": elapsed, "survived": survived}))
+"""
 
 
 def fixture() -> dict:
@@ -518,6 +562,26 @@ class TestNotAvailable(Scratch):
         while alive(pid) and time.monotonic() < deadline:
             time.sleep(0.05)
         self.assertFalse(alive(pid), "the script's child outlived the call")
+
+    def test_a_child_that_ignores_sigterm_is_killed_and_does_not_hold_the_call(self):
+        # The script exits on SIGTERM and leaves a child that ignores it. The
+        # call runs in a scratch child subreaper (`SUBREAPER`), which adopts
+        # and reaps that child, so the runner's own orphan check stays strict.
+        if not sys.platform.startswith("linux"):
+            self.skipTest("a child subreaper needs Linux")
+        self.install_stub()
+        pidfile = self.outside / "pid"
+        env = pinned_env(STUB_MODE="stubborn", STUB_PIDFILE=str(pidfile),
+                         PYTHONPATH=str(Path(retention.__file__).resolve().parents[1]))
+        proc = subprocess.run([sys.executable, "-I", "-B", "-c", SUBREAPER, str(self.repo),
+                               str(pidfile)], capture_output=True, text=True, env=env, timeout=60)
+        if proc.returncode == 3:
+            self.skipTest("prctl(PR_SET_CHILD_SUBREAPER) is unavailable")
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        got = json.loads(proc.stdout)
+        self.assertIn("did not finish within", got["cause"])
+        self.assertLess(got["elapsed"], 15)
+        self.assertFalse(got["survived"], "a child that ignores SIGTERM outlived the call")
 
     def test_the_timeout_constant_is_300_seconds(self):
         self.assertEqual(retention.TIMEOUT_SECONDS, 300)

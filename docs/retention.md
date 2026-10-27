@@ -65,7 +65,7 @@ retention: not available: CAUSE
 | the Python running workflow-manager cannot start | reinstall workflow-manager (`pipx reinstall workflow-manager`) |
 | the report did not finish within 300 seconds | run `python3 -I scripts/workflow_retention.py report` in the repository |
 | the script refused (its own `error:` code and message, for example no GitHub `origin` remote or no state file) | the script's own `next step` |
-| the script's report is malformed, or the script exited with a status other than 0 or 2 | run `python3 -I scripts/workflow_retention.py report` in the repository |
+| the script's report is malformed, or the script exited with a status other than 0 or 2 (or with 2 but without its own `error:` and `next step:` lines) | run `python3 -I scripts/workflow_retention.py report` in the repository |
 | the script's report has kind or schema_version this Manager does not read | update workflow-manager to the newest release |
 | the forge could not be queried (CODE, N items) | install gh and run `gh auth login`, then run the command again |
 
