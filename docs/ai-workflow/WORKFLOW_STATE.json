@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_work_item_id": "retention-status",
+  "active_work_item_id": null,
   "work_items": {
     "plan-amendment-mechanism": {
       "work_item_type": "process",
@@ -14017,7 +14017,7 @@
       "registry_path": "docs/ai-workflow/registry/retention-status-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/retention-status-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_FUNCTIONAL_REVIEW",
+      "phase": "MILESTONE_COMPLETE",
       "plan_revision": 7,
       "implementation_revision": 3,
       "functional_review_round": null,
@@ -14304,8 +14304,8 @@
           "external": 2
         }
       },
-      "state_revision": 39,
-      "last_transition": "2026-10-27T06:37:46Z",
+      "state_revision": 40,
+      "last_transition": "2026-10-27T07:48:33Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -14635,6 +14635,465 @@
           "run_ref": "session:local .ai-review/retention-status/feedback/REVIEW_FEEDBACK.md",
           "reviewer_model": "openai/gpt-6.1-sol"
         }
+      },
+      "gate_evidence": {
+        "functional": {
+          "flow-1": {
+            "flow_id": "flow-1",
+            "status": "passed",
+            "head": "5b7238b910f799fe44209c036c17920bbcdc9f01",
+            "ran_at": "2026-10-27T07:30:27Z",
+            "summary": {
+              "flow": "default output unchanged",
+              "result": "PASSED",
+              "results": "RESULTS.md",
+              "log": "1.log"
+            },
+            "log_digest": "b9737a065f247ef1928de58f19b4f9ed411b3140237f4bc53292d16ba99c73e7",
+            "run_ref": "manager-orchestrator:runs/md3-functional-r1",
+            "reporter": "manager-orchestrator (independent executor claude claude-sonnet-5-5)",
+            "identity": "4c1405f6b10753265784c0864c923517d55d6c4d40ad87144d16ed3faa5e01a0",
+            "recorded_at": "2026-10-27T07:30:27Z"
+          },
+          "flow-2": {
+            "flow_id": "flow-2",
+            "status": "passed",
+            "head": "5b7238b910f799fe44209c036c17920bbcdc9f01",
+            "ran_at": "2026-10-27T07:30:27Z",
+            "summary": {
+              "flow": "status --retention, complete report",
+              "result": "PASSED",
+              "results": "RESULTS.md",
+              "log": "2.log"
+            },
+            "log_digest": "da551a48b63b98c35d98dd717687db4ea6375afba6babc1c25db158878285378",
+            "run_ref": "manager-orchestrator:runs/md3-functional-r1",
+            "reporter": "manager-orchestrator (independent executor claude claude-sonnet-5-5)",
+            "identity": "4c1405f6b10753265784c0864c923517d55d6c4d40ad87144d16ed3faa5e01a0",
+            "recorded_at": "2026-10-27T07:30:27Z"
+          },
+          "flow-3": {
+            "flow_id": "flow-3",
+            "status": "passed",
+            "head": "5b7238b910f799fe44209c036c17920bbcdc9f01",
+            "ran_at": "2026-10-27T07:30:27Z",
+            "summary": {
+              "flow": "doctor --retention",
+              "result": "PASSED",
+              "results": "RESULTS.md",
+              "log": "3.log"
+            },
+            "log_digest": "cae8d22fc22a69257cc9e352e3cc5ed16e5b1aae5de171e7a9b1208250139de6",
+            "run_ref": "manager-orchestrator:runs/md3-functional-r1",
+            "reporter": "manager-orchestrator (independent executor claude claude-sonnet-5-5)",
+            "identity": "4c1405f6b10753265784c0864c923517d55d6c4d40ad87144d16ed3faa5e01a0",
+            "recorded_at": "2026-10-27T07:30:27Z"
+          },
+          "flow-4": {
+            "flow_id": "flow-4",
+            "status": "passed",
+            "head": "5b7238b910f799fe44209c036c17920bbcdc9f01",
+            "ran_at": "2026-10-27T07:30:27Z",
+            "summary": {
+              "flow": "the removing key",
+              "result": "PASSED",
+              "results": "RESULTS.md",
+              "log": "4.log"
+            },
+            "log_digest": "61c531707ea234d1f0e6e1d77284bbf04387b87bc69955d5068eab7555b30377",
+            "run_ref": "manager-orchestrator:runs/md3-functional-r1",
+            "reporter": "manager-orchestrator (independent executor claude claude-sonnet-5-5)",
+            "identity": "4c1405f6b10753265784c0864c923517d55d6c4d40ad87144d16ed3faa5e01a0",
+            "recorded_at": "2026-10-27T07:30:27Z"
+          },
+          "flow-5": {
+            "flow_id": "flow-5",
+            "status": "passed",
+            "head": "5b7238b910f799fe44209c036c17920bbcdc9f01",
+            "ran_at": "2026-10-27T07:30:27Z",
+            "summary": {
+              "flow": "incomplete report",
+              "result": "PASSED",
+              "results": "RESULTS.md",
+              "log": "5.log"
+            },
+            "log_digest": "6ddcdba9dfb2ba439d571725bc6b540b5ad92c8c09cb84ba2361482ae5e1dafc",
+            "run_ref": "manager-orchestrator:runs/md3-functional-r1",
+            "reporter": "manager-orchestrator (independent executor claude claude-sonnet-5-5)",
+            "identity": "4c1405f6b10753265784c0864c923517d55d6c4d40ad87144d16ed3faa5e01a0",
+            "recorded_at": "2026-10-27T07:30:27Z"
+          },
+          "flow-6": {
+            "flow_id": "flow-6",
+            "status": "passed",
+            "head": "5b7238b910f799fe44209c036c17920bbcdc9f01",
+            "ran_at": "2026-10-27T07:30:27Z",
+            "summary": {
+              "flow": "next command and capability",
+              "result": "PASSED",
+              "results": "RESULTS.md",
+              "log": "6.log"
+            },
+            "log_digest": "20db975415e517df500a7bdafb070932705306416bd8fa8816168f0985d1920e",
+            "run_ref": "manager-orchestrator:runs/md3-functional-r1",
+            "reporter": "manager-orchestrator (independent executor claude claude-sonnet-5-5)",
+            "identity": "4c1405f6b10753265784c0864c923517d55d6c4d40ad87144d16ed3faa5e01a0",
+            "recorded_at": "2026-10-27T07:30:27Z"
+          },
+          "flow-7": {
+            "flow_id": "flow-7",
+            "status": "passed",
+            "head": "5b7238b910f799fe44209c036c17920bbcdc9f01",
+            "ran_at": "2026-10-27T07:30:27Z",
+            "summary": {
+              "flow": "refusals, each one cause and one step",
+              "result": "PASSED",
+              "results": "RESULTS.md",
+              "log": "7.log"
+            },
+            "log_digest": "574d0aeab1bb05a966cbc4fe7ae185dd12546075bdaa096970356183c6748cc3",
+            "run_ref": "manager-orchestrator:runs/md3-functional-r1",
+            "reporter": "manager-orchestrator (independent executor claude claude-sonnet-5-5)",
+            "identity": "4c1405f6b10753265784c0864c923517d55d6c4d40ad87144d16ed3faa5e01a0",
+            "recorded_at": "2026-10-27T07:30:27Z"
+          },
+          "flow-8": {
+            "flow_id": "flow-8",
+            "status": "passed",
+            "head": "5b7238b910f799fe44209c036c17920bbcdc9f01",
+            "ran_at": "2026-10-27T07:30:27Z",
+            "summary": {
+              "flow": "timeout leaves no process",
+              "result": "PASSED",
+              "results": "RESULTS.md",
+              "log": "8.log"
+            },
+            "log_digest": "53e873a2f5babdcc405e46ab7043ec1e7b18f81159080fe4272d38676daa42db",
+            "run_ref": "manager-orchestrator:runs/md3-functional-r1",
+            "reporter": "manager-orchestrator (independent executor claude claude-sonnet-5-5)",
+            "identity": "4c1405f6b10753265784c0864c923517d55d6c4d40ad87144d16ed3faa5e01a0",
+            "recorded_at": "2026-10-27T07:30:27Z"
+          },
+          "flow-9": {
+            "flow_id": "flow-9",
+            "status": "passed",
+            "head": "5b7238b910f799fe44209c036c17920bbcdc9f01",
+            "ran_at": "2026-10-27T07:30:27Z",
+            "summary": {
+              "flow": "no writes",
+              "result": "PASSED",
+              "results": "RESULTS.md",
+              "log": "9.log"
+            },
+            "log_digest": "2d8f125ce6bad991f0c17b00081bfe8c4bd9358da966c2fd540e07c8285f5d2b",
+            "run_ref": "manager-orchestrator:runs/md3-functional-r1",
+            "reporter": "manager-orchestrator (independent executor claude claude-sonnet-5-5)",
+            "identity": "4c1405f6b10753265784c0864c923517d55d6c4d40ad87144d16ed3faa5e01a0",
+            "recorded_at": "2026-10-27T07:30:27Z"
+          },
+          "flow-10": {
+            "flow_id": "flow-10",
+            "status": "passed",
+            "head": "5b7238b910f799fe44209c036c17920bbcdc9f01",
+            "ran_at": "2026-10-27T07:30:27Z",
+            "summary": {
+              "flow": "relative target and spaces",
+              "result": "PASSED",
+              "results": "RESULTS.md",
+              "log": "10.log"
+            },
+            "log_digest": "9d328b23865b13f2019104622aed7b65c84928bb7ccafca14c0f7bda5dc74ca1",
+            "run_ref": "manager-orchestrator:runs/md3-functional-r1",
+            "reporter": "manager-orchestrator (independent executor claude claude-sonnet-5-5)",
+            "identity": "4c1405f6b10753265784c0864c923517d55d6c4d40ad87144d16ed3faa5e01a0",
+            "recorded_at": "2026-10-27T07:30:27Z"
+          },
+          "flow-11": {
+            "flow_id": "flow-11",
+            "status": "passed",
+            "head": "5b7238b910f799fe44209c036c17920bbcdc9f01",
+            "ran_at": "2026-10-27T07:30:27Z",
+            "summary": {
+              "flow": "real script, no forge query",
+              "result": "PASSED",
+              "results": "RESULTS.md",
+              "log": "11.log"
+            },
+            "log_digest": "bd15945213ce86919e433f7e2900c01269a05c902daba296df3aaf9af9ed6897",
+            "run_ref": "manager-orchestrator:runs/md3-functional-r1",
+            "reporter": "manager-orchestrator (independent executor claude claude-sonnet-5-5)",
+            "identity": "4c1405f6b10753265784c0864c923517d55d6c4d40ad87144d16ed3faa5e01a0",
+            "recorded_at": "2026-10-27T07:30:27Z"
+          },
+          "flow-12": {
+            "flow_id": "flow-12",
+            "status": "passed",
+            "head": "5b7238b910f799fe44209c036c17920bbcdc9f01",
+            "ran_at": "2026-10-27T07:30:27Z",
+            "summary": {
+              "flow": "real forge, read-only",
+              "result": "PASSED",
+              "results": "RESULTS.md",
+              "log": "12.log"
+            },
+            "log_digest": "543063a0f04a31dc7491c6cf512841013383fa33641938edc5db762981f6aac6",
+            "run_ref": "manager-orchestrator:runs/md3-functional-r1",
+            "reporter": "manager-orchestrator (independent executor claude claude-sonnet-5-5)",
+            "identity": "4c1405f6b10753265784c0864c923517d55d6c4d40ad87144d16ed3faa5e01a0",
+            "recorded_at": "2026-10-27T07:30:27Z"
+          },
+          "flow-x1a": {
+            "flow_id": "flow-x1a",
+            "status": "passed",
+            "head": "5b7238b910f799fe44209c036c17920bbcdc9f01",
+            "ran_at": "2026-10-27T07:30:27Z",
+            "summary": {
+              "flow": "unpaired surrogate gives the two-line fallback",
+              "result": "PASSED",
+              "results": "RESULTS.md",
+              "log": "X.log"
+            },
+            "log_digest": "1dcf035ea7cb6063358858a8d30362c1e48825ac6dca81c14e96d877f62078df",
+            "run_ref": "manager-orchestrator:runs/md3-functional-r1",
+            "reporter": "manager-orchestrator (independent executor claude claude-sonnet-5-5)",
+            "identity": "4c1405f6b10753265784c0864c923517d55d6c4d40ad87144d16ed3faa5e01a0",
+            "recorded_at": "2026-10-27T07:30:28Z"
+          },
+          "flow-x1b": {
+            "flow_id": "flow-x1b",
+            "status": "passed",
+            "head": "5b7238b910f799fe44209c036c17920bbcdc9f01",
+            "ran_at": "2026-10-27T07:30:27Z",
+            "summary": {
+              "flow": "huge byte count renders safely with the original exit code (no fallback line; accepted by the reviewers)",
+              "result": "PASSED",
+              "results": "RESULTS.md",
+              "log": "X.log"
+            },
+            "log_digest": "1dcf035ea7cb6063358858a8d30362c1e48825ac6dca81c14e96d877f62078df",
+            "run_ref": "manager-orchestrator:runs/md3-functional-r1",
+            "reporter": "manager-orchestrator (independent executor claude claude-sonnet-5-5)",
+            "identity": "4c1405f6b10753265784c0864c923517d55d6c4d40ad87144d16ed3faa5e01a0",
+            "recorded_at": "2026-10-27T07:30:28Z"
+          },
+          "flow-x2": {
+            "flow_id": "flow-x2",
+            "status": "passed",
+            "head": "5b7238b910f799fe44209c036c17920bbcdc9f01",
+            "ran_at": "2026-10-27T07:30:27Z",
+            "summary": {
+              "flow": "negative byte count renders without traceback (known Optional)",
+              "result": "PASSED",
+              "results": "RESULTS.md",
+              "log": "X.log"
+            },
+            "log_digest": "1dcf035ea7cb6063358858a8d30362c1e48825ac6dca81c14e96d877f62078df",
+            "run_ref": "manager-orchestrator:runs/md3-functional-r1",
+            "reporter": "manager-orchestrator (independent executor claude claude-sonnet-5-5)",
+            "identity": "4c1405f6b10753265784c0864c923517d55d6c4d40ad87144d16ed3faa5e01a0",
+            "recorded_at": "2026-10-27T07:30:28Z"
+          },
+          "flow-x3": {
+            "flow_id": "flow-x3",
+            "status": "passed",
+            "head": "5b7238b910f799fe44209c036c17920bbcdc9f01",
+            "ran_at": "2026-10-27T07:30:27Z",
+            "summary": {
+              "flow": "default output byte-identical to the base commit",
+              "result": "PASSED",
+              "results": "RESULTS.md",
+              "log": "X3.log"
+            },
+            "log_digest": "ad9e2646476cc5f11c0ecdc4d9f257664a7e4c113deee2b5c789e30ca56fe7c0",
+            "run_ref": "manager-orchestrator:runs/md3-functional-r1",
+            "reporter": "manager-orchestrator (independent executor claude claude-sonnet-5-5)",
+            "identity": "4c1405f6b10753265784c0864c923517d55d6c4d40ad87144d16ed3faa5e01a0",
+            "recorded_at": "2026-10-27T07:30:28Z"
+          }
+        },
+        "pr": {
+          "pr": {
+            "number": 117,
+            "url": "https://github.com/RodrigoFAbreu/workflow-manager/pull/117"
+          },
+          "state": "open",
+          "head": "5b7238b910f799fe44209c036c17920bbcdc9f01",
+          "review_decision": null,
+          "reviewed_head": null,
+          "checks": {
+            "state": "success",
+            "failing": []
+          },
+          "review_id": null,
+          "findings": null,
+          "identity_at_head": "4c1405f6b10753265784c0864c923517d55d6c4d40ad87144d16ed3faa5e01a0",
+          "observed_at": "2026-10-27T07:48:33Z",
+          "ingest_seq": 1,
+          "repository": "RodrigoFAbreu/workflow-manager",
+          "queried_commit": "7c1d8f06d4dd335bbf301a5ce369fa5bc3f5c034",
+          "provenance": {
+            "source": "workflow_gh",
+            "fetched_by": {
+              "name": "workflow-gh",
+              "version": "pr-list-v1"
+            },
+            "fetched_at": "2026-10-27T07:48:33Z",
+            "raw_sha256": "9e7d545641d99b79e28770a9b56ddfcf9dbacf74b20253986abf7d33b07f5961",
+            "run_ref": null,
+            "gh_path": "/usr/bin/gh",
+            "gh_sha256": "9e824061111fe5f5b6a5d5690909ba37abafca4a4ca830bdf83246d3c94afd21"
+          },
+          "fact_id": "fdaae8feab7331cae659886663ca39e8d4155f50d23caa68b9698b629e1b53e0"
+        },
+        "pr_reported": null,
+        "pr_keys": {
+          "reopened_for": [],
+          "applied": [],
+          "ingest_seq": 1
+        }
+      },
+      "acceptance_satisfaction": {
+        "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "policy_source": "default",
+        "file_digest": null,
+        "adopted_digest": null,
+        "floor_digest": null,
+        "requirements": [
+          {
+            "id": "checkpoints_complete",
+            "met": true,
+            "detail": "every checkpoint of the item's own registry is COMPLETE"
+          },
+          {
+            "id": "technical_approval_current",
+            "met": true,
+            "detail": "the technical approval is CURRENT for the content now"
+          },
+          {
+            "id": "functional_flows_passed",
+            "met": true,
+            "detail": "flows ['flow-1', 'flow-10', 'flow-11', 'flow-12', 'flow-2', 'flow-3', 'flow-4', 'flow-5', 'flow-6', 'flow-7', 'flow-8', 'flow-9', 'flow-x1a', 'flow-x1b', 'flow-x2', 'flow-x3'] passed at the approved content"
+          },
+          {
+            "id": "pr_fact_current",
+            "met": true,
+            "detail": "workflow_gh fact for PR #117 at 5b7238b910f799fe44209c036c17920bbcdc9f01 is current"
+          },
+          {
+            "id": "no_standing_pr_objection",
+            "met": true,
+            "detail": "no CHANGES_REQUESTED decision and no failed check"
+          },
+          {
+            "id": "ci_green",
+            "met": true,
+            "detail": "checks are 'success'"
+          }
+        ],
+        "inputs": {
+          "anchor_commit": "7c1d8f06d4dd335bbf301a5ce369fa5bc3f5c034",
+          "anchor_identity": "4c1405f6b10753265784c0864c923517d55d6c4d40ad87144d16ed3faa5e01a0",
+          "technical_approval": {
+            "basis": "POLICY_SATISFIED",
+            "approved_review_content_id": "4c1405f6b10753265784c0864c923517d55d6c4d40ad87144d16ed3faa5e01a0",
+            "recorded_at": "2026-10-27T06:37:46Z"
+          },
+          "functional": {
+            "flow-1": {
+              "evidence_id": "bf61bd804c57cdb9713045024c2814c731c5e02c5f628417be8ecc4e396afa8e",
+              "log_digest": "b9737a065f247ef1928de58f19b4f9ed411b3140237f4bc53292d16ba99c73e7",
+              "run_ref": "manager-orchestrator:runs/md3-functional-r1"
+            },
+            "flow-10": {
+              "evidence_id": "fc8cfafae7669ce92535ec94fe1ac1fc4b225ddd4170cec10f14fc276ce42a82",
+              "log_digest": "9d328b23865b13f2019104622aed7b65c84928bb7ccafca14c0f7bda5dc74ca1",
+              "run_ref": "manager-orchestrator:runs/md3-functional-r1"
+            },
+            "flow-11": {
+              "evidence_id": "05efd27584486eba42b7dd8b27e2a7f47d7c1750da8fd2178e65b0df9ff29ba8",
+              "log_digest": "bd15945213ce86919e433f7e2900c01269a05c902daba296df3aaf9af9ed6897",
+              "run_ref": "manager-orchestrator:runs/md3-functional-r1"
+            },
+            "flow-12": {
+              "evidence_id": "a014aa8c83253e88a7b9e3f298fada744f312b8b689ebfd7554f10b4d9520222",
+              "log_digest": "543063a0f04a31dc7491c6cf512841013383fa33641938edc5db762981f6aac6",
+              "run_ref": "manager-orchestrator:runs/md3-functional-r1"
+            },
+            "flow-2": {
+              "evidence_id": "8b728e3b35076c17889e5c496b3c20bb45827144bbd5a782682b38dc16692251",
+              "log_digest": "da551a48b63b98c35d98dd717687db4ea6375afba6babc1c25db158878285378",
+              "run_ref": "manager-orchestrator:runs/md3-functional-r1"
+            },
+            "flow-3": {
+              "evidence_id": "1a3227b168e03d253ec6a28ff0fa198bb741fca6ad75c28c82c12609c267a936",
+              "log_digest": "cae8d22fc22a69257cc9e352e3cc5ed16e5b1aae5de171e7a9b1208250139de6",
+              "run_ref": "manager-orchestrator:runs/md3-functional-r1"
+            },
+            "flow-4": {
+              "evidence_id": "64ad1456bcb7e4a1597b08b3aec47d1d08979874a16f11337e950fe268ecdd6a",
+              "log_digest": "61c531707ea234d1f0e6e1d77284bbf04387b87bc69955d5068eab7555b30377",
+              "run_ref": "manager-orchestrator:runs/md3-functional-r1"
+            },
+            "flow-5": {
+              "evidence_id": "89d72a6e569b682633736d47f60b70dc94000a152f32f6238665ab4efba67dea",
+              "log_digest": "6ddcdba9dfb2ba439d571725bc6b540b5ad92c8c09cb84ba2361482ae5e1dafc",
+              "run_ref": "manager-orchestrator:runs/md3-functional-r1"
+            },
+            "flow-6": {
+              "evidence_id": "8f9e2291d2a2a2355e201a7da9ceb84d0e3ffda11d51b6239d9a1b7df5551661",
+              "log_digest": "20db975415e517df500a7bdafb070932705306416bd8fa8816168f0985d1920e",
+              "run_ref": "manager-orchestrator:runs/md3-functional-r1"
+            },
+            "flow-7": {
+              "evidence_id": "5e89fa7a2671471aeb2491a9db418a555ad32880690ffc68c9e35d117f876aae",
+              "log_digest": "574d0aeab1bb05a966cbc4fe7ae185dd12546075bdaa096970356183c6748cc3",
+              "run_ref": "manager-orchestrator:runs/md3-functional-r1"
+            },
+            "flow-8": {
+              "evidence_id": "736f15ecc6b56cf84f9df8cf99eadc80f3eec40dc73be6d9cb3c14aff91a9e8c",
+              "log_digest": "53e873a2f5babdcc405e46ab7043ec1e7b18f81159080fe4272d38676daa42db",
+              "run_ref": "manager-orchestrator:runs/md3-functional-r1"
+            },
+            "flow-9": {
+              "evidence_id": "f36d8d256d95cfedf9bf2ff00e8a891401b8fb6ea2910300f9dff31b8b4c0d7f",
+              "log_digest": "2d8f125ce6bad991f0c17b00081bfe8c4bd9358da966c2fd540e07c8285f5d2b",
+              "run_ref": "manager-orchestrator:runs/md3-functional-r1"
+            },
+            "flow-x1a": {
+              "evidence_id": "d3649e4d7b3c93a20593ee1367b46159f9f663732b7ae279c412469048fd7d70",
+              "log_digest": "1dcf035ea7cb6063358858a8d30362c1e48825ac6dca81c14e96d877f62078df",
+              "run_ref": "manager-orchestrator:runs/md3-functional-r1"
+            },
+            "flow-x1b": {
+              "evidence_id": "398f04c1ef2942bc0db084fb36a7ee40bc00c748230d68d5c59afd28e830dc23",
+              "log_digest": "1dcf035ea7cb6063358858a8d30362c1e48825ac6dca81c14e96d877f62078df",
+              "run_ref": "manager-orchestrator:runs/md3-functional-r1"
+            },
+            "flow-x2": {
+              "evidence_id": "b05258a27e198a607449fad1fd5fd509c9af9f9ab2af39bd5c5f64f1691b4602",
+              "log_digest": "1dcf035ea7cb6063358858a8d30362c1e48825ac6dca81c14e96d877f62078df",
+              "run_ref": "manager-orchestrator:runs/md3-functional-r1"
+            },
+            "flow-x3": {
+              "evidence_id": "256caad65d9cbe84690ba99f47c1afbef4c13dcf4d8cf5253a487fff1846f849",
+              "log_digest": "ad9e2646476cc5f11c0ecdc4d9f257664a7e4c113deee2b5c789e30ca56fe7c0",
+              "run_ref": "manager-orchestrator:runs/md3-functional-r1"
+            }
+          },
+          "pr": {
+            "fact_id": "fdaae8feab7331cae659886663ca39e8d4155f50d23caa68b9698b629e1b53e0",
+            "head": "5b7238b910f799fe44209c036c17920bbcdc9f01",
+            "provenance": "workflow_gh",
+            "raw_sha256": "9e7d545641d99b79e28770a9b56ddfcf9dbacf74b20253986abf7d33b07f5961"
+          }
+        },
+        "trust": {
+          "review_verdicts": "orchestrator",
+          "functional_evidence": "orchestrator",
+          "pr_fact": "workflow_gh"
+        },
+        "evaluated_at": "2026-10-27T07:48:33Z",
+        "workflow_release": "2.22.0"
       }
     }
   }

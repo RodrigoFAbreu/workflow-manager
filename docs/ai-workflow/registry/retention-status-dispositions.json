@@ -1,0 +1,96 @@
+{
+ "schema_version": 1,
+ "work_item_id": "retention-status",
+ "dispositions": {
+  "F-0ec7ba6e5dc0": {
+   "disposition": "follow-up",
+   "link": "RodrigoFAbreu/workflow-manager#116",
+   "note": "LIR-002: linked scripts/ directory (item 4)"
+  },
+  "F-0f669b65f5a0": {
+   "disposition": "follow-up",
+   "link": "RodrigoFAbreu/workflow-manager#116",
+   "note": "RS-L7-003: fixture description 'one kept item' (item 5)"
+  },
+  "F-1350e8c00b93": {
+   "disposition": "fixed",
+   "note": "RS-L1-004: answered in the plan revisions or the implementation, confirmed by the later local rounds, Codex plan round 3 and implementation round 2"
+  },
+  "F-328dbc9f82ee": {
+   "disposition": "follow-up",
+   "link": "RodrigoFAbreu/workflow-manager#116",
+   "note": "RS-L6-001: fixture description 'one kept item' (item 5)"
+  },
+  "F-35fa8431e8dc": {
+   "disposition": "fixed",
+   "note": "EPR-004: a byte-for-byte comparison of the default status and doctor output against the base commit was run in functional flow X3 (6 of 6 identical)"
+  },
+  "F-383e62820910": {
+   "disposition": "fixed",
+   "note": "RS-L7-001: answered in the plan revisions or the implementation, confirmed by the later local rounds, Codex plan round 3 and implementation round 2"
+  },
+  "F-5e021218a259": {
+   "disposition": "follow-up",
+   "link": "RodrigoFAbreu/workflow-manager#116",
+   "note": "RS-L5-002: chmod 000 is not an error for root (item 5)"
+  },
+  "F-7565553f51e6": {
+   "disposition": "fixed",
+   "note": "RS-L6-002: answered in the plan revisions or the implementation, confirmed by the later local rounds, Codex plan round 3 and implementation round 2"
+  },
+  "F-7a4ee7df0784": {
+   "disposition": "follow-up",
+   "link": "RodrigoFAbreu/workflow-manager#116",
+   "note": "EIR-003: size/length bounds (item 2)"
+  },
+  "F-8132d888c8b3": {
+   "disposition": "follow-up",
+   "link": "RodrigoFAbreu/workflow-manager#116",
+   "note": "RS-L7-002: '1 archives' wording (item 5)"
+  },
+  "F-81d2585c61a9": {
+   "disposition": "fixed",
+   "note": "RS-L1-005: answered in the plan revisions or the implementation, confirmed by the later local rounds, Codex plan round 3 and implementation round 2"
+  },
+  "F-ac89fc4a01f1": {
+   "disposition": "fixed",
+   "note": "EPR-004: a byte-for-byte comparison of the default status and doctor output against the base commit was run in functional flow X3 (6 of 6 identical)"
+  },
+  "F-af125bbde08a": {
+   "disposition": "fixed",
+   "note": "RS-L3-001: answered in the plan revisions or the implementation, confirmed by the later local rounds, Codex plan round 3 and implementation round 2"
+  },
+  "F-b6e7af79d1ab": {
+   "disposition": "dropped",
+   "reason": "LIR3-001: TEST_RESULTS.md opening paragraph describes round 1 while its header and Round 3 section are right; a per-revision bundle artifact regenerated each round"
+  },
+  "F-b9c3ce2ed6ac": {
+   "disposition": "follow-up",
+   "link": "RodrigoFAbreu/workflow-manager#116",
+   "note": "LIR2-003: control characters (item 1)"
+  },
+  "F-db231f050947": {
+   "disposition": "follow-up",
+   "link": "RodrigoFAbreu/workflow-manager#116",
+   "note": "LIR3-002: unbounded repr (item 2)"
+  },
+  "F-dc8414a09447": {
+   "disposition": "fixed",
+   "note": "RS-L1-003: answered in the plan revisions or the implementation, confirmed by the later local rounds, Codex plan round 3 and implementation round 2"
+  },
+  "F-e8c98110d98a": {
+   "disposition": "fixed",
+   "note": "RS-L4-003: answered in the plan revisions or the implementation, confirmed by the later local rounds, Codex plan round 3 and implementation round 2"
+  },
+  "F-f6734004ee19": {
+   "disposition": "follow-up",
+   "link": "RodrigoFAbreu/workflow-manager#116",
+   "note": "LIR-001: docs test coverage of causes (item 4)"
+  },
+  "F-ffa239a0bf66": {
+   "disposition": "follow-up",
+   "link": "RodrigoFAbreu/workflow-manager#116",
+   "note": "LIR-003: interrupted removals list limit (item 4)"
+  }
+ }
+}
