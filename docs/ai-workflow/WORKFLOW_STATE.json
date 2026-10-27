@@ -15738,7 +15738,7 @@
       "registry_path": "docs/ai-workflow/registry/runner-hardening-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/runner-hardening-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "AWAITING_FUNCTIONAL_REVIEW",
       "plan_revision": 1,
       "implementation_revision": 1,
       "functional_review_round": null,
@@ -15847,7 +15847,102 @@
           "workflow_release": "2.22.0"
         }
       },
-      "technical_approval": null,
+      "technical_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "2bd2a9bd389ff83b1e59d51a05a4d15bbc89d3b1314e58d2b2f5d50c93c6b62a",
+        "approved_review_content_id": "71ede94d0ec62f72de91bd75ef02a3e2ac54952e9359801db9b0806187d3c8a2",
+        "review_content_manifest": [
+          {
+            "path": "docs/ARCHITECTURE.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "c8dee6dcb5a6c69b607ab242575f0b56df9c16d9"
+          },
+          {
+            "path": "docs/ai-workflow/registry/runner-hardening-artifacts.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "86d4b9c1585fcf7f5cdf022fa04de8d9ec829401"
+          },
+          {
+            "path": "tests/parallel/executor.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "9e2532c3e4d019e555dad9c8a3ae5c511aa67a77"
+          },
+          {
+            "path": "tests/test_parallel_runner.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "026244132bd166e0f61c18b96c4d3848acf58fe8"
+          }
+        ],
+        "reviewed_content_commit": "b78d19b5686351cdb02404b0185b1327635048f6",
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-10-27T15:55:21Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "71ede94d0ec62f72de91bd75ef02a3e2ac54952e9359801db9b0806187d3c8a2",
+            "ledger": {
+              "local": {
+                "bundle_id": "2bd2a9bd389ff83b1e59d51a05a4d15bbc89d3b1314e58d2b2f5d50c93c6b62a",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "f64559c6c1a91bdeb8f79fe0fba818841e75fcd001790140cc2b06722a1e642b",
+                "ledger_entry_sha256": "f7a1fdfda1673195d1f3ff755514c860cff89489ea104a239815c4041ba5dff0",
+                "run_ref": "session:local .ai-review/runner-hardening/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "2bd2a9bd389ff83b1e59d51a05a4d15bbc89d3b1314e58d2b2f5d50c93c6b62a",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "0fcce55da9285da3c4ece1f4c27caba1f9f28abbc3b618bbed619f8800d98ddd",
+                "ledger_entry_sha256": "712414a8d79336a58395f24f4dada3d83bc12799caa02e3e375d54fda9b628d4",
+                "run_ref": "codex:20261027T155305Z-c83aa9cc",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-10-27T15:55:21Z",
+          "workflow_release": "2.22.0"
+        }
+      },
       "technical_review_block_pins": [],
       "plan_review_stages": {
         "review_content_id": "ce5abf8b2d6ffab840c2e4c6ccfe6aac4c4eaa075f27d6b150a0421b8597d768",
@@ -15878,12 +15973,12 @@
           "external": 1
         },
         "implementation": {
-          "local": 0,
-          "external": 0
+          "local": 1,
+          "external": 1
         }
       },
-      "state_revision": 11,
-      "last_transition": "2026-10-27T15:40:22Z",
+      "state_revision": 14,
+      "last_transition": "2026-10-27T15:55:21Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -15969,6 +16064,83 @@
               "at": "2026-10-27T14:30:19Z"
             }
           ]
+        },
+        "F-64e323c12686": {
+          "digest": "64e323c126862b3e97b580b19c027c9f890e3cf26a3b249db44289392c9a06df",
+          "text": "RH-LI1-001 (tests, plan conformance): plan section 3 says the `_interrupt` `finally` \"kills and reaps it, so a failing test leaves no process behind\", and the external plan review's Optional finding (F-74f44045a7bd) asked for the chunk group's exit to be established. The implementation kills only the executor: reproduced against the base executor in an export outside the repository, the failing `test_sigint_interrupts_a_run_that_started_with_it_ignored` left the chunk's reaper and `parallel.unit` alive after the test process ended (until `WAIT_MODULE`'s 120 s deadline). Failure path only; a green run kills the chunk itself, and no verdict is affected. The prepared patch (`os.killpg(pgid, SIGKILL)` under `suppress(ProcessLookupError)` after `proc.kill()`/`communicate()`) fixes it; apply it in the next round that touches code, or record it as a follow-up at acceptance.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "71ede94d0ec62f72de91bd75ef02a3e2ac54952e9359801db9b0806187d3c8a2",
+              "verdict": "APPROVE",
+              "at": "2026-10-27T15:52:30Z"
+            }
+          ]
+        },
+        "F-1489b6812740": {
+          "digest": "1489b6812740aedccc798d5b6994ad99ce83c80388dc7b6e2a06902c6ed8d3f2",
+          "text": "RH-LI1-002 (tests): `test_a_failing_run_keeps_its_directory_and_attempts_no_removal` asserts that no removal was attempted but not that the run directory still exists, although its name claims both. Asserting the kept `wm-run-*` directory (named in the report) would make the name true.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "71ede94d0ec62f72de91bd75ef02a3e2ac54952e9359801db9b0806187d3c8a2",
+              "verdict": "APPROVE",
+              "at": "2026-10-27T15:52:30Z"
+            }
+          ]
+        },
+        "F-18044b6d93bf": {
+          "digest": "18044b6d93bf5d693d05152d17444203da57400a3f3855683f9b92cb47261feb",
+          "text": "RH-LI1-003 (wording): `remove_run_dir`'s docstring and the plan say the directory \"stays where it is\" on an `OSError`; `clean_tmpdir` may fail midway through `shutil.rmtree`, leaving it partially removed. The warning names the path, so nothing is lost; \"may be left behind\" would be exact.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "71ede94d0ec62f72de91bd75ef02a3e2ac54952e9359801db9b0806187d3c8a2",
+              "verdict": "APPROVE",
+              "at": "2026-10-27T15:52:30Z"
+            }
+          ]
+        },
+        "F-84ee1aafc0f7": {
+          "digest": "84ee1aafc0f721c1af82469af957c7438ec1cdf8ab615acc11e9ee8d4747bf91",
+          "text": "`tests/test_parallel_runner.py:4767–4771`: If the interrupt test times out, cleanup kills only the executor. Its chunk runs in a separate session and can survive until `WAIT_MODULE`’s 120-second deadline because teardown may remove the stop file before the chunk observes it. Kill the known chunk process group during failure cleanup. This affects an already-failing test and does not block approval.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "71ede94d0ec62f72de91bd75ef02a3e2ac54952e9359801db9b0806187d3c8a2",
+              "verdict": "APPROVE",
+              "at": "2026-10-27T15:54:40Z"
+            }
+          ]
+        }
+      },
+      "implementation_review_stages": {
+        "review_content_id": "71ede94d0ec62f72de91bd75ef02a3e2ac54952e9359801db9b0806187d3c8a2",
+        "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "2bd2a9bd389ff83b1e59d51a05a4d15bbc89d3b1314e58d2b2f5d50c93c6b62a",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-10-27T15:52:30Z",
+          "verdict_sha256": "f64559c6c1a91bdeb8f79fe0fba818841e75fcd001790140cc2b06722a1e642b",
+          "run_ref": "session:local .ai-review/runner-hardening/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "2bd2a9bd389ff83b1e59d51a05a4d15bbc89d3b1314e58d2b2f5d50c93c6b62a",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-10-27T15:54:40Z",
+          "verdict_sha256": "0fcce55da9285da3c4ece1f4c27caba1f9f28abbc3b618bbed619f8800d98ddd",
+          "run_ref": "codex:20261027T155305Z-c83aa9cc",
+          "reviewer_model": "openai/gpt-6.1-sol"
         }
       }
     }
