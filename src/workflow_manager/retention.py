@@ -277,7 +277,7 @@ def fetch(target: Path) -> Outcome:
         return _other_failure("the script's output is not UTF-8 text")
     try:
         report = json.loads(text)
-    except ValueError:
+    except (ValueError, RecursionError):  # RecursionError: JSON nested past the decoder's depth
         return _other_failure("the script's output is not one JSON object")
     if not isinstance(report, dict):
         return _other_failure("the script's output is not one JSON object")
@@ -413,4 +413,8 @@ def section(target: Path, version) -> list[str]:
     outcome = fetch(target)
     if outcome.report is None:
         return render_note(outcome.refusal)
-    return render(outcome.report, version, target)
+    try:
+        return render(outcome.report, version, target)
+    except Exception as exc:  # one boundary: no report may change an exit code
+        return render_note(NotAvailable(
+            f"the script's report is malformed: {type(exc).__name__}", STEP_RUN_DIRECTLY))

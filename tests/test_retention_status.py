@@ -643,6 +643,25 @@ class TestMalformedReports(Scratch):
                 self.one_note(got, "the script's report is malformed")
                 self.assertIn("repository is not valid text", got.stdout)
 
+    def test_deeply_nested_json_falls_back_for_both_commands(self):
+        # LIR2-001: the decoder's RecursionError is case 6, never a traceback.
+        self.install_stub()
+        path = self.put_report("[" * 200000 + "]" * 200000)
+        for command in ("status", "doctor"):
+            with self.subTest(command=command):
+                got = self.both(command, STUB_REPORT=str(path))[1]
+                self.assertEqual(self.one_note(got, "not one JSON object"),
+                                 retention.STEP_RUN_DIRECTLY)
+
+    def test_any_error_while_rendering_is_case_six(self):
+        # LIR2-001: the structural boundary in section().
+        with mock.patch.object(retention, "fetch",
+                               return_value=retention.Outcome(report=report(finished()))), \
+                mock.patch.object(retention, "render", side_effect=RuntimeError("x")):
+            lines = retention.section(self.repo, "2.22.0")
+        self.assertEqual(lines[0], "retention: not available: the script's report is "
+                                   "malformed: RuntimeError")
+
     def test_a_huge_byte_count_is_rendered_without_a_traceback_for_both_commands(self):
         # EIR-001: beyond float range the size is whole GiB, the exit code unchanged.
         for command in ("status", "doctor"):
