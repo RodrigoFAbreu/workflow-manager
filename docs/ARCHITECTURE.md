@@ -780,7 +780,11 @@ until the run ends. Saving a new file there fails with `EACCES`, and so
 does an editor's atomic-rename save, or a `git checkout`/`switch`/`stash`/
 `pull` that touches them. A branch switch can be left half-applied. The
 run restores the original modes when it ends, including on `SIGINT` and
-`SIGTERM`. After a `SIGKILL`, the next run restores them first. Or run
+`SIGTERM`, and also when the run was started with `SIGINT` ignored (a `&` job
+of a non-interactive shell): the run installs its own handler for both. A
+failure to remove the run's temporary directory after the report is a warning
+on stderr, never the exit code. After a `SIGKILL`, the next run restores them
+first. Or run
 `python3 tests/run_all.py --restore-barrier`, which refuses while any
 process of the killed run is still alive.
 

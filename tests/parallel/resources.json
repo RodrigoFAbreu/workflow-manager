@@ -22,6 +22,9 @@
     "host:test_parallel_runner.py::TestLockAndRecoveryThroughTheCli": {
       "reason": "SIGKILLs a scratch executor while its chunk runs (that the chunk keeps the lock is the subject), and interrupts runs with SIGTERM and SIGINT, which kill their chunk groups: the running chunk, or a chunk its killed wrapper had not yet reaped, is re-parented to this unit's wrapper"
     },
+    "host:test_parallel_runner.py::TestSigintWhenIgnored": {
+      "reason": "interrupts a scratch run with SIGINT and SIGTERM on purpose, which kill the chunk's group: the running chunk, or a chunk its killed wrapper had not yet reaped, is re-parented to this unit's wrapper"
+    },
     "host:test_parallel_runner.py::TestRunChunk": {
       "reason": "its timeout and interrupt tests kill a chunk's process group, its leak-check wrapper included, on purpose: the wrapper dies before it reaps the chunk, which is re-parented to this unit's wrapper (test-cleanup plan 5.6, a killed run's orphans)"
     },
