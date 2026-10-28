@@ -16452,12 +16452,12 @@
       "registry_path": "docs/ai-workflow/registry/http-read-deadline-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/http-read-deadline-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "SELF_REVIEWING_IMPLEMENTATION",
+      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
       "plan_revision": 7,
-      "implementation_revision": null,
+      "implementation_revision": 1,
       "functional_review_round": null,
       "base_commit": "0314658ea1af35b90013b9440e448b3f9dbad941",
-      "reviewed_implementation_head": null,
+      "reviewed_implementation_head": "cc1da842030b42e5bc4adb88c5198e359e631b2e",
       "current_checkpoint_id": null,
       "last_completed_checkpoint_id": "CP2",
       "checkpoints": {
@@ -16596,8 +16596,8 @@
           "external": 0
         }
       },
-      "state_revision": 29,
-      "last_transition": "2026-10-28T10:55:18Z",
+      "state_revision": 30,
+      "last_transition": "2026-10-28T11:20:49Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
