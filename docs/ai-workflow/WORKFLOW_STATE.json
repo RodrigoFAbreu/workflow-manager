@@ -16452,7 +16452,7 @@
       "registry_path": "docs/ai-workflow/registry/http-read-deadline-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/http-read-deadline-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "APPLYING_REVIEW_FEEDBACK",
       "plan_revision": 7,
       "implementation_revision": 1,
       "functional_review_round": null,
@@ -16592,12 +16592,12 @@
           "external": 2
         },
         "implementation": {
-          "local": 0,
+          "local": 1,
           "external": 0
         }
       },
-      "state_revision": 30,
-      "last_transition": "2026-10-28T11:20:49Z",
+      "state_revision": 31,
+      "last_transition": "2026-10-28T11:28:05Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -16861,6 +16861,48 @@
               "review_content_id": "5728238c656086c6b61961fe683e982ec8f3a14affa1c373e44d47b540a67793",
               "verdict": "APPROVE",
               "at": "2026-10-28T10:24:38Z"
+            }
+          ]
+        },
+        "F-d4aef6b1d885": {
+          "digest": "d4aef6b1d88517b2fa11fa6bdeb396a1b61e22510694aefb7019d59337bfcc2e",
+          "text": "**LIR1-002: `_Bounded._decref_socketios` calls `_real_close()` directly, not `close()`, so it does not count readers the way `socket.socket` does.** `socket.socket._decref_socketios` calls `self.close()`, which closes the real socket only when no reader is left. With two `makefile` readers open after `close()`, the wrapper closes the real socket when the first reader closes (checked: `w.makefile(); w.makefile(); w.close(); a.close()` closes the fake socket; a real `socket.socket` keeps its fd). Not reachable today: on 3.12+ `_tunnel()` closes its response in a `finally`, so a wrapper never has two readers at once. One-word fix (`self.close()`), and it makes the docstring's \"as `socket.socket` does\" true.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "c7e98e4ce75f9742d947732cedc843930770b768216ff76e141ae74bb89d60b9",
+              "verdict": "REVISE",
+              "at": "2026-10-28T11:28:05Z"
+            }
+          ]
+        },
+        "F-e9c957a9d2da": {
+          "digest": "e9c957a9d2da0ca48136a7ac0d0638fb354c63fc3976c6a516441fd7fcfde7a9",
+          "text": "**LIR1-003: on Python 3.11 (the `requires-python` floor) a failed `CONNECT` leaves its socket open until the tunnel response is collected.** 3.11's `_tunnel()` has no `finally: response.close()` (3.12 does), so the tunnel reader keeps the wrapper's reference count at 1; the `except` in `connect()` then only marks the wrapper closed. That response stays reachable from the `TimeoutError`/`OSError` traceback chained into the caller's `DiscoveryFailure`/`ReleaseUnavailableError.__cause__`, so the socket lives as long as the caller holds the exception. `IMPLEMENTATION_SUMMARY.md` names this (\"not verified for 3.11\"); plan section 9's \"unchanged there\" is not quite true for `_tunnel()`. CI runs 3.12 (all jobs) and the new classes pass on 3.12.14 (28 tests, checked), so nothing fails today. A version-independent fix: in `connect()`'s `except`, close a `_Bounded` through `_real_close()` (no reader can outlive a failed `connect()`), and say so in the comment.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "c7e98e4ce75f9742d947732cedc843930770b768216ff76e141ae74bb89d60b9",
+              "verdict": "REVISE",
+              "at": "2026-10-28T11:28:05Z"
+            }
+          ]
+        },
+        "F-cba320f903df": {
+          "digest": "cba320f903df1f4532f2266a232b851b89acbce4f176f37b352c3e24813fe98c",
+          "text": "**LIR1-004: `_Bounded.makefile` accepts `\"wb\"`/`\"rwb\"`, but the wrapper has no `send`, which `SocketIO.write` calls.** A writer would fail with `AttributeError`. `http.client` only ever asks for `\"rb\"`; accept that mode alone, or add `send` with the clamp.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "c7e98e4ce75f9742d947732cedc843930770b768216ff76e141ae74bb89d60b9",
+              "verdict": "REVISE",
+              "at": "2026-10-28T11:28:05Z"
             }
           ]
         }
