@@ -521,23 +521,19 @@ class _Bounded:
         return self._sock.setsockopt(*args)
 
     def makefile(self, mode="rb", buffering=-1):
-        # Binary only, over this wrapper and never the real socket: the reads
-        # must meet the clamp.
-        if mode not in ("rb", "wb", "rwb"):
+        # Reading only, over this wrapper and never the real socket: the reads
+        # must meet the clamp (`http.client` asks for nothing else).
+        if mode != "rb":
             raise ValueError(f"invalid mode {mode!r}")
         self._io_refs += 1
-        raw = socket.SocketIO(self, mode.replace("b", ""))
-        if buffering == 0:
-            return raw
-        if mode == "rb":
-            return io.BufferedReader(raw)
-        return io.BufferedWriter(raw) if mode == "wb" else io.BufferedRWPair(raw, raw)
+        raw = socket.SocketIO(self, "r")
+        return raw if buffering == 0 else io.BufferedReader(raw)
 
     def _decref_socketios(self) -> None:
         if self._io_refs > 0:
             self._io_refs -= 1
         if self._closed:
-            self._real_close()
+            self.close()
 
     def _real_close(self) -> None:
         self._sock.close()
@@ -594,7 +590,7 @@ class _BoundedConnectionMixin:
     def connect(self):
         sys.audit("http.client.connect", self, self.host, self.port)
         raw = self._create_connection((self.host, self.port), self.timeout, self.source_address)
-        self.sock = _Bounded(raw, self._deadline)
+        bounded = self.sock = _Bounded(raw, self._deadline)
         try:
             try:
                 self.sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
@@ -611,10 +607,13 @@ class _BoundedConnectionMixin:
                 self.sock = _Bounded(self._context.wrap_socket(raw, server_hostname=name),
                                      self._deadline)
         except BaseException:
-            # `_tunnel` closes the connection itself on a refusal: sock is then None.
-            sock, self.sock = self.sock, None
-            if sock is not None:
-                sock.close()
+            # `_tunnel` closes the connection itself on a refusal: sock is then None,
+            # and on 3.11 its unread reply keeps the wrapper open. No reader can
+            # outlive a failed `connect()`, so the wrapper is closed outright.
+            current, self.sock = self.sock, None
+            bounded._real_close()
+            if current is not None and current is not bounded:
+                current.close()
             raise
 
 
@@ -659,6 +658,8 @@ def _http_fetch(where: str, cap: int, deadline: Deadline | None, headers, timeou
         with opener.open(request, timeout=timeout) as stream:
             return _read_capped(stream, cap, where, deadline)
     except (OSError, urllib.error.URLError, ValueError) as exc:
+        if isinstance(exc, urllib.error.HTTPError):
+            exc.close()          # it holds the response, and so the socket, as long as it lives
         if deadline is not None and deadline.remaining() <= 0:
             raise DiscoveryFailure("the discovery time limit passed", expired=True) from exc
         raise ReleaseUnavailableError(f"cannot fetch {where}: {exc}", kind="fetch-url",
