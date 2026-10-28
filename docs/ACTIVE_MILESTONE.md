@@ -2,7 +2,7 @@
 
 ## Milestone
 
-`http-read-deadline` -- in progress (`governing_workflow_version: "2.2"`, `process`, plan revision 7, base `0314658`, branch `milestone/http-read-deadline`): roadmap row 15 (#50). A `fix:` pull request title (releases a patch when it merges and `main` is green). Plan: `docs/ai-workflow/WORKFLOW_MANAGER_HTTP_READ_DEADLINE_PLAN.md`.
+`http-read-deadline` -- complete, accepted by policy (`governing_workflow_version: "2.2"`, `process`, plan revision 7, base `0314658`, branch `milestone/http-read-deadline`): roadmap row 15 (#50). A `fix:` pull request title (releases a patch when it merges and `main` is green). Plan: `docs/ai-workflow/WORKFLOW_MANAGER_HTTP_READ_DEADLINE_PLAN.md`.
 
 `_http_read` (`src/workflow_manager/source.py`) no longer runs a worker thread: the connection itself is bounded, so every send and receive on it, a proxy's `CONNECT` exchange included, is clamped to the time left and the socket is closed at the deadline.
 
@@ -110,4 +110,4 @@ Flow A needs no loopback. Flows B and C need a loopback listener. If a sandbox r
 
 ## Next action
 
-The functional review: the user runs the checklist above against the checklist evidence commit, and writes any findings to `.ai-review/http-read-deadline/feedback/FUNCTIONAL_REVIEW.md`. Then `/apply-functional-review` routes them. `/accept-milestone` is the only acceptance command, and it needs CP1 and CP2 both `COMPLETE` (they are).
+No active milestone. The next incomplete roadmap item is the first one in `docs/ROADMAP.md` that is not Done and is not already in flight on another work item (rows 16 to 18 each have their own work item), ready for `/milestone-plan`.

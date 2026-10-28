@@ -1,0 +1,100 @@
+{
+ "schema_version": 1,
+ "work_item_id": "http-read-deadline",
+ "dispositions": {
+  "F-05044da9b1b6": {
+   "disposition": "fixed",
+   "note": "answered in the plan or implementation revisions and confirmed by the later local and Codex rounds"
+  },
+  "F-16b63e95b1c0": {
+   "disposition": "dropped",
+   "reason": "plan text on a mutation or fail-first prediction; the implementation's tests and recorded mutation results were reviewed and approved in the later local and Codex implementation rounds"
+  },
+  "F-1f8866bbd7bb": {
+   "disposition": "follow-up",
+   "link": "RodrigoFAbreu/workflow-manager#128",
+   "note": "_socket_links silently empty (issue item 1)"
+  },
+  "F-2d9213c7eb80": {
+   "disposition": "dropped",
+   "reason": "plan text on a mutation or fail-first prediction; the implementation's tests and recorded mutation results were reviewed and approved in the later local and Codex implementation rounds"
+  },
+  "F-3e5b8eacf84e": {
+   "disposition": "fixed",
+   "note": "answered in the plan or implementation revisions and confirmed by the later local and Codex rounds"
+  },
+  "F-64a37e9e68a8": {
+   "disposition": "fixed",
+   "note": "answered in the plan or implementation revisions and confirmed by the later local and Codex rounds"
+  },
+  "F-69c764fcf3d2": {
+   "disposition": "dropped",
+   "reason": "plan text on a mutation or fail-first prediction; the implementation's tests and recorded mutation results were reviewed and approved in the later local and Codex implementation rounds"
+  },
+  "F-8261a570e67b": {
+   "disposition": "dropped",
+   "reason": "review-bundle narrative file, regenerated every round and not shipped"
+  },
+  "F-88d4c2cb309c": {
+   "disposition": "fixed",
+   "note": "answered in the plan or implementation revisions and confirmed by the later local and Codex rounds"
+  },
+  "F-89207466c933": {
+   "disposition": "fixed",
+   "note": "answered in the plan or implementation revisions and confirmed by the later local and Codex rounds"
+  },
+  "F-91ef728bbf2a": {
+   "disposition": "dropped",
+   "reason": "plan text on a mutation or fail-first prediction; the implementation's tests and recorded mutation results were reviewed and approved in the later local and Codex implementation rounds"
+  },
+  "F-95b60906935e": {
+   "disposition": "fixed",
+   "note": "answered in the plan or implementation revisions and confirmed by the later local and Codex rounds"
+  },
+  "F-aa7988a942b2": {
+   "disposition": "dropped",
+   "reason": "mapping list wording in the plan; the implementation tests cover the case"
+  },
+  "F-acfdacf96d66": {
+   "disposition": "fixed",
+   "note": "answered in the plan or implementation revisions and confirmed by the later local and Codex rounds"
+  },
+  "F-b176ced766da": {
+   "disposition": "fixed",
+   "note": "answered in the plan or implementation revisions and confirmed by the later local and Codex rounds"
+  },
+  "F-b9aa88559491": {
+   "disposition": "fixed",
+   "note": "answered in the plan or implementation revisions and confirmed by the later local and Codex rounds"
+  },
+  "F-cba320f903df": {
+   "disposition": "fixed",
+   "note": "answered in the plan or implementation revisions and confirmed by the later local and Codex rounds"
+  },
+  "F-ce7e9ee7b91e": {
+   "disposition": "follow-up",
+   "link": "RodrigoFAbreu/workflow-manager#128",
+   "note": "_decref_socketios change untested (item 2)"
+  },
+  "F-cfe09b85a361": {
+   "disposition": "fixed",
+   "note": "answered in the plan or implementation revisions and confirmed by the later local and Codex rounds"
+  },
+  "F-d301caf28ca1": {
+   "disposition": "fixed",
+   "note": "answered in the plan or implementation revisions and confirmed by the later local and Codex rounds"
+  },
+  "F-d4aef6b1d885": {
+   "disposition": "fixed",
+   "note": "answered in the plan or implementation revisions and confirmed by the later local and Codex rounds"
+  },
+  "F-daeae504e0c2": {
+   "disposition": "fixed",
+   "note": "answered in the plan or implementation revisions and confirmed by the later local and Codex rounds"
+  },
+  "F-e9c957a9d2da": {
+   "disposition": "fixed",
+   "note": "answered in the plan or implementation revisions and confirmed by the later local and Codex rounds"
+  }
+ }
+}
