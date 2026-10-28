@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "work_item_id": "http-read-deadline",
+  "requirements": {
+    "R1": {
+      "description": "When the shared deadline passes, _http_read starts no thread and the connection's socket is closed before DiscoveryFailure(expired=True) is raised: stalled at the request, at a partial header, at the body, trickled headers, trickled body and a stalled redirect target a stalled target after a slow first hop and a proxy whose CONNECT reply trickles each leave no extra thread and no open socket (loopback server, event-synchronised, thread and socket sets compared)",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R2": {
+      "description": "The failure behaviour is unchanged for every caller: expired=True DiscoveryFailure at the deadline (except a stalled resolver, R3), proxy CONNECT and TLS included, fetch-url ReleaseUnavailableError before it, the size cap error with its kind, the redirect rules and limit, a normal and a redirected fetch still returning the body; with no deadline the default handlers and 60 s timeout stay",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R3": {
+      "description": "The residual is stated and bounded in docs/ARCHITECTURE.md and tested as far as hermetic tests can: a stalled resolver delays the failure until it returns and opens no socket. The proxy CONNECT exchange is clamped to the time left (loopback trickling proxy that never completes its reply, connect() driven alone raises the clamped TimeoutError, or DiscoveryFailure expired=True, and the connection itself closes its socket, without the test closing it; expired=True for the proxy path is asserted end to end through _http_read) and the TLS handshake receives the time left as of just before it (fake-clock test of the timeout wrap_socket is handed); only a real handshake is argued, not proven",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R4": {
+      "description": "Roadmap row 15 Current in CP1 and Done at acceptance; a fix: pull request title releases a Manager patch; no user-visible output changes",
+      "checkpoint_ids": [
+        "CP1",
+        "CP2"
+      ]
+    }
+  }
+}

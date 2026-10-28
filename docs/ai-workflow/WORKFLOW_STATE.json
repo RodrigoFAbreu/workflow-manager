@@ -16442,6 +16442,796 @@
         "evaluated_at": "2026-10-27T16:31:43Z",
         "workflow_release": "2.22.0"
       }
+    },
+    "http-read-deadline": {
+      "work_item_type": "process",
+      "work_item_kind": "process",
+      "work_item_id": "http-read-deadline",
+      "parent_work_item_id": null,
+      "plan_path": "docs/ai-workflow/WORKFLOW_MANAGER_HTTP_READ_DEADLINE_PLAN.md",
+      "registry_path": "docs/ai-workflow/registry/http-read-deadline-registry.json",
+      "mapping_path": "docs/ai-workflow/requirements/http-read-deadline-mapping.json",
+      "governing_workflow_version": "2.2",
+      "phase": "MILESTONE_COMPLETE",
+      "plan_revision": 7,
+      "implementation_revision": 2,
+      "functional_review_round": null,
+      "base_commit": "0314658ea1af35b90013b9440e448b3f9dbad941",
+      "reviewed_implementation_head": "340622cbc71c50faab6bf562128a6df9c9994cd9",
+      "current_checkpoint_id": null,
+      "last_completed_checkpoint_id": "CP2",
+      "checkpoints": {
+        "CP1": {
+          "status": "COMPLETE",
+          "start_commit": "1318d35f2a85ae4578dd3cef21e05117408f44e6"
+        },
+        "CP2": {
+          "status": "COMPLETE",
+          "start_commit": "ee11411e3c6bdd63b675e83971bca40015dc4b2a"
+        }
+      },
+      "current_bundle_id": "20bb2804099addd62ddc533e152af358be38be9cc35873249712b3e7a8fd8f66",
+      "plan_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "20bb2804099addd62ddc533e152af358be38be9cc35873249712b3e7a8fd8f66",
+        "approved_review_content_id": "5728238c656086c6b61961fe683e982ec8f3a14affa1c373e44d47b540a67793",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/WORKFLOW_MANAGER_HTTP_READ_DEADLINE_PLAN.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "f72216525bc74cf841529c2e3bfc3f63e10c08eb"
+          },
+          {
+            "path": "docs/ai-workflow/registry/http-read-deadline-registry.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "ca5b032e2f087af7e18e25e7b6910380af7d9670"
+          },
+          {
+            "path": "docs/ai-workflow/requirements/http-read-deadline-mapping.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "815bf8c2f0240190092d8f4933f4ebb1c6e4bc40"
+          }
+        ],
+        "reviewed_content_commit": null,
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-10-28T10:25:25Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "5728238c656086c6b61961fe683e982ec8f3a14affa1c373e44d47b540a67793",
+            "ledger": {
+              "local": {
+                "bundle_id": "20bb2804099addd62ddc533e152af358be38be9cc35873249712b3e7a8fd8f66",
+                "verdict": "APPROVE",
+                "round": 7,
+                "verdict_sha256": "ed6c2091d8ae5930417aec17e38394bef6d85118eef80338ef7d91f94b1f5326",
+                "ledger_entry_sha256": "294feefe812ba16001abc635f1aa20a5dfe43d48f9356448e3e2cda0c06e23bd",
+                "run_ref": "session:local .ai-review/http-read-deadline/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "20bb2804099addd62ddc533e152af358be38be9cc35873249712b3e7a8fd8f66",
+                "verdict": "APPROVE",
+                "round": 7,
+                "verdict_sha256": "7f057f6a91a18e4c1d507b11603c1f4f7dc2c0793d09a86fc13d98cf732be388",
+                "ledger_entry_sha256": "4aed9128bd6c7f53fdcbf31446daedde0d2b16c7767f122bd8c7e9a1acf6250f",
+                "run_ref": "codex:20261028T102128Z-39914611",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-10-28T10:25:25Z",
+          "workflow_release": "2.25.0"
+        }
+      },
+      "technical_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "175a8509dade12cb17d05e2335ef9cd53db842e1e0ccc7ac2231b92fd7fdcba8",
+        "approved_review_content_id": "789712e156436c0d621834d31ecf9d60fb2e3bde876fb01a3331217cd402f805",
+        "review_content_manifest": [
+          {
+            "path": "docs/ARCHITECTURE.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "8edc00066cf02dbc478bd48b756f6fac4bb7a774"
+          },
+          {
+            "path": "docs/ai-workflow/registry/http-read-deadline-artifacts.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "dfccc3aaf7ec9063c81e0fad094c1194afdefeae"
+          },
+          {
+            "path": "src/workflow_manager/source.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "2813674ac3dfbbcb0c787a66ff06485c4b7ba78b"
+          },
+          {
+            "path": "tests/test_discovery.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "8dc6b0df27a29790dcce9b6993cd8ab3f108c480"
+          }
+        ],
+        "reviewed_content_commit": "340622cbc71c50faab6bf562128a6df9c9994cd9",
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-10-28T12:33:27Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "789712e156436c0d621834d31ecf9d60fb2e3bde876fb01a3331217cd402f805",
+            "ledger": {
+              "local": {
+                "bundle_id": "175a8509dade12cb17d05e2335ef9cd53db842e1e0ccc7ac2231b92fd7fdcba8",
+                "verdict": "APPROVE",
+                "round": 2,
+                "verdict_sha256": "358eb13d7532f3201fe03c636347a2503f020073d1ef0c6e8333166b4f3a1b18",
+                "ledger_entry_sha256": "8513044ab19f18081c8308509d34e8ae4ddadab79f8c6b50782588c176c2d0ec",
+                "run_ref": "session:local .ai-review/http-read-deadline/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "175a8509dade12cb17d05e2335ef9cd53db842e1e0ccc7ac2231b92fd7fdcba8",
+                "verdict": "APPROVE",
+                "round": 2,
+                "verdict_sha256": "8b913bc28cf920bbbc81ccc2024e337ac522713c76215e14c163ae493abfd612",
+                "ledger_entry_sha256": "d72e2c766899afc431605758d814f59c631ed83d4aac3f90fe3d0ea000ec59fc",
+                "run_ref": "codex:20261028T122944Z-2707df25",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-10-28T12:33:27Z",
+          "workflow_release": "2.25.0"
+        }
+      },
+      "technical_review_block_pins": [],
+      "plan_review_stages": {
+        "review_content_id": "5728238c656086c6b61961fe683e982ec8f3a14affa1c373e44d47b540a67793",
+        "LOCAL_MODEL_PLAN_REVIEW": {
+          "bundle_id": "20bb2804099addd62ddc533e152af358be38be9cc35873249712b3e7a8fd8f66",
+          "verdict": "APPROVE",
+          "round": 7,
+          "completed_at": "2026-10-28T10:21:01Z",
+          "verdict_sha256": "ed6c2091d8ae5930417aec17e38394bef6d85118eef80338ef7d91f94b1f5326",
+          "run_ref": "session:local .ai-review/http-read-deadline/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_PLAN_REVIEW": {
+          "bundle_id": "20bb2804099addd62ddc533e152af358be38be9cc35873249712b3e7a8fd8f66",
+          "verdict": "APPROVE",
+          "round": 7,
+          "completed_at": "2026-10-28T10:24:38Z",
+          "verdict_sha256": "7f057f6a91a18e4c1d507b11603c1f4f7dc2c0793d09a86fc13d98cf732be388",
+          "run_ref": "codex:20261028T102128Z-39914611",
+          "reviewer_model": "openai/gpt-6.1-sol"
+        }
+      },
+      "functional_acceptance_status": null,
+      "blocking_decisions": [],
+      "review_round_counts": {
+        "plan": {
+          "local": 7,
+          "external": 2
+        },
+        "implementation": {
+          "local": 2,
+          "external": 1
+        }
+      },
+      "state_revision": 36,
+      "last_transition": "2026-10-28T13:18:54Z",
+      "feedback_layout": "scoped",
+      "plan_review_binding": {
+        "status": "BOUND",
+        "at": "2026-10-28T10:19:05Z",
+        "consumed": {
+          "review_content_id": "d72afe176fc4b8cb5b72b6387ef1b360a9bfd3f95351c80a691b7efcddddfaa5",
+          "plan_revision": 6,
+          "legacy": false
+        },
+        "published": {
+          "review_content_id": "5728238c656086c6b61961fe683e982ec8f3a14affa1c373e44d47b540a67793",
+          "plan_revision": 7
+        },
+        "bound": {
+          "review_content_id": "5728238c656086c6b61961fe683e982ec8f3a14affa1c373e44d47b540a67793",
+          "bundle_id": "20bb2804099addd62ddc533e152af358be38be9cc35873249712b3e7a8fd8f66",
+          "plan_revision": 7
+        }
+      },
+      "consumed_plan_review_content_ids": [
+        "2061224495b47b17665b8bea56780db3c354aeeb73d86957ca2df800ad69a35d",
+        "70c80cfa0a010a4954d3b9d05ebf2ac623318502942b1d1ce4dc29a47514e0f8",
+        "d72afe176fc4b8cb5b72b6387ef1b360a9bfd3f95351c80a691b7efcddddfaa5",
+        "f2594cf4ab3b743cdd8a7d6560cb6b1d77ce09aff99e61f7ee8c25d210522638",
+        "f4b0968f6b29fa616cf9e6a544907bb0b6395528614159ddb02d90dd65b7be17",
+        "f6293b9f2c2401549872c4615798ed9640d3ca4ec6279929255b54bd3abf3f77"
+      ],
+      "optional_findings": {
+        "F-b9aa88559491": {
+          "digest": "b9aa885594914a0cde9e152542f99e638d828d3cd43f6f244c4d8cb10eb8c820",
+          "text": "**LPR1-002: `_create_connection` is called \"a documented attribute of `http.client`\" in section 2 and \"an undocumented-but-stable attribute\" in section 9.** It is a private, undocumented instance attribute set in `HTTPConnection.__init__`; section 2 should say so, and the subclass must set it after `super().__init__()`.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "f4b0968f6b29fa616cf9e6a544907bb0b6395528614159ddb02d90dd65b7be17",
+              "verdict": "REVISE",
+              "at": "2026-10-28T09:46:26Z"
+            }
+          ]
+        },
+        "F-3e5b8eacf84e": {
+          "digest": "3e5b8eacf84ec99528b1b52f82e834fa3904e329e5084963a14e52233c0a4d46",
+          "text": "**LPR1-003: the deliverable and R2 claim unchanged failure behaviour for every caller, but the DNS residual changes its timing.** \"Every caller sees the failure behaviour it saw before\" (deliverable) and R2's \"expired=True DiscoveryFailure at the deadline\" are not true for a stalled resolver, where the failure now arrives when the resolver returns, after the deadline. Section 2 states the residual honestly; qualify the deliverable sentence (and R2, or point it at R3) so the acceptance check does not read a requirement the plan knowingly does not meet. The residual itself is an acceptable, documented trade for this row; closing it is the subprocess child and a separate item, as section 9 says.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "f4b0968f6b29fa616cf9e6a544907bb0b6395528614159ddb02d90dd65b7be17",
+              "verdict": "REVISE",
+              "at": "2026-10-28T09:46:26Z"
+            }
+          ]
+        },
+        "F-d301caf28ca1": {
+          "digest": "d301caf28ca10344d17940d485039dd43412262ce7d680aaf58e70709c7e424e",
+          "text": "**LPR1-004: \"one accepted connection per case\" does not fit `redirect-stall`, `redirect-ok` and the 6th-redirect case, which need several connections.** Say the server accepts sequentially in the one thread the test owns (no per-connection threads, which would also appear in the thread-set difference), and which connection's `closed` event the stalled-redirect case waits for (the second hop's).",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "f4b0968f6b29fa616cf9e6a544907bb0b6395528614159ddb02d90dd65b7be17",
+              "verdict": "REVISE",
+              "at": "2026-10-28T09:46:26Z"
+            }
+          ]
+        },
+        "F-cfe09b85a361": {
+          "digest": "cfe09b85a361dd43cb0e83be992497efb82aec5ab27208b50c89c6f7bc6f6ace",
+          "text": "**LPR1-005: say that `_Bounded.makefile` builds its `SocketIO` over the wrapper, not over the real socket.** `HTTPResponse` reads through `sock.makefile(\"rb\")`; delegating `makefile` to the real socket would bypass the `recv_into` clamp entirely. The \"remove the pre-`recv_into` clamp\" mutation would catch it, but the plan's description of the wrapper should state it (and that the wrapper therefore provides `recv_into`, `fileno` and `_decref_socketios` for `SocketIO`).",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "f4b0968f6b29fa616cf9e6a544907bb0b6395528614159ddb02d90dd65b7be17",
+              "verdict": "REVISE",
+              "at": "2026-10-28T09:46:26Z"
+            }
+          ]
+        },
+        "F-89207466c933": {
+          "digest": "89207466c933769e74e7ee9a2d79bc5d0019d84f8b49bdf739ec296814b60d8e",
+          "text": "**LPR2-002: the mutation \"making `_Bounded.close()` ignore its readers fails `ok`\" depends on buffering.** urllib's `do_open` closes `h.sock` right after `getresponse()`. If `ok`'s headers and short body arrive in one segment, the `BufferedReader` over the wrapper already holds the whole body. `HTTPResponse.read1` then stops at `Content-Length` without another socket read, so the mutated code returns the body and `ok` passes. `body` (and `big`, whose body must exceed the buffer) fail it every time: the next `recv_into` meets a closed socket and gets `EBADF`, which becomes `fetch-url` before the deadline. Either name `body`/`big` as the failing cases, or have `ok`'s server send the body in a second write after the client has read the headers.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "70c80cfa0a010a4954d3b9d05ebf2ac623318502942b1d1ce4dc29a47514e0f8",
+              "verdict": "REVISE",
+              "at": "2026-10-28T09:51:33Z"
+            }
+          ]
+        },
+        "F-88d4c2cb309c": {
+          "digest": "88d4c2cb309cd44e44a94755a5aed53456968f126f16385732d42a81f52f78d7",
+          "text": "**LPR2-003: say that the two handlers subclass `urllib.request.HTTPHandler`/`HTTPSHandler` and are passed to `build_opener` as instances carrying the deadline.** `build_opener` drops a default handler only when an argument is a subclass or instance of it; otherwise both register `http_open`/`https_open` and the default can win. The HTTPS handler must keep the default SSL context (`HTTPSHandler()`'s `_context`), so certificate checking is unchanged. Implementation detail, but it is what \"put into `build_opener` beside `_RedirectHandler`\" has to mean for one deadline to cover every hop.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "70c80cfa0a010a4954d3b9d05ebf2ac623318502942b1d1ce4dc29a47514e0f8",
+              "verdict": "REVISE",
+              "at": "2026-10-28T09:51:33Z"
+            }
+          ]
+        },
+        "F-69c764fcf3d2": {
+          "digest": "69c764fcf3d287d78d340234477a0bc32374a7af415b4dbb5f9d8ce61dcaefa5",
+          "text": "**LPR3-001: the fail-first sentence says that on `0314658` \"the rest pass\", but the plan itself says the narrow-margin stalled cases fail the thread check by a few milliseconds, and they do.** \"Which cases are regression proof\" says `silent`, `header`, `body` and `redirect-stall` fail the \"no thread right after return\" check by the margin between `join` giving up and the worker's own timeout. \"Fail first, and mutate\" then says the three deterministic cases fail and \"the rest pass\". Measured on this machine (Python 3.14.8, idle) against the current `_http_read` with a loopback server that reads the request and says nothing, using `Deadline(1.0)`: the worker thread was still alive right after the call returned in 10 of 10 runs. The worker's `recv` starts a few milliseconds after `deadline.timeout()` is computed, so it fires after `join` returns. `trickle-body` behaves the same way, by up to one trickle interval. This does not weaken the proof, because the three claimed cases are right and are the deterministic ones. But the recorded fail-first run will not match the sentence. Reword it: the three named cases fail deterministically, the other five stalled cases are not claimed either ",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 3,
+              "review_content_id": "f6293b9f2c2401549872c4615798ed9640d3ca4ec6279929255b54bd3abf3f77",
+              "verdict": "APPROVE",
+              "at": "2026-10-28T09:57:57Z"
+            }
+          ]
+        },
+        "F-16b63e95b1c0": {
+          "digest": "16b63e95b1c07870577de0c325a5437706234d126e2054121d87f35bb8c2a505",
+          "text": "**LPR3-002: whether `big` fails the \"`_Bounded.close()` ignores its readers\" mutation depends on its size, which the plan does not fix.** `urllib`'s `do_open` closes `h.sock` right after `getresponse()`. If `big`'s headers and enough body to pass the cap are already in the `BufferedReader` at that point, the first `read1` returns more than the cap from the buffer. `_read_capped` then raises the expected `source-response` without another `recv_into`, so the mutated code passes `big`. `body` fails the mutation every time (verified by reading: its next `recv_into` meets a closed socket, which gives `fetch-url` before the deadline). Either size `big` (cap and body) so that the cap is crossed only after a later socket read, with the body larger than the reader's buffer and sent after the headers are read, or claim the mutation for `body` alone.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 3,
+              "review_content_id": "f6293b9f2c2401549872c4615798ed9640d3ca4ec6279929255b54bd3abf3f77",
+              "verdict": "APPROVE",
+              "at": "2026-10-28T09:57:57Z"
+            }
+          ]
+        },
+        "F-aa7988a942b2": {
+          "digest": "aa7988a942b286037dbf616a71a11db81df0807c1ee5ec05c136e6848864731c",
+          "text": "**LPR3-003: mapping R1's list of stalled cases does not name the new `late-body-stall`.** R1 lists the request, a partial header, the body, trickled headers, a trickled body, a stalled redirect target and a slow first hop. `late-body-stall` is one of the three regression-proof cases and the only case that shows the body-read clamp matters. \"At the body\" covers it only loosely. Name it in the CP1 ledger evidence for R1 so the acceptance check can trace it. Changing the mapping itself is not needed for this round.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 3,
+              "review_content_id": "f6293b9f2c2401549872c4615798ed9640d3ca4ec6279929255b54bd3abf3f77",
+              "verdict": "APPROVE",
+              "at": "2026-10-28T09:57:57Z"
+            }
+          ]
+        },
+        "F-acfdacf96d66": {
+          "digest": "acfdacf96d661d69e8919cc20977aec481cc19af9a968e41dd0ca52c2b7e9a5d",
+          "text": "Section 3’s “the rest pass” fail-first claim overstates predictability: its own preceding explanation acknowledges that several baseline cases can fail the immediate thread check by a narrow scheduling margin.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "MANUAL_EXTERNAL_PLAN_REVIEW",
+              "round": 3,
+              "review_content_id": "f6293b9f2c2401549872c4615798ed9640d3ca4ec6279929255b54bd3abf3f77",
+              "verdict": "REVISE",
+              "at": "2026-10-28T10:01:36Z"
+            }
+          ]
+        },
+        "F-05044da9b1b6": {
+          "digest": "05044da9b1b63a0ebdf1b27cd7b9551cce3bcf5bca4387043e6d66529ed32b03",
+          "text": "The `big` close-mutation claim depends on the chosen cap and buffering. Specify a fixture that requires another socket read before crossing the cap, or claim that mutation for `body` alone.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "MANUAL_EXTERNAL_PLAN_REVIEW",
+              "round": 3,
+              "review_content_id": "f6293b9f2c2401549872c4615798ed9640d3ca4ec6279929255b54bd3abf3f77",
+              "verdict": "REVISE",
+              "at": "2026-10-28T10:01:36Z"
+            }
+          ]
+        },
+        "F-95b60906935e": {
+          "digest": "95b60906935edf216231a41be8dff56ebbbb5c64b21f6495ebdd7186511fe338",
+          "text": "**LPR4-003: say what the owned `connect()` keeps from the base.** Item 3 writes `wrap_socket(raw, server_hostname=...)`. The base passes `_tunnel_host` when tunnelling and `host` otherwise. That rule is load-bearing for certificate checking through a proxy and should be written out, not elided. The base `connect()` also raises the `http.client.connect` audit event (`sys.audit`). A reimplementation that drops it silently changes behaviour visible to audit hooks: keep it, or say why not.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 4,
+              "review_content_id": "f2594cf4ab3b743cdd8a7d6560cb6b1d77ce09aff99e61f7ee8c25d210522638",
+              "verdict": "REVISE",
+              "at": "2026-10-28T10:07:08Z"
+            }
+          ]
+        },
+        "F-daeae504e0c2": {
+          "digest": "daeae504e0c20351c1f86d0541eecac0f65a68380a6cc64bf668b4d3e75c21ce",
+          "text": "**LPR5-003: say which object the HTTPS cleanup closes in the window between \"taking the real socket back out of the wrapper\" and `wrap_socket` returning.** Item 3 says \"the wrapper, or the raw socket once taken out of it\". Either works, because `wrap_socket` detaches the raw socket on success and closes the `SSLSocket` on handshake failure. But the unit case for `wrap_socket` raising checks only \"the stub socket the connector returned is closed\". Naming the rule in one clause (for example, `self.sock` holds the raw socket from the moment it is taken out) removes a choice the implementer would otherwise make silently.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 5,
+              "review_content_id": "2061224495b47b17665b8bea56780db3c354aeeb73d86957ca2df800ad69a35d",
+              "verdict": "REVISE",
+              "at": "2026-10-28T10:10:32Z"
+            }
+          ]
+        },
+        "F-64a37e9e68a8": {
+          "digest": "64a37e9e68a8b3cf1cd96175d457c53c570e36bf37f2423205f5e4c897135c3d",
+          "text": "**LPR6-002: the tunnel-order mutant does not fail \"with `RemoteDisconnected`/`BadStatusLine`\" for a 200 reply; it returns normally.** With the fixture trickling `HTTP/1.1 200 Connection established\\r\\n\\r\\n` at 5 bytes/s, 25 bytes have arrived when the 5.0 s end closes the socket. `readline` returns the partial line `HTTP/1.1 200 Connectio...` at EOF. `_read_status` splits it into version `HTTP/1.1`, status `200` and a reason, and `_read_headers` stops on the empty read, so `_tunnel()` accepts the tunnel. My prototype of the mutant (raw socket with a 1.0 s timeout, no wrapper) returned normally at 5.0 s. The mutation still fails the case (no exception, and over the wall-time bound), so the evidence is valid. Only the predicted failure form is wrong, and the recorded mutation output would contradict the plan. State the failure as \"the expected exception is not raised, and the wall time is about 5 s, over the 2.0 s bound\", or have the fixture trickle a reply that cannot parse before its end.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 6,
+              "review_content_id": "d72afe176fc4b8cb5b72b6387ef1b360a9bfd3f95351c80a691b7efcddddfaa5",
+              "verdict": "REVISE",
+              "at": "2026-10-28T10:16:51Z"
+            }
+          ]
+        },
+        "F-b176ced766da": {
+          "digest": "b176ced766da1cc9e3addfb1c52df16030eb4a07765d63ed83173e946411b7bc",
+          "text": "**LPR6-003: say how the end-to-end proxy cases reach `_http_read`.** `_http_read` and `_http_fetch` take no handler argument. `build_opener` adds the default `ProxyHandler`, which reads `https_proxy` from the environment, and `proxy_bypass` honours `no_proxy`. The `refuse-connect` twin, and the `trickle-connect` twin if LPR6-001 adds one, therefore need either a patched environment (set `https_proxy` and clear `no_proxy`/`NO_PROXY`) or a patched `build_opener`. They also need a target host the bypass list cannot match (a non-resolving name such as `example.invalid`, never `localhost` or `127.0.0.1`). Name the seam in one clause, so a developer's own `no_proxy` cannot silently route the case around the fixture.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 6,
+              "review_content_id": "d72afe176fc4b8cb5b72b6387ef1b360a9bfd3f95351c80a691b7efcddddfaa5",
+              "verdict": "REVISE",
+              "at": "2026-10-28T10:16:51Z"
+            }
+          ]
+        },
+        "F-2d9213c7eb80": {
+          "digest": "2d9213c7eb80457a2ea25f8418451797e28ffe68d139aad26ed2445153349c91",
+          "text": "**LPR7-001: the end-to-end `trickle-connect` twin does not fail the tunnel-order mutant \"by `expired`\"; it can fail only by wall time, which its listed checks do not include.** Under that mutant the raw socket keeps its connect-time timeout of about 1.0 s, so `_tunnel()` accepts the partial `HTTP/1.1 200 Connectio...` reply and returns at the fixture's 5.0 s close, as the direct case states. The HTTPS class then refreshes the timeout before the handshake. `deadline.timeout()` raises `DiscoveryFailure(expired=True)` there, and the connection's own cleanup closes the socket. So the twin sees `expired=True` with clean thread and descriptor sets, and passes everything section 3 lists for it. Line 322's \"the end-to-end twin by `expired` and wall time\" holds only if the twin also asserts a wall-time bound, and then only by wall time. The mutation is still caught deterministically by the direct case, so the evidence is not lost. But the recorded mutation output would contradict the plan's prediction for the twin. Give the twin the direct case's wall-time bound (deadline plus five trickle intervals) and state its failure as \"by wall time (about 5 s) alone\". Or name only the direct case for",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 7,
+              "review_content_id": "5728238c656086c6b61961fe683e982ec8f3a14affa1c373e44d47b540a67793",
+              "verdict": "APPROVE",
+              "at": "2026-10-28T10:21:01Z"
+            }
+          ]
+        },
+        "F-91ef728bbf2a": {
+          "digest": "91ef728bbf2ad608944ba14c07366ef10d146f863343a4594241914df6492c34",
+          "text": "**Correct the end-to-end tunnel mutation prediction in plan §3.** After the unbounded tunnel returns at approximately five seconds, the pre-handshake `deadline.timeout()` still raises `DiscoveryFailure(expired=True)` and cleanup closes the socket. Thus the twin’s listed assertions can pass. Explicitly give it the direct case’s two-second wall-time bound and predict failure by wall time alone, or claim this mutation only for the direct case. That direct case already catches the mutation deterministically, so this does not block approval.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "MANUAL_EXTERNAL_PLAN_REVIEW",
+              "round": 7,
+              "review_content_id": "5728238c656086c6b61961fe683e982ec8f3a14affa1c373e44d47b540a67793",
+              "verdict": "APPROVE",
+              "at": "2026-10-28T10:24:38Z"
+            }
+          ]
+        },
+        "F-d4aef6b1d885": {
+          "digest": "d4aef6b1d88517b2fa11fa6bdeb396a1b61e22510694aefb7019d59337bfcc2e",
+          "text": "**LIR1-002: `_Bounded._decref_socketios` calls `_real_close()` directly, not `close()`, so it does not count readers the way `socket.socket` does.** `socket.socket._decref_socketios` calls `self.close()`, which closes the real socket only when no reader is left. With two `makefile` readers open after `close()`, the wrapper closes the real socket when the first reader closes (checked: `w.makefile(); w.makefile(); w.close(); a.close()` closes the fake socket; a real `socket.socket` keeps its fd). Not reachable today: on 3.12+ `_tunnel()` closes its response in a `finally`, so a wrapper never has two readers at once. One-word fix (`self.close()`), and it makes the docstring's \"as `socket.socket` does\" true.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "c7e98e4ce75f9742d947732cedc843930770b768216ff76e141ae74bb89d60b9",
+              "verdict": "REVISE",
+              "at": "2026-10-28T11:28:05Z"
+            }
+          ]
+        },
+        "F-e9c957a9d2da": {
+          "digest": "e9c957a9d2da0ca48136a7ac0d0638fb354c63fc3976c6a516441fd7fcfde7a9",
+          "text": "**LIR1-003: on Python 3.11 (the `requires-python` floor) a failed `CONNECT` leaves its socket open until the tunnel response is collected.** 3.11's `_tunnel()` has no `finally: response.close()` (3.12 does), so the tunnel reader keeps the wrapper's reference count at 1; the `except` in `connect()` then only marks the wrapper closed. That response stays reachable from the `TimeoutError`/`OSError` traceback chained into the caller's `DiscoveryFailure`/`ReleaseUnavailableError.__cause__`, so the socket lives as long as the caller holds the exception. `IMPLEMENTATION_SUMMARY.md` names this (\"not verified for 3.11\"); plan section 9's \"unchanged there\" is not quite true for `_tunnel()`. CI runs 3.12 (all jobs) and the new classes pass on 3.12.14 (28 tests, checked), so nothing fails today. A version-independent fix: in `connect()`'s `except`, close a `_Bounded` through `_real_close()` (no reader can outlive a failed `connect()`), and say so in the comment.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "c7e98e4ce75f9742d947732cedc843930770b768216ff76e141ae74bb89d60b9",
+              "verdict": "REVISE",
+              "at": "2026-10-28T11:28:05Z"
+            }
+          ]
+        },
+        "F-cba320f903df": {
+          "digest": "cba320f903df1f4532f2266a232b851b89acbce4f176f37b352c3e24813fe98c",
+          "text": "**LIR1-004: `_Bounded.makefile` accepts `\"wb\"`/`\"rwb\"`, but the wrapper has no `send`, which `SocketIO.write` calls.** A writer would fail with `AttributeError`. `http.client` only ever asks for `\"rb\"`; accept that mode alone, or add `send` with the clamp.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "c7e98e4ce75f9742d947732cedc843930770b768216ff76e141ae74bb89d60b9",
+              "verdict": "REVISE",
+              "at": "2026-10-28T11:28:05Z"
+            }
+          ]
+        },
+        "F-ce7e9ee7b91e": {
+          "digest": "ce7e9ee7b91edd2b06d3d3e61f7b31733e366628b130b68e29e9a013e5b73444",
+          "text": "**LIR2-001: the LIR1-002 change (`_Bounded._decref_socketios` calling `close()`, not `_real_close()`) has no test.** Mutating it back to `_real_close()` leaves all 30 cases of the three new classes green (checked in a `git archive` export of `1c747d0`). The path cannot be reached today: `http.client` never holds two readers on one wrapper. A two-reader case in `TestTheBoundedPieces` would pin the change: `makefile()` twice, `close()`, close one reader, real socket still open; close the other, real socket closed.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 2,
+              "review_content_id": "789712e156436c0d621834d31ecf9d60fb2e3bde876fb01a3331217cd402f805",
+              "verdict": "APPROVE",
+              "at": "2026-10-28T12:29:18Z"
+            }
+          ]
+        },
+        "F-8261a570e67b": {
+          "digest": "8261a570e67b3ec9943f282301d9b0b697358d975a67128019500c9c5b5562a1",
+          "text": "**LIR2-002: `TEST_RESULTS.md` is still revision 1's.** Its header says `implementation_revision: 1`, its full-gate evidence is at `95228d1`, and it records neither the round-2 full gate nor the two new cases. Only `IMPLEMENTATION_SUMMARY.md` mentions the round-2 gate, and it gives no digests. The claim is true: this review ran the gate at `1c747d0` (below). Next time the bundle is regenerated, put the round's gate evidence line in `TEST_RESULTS.md`.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 2,
+              "review_content_id": "789712e156436c0d621834d31ecf9d60fb2e3bde876fb01a3331217cd402f805",
+              "verdict": "APPROVE",
+              "at": "2026-10-28T12:29:18Z"
+            }
+          ]
+        },
+        "F-1f8866bbd7bb": {
+          "digest": "1f8866bbd7bb52189342fddfa7e7e15fd89190661dc1315ce97c9a784e02cb52",
+          "text": "`tests/test_discovery.py:859`: `_socket_links()` silently returns an empty set when descriptor directories cannot expose socket links. On those platforms, the descriptor assertions pass without checking leaks, whereas the plan specifies a skip. Detect unsupported enumeration and explicitly skip that assertion.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW",
+              "round": 2,
+              "review_content_id": "789712e156436c0d621834d31ecf9d60fb2e3bde876fb01a3331217cd402f805",
+              "verdict": "APPROVE",
+              "at": "2026-10-28T12:32:50Z"
+            }
+          ]
+        }
+      },
+      "implementation_review_stages": {
+        "review_content_id": "789712e156436c0d621834d31ecf9d60fb2e3bde876fb01a3331217cd402f805",
+        "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "175a8509dade12cb17d05e2335ef9cd53db842e1e0ccc7ac2231b92fd7fdcba8",
+          "verdict": "APPROVE",
+          "round": 2,
+          "completed_at": "2026-10-28T12:29:18Z",
+          "verdict_sha256": "358eb13d7532f3201fe03c636347a2503f020073d1ef0c6e8333166b4f3a1b18",
+          "run_ref": "session:local .ai-review/http-read-deadline/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "175a8509dade12cb17d05e2335ef9cd53db842e1e0ccc7ac2231b92fd7fdcba8",
+          "verdict": "APPROVE",
+          "round": 2,
+          "completed_at": "2026-10-28T12:32:50Z",
+          "verdict_sha256": "8b913bc28cf920bbbc81ccc2024e337ac522713c76215e14c163ae493abfd612",
+          "run_ref": "codex:20261028T122944Z-2707df25",
+          "reviewer_model": "openai/gpt-6.1-sol"
+        }
+      },
+      "gate_evidence": {
+        "functional": {
+          "flow-1": {
+            "flow_id": "flow-1",
+            "status": "passed",
+            "head": "350baf35a4310f11425fb8624385fdffb57b0891",
+            "ran_at": "2026-10-28T13:00:38Z",
+            "summary": {
+              "checklist_blob": "6be1cbeda0af221c6452cda4a5c2dd3bd946f244",
+              "text": "Flow A offline: clone identical to base 0314658 (13 pinned lines, same stderr, exit 0, 0.13 s vs 0.10 s)"
+            },
+            "log_digest": "b83cd355e5fe7bb217a874b5c7a06b6963f3ace32d2d6300c6c0af9408c3400b",
+            "run_ref": "manager-orchestrator:runs/md6-functional-r1",
+            "reporter": "manager-orchestrator (independent executor claude claude-sonnet-5-5)",
+            "identity": "789712e156436c0d621834d31ecf9d60fb2e3bde876fb01a3331217cd402f805",
+            "recorded_at": "2026-10-28T13:00:38Z"
+          },
+          "flow-2": {
+            "flow_id": "flow-2",
+            "status": "passed",
+            "head": "350baf35a4310f11425fb8624385fdffb57b0891",
+            "ran_at": "2026-10-28T13:00:38Z",
+            "summary": {
+              "checklist_blob": "6be1cbeda0af221c6452cda4a5c2dd3bd946f244",
+              "text": "Flow B trickle proxy: the discovery time limit passed, exit 0, 20.11 s clone vs 20.14 s base, identical output, proxy saw the client close"
+            },
+            "log_digest": "b9a0d7cc9e66e849c92385278f7d12d46fce26cc53acfec56fa5f55fdef25441",
+            "run_ref": "manager-orchestrator:runs/md6-functional-r1",
+            "reporter": "manager-orchestrator (independent executor claude claude-sonnet-5-5)",
+            "identity": "789712e156436c0d621834d31ecf9d60fb2e3bde876fb01a3331217cd402f805",
+            "recorded_at": "2026-10-28T13:00:38Z"
+          },
+          "flow-3": {
+            "flow_id": "flow-3",
+            "status": "passed",
+            "head": "350baf35a4310f11425fb8624385fdffb57b0891",
+            "ran_at": "2026-10-28T13:00:38Z",
+            "summary": {
+              "checklist_blob": "6be1cbeda0af221c6452cda4a5c2dd3bd946f244",
+              "text": "Flow C silent proxy: cannot fetch ... timed out at 8.16 s clone vs 8.11 s base, identical output; supersedes the Controller's environment failure"
+            },
+            "log_digest": "5540db7659b4e12631a82f0ad85ea9f25f72d77fd5f85915f9c922bfaba7bb60",
+            "run_ref": "manager-orchestrator:runs/md6-functional-r1",
+            "reporter": "manager-orchestrator (independent executor claude claude-sonnet-5-5)",
+            "identity": "789712e156436c0d621834d31ecf9d60fb2e3bde876fb01a3331217cd402f805",
+            "recorded_at": "2026-10-28T13:00:38Z"
+          }
+        },
+        "pr": {
+          "pr": {
+            "number": 129,
+            "url": "https://github.com/RodrigoFAbreu/workflow-manager/pull/129"
+          },
+          "state": "open",
+          "head": "350baf35a4310f11425fb8624385fdffb57b0891",
+          "review_decision": null,
+          "reviewed_head": null,
+          "checks": {
+            "state": "success",
+            "failing": []
+          },
+          "review_id": null,
+          "findings": null,
+          "identity_at_head": "789712e156436c0d621834d31ecf9d60fb2e3bde876fb01a3331217cd402f805",
+          "observed_at": "2026-10-28T13:18:54Z",
+          "ingest_seq": 1,
+          "repository": "RodrigoFAbreu/workflow-manager",
+          "queried_commit": "340622cbc71c50faab6bf562128a6df9c9994cd9",
+          "provenance": {
+            "source": "workflow_gh",
+            "fetched_by": {
+              "name": "workflow-gh",
+              "version": "pr-list-v1"
+            },
+            "fetched_at": "2026-10-28T13:18:54Z",
+            "raw_sha256": "227eba6da50a3783721114734ea4bbe4ce68fe3ffbc42c88aeeb87c454a42093",
+            "run_ref": null,
+            "gh_path": "/usr/bin/gh",
+            "gh_sha256": "9e824061111fe5f5b6a5d5690909ba37abafca4a4ca830bdf83246d3c94afd21"
+          },
+          "fact_id": "9521906aa5664d2e8447ae1216beba2eae0a4d8f51374fd48b36517d7dbf1397"
+        },
+        "pr_reported": null,
+        "pr_keys": {
+          "reopened_for": [],
+          "applied": [],
+          "ingest_seq": 1
+        }
+      },
+      "acceptance_satisfaction": {
+        "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "policy_source": "default",
+        "file_digest": null,
+        "adopted_digest": null,
+        "floor_digest": null,
+        "requirements": [
+          {
+            "id": "checkpoints_complete",
+            "met": true,
+            "detail": "every checkpoint of the item's own registry is COMPLETE"
+          },
+          {
+            "id": "technical_approval_current",
+            "met": true,
+            "detail": "the technical approval is CURRENT for the content now"
+          },
+          {
+            "id": "functional_flows_passed",
+            "met": true,
+            "detail": "flows ['flow-1', 'flow-2', 'flow-3'] passed at the approved content"
+          },
+          {
+            "id": "pr_fact_current",
+            "met": true,
+            "detail": "workflow_gh fact for PR #129 at 350baf35a4310f11425fb8624385fdffb57b0891 is current"
+          },
+          {
+            "id": "no_standing_pr_objection",
+            "met": true,
+            "detail": "no CHANGES_REQUESTED decision and no failed check"
+          },
+          {
+            "id": "ci_green",
+            "met": true,
+            "detail": "checks are 'success'"
+          }
+        ],
+        "inputs": {
+          "anchor_commit": "340622cbc71c50faab6bf562128a6df9c9994cd9",
+          "anchor_identity": "789712e156436c0d621834d31ecf9d60fb2e3bde876fb01a3331217cd402f805",
+          "technical_approval": {
+            "basis": "POLICY_SATISFIED",
+            "approved_review_content_id": "789712e156436c0d621834d31ecf9d60fb2e3bde876fb01a3331217cd402f805",
+            "recorded_at": "2026-10-28T12:33:27Z"
+          },
+          "functional": {
+            "flow-1": {
+              "evidence_id": "2335469edb85c9f1a316cfd2abc2c98d353f5b18f932ccfcecc0a50555b23fd4",
+              "log_digest": "b83cd355e5fe7bb217a874b5c7a06b6963f3ace32d2d6300c6c0af9408c3400b",
+              "run_ref": "manager-orchestrator:runs/md6-functional-r1"
+            },
+            "flow-2": {
+              "evidence_id": "c252a248751f133c49f0d527f1d3b2ca14336e46a9fa39209f0ef45623cdecfc",
+              "log_digest": "b9a0d7cc9e66e849c92385278f7d12d46fce26cc53acfec56fa5f55fdef25441",
+              "run_ref": "manager-orchestrator:runs/md6-functional-r1"
+            },
+            "flow-3": {
+              "evidence_id": "fad29d7b7b4c7394c16b47b10a7f2c08095bb2e0604299c98fed085745962036",
+              "log_digest": "5540db7659b4e12631a82f0ad85ea9f25f72d77fd5f85915f9c922bfaba7bb60",
+              "run_ref": "manager-orchestrator:runs/md6-functional-r1"
+            }
+          },
+          "pr": {
+            "fact_id": "9521906aa5664d2e8447ae1216beba2eae0a4d8f51374fd48b36517d7dbf1397",
+            "head": "350baf35a4310f11425fb8624385fdffb57b0891",
+            "provenance": "workflow_gh",
+            "raw_sha256": "227eba6da50a3783721114734ea4bbe4ce68fe3ffbc42c88aeeb87c454a42093"
+          }
+        },
+        "trust": {
+          "review_verdicts": "orchestrator",
+          "functional_evidence": "orchestrator",
+          "pr_fact": "workflow_gh"
+        },
+        "evaluated_at": "2026-10-28T13:18:54Z",
+        "workflow_release": "2.25.0"
+      }
     }
   }
 }

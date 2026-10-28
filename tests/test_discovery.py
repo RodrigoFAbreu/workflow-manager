@@ -13,12 +13,14 @@ from __future__ import annotations
 
 import ast
 import contextlib
+import errno
 import http.server
 import io
 import json
 import os
 import shutil
 import subprocess
+import sys
 import threading
 import time
 import unittest
@@ -852,6 +854,553 @@ class TestABodyReadKeepsToTheDeadline(unittest.TestCase):
     def test_a_plain_stream_is_still_read(self):
         import io as _io
         self.assertEqual(release_source._read_capped(_io.BytesIO(b"abc"), 10, "x", None), b"abc")
+
+
+def _socket_links() -> set[str]:
+    for directory in ("/proc/self/fd", "/dev/fd"):
+        if os.path.isdir(directory):
+            found = set()
+            for name in os.listdir(directory):
+                with contextlib.suppress(OSError):
+                    target = os.readlink(os.path.join(directory, name))
+                    if target.startswith("socket:"):
+                        found.add(target)
+            return found
+    return set()
+
+
+class _Loopback:
+    """One server thread, connections accepted one after another in it (no
+    per-connection threads), each handled by the behaviour its path names.
+    `closed[i]` is set when the peer of connection `i` has hung up."""
+
+    END = 5.0                    # fixture end of the trickling behaviours
+    TICK = 0.2                   # trickle-connect: one reply byte per tick
+
+    def __init__(self, hold: float = 0.6):
+        import socket
+        self.hold, self.closed, self.stop = hold, [], threading.Event()
+        self.listener = socket.socket()
+        self.listener.bind(("127.0.0.1", 0))
+        self.listener.listen(8)
+        self.listener.settimeout(0.1)
+        self.port = self.listener.getsockname()[1]
+        self.thread = threading.Thread(target=self._serve, daemon=True)
+        self.thread.start()
+
+    def close(self):
+        self.stop.set()
+        self.thread.join(15)
+        self.listener.close()
+
+    def url(self, behaviour: str) -> str:
+        return f"http://127.0.0.1:{self.port}/{behaviour}"
+
+    def wait_closed(self, count: int = 1) -> bool:
+        deadline = time.monotonic() + 10
+        while len(self.closed) < count or not all(e.is_set() for e in self.closed):
+            if time.monotonic() > deadline:
+                return False
+            time.sleep(0.01)
+        return True
+
+    def _serve(self):
+        while not self.stop.is_set():
+            try:
+                conn, _ = self.listener.accept()
+            except OSError:
+                continue
+            event = threading.Event()
+            self.closed.append(event)
+            try:
+                self._handle(conn)
+            except OSError:
+                pass
+            finally:
+                conn.close()
+                event.set()
+
+    def _request(self, conn) -> str:
+        data = b""
+        conn.settimeout(10)
+        while b"\r\n\r\n" not in data:
+            chunk = conn.recv(4096)
+            if not chunk:
+                break
+            data += chunk
+        return data.split(b" ")[1].decode() if b" " in data else ""
+
+    def _peer_gone(self, conn) -> bool:
+        conn.setblocking(False)
+        try:
+            return conn.recv(1) == b""
+        except BlockingIOError:
+            return False
+        except OSError:
+            return True
+
+    def _until_hangup(self, conn, send=None, interval=0.02, end=None):
+        stop_at = time.monotonic() + (end if end is not None else 30)
+        while not self.stop.is_set() and time.monotonic() < stop_at:
+            if self._peer_gone(conn):
+                return
+            if send is not None:
+                conn.setblocking(True)
+                conn.sendall(send)
+            time.sleep(interval)
+
+    def _handle(self, conn):
+        path = self._request(conn)
+        name = path.lstrip("/")
+        if name == "ok":
+            body = b"hello"
+            conn.sendall(b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\nConnection: close\r\n\r\n" + body)
+        elif name == "big":
+            conn.sendall(b"HTTP/1.1 200 OK\r\nContent-Length: 4096\r\nConnection: close\r\n\r\n"
+                         + b"x" * 4096)
+        elif name == "redirect-ok":
+            conn.sendall(b"HTTP/1.1 302 Found\r\nLocation: /ok\r\nContent-Length: 0\r\n"
+                         b"Connection: close\r\n\r\n")
+        elif name.startswith("redirect/"):
+            left = int(name.split("/")[1])
+            where = f"/redirect/{left - 1}" if left else "/ok"
+            conn.sendall(f"HTTP/1.1 302 Found\r\nLocation: {where}\r\nContent-Length: 0\r\n"
+                         "Connection: close\r\n\r\n".encode())
+        elif name in ("redirect-stall", "slow-redirect-stall"):
+            if name == "slow-redirect-stall":
+                time.sleep(self.hold)
+            conn.sendall(b"HTTP/1.1 302 Found\r\nLocation: /silent\r\nContent-Length: 0\r\n"
+                         b"Connection: close\r\n\r\n")
+        elif name == "header":
+            conn.sendall(b"HTTP/1.1 20")
+            self._until_hangup(conn)
+        elif name == "body":
+            conn.sendall(b"HTTP/1.1 200 OK\r\nContent-Length: 100\r\n\r\nabc")
+            self._until_hangup(conn)
+        elif name == "trickle-header":
+            conn.sendall(b"HTTP/1.1 200 OK\r\n")
+            self._until_hangup(conn, send=b"X", interval=0.04)
+        elif name == "trickle-body":
+            conn.sendall(b"HTTP/1.1 200 OK\r\nContent-Length: 100000\r\n\r\n")
+            self._until_hangup(conn, send=b"x", interval=0.04)
+        elif name == "late-body-stall":
+            time.sleep(self.hold)
+            conn.sendall(b"HTTP/1.1 200 OK\r\nContent-Length: 100\r\n\r\nabc")
+            self._until_hangup(conn)
+        else:                                     # silent
+            self._until_hangup(conn)
+
+
+class _ConnectProxy(_Loopback):
+    """The same server used as a proxy: it reads the `CONNECT` request and then
+    answers as `behaviour` says, a byte at a time or with a refusal."""
+
+    def __init__(self, behaviour: str):
+        self.behaviour = behaviour
+        super().__init__()
+
+    def _handle(self, conn):
+        self._request(conn)
+        if self.behaviour == "refuse-connect":
+            conn.sendall(b"HTTP/1.1 407 Proxy Authentication Required\r\n\r\n")
+            self._until_hangup(conn, end=5)
+            return
+        reply = b"HTTP/1.1 200 Connection established\r\n" + b"X-Pad: y\r\n" * 1000
+        stop_at = time.monotonic() + self.END
+        for byte in reply:
+            if self._peer_gone(conn) or time.monotonic() > stop_at or self.stop.is_set():
+                return
+            conn.setblocking(True)
+            conn.sendall(bytes([byte]))
+            time.sleep(self.TICK)
+
+
+class TestAnExpiredReadLeavesNothingBehind(unittest.TestCase):
+    """The connection bounds itself: no worker thread, and the socket is closed
+    before the failure reaches the caller (`http-read-deadline`, section 3)."""
+
+    def setUp(self):
+        self.sockets_before = _socket_links()
+        self.servers = []
+        self.addCleanup(self.check_no_descriptor_left)
+
+    def serve(self, server=None, hold: float = 0.6):
+        server = server or _Loopback(hold)
+        self.servers.append(server)
+        self.threads_before = set(threading.enumerate())
+        return server
+
+    def check_no_descriptor_left(self):
+        for server in self.servers:
+            server.close()
+        self.assertLessEqual(_socket_links(), self.sockets_before)
+
+    def check_clean(self, server, hops=1):
+        self.assertEqual(set(threading.enumerate()) - self.threads_before, set())
+        self.assertTrue(server.wait_closed(hops), "the client socket was left open")
+
+    def expired(self, behaviour, seconds=1.0, hops=1, hold=0.6):
+        server = self.serve(hold=hold)
+        started = time.monotonic()
+        with self.assertRaises(DiscoveryFailure) as caught:
+            release_source._http_read(server.url(behaviour), 1 << 20, Deadline(seconds))
+        self.assertTrue(caught.exception.expired)
+        self.assertLess(time.monotonic() - started, seconds + 10)
+        self.check_clean(server, hops)
+        return time.monotonic() - started
+
+    def test_a_server_that_says_nothing(self):
+        self.expired("silent")
+
+    def test_a_partial_status_line(self):
+        self.expired("header")
+
+    def test_a_body_that_stops(self):
+        self.expired("body")
+
+    def test_trickling_headers(self):
+        self.expired("trickle-header")
+
+    def test_a_trickling_body(self):
+        self.expired("trickle-body")
+
+    def test_a_redirect_to_a_server_that_says_nothing(self):
+        self.expired("redirect-stall", hops=2)
+
+    def test_a_slow_redirect_to_a_server_that_says_nothing(self):
+        self.expired("slow-redirect-stall", hops=2)
+
+    def test_headers_that_arrive_late_and_a_body_that_stops(self):
+        hold = 1.5
+        elapsed = self.expired("late-body-stall", seconds=2.0, hold=hold)
+        self.assertLess(elapsed, 2.0 + hold / 2)
+
+    def test_a_good_read_is_unchanged_and_leaves_nothing(self):
+        server = self.serve()
+        self.assertEqual(release_source._http_read(server.url("ok"), 100, Deadline(5.0)), b"hello")
+        self.check_clean(server)
+
+    def test_an_oversize_body_is_refused_and_leaves_nothing(self):
+        server = self.serve()
+        with self.assertRaises(release_source.ReleaseUnavailableError) as caught:
+            release_source._http_read(server.url("big"), 100, Deadline(5.0))
+        self.assertEqual(caught.exception.kind, "source-response")
+        self.check_clean(server)
+
+    def test_a_redirect_is_followed_under_the_one_deadline(self):
+        server = self.serve()
+        self.assertEqual(
+            release_source._http_read(server.url("redirect-ok"), 100, Deadline(5.0)), b"hello")
+        self.check_clean(server, 2)
+
+    def test_five_redirects_are_followed(self):
+        server = self.serve()
+        self.assertEqual(
+            release_source._http_read(server.url("redirect/4"), 100, Deadline(5.0)), b"hello")
+        self.check_clean(server, 6)
+
+    def test_the_sixth_redirect_is_refused_before_the_deadline(self):
+        server = self.serve()
+        deadline = Deadline(30.0)
+        with self.assertRaises(release_source.ReleaseUnavailableError) as caught:
+            release_source._http_read(server.url("redirect/5"), 100, deadline)
+        self.assertEqual(caught.exception.kind, "fetch-url")
+        self.assertGreater(deadline.remaining(), 0)
+        self.check_clean(server, 6)
+
+    def test_a_refused_connection_is_a_fetch_error_before_the_deadline(self):
+        import socket
+        probe = socket.socket()
+        probe.bind(("127.0.0.1", 0))
+        port = probe.getsockname()[1]
+        probe.close()
+        with self.assertRaises(release_source.ReleaseUnavailableError) as caught:
+            release_source._http_read(f"http://127.0.0.1:{port}/x", 100, Deadline(5.0))
+        self.assertEqual(caught.exception.kind, "fetch-url")
+
+
+class TestAProxyConnectReplyIsBounded(unittest.TestCase):
+    def setUp(self):
+        self.sockets_before = _socket_links()
+        self.addCleanup(lambda: self.assertLessEqual(_socket_links(), self.sockets_before))
+
+    def proxy(self, behaviour):
+        server = _ConnectProxy(behaviour)
+        self.addCleanup(server.close)
+        self.threads_before = set(threading.enumerate())
+        return server
+
+    def test_a_trickled_connect_reply_stops_at_the_deadline_and_closes(self):
+        server = self.proxy("trickle-connect")
+        deadline = Deadline(1.0)
+        connection = release_source._BoundedHTTPConnection(
+            "example.invalid", 443, deadline=deadline)
+        connection._create_connection = lambda *a, **k: release_source._bounded_connector(
+            deadline)(("127.0.0.1", server.port))
+        connection.set_tunnel("example.invalid", 443)
+        started = time.monotonic()
+        with self.assertRaises((OSError, DiscoveryFailure)):
+            connection.connect()                  # never closed by the test
+        self.assertLessEqual(deadline.remaining(), 0)
+        self.assertLess(time.monotonic() - started, 1.0 + 5 * _Loopback.TICK)
+        self.assertTrue(server.wait_closed())
+        # The connection closed itself: the fixture did not have to give up first.
+        self.assertLess(time.monotonic() - started, 1.0 + 5 * _Loopback.TICK)
+        self.assertEqual(set(threading.enumerate()) - self.threads_before, set())
+
+    def test_a_refusing_proxy_is_an_oserror_and_leaves_nothing(self):
+        server = self.proxy("refuse-connect")
+        deadline = Deadline(5.0)
+        connection = release_source._BoundedHTTPConnection(
+            "example.invalid", 443, deadline=deadline)
+        connection._create_connection = lambda *a, **k: release_source._bounded_connector(
+            deadline)(("127.0.0.1", server.port))
+        connection.set_tunnel("example.invalid", 443)
+        with self.assertRaises(OSError) as caught:
+            connection.connect()
+        self.assertNotIsInstance(caught.exception, AttributeError)
+        self.assertIsNone(connection.sock)
+        self.assertTrue(server.wait_closed())
+
+    def through_http_read(self, behaviour, seconds):
+        """`_http_read` to an https host that only the proxy fixture can reach:
+        `build_opener`'s `ProxyHandler` reads `https_proxy`, and the host is one
+        no `no_proxy` entry can match."""
+        server = self.proxy(behaviour)
+        proxy = f"http://127.0.0.1:{server.port}"
+        patched = mock.patch.dict(os.environ, {"https_proxy": proxy, "HTTPS_PROXY": proxy})
+        patched.start()
+        self.addCleanup(patched.stop)
+        for name in ("no_proxy", "NO_PROXY"):
+            os.environ.pop(name, None)
+        return server, lambda: release_source._http_read(
+            "https://example.invalid/x", 100, Deadline(seconds))
+
+    def test_a_refusing_proxy_end_to_end_is_a_fetch_error(self):
+        server, call = self.through_http_read("refuse-connect", 5.0)
+        with self.assertRaises(release_source.ReleaseUnavailableError) as caught:
+            call()
+        self.assertEqual(caught.exception.kind, "fetch-url")
+        self.assertTrue(server.wait_closed())
+
+    def test_a_trickling_proxy_end_to_end_is_an_expired_failure(self):
+        server, call = self.through_http_read("trickle-connect", 1.0)
+        started = time.monotonic()
+        with self.assertRaises(DiscoveryFailure) as caught:
+            call()
+        self.assertTrue(caught.exception.expired)
+        self.assertLess(time.monotonic() - started, 1.0 + 5 * _Loopback.TICK)
+        self.assertEqual(set(threading.enumerate()) - self.threads_before, set())
+        self.assertTrue(server.wait_closed())
+
+
+class _FakeSock:
+    def __init__(self, clock=None):
+        self.closed, self.timeouts, self.clock = False, [], clock
+
+    def settimeout(self, value):
+        self.timeouts.append(value)
+
+    def gettimeout(self):
+        return self.timeouts[-1] if self.timeouts else None
+
+    def setsockopt(self, *args):
+        pass
+
+    def close(self):
+        self.closed = True
+
+    def detach(self):
+        return -1
+
+
+class TestTheBoundedPieces(unittest.TestCase):
+    def clocked(self, seconds):
+        now = [0.0]
+        return now, Deadline(seconds, clock=lambda: now[0])
+
+    def test_the_connector_tries_the_next_address_and_reraises_the_last(self):
+        _, deadline = self.clocked(10.0)
+        made = []
+
+        class Sock(_FakeSock):
+            def connect(self, address):
+                made.append(self)
+                raise ConnectionRefusedError(address)
+
+            def bind(self, address):
+                pass
+
+        infos = [(2, 1, 6, "", ("10.0.0.1", 1)), (2, 1, 6, "", ("10.0.0.2", 1))]
+        with mock.patch.object(release_source.socket, "getaddrinfo", return_value=infos), \
+                mock.patch.object(release_source.socket, "socket", side_effect=lambda *a: Sock()):
+            with self.assertRaises(ConnectionRefusedError) as caught:
+                release_source._bounded_connector(deadline)(("h", 1))
+        self.assertEqual(caught.exception.args, (("10.0.0.2", 1),))
+        self.assertEqual(len(made), 2)
+        self.assertTrue(all(s.closed for s in made))
+
+    def test_a_connect_past_the_deadline_stops_before_the_second_address(self):
+        now, deadline = self.clocked(1.0)
+        made = []
+
+        class Sock(_FakeSock):
+            def connect(self, address):
+                made.append(self)
+                now[0] += 2.0
+                raise TimeoutError()
+
+        infos = [(2, 1, 6, "", ("10.0.0.1", 1)), (2, 1, 6, "", ("10.0.0.2", 1))]
+        with mock.patch.object(release_source.socket, "getaddrinfo", return_value=infos), \
+                mock.patch.object(release_source.socket, "socket", side_effect=lambda *a: Sock()):
+            with self.assertRaises(DiscoveryFailure) as caught:
+                release_source._bounded_connector(deadline)(("h", 1))
+        self.assertTrue(caught.exception.expired)
+        self.assertEqual(len(made), 1)
+        self.assertTrue(made[0].closed)
+
+    def test_a_resolver_that_outlasts_the_deadline_opens_no_socket(self):
+        now, deadline = self.clocked(1.0)
+
+        def resolver(*args):
+            now[0] += 5.0
+            return [(2, 1, 6, "", ("10.0.0.1", 1))]
+
+        with mock.patch.object(release_source.socket, "getaddrinfo", side_effect=resolver), \
+                mock.patch.object(release_source.socket, "socket") as opened:
+            with self.assertRaises(DiscoveryFailure) as caught:
+                release_source._bounded_connector(deadline)(("h", 1))
+        self.assertTrue(caught.exception.expired)
+        opened.assert_not_called()
+
+    def https(self, seconds, *, advance, tunnel=False, wrap=None, tunnel_raises=None):
+        now, deadline = self.clocked(seconds)
+        raw = _FakeSock()
+        recorded = {}
+
+        class Context:
+            def wrap_socket(self, sock, server_hostname=None):
+                recorded["timeout"] = sock.gettimeout()
+                recorded["name"] = server_hostname
+                if wrap is not None:
+                    raise wrap
+                return _FakeSock()
+
+        connection = release_source._BoundedHTTPSConnection(
+            "host.example", 443, deadline=deadline, context=Context())
+        connection._create_connection = lambda *a, **k: (now.__setitem__(0, advance), raw)[1]
+        if tunnel:
+            connection.set_tunnel("target.example", 443)
+
+            def fake_tunnel():
+                recorded["tunnelled_at"] = now[0]
+                now[0] += 0.25
+                if tunnel_raises:
+                    raise tunnel_raises
+            connection._tunnel = fake_tunnel
+        return connection, raw, recorded, now
+
+    def test_the_handshake_gets_the_time_left_after_the_connect(self):
+        connection, raw, recorded, _ = self.https(2.0, advance=1.5)
+        connection.connect()
+        self.assertAlmostEqual(recorded["timeout"], 0.5)
+        self.assertIsInstance(connection.sock, release_source._Bounded)
+        self.assertEqual(recorded["name"], "host.example")
+
+    def test_the_timeout_is_refreshed_after_the_tunnel_and_names_the_tunnel_host(self):
+        connection, raw, recorded, _ = self.https(2.0, advance=1.0, tunnel=True)
+        connection.connect()
+        self.assertAlmostEqual(recorded["timeout"], 0.75)
+        self.assertEqual(recorded["name"], "target.example")
+
+    def test_an_exhausted_deadline_before_the_handshake_closes_the_socket(self):
+        connection, raw, recorded, _ = self.https(1.0, advance=1.5)
+        with self.assertRaises(DiscoveryFailure) as caught:
+            connection.connect()
+        self.assertTrue(caught.exception.expired)
+        self.assertNotIn("timeout", recorded)
+        self.assertTrue(raw.closed)
+        self.assertIsNone(connection.sock)
+
+    def test_a_failed_handshake_closes_the_socket(self):
+        connection, raw, recorded, _ = self.https(2.0, advance=0.1, wrap=OSError("handshake"))
+        with self.assertRaises(OSError):
+            connection.connect()
+        self.assertTrue(raw.closed)
+        self.assertIsNone(connection.sock)
+
+    def test_a_failed_tunnel_closes_the_socket(self):
+        _, deadline = self.clocked(2.0)
+        raw = _FakeSock()
+        connection = release_source._BoundedHTTPConnection("host.example", 80, deadline=deadline)
+        connection._create_connection = lambda *a, **k: raw
+        connection.set_tunnel("target.example", 80)
+        connection._tunnel = mock.Mock(side_effect=OSError("tunnel"))
+        with self.assertRaises(OSError):
+            connection.connect()
+        self.assertTrue(raw.closed)
+        self.assertIsNone(connection.sock)
+
+    def test_connect_raises_the_audit_event_once(self):
+        _, deadline = self.clocked(2.0)
+        events, recording = [], [True]
+
+        def hook(event, args):
+            # An audit hook cannot be removed: it records only during this case.
+            if recording[0] and event == "http.client.connect":
+                events.append(args[1:])
+
+        connection = release_source._BoundedHTTPConnection("host.example", 80, deadline=deadline)
+        connection._create_connection = lambda *a, **k: _FakeSock()
+        sys.addaudithook(hook)
+        try:
+            connection.connect()
+        finally:
+            recording[0] = False
+        self.assertEqual(events, [("host.example", 80)])
+
+    def test_a_missing_tcp_nodelay_is_tolerated_as_the_base_does(self):
+        _, deadline = self.clocked(2.0)
+        for code, tolerated in ((errno.ENOPROTOOPT, True), (errno.EBADF, False)):
+            raw = _FakeSock()
+            raw.setsockopt = mock.Mock(side_effect=OSError(code, "setsockopt"))
+            connection = release_source._BoundedHTTPConnection("host.example", 80, deadline=deadline)
+            connection._create_connection = lambda *a, **k: raw
+            if tolerated:
+                connection.connect()
+                self.assertIsInstance(connection.sock, release_source._Bounded)
+                self.assertFalse(raw.closed)
+            else:
+                with self.assertRaises(OSError):
+                    connection.connect()
+                self.assertTrue(raw.closed)
+                self.assertIsNone(connection.sock)
+
+    def test_the_real_socket_outlives_close_while_a_reader_is_open(self):
+        _, deadline = self.clocked(2.0)
+        raw = _FakeSock()
+        raw.recv_into = lambda buf, *a: 0
+        raw.fileno = lambda: 3
+        wrapper = release_source._Bounded(raw, deadline)
+        reader = wrapper.makefile("rb")
+        wrapper.close()
+        self.assertFalse(raw.closed)
+        reader.close()
+        self.assertTrue(raw.closed)
+
+    def test_every_operation_is_clamped_to_the_time_left(self):
+        now, deadline = self.clocked(1.0)
+        raw = _FakeSock()
+        raw.sendall = lambda data, *a: None
+        raw.recv_into = lambda buf, *a: 0
+        wrapper = release_source._Bounded(raw, deadline)
+        wrapper.sendall(b"x")
+        now[0] = 0.8
+        wrapper.recv_into(bytearray(1))
+        self.assertAlmostEqual(raw.timeouts[-1], 0.2)
+        now[0] = 1.1
+        with self.assertRaises(DiscoveryFailure):
+            wrapper.recv_into(bytearray(1))
 
 
 class TestTheSumsFile(unittest.TestCase):

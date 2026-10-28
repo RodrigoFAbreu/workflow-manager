@@ -25,16 +25,19 @@ the rule that a pin is the only door.
 from __future__ import annotations
 
 import atexit
+import errno
 import fcntl
 import hashlib
+import http.client
+import io
 import ipaddress
 import json
 import os
 import re
 import shutil
+import socket
 import sys
 import tempfile
-import threading
 import time
 import urllib.error
 import urllib.parse
@@ -487,37 +490,178 @@ def _read_capped(stream, cap: int, where: str, deadline: Deadline | None) -> byt
 def _http_read(where: str, cap: int, deadline: Deadline | None, headers=None) -> bytes:
     timeout = deadline.timeout() if deadline is not None else FETCH_TIMEOUT_SECONDS
     _check_url(where)
-    if deadline is None:
-        return _http_fetch(where, cap, None, headers, timeout)
-    # The socket timeout bounds one operation, not the request: a server that
-    # trickles header bytes (or a TLS handshake) outlasts it. Run the request
-    # in a daemon thread and give up on it when the shared deadline passes.
-    outcome: list = []
+    return _http_fetch(where, cap, deadline, headers, timeout)
 
-    def work():
+
+class _Bounded:
+    """A connected socket whose every send and receive is clamped to the time
+    the `Deadline` has left, so no single operation outlasts it. `makefile`
+    counts its readers as `socket.socket` does: `urllib` closes the connection
+    after the response headers while the body still reads from it."""
+
+    def __init__(self, sock, deadline: Deadline):
+        self._sock, self._deadline = sock, deadline
+        self._io_refs, self._closed = 0, False
+
+    def _clamp(self) -> None:
+        self._sock.settimeout(self._deadline.timeout())
+
+    def sendall(self, data, *args):
+        self._clamp()
+        return self._sock.sendall(data, *args)
+
+    def recv_into(self, buffer, *args):
+        self._clamp()
+        return self._sock.recv_into(buffer, *args)
+
+    def fileno(self):
+        return self._sock.fileno()
+
+    def setsockopt(self, *args):
+        return self._sock.setsockopt(*args)
+
+    def makefile(self, mode="rb", buffering=-1):
+        # Reading only, over this wrapper and never the real socket: the reads
+        # must meet the clamp (`http.client` asks for nothing else).
+        if mode != "rb":
+            raise ValueError(f"invalid mode {mode!r}")
+        self._io_refs += 1
+        raw = socket.SocketIO(self, "r")
+        return raw if buffering == 0 else io.BufferedReader(raw)
+
+    def _decref_socketios(self) -> None:
+        if self._io_refs > 0:
+            self._io_refs -= 1
+        if self._closed:
+            self.close()
+
+    def _real_close(self) -> None:
+        self._sock.close()
+
+    def close(self) -> None:
+        self._closed = True
+        if self._io_refs <= 0:
+            self._real_close()
+
+
+def _bounded_connector(deadline: Deadline):
+    """`socket.create_connection` with each attempt's timeout the time left, so
+    several addresses cannot multiply the per-request bound past the deadline.
+    Every socket it does not return is closed."""
+
+    def connect(address, timeout=None, source_address=None):
+        host, port = address
+        last = None
+        for family, kind, proto, _, target in socket.getaddrinfo(host, port, 0, socket.SOCK_STREAM):
+            attempt = deadline.timeout()
+            sock = None
+            try:
+                sock = socket.socket(family, kind, proto)
+                sock.settimeout(attempt)
+                if source_address:
+                    sock.bind(source_address)
+                sock.connect(target)
+                return sock
+            except OSError as exc:
+                last = exc
+                if sock is not None:
+                    sock.close()
+            except BaseException:
+                if sock is not None:
+                    sock.close()
+                raise
+        raise last if last is not None else OSError("getaddrinfo returned no addresses")
+
+    return connect
+
+
+class _BoundedConnectionMixin:
+    """`connect()` owned here: the base one reads a proxy's `CONNECT` reply and
+    runs the TLS handshake before any wrapper could exist. Whatever fails after
+    the socket exists closes it, whether or not the caller closes the connection."""
+
+    _tls = False
+
+    def __init__(self, *args, deadline: Deadline, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._deadline = deadline
+        self._create_connection = _bounded_connector(deadline)
+
+    def connect(self):
+        sys.audit("http.client.connect", self, self.host, self.port)
+        raw = self._create_connection((self.host, self.port), self.timeout, self.source_address)
+        bounded = self.sock = _Bounded(raw, self._deadline)
         try:
-            outcome.append((True, _http_fetch(where, cap, deadline, headers, timeout)))
-        except BaseException as exc:
-            outcome.append((False, exc))
+            try:
+                self.sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+            except OSError as exc:
+                if exc.errno != errno.ENOPROTOOPT:   # as the base: not every OS has it
+                    raise
+            if self._tunnel_host:
+                self._tunnel()
+            if self._tls:
+                # The time left now, after the connect and any tunnel work.
+                self.sock = raw
+                raw.settimeout(self._deadline.timeout())
+                name = self._tunnel_host if self._tunnel_host else self.host
+                self.sock = _Bounded(self._context.wrap_socket(raw, server_hostname=name),
+                                     self._deadline)
+        except BaseException:
+            # `_tunnel` closes the connection itself on a refusal: sock is then None,
+            # and on 3.11 its unread reply keeps the wrapper open. No reader can
+            # outlive a failed `connect()`, so the wrapper is closed outright.
+            current, self.sock = self.sock, None
+            bounded._real_close()
+            if current is not None and current is not bounded:
+                current.close()
+            raise
 
-    worker = threading.Thread(target=work, daemon=True)
-    worker.start()
-    worker.join(max(deadline.remaining(), 0))
-    if not outcome:
-        raise DiscoveryFailure("the discovery time limit passed", expired=True)
-    ok, value = outcome[0]
-    if not ok:
-        raise value
-    return value
+
+class _BoundedHTTPConnection(_BoundedConnectionMixin, http.client.HTTPConnection):
+    pass
+
+
+class _BoundedHTTPSConnection(_BoundedConnectionMixin, http.client.HTTPSConnection):
+    _tls = True
+
+
+class _BoundedHTTPHandler(urllib.request.HTTPHandler):
+    def __init__(self, deadline: Deadline):
+        super().__init__()
+        self._deadline = deadline
+
+    def http_open(self, req):
+        return self.do_open(
+            lambda *a, **k: _BoundedHTTPConnection(*a, deadline=self._deadline, **k), req)
+
+
+class _BoundedHTTPSHandler(urllib.request.HTTPSHandler):
+    def __init__(self, deadline: Deadline):
+        super().__init__()
+        self._deadline = deadline
+
+    def https_open(self, req):
+        return self.do_open(
+            lambda *a, **k: _BoundedHTTPSConnection(*a, deadline=self._deadline, **k), req,
+            context=self._context)
 
 
 def _http_fetch(where: str, cap: int, deadline: Deadline | None, headers, timeout: float) -> bytes:
-    opener = urllib.request.build_opener(_RedirectHandler)
+    # The socket timeout bounds one operation, not the request: with a deadline
+    # every operation on the connection is clamped to the time left instead.
+    handlers = [_RedirectHandler]
+    if deadline is not None:
+        handlers += [_BoundedHTTPHandler(deadline), _BoundedHTTPSHandler(deadline)]
+    opener = urllib.request.build_opener(*handlers)
     request = urllib.request.Request(where, headers=headers or {})
     try:
         with opener.open(request, timeout=timeout) as stream:
             return _read_capped(stream, cap, where, deadline)
     except (OSError, urllib.error.URLError, ValueError) as exc:
+        if isinstance(exc, urllib.error.HTTPError):
+            exc.close()          # it holds the response, and so the socket, as long as it lives
+        if deadline is not None and deadline.remaining() <= 0:
+            raise DiscoveryFailure("the discovery time limit passed", expired=True) from exc
         raise ReleaseUnavailableError(f"cannot fetch {where}: {exc}", kind="fetch-url",
                                       source=where) from exc
 
