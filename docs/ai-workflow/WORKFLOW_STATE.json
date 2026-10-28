@@ -16452,7 +16452,7 @@
       "registry_path": "docs/ai-workflow/registry/http-read-deadline-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/http-read-deadline-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "AWAITING_FUNCTIONAL_REVIEW",
       "plan_revision": 7,
       "implementation_revision": 2,
       "functional_review_round": null,
@@ -16561,7 +16561,102 @@
           "workflow_release": "2.25.0"
         }
       },
-      "technical_approval": null,
+      "technical_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "175a8509dade12cb17d05e2335ef9cd53db842e1e0ccc7ac2231b92fd7fdcba8",
+        "approved_review_content_id": "789712e156436c0d621834d31ecf9d60fb2e3bde876fb01a3331217cd402f805",
+        "review_content_manifest": [
+          {
+            "path": "docs/ARCHITECTURE.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "8edc00066cf02dbc478bd48b756f6fac4bb7a774"
+          },
+          {
+            "path": "docs/ai-workflow/registry/http-read-deadline-artifacts.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "dfccc3aaf7ec9063c81e0fad094c1194afdefeae"
+          },
+          {
+            "path": "src/workflow_manager/source.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "2813674ac3dfbbcb0c787a66ff06485c4b7ba78b"
+          },
+          {
+            "path": "tests/test_discovery.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "8dc6b0df27a29790dcce9b6993cd8ab3f108c480"
+          }
+        ],
+        "reviewed_content_commit": "340622cbc71c50faab6bf562128a6df9c9994cd9",
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-10-28T12:33:27Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "789712e156436c0d621834d31ecf9d60fb2e3bde876fb01a3331217cd402f805",
+            "ledger": {
+              "local": {
+                "bundle_id": "175a8509dade12cb17d05e2335ef9cd53db842e1e0ccc7ac2231b92fd7fdcba8",
+                "verdict": "APPROVE",
+                "round": 2,
+                "verdict_sha256": "358eb13d7532f3201fe03c636347a2503f020073d1ef0c6e8333166b4f3a1b18",
+                "ledger_entry_sha256": "8513044ab19f18081c8308509d34e8ae4ddadab79f8c6b50782588c176c2d0ec",
+                "run_ref": "session:local .ai-review/http-read-deadline/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "175a8509dade12cb17d05e2335ef9cd53db842e1e0ccc7ac2231b92fd7fdcba8",
+                "verdict": "APPROVE",
+                "round": 2,
+                "verdict_sha256": "8b913bc28cf920bbbc81ccc2024e337ac522713c76215e14c163ae493abfd612",
+                "ledger_entry_sha256": "d72e2c766899afc431605758d814f59c631ed83d4aac3f90fe3d0ea000ec59fc",
+                "run_ref": "codex:20261028T122944Z-2707df25",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-10-28T12:33:27Z",
+          "workflow_release": "2.25.0"
+        }
+      },
       "technical_review_block_pins": [],
       "plan_review_stages": {
         "review_content_id": "5728238c656086c6b61961fe683e982ec8f3a14affa1c373e44d47b540a67793",
@@ -16592,12 +16687,12 @@
           "external": 2
         },
         "implementation": {
-          "local": 1,
-          "external": 0
+          "local": 2,
+          "external": 1
         }
       },
-      "state_revision": 32,
-      "last_transition": "2026-10-28T12:03:31Z",
+      "state_revision": 35,
+      "last_transition": "2026-10-28T12:33:27Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -16905,6 +17000,69 @@
               "at": "2026-10-28T11:28:05Z"
             }
           ]
+        },
+        "F-ce7e9ee7b91e": {
+          "digest": "ce7e9ee7b91edd2b06d3d3e61f7b31733e366628b130b68e29e9a013e5b73444",
+          "text": "**LIR2-001: the LIR1-002 change (`_Bounded._decref_socketios` calling `close()`, not `_real_close()`) has no test.** Mutating it back to `_real_close()` leaves all 30 cases of the three new classes green (checked in a `git archive` export of `1c747d0`). The path cannot be reached today: `http.client` never holds two readers on one wrapper. A two-reader case in `TestTheBoundedPieces` would pin the change: `makefile()` twice, `close()`, close one reader, real socket still open; close the other, real socket closed.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 2,
+              "review_content_id": "789712e156436c0d621834d31ecf9d60fb2e3bde876fb01a3331217cd402f805",
+              "verdict": "APPROVE",
+              "at": "2026-10-28T12:29:18Z"
+            }
+          ]
+        },
+        "F-8261a570e67b": {
+          "digest": "8261a570e67b3ec9943f282301d9b0b697358d975a67128019500c9c5b5562a1",
+          "text": "**LIR2-002: `TEST_RESULTS.md` is still revision 1's.** Its header says `implementation_revision: 1`, its full-gate evidence is at `95228d1`, and it records neither the round-2 full gate nor the two new cases. Only `IMPLEMENTATION_SUMMARY.md` mentions the round-2 gate, and it gives no digests. The claim is true: this review ran the gate at `1c747d0` (below). Next time the bundle is regenerated, put the round's gate evidence line in `TEST_RESULTS.md`.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 2,
+              "review_content_id": "789712e156436c0d621834d31ecf9d60fb2e3bde876fb01a3331217cd402f805",
+              "verdict": "APPROVE",
+              "at": "2026-10-28T12:29:18Z"
+            }
+          ]
+        },
+        "F-1f8866bbd7bb": {
+          "digest": "1f8866bbd7bb52189342fddfa7e7e15fd89190661dc1315ce97c9a784e02cb52",
+          "text": "`tests/test_discovery.py:859`: `_socket_links()` silently returns an empty set when descriptor directories cannot expose socket links. On those platforms, the descriptor assertions pass without checking leaks, whereas the plan specifies a skip. Detect unsupported enumeration and explicitly skip that assertion.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW",
+              "round": 2,
+              "review_content_id": "789712e156436c0d621834d31ecf9d60fb2e3bde876fb01a3331217cd402f805",
+              "verdict": "APPROVE",
+              "at": "2026-10-28T12:32:50Z"
+            }
+          ]
+        }
+      },
+      "implementation_review_stages": {
+        "review_content_id": "789712e156436c0d621834d31ecf9d60fb2e3bde876fb01a3331217cd402f805",
+        "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "175a8509dade12cb17d05e2335ef9cd53db842e1e0ccc7ac2231b92fd7fdcba8",
+          "verdict": "APPROVE",
+          "round": 2,
+          "completed_at": "2026-10-28T12:29:18Z",
+          "verdict_sha256": "358eb13d7532f3201fe03c636347a2503f020073d1ef0c6e8333166b4f3a1b18",
+          "run_ref": "session:local .ai-review/http-read-deadline/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "175a8509dade12cb17d05e2335ef9cd53db842e1e0ccc7ac2231b92fd7fdcba8",
+          "verdict": "APPROVE",
+          "round": 2,
+          "completed_at": "2026-10-28T12:32:50Z",
+          "verdict_sha256": "8b913bc28cf920bbbc81ccc2024e337ac522713c76215e14c163ae493abfd612",
+          "run_ref": "codex:20261028T122944Z-2707df25",
+          "reviewer_model": "openai/gpt-6.1-sol"
         }
       }
     }
