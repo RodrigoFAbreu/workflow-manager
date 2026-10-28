@@ -13,12 +13,14 @@ from __future__ import annotations
 
 import ast
 import contextlib
+import errno
 import http.server
 import io
 import json
 import os
 import shutil
 import subprocess
+import sys
 import threading
 import time
 import unittest
@@ -1321,23 +1323,38 @@ class TestTheBoundedPieces(unittest.TestCase):
 
     def test_connect_raises_the_audit_event_once(self):
         _, deadline = self.clocked(2.0)
-        events = []
+        events, recording = [], [True]
 
         def hook(event, args):
-            if event == "http.client.connect":
+            # An audit hook cannot be removed: it records only during this case.
+            if recording[0] and event == "http.client.connect":
                 events.append(args[1:])
 
         connection = release_source._BoundedHTTPConnection("host.example", 80, deadline=deadline)
         connection._create_connection = lambda *a, **k: _FakeSock()
-        sys_module = __import__("sys")
-        sys_module.addaudithook(hook)
+        sys.addaudithook(hook)
         try:
             connection.connect()
         finally:
-            events_seen = list(events)
-            events.clear()
-            hook = None                            # an audit hook cannot be removed
-        self.assertEqual(events_seen, [("host.example", 80)])
+            recording[0] = False
+        self.assertEqual(events, [("host.example", 80)])
+
+    def test_a_missing_tcp_nodelay_is_tolerated_as_the_base_does(self):
+        _, deadline = self.clocked(2.0)
+        for code, tolerated in ((errno.ENOPROTOOPT, True), (errno.EBADF, False)):
+            raw = _FakeSock()
+            raw.setsockopt = mock.Mock(side_effect=OSError(code, "setsockopt"))
+            connection = release_source._BoundedHTTPConnection("host.example", 80, deadline=deadline)
+            connection._create_connection = lambda *a, **k: raw
+            if tolerated:
+                connection.connect()
+                self.assertIsInstance(connection.sock, release_source._Bounded)
+                self.assertFalse(raw.closed)
+            else:
+                with self.assertRaises(OSError):
+                    connection.connect()
+                self.assertTrue(raw.closed)
+                self.assertIsNone(connection.sock)
 
     def test_the_real_socket_outlives_close_while_a_reader_is_open(self):
         _, deadline = self.clocked(2.0)

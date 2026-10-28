@@ -25,6 +25,7 @@ the rule that a pin is the only door.
 from __future__ import annotations
 
 import atexit
+import errno
 import fcntl
 import hashlib
 import http.client
@@ -595,7 +596,11 @@ class _BoundedConnectionMixin:
         raw = self._create_connection((self.host, self.port), self.timeout, self.source_address)
         self.sock = _Bounded(raw, self._deadline)
         try:
-            self.sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+            try:
+                self.sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+            except OSError as exc:
+                if exc.errno != errno.ENOPROTOOPT:   # as the base: not every OS has it
+                    raise
             if self._tunnel_host:
                 self._tunnel()
             if self._tls:
