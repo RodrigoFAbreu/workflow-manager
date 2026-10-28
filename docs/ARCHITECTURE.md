@@ -65,6 +65,11 @@ pieces, each with one job:
   The choosing walk is in memory, size-capped and under one 20-second
   deadline; any failure is one stderr line and the choice falls back to the
   newest release known locally, so a primed cache behaves offline as before.
+  Every read and write on the connection, a proxy's `CONNECT` exchange
+  included, is clamped to the time left, the TLS handshake gets the time left
+  as of just before it, and the socket is closed at the deadline, so no thread
+  is used and nothing is abandoned. The one residual: a resolver that stalls in
+  `getaddrinfo` delays the failure until it returns.
 - **The cache** (`D-Release-Cache`): `--release-cache`, else
   `WORKFLOW_MANAGER_RELEASE_CACHE`, else
   `$XDG_CACHE_HOME/workflow-manager/releases`, else
