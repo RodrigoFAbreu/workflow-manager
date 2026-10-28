@@ -961,6 +961,11 @@ class _Loopback:
         elif name == "redirect-ok":
             conn.sendall(b"HTTP/1.1 302 Found\r\nLocation: /ok\r\nContent-Length: 0\r\n"
                          b"Connection: close\r\n\r\n")
+        elif name.startswith("redirect/"):
+            left = int(name.split("/")[1])
+            where = f"/redirect/{left - 1}" if left else "/ok"
+            conn.sendall(f"HTTP/1.1 302 Found\r\nLocation: {where}\r\nContent-Length: 0\r\n"
+                         "Connection: close\r\n\r\n".encode())
         elif name in ("redirect-stall", "slow-redirect-stall"):
             if name == "slow-redirect-stall":
                 time.sleep(self.hold)
@@ -1087,6 +1092,21 @@ class TestAnExpiredReadLeavesNothingBehind(unittest.TestCase):
         self.assertEqual(
             release_source._http_read(server.url("redirect-ok"), 100, Deadline(5.0)), b"hello")
         self.check_clean(server, 2)
+
+    def test_five_redirects_are_followed(self):
+        server = self.serve()
+        self.assertEqual(
+            release_source._http_read(server.url("redirect/4"), 100, Deadline(5.0)), b"hello")
+        self.check_clean(server, 6)
+
+    def test_the_sixth_redirect_is_refused_before_the_deadline(self):
+        server = self.serve()
+        deadline = Deadline(30.0)
+        with self.assertRaises(release_source.ReleaseUnavailableError) as caught:
+            release_source._http_read(server.url("redirect/5"), 100, deadline)
+        self.assertEqual(caught.exception.kind, "fetch-url")
+        self.assertGreater(deadline.remaining(), 0)
+        self.check_clean(server, 6)
 
     def test_a_refused_connection_is_a_fetch_error_before_the_deadline(self):
         import socket
