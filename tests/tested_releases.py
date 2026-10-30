@@ -164,6 +164,10 @@ def tested_versions(pins: source.Pins | None = None,
     return tested_pins(pins, lock).versions()
 
 
+#: The cause `lock_conformance` and `support` both lead with.
+NO_SUITE_COUNTS = "neither its manifest nor its lock entry carries the frozen suite counts"
+
+
 def lock_conformance(entry: LockEntry, manifest: bytes | None) -> tuple[dict, tuple[dict, ...]]:
     """`(suites, portability exceptions)` of a lock-only release: its manifest's
     `conformance` block when the manifest carries one (the manifest wins), else
@@ -175,8 +179,8 @@ def lock_conformance(entry: LockEntry, manifest: bytes | None) -> tuple[dict, tu
                     tuple({"suite": item.suite, "test": item.test, "reason": item.reason}
                           for item in block.conformance.portability_exceptions))
     if entry.suites is None:
-        raise LockError(f"{entry.version}: neither its manifest nor its lock entry carries "
-                        "the frozen suite counts (`tools/release_lock.py add` writes them)")
+        raise LockError(f"{entry.version}: {NO_SUITE_COUNTS} "
+                        "(`tools/release_lock.py add` writes them)")
     return dict(entry.suites), tuple(entry.portability_exceptions or ())
 
 

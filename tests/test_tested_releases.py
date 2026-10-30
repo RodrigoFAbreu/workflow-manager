@@ -282,20 +282,61 @@ class TestUnfilledCacheNamesTheRelease(_LockedRelease):
 
     synthetic = (SYNTHETIC,)
 
-    def tree(self) -> set:
-        return {path.relative_to(self.tmp) for path in self.tmp.rglob("*")}
+    def tree(self) -> dict:
+        """Every path under the temporary tree, mapped to the SHA-256 of its
+        bytes (`None` for a directory, the target for a symlink): a rewrite
+        that keeps the names changes it, and no file's bytes are held."""
+        out = {}
+        for path in self.tmp.rglob("*"):
+            rel = path.relative_to(self.tmp)
+            if path.is_symlink():
+                out[rel] = os.readlink(path)
+            elif path.is_dir():
+                out[rel] = None
+            else:
+                out[rel] = package_module.file_sha256(path)
+        return out
+
+    def assert_cache_miss_message(self, stderr: str):
+        for needed in ("LockError", SYNTHETIC, str(self.cache),
+                       package_module.manifest_asset_name(SYNTHETIC),
+                       "holds no verified manifest", "python3 tests/run_all.py --list",
+                       "using the same cache setting"):
+            self.assertIn(needed, stderr)
+        for absent in ("release_lock.py add", "does not hold"):
+            self.assertNotIn(absent, stderr)
+        self.assertLess(stderr.index(tested_releases.NO_SUITE_COUNTS), stderr.index(str(self.cache)))
+
+    def spoil_incomplete_entry(self):
+        (self.cache / SYNTHETIC / "complete").unlink()
+
+    def spoil_manifest_digest(self):
+        manifest = self.cache / SYNTHETIC / "tree" / package_module.MANIFEST_NAME
+        manifest.unlink()
+        manifest.write_bytes(b"{}\n")
+
+    def primed_then_spoiled(self, spoil):
+        self.write_lock({SYNTHETIC: self.entry()})
+        priming.prime(self.checkout(), self.env())
+        spoil()
 
     def test_the_cold_import_names_the_release_the_cache_and_the_remedy(self):
         self.write_lock({SYNTHETIC: self.entry()})
         proc = self.python("import support")
         self.assertNotEqual(proc.returncode, 0)
-        for needed in ("LockError", SYNTHETIC, str(self.cache),
-                       package_module.manifest_asset_name(SYNTHETIC),
-                       "python3 tests/run_all.py --list"):
-            self.assertIn(needed, proc.stderr)
-        cause = "neither its manifest nor its lock entry carries the frozen suite counts"
-        self.assertIn(cause, proc.stderr)
-        self.assertLess(proc.stderr.index(cause), proc.stderr.index(str(self.cache)))
+        self.assert_cache_miss_message(proc.stderr)
+
+    def test_an_incomplete_entry_gets_the_same_message(self):
+        self.primed_then_spoiled(self.spoil_incomplete_entry)
+        proc = self.python("import support")
+        self.assertNotEqual(proc.returncode, 0)
+        self.assert_cache_miss_message(proc.stderr)
+
+    def test_a_manifest_that_does_not_match_its_digest_gets_the_same_message(self):
+        self.primed_then_spoiled(self.spoil_manifest_digest)
+        proc = self.python("import support")
+        self.assertNotEqual(proc.returncode, 0)
+        self.assert_cache_miss_message(proc.stderr)
 
     def test_the_failure_writes_nothing(self):
         self.write_lock({SYNTHETIC: self.entry()})
@@ -303,6 +344,30 @@ class TestUnfilledCacheNamesTheRelease(_LockedRelease):
         self.assertNotEqual(self.python("import support").returncode, 0)
         self.assertEqual(self.tree(), before)
         self.assertFalse(self.cache.exists())
+
+    def test_the_failure_writes_nothing_with_an_incomplete_entry(self):
+        self.primed_then_spoiled(self.spoil_incomplete_entry)
+        before = self.tree()
+        self.assertNotEqual(self.python("import support").returncode, 0)
+        self.assertEqual(self.tree(), before)
+
+    def test_the_failure_writes_nothing_with_a_digest_mismatch(self):
+        self.primed_then_spoiled(self.spoil_manifest_digest)
+        before = self.tree()
+        self.assertNotEqual(self.python("import support").returncode, 0)
+        self.assertEqual(self.tree(), before)
+
+    def test_the_snapshot_sees_a_rewrite(self):
+        (self.tmp / "dir").mkdir()
+        (self.tmp / "dir" / "a").write_text("one")
+        before = self.tree()
+        (self.tmp / "dir" / "a").write_text("two")
+        rewritten = self.tree()
+        self.assertEqual(rewritten.keys(), before.keys())
+        self.assertNotEqual(rewritten, before)
+        (self.tmp / "dir" / "a").unlink()
+        (self.tmp / "dir" / "b").write_text("two")
+        self.assertNotEqual(self.tree(), rewritten)
 
     def test_an_entry_with_counts_is_unaffected_by_the_cache(self):
         self.write_lock({SYNTHETIC: self.entry(suites=SUITES)})
@@ -320,7 +385,8 @@ class TestUnfilledCacheNamesTheRelease(_LockedRelease):
         priming.prime(self.checkout(), self.env())
         proc = self.python("import support")
         self.assertNotEqual(proc.returncode, 0)
-        self.assertIn("neither its manifest nor its lock entry carries", proc.stderr)
+        self.assertIn(tested_releases.NO_SUITE_COUNTS, proc.stderr)
+        self.assertIn("tools/release_lock.py add", proc.stderr)
         self.assertNotIn(str(self.cache), proc.stderr)
         self.assertNotIn("python3 tests/run_all.py --list", proc.stderr)
 
