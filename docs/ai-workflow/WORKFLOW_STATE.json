@@ -18391,12 +18391,12 @@
       "registry_path": "docs/ai-workflow/registry/cache-miss-message-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/cache-miss-message-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "SELF_REVIEWING_IMPLEMENTATION",
+      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
       "plan_revision": 2,
-      "implementation_revision": null,
+      "implementation_revision": 1,
       "functional_review_round": null,
       "base_commit": "e162738863716b1395652c61b1b58cc81bf3c013",
-      "reviewed_implementation_head": null,
+      "reviewed_implementation_head": "062713ebfa953ed3a537283fcdf99964a7179a6d",
       "current_checkpoint_id": null,
       "last_completed_checkpoint_id": "CP2",
       "checkpoints": {
@@ -18535,8 +18535,8 @@
           "external": 0
         }
       },
-      "state_revision": 13,
-      "last_transition": "2026-10-30T13:23:18Z",
+      "state_revision": 14,
+      "last_transition": "2026-10-30T13:40:15Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
