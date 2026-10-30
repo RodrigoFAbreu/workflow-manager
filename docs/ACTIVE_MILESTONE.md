@@ -19,3 +19,8 @@ Not in this milestone: the two test-strength items of the previous item (issue #
 ### CP2: bookkeeping -- complete
 
 - This record. `docs/ROADMAP.md` row 19 is Current and becomes Done at acceptance. No version is edited.
+
+### Self-review -- complete
+
+- No blocking or important finding; no code change. One deviation from the plan's section 2, kept on purpose: the new message starts with the original `LockError` text and then names the cache, the manifest and the remedy, so an existing reader of the original text (`tests/test_release_workflows.py`) stays at its base content.
+- Evidence: at the base `1575e0d` (its `tests/support.py`, the new test file) only the cold-import case fails; the three mutations of the plan's section 3 each fail the case named (hint dropped from the miss path: cold import; hint added to the present-manifest path: the hint-only case; the manifest not read, scoped to the synthetic release so the parent's own import survives: the hint-only case). `--select test_tested_releases.py --select test_docs.py` exited 0; the full gate (`python3 tests/run_all.py`) exited 0 at head `0c87cd2` (2321 of 2321 units, 15353 tests, orphan check on).
