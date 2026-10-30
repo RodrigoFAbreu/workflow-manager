@@ -488,7 +488,10 @@ the tested releases, one selection) in
   `WORKFLOW_MANAGER_RELEASE_SOURCE`, when set) into every from-scratch
   subprocess environment, so a test that moves `HOME` still reads the primed
   cache; a scratch checkout passes its own private source and cache the same
-  way and never touches the real one.
+  way and never touches the real one. A unit that imports `tests/support.py`
+  on a cache that lacks a lock-only release's manifest (and whose lock entry
+  carries no suite counts) fails with a `LockError` naming the release, the
+  cache directory and `python3 tests/run_all.py --list`, which fills it.
 - **Tested releases.** The tested set is the pins plus the releases in
   `tests/tested_releases.json` (the lock: published after the last pin, with
   digests and, until the manifest carries a `conformance` block, the frozen

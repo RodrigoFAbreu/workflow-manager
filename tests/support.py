@@ -413,7 +413,18 @@ def _lock_conformance(version: str) -> tuple[dict, tuple]:
     lock entry's own (plan 3.5)."""
     pins = tested_releases.tested_pins(_source.load_pins(), LOCK)
     cache = _source.ReleaseCache(_source.cache_root(), None, pins)
-    return tested_releases.lock_conformance(LOCK[version], cache.cached_manifest(version))
+    manifest = cache.cached_manifest(version)
+    from workflow_manager.package import manifest_asset_name
+    try:
+        return tested_releases.lock_conformance(LOCK[version], manifest)
+    except tested_releases.LockError:
+        if manifest is not None:
+            raise
+        raise tested_releases.LockError(
+            f"{version}: the release cache {cache.root} does not hold its verified manifest "
+            f"({manifest_asset_name(version)}) and the lock entry carries no suite counts; "
+            f"fill the cache first with `{tested_releases.PRIME_COMMAND}` (every runner mode "
+            f"does, before any unit starts)") from None
 
 
 for _version in LOCK:
