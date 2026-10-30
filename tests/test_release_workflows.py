@@ -682,8 +682,8 @@ class TestAssertFullPlan(runner_tests._CliCase):  # noqa: SLF001
                  release_source.CACHE_ENV: str(self.tmp / "unprimed"),
                  "PYTHONPATH": str(scratch / "src")})
         self.assertNotEqual(unprimed.returncode, 0, unprimed.stdout)
-        self.assertIn("does not hold its verified manifest", unprimed.stderr)
-        self.assertIn("python3 tests/run_all.py --list", unprimed.stderr)
+        self.assertIn("neither its manifest nor its lock entry carries the frozen suite counts",
+                      unprimed.stderr)
         cache = self.tmp / "release-cache"
         proc = run_assert_full_plan(scratch, plan, self.env, cache=cache)
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)

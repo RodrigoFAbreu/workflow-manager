@@ -293,6 +293,9 @@ class TestUnfilledCacheNamesTheRelease(_LockedRelease):
                        package_module.manifest_asset_name(SYNTHETIC),
                        "python3 tests/run_all.py --list"):
             self.assertIn(needed, proc.stderr)
+        cause = "neither its manifest nor its lock entry carries the frozen suite counts"
+        self.assertIn(cause, proc.stderr)
+        self.assertLess(proc.stderr.index(cause), proc.stderr.index(str(self.cache)))
 
     def test_the_failure_writes_nothing(self):
         self.write_lock({SYNTHETIC: self.entry()})

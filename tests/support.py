@@ -417,14 +417,14 @@ def _lock_conformance(version: str) -> tuple[dict, tuple]:
     from workflow_manager.package import manifest_asset_name
     try:
         return tested_releases.lock_conformance(LOCK[version], manifest)
-    except tested_releases.LockError:
+    except tested_releases.LockError as exc:
         if manifest is not None:
             raise
         raise tested_releases.LockError(
-            f"{version}: the release cache {cache.root} does not hold its verified manifest "
-            f"({manifest_asset_name(version)}) and the lock entry carries no suite counts; "
-            f"fill the cache first with `{tested_releases.PRIME_COMMAND}` (every runner mode "
-            f"does, before any unit starts)") from None
+            f"{exc}; the release cache {cache.root} does not hold the verified manifest "
+            f"({manifest_asset_name(version)}) of {version}: fill the cache first with "
+            f"`{tested_releases.PRIME_COMMAND}` (every runner mode does, before any unit "
+            f"starts)") from None
 
 
 for _version in LOCK:
