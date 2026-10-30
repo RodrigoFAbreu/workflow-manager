@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_work_item_id": null,
+  "active_work_item_id": "cache-miss-message",
   "work_items": {
     "plan-amendment-mechanism": {
       "work_item_type": "process",
@@ -18380,6 +18380,233 @@
         },
         "evaluated_at": "2026-10-30T12:11:45Z",
         "workflow_release": "2.25.0"
+      }
+    },
+    "cache-miss-message": {
+      "work_item_type": "process",
+      "work_item_kind": "process",
+      "work_item_id": "cache-miss-message",
+      "parent_work_item_id": null,
+      "plan_path": "docs/ai-workflow/WORKFLOW_MANAGER_CACHE_MISS_MESSAGE_PLAN.md",
+      "registry_path": "docs/ai-workflow/registry/cache-miss-message-registry.json",
+      "mapping_path": "docs/ai-workflow/requirements/cache-miss-message-mapping.json",
+      "governing_workflow_version": "2.2",
+      "phase": "IMPLEMENTING",
+      "plan_revision": 2,
+      "implementation_revision": null,
+      "functional_review_round": null,
+      "base_commit": "e162738863716b1395652c61b1b58cc81bf3c013",
+      "reviewed_implementation_head": null,
+      "current_checkpoint_id": null,
+      "last_completed_checkpoint_id": null,
+      "checkpoints": {},
+      "current_bundle_id": "d2f47c35223b061b30922ff4992cbcc18768b34414cb2b302cdcfc3cdfa5eb6f",
+      "plan_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "d2f47c35223b061b30922ff4992cbcc18768b34414cb2b302cdcfc3cdfa5eb6f",
+        "approved_review_content_id": "600a5d1b436365770f0535736f548cc8a40fb2444d7690eace0afb27225326e1",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/WORKFLOW_MANAGER_CACHE_MISS_MESSAGE_PLAN.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "5d30e2a7340bd7574cc296f3a260428078892d5e"
+          },
+          {
+            "path": "docs/ai-workflow/registry/cache-miss-message-registry.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "cc94f7af3584d5f32a85b039b0ff5eb1bee3ff58"
+          },
+          {
+            "path": "docs/ai-workflow/requirements/cache-miss-message-mapping.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "1aaedf924edd2ef51359dc89ef0711c29c3888dc"
+          }
+        ],
+        "reviewed_content_commit": null,
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-10-30T13:05:41Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "600a5d1b436365770f0535736f548cc8a40fb2444d7690eace0afb27225326e1",
+            "ledger": {
+              "local": {
+                "bundle_id": "d2f47c35223b061b30922ff4992cbcc18768b34414cb2b302cdcfc3cdfa5eb6f",
+                "verdict": "APPROVE",
+                "round": 2,
+                "verdict_sha256": "826cdae6baa61875602534a43d7a56c22574f86d2da507acb478193dab762791",
+                "ledger_entry_sha256": "a68f7f2a2c2da3c5aefa717ad57810b4b9569480b948036db36d83781463c5d7",
+                "run_ref": "session:local .ai-review/cache-miss-message/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "d2f47c35223b061b30922ff4992cbcc18768b34414cb2b302cdcfc3cdfa5eb6f",
+                "verdict": "APPROVE",
+                "round": 2,
+                "verdict_sha256": "87a9ce47991afd2a0d67641f3e49715e2e3358bcf0b23045af252e018bb5c133",
+                "ledger_entry_sha256": "8f9301411e4b3240d033b95ac078e6f64c1c86cf84c09dbd3408c93c411ca4c5",
+                "run_ref": "codex:20261030T130251Z-9928fa24",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-10-30T13:05:41Z",
+          "workflow_release": "2.25.0"
+        }
+      },
+      "technical_approval": null,
+      "technical_review_block_pins": [],
+      "plan_review_stages": {
+        "review_content_id": "600a5d1b436365770f0535736f548cc8a40fb2444d7690eace0afb27225326e1",
+        "LOCAL_MODEL_PLAN_REVIEW": {
+          "bundle_id": "d2f47c35223b061b30922ff4992cbcc18768b34414cb2b302cdcfc3cdfa5eb6f",
+          "verdict": "APPROVE",
+          "round": 2,
+          "completed_at": "2026-10-30T13:02:30Z",
+          "verdict_sha256": "826cdae6baa61875602534a43d7a56c22574f86d2da507acb478193dab762791",
+          "run_ref": "session:local .ai-review/cache-miss-message/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_PLAN_REVIEW": {
+          "bundle_id": "d2f47c35223b061b30922ff4992cbcc18768b34414cb2b302cdcfc3cdfa5eb6f",
+          "verdict": "APPROVE",
+          "round": 2,
+          "completed_at": "2026-10-30T13:04:25Z",
+          "verdict_sha256": "87a9ce47991afd2a0d67641f3e49715e2e3358bcf0b23045af252e018bb5c133",
+          "run_ref": "codex:20261030T130251Z-9928fa24",
+          "reviewer_model": "openai/gpt-6.1-sol"
+        }
+      },
+      "functional_acceptance_status": null,
+      "blocking_decisions": [],
+      "review_round_counts": {
+        "plan": {
+          "local": 2,
+          "external": 1
+        },
+        "implementation": {
+          "local": 0,
+          "external": 0
+        }
+      },
+      "state_revision": 9,
+      "last_transition": "2026-10-30T13:05:41Z",
+      "feedback_layout": "scoped",
+      "plan_review_binding": {
+        "status": "BOUND",
+        "at": "2026-10-30T13:01:01Z",
+        "consumed": {
+          "review_content_id": "90e2dac0e1863409ebe840ff16a325e261e821c0360a6d50f5cd531bc4ac4eff",
+          "plan_revision": 1,
+          "legacy": false
+        },
+        "published": {
+          "review_content_id": "600a5d1b436365770f0535736f548cc8a40fb2444d7690eace0afb27225326e1",
+          "plan_revision": 2
+        },
+        "bound": {
+          "review_content_id": "600a5d1b436365770f0535736f548cc8a40fb2444d7690eace0afb27225326e1",
+          "bundle_id": "d2f47c35223b061b30922ff4992cbcc18768b34414cb2b302cdcfc3cdfa5eb6f",
+          "plan_revision": 2
+        }
+      },
+      "consumed_plan_review_content_ids": [
+        "90e2dac0e1863409ebe840ff16a325e261e821c0360a6d50f5cd531bc4ac4eff"
+      ],
+      "optional_findings": {
+        "F-3e08b58c8acb": {
+          "digest": "3e08b58c8acb5b3dceb06db0e68476475f93c143cf151e8982ab43eed4d818c3",
+          "text": "**LPR1-O01 -- \"every runner mode primes before any unit starts\" is not quite true.** The comment on `tests/tested_releases.py`'s `PRIME_COMMAND` (line 183) says every runner mode *but* `--restore-barrier` primes first. The new message keeps the existing parenthetical unchanged. Since this item exists to make that message exact, either say \"every runner mode but `--restore-barrier`\" or drop the parenthetical.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "90e2dac0e1863409ebe840ff16a325e261e821c0360a6d50f5cd531bc4ac4eff",
+              "verdict": "REVISE",
+              "at": "2026-10-30T12:59:14Z"
+            }
+          ]
+        },
+        "F-3a8646b40f39": {
+          "digest": "3a8646b40f394c204d1f17434d9b1b8c4df08b0e046c0c6a4ef0815ac332bf9f",
+          "text": "**LPR1-O02 -- \"else the default directory\" leaves out the XDG rule.** `source.cache_root()` falls back to `$XDG_CACHE_HOME/workflow-manager/releases` before `~/.cache/...`. So two processes that both lack `WORKFLOW_MANAGER_RELEASE_CACHE` but have different `XDG_CACHE_HOME` or `HOME` values do not share a cache. \"Using the same cache setting (`WORKFLOW_MANAGER_RELEASE_CACHE`, else `XDG_CACHE_HOME`/`HOME`)\" would state it exactly. The message already prints the resolved root, so this is wording only.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "90e2dac0e1863409ebe840ff16a325e261e821c0360a6d50f5cd531bc4ac4eff",
+              "verdict": "REVISE",
+              "at": "2026-10-30T12:59:14Z"
+            }
+          ]
+        },
+        "F-f48bc90f5b8b": {
+          "digest": "f48bc90f5b8b373668a3f2127c2b14c242edb681b38a16652bac447526292f13",
+          "text": "**LPR1-O03 -- \"so does a changed directory entry\" is vague.** In the snapshot-sees-a-rewrite case, name what changes, for example a file added and a file removed, so the implementation and the functional reviewer test the same thing.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "90e2dac0e1863409ebe840ff16a325e261e821c0360a6d50f5cd531bc4ac4eff",
+              "verdict": "REVISE",
+              "at": "2026-10-30T12:59:14Z"
+            }
+          ]
+        },
+        "F-d421d19503ca": {
+          "digest": "d421d19503ca2c0b90743a1142e961dc3a3e5b327a421367a333c728f5d11974",
+          "text": "**LPR2-O01 -- say which test of a path `tree()` makes first.** The primed cases' temporary tree holds `checkout/src`, a symlink to the live `REPO_ROOT/src` (`_LockedRelease.checkout()`, `tests/test_tested_releases.py:225`). `Path.is_dir()` and `Path.is_file()` follow links, so a `tree()` that tests them before `is_symlink()` would record that link as a directory (`None`), not as its target. Nothing would hash through it, because `rglob` does not descend into a linked directory, but section 2's \"the link target for a symlink\" would then be false for the one link that exists. Test `is_symlink()` first.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "600a5d1b436365770f0535736f548cc8a40fb2444d7690eace0afb27225326e1",
+              "verdict": "APPROVE",
+              "at": "2026-10-30T13:02:30Z"
+            }
+          ]
+        }
       }
     }
   }

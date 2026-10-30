@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "work_item_id": "cache-miss-message",
+  "requirements": {
+    "R1": {
+      "description": "The cache-miss error carries one remedy: the original lock-add parenthetical is gone when the cache is unfilled, and the original cause stays first",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R2": {
+      "description": "The message says the cache holds no verified manifest (incomplete entry and digest mismatch included) and that the remedy needs the same cache setting",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R3": {
+      "description": "The no-write snapshot compares contents, proven by a mutation that rewrites the lock file without changing names",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R4": {
+      "description": "Failure-only mutations recorded; test: title, no src change, no release; roadmap row 21 Current at planning, Done at acceptance",
+      "checkpoint_ids": [
+        "CP1",
+        "CP2"
+      ]
+    }
+  }
+}
