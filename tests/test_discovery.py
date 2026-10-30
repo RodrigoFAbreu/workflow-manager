@@ -19,8 +19,10 @@ import io
 import json
 import os
 import shutil
+import socket
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import unittest
@@ -856,8 +858,11 @@ class TestABodyReadKeepsToTheDeadline(unittest.TestCase):
         self.assertEqual(release_source._read_capped(_io.BytesIO(b"abc"), 10, "x", None), b"abc")
 
 
-def _socket_links() -> set[str]:
-    for directory in ("/proc/self/fd", "/dev/fd"):
+_FD_DIRECTORIES = ("/proc/self/fd", "/dev/fd")
+
+
+def _socket_links(directories=None) -> set[str]:
+    for directory in directories or _FD_DIRECTORIES:
         if os.path.isdir(directory):
             found = set()
             for name in os.listdir(directory):
@@ -867,6 +872,24 @@ def _socket_links() -> set[str]:
                         found.add(target)
             return found
     return set()
+
+
+def _require_socket_links(directories=None) -> set[str]:
+    """The baseline for a descriptor-leak check, or a skip. An empty listing
+    means both "no socket is open" and "this platform cannot show sockets", so
+    the probe opens a pair and skips unless both new links appear."""
+    before = _socket_links(directories)
+    pair = socket.socketpair()
+    try:
+        shown = _socket_links(directories) - before
+    finally:
+        for end in pair:
+            end.close()
+    if len(shown) < 2:
+        raise unittest.SkipTest(
+            f"descriptor directories {tuple(directories or _FD_DIRECTORIES)} do not expose "
+            f"socket links on {sys.platform}; the leak check would compare empty with empty")
+    return _socket_links(directories)
 
 
 class _Loopback:
@@ -1020,7 +1043,7 @@ class TestAnExpiredReadLeavesNothingBehind(unittest.TestCase):
     before the failure reaches the caller (`http-read-deadline`, section 3)."""
 
     def setUp(self):
-        self.sockets_before = _socket_links()
+        self.sockets_before = _require_socket_links()
         self.servers = []
         self.addCleanup(self.check_no_descriptor_left)
 
@@ -1121,7 +1144,7 @@ class TestAnExpiredReadLeavesNothingBehind(unittest.TestCase):
 
 class TestAProxyConnectReplyIsBounded(unittest.TestCase):
     def setUp(self):
-        self.sockets_before = _socket_links()
+        self.sockets_before = _require_socket_links()
         self.addCleanup(lambda: self.assertLessEqual(_socket_links(), self.sockets_before))
 
     def proxy(self, behaviour):
@@ -1192,6 +1215,70 @@ class TestAProxyConnectReplyIsBounded(unittest.TestCase):
         self.assertLess(time.monotonic() - started, 1.0 + 5 * _Loopback.TICK)
         self.assertEqual(set(threading.enumerate()) - self.threads_before, set())
         self.assertTrue(server.wait_closed())
+
+
+class TestTheDescriptorProbe(unittest.TestCase):
+    """The leak checks skip, visibly, where sockets cannot be listed, and the
+    helper still sees them where they can (`http-read-test-strength`)."""
+
+    def standin(self, build):
+        directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        build(directory)
+        return str(directory)
+
+    def test_links_are_read(self):
+        def build(directory):
+            for name, target in (("3", "socket:[1]"), ("4", "socket:[2]"), ("5", "pipe:[3]")):
+                os.symlink(target, directory / name)
+        self.assertEqual(_socket_links((self.standin(build),)), {"socket:[1]", "socket:[2]"})
+
+    def test_a_directory_that_cannot_expose_links_is_a_skip_with_its_reason(self):
+        def regular(directory):
+            (directory / "3").write_text("x")
+
+        def other_links(directory):
+            os.symlink("pipe:[3]", directory / "3")
+
+        for label, build in (("regular files", regular), ("non-socket links", other_links),
+                             ("a missing path", lambda directory: None)):
+            with self.subTest(label):
+                path = self.standin(build)
+                if label == "a missing path":
+                    path = os.path.join(path, "absent")
+                with self.assertRaises(unittest.SkipTest) as caught:
+                    _require_socket_links((path,))
+                self.assertIn(path, str(caught.exception))
+                self.assertIn(sys.platform, str(caught.exception))
+
+    def test_the_helper_sees_a_socket_it_just_opened(self):
+        if not os.path.isdir("/proc/self/fd"):
+            self.skipTest(f"/proc/self/fd is absent on {sys.platform}")
+        before = _socket_links()
+        pair = socket.socketpair()
+        try:
+            self.assertEqual(len(_socket_links() - before), 2)
+        finally:
+            for end in pair:
+                end.close()
+        self.assertEqual(_socket_links() - before, set())
+        try:
+            _require_socket_links()
+        except unittest.SkipTest as skipped:
+            self.fail(f"the probe skipped on a host with /proc/self/fd: {skipped}")
+
+    def test_both_leak_checking_classes_skip_when_sockets_cannot_be_listed(self):
+        module = sys.modules[__name__]
+        blind = self.standin(lambda directory: (directory / "3").write_text("x"))
+        suite = unittest.TestSuite(
+            unittest.defaultTestLoader.loadTestsFromTestCase(getattr(module, name))
+            for name in ("TestAnExpiredReadLeavesNothingBehind", "TestAProxyConnectReplyIsBounded"))
+        wanted = suite.countTestCases()
+        with mock.patch.object(module, "_FD_DIRECTORIES", (blind,)):
+            result = unittest.TextTestRunner(stream=io.StringIO()).run(suite)
+        self.assertGreater(wanted, 0)
+        self.assertEqual(len(result.skipped), wanted)
+        self.assertEqual(result.testsRun, wanted)
+        self.assertEqual((result.failures, result.errors), ([], []))
 
 
 class _FakeSock:
@@ -1387,6 +1474,41 @@ class TestTheBoundedPieces(unittest.TestCase):
         self.assertFalse(raw.closed)
         reader.close()
         self.assertTrue(raw.closed)
+
+    def test_a_second_reader_keeps_the_fake_socket_open(self):
+        _, deadline = self.clocked(2.0)
+        closes = []
+
+        class Counting(_FakeSock):
+            def close(self):
+                super().close()
+                closes.append(1)
+
+        raw = Counting()
+        raw.recv_into = lambda buf, *a: 0
+        raw.fileno = lambda: 3
+        wrapper = release_source._Bounded(raw, deadline)
+        first, second = wrapper.makefile("rb"), wrapper.makefile("rb")
+        wrapper.close()
+        first.close()
+        self.assertFalse(raw.closed)
+        second.close()
+        self.assertTrue(raw.closed)
+        self.assertEqual(closes, [1])
+
+    def test_a_second_reader_still_reads_after_the_first_closes(self):
+        _, deadline = self.clocked(2.0)
+        real, peer = socket.socketpair()
+        self.addCleanup(peer.close)
+        self.addCleanup(real.close)
+        peer.sendall(b"ab")
+        wrapper = release_source._Bounded(real, deadline)
+        first, second = wrapper.makefile("rb"), wrapper.makefile("rb")
+        wrapper.close()
+        first.close()
+        self.assertEqual(second.read(2), b"ab")
+        second.close()
+        self.assertEqual(real.fileno(), -1)
 
     def test_every_operation_is_clamped_to_the_time_left(self):
         now, deadline = self.clocked(1.0)
