@@ -17793,7 +17793,7 @@
       "registry_path": "docs/ai-workflow/registry/http-read-test-strength-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/http-read-test-strength-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "AWAITING_FUNCTIONAL_REVIEW",
       "plan_revision": 1,
       "implementation_revision": 1,
       "functional_review_round": null,
@@ -17902,7 +17902,90 @@
           "workflow_release": "2.25.0"
         }
       },
-      "technical_approval": null,
+      "technical_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "3ab7307021e6c0312a15037937e5cea52e90bde4ed1b69c4051c0b2e7cb60701",
+        "approved_review_content_id": "9d903c75c64c5ceb40013a11899ba1880a8c1c3f35914f823265c1009cce23f1",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/registry/http-read-test-strength-artifacts.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "f9d3e965006d1e5225ca1db866ceec3a94e75621"
+          },
+          {
+            "path": "tests/test_discovery.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "8881f32136fb78191b94c9b01b2ef5838ab6e579"
+          }
+        ],
+        "reviewed_content_commit": "082e8b7f1509ad1738c476de4cb4ebe501f8c92b",
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-10-30T11:11:59Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "9d903c75c64c5ceb40013a11899ba1880a8c1c3f35914f823265c1009cce23f1",
+            "ledger": {
+              "local": {
+                "bundle_id": "3ab7307021e6c0312a15037937e5cea52e90bde4ed1b69c4051c0b2e7cb60701",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "de358767fdf074e3f81fe0f477a0ef9ca0dd6eee71b21c61760209e98684d3eb",
+                "ledger_entry_sha256": "acd6d89a3bdb22e3bab8941b7d5451888d0310c96b4e63df4545c34b43bf0cbd",
+                "run_ref": "session:local /home/rodrigo/Workspace/workflow-manager/.ai-review/http-read-test-strength/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "3ab7307021e6c0312a15037937e5cea52e90bde4ed1b69c4051c0b2e7cb60701",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "cb894df349d2c19b7400473dd4d41d3c94b71212bad3f32e41a0ec5b97fb17b1",
+                "ledger_entry_sha256": "29afae396b5028d86459e9680c4caf5cd0c288ad7a960108432f6107f09cebb9",
+                "run_ref": "codex:20261030T110909Z-713e00d9",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-10-30T11:11:59Z",
+          "workflow_release": "2.25.0"
+        }
+      },
       "technical_review_block_pins": [],
       "plan_review_stages": {
         "review_content_id": "7372d2b25abc84cf5b2dd01ba5cd7259ebeaabfb6c16b56be8c15b82f9053f37",
@@ -17933,12 +18016,12 @@
           "external": 1
         },
         "implementation": {
-          "local": 0,
-          "external": 0
+          "local": 1,
+          "external": 1
         }
       },
-      "state_revision": 14,
-      "last_transition": "2026-10-30T11:05:30Z",
+      "state_revision": 17,
+      "last_transition": "2026-10-30T11:11:59Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -18045,6 +18128,55 @@
               "at": "2026-10-30T10:38:37Z"
             }
           ]
+        },
+        "F-ce05b24104eb": {
+          "digest": "ce05b24104eb637d16eea972910b4dff16d6098e0e9b2311fd736fdf422d1c9d",
+          "text": "LIR1-001 (`tests/test_discovery.py`, `test_a_second_reader_keeps_the_fake_socket_open`): `raw.recv_into = lambda buf, *a: 0` and `raw.fileno = lambda: 3` are setup that nothing exercises: the case never reads, and neither `socket.SocketIO` nor `io.BufferedReader` calls `fileno()` on construction or close. The two lines can go; the case proves the same thing without them.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "9d903c75c64c5ceb40013a11899ba1880a8c1c3f35914f823265c1009cce23f1",
+              "verdict": "APPROVE",
+              "at": "2026-10-30T11:08:58Z"
+            }
+          ]
+        },
+        "F-236e7d438eee": {
+          "digest": "236e7d438eee5d5790a0312c3da7e7260340e242f43039945ddd5c94c037ad5a",
+          "text": "LIR1-002 (`tests/test_discovery.py`, `test_the_helper_sees_a_socket_it_just_opened`): the positive control decides \"this host can list sockets\" with a literal `/proc/self/fd` and its skip reason differs from the probe's, while the plan's section 3 says \"skips with the same reason\". On every host this repository runs on the directory exists and nothing skips, so this is wording only; naming `_FD_DIRECTORIES[0]` would keep the control tied to the tuple the probe reads.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "9d903c75c64c5ceb40013a11899ba1880a8c1c3f35914f823265c1009cce23f1",
+              "verdict": "APPROVE",
+              "at": "2026-10-30T11:08:58Z"
+            }
+          ]
+        }
+      },
+      "implementation_review_stages": {
+        "review_content_id": "9d903c75c64c5ceb40013a11899ba1880a8c1c3f35914f823265c1009cce23f1",
+        "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "3ab7307021e6c0312a15037937e5cea52e90bde4ed1b69c4051c0b2e7cb60701",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-10-30T11:08:58Z",
+          "verdict_sha256": "de358767fdf074e3f81fe0f477a0ef9ca0dd6eee71b21c61760209e98684d3eb",
+          "run_ref": "session:local /home/rodrigo/Workspace/workflow-manager/.ai-review/http-read-test-strength/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "3ab7307021e6c0312a15037937e5cea52e90bde4ed1b69c4051c0b2e7cb60701",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-10-30T11:11:23Z",
+          "verdict_sha256": "cb894df349d2c19b7400473dd4d41d3c94b71212bad3f32e41a0ec5b97fb17b1",
+          "run_ref": "codex:20261030T110909Z-713e00d9",
+          "reviewer_model": "openai/gpt-6.1-sol"
         }
       }
     }
