@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_work_item_id": null,
+  "active_work_item_id": "release-cache-priming",
   "work_items": {
     "plan-amendment-mechanism": {
       "work_item_type": "process",
@@ -17231,6 +17231,240 @@
         },
         "evaluated_at": "2026-10-28T13:18:54Z",
         "workflow_release": "2.25.0"
+      }
+    },
+    "release-cache-priming": {
+      "work_item_type": "process",
+      "work_item_kind": "process",
+      "work_item_id": "release-cache-priming",
+      "parent_work_item_id": null,
+      "plan_path": "docs/ai-workflow/WORKFLOW_MANAGER_RELEASE_CACHE_PRIMING_PLAN.md",
+      "registry_path": "docs/ai-workflow/registry/release-cache-priming-registry.json",
+      "mapping_path": "docs/ai-workflow/requirements/release-cache-priming-mapping.json",
+      "governing_workflow_version": "2.2",
+      "phase": "IMPLEMENTING",
+      "plan_revision": 1,
+      "implementation_revision": null,
+      "functional_review_round": null,
+      "base_commit": "1575e0d02907f30db7ff697a38c21992547de59f",
+      "reviewed_implementation_head": null,
+      "current_checkpoint_id": null,
+      "last_completed_checkpoint_id": null,
+      "checkpoints": {},
+      "current_bundle_id": "d57c219264bb7b40796463b75ee1c40c3d17c9dc53ef824857904a1f557c4693",
+      "plan_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "d57c219264bb7b40796463b75ee1c40c3d17c9dc53ef824857904a1f557c4693",
+        "approved_review_content_id": "8f54771b312f4f40b9881660509f082cbb5887b07a8933d11849ec3a6fa21608",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/WORKFLOW_MANAGER_RELEASE_CACHE_PRIMING_PLAN.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "d0c4d2e9ce04551a6b7663e49d3b72bd5ff2e124"
+          },
+          {
+            "path": "docs/ai-workflow/registry/release-cache-priming-registry.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "53886f14b00791a4c698235fb2b5171f51376e15"
+          },
+          {
+            "path": "docs/ai-workflow/requirements/release-cache-priming-mapping.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "5efc35dbc194f26fea6908e15a4a215d73bc00dd"
+          }
+        ],
+        "reviewed_content_commit": null,
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-10-30T08:24:59Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "8f54771b312f4f40b9881660509f082cbb5887b07a8933d11849ec3a6fa21608",
+            "ledger": {
+              "local": {
+                "bundle_id": "d57c219264bb7b40796463b75ee1c40c3d17c9dc53ef824857904a1f557c4693",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "f07129d6739c2150f8e29959bb78c71a2eaafea08b5535d54aad5a7f3f806b2a",
+                "ledger_entry_sha256": "ffee041b44d700d93bbc79092bcbca63f8460a7815c10beb5af3b395992f732b",
+                "run_ref": "session:local .ai-review/release-cache-priming/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "d57c219264bb7b40796463b75ee1c40c3d17c9dc53ef824857904a1f557c4693",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "336111e705d4440bbbb1f87354cf853ad8ca2e76a24f05713541f264fcf3711d",
+                "ledger_entry_sha256": "e85ce99051d7716ff8306013e3a5136e0eb4e435c767ebd1c1942456acc03aa7",
+                "run_ref": "codex:20261030T082152Z-96369fb4",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-10-30T08:24:59Z",
+          "workflow_release": "2.25.0"
+        }
+      },
+      "technical_approval": null,
+      "technical_review_block_pins": [],
+      "plan_review_stages": {
+        "review_content_id": "8f54771b312f4f40b9881660509f082cbb5887b07a8933d11849ec3a6fa21608",
+        "LOCAL_MODEL_PLAN_REVIEW": {
+          "bundle_id": "d57c219264bb7b40796463b75ee1c40c3d17c9dc53ef824857904a1f557c4693",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-10-30T08:20:40Z",
+          "verdict_sha256": "f07129d6739c2150f8e29959bb78c71a2eaafea08b5535d54aad5a7f3f806b2a",
+          "run_ref": "session:local .ai-review/release-cache-priming/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_PLAN_REVIEW": {
+          "bundle_id": "d57c219264bb7b40796463b75ee1c40c3d17c9dc53ef824857904a1f557c4693",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-10-30T08:24:05Z",
+          "verdict_sha256": "336111e705d4440bbbb1f87354cf853ad8ca2e76a24f05713541f264fcf3711d",
+          "run_ref": "codex:20261030T082152Z-96369fb4",
+          "reviewer_model": "openai/gpt-6.1-sol"
+        }
+      },
+      "functional_acceptance_status": null,
+      "blocking_decisions": [],
+      "review_round_counts": {
+        "plan": {
+          "local": 1,
+          "external": 1
+        },
+        "implementation": {
+          "local": 0,
+          "external": 0
+        }
+      },
+      "state_revision": 6,
+      "last_transition": "2026-10-30T08:24:59Z",
+      "feedback_layout": "scoped",
+      "plan_review_binding": {
+        "status": "BOUND",
+        "at": "2026-10-30T08:18:32Z",
+        "consumed": null,
+        "published": {
+          "review_content_id": "8f54771b312f4f40b9881660509f082cbb5887b07a8933d11849ec3a6fa21608",
+          "plan_revision": 1
+        },
+        "bound": {
+          "review_content_id": "8f54771b312f4f40b9881660509f082cbb5887b07a8933d11849ec3a6fa21608",
+          "bundle_id": "d57c219264bb7b40796463b75ee1c40c3d17c9dc53ef824857904a1f557c4693",
+          "plan_revision": 1
+        }
+      },
+      "optional_findings": {
+        "F-47ccaf37d213": {
+          "digest": "47ccaf37d2130c591f889956ff6613ac1d213ae8e141ffa374516df85f69b297",
+          "text": "Section 3, \"That failure writes nothing\": the parenthetical \"the case reads no path outside its temporary directory\" is inaccurate. The child imports `support` and `workflow_manager` from the checkout's `tests/` and `src/` (its `PYTHONPATH`) and reads the real pins. The specified assertion covers only the case's temporary directory, so \"the repository checkout is untouched\" is claimed, not tested. Reword it to \"writes no path outside its temporary directory (`-B`, the cache, source and lock are all under it)\". A before/after snapshot of the checkout would be flaky under the parallel gate, so rewording is the right fix.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "8f54771b312f4f40b9881660509f082cbb5887b07a8933d11849ec3a6fa21608",
+              "verdict": "APPROVE",
+              "at": "2026-10-30T08:20:40Z"
+            }
+          ]
+        },
+        "F-7501a40e1264": {
+          "digest": "7501a40e1264881d1ab2ff856c2acfbaf92d787abd6d9e1ed204f140f4a9ae0c",
+          "text": "Section 2, the message: `cached_manifest` reads `<entry>/<tree>/<manifest>` and can miss because the entry is incomplete or its archive digest does not match, not only because `workflow-<version>.manifest.json` is absent. Consider wording such as \"holds no verified entry for it (its manifest, `workflow-<version>.manifest.json`, cannot be read under the lock's digests)\", so a corrupt or partial entry is not described as a missing file. Risk 2 already covers the remedy.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "8f54771b312f4f40b9881660509f082cbb5887b07a8933d11849ec3a6fa21608",
+              "verdict": "APPROVE",
+              "at": "2026-10-30T08:20:40Z"
+            }
+          ]
+        },
+        "F-c5459796a3fa": {
+          "digest": "c5459796a3fa0a43b6a52bf65d60c96bc2890e9bcffacb41cf6acdfa84a3ff37",
+          "text": "Section 1, finding 2: a child started with `support.cli_env()` under a non-empty lock reads its parent's private `_lock_cache()`, which `python3 tests/run_all.py --list` never fills. In that route the new hint names the right directory but the wrong remedy. No unit takes that route today, so it is acceptable. Consider stating it in Risks, so a future reader of the message from a `cli_env` child is not sent to re-prime.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "8f54771b312f4f40b9881660509f082cbb5887b07a8933d11849ec3a6fa21608",
+              "verdict": "APPROVE",
+              "at": "2026-10-30T08:20:40Z"
+            }
+          ]
+        },
+        "F-bb8f6fa34df6": {
+          "digest": "bb8f6fa34df6d74bbc49c9516cad224ef53dd93e2795b22f033b63c32ce7006f",
+          "text": "Plan section 3 says the case “reads no path outside its temporary directory,” but the child imports checkout modules and reads the shipped pins. Describe the intended absence of writes instead; the temporary-directory snapshot alone does not prove the checkout is untouched.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "MANUAL_EXTERNAL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "8f54771b312f4f40b9881660509f082cbb5887b07a8933d11849ec3a6fa21608",
+              "verdict": "APPROVE",
+              "at": "2026-10-30T08:24:05Z"
+            }
+          ]
+        },
+        "F-791c1572a443": {
+          "digest": "791c1572a4437b1feb4241bd1b94294cf6f2cb0db410425dd210532a4fb72e74",
+          "text": "Section 1’s `cli_env()` reproduction uses a private cache that a separately invoked `python3 tests/run_all.py --list` would not automatically select. Consider qualifying the remedy with “using the same cache setting.” No current unit follows that import route, so this does not block the proposed change.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "MANUAL_EXTERNAL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "8f54771b312f4f40b9881660509f082cbb5887b07a8933d11849ec3a6fa21608",
+              "verdict": "APPROVE",
+              "at": "2026-10-30T08:24:05Z"
+            }
+          ]
+        }
       }
     }
   }
