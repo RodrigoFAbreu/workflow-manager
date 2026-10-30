@@ -17242,7 +17242,7 @@
       "registry_path": "docs/ai-workflow/registry/release-cache-priming-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/release-cache-priming-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "AWAITING_FUNCTIONAL_REVIEW",
       "plan_revision": 1,
       "implementation_revision": 1,
       "functional_review_round": null,
@@ -17351,7 +17351,102 @@
           "workflow_release": "2.25.0"
         }
       },
-      "technical_approval": null,
+      "technical_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "430c11363792d122bdbff0e5659e06baa2def22379103192d98a91d884e36f54",
+        "approved_review_content_id": "8de3e5363a722a131b3f31b283b35e6abb67e5ea225d6dc8879d0339a5daa322",
+        "review_content_manifest": [
+          {
+            "path": "docs/ARCHITECTURE.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "441deb49bbec8628ab423c7d69b55809852faa49"
+          },
+          {
+            "path": "docs/ai-workflow/registry/release-cache-priming-artifacts.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "947adc7e057a6e362aa83f3c746d5824b8d529c3"
+          },
+          {
+            "path": "tests/support.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "3e0988f165eeb2387d5617078df84d934a2c420f"
+          },
+          {
+            "path": "tests/test_tested_releases.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "ea1bd7cc4bb5e7dcdad4fbdaed1450066d4a1ef5"
+          }
+        ],
+        "reviewed_content_commit": "6a89e3f834df6df2f25de86849aa03235e19ba50",
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-10-30T09:20:18Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "8de3e5363a722a131b3f31b283b35e6abb67e5ea225d6dc8879d0339a5daa322",
+            "ledger": {
+              "local": {
+                "bundle_id": "430c11363792d122bdbff0e5659e06baa2def22379103192d98a91d884e36f54",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "3ae3b8f6d425ccb2b2120d27b51807b0582eda0c04fd5ab6d33df5e9364a9e0a",
+                "ledger_entry_sha256": "66421c9ca715460f52fbb22f40d5cd6e2c638eaf989ba4f4863869d8d76f6c1a",
+                "run_ref": "session:local .ai-review/release-cache-priming/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "430c11363792d122bdbff0e5659e06baa2def22379103192d98a91d884e36f54",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "b0981cc2eb830ffae41d7c7ec5a27874ef1aca091d46fb14ed00a0de6381137c",
+                "ledger_entry_sha256": "298c2521c3ba352c108b303b9cdb83cbc5bbde18386e73b619a7af839855ec3a",
+                "run_ref": "codex:20261030T091733Z-d8e39ec6",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-10-30T09:20:18Z",
+          "workflow_release": "2.25.0"
+        }
+      },
       "technical_review_block_pins": [],
       "plan_review_stages": {
         "review_content_id": "8f54771b312f4f40b9881660509f082cbb5887b07a8933d11849ec3a6fa21608",
@@ -17382,12 +17477,12 @@
           "external": 1
         },
         "implementation": {
-          "local": 0,
-          "external": 0
+          "local": 1,
+          "external": 1
         }
       },
-      "state_revision": 11,
-      "last_transition": "2026-10-30T09:14:50Z",
+      "state_revision": 14,
+      "last_transition": "2026-10-30T09:20:18Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -17473,6 +17568,55 @@
               "at": "2026-10-30T08:24:05Z"
             }
           ]
+        },
+        "F-26ee4729e653": {
+          "digest": "26ee4729e653d6b2171495e914d83d1d0876b11e47c6b950f77ea52894384506",
+          "text": "Because the original text is kept first, the message now names two remedies: its parenthetical \"(`tools/release_lock.py add` writes them)\" and then \"fill the cache first with `python3 tests/run_all.py --list`\". In the unfilled-cache case the first is misleading, because the entry has no counts on purpose (its manifest carries a `conformance` block), and re-running `release_lock.py add` is not the fix. Consider dropping or qualifying the parenthetical on this path only, for example by building the new message from the version rather than `str(exc)`, while keeping the substring that `test_release_workflows.py` asserts. Not blocking: the cache remedy is stated last and explicitly.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "8de3e5363a722a131b3f31b283b35e6abb67e5ea225d6dc8879d0339a5daa322",
+              "verdict": "APPROVE",
+              "at": "2026-10-30T09:17:22Z"
+            }
+          ]
+        },
+        "F-5400516e386f": {
+          "digest": "5400516e386f2b68ab9f6d48c62a9c4b03ceb7f1784f616f6975b0df17829946",
+          "text": "In `tests/test_tested_releases.py`, `tree()` snapshots path names only. Comparing file contents too would let `test_the_failure_writes_nothing` detect modifications to the existing lock file.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "8de3e5363a722a131b3f31b283b35e6abb67e5ea225d6dc8879d0339a5daa322",
+              "verdict": "APPROVE",
+              "at": "2026-10-30T09:19:44Z"
+            }
+          ]
+        }
+      },
+      "implementation_review_stages": {
+        "review_content_id": "8de3e5363a722a131b3f31b283b35e6abb67e5ea225d6dc8879d0339a5daa322",
+        "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "430c11363792d122bdbff0e5659e06baa2def22379103192d98a91d884e36f54",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-10-30T09:17:22Z",
+          "verdict_sha256": "3ae3b8f6d425ccb2b2120d27b51807b0582eda0c04fd5ab6d33df5e9364a9e0a",
+          "run_ref": "session:local .ai-review/release-cache-priming/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "430c11363792d122bdbff0e5659e06baa2def22379103192d98a91d884e36f54",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-10-30T09:19:44Z",
+          "verdict_sha256": "b0981cc2eb830ffae41d7c7ec5a27874ef1aca091d46fb14ed00a0de6381137c",
+          "run_ref": "codex:20261030T091733Z-d8e39ec6",
+          "reviewer_model": "openai/gpt-6.1-sol"
         }
       }
     }
