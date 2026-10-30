@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_work_item_id": "release-cache-priming",
+  "active_work_item_id": null,
   "work_items": {
     "plan-amendment-mechanism": {
       "work_item_type": "process",
@@ -17242,7 +17242,7 @@
       "registry_path": "docs/ai-workflow/registry/release-cache-priming-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/release-cache-priming-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_FUNCTIONAL_REVIEW",
+      "phase": "MILESTONE_COMPLETE",
       "plan_revision": 1,
       "implementation_revision": 1,
       "functional_review_round": null,
@@ -17481,8 +17481,8 @@
           "external": 1
         }
       },
-      "state_revision": 14,
-      "last_transition": "2026-10-30T09:20:18Z",
+      "state_revision": 15,
+      "last_transition": "2026-10-30T09:46:43Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -17618,6 +17618,170 @@
           "run_ref": "codex:20261030T091733Z-d8e39ec6",
           "reviewer_model": "openai/gpt-6.1-sol"
         }
+      },
+      "gate_evidence": {
+        "functional": {
+          "flow-f1": {
+            "flow_id": "flow-f1",
+            "status": "passed",
+            "head": "a5ac1776b7160f56ba824a7e68f5bcd51bd5df22",
+            "ran_at": "2026-10-30T09:25:04Z",
+            "summary": {
+              "text": "Base 1575e0d: import of tests/support.py with an empty cache raises the original LockError, naming no cache, manifest or remedy"
+            },
+            "log_digest": "e06a350230c4654a0d9a6149073b5efba7b287cc621ca93fb5a6603fe9b0a6f1",
+            "run_ref": "manager-orchestrator:runs/md7-functional-r1",
+            "reporter": "manager-orchestrator (independent executor claude claude-sonnet-5-5)",
+            "identity": "8de3e5363a722a131b3f31b283b35e6abb67e5ea225d6dc8879d0339a5daa322",
+            "recorded_at": "2026-10-30T09:25:04Z"
+          },
+          "flow-f2": {
+            "flow_id": "flow-f2",
+            "status": "passed",
+            "head": "a5ac1776b7160f56ba824a7e68f5bcd51bd5df22",
+            "ran_at": "2026-10-30T09:25:04Z",
+            "summary": {
+              "text": "Candidate 6a89e3f: same text first, then names 2.13.0, the cache directory, workflow-2.13.0.manifest.json and the --list remedy"
+            },
+            "log_digest": "0889f1fc6212cc6d61d4a81f76996016c642dbdf2fffa6c0d65d6a67a572c948",
+            "run_ref": "manager-orchestrator:runs/md7-functional-r1",
+            "reporter": "manager-orchestrator (independent executor claude claude-sonnet-5-5)",
+            "identity": "8de3e5363a722a131b3f31b283b35e6abb67e5ea225d6dc8879d0339a5daa322",
+            "recorded_at": "2026-10-30T09:25:04Z"
+          },
+          "flow-f3": {
+            "flow_id": "flow-f3",
+            "status": "passed",
+            "head": "a5ac1776b7160f56ba824a7e68f5bcd51bd5df22",
+            "ran_at": "2026-10-30T09:25:04Z",
+            "summary": {
+              "text": "Remedy: run_all.py --list fills an empty cache from the mirror (70 entries, exit 0) and the import then works"
+            },
+            "log_digest": "841b282de292c7b1e152a8383df7509296cfd41b644324d56f0443bcbeeef055",
+            "run_ref": "manager-orchestrator:runs/md7-functional-r1",
+            "reporter": "manager-orchestrator (independent executor claude claude-sonnet-5-5)",
+            "identity": "8de3e5363a722a131b3f31b283b35e6abb67e5ea225d6dc8879d0339a5daa322",
+            "recorded_at": "2026-10-30T09:25:04Z"
+          }
+        },
+        "pr": {
+          "pr": {
+            "number": 130,
+            "url": "https://github.com/RodrigoFAbreu/workflow-manager/pull/130"
+          },
+          "state": "open",
+          "head": "a5ac1776b7160f56ba824a7e68f5bcd51bd5df22",
+          "review_decision": null,
+          "reviewed_head": null,
+          "checks": {
+            "state": "success",
+            "failing": []
+          },
+          "review_id": null,
+          "findings": null,
+          "identity_at_head": "8de3e5363a722a131b3f31b283b35e6abb67e5ea225d6dc8879d0339a5daa322",
+          "observed_at": "2026-10-30T09:46:43Z",
+          "ingest_seq": 1,
+          "repository": "RodrigoFAbreu/workflow-manager",
+          "queried_commit": "6a89e3f834df6df2f25de86849aa03235e19ba50",
+          "provenance": {
+            "source": "workflow_gh",
+            "fetched_by": {
+              "name": "workflow-gh",
+              "version": "pr-list-v1"
+            },
+            "fetched_at": "2026-10-30T09:46:43Z",
+            "raw_sha256": "3a044c7581ee6bff88a0e59764c192a5c1318b90a21e7d3cb91d6b758d793d5c",
+            "run_ref": null,
+            "gh_path": "/usr/bin/gh",
+            "gh_sha256": "9e824061111fe5f5b6a5d5690909ba37abafca4a4ca830bdf83246d3c94afd21"
+          },
+          "fact_id": "b72eb8108a0d6d8fb5ae83e016825dbbc82f6ef773def90f04c80106a76b4105"
+        },
+        "pr_reported": null,
+        "pr_keys": {
+          "reopened_for": [],
+          "applied": [],
+          "ingest_seq": 1
+        }
+      },
+      "acceptance_satisfaction": {
+        "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "policy_source": "default",
+        "file_digest": null,
+        "adopted_digest": null,
+        "floor_digest": null,
+        "requirements": [
+          {
+            "id": "checkpoints_complete",
+            "met": true,
+            "detail": "every checkpoint of the item's own registry is COMPLETE"
+          },
+          {
+            "id": "technical_approval_current",
+            "met": true,
+            "detail": "the technical approval is CURRENT for the content now"
+          },
+          {
+            "id": "functional_flows_passed",
+            "met": true,
+            "detail": "flows ['flow-f1', 'flow-f2', 'flow-f3'] passed at the approved content"
+          },
+          {
+            "id": "pr_fact_current",
+            "met": true,
+            "detail": "workflow_gh fact for PR #130 at a5ac1776b7160f56ba824a7e68f5bcd51bd5df22 is current"
+          },
+          {
+            "id": "no_standing_pr_objection",
+            "met": true,
+            "detail": "no CHANGES_REQUESTED decision and no failed check"
+          },
+          {
+            "id": "ci_green",
+            "met": true,
+            "detail": "checks are 'success'"
+          }
+        ],
+        "inputs": {
+          "anchor_commit": "6a89e3f834df6df2f25de86849aa03235e19ba50",
+          "anchor_identity": "8de3e5363a722a131b3f31b283b35e6abb67e5ea225d6dc8879d0339a5daa322",
+          "technical_approval": {
+            "basis": "POLICY_SATISFIED",
+            "approved_review_content_id": "8de3e5363a722a131b3f31b283b35e6abb67e5ea225d6dc8879d0339a5daa322",
+            "recorded_at": "2026-10-30T09:20:18Z"
+          },
+          "functional": {
+            "flow-f1": {
+              "evidence_id": "ae2d0f4781f5912e01a0dad96512ce3c29dc8156924f7cc2f027dbc9f4c546be",
+              "log_digest": "e06a350230c4654a0d9a6149073b5efba7b287cc621ca93fb5a6603fe9b0a6f1",
+              "run_ref": "manager-orchestrator:runs/md7-functional-r1"
+            },
+            "flow-f2": {
+              "evidence_id": "72d4b50da5d2e8825a85de497aae0b179885e123e4e74a1423b3421ef4687c82",
+              "log_digest": "0889f1fc6212cc6d61d4a81f76996016c642dbdf2fffa6c0d65d6a67a572c948",
+              "run_ref": "manager-orchestrator:runs/md7-functional-r1"
+            },
+            "flow-f3": {
+              "evidence_id": "22aa68f788c7d5c09aaa06b85833746490ef37fe02ae783d00d1ddc8269de59c",
+              "log_digest": "841b282de292c7b1e152a8383df7509296cfd41b644324d56f0443bcbeeef055",
+              "run_ref": "manager-orchestrator:runs/md7-functional-r1"
+            }
+          },
+          "pr": {
+            "fact_id": "b72eb8108a0d6d8fb5ae83e016825dbbc82f6ef773def90f04c80106a76b4105",
+            "head": "a5ac1776b7160f56ba824a7e68f5bcd51bd5df22",
+            "provenance": "workflow_gh",
+            "raw_sha256": "3a044c7581ee6bff88a0e59764c192a5c1318b90a21e7d3cb91d6b758d793d5c"
+          }
+        },
+        "trust": {
+          "review_verdicts": "orchestrator",
+          "functional_evidence": "orchestrator",
+          "pr_fact": "workflow_gh"
+        },
+        "evaluated_at": "2026-10-30T09:46:43Z",
+        "workflow_release": "2.25.0"
       }
     }
   }

@@ -1,0 +1,39 @@
+{
+ "schema_version": 1,
+ "work_item_id": "release-cache-priming",
+ "dispositions": {
+  "F-26ee4729e653": {
+   "disposition": "follow-up",
+   "link": "RodrigoFAbreu/workflow-manager#128",
+   "note": "two remedies in one message (issue item 3)"
+  },
+  "F-47ccaf37d213": {
+   "disposition": "dropped",
+   "reason": "plan sentence on what the child reads; the implementation's no-write test and the review state the intended property (no writes), no code or shipped document affected"
+  },
+  "F-5400516e386f": {
+   "disposition": "follow-up",
+   "link": "RodrigoFAbreu/workflow-manager#128",
+   "note": "tree() snapshots names only (item 4)"
+  },
+  "F-7501a40e1264": {
+   "disposition": "follow-up",
+   "link": "RodrigoFAbreu/workflow-manager#128",
+   "note": "cache-miss wording (item 5)"
+  },
+  "F-791c1572a443": {
+   "disposition": "follow-up",
+   "link": "RodrigoFAbreu/workflow-manager#128",
+   "note": "remedy qualifier for a private cache (item 5)"
+  },
+  "F-bb8f6fa34df6": {
+   "disposition": "dropped",
+   "reason": "same plan sentence as F-47ccaf37d213"
+  },
+  "F-c5459796a3fa": {
+   "disposition": "follow-up",
+   "link": "RodrigoFAbreu/workflow-manager#128",
+   "note": "private cache route names the wrong remedy (item 5)"
+  }
+ }
+}
