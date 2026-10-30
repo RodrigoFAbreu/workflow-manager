@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "work_item_id": "release-cache-priming",
+  "requirements": {
+    "R1": {
+      "description": "support._lock_conformance names the release, the cache directory, the manifest asset and `python3 tests/run_all.py --list` when the cache lacks a lock-only release's manifest and its lock entry has no suite counts; every other case keeps the original error",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R2": {
+      "description": "Hermetic tests in a private cache with the lock override: the cold import fails first at the base commit, the failure writes nothing, a filled cache imports, and the hint is absent when the manifest is present (failure-only mutation)",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R3": {
+      "description": "docs/ARCHITECTURE.md Priming states what a unit importing support on an unfilled cache reports; the contract is unchanged",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R4": {
+      "description": "Roadmap row 19 Current at planning, Done at acceptance; test: title, no src change, no release",
+      "checkpoint_ids": [
+        "CP2"
+      ]
+    }
+  }
+}

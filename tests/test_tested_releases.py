@@ -275,6 +275,56 @@ class TestTheTestedSetFromALock(_LockedRelease):
         self.assertEqual(json.loads(locked.stdout.splitlines()[1]), [SYNTHETIC])
 
 
+class TestUnfilledCacheNamesTheRelease(_LockedRelease):
+    """A lock entry without suite counts, read from a cache that lacks the
+    release's manifest, says which release, which cache and what fills it
+    (issue #125)."""
+
+    synthetic = (SYNTHETIC,)
+
+    def tree(self) -> set:
+        return {path.relative_to(self.tmp) for path in self.tmp.rglob("*")}
+
+    def test_the_cold_import_names_the_release_the_cache_and_the_remedy(self):
+        self.write_lock({SYNTHETIC: self.entry()})
+        proc = self.python("import support")
+        self.assertNotEqual(proc.returncode, 0)
+        for needed in ("LockError", SYNTHETIC, str(self.cache),
+                       package_module.manifest_asset_name(SYNTHETIC),
+                       "python3 tests/run_all.py --list"):
+            self.assertIn(needed, proc.stderr)
+        cause = "neither its manifest nor its lock entry carries the frozen suite counts"
+        self.assertIn(cause, proc.stderr)
+        self.assertLess(proc.stderr.index(cause), proc.stderr.index(str(self.cache)))
+
+    def test_the_failure_writes_nothing(self):
+        self.write_lock({SYNTHETIC: self.entry()})
+        before = self.tree()
+        self.assertNotEqual(self.python("import support").returncode, 0)
+        self.assertEqual(self.tree(), before)
+        self.assertFalse(self.cache.exists())
+
+    def test_an_entry_with_counts_is_unaffected_by_the_cache(self):
+        self.write_lock({SYNTHETIC: self.entry(suites=SUITES)})
+        code = "import support; print(support.CI_SUITES[%r] == %r)" % (SYNTHETIC, SUITES)
+        cold = self.python(code)
+        self.assertEqual((cold.returncode, cold.stdout.strip()), (0, "True"), cold.stderr)
+        priming.prime(self.checkout(), self.env())
+        filled = self.python(code)
+        self.assertEqual((filled.returncode, filled.stdout.strip()), (0, "True"), filled.stderr)
+
+    def test_the_hint_is_for_the_unfilled_cache_only(self):
+        """The synthetic manifest has no `conformance` block: with the cache
+        filled, the counts are the missing thing and the cache is not blamed."""
+        self.write_lock({SYNTHETIC: self.entry()})
+        priming.prime(self.checkout(), self.env())
+        proc = self.python("import support")
+        self.assertNotEqual(proc.returncode, 0)
+        self.assertIn("neither its manifest nor its lock entry carries", proc.stderr)
+        self.assertNotIn(str(self.cache), proc.stderr)
+        self.assertNotIn("python3 tests/run_all.py --list", proc.stderr)
+
+
 class TestPrimingAndTheEndToEndRun(_LockedRelease):
     """Priming through the composite pins, then the whole path with a release in
     the lock and not in the pins (RA-L1-003): `support.release()`, a CLI-driven
