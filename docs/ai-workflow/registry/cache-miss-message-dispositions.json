@@ -1,0 +1,26 @@
+{
+ "schema_version": 1,
+ "work_item_id": "cache-miss-message",
+ "dispositions": {
+  "F-3a8646b40f39": {
+   "disposition": "fixed",
+   "note": "answered in the plan or implementation revisions and confirmed by the later local and Codex rounds"
+  },
+  "F-3e08b58c8acb": {
+   "disposition": "fixed",
+   "note": "answered in the plan or implementation revisions and confirmed by the later local and Codex rounds"
+  },
+  "F-51e2297f7c82": {
+   "disposition": "dropped",
+   "reason": "review-bundle narrative citing the full gate; the functional run F1 ran the narrow command the plan names and it passed"
+  },
+  "F-d421d19503ca": {
+   "disposition": "dropped",
+   "reason": "plan wording on which path test tree() makes first; the implementation and functional flow F4 prove the snapshot sees a rewrite"
+  },
+  "F-f48bc90f5b8b": {
+   "disposition": "fixed",
+   "note": "answered in the plan or implementation revisions and confirmed by the later local and Codex rounds"
+  }
+ }
+}
