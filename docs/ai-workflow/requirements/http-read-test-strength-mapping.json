@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "work_item_id": "http-read-test-strength",
+  "requirements": {
+    "R1": {
+      "description": "The descriptor-leak assertions skip with a reason naming the platform limit when the descriptor directory cannot expose socket links; a probe opens a socket pair and requires its links to appear",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R2": {
+      "description": "Hermetic tests of the helper: links are read from a stand-in directory, stand-ins that cannot expose links skip with a reason, a positive control sees a socket just opened, and both leak-checking classes only skip under such a stand-in",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R3": {
+      "description": "Two reader cases fail when _Bounded._decref_socketios calls _real_close() instead of close(): a fake socket and a real socket pair, a second reader keeps the socket open",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R4": {
+      "description": "Failure-only mutations recorded in the plan; test: title, no src change, no release; roadmap row 20 Current at planning, Done at acceptance",
+      "checkpoint_ids": [
+        "CP1",
+        "CP2"
+      ]
+    }
+  }
+}

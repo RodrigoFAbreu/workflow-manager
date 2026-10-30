@@ -17783,6 +17783,604 @@
         "evaluated_at": "2026-10-30T09:46:43Z",
         "workflow_release": "2.25.0"
       }
+    },
+    "http-read-test-strength": {
+      "work_item_type": "process",
+      "work_item_kind": "process",
+      "work_item_id": "http-read-test-strength",
+      "parent_work_item_id": null,
+      "plan_path": "docs/ai-workflow/WORKFLOW_MANAGER_HTTP_READ_TEST_STRENGTH_PLAN.md",
+      "registry_path": "docs/ai-workflow/registry/http-read-test-strength-registry.json",
+      "mapping_path": "docs/ai-workflow/requirements/http-read-test-strength-mapping.json",
+      "governing_workflow_version": "2.2",
+      "phase": "MILESTONE_COMPLETE",
+      "plan_revision": 1,
+      "implementation_revision": 1,
+      "functional_review_round": null,
+      "base_commit": "19b2ffc4472c9b3ad67ffc5854fbeaba8f036de6",
+      "reviewed_implementation_head": "082e8b7f1509ad1738c476de4cb4ebe501f8c92b",
+      "current_checkpoint_id": null,
+      "last_completed_checkpoint_id": "CP2",
+      "checkpoints": {
+        "CP1": {
+          "status": "COMPLETE",
+          "start_commit": "b8fe648ae11979b1ae3335d179033bef34574e56"
+        },
+        "CP2": {
+          "status": "COMPLETE",
+          "start_commit": "974a797515f360796311de88848bb666b44e95ae"
+        }
+      },
+      "current_bundle_id": "d65c7293ced072bf43822bc02f7d03be631809457920ba451869406c14c93477",
+      "plan_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "d65c7293ced072bf43822bc02f7d03be631809457920ba451869406c14c93477",
+        "approved_review_content_id": "7372d2b25abc84cf5b2dd01ba5cd7259ebeaabfb6c16b56be8c15b82f9053f37",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/WORKFLOW_MANAGER_HTTP_READ_TEST_STRENGTH_PLAN.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "1483ad119b7db0c9d36e77d0726a51a1b04cfc0f"
+          },
+          {
+            "path": "docs/ai-workflow/registry/http-read-test-strength-registry.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "ba9d8b0eb22f5f3d677128da3e9dbce01f771937"
+          },
+          {
+            "path": "docs/ai-workflow/requirements/http-read-test-strength-mapping.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "bc2f083a594f1e5e47e9d66afd7c78d24d8b09c1"
+          }
+        ],
+        "reviewed_content_commit": null,
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-10-30T10:39:25Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "7372d2b25abc84cf5b2dd01ba5cd7259ebeaabfb6c16b56be8c15b82f9053f37",
+            "ledger": {
+              "local": {
+                "bundle_id": "d65c7293ced072bf43822bc02f7d03be631809457920ba451869406c14c93477",
+                "verdict": "APPROVE",
+                "round": 2,
+                "verdict_sha256": "4a1ccbd41e41e2ee213fcf925b0d466178db5a086f545a0e6baf2b52f48ed130",
+                "ledger_entry_sha256": "7bf493397385366b783ba34c7c748a791781f9ee2991340d3d978bdbfae3a8a1",
+                "run_ref": "session:local .ai-review/http-read-test-strength/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "d65c7293ced072bf43822bc02f7d03be631809457920ba451869406c14c93477",
+                "verdict": "APPROVE",
+                "round": 2,
+                "verdict_sha256": "a9cd0938e81480e44e90c2c80af125adf47d719d940d610ce7ecb5cf83bc290f",
+                "ledger_entry_sha256": "28f1fd445f6fab23c935330edd8661fb123c0577ffeae79ee2ab28e6dfaa6b5a",
+                "run_ref": "codex:20261030T103636Z-13291a9d",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-10-30T10:39:25Z",
+          "workflow_release": "2.25.0"
+        }
+      },
+      "technical_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "3ab7307021e6c0312a15037937e5cea52e90bde4ed1b69c4051c0b2e7cb60701",
+        "approved_review_content_id": "9d903c75c64c5ceb40013a11899ba1880a8c1c3f35914f823265c1009cce23f1",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/registry/http-read-test-strength-artifacts.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "f9d3e965006d1e5225ca1db866ceec3a94e75621"
+          },
+          {
+            "path": "tests/test_discovery.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "8881f32136fb78191b94c9b01b2ef5838ab6e579"
+          }
+        ],
+        "reviewed_content_commit": "082e8b7f1509ad1738c476de4cb4ebe501f8c92b",
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-10-30T11:11:59Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "9d903c75c64c5ceb40013a11899ba1880a8c1c3f35914f823265c1009cce23f1",
+            "ledger": {
+              "local": {
+                "bundle_id": "3ab7307021e6c0312a15037937e5cea52e90bde4ed1b69c4051c0b2e7cb60701",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "de358767fdf074e3f81fe0f477a0ef9ca0dd6eee71b21c61760209e98684d3eb",
+                "ledger_entry_sha256": "acd6d89a3bdb22e3bab8941b7d5451888d0310c96b4e63df4545c34b43bf0cbd",
+                "run_ref": "session:local /home/rodrigo/Workspace/workflow-manager/.ai-review/http-read-test-strength/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "3ab7307021e6c0312a15037937e5cea52e90bde4ed1b69c4051c0b2e7cb60701",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "cb894df349d2c19b7400473dd4d41d3c94b71212bad3f32e41a0ec5b97fb17b1",
+                "ledger_entry_sha256": "29afae396b5028d86459e9680c4caf5cd0c288ad7a960108432f6107f09cebb9",
+                "run_ref": "codex:20261030T110909Z-713e00d9",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-10-30T11:11:59Z",
+          "workflow_release": "2.25.0"
+        }
+      },
+      "technical_review_block_pins": [],
+      "plan_review_stages": {
+        "review_content_id": "7372d2b25abc84cf5b2dd01ba5cd7259ebeaabfb6c16b56be8c15b82f9053f37",
+        "LOCAL_MODEL_PLAN_REVIEW": {
+          "bundle_id": "d65c7293ced072bf43822bc02f7d03be631809457920ba451869406c14c93477",
+          "verdict": "APPROVE",
+          "round": 2,
+          "completed_at": "2026-10-30T10:36:24Z",
+          "verdict_sha256": "4a1ccbd41e41e2ee213fcf925b0d466178db5a086f545a0e6baf2b52f48ed130",
+          "run_ref": "session:local .ai-review/http-read-test-strength/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_PLAN_REVIEW": {
+          "bundle_id": "d65c7293ced072bf43822bc02f7d03be631809457920ba451869406c14c93477",
+          "verdict": "APPROVE",
+          "round": 2,
+          "completed_at": "2026-10-30T10:38:37Z",
+          "verdict_sha256": "a9cd0938e81480e44e90c2c80af125adf47d719d940d610ce7ecb5cf83bc290f",
+          "run_ref": "codex:20261030T103636Z-13291a9d",
+          "reviewer_model": "openai/gpt-6.1-sol"
+        }
+      },
+      "functional_acceptance_status": null,
+      "blocking_decisions": [],
+      "review_round_counts": {
+        "plan": {
+          "local": 2,
+          "external": 1
+        },
+        "implementation": {
+          "local": 1,
+          "external": 1
+        }
+      },
+      "state_revision": 18,
+      "last_transition": "2026-10-30T12:11:45Z",
+      "feedback_layout": "scoped",
+      "plan_review_binding": {
+        "status": "BOUND",
+        "at": "2026-10-30T10:34:36Z",
+        "consumed": {
+          "review_content_id": "b840cf139027e51cc3498becfa7074713caa930b26e1d06e4c097818424961c5",
+          "plan_revision": 1,
+          "legacy": false
+        },
+        "published": {
+          "review_content_id": "7372d2b25abc84cf5b2dd01ba5cd7259ebeaabfb6c16b56be8c15b82f9053f37",
+          "plan_revision": 1
+        },
+        "bound": {
+          "review_content_id": "7372d2b25abc84cf5b2dd01ba5cd7259ebeaabfb6c16b56be8c15b82f9053f37",
+          "bundle_id": "d65c7293ced072bf43822bc02f7d03be631809457920ba451869406c14c93477",
+          "plan_revision": 1
+        }
+      },
+      "consumed_plan_review_content_ids": [
+        "b840cf139027e51cc3498becfa7074713caa930b26e1d06e4c097818424961c5"
+      ],
+      "optional_findings": {
+        "F-d45e63e173b7": {
+          "digest": "d45e63e173b7ea5d40d9772fa37f97fc0c869d1889c1b811eb92c33e3bb9d211",
+          "text": "The real-socket reader case (section 3, gap 2) should read exactly the bytes sent (`read(2)`), or shut down the peer's write side before reading. A `read()` to EOF on a `BufferedReader` over the wrapper blocks until the peer closes, bounded only by the `Deadline`'s clamp. With a clock that never advances, that is the full deadline, which turns a test-writing slip into a slow hang rather than a fast failure. Close the peer in `addCleanup`.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "b840cf139027e51cc3498becfa7074713caa930b26e1d06e4c097818424961c5",
+              "verdict": "REVISE",
+              "at": "2026-10-30T10:32:56Z"
+            }
+          ]
+        },
+        "F-450afd706467": {
+          "digest": "450afd706467b988452cbaacf816505a8330dc97536ffa3299dbb7ab15cd4189",
+          "text": "The integration case (\"the two classes honour the probe\") should patch the module's tuple through `sys.modules[__name__]` (the runner imports the file as `test_discovery` via `importlib.import_module`), and give its private `TextTestRunner` an `io.StringIO` stream, so that its inner skips and output never mix with the outer run's report. Note in section 3 that under mutations 2 and 4 the integration case really runs the loopback classes inside a test, threads included. That is acceptable for a scratch-copy mutation, but it should be recorded so a slow or noisy mutation run is not mistaken for a regression.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "b840cf139027e51cc3498becfa7074713caa930b26e1d06e4c097818424961c5",
+              "verdict": "REVISE",
+              "at": "2026-10-30T10:32:56Z"
+            }
+          ]
+        },
+        "F-bc50ef69ea00": {
+          "digest": "bc50ef69ea004cea81af30ff1833696b58bf345b04516a0d8ef0318e2f44130b",
+          "text": "F2 names `src/workflow_manager/source.py`, which neither stage's artifact declaration classifies. It sits outside the `**Files:**` paragraphs and stays unchanged, and fail-closed on that path is the intended guard for \"no `src/` change\". A one-line note in CP1 that it is deliberately unclassified would save the next reviewer the check.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "b840cf139027e51cc3498becfa7074713caa930b26e1d06e4c097818424961c5",
+              "verdict": "REVISE",
+              "at": "2026-10-30T10:32:56Z"
+            }
+          ]
+        },
+        "F-a5ca964fc2ca": {
+          "digest": "a5ca964fc2ca6279265d153dab17b8c2db248f729ad0219b14e9ad18537d3e58",
+          "text": "The probe and the positive control should identify the socket pair's own links, `socket:[<inode>]` from `os.fstat(sock.fileno()).st_ino` for each end, rather than counting \"two new links\" in a before/after difference. Each unit runs serially in its own subprocess (`tests/parallel/unit.py`), but a loopback server thread that an earlier case left winding down can still open or close a descriptor between the two listings. Matching the pair's own inodes makes the probe and the \"gone after it closes\" assertion immune to that churn, and it proves the links seen are the pair's.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "7372d2b25abc84cf5b2dd01ba5cd7259ebeaabfb6c16b56be8c15b82f9053f37",
+              "verdict": "APPROVE",
+              "at": "2026-10-30T10:36:24Z"
+            }
+          ]
+        },
+        "F-e42a05e1d4a3": {
+          "digest": "e42a05e1d4a3c211e4ede4716af2e42979421066ef90a832a015e78ca341c80c",
+          "text": "\"Two readers, one fake socket\" says the second reader's `close()` closes the real socket \"once\", but `_FakeSock.close` records only a boolean (`tests/test_discovery.py:1210`). Either count the closes in the case (for example a counter on the instance) or drop \"once\". The case discriminates the mutation either way, because the first reader's close already fails `assertFalse(raw.closed)`.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "7372d2b25abc84cf5b2dd01ba5cd7259ebeaabfb6c16b56be8c15b82f9053f37",
+              "verdict": "APPROVE",
+              "at": "2026-10-30T10:36:24Z"
+            }
+          ]
+        },
+        "F-4638d82db083": {
+          "digest": "4638d82db08355147ccdb2a4a033c797ece73ffaa2ece071ebe5b96bfda1dc30",
+          "text": "Plan §5 should state that offline functional-review runs require a populated release cache or local mirror. `tests/parallel/cli.py:253` primes releases before applying selections; with a cold cache and the default source, the listed commands attempt network access.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "MANUAL_EXTERNAL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "7372d2b25abc84cf5b2dd01ba5cd7259ebeaabfb6c16b56be8c15b82f9053f37",
+              "verdict": "APPROVE",
+              "at": "2026-10-30T10:38:37Z"
+            }
+          ]
+        },
+        "F-ce05b24104eb": {
+          "digest": "ce05b24104eb637d16eea972910b4dff16d6098e0e9b2311fd736fdf422d1c9d",
+          "text": "LIR1-001 (`tests/test_discovery.py`, `test_a_second_reader_keeps_the_fake_socket_open`): `raw.recv_into = lambda buf, *a: 0` and `raw.fileno = lambda: 3` are setup that nothing exercises: the case never reads, and neither `socket.SocketIO` nor `io.BufferedReader` calls `fileno()` on construction or close. The two lines can go; the case proves the same thing without them.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "9d903c75c64c5ceb40013a11899ba1880a8c1c3f35914f823265c1009cce23f1",
+              "verdict": "APPROVE",
+              "at": "2026-10-30T11:08:58Z"
+            }
+          ]
+        },
+        "F-236e7d438eee": {
+          "digest": "236e7d438eee5d5790a0312c3da7e7260340e242f43039945ddd5c94c037ad5a",
+          "text": "LIR1-002 (`tests/test_discovery.py`, `test_the_helper_sees_a_socket_it_just_opened`): the positive control decides \"this host can list sockets\" with a literal `/proc/self/fd` and its skip reason differs from the probe's, while the plan's section 3 says \"skips with the same reason\". On every host this repository runs on the directory exists and nothing skips, so this is wording only; naming `_FD_DIRECTORIES[0]` would keep the control tied to the tuple the probe reads.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "9d903c75c64c5ceb40013a11899ba1880a8c1c3f35914f823265c1009cce23f1",
+              "verdict": "APPROVE",
+              "at": "2026-10-30T11:08:58Z"
+            }
+          ]
+        }
+      },
+      "implementation_review_stages": {
+        "review_content_id": "9d903c75c64c5ceb40013a11899ba1880a8c1c3f35914f823265c1009cce23f1",
+        "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "3ab7307021e6c0312a15037937e5cea52e90bde4ed1b69c4051c0b2e7cb60701",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-10-30T11:08:58Z",
+          "verdict_sha256": "de358767fdf074e3f81fe0f477a0ef9ca0dd6eee71b21c61760209e98684d3eb",
+          "run_ref": "session:local /home/rodrigo/Workspace/workflow-manager/.ai-review/http-read-test-strength/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "3ab7307021e6c0312a15037937e5cea52e90bde4ed1b69c4051c0b2e7cb60701",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-10-30T11:11:23Z",
+          "verdict_sha256": "cb894df349d2c19b7400473dd4d41d3c94b71212bad3f32e41a0ec5b97fb17b1",
+          "run_ref": "codex:20261030T110909Z-713e00d9",
+          "reviewer_model": "openai/gpt-6.1-sol"
+        }
+      },
+      "gate_evidence": {
+        "functional": {
+          "flow-f1": {
+            "flow_id": "flow-f1",
+            "status": "passed",
+            "head": "44b005bfe756b605aa996dd495e8a84cb0abb095",
+            "ran_at": "2026-10-30T11:51:05Z",
+            "summary": {
+              "text": "Candidate: the 18 new/changed tests pass, nothing skipped"
+            },
+            "log_digest": "515d9cce5644c69a0cc4815aba65beadd2bd28c318aa225b12424bc67d23b4a9",
+            "run_ref": "manager-orchestrator:runs/md8-functional-r1",
+            "reporter": "manager-orchestrator (independent executor claude claude-sonnet-5-5)",
+            "identity": "9d903c75c64c5ceb40013a11899ba1880a8c1c3f35914f823265c1009cce23f1",
+            "recorded_at": "2026-10-30T11:51:05Z"
+          },
+          "flow-f2": {
+            "flow_id": "flow-f2",
+            "status": "passed",
+            "head": "44b005bfe756b605aa996dd495e8a84cb0abb095",
+            "ran_at": "2026-10-30T11:51:05Z",
+            "summary": {
+              "text": "Mutation _decref_socketios -> _real_close(): the two second-reader tests fail (one FAIL, one EBADF error)"
+            },
+            "log_digest": "110e540d9d622f6245283bd1b7c21068564d80a191869f65c9ebcd9b1145060b",
+            "run_ref": "manager-orchestrator:runs/md8-functional-r1",
+            "reporter": "manager-orchestrator (independent executor claude claude-sonnet-5-5)",
+            "identity": "9d903c75c64c5ceb40013a11899ba1880a8c1c3f35914f823265c1009cce23f1",
+            "recorded_at": "2026-10-30T11:51:06Z"
+          },
+          "flow-f3": {
+            "flow_id": "flow-f3",
+            "status": "passed",
+            "head": "44b005bfe756b605aa996dd495e8a84cb0abb095",
+            "ran_at": "2026-10-30T11:51:05Z",
+            "summary": {
+              "text": "Mutation: _FD_DIRECTORIES at regular files: the probe-dependent classes skip visibly (skipped=18), exit 0"
+            },
+            "log_digest": "16d0a0c73afd00f91f05e70c23fb75f46370bc2cab74191a7f500337dfe64bff",
+            "run_ref": "manager-orchestrator:runs/md8-functional-r1",
+            "reporter": "manager-orchestrator (independent executor claude claude-sonnet-5-5)",
+            "identity": "9d903c75c64c5ceb40013a11899ba1880a8c1c3f35914f823265c1009cce23f1",
+            "recorded_at": "2026-10-30T11:51:06Z"
+          },
+          "flow-f4": {
+            "flow_id": "flow-f4",
+            "status": "passed",
+            "head": "44b005bfe756b605aa996dd495e8a84cb0abb095",
+            "ran_at": "2026-10-30T11:51:05Z",
+            "summary": {
+              "text": "Mutation: _socket_links returns an empty set: test_links_are_read and the positive control fail"
+            },
+            "log_digest": "404f913441ace0e64a85f00132229f8b7df39929e59414389ec68ce486c303d9",
+            "run_ref": "manager-orchestrator:runs/md8-functional-r1",
+            "reporter": "manager-orchestrator (independent executor claude claude-sonnet-5-5)",
+            "identity": "9d903c75c64c5ceb40013a11899ba1880a8c1c3f35914f823265c1009cce23f1",
+            "recorded_at": "2026-10-30T11:51:06Z"
+          },
+          "flow-f5": {
+            "flow_id": "flow-f5",
+            "status": "passed",
+            "head": "44b005bfe756b605aa996dd495e8a84cb0abb095",
+            "ran_at": "2026-10-30T11:51:05Z",
+            "summary": {
+              "text": "Mutation: _require_socket_links always skips: the positive control fails as a failure, not a skip"
+            },
+            "log_digest": "8f0f00bd33939c455a7cf943348b2bdac09eeff4067d79f637cec093736753e3",
+            "run_ref": "manager-orchestrator:runs/md8-functional-r1",
+            "reporter": "manager-orchestrator (independent executor claude claude-sonnet-5-5)",
+            "identity": "9d903c75c64c5ceb40013a11899ba1880a8c1c3f35914f823265c1009cce23f1",
+            "recorded_at": "2026-10-30T11:51:06Z"
+          }
+        },
+        "pr": {
+          "pr": {
+            "number": 132,
+            "url": "https://github.com/RodrigoFAbreu/workflow-manager/pull/132"
+          },
+          "state": "open",
+          "head": "44b005bfe756b605aa996dd495e8a84cb0abb095",
+          "review_decision": null,
+          "reviewed_head": null,
+          "checks": {
+            "state": "success",
+            "failing": []
+          },
+          "review_id": null,
+          "findings": null,
+          "identity_at_head": "9d903c75c64c5ceb40013a11899ba1880a8c1c3f35914f823265c1009cce23f1",
+          "observed_at": "2026-10-30T12:11:45Z",
+          "ingest_seq": 1,
+          "repository": "RodrigoFAbreu/workflow-manager",
+          "queried_commit": "082e8b7f1509ad1738c476de4cb4ebe501f8c92b",
+          "provenance": {
+            "source": "workflow_gh",
+            "fetched_by": {
+              "name": "workflow-gh",
+              "version": "pr-list-v1"
+            },
+            "fetched_at": "2026-10-30T12:11:45Z",
+            "raw_sha256": "f808a976ee1054ee63f692cabb383a29d35e1738767e59a28872e8beb65c3b38",
+            "run_ref": null,
+            "gh_path": "/usr/bin/gh",
+            "gh_sha256": "9e824061111fe5f5b6a5d5690909ba37abafca4a4ca830bdf83246d3c94afd21"
+          },
+          "fact_id": "315dd22a99a598556909f9282cce34a868bb1a448524df8c5989fcbed24b73e2"
+        },
+        "pr_reported": null,
+        "pr_keys": {
+          "reopened_for": [],
+          "applied": [],
+          "ingest_seq": 1
+        }
+      },
+      "acceptance_satisfaction": {
+        "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "policy_source": "default",
+        "file_digest": null,
+        "adopted_digest": null,
+        "floor_digest": null,
+        "requirements": [
+          {
+            "id": "checkpoints_complete",
+            "met": true,
+            "detail": "every checkpoint of the item's own registry is COMPLETE"
+          },
+          {
+            "id": "technical_approval_current",
+            "met": true,
+            "detail": "the technical approval is CURRENT for the content now"
+          },
+          {
+            "id": "functional_flows_passed",
+            "met": true,
+            "detail": "flows ['flow-f1', 'flow-f2', 'flow-f3', 'flow-f4', 'flow-f5'] passed at the approved content"
+          },
+          {
+            "id": "pr_fact_current",
+            "met": true,
+            "detail": "workflow_gh fact for PR #132 at 44b005bfe756b605aa996dd495e8a84cb0abb095 is current"
+          },
+          {
+            "id": "no_standing_pr_objection",
+            "met": true,
+            "detail": "no CHANGES_REQUESTED decision and no failed check"
+          },
+          {
+            "id": "ci_green",
+            "met": true,
+            "detail": "checks are 'success'"
+          }
+        ],
+        "inputs": {
+          "anchor_commit": "082e8b7f1509ad1738c476de4cb4ebe501f8c92b",
+          "anchor_identity": "9d903c75c64c5ceb40013a11899ba1880a8c1c3f35914f823265c1009cce23f1",
+          "technical_approval": {
+            "basis": "POLICY_SATISFIED",
+            "approved_review_content_id": "9d903c75c64c5ceb40013a11899ba1880a8c1c3f35914f823265c1009cce23f1",
+            "recorded_at": "2026-10-30T11:11:59Z"
+          },
+          "functional": {
+            "flow-f1": {
+              "evidence_id": "0771f30237e26465f5db42bb96271b5066df2e56ef8c316f400385b29f1d915c",
+              "log_digest": "515d9cce5644c69a0cc4815aba65beadd2bd28c318aa225b12424bc67d23b4a9",
+              "run_ref": "manager-orchestrator:runs/md8-functional-r1"
+            },
+            "flow-f2": {
+              "evidence_id": "fb21a6b2f327ada04c3115e7b881004fbb3eea3ec9020add49b888eb75b306c7",
+              "log_digest": "110e540d9d622f6245283bd1b7c21068564d80a191869f65c9ebcd9b1145060b",
+              "run_ref": "manager-orchestrator:runs/md8-functional-r1"
+            },
+            "flow-f3": {
+              "evidence_id": "6a2f834b38ba36fa456007fbb3b99958fc731d66b93c7203297c9596860c2529",
+              "log_digest": "16d0a0c73afd00f91f05e70c23fb75f46370bc2cab74191a7f500337dfe64bff",
+              "run_ref": "manager-orchestrator:runs/md8-functional-r1"
+            },
+            "flow-f4": {
+              "evidence_id": "9550130fcaa4fb04bdfb0b254084ef60f247c3fee52ccf28e596e77147448d6a",
+              "log_digest": "404f913441ace0e64a85f00132229f8b7df39929e59414389ec68ce486c303d9",
+              "run_ref": "manager-orchestrator:runs/md8-functional-r1"
+            },
+            "flow-f5": {
+              "evidence_id": "90682e1b2a4b1b74bf2edffcf550cd896412610fa34ea68179b93b6cf3a7ecaa",
+              "log_digest": "8f0f00bd33939c455a7cf943348b2bdac09eeff4067d79f637cec093736753e3",
+              "run_ref": "manager-orchestrator:runs/md8-functional-r1"
+            }
+          },
+          "pr": {
+            "fact_id": "315dd22a99a598556909f9282cce34a868bb1a448524df8c5989fcbed24b73e2",
+            "head": "44b005bfe756b605aa996dd495e8a84cb0abb095",
+            "provenance": "workflow_gh",
+            "raw_sha256": "f808a976ee1054ee63f692cabb383a29d35e1738767e59a28872e8beb65c3b38"
+          }
+        },
+        "trust": {
+          "review_verdicts": "orchestrator",
+          "functional_evidence": "orchestrator",
+          "pr_fact": "workflow_gh"
+        },
+        "evaluated_at": "2026-10-30T12:11:45Z",
+        "workflow_release": "2.25.0"
+      }
     }
   }
 }
