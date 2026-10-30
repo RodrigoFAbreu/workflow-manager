@@ -1,0 +1,42 @@
+{
+ "schema_version": 1,
+ "work_item_id": "http-read-test-strength",
+ "dispositions": {
+  "F-236e7d438eee": {
+   "disposition": "follow-up",
+   "link": "RodrigoFAbreu/workflow-manager#131",
+   "note": "positive control literal path (issue item 1)"
+  },
+  "F-450afd706467": {
+   "disposition": "fixed",
+   "note": "answered in the plan or implementation revisions and confirmed by the later local and Codex rounds"
+  },
+  "F-4638d82db083": {
+   "disposition": "fixed",
+   "note": "the checklist's Setup states that a run needs a populated release cache or a mirror"
+  },
+  "F-a5ca964fc2ca": {
+   "disposition": "follow-up",
+   "link": "RodrigoFAbreu/workflow-manager#131",
+   "note": "identify the pair's own links (item 2)"
+  },
+  "F-bc50ef69ea00": {
+   "disposition": "fixed",
+   "note": "answered in the plan or implementation revisions and confirmed by the later local and Codex rounds"
+  },
+  "F-ce05b24104eb": {
+   "disposition": "follow-up",
+   "link": "RodrigoFAbreu/workflow-manager#131",
+   "note": "dead setup in the second-reader case (item 3)"
+  },
+  "F-d45e63e173b7": {
+   "disposition": "fixed",
+   "note": "answered in the plan or implementation revisions and confirmed by the later local and Codex rounds"
+  },
+  "F-e42a05e1d4a3": {
+   "disposition": "follow-up",
+   "link": "RodrigoFAbreu/workflow-manager#131",
+   "note": "count the fake socket's closes (item 4)"
+  }
+ }
+}
