@@ -421,10 +421,12 @@ def _lock_conformance(version: str) -> tuple[dict, tuple]:
         if manifest is not None:
             raise
         raise tested_releases.LockError(
-            f"{exc}; the release cache {cache.root} does not hold the verified manifest "
-            f"({manifest_asset_name(version)}) of {version}: fill the cache first with "
-            f"`{tested_releases.PRIME_COMMAND}` (every runner mode does, before any unit "
-            f"starts)") from None
+            f"{version}: {tested_releases.NO_SUITE_COUNTS}; the release cache {cache.root} "
+            f"holds no verified manifest ({manifest_asset_name(version)}) of {version}: fill "
+            f"the cache first with `{tested_releases.PRIME_COMMAND}`, using the same cache "
+            f"setting ({_source.CACHE_ENV}, else XDG_CACHE_HOME/HOME, which "
+            f"`source.cache_root()` resolves in that order) as the failing process (every "
+            f"runner mode but `--restore-barrier` primes before any unit starts)") from None
 
 
 for _version in LOCK:
