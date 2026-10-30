@@ -2,33 +2,35 @@
 
 ## Milestone
 
-`release-cache-priming` -- complete (accepted by policy; `governing_workflow_version: "2.2"`, `process`, plan revision 1, base `1575e0d`, branch `milestone/release-cache-priming`): roadmap row 19 (#125). A `test:` pull request title (releases nothing). Plan: `docs/ai-workflow/WORKFLOW_MANAGER_RELEASE_CACHE_PRIMING_PLAN.md`.
+`http-read-test-strength` -- in progress (`governing_workflow_version: "2.2"`, `process`, plan revision 1, base `19b2ffc`, branch `milestone/http-read-test-strength`): roadmap row 20 (#128, items 1 and 2). A `test:` pull request title (releases nothing). Plan: `docs/ai-workflow/WORKFLOW_MANAGER_HTTP_READ_TEST_STRENGTH_PLAN.md`.
 
-When `tests/support.py` cannot read a lock-only release's manifest from the release cache and the lock entry carries no suite counts, its `LockError` now names the release, the cache directory, the missing manifest and `python3 tests/run_all.py --list`, which fills the cache. The original error text stays first.
+Two test-strength gaps of the bounded discovery read (row 15) are closed in `tests/test_discovery.py`: the descriptor-leak assertions skip, with a reason that names the platform, where the process's descriptor directory cannot show socket links (instead of comparing empty with empty), and a case now fails when `_Bounded._decref_socketios` stops counting readers. Nothing under `src/` changes.
 
-Investigation result (issue #125): the fault of 2026-10-28 (three host modules faulted at import after `release_lock.py add 2.24.0`, then passed after a `--list`) **did not reproduce**. With an empty cache and a mirror, priming fills the cache and the same modules pass; priming and the units read the same cache with the same pins. The only deterministic fact is that, when the read misses, the message hid the cause. A race on a shared cache is a candidate, not a proven cause, and cannot be reproduced hermetically; so the item makes the error self-explaining and changes nothing else. Priming, the runner, `src/` and the contract are untouched.
+Not in this milestone: items 3 to 5 of #128 (message wording, the priming test's tree), and any `src/` change.
 
-Not in this milestone: the two test-strength items of the previous item (issue #128, the next item), a change to priming or to the runner, a change to `InfrastructureFaultError`'s report.
+### CP1: the probe, the reader cases and their mutations -- complete
 
-### CP1: the lock error, its tests and the architecture note -- complete
-
-- `tests/support.py`: `_lock_conformance` reads the manifest once and raises the cache-aware `LockError` (`from None`) only when the manifest is absent; every other path is unchanged.
-- `tests/test_tested_releases.py`: the new test class (cold import, original text first, other paths unchanged); `tests/test_release_workflows.py` is back to its base content.
-- `docs/ARCHITECTURE.md`, "Priming": the one sentence.
+- `_FD_DIRECTORIES`, `_socket_links(directories=None)` and `_require_socket_links(directories=None)`: the probe opens a `socket.socketpair()` and raises `unittest.SkipTest` unless both new links show. Both leak-checking classes take their baseline from it in `setUp`.
+- New class `TestTheDescriptorProbe` (links are read; three stand-ins that cannot expose links skip with their reason; a positive control; both classes honour the probe) and two reader cases in `TestTheBoundedPieces` (a fake socket and a real socket pair, two readers each).
 
 ### CP2: bookkeeping -- complete
 
-- This record. `docs/ROADMAP.md` row 19 was Current and is Done at acceptance (by policy). No version is edited.
+- This record. `docs/ROADMAP.md` row 20 is Current and becomes Done at acceptance. No version is edited.
 
-### Self-review -- complete
+### Mutation results (scratch clone of `974a797`, `python3 tests/run_all.py --select test_discovery.py`)
 
-- No blocking or important finding; no code change. One deviation from the plan's section 2, kept on purpose: the new message starts with the original `LockError` text and then names the cache, the manifest and the remedy, so an existing reader of the original text (`tests/test_release_workflows.py`) stays at its base content.
-- Evidence: at the base `1575e0d` (its `tests/support.py`, the new test file) only the cold-import case fails; the three mutations of the plan's section 3 each fail the case named (hint dropped from the miss path: cold import; hint added to the present-manifest path: the hint-only case; the manifest not read, scoped to the synthetic release so the parent's own import survives: the hint-only case). `--select test_tested_releases.py --select test_docs.py` exited 0; the full gate (`python3 tests/run_all.py`) exited 0 at head `0c87cd2` (2321 of 2321 units, 15353 tests, orphan check on).
+The candidate passes: 19 of 19 units, 108 tests, exit 0, nothing skipped on this Linux host. Each mutation exits 1 and fails exactly the cases the plan names:
 
-## Functional review
+| Mutation | Failed |
+| --- | --- |
+| `_decref_socketios` calls `_real_close()` | `test_a_second_reader_keeps_the_fake_socket_open`, `test_a_second_reader_still_reads_after_the_first_closes` (the other cases stay green) |
+| `_require_socket_links` never raises | the stand-in skip case (all three sub-tests) and `test_both_leak_checking_classes_skip_when_sockets_cannot_be_listed` |
+| `_require_socket_links` always raises `SkipTest` | `test_the_helper_sees_a_socket_it_just_opened` (a failure, not a skip) |
+| `_socket_links` always returns an empty set | `test_links_are_read` and `test_the_helper_sees_a_socket_it_just_opened` |
+| a class's `setUp` takes its baseline with `_socket_links()` | `test_both_leak_checking_classes_skip_when_sockets_cannot_be_listed` |
 
-Flows F1 to F3 from the checklist passed on the candidate (`6a89e3f`, checklist commit `a5ac177`; independent executor, `claude-sonnet-5-5`, round 1). The milestone was accepted by policy; the Optional findings are dispositioned in `docs/ai-workflow/registry/release-cache-priming-dispositions.json` (2 dropped, 5 follow-ups on RodrigoFAbreu/workflow-manager#128) and recorded in `docs/milestones/completed/release-cache-priming-findings.md`.
+The scratch clone is deleted; the repository was never mutated.
 
 ## Next action
 
-Roadmap row 19 is Done. The pull request (#130, a `test:` title, nothing released) merges after the acceptance commit. No roadmap row is ready: rows 5 and 6 wait on the Controller, and the open follow-ups are issue #128. Then `/milestone-plan` when one is chosen.
+Self-review, the full gate (`python3 tests/run_all.py`), then the implementation-review bundle.
