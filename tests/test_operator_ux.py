@@ -1180,7 +1180,7 @@ class TestNotAVersionRows(TargetCase):
         work = tempfile.TemporaryDirectory()
         self.addCleanup(work.cleanup)
         root = Path(work.name)
-        null_release, genuine = root / "null-release", root / "genuine"
+        null_release, genuine = root / "null release", root / "genuine"
         for directory in (null_release, genuine):
             shutil.copytree(support.release(PINNED_NEWEST).root, directory)
         manifest = null_release / "manifest.json"
@@ -1191,6 +1191,12 @@ class TestNotAVersionRows(TargetCase):
         by_null = root / "by-null"
         proc = run("--release-dir", str(null_release), "bootstrap", str(empty_repo(by_null)))
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        # Matching null versions are no drift: verify and status stay healthy.
+        for command in ("verify", "status"):
+            proc = run("--release-dir", str(null_release), command, str(by_null))
+            with self.subTest(command=command, matching="null"):
+                self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+                self.assertNotIn("version:", proc.stdout + proc.stderr)
         by_hand = root / "by-hand"
         shutil.copytree(Pristine.pristine(), by_hand, symlinks=True)
         record = by_hand / RECORD
@@ -1208,8 +1214,9 @@ class TestNotAVersionRows(TargetCase):
                     self.assertEqual(proc.returncode, code, proc.stdout + proc.stderr)
                     steps = next_lines(proc.stderr)
                     self.assertEqual(len(steps), 1, proc.stderr)
-                    clause = (f"; --release-dir {directory} is left out: name it too if "
-                              f"{directory} holds release X.Y.Z")
+                    quoted = shlex.quote(str(directory))
+                    clause = (f"; --release-dir {quoted} is left out: name it too if "
+                              f"{quoted} holds release X.Y.Z")
                     self.assertEqual(steps[0], self.null_step(repo, dry_run=dry, tail=clause))
                     self.assertNotIn(" holds no ", steps[0])
             self.assertEqual(tree_hash(repo), before, name)

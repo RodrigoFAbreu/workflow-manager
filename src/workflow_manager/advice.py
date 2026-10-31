@@ -653,7 +653,8 @@ def _not_a_version(error, context):
         step += " -- a real update, not a dry run"
     directory = getattr(context.args, "release_dir", None)
     if directory is not None:
-        step += (f"; --release-dir {directory} is left out: name it too if {directory} "
+        quoted = shlex.quote(str(directory))
+        step += (f"; --release-dir {quoted} is left out: name it too if {quoted} "
                  f"holds release X.Y.Z")
     return step
 
