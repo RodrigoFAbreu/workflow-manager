@@ -5234,6 +5234,35 @@ class TestLatestCheckRun(unittest.TestCase):
         finished = self.check("a", "FAILURE", "2026-10-27T11:00:00Z", done="2026-10-27T11:05:00Z")
         self.both_orders([finished, passed], {"state": "success", "failing": []})
 
+    ZEROS = ("0001-01-01T00:00:00Z", "0001-01-01T00:00:00+00:00", "0001-01-01T00:00:00.000Z",
+             "0001-01-01T00:00:00-00:00", "0001-01-01T05:30:00+05:30", "0001-01-01T00:00:00+01:00")
+
+    def test_t11_the_zero_instant_in_any_spelling_as_an_earlier_start_keeps_the_failure(self):
+        first, done, second = self.ISSUE
+        for zero in self.ZEROS:
+            with self.subTest(zero=zero):
+                self.both_orders([self.check("a", "FAILURE", zero, done=done), self.check("a", "SUCCESS", second)],
+                                 {"state": "failure", "failing": ["a"]})
+
+    def test_t12_the_zero_instant_in_any_spelling_as_an_earlier_completion_keeps_the_failure(self):
+        first, done, second = self.ISSUE
+        for zero in self.ZEROS:
+            with self.subTest(zero=zero):
+                self.both_orders([self.check("a", "FAILURE", first, done=zero), self.check("a", "SUCCESS", second)],
+                                 {"state": "failure", "failing": ["a"]})
+
+    def test_t13_a_start_beyond_the_range_is_unusable_and_a_real_year_one_instant_is_not(self):
+        first, done, second = self.ISSUE
+        failed = self.check("a", "FAILURE", first, done=done)
+        self.both_orders([failed, self.check("a", "SUCCESS", "9999-12-31T23:59:59-05:00")],
+                         {"state": "failure", "failing": ["a"]})
+        self.both_orders([self.check("a", "FAILURE", "0001-01-01T00:00:01Z", done=done),
+                          self.check("a", "SUCCESS", second)], {"state": "success", "failing": []})
+
+    def test_t14_the_documentation_names_two_jobs_with_the_same_name(self):
+        text = " ".join((REPO_ROOT / "docs/ai-workflow/GATE_POLICY.md").read_text().split())
+        self.assertIn("of another job of the same workflow with the same `name:`", text)
+
 
 if __name__ == "__main__":
     unittest.main()

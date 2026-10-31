@@ -170,7 +170,8 @@ trailer `Workflow-Gate-Satisfied-By: policy:<digest first 12>`.
    check, once the earlier run had completed before it started (a re-run); a
    repeated check whose order cannot be established, or whose runs overlap,
    counts as its worst run, and an earlier run of a different event that
-   completed first is not told from a re-run;
+   completed first, or of another job of the same workflow with the same
+   `name:`, is not told from a re-run;
 6. `ci_green` (when `require_ci`) and `pr_approved` (when
    `requires_pr_approved`).
 
