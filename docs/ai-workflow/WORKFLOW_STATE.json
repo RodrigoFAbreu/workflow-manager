@@ -18959,7 +18959,7 @@
       "registry_path": "docs/ai-workflow/registry/null-record-wording-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/null-record-wording-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "APPLYING_REVIEW_FEEDBACK",
       "plan_revision": 3,
       "implementation_revision": 1,
       "functional_review_round": null,
@@ -19099,12 +19099,12 @@
           "external": 1
         },
         "implementation": {
-          "local": 0,
-          "external": 0
+          "local": 1,
+          "external": 1
         }
       },
-      "state_revision": 17,
-      "last_transition": "2026-10-31T22:44:57Z",
+      "state_revision": 19,
+      "last_transition": "2026-10-31T22:50:53Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -19184,7 +19184,34 @@
               "at": "2026-10-31T21:59:52Z"
             }
           ]
+        },
+        "F-0d65cddd24ab": {
+          "digest": "0d65cddd24abc409151c1608ae525f9872f372cef2835d5dd78a006eb9dfa20d",
+          "text": "NRW-LIR1-O1 (`src/workflow_manager/advice.py`, `_not_a_version`): the `--release-dir D is left out: name it too if D holds release X.Y.Z` clause interpolates the raw directory, while the command before it is shell-quoted by `manager_command`. For a directory with a space (`--release-dir '/tmp/my rel'`) the step reads `--release-dir /tmp/my rel is left out`, which an operator who copies it gets wrong. Quoting the directory as the rendered command does (`shlex.quote`, or the renderer's own quoting) would keep the clause copyable; the test's paths have no spaces, so nothing pins it either way.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "81cddf8f36c3980167030415ddd1127676c5ed85cf3a516147c00659b7009099",
+              "verdict": "APPROVE",
+              "at": "2026-10-31T22:48:35Z"
+            }
+          ]
         }
+      },
+      "implementation_review_stages": {
+        "review_content_id": "81cddf8f36c3980167030415ddd1127676c5ed85cf3a516147c00659b7009099",
+        "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "615c884597f77c854749b724aa317231b111990d062780cd221702dd75d03919",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-10-31T22:48:35Z",
+          "verdict_sha256": "a5d1f3a9069a970e8d08b8b437c8d138ce062fee1c55ab0db927d3be21423452",
+          "run_ref": "session:local /home/rodrigo/Workspace/workflow-manager/.ai-review/null-record-wording/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": null
       }
     }
   }
