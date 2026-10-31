@@ -3837,6 +3837,94 @@ class RetentionReport(unittest.TestCase):
             self.assertEqual(rr.queried[-1], _rr_commit("ok-b"))
             self.assertEqual(len(rr.queried), 7)
 
+    # -- T1, T7, T8 of the unreadable-input refusals (W37) -------------------
+
+    def test_w37_t1_the_readlink_helper_reads_or_refuses_by_errno(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            os.symlink("a.txt", os.path.join(tmp, "ln"))
+            fd = os.open(tmp, os.O_RDONLY | os.O_DIRECTORY)
+            self.addCleanup(os.close, fd)
+            self.assertEqual(wr._readlink_at("ln", fd, "ln"), "a.txt")
+            for err, code, phrase in ((errno.ENOENT, "folder_changed", "changed while it was read"),
+                                      (errno.EINVAL, "folder_changed", "changed while it was read"),
+                                      (errno.EACCES, "unreadable", "cannot be read"),
+                                      (errno.EIO, "unreadable", "cannot be read"),
+                                      (errno.ELOOP, "unreadable", "cannot be read"),
+                                      (errno.ENAMETOOLONG, "unreadable", "cannot be read")):
+                with self.subTest(err=errno.errorcode[err]):
+                    with _readlink_fails("test_w37_t1_the_readlink_helper_reads_or_refuses_by_errno", "ln",
+                                         err) as counted:
+                        with self.assertRaises(wr.RetentionError) as ctx:
+                            wr._readlink_at("ln", fd, "sub/ln")
+                    self.assertEqual(len(counted), 1)  # the injector fires through the helper
+                    self.assertEqual(ctx.exception.code, code)
+                    self.assertEqual(ctx.exception.message, f"sub/ln {phrase} ({os.strerror(err)})")
+                    self.assertTrue(ctx.exception.next_step)
+                    self.assertIsNone(ctx.exception.__cause__)
+            with _readlink_fails("test_w37_t1_the_readlink_helper_reads_or_refuses_by_errno", "ln", errno.EIO):
+                with self.assertRaises(RuntimeError) as ctx:  # `fail` builds the refusal
+                    wr._readlink_at("ln", fd, "ln", fail=lambda code, message, step: RuntimeError(code))
+            self.assertEqual(str(ctx.exception), "unreadable")
+
+    def test_w37_t7_a_state_file_that_is_not_utf8_is_state_invalid(self):
+        with _RR(_rr_many(2)) as rr:
+            (rr.root / "docs/ai-workflow/WORKFLOW_STATE.json").write_bytes(b'{"work_items": "\xff"}')
+            before = _ra_snap(rr.root, rr.archive_root, times=False)
+            with self.assertRaises(wr.RetentionError) as ctx:
+                wr._load_state(rr.root)
+            self.assertEqual(ctx.exception.code, "state_invalid")
+            self.assertEqual(ctx.exception.message,
+                             "docs/ai-workflow/WORKFLOW_STATE.json is not valid UTF-8 (byte 16)")
+            self.assertEqual(ctx.exception.next_step, "repair the state file")
+            for argv in (["report"], ["archive", "w00"], ["archive", "w00", "--apply"], ["remove", "w00"],
+                         ["remove", "w00", "--apply"], ["prune", "w00"]):
+                with self.subTest(argv=argv):
+                    out, err = io.StringIO(), io.StringIO()
+                    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                        code = wr.main([*argv, "--repo-root", str(rr.root), "--archive-root", str(rr.archive_root)],
+                                       run=rr.run, resolve=rr.resolve, now=_RR_NOW)
+                    self.assertEqual(code, 2)
+                    self.assertIn("state_invalid", err.getvalue())
+                    self.assertIn("is not valid UTF-8", err.getvalue())
+                    self.assertIn("next step:", err.getvalue())
+            self.assertEqual(_ra_snap(rr.root, rr.archive_root, times=False), before)
+
+    def ls_files_stand_in(self, stdout=b"", stderr=b"", returncode=0):
+        """A `subprocess.run` that answers `git ls-files` with bytes, as the real
+        call does, and decodes them strictly when `text` is requested."""
+        real = subprocess.run
+
+        def run(args, *a, **kwargs):
+            if list(args[:2]) != ["git", "ls-files"]:
+                return real(args, *a, **kwargs)
+            out, err = stdout, stderr
+            if kwargs.get("text"):
+                out, err = out.decode(), err.decode()
+            return subprocess.CompletedProcess(args, returncode, out, err)
+        return unittest.mock.patch.object(wr.subprocess, "run", run)
+
+    def test_w37_t8_a_tracked_path_that_is_not_utf8_is_repository_unknown(self):
+        with _RR(_rr_many(2)) as rr:
+            with self.ls_files_stand_in(b".ai-review/w00/ok\0.ai-review/w00/bad\xff\0"):
+                with self.assertRaises(wr.RetentionError) as ctx:
+                    wr._tracked_counts(rr.root)
+                self.assertEqual(ctx.exception.code, "repository_unknown")
+                self.assertEqual(ctx.exception.message, "git ls-files printed a path under .ai-review that is "
+                                 "not valid UTF-8")
+                self.assertIn("rename or untrack that path", ctx.exception.next_step)
+                code, out, err = rr.cli()
+                self.assertEqual(code, 2)
+                self.assertIn("repository_unknown", err)
+                self.assertIn("next step:", err)
+                self.assertTrue(wr._git_tracked(rr.root, "w00"))  # already safe: nothing is decoded
+            with self.ls_files_stand_in("\u00e9/\u00fc".join([".ai-review/w00/", "\0.ai-review/w01/x"]).encode()):
+                self.assertEqual(wr._tracked_counts(rr.root), {"w00": 1, "w01": 1})
+            with self.ls_files_stand_in(stderr=b"fatal: \xff", returncode=128):
+                with self.assertRaises(wr.RetentionError) as ctx:
+                    wr._tracked_counts(rr.root)
+                self.assertEqual((ctx.exception.code, ctx.exception.message[:20]),
+                                 ("repository_unknown", "git ls-files failed:"))
+
     def test_t4b_the_anchor_is_the_technical_approval_commit_only_with_its_identity(self):
         approved = {"reviewed_content_commit": "b" * 40, "approved_review_content_id": "c" * 64}
         half = {"reviewed_content_commit": "d" * 40}
@@ -4294,6 +4382,28 @@ def _stat_fails(site, name, err, skip=0):
         yield counted
 
 
+@contextlib.contextmanager
+def _readlink_fails(site, name, err, skip=0):
+    """Fails the `readlink` of `name` (a call with a `dir_fd`) that the function
+    `site` makes, directly or through `_readlink_at`, after `skip` earlier ones
+    passed. Yields the list of the calls counted for the site."""
+    real = os.readlink
+    counted = []
+
+    def fails(path, *args, **kwargs):
+        if kwargs.get("dir_fd") is not None and path == name:
+            frame = sys._getframe(1)
+            if frame.f_code.co_name == "_readlink_at":
+                frame = frame.f_back
+            if frame.f_code.co_name == site:
+                counted.append(path)
+                if len(counted) > skip:
+                    raise OSError(err, os.strerror(err))
+        return real(path, *args, **kwargs)
+    with unittest.mock.patch.object(os, "readlink", fails):
+        yield counted
+
+
 class _Result:
     def __init__(self, code, result=None, error=None):
         self.code, self.result, self.error = code, result, error
@@ -4428,6 +4538,51 @@ class RetentionArchive(unittest.TestCase):
         patch.start()
         self.addCleanup(patch.stop)
         return real
+
+    # -- T2, T3 of the unreadable-input refusals (W37) -----------------------
+
+    def link_refused(self, result, code, err, shown="ln"):
+        self.assertEqual((result.code, result.err_code), (2, code), getattr(result.error, "message", None))
+        phrase = "changed while it was read" if code == "folder_changed" else "cannot be read"
+        self.assertTrue(result.error.message.startswith(f"{shown} {phrase} ({os.strerror(err)})"),
+                        result.error.message)
+        self.assertTrue(result.error.next_step)
+
+    def test_w37_t2_an_unreadable_symlink_in_the_scan_refuses_the_archive_with_nothing_written(self):
+        rr = self.ra()
+        rr.folder("w00")
+        before, fds = rr.snap(times=False), _fd_count()
+        for err, code in ((errno.EACCES, "unreadable"), (errno.ENOENT, "folder_changed")):
+            for apply in (False, True):
+                with self.subTest(err=errno.errorcode[err], apply=apply):
+                    with _readlink_fails("_scan", "ln", err) as counted:
+                        result = rr.call("w00", apply=apply)
+                    self.assertEqual(len(counted), 1)
+                    self.link_refused(result, code, err)
+                    self.assertEqual(rr.snap(times=False), before)
+                    self.assertEqual(_fd_count(), fds)
+        # the re-check after the pack: the temporary, the archive and the index line are undone
+        with _readlink_fails("_scan", "ln", errno.EIO, skip=1) as counted:
+            result = rr.call("w00", apply=True)
+        self.assertEqual(len(counted), 2)
+        self.link_refused(result, "unreadable", errno.EIO)
+        self.assertEqual(rr.snap(times=False), before)
+        self.assertEqual(_fd_count(), fds)
+        self.assertEqual(rr.call("w00", apply=True).code, 0)  # the lock was released
+
+    def test_w37_t3_an_unreadable_symlink_in_the_pack_is_unreadable_not_pack_failed(self):
+        rr = self.ra()
+        rr.folder("w00")
+        before, fds = rr.snap(times=False), _fd_count()
+        for err, code in ((errno.EIO, "unreadable"), (errno.ENOENT, "folder_changed")):
+            with self.subTest(err=errno.errorcode[err]):
+                with _readlink_fails("_pack", "ln", err) as counted:
+                    result = rr.call("w00", apply=True)
+                self.assertEqual(len(counted), 1)
+                self.link_refused(result, code, err)
+                self.assertEqual(rr.snap(times=False), before)
+                self.assertEqual(_fd_count(), fds)
+        self.assertEqual(rr.call("w00", apply=True).code, 0)
 
     # -- T1, T9 of the stat-error refusal (W33) -----------------------------
 
@@ -5594,6 +5749,114 @@ class RetentionRemove(unittest.TestCase):
         """The snapshot a refusal must leave: the repository and the archive store."""
         return rr.snap(times=False), rr.files(rr.root / ".ai-review" / item) if \
             (rr.root / ".ai-review" / item).exists() else None
+
+    # -- T4 to T6 of the unreadable-input refusals (W37) ---------------------
+
+    def link_refused(self, result, code, err, shown="ln"):
+        self.assertEqual((result.code, result.err_code), (2, code), getattr(result.error, "message", None))
+        phrase = "changed while it was read" if code == "folder_changed" else "cannot be read"
+        self.assertTrue(result.error.message.startswith(f"{shown} {phrase} ({os.strerror(err)})"),
+                        result.error.message)
+        self.assertTrue(result.error.next_step)
+
+    def test_w37_t4_an_unreadable_symlink_before_the_rename_moves_nothing(self):
+        rr = self.env()
+        rr.prepared()
+        before, folder_before, fds = rr.snap(times=False), rr.files(rr.root / ".ai-review" / "w00"), _fd_count()
+        # (site, apply, skip): the dry run's scan and hash; the selection and the re-selection under the lock
+        for site, apply, skip in (("_scan", False, 0), ("_hash_folder", False, 0), ("_scan", True, 0),
+                                  ("_scan", True, 1)):
+            for err, code in ((errno.EACCES, "unreadable"), (errno.ENOENT, "folder_changed")):
+                with self.subTest(site=site, apply=apply, skip=skip, err=errno.errorcode[err]):
+                    with _readlink_fails(site, "ln", err, skip=skip) as counted:
+                        result = rr.rm(apply=apply)
+                    self.assertEqual(len(counted), skip + 1)
+                    self.link_refused(result, code, err)
+                    self.untouched(rr, before, folder_before, fds)
+                    self.assertEqual(rr.renames, [])
+        self.assertEqual(rr.rm(apply=True).code, 0)  # the lock was released
+
+    def test_w37_t5_an_unreadable_symlink_after_the_rename_puts_the_folder_back(self):
+        # L0: the hash (skip 0) and the re-check scan (skip 2) run after this run renamed the folder
+        for site, skip in (("_hash_folder", 0), ("_scan", 2)):
+            with self.subTest(site=site):
+                rr = self.env()
+                rr.prepared()
+                before, folder_before, fds = rr.snap(times=False), rr.files(rr.root / ".ai-review" / "w00"), \
+                    _fd_count()
+                with _readlink_fails(site, "ln", errno.EIO, skip=skip) as counted:
+                    result = rr.rm(apply=True)
+                self.assertEqual(len(counted), skip + 1)
+                self.link_refused(result, "unreadable", errno.EIO)
+                self.assertEqual(len(rr.renames), 2)  # out and back
+                self.assertTrue(result.error.message.endswith(
+                    f"; the folder is back in {rr.root / '.ai-review' / 'w00'}"), result.error.message)
+                self.assertFalse((rr.removing / "w00").exists())
+                self.untouched(rr, before, folder_before, fds)
+                self.assertEqual(rr.rm(apply=True).code, 0)
+
+    def test_w37_t5b_an_unreadable_symlink_in_a_leftover_keeps_it_where_it_is(self):
+        rr = self.env()
+        rr.prepared()
+        rr.park()
+        leftover_before, fds = rr.files(rr.removing / "w00"), _fd_count()
+        with _readlink_fails("_hash_folder", "ln", errno.EIO) as counted:
+            result = rr.rm(apply=True)
+        self.assertEqual(len(counted), 1)
+        self.link_refused(result, "unreadable", errno.EIO)
+        self.assertEqual(rr.renames, [])
+        # step 6's own text: the hash failed before the comparison, so the leftover stays put
+        self.assertTrue(result.error.message.endswith(
+            f"; the folder is in {rr.removing / 'w00'}, it may be incomplete and the missing entries exist only in "
+            "the archive"), result.error.message)
+        self.assertTrue(result.error.next_step.endswith("; repair the cause and run `remove w00 --apply` again"),
+                        result.error.next_step)
+        self.assertEqual(rr.files(rr.removing / "w00"), leftover_before)
+        self.assertEqual(_fd_count(), fds)
+        self.assertEqual(rr.rm(apply=True).code, 0)
+
+    def test_w37_t5c_an_unreadable_symlink_at_the_recheck_puts_an_incomplete_leftover_back(self):
+        rr = self.env()
+        rr.prepared()
+        leftover = rr.park()
+        os.unlink(leftover / "sub/b.txt")
+        leftover_before, fds = rr.files(leftover), _fd_count()
+        # the leftover's scans: the selection, the re-selection under the lock, the re-check at step 5 (skip 2)
+        with _readlink_fails("_scan", "ln", errno.EIO, skip=2) as counted:
+            result = rr.rm(apply=True)
+        self.assertEqual(len(counted), 3)
+        self.link_refused(result, "unreadable", errno.EIO)
+        self.assertEqual(len(rr.renames), 1)  # back only: a leftover is not moved out by this run
+        self.assertTrue(result.error.message.endswith(
+            f"; the folder is back in {rr.root / '.ai-review' / 'w00'}"), result.error.message)
+        self.assertIn("1 archived entries are missing because an earlier run already deleted them",
+                      result.error.next_step)
+        self.assertIn(str(rr.adir / "w00.tar.zst"), result.error.next_step)
+        self.assertFalse((rr.removing / "w00").exists())
+        self.assertEqual(rr.files(rr.root / ".ai-review" / "w00"), leftover_before)
+        self.assertEqual(_fd_count(), fds)
+
+    def test_w37_t6_an_unreadable_symlink_while_deleting_stops_with_the_count(self):
+        for err, code in ((errno.EACCES, "unreadable"), (errno.ENOENT, "folder_changed")):
+            with self.subTest(err=errno.errorcode[err]):
+                rr = self.env()
+                rr.prepared()
+                archive_before = (rr.adir / "w00.tar.zst").read_bytes()
+                everything = rr.files(rr.root / ".ai-review" / "w00")
+                with _readlink_fails("_remove_tree", "ln", err) as counted:
+                    result = rr.rm(apply=True)
+                self.assertEqual(len(counted), 1)
+                self.link_refused(result, code, err)
+                rest = rr.files(rr.removing / "w00")
+                deleted = len(everything) - len(rest)
+                self.assertGreater(deleted, 0)
+                self.assertIn("ln", rest)
+                self.assertIn(f"; stopped after deleting {deleted} entries, each proven archived; the rest is in ",
+                              result.error.message)
+                self.assertEqual(result.error.next_step, "run `remove w00 --apply` again")
+                self.assertEqual((rr.adir / "w00.tar.zst").read_bytes(), archive_before)
+                self.assertEqual(rr.rm(apply=True).code, 0)  # the run without the injector finishes
+                self.assertFalse((rr.removing / "w00").exists())
 
     # -- T2 to T6 of the stat-error refusal (W33) ----------------------------
 
