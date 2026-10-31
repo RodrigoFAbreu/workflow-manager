@@ -430,6 +430,11 @@ class ReleaseAgnosticDocsTest(unittest.TestCase):
         self.assertIn("`is not a version`", text)
         self.assertIn("[common problems](common-problems.md)", text)
 
+    def test_update_names_the_null_record_step(self) -> None:
+        text = " ".join(self._read("docs/update.md").split())
+        self.assertIn("A record whose `workflow_version` is `null` gets one step", text)
+        self.assertIn("the explicit update that rewrites the record", text)
+
     def test_the_contract_page_is_indexed_and_linked_from_the_pages_that_use_it(self) -> None:
         self.assertIn("(release-metadata.md)", self._read("docs/README.md"))
         self.assertIn("release-metadata.md", self._read("docs/ROADMAP.md"))

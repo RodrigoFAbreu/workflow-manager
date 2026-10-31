@@ -160,12 +160,13 @@ def writes_repository(args) -> bool:
         command == "update" and not getattr(args, "dry_run", False))
 
 
-def _options(context: Context, version) -> tuple[tuple, str | None]:
+def _options(context: Context, version, *, with_directory=True) -> tuple[tuple, str | None]:
     """The global options a printed command carries, and a note when
     `--release-dir` had to be left out. `--release-source` and `--release-cache`
     say where releases come from, not which one, so they are always carried.
     `--release-dir D` is carried only when D holds the version the command
-    uses (any version, when the command names none)."""
+    uses (any version, when the command names none). `with_directory=False`
+    leaves it out without a note: the caller says so itself."""
     args = context.args
     options = []
     if getattr(args, "release_source", None):
@@ -175,7 +176,7 @@ def _options(context: Context, version) -> tuple[tuple, str | None]:
     note = None
     directory = getattr(args, "release_dir", None)
     held = context.release_dir_version
-    if directory is not None:
+    if directory is not None and with_directory:
         if version is None or held is None or held == version:
             options.append(("--release-dir", directory))
         else:
@@ -184,12 +185,12 @@ def _options(context: Context, version) -> tuple[tuple, str | None]:
     return tuple(options), note
 
 
-def _command(context: Context, *args: str, target=True, version=_OPERATOR):
+def _command(context: Context, *args: str, target=True, version=_OPERATOR, with_directory=True):
     """(rendered command or None, note). None means the command writes and the
     Workflow data is incomplete: the caller prints `data_step` instead."""
     if version is _OPERATOR:
         version = getattr(context.args, "release_version", None)
-    options, note = _options(context, version)
+    options, note = _options(context, version, with_directory=with_directory)
     flags = list(args)
     profile = getattr(context.args, "profile", None)
     if flags and flags[0] in ("bootstrap", "update") and profile not in (None, "full"):
@@ -636,10 +637,25 @@ def _not_a_version(error, context):
         local = _operator_command(context, directory="DIR", version=None)
         return (f"{record}, or run `{same}` against an explicit release, or `{local}` against "
                 "an unpackaged release directory")
-    fix, _ = _command(context, "update", version="X.Y.Z")
+    null = context.installed_recorded and context.installed_version is None
+    fix, _ = _command(context, "update", version="X.Y.Z", with_directory=not null)
     if fix is None:     # a write is withheld while the Workflow data is incomplete
         return _held_rerun(context)
-    return f"{record}, or fix it with `{fix}`"
+    if not null:
+        return f"{record}, or fix it with `{fix}`"
+    # A null record: the one step is the explicit update that rewrites it. The
+    # record check runs before the release directory is read, so a --release-dir
+    # is left out (it may hold a null-manifest release the update would refuse),
+    # and the step says only that, not what the directory holds.
+    step = (f"run `{fix}` (X.Y.Z is the release to install): it updates the installation "
+            f"record to that release")
+    if getattr(context.args, "dry_run", False):
+        step += " -- a real update, not a dry run"
+    directory = getattr(context.args, "release_dir", None)
+    if directory is not None:
+        step += (f"; --release-dir {directory} is left out: name it too if {directory} "
+                 f"holds release X.Y.Z")
+    return step
 
 
 def _fetch_url(error, context):
