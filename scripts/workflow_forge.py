@@ -21,7 +21,7 @@ import os
 import re
 import subprocess
 import tempfile
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 #: A full page of results is undecidable: `gh pr list` truncates at `--limit`,
@@ -177,19 +177,23 @@ def _check_state(entry: dict) -> str:
 
 
 _STATE_RANK = {"success": 0, "pending": 1, "failure": 2}
-_ZERO_TIME = "0001-01-01T00:00:00Z"
+_FIRST_INSTANT = datetime(1, 1, 1, tzinfo=timezone.utc)  # what GitHub emits for an unset time
+_LAST_INSTANT = datetime(9999, 12, 31, 23, 59, 59, 999999, tzinfo=timezone.utc)
 
 
 def _check_time(value):
-    """A usable timezone-aware instant, or None (missing, not text, unparseable, naive, zero time)."""
-    if not isinstance(value, str) or value == _ZERO_TIME:
+    """A usable timezone-aware instant, or None (missing, not text, unparseable, naive, or out of range by value)."""
+    if not isinstance(value, str):
         return None
     text = value[:-1] + "+00:00" if value.endswith("Z") else value
     try:
         moment = datetime.fromisoformat(text)
     except ValueError:
         return None
-    return moment if moment.tzinfo is not None else None
+    if moment.tzinfo is None:
+        return None
+    # compared as aware values, never converted: year 1 with a positive offset overflows in UTC
+    return moment if _FIRST_INSTANT < moment <= _LAST_INSTANT else None
 
 
 def _check_identity(entry: dict) -> tuple:
