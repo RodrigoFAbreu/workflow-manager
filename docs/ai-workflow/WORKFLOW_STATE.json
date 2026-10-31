@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_work_item_id": null,
+  "active_work_item_id": "null-record-wording",
   "work_items": {
     "plan-amendment-mechanism": {
       "work_item_type": "process",
@@ -18948,6 +18948,234 @@
         },
         "evaluated_at": "2026-10-30T14:13:20Z",
         "workflow_release": "2.25.0"
+      }
+    },
+    "null-record-wording": {
+      "work_item_type": "process",
+      "work_item_kind": "process",
+      "work_item_id": "null-record-wording",
+      "parent_work_item_id": null,
+      "plan_path": "docs/ai-workflow/WORKFLOW_MANAGER_NULL_RECORD_WORDING_PLAN.md",
+      "registry_path": "docs/ai-workflow/registry/null-record-wording-registry.json",
+      "mapping_path": "docs/ai-workflow/requirements/null-record-wording-mapping.json",
+      "governing_workflow_version": "2.2",
+      "phase": "IMPLEMENTING",
+      "plan_revision": 3,
+      "implementation_revision": null,
+      "functional_review_round": null,
+      "base_commit": "4cbd16223d253e638cf291fed5fecd96789ae7f8",
+      "reviewed_implementation_head": null,
+      "current_checkpoint_id": null,
+      "last_completed_checkpoint_id": null,
+      "checkpoints": {},
+      "current_bundle_id": "825468be8f231039ab31c59aef4c8f191681ccef9003cd151dcac6a2454db61a",
+      "plan_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "825468be8f231039ab31c59aef4c8f191681ccef9003cd151dcac6a2454db61a",
+        "approved_review_content_id": "214e7f969fd5c90ea6526d61febc12706d4c5899da49274aacbb9ad6a23bfad8",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/WORKFLOW_MANAGER_NULL_RECORD_WORDING_PLAN.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "9e7922f50f29eff1bf039e82eaea7510de712756"
+          },
+          {
+            "path": "docs/ai-workflow/registry/null-record-wording-registry.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "deada9a95e0d6817a0c1066de2a5823971f7e82f"
+          },
+          {
+            "path": "docs/ai-workflow/requirements/null-record-wording-mapping.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "0a685c9a5d3cddf56adb90abb53678dab2328813"
+          }
+        ],
+        "reviewed_content_commit": null,
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-10-31T22:02:18Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "214e7f969fd5c90ea6526d61febc12706d4c5899da49274aacbb9ad6a23bfad8",
+            "ledger": {
+              "local": {
+                "bundle_id": "825468be8f231039ab31c59aef4c8f191681ccef9003cd151dcac6a2454db61a",
+                "verdict": "APPROVE",
+                "round": 3,
+                "verdict_sha256": "1c833fb5fbfb58ff7dd6270e1ec2f6b5030669d50eaa99c76d374663e90fae4d",
+                "ledger_entry_sha256": "cfbfca4335647cafce2ab4f54f12aea38ed944204a5d194667d12658985b1c82",
+                "run_ref": "session:local .ai-review/null-record-wording/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "825468be8f231039ab31c59aef4c8f191681ccef9003cd151dcac6a2454db61a",
+                "verdict": "APPROVE",
+                "round": 3,
+                "verdict_sha256": "4d045b4da51593a3c82d012834c408d950f00ec4cec88debc452d0d01206ecde",
+                "ledger_entry_sha256": "a017e0c7f2aa5bf8f7f65035df28cce6419dad1768aaa7e26250a2db174c2e40",
+                "run_ref": "codex:20261031T220012Z-14ac4239",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-10-31T22:02:18Z",
+          "workflow_release": "2.25.5"
+        }
+      },
+      "technical_approval": null,
+      "technical_review_block_pins": [],
+      "plan_review_stages": {
+        "review_content_id": "214e7f969fd5c90ea6526d61febc12706d4c5899da49274aacbb9ad6a23bfad8",
+        "LOCAL_MODEL_PLAN_REVIEW": {
+          "bundle_id": "825468be8f231039ab31c59aef4c8f191681ccef9003cd151dcac6a2454db61a",
+          "verdict": "APPROVE",
+          "round": 3,
+          "completed_at": "2026-10-31T21:59:52Z",
+          "verdict_sha256": "1c833fb5fbfb58ff7dd6270e1ec2f6b5030669d50eaa99c76d374663e90fae4d",
+          "run_ref": "session:local .ai-review/null-record-wording/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_PLAN_REVIEW": {
+          "bundle_id": "825468be8f231039ab31c59aef4c8f191681ccef9003cd151dcac6a2454db61a",
+          "verdict": "APPROVE",
+          "round": 3,
+          "completed_at": "2026-10-31T22:01:14Z",
+          "verdict_sha256": "4d045b4da51593a3c82d012834c408d950f00ec4cec88debc452d0d01206ecde",
+          "run_ref": "codex:20261031T220012Z-14ac4239",
+          "reviewer_model": "openai/gpt-6.1-sol"
+        }
+      },
+      "functional_acceptance_status": null,
+      "blocking_decisions": [],
+      "review_round_counts": {
+        "plan": {
+          "local": 3,
+          "external": 1
+        },
+        "implementation": {
+          "local": 0,
+          "external": 0
+        }
+      },
+      "state_revision": 12,
+      "last_transition": "2026-10-31T22:02:18Z",
+      "feedback_layout": "scoped",
+      "plan_review_binding": {
+        "status": "BOUND",
+        "at": "2026-10-31T22:08:00Z",
+        "consumed": {
+          "review_content_id": "cafe04a1290eadde4f76a2db210d276239bb5e34e565e52ed2674e9916fdab9a",
+          "plan_revision": 2,
+          "legacy": false
+        },
+        "published": {
+          "review_content_id": "214e7f969fd5c90ea6526d61febc12706d4c5899da49274aacbb9ad6a23bfad8",
+          "plan_revision": 3
+        },
+        "bound": {
+          "review_content_id": "214e7f969fd5c90ea6526d61febc12706d4c5899da49274aacbb9ad6a23bfad8",
+          "bundle_id": "825468be8f231039ab31c59aef4c8f191681ccef9003cd151dcac6a2454db61a",
+          "plan_revision": 3
+        }
+      },
+      "consumed_plan_review_content_ids": [
+        "51a32cbd4215efa583c0bc1aa316f468db58430c1e71f1064e93f12f052436a4",
+        "cafe04a1290eadde4f76a2db210d276239bb5e34e565e52ed2674e9916fdab9a"
+      ],
+      "optional_findings": {
+        "F-bd7815c35f76": {
+          "digest": "bd7815c35f76ab391691b68c9d120fe6309177355231a29b4534b001bf85c2c0",
+          "text": "NRW-PL-R1-O1 -- After the change, `verify`/`status --release-version V` on a null record print `version: the installation record has no workflow_version, release V` followed by `next: a release directory holding None is needed ...`: the same Python `None` the item removes from the problem line remains in the step right below it. Section 5 puts it out of scope on purpose and the boundary is acceptable; record it as a follow-up so the wording class is closed in one later item.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "51a32cbd4215efa583c0bc1aa316f468db58430c1e71f1064e93f12f052436a4",
+              "verdict": "REVISE",
+              "at": "2026-10-31T21:51:02Z"
+            }
+          ]
+        },
+        "F-4896c5e1dfad": {
+          "digest": "4896c5e1dfadfb743be074e26ecab647e2af34e5b0c5d4bee953ed85764f3687",
+          "text": "NRW-PL-R1-O2 -- A record naming `\"\"` still prints `version: installed , release V` (an empty value with no quotes). Not a null record and outside #108; worth the same follow-up as O1.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "51a32cbd4215efa583c0bc1aa316f468db58430c1e71f1064e93f12f052436a4",
+              "verdict": "REVISE",
+              "at": "2026-10-31T21:51:02Z"
+            }
+          ]
+        },
+        "F-f25d8b8ba23c": {
+          "digest": "f25d8b8ba23ca4d2101fd2b0e4c82dfe88ddfc5df956c24c146ee9fa7317068c",
+          "text": "NRW-PL-R2-O1 -- With `--release-dir`, a bare `update` on a null record is accepted while `update --dry-run` with the same options is refused, so the dry run's new ` -- a real update, not a dry run` step is the only way the operator learns a real run would have gone through, and for a null-manifest REL the real run leaves a null record behind with `(no change)`. Outside #108's wording; worth noting in the follow-up issue the plan already plans for NRW-PL-R1-O1/-O2.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "cafe04a1290eadde4f76a2db210d276239bb5e34e565e52ed2674e9916fdab9a",
+              "verdict": "REVISE",
+              "at": "2026-10-31T21:55:27Z"
+            }
+          ]
+        },
+        "F-4907cb6df20b": {
+          "digest": "4907cb6df20b543effa9a624165af6ec7696866cd587c65c33188a52e59ad26b",
+          "text": "NRW-PL-R3-O1 -- Section 7's first risk cites \"the unchanged `unreadable` row of `test_operator_ux_docs.py`\" as covering a record that cannot be read keeping today's step, but that row (`case_unreadable`, a record holding `{`) raises the `is unreadable` error, not `not-a-version`, so it never reaches `_not_a_version` and says nothing about the null branch's `installed_recorded` key. The behaviour is still right (an unreadable record is refused before the null branch could apply); only the citation is loose. Worth correcting in the plan or in `docs/ACTIVE_MILESTONE.md`'s record at implementation, no new test needed.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 3,
+              "review_content_id": "214e7f969fd5c90ea6526d61febc12706d4c5899da49274aacbb9ad6a23bfad8",
+              "verdict": "APPROVE",
+              "at": "2026-10-31T21:59:52Z"
+            }
+          ]
+        }
       }
     }
   }
