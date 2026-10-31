@@ -18959,18 +18959,22 @@
       "registry_path": "docs/ai-workflow/registry/null-record-wording-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/null-record-wording-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "IMPLEMENTING",
+      "phase": "SELF_REVIEWING_IMPLEMENTATION",
       "plan_revision": 3,
       "implementation_revision": null,
       "functional_review_round": null,
       "base_commit": "4cbd16223d253e638cf291fed5fecd96789ae7f8",
       "reviewed_implementation_head": null,
       "current_checkpoint_id": null,
-      "last_completed_checkpoint_id": "CP1",
+      "last_completed_checkpoint_id": "CP2",
       "checkpoints": {
         "CP1": {
           "status": "COMPLETE",
           "start_commit": "cdf85d1ba7aab5efba764a34ff1345b02494b7e2"
+        },
+        "CP2": {
+          "status": "COMPLETE",
+          "start_commit": "03f61175936136178c65642e8a9a0679ba26dc59"
         }
       },
       "current_bundle_id": "825468be8f231039ab31c59aef4c8f191681ccef9003cd151dcac6a2454db61a",
@@ -19099,8 +19103,8 @@
           "external": 0
         }
       },
-      "state_revision": 14,
-      "last_transition": "2026-10-31T22:07:42Z",
+      "state_revision": 16,
+      "last_transition": "2026-10-31T22:17:36Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",

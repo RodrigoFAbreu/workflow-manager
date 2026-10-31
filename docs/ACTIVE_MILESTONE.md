@@ -2,38 +2,37 @@
 
 ## Milestone
 
-`cache-miss-message` -- complete (accepted by policy; `governing_workflow_version: "2.2"`, `process`, plan revision 2, base `e162738`, branch `milestone/cache-miss-message`): roadmap row 21 (#128, items 3 to 5). A `test:` pull request title (releases nothing). Plan: `docs/ai-workflow/WORKFLOW_MANAGER_CACHE_MISS_MESSAGE_PLAN.md`.
+`null-record-wording` -- in progress (`governing_workflow_version: "2.2"`, `process`, plan revision 3, base `4cbd162`, branch `milestone/null-record-wording`): roadmap row 22 (#108). A `fix:` pull request title (Manager 1.14.2). Plan: `docs/ai-workflow/WORKFLOW_MANAGER_NULL_RECORD_WORDING_PLAN.md`.
 
-The cache-miss `LockError` raised in `_lock_conformance` (`tests/support.py`) names one remedy and the exact cause, and the no-write test's snapshot compares contents. Nothing under `src/` changes.
+What the Manager says about an installation record whose `workflow_version` is null, and its next step: `verify` and `status` with an explicit release no longer print `None`; the `update`, `update --dry-run` and `doctor` `next:` line names one step (the explicit update that rewrites the record); under `--dry-run` that step says it is a real update; a `--release-dir` is left out of the step. Messages outside the null record and every exit code are unchanged.
 
-### CP1: the message, the constant and the tests -- complete
+### CP1: the wording, the docs and the tests -- complete
 
-- `NO_SUITE_COUNTS` in `tests/tested_releases.py`; `support` builds the cache-miss message from it ("holds no verified manifest", `--list`, "using the same cache setting") and no longer appends to the original text, so `release_lock.py add` appears only when the manifest is readable.
-- `tree()` in `tests/test_tested_releases.py` maps each path to its SHA-256; new cases for an incomplete entry, a digest mismatch and a snapshot that sees a rewrite.
+- `verify` (`install.py`) says the record has no `workflow_version`; `_not_a_version` (`advice.py`) returns the single step for a read, null record, built without `--release-dir`.
+- `docs/update.md` names the step; new and changed cases in `tests/test_operator_ux.py` and `tests/test_docs.py`.
 
 ### CP2: bookkeeping -- complete
 
-- This record. `docs/ROADMAP.md` row 21 is Current and is Done at acceptance. No version is edited.
+- This record. `docs/ROADMAP.md` row 22 is Current and is Done at acceptance. No version is edited.
 
-### Mutation results (scratch clone of `1900364`, `python3 tests/run_all.py --select test_tested_releases.py`)
+### Mutation results (scratch clone of `03f6117`, `python3 tests/run_all.py --select test_operator_ux.py --select test_docs.py --select test_discovery.py`)
 
-The candidate passes: 12 of 12 units, 53 tests, exit 0. Each mutation exits 1 and fails exactly the cases the plan names:
+The candidate passes: 43 of 43 units, 279 tests, exit 0. Each mutation exits 1 and fails the case the plan names (extra failures listed):
 
 | Mutation | Failed |
 | --- | --- |
-| `support` appends `{exc}` to the original text again | cold import, incomplete entry, digest mismatch |
-| the message loses `using the same cache setting` | cold import, incomplete entry, digest mismatch |
-| the message says `does not hold the verified manifest` | cold import, incomplete entry, digest mismatch |
-| the `if manifest is not None` re-raise is removed | `test_the_hint_is_for_the_unfilled_cache_only` |
-| the cache-miss branch rewrites the lock file (trailing newline) | the three no-write cases |
-| `tree()` returns names only | `test_the_snapshot_sees_a_rewrite` |
+| `verify` prints `installed None` again | the `verify`/`status` case |
+| the null step is the old two-alternative text | the `update`/dry-run/`doctor` case, the null-manifest REL case |
+| the dry-run clause is dropped | the `update`/dry-run/`doctor` case, the release-directory case |
+| the clause is added to a bare update | the `update`/dry-run/`doctor` case, the release-directory case |
+| the null step is applied to a non-null bad record too | the unchanged non-null case, plus two other damaged-record cases |
+| `--release-dir` is carried onto the null step again | the null-manifest REL case |
+| the clause asserts D holds no version | the genuine-directory D case |
+| the `left out` clause is dropped | the release-directory case (REL and D are subtests of it) |
+| an explicit `--release-version V update` is refused on a null record | the extended explicit-update case, the release-directory case, `test_t4_t5_unmanaged_targets_get_the_bootstrap_command` |
 
-The scratch clone is deleted; the repository was never mutated.
-
-## Functional review
-
-Flows F1 to F5 from the checklist passed on the candidate (independent executor, `claude-sonnet-5-5`): F1 the new and changed tests pass, F2 to F4 each mutation fails the cases the plan names, F5 the message reads as the plan says. The milestone was accepted by policy; the five Optional findings are dispositioned in `docs/milestones/completed/cache-miss-message-findings.md` (3 fixed, 2 dropped with reasons).
+The scratch clone is outside the repository, which was never mutated. The full gate (`python3 tests/run_all.py`) runs at self-review.
 
 ## Next action
 
-Roadmap row 21 is Done. The pull request (#133, a `test:` title, nothing released) merges after the acceptance commit. Open follow-up: issue #128 (items 3 to 5 are closed by this milestone). Then `/milestone-plan` when one is chosen.
+Step 2 of `/milestone-implement`: enter `SELF_REVIEWING_IMPLEMENTATION`, run the full gate, then the review bundle.
