@@ -2,7 +2,7 @@
 
 ## Milestone
 
-`retention-view-hardening` -- in progress (`governing_workflow_version: "2.2"`, `process`, plan revision 3, base `e5fa61f`, branch `milestone/retention-view-hardening`): roadmap row 23 (#116, items 1 and 2). A `fix:` pull request title (releases Manager 1.14.3; no version is edited). Plan: `docs/ai-workflow/WORKFLOW_MANAGER_RETENTION_VIEW_HARDENING_PLAN.md`.
+`retention-view-hardening` -- complete, accepted by policy (`governing_workflow_version: "2.2"`, `process`, plan revision 3, base `e5fa61f`, branch `milestone/retention-view-hardening`): roadmap row 23 (#116, items 1 and 2). A `fix:` pull request title (releases Manager 1.14.3; no version is edited). Plan: `docs/ai-workflow/WORKFLOW_MANAGER_RETENTION_VIEW_HARDENING_PLAN.md`.
 
 `status --retention` and `doctor --retention` print nothing from the engine's JSON report until it has passed a stricter validation: no string with a control character (Unicode category Cc, U+2028, U+2029), every integer in 0 to 2**63 - 1, every string within a stated length, and the `kind` and `schema_version` refusals echo a cut, escaped value. Items 3 to 6 of #116 stay open.
 
@@ -95,4 +95,4 @@ Preparer's dry run, at `75fa536`: flows 1 to 8 were run in this exact shape for 
 
 ## Next action
 
-Manual functional review of the checklist above, against the evidence commit (`/prepare-functional-review`'s step 3a). Findings go to `.ai-review/retention-view-hardening/feedback/FUNCTIONAL_REVIEW.md`; `/apply-functional-review` routes them. Once testing is clean, `/accept-milestone` closes the item, after its checkpoints are all `COMPLETE` (CP1 and CP2 are).
+The next incomplete milestone in `docs/ROADMAP.md`, ready for `PLANNING`: `/milestone-plan`.

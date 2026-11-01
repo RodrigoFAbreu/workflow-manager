@@ -1,0 +1,41 @@
+{
+ "schema_version": 1,
+ "work_item_id": "retention-view-hardening",
+ "dispositions": {
+  "F-05348cd5f2d5": {
+   "disposition": "follow-up",
+   "link": "RodrigoFAbreu/workflow-manager#147",
+   "note": "the every-field test cannot tell two fields apart (issue item 1)"
+  },
+  "F-0abb775c639c": {
+   "disposition": "fixed",
+   "note": "answered in the plan or implementation revisions and confirmed by the later local and Codex rounds"
+  },
+  "F-2308cc7f41a8": {
+   "disposition": "fixed",
+   "note": "answered in the plan or implementation revisions and confirmed by the later local and Codex rounds"
+  },
+  "F-5ac92de949be": {
+   "disposition": "fixed",
+   "note": "answered in the plan or implementation revisions and confirmed by the later local and Codex rounds"
+  },
+  "F-9457c2d60247": {
+   "disposition": "fixed",
+   "note": "answered in the plan or implementation revisions and confirmed by the later local and Codex rounds"
+  },
+  "F-a16624c81208": {
+   "disposition": "follow-up",
+   "link": "RodrigoFAbreu/workflow-manager#147",
+   "note": "4096 limit on read_errors path vs PATH_MAX (item 2)"
+  },
+  "F-b0d5be3d79a3": {
+   "disposition": "dropped",
+   "reason": "plan sentence about which fields render; plan text only, archived at acceptance"
+  },
+  "F-f1f5066649f7": {
+   "disposition": "follow-up",
+   "link": "RodrigoFAbreu/workflow-manager#147",
+   "note": "same test gap (item 1)"
+  }
+ }
+}
