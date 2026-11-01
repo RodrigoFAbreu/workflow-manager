@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_work_item_id": null,
+  "active_work_item_id": "retention-view-hardening",
   "work_items": {
     "plan-amendment-mechanism": {
       "work_item_type": "process",
@@ -19568,6 +19568,270 @@
         },
         "evaluated_at": "2026-11-01T00:13:29Z",
         "workflow_release": "2.25.5"
+      }
+    },
+    "retention-view-hardening": {
+      "work_item_type": "process",
+      "work_item_kind": "process",
+      "work_item_id": "retention-view-hardening",
+      "parent_work_item_id": null,
+      "plan_path": "docs/ai-workflow/WORKFLOW_MANAGER_RETENTION_VIEW_HARDENING_PLAN.md",
+      "registry_path": "docs/ai-workflow/registry/retention-view-hardening-registry.json",
+      "mapping_path": "docs/ai-workflow/requirements/retention-view-hardening-mapping.json",
+      "governing_workflow_version": "2.2",
+      "phase": "IMPLEMENTING",
+      "plan_revision": 3,
+      "implementation_revision": null,
+      "functional_review_round": null,
+      "base_commit": "e5fa61f2bb3e75b1321f7cf4c90a73688ef8215d",
+      "reviewed_implementation_head": null,
+      "current_checkpoint_id": null,
+      "last_completed_checkpoint_id": null,
+      "checkpoints": {},
+      "current_bundle_id": "234e5f74aebad4d03f5412ad8a5bf293a365930ce7f7a14ba8c780a76da346a7",
+      "plan_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "234e5f74aebad4d03f5412ad8a5bf293a365930ce7f7a14ba8c780a76da346a7",
+        "approved_review_content_id": "4b7b05d956f2f28b788b811986e06074a5b71931586771944b2ec70fc40e872c",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/WORKFLOW_MANAGER_RETENTION_VIEW_HARDENING_PLAN.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "7995ed4198a8a788b87b21034b09ec5fa911000f"
+          },
+          {
+            "path": "docs/ai-workflow/registry/retention-view-hardening-registry.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "1de125725d053a4f81639b466e60bb88be80979a"
+          },
+          {
+            "path": "docs/ai-workflow/requirements/retention-view-hardening-mapping.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "816fccfaf197117d54a4f01021352ed0dd6214cd"
+          }
+        ],
+        "reviewed_content_commit": null,
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-11-01T01:14:19Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "4b7b05d956f2f28b788b811986e06074a5b71931586771944b2ec70fc40e872c",
+            "ledger": {
+              "local": {
+                "bundle_id": "234e5f74aebad4d03f5412ad8a5bf293a365930ce7f7a14ba8c780a76da346a7",
+                "verdict": "APPROVE",
+                "round": 3,
+                "verdict_sha256": "641f3db62918153b67c4492fbbb68cb88a4686e35b385027c489c2f6f71d4609",
+                "ledger_entry_sha256": "9525d4749fe5b33207b905d85f635fdf18e8fa15676147a3a538456265ee9487",
+                "run_ref": "session:local .ai-review/retention-view-hardening/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "234e5f74aebad4d03f5412ad8a5bf293a365930ce7f7a14ba8c780a76da346a7",
+                "verdict": "APPROVE",
+                "round": 3,
+                "verdict_sha256": "456c8280e2af6804c5028a611a07f4dfee47b00f3e506f8915fd38ce2f6e7905",
+                "ledger_entry_sha256": "275a3bb7561ed4fe8d9da71ed0683e657b1dc9565b382716051b1001f7e5d733",
+                "run_ref": "codex:20261101T011216Z-522ecdd3",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-11-01T01:14:19Z",
+          "workflow_release": "2.25.5"
+        }
+      },
+      "technical_approval": null,
+      "technical_review_block_pins": [],
+      "plan_review_stages": {
+        "review_content_id": "4b7b05d956f2f28b788b811986e06074a5b71931586771944b2ec70fc40e872c",
+        "LOCAL_MODEL_PLAN_REVIEW": {
+          "bundle_id": "234e5f74aebad4d03f5412ad8a5bf293a365930ce7f7a14ba8c780a76da346a7",
+          "verdict": "APPROVE",
+          "round": 3,
+          "completed_at": "2026-11-01T01:11:53Z",
+          "verdict_sha256": "641f3db62918153b67c4492fbbb68cb88a4686e35b385027c489c2f6f71d4609",
+          "run_ref": "session:local .ai-review/retention-view-hardening/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_PLAN_REVIEW": {
+          "bundle_id": "234e5f74aebad4d03f5412ad8a5bf293a365930ce7f7a14ba8c780a76da346a7",
+          "verdict": "APPROVE",
+          "round": 3,
+          "completed_at": "2026-11-01T01:13:26Z",
+          "verdict_sha256": "456c8280e2af6804c5028a611a07f4dfee47b00f3e506f8915fd38ce2f6e7905",
+          "run_ref": "codex:20261101T011216Z-522ecdd3",
+          "reviewer_model": "openai/gpt-6.1-sol"
+        }
+      },
+      "functional_acceptance_status": null,
+      "blocking_decisions": [],
+      "review_round_counts": {
+        "plan": {
+          "local": 3,
+          "external": 2
+        },
+        "implementation": {
+          "local": 0,
+          "external": 0
+        }
+      },
+      "state_revision": 13,
+      "last_transition": "2026-11-01T01:14:19Z",
+      "feedback_layout": "scoped",
+      "plan_review_binding": {
+        "status": "BOUND",
+        "at": "2026-11-01T01:09:34Z",
+        "consumed": {
+          "review_content_id": "66f7b8a136f784d1e6b3fe2e34515cc5bf54f6e62a33c1a50aa6c8608233997c",
+          "plan_revision": 2,
+          "legacy": false
+        },
+        "published": {
+          "review_content_id": "4b7b05d956f2f28b788b811986e06074a5b71931586771944b2ec70fc40e872c",
+          "plan_revision": 3
+        },
+        "bound": {
+          "review_content_id": "4b7b05d956f2f28b788b811986e06074a5b71931586771944b2ec70fc40e872c",
+          "bundle_id": "234e5f74aebad4d03f5412ad8a5bf293a365930ce7f7a14ba8c780a76da346a7",
+          "plan_revision": 3
+        }
+      },
+      "consumed_plan_review_content_ids": [
+        "66f7b8a136f784d1e6b3fe2e34515cc5bf54f6e62a33c1a50aa6c8608233997c",
+        "e5628f8f9c09fe7ba55af723238d13cc39092734e7c6c13a3e406debd3c6a2d5"
+      ],
+      "optional_findings": {
+        "F-0abb775c639c": {
+          "digest": "0abb775c639c124d3b2f62029b057d8cb8d7237f01c919e1fc4e428b7a85d132",
+          "text": "**LPR1-003 -- The plan document embeds raw U+2028/U+2029 characters** (lines 94, 95, 108 and 209: the every-field test list, the \"separate cases\" sentence and functional flow 3 `\"a b\"`). They are invisible in most viewers, and flow 3 can't be copied reliably, which is exactly the hazard the item addresses. Write them as `\n` / `\n`.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "e5628f8f9c09fe7ba55af723238d13cc39092734e7c6c13a3e406debd3c6a2d5",
+              "verdict": "REVISE",
+              "at": "2026-11-01T01:02:15Z"
+            }
+          ]
+        },
+        "F-2308cc7f41a8": {
+          "digest": "2308cc7f41a8ff53b298245be9937a4acf78687bfff150a72a640c93d2f6257c",
+          "text": "**LPR1-004 -- \"checked before the scan so the scan is bounded\" overstates the benefit.** `json.loads` has already decoded the whole output, so the length check bounds only the category scan, not the work done on hostile input. Reword, or drop the clause; it changes nothing in behaviour.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "e5628f8f9c09fe7ba55af723238d13cc39092734e7c6c13a3e406debd3c6a2d5",
+              "verdict": "REVISE",
+              "at": "2026-11-01T01:02:15Z"
+            }
+          ]
+        },
+        "F-9457c2d60247": {
+          "digest": "9457c2d60247c469503bf28528d0f00020f15cb58ed2eee370218ebfe6f0c2f0",
+          "text": "**LPR1-005 -- The field-to-limit mapping is unspecified.** `_need(obj, key, kinds, where)` does not know which limit applies. Saying whether the limit becomes a `_need` parameter or a table keyed by the field name would remove an implementation-time choice that the mutation \"the range applied to `bytes` only\" and the every-field tests depend on.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "e5628f8f9c09fe7ba55af723238d13cc39092734e7c6c13a3e406debd3c6a2d5",
+              "verdict": "REVISE",
+              "at": "2026-11-01T01:02:15Z"
+            }
+          ]
+        },
+        "F-b0d5be3d79a3": {
+          "digest": "b0d5be3d79a31e9b4357d918f6f447e9ba706e43505ed2bfa41738d1e64d468b",
+          "text": "**LPR2-001 -- \"`not_finished` entries are read for their `reason` only\" is not literally true.** `render` (`retention.py`, the `tried = [...]` line) prints the `work_item_id` of every `query_failed:` entry in \"not checked against the forge\". The rule is still right, because only `invalid_id` entries are exempt and a `query_failed:` id is checked, but the sentence in section 2 should say \"the Manager prints a `not_finished` id only for a `query_failed:` entry, never for an `invalid_id` one\" so the justification matches the code it rests on.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "66f7b8a136f784d1e6b3fe2e34515cc5bf54f6e62a33c1a50aa6c8608233997c",
+              "verdict": "APPROVE",
+              "at": "2026-11-01T01:06:29Z"
+            },
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 3,
+              "review_content_id": "4b7b05d956f2f28b788b811986e06074a5b71931586771944b2ec70fc40e872c",
+              "verdict": "APPROVE",
+              "at": "2026-11-01T01:11:53Z"
+            }
+          ]
+        },
+        "F-5ac92de949be": {
+          "digest": "5ac92de949be98b9b9c8801348ea7a15dcbc6b239b079870a0087d6805167bf1",
+          "text": "**EPR-002 — Clarify the integer-boundary test for `totals.finished`.** Section 3 requires `_validate` to accept `2**63 - 1` for every integer field. The existing invariant also requires `totals.finished == len(finished)`, so that value cannot pass with a practical fixture. Test this field’s upper-bound acceptance through `_need`, and retain separate `_validate` tests for matching counts.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "MANUAL_EXTERNAL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "66f7b8a136f784d1e6b3fe2e34515cc5bf54f6e62a33c1a50aa6c8608233997c",
+              "verdict": "REVISE",
+              "at": "2026-11-01T01:08:33Z"
+            }
+          ]
+        },
+        "F-a16624c81208": {
+          "digest": "a16624c812088db2287b61456e58a63f0ed83bd54f611efe577fff4592f45a5a",
+          "text": "**LPR3-001 -- The 4096 limit on `read_errors[].path` is not strictly bounded by `PATH_MAX`.** The engine builds that path as a string (`str(archive_dir / name)` in `_archive_fact`, and `_unreadable(errors, path, exc)`), so an `archive_dir` near 4095 characters plus a 255-character file name gives a string over 4096, which the engine records exactly because the syscall fails with `ENAMETOOLONG`. The result is the safe, named fallback, not a forged line, and the case is contrived; section 7's \"above anything the engine can produce\" could say \"above any path the operating system accepts\" instead, or the limit could be 4096 + 256.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 3,
+              "review_content_id": "4b7b05d956f2f28b788b811986e06074a5b71931586771944b2ec70fc40e872c",
+              "verdict": "APPROVE",
+              "at": "2026-11-01T01:11:53Z"
+            }
+          ]
+        }
       }
     }
   }

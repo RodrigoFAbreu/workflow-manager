@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "work_item_id": "retention-view-hardening",
+  "requirements": {
+    "R1": {
+      "description": "A report string holding a control character (category Cc, U+2028, U+2029) in any printed field is refused with the existing two-line fallback; the value is never printed",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R2": {
+      "description": "Every integer in the report lies in 0 to 2**63-1 and every printed string fits its stated length; otherwise the same fallback",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R3": {
+      "description": "Values echoed in the kind and schema_version refusals are shown by repr, truncated with a visible marker; short values unchanged",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R4": {
+      "description": "Both commands have regression tests and a failure-only mutation per rule; valid reports print byte-identically; fix: title releases Manager 1.14.3; roadmap row 23 Current at planning, Done at acceptance",
+      "checkpoint_ids": [
+        "CP1",
+        "CP2"
+      ]
+    }
+  }
+}
