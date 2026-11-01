@@ -19579,12 +19579,12 @@
       "registry_path": "docs/ai-workflow/registry/retention-view-hardening-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/retention-view-hardening-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "SELF_REVIEWING_IMPLEMENTATION",
+      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
       "plan_revision": 3,
-      "implementation_revision": null,
+      "implementation_revision": 1,
       "functional_review_round": null,
       "base_commit": "e5fa61f2bb3e75b1321f7cf4c90a73688ef8215d",
-      "reviewed_implementation_head": null,
+      "reviewed_implementation_head": "abc4918b8d89d73ce06d7491c6fa3e706d0fdb61",
       "current_checkpoint_id": null,
       "last_completed_checkpoint_id": "CP2",
       "checkpoints": {
@@ -19723,8 +19723,8 @@
           "external": 0
         }
       },
-      "state_revision": 17,
-      "last_transition": "2026-11-01T01:27:57Z",
+      "state_revision": 18,
+      "last_transition": "2026-11-01T01:44:07Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
