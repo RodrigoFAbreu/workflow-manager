@@ -20277,7 +20277,7 @@
       "registry_path": "docs/ai-workflow/registry/retention-view-steps-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/retention-view-steps-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "AWAITING_FUNCTIONAL_REVIEW",
       "plan_revision": 3,
       "implementation_revision": 1,
       "functional_review_round": null,
@@ -20386,7 +20386,102 @@
           "workflow_release": "2.25.5"
         }
       },
-      "technical_approval": null,
+      "technical_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "efacefbb260446fc5df41710b7967060a38ceb8d289dc550f8ebaf3d3c46fab3",
+        "approved_review_content_id": "b979fdd61d856a61534800ab7d629c26159a6634fc37ed2278ab01195da2001c",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/registry/retention-view-steps-artifacts.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "d5ad2761eb6bd674410543b7333663ac57d9d7f9"
+          },
+          {
+            "path": "docs/retention.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "7139106d45179878e0d7077e7abfeac43452142e"
+          },
+          {
+            "path": "src/workflow_manager/retention.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "e24ebc1d75c42ddc183a576b2f61a325839736f2"
+          },
+          {
+            "path": "tests/test_retention_status.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "1b2eb0b480b6a0c93d751faa5a71d16a8b73ec32"
+          }
+        ],
+        "reviewed_content_commit": "328c050b15a0be5b8a45763e07941e445c46a42a",
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-11-01T04:23:03Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "b979fdd61d856a61534800ab7d629c26159a6634fc37ed2278ab01195da2001c",
+            "ledger": {
+              "local": {
+                "bundle_id": "efacefbb260446fc5df41710b7967060a38ceb8d289dc550f8ebaf3d3c46fab3",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "679620fe6966330acc5f6977a314470736b022e8cda347e0685dc795c698b993",
+                "ledger_entry_sha256": "2d25c36f0065f9a6923ed59c26b43c6613ce6420415656d95bd1f4d6f33be31c",
+                "run_ref": "session:local .ai-review/retention-view-steps/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "efacefbb260446fc5df41710b7967060a38ceb8d289dc550f8ebaf3d3c46fab3",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "850464d174518cf4753255ad65c6fd067ad02b5e6149470415a7fc3867f2efe7",
+                "ledger_entry_sha256": "74a3981f3d245a987f70ce612198449c1fd18169261627ae243071c167a95880",
+                "run_ref": "codex:20261101T042023Z-b5bfb532",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-11-01T04:23:03Z",
+          "workflow_release": "2.25.5"
+        }
+      },
       "technical_review_block_pins": [],
       "plan_review_stages": {
         "review_content_id": "e1028aadca194f70b8d958f48cdb65660bf756ccb407ca2082c323dd03fb14c3",
@@ -20417,12 +20512,12 @@
           "external": 1
         },
         "implementation": {
-          "local": 0,
-          "external": 0
+          "local": 1,
+          "external": 1
         }
       },
-      "state_revision": 17,
-      "last_transition": "2026-11-01T04:13:47Z",
+      "state_revision": 20,
+      "last_transition": "2026-11-01T04:23:03Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -20516,6 +20611,97 @@
               "at": "2026-11-01T03:29:13Z"
             }
           ]
+        },
+        "F-e8705a07e0a8": {
+          "digest": "e8705a07e0a86ab28bc98731fb5130f846faa23a4b768fe591c81b1a975c351b",
+          "text": "LIR1-001: `TEST_RESULTS.md` and `docs/ACTIVE_MILESTONE.md` (line 32) attribute the mutation \"the zero header chosen before the INCOMPLETE header\" to `test_the_header_for_zero_finished_items` (the incomplete subtests). That test has no incomplete subtests. Rerun in a scratch clone of `080a6ce`, the mutation fails `test_an_incomplete_report_keeps_its_header_whatever_the_count` (`complete false` and `query_failed`). The mutation is caught, but the record names the wrong test. Correct the row at acceptance.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "b979fdd61d856a61534800ab7d629c26159a6634fc37ed2278ab01195da2001c",
+              "verdict": "APPROVE",
+              "at": "2026-11-01T04:19:35Z"
+            }
+          ]
+        },
+        "F-3d2b4ddd899e": {
+          "digest": "3d2b4ddd899e78483a006dc8dc420b9519d05374947f7a72857766ff66d3496f",
+          "text": "LIR1-002: `docs/retention.md`'s new zero-header sentence (\"With no finished work item, the first line reads ...\") does not say that an incomplete report keeps the INCOMPLETE header whatever the count. The code (`elif` after the INCOMPLETE branch) and the tests do. Add a clause such as \"in a complete report\".",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "b979fdd61d856a61534800ab7d629c26159a6634fc37ed2278ab01195da2001c",
+              "verdict": "APPROVE",
+              "at": "2026-11-01T04:19:35Z"
+            }
+          ]
+        },
+        "F-f5b898452458": {
+          "digest": "f5b8984524582fecadd95402a45fbcdce2b29fb292b800126b6070c16c47153f",
+          "text": "LIR1-003: plan section 4 says the incomplete-report zero-finished cases check that \"neither new text appears\". `test_an_incomplete_report_keeps_its_header_whatever_the_count` checks only that line 0 equals the INCOMPLETE header. The header is only ever line 0, so this is equivalent today. An `assertNotIn(\"found no finished work item\", ...)` over all lines would match the plan's wording exactly.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "b979fdd61d856a61534800ab7d629c26159a6634fc37ed2278ab01195da2001c",
+              "verdict": "APPROVE",
+              "at": "2026-11-01T04:19:35Z"
+            }
+          ]
+        },
+        "F-784d15745472": {
+          "digest": "784d1574547238bce1f37e06ba05149c6af79311ba5dc91f5b8f0be9bd07524d",
+          "text": "`TEST_RESULTS.md:29` and `docs/ACTIVE_MILESTONE.md:32` attribute the INCOMPLETE-precedence mutation to the wrong test. An independent in-memory mutation confirms that `test_an_incomplete_report_keeps_its_header_whatever_the_count` catches it; `test_the_header_for_zero_finished_items` passes. Correct the recorded test name.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "b979fdd61d856a61534800ab7d629c26159a6634fc37ed2278ab01195da2001c",
+              "verdict": "APPROVE",
+              "at": "2026-11-01T04:22:33Z"
+            }
+          ]
+        },
+        "F-48a3043e9e79": {
+          "digest": "48a3043e9e797abb1a89155afaafa654732b8167423b272a13c8f2bae7cb0f00",
+          "text": "`docs/retention.md:46`: qualify the zero-header description with “in a complete report,” since incomplete reports retain the INCOMPLETE header.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "b979fdd61d856a61534800ab7d629c26159a6634fc37ed2278ab01195da2001c",
+              "verdict": "APPROVE",
+              "at": "2026-11-01T04:22:33Z"
+            }
+          ]
+        }
+      },
+      "implementation_review_stages": {
+        "review_content_id": "b979fdd61d856a61534800ab7d629c26159a6634fc37ed2278ab01195da2001c",
+        "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "efacefbb260446fc5df41710b7967060a38ceb8d289dc550f8ebaf3d3c46fab3",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-11-01T04:19:35Z",
+          "verdict_sha256": "679620fe6966330acc5f6977a314470736b022e8cda347e0685dc795c698b993",
+          "run_ref": "session:local .ai-review/retention-view-steps/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "efacefbb260446fc5df41710b7967060a38ceb8d289dc550f8ebaf3d3c46fab3",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-11-01T04:22:33Z",
+          "verdict_sha256": "850464d174518cf4753255ad65c6fd067ad02b5e6149470415a7fc3867f2efe7",
+          "run_ref": "codex:20261101T042023Z-b5bfb532",
+          "reviewer_model": "openai/gpt-6.1-sol"
         }
       }
     }
