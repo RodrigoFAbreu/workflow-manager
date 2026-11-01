@@ -236,7 +236,7 @@ class TestRendering(Scratch):
         self.assertLess(header, len(lines) - 1)
         text = "\n".join(lines[header:])
         self.assertIn("finished work items: 2 (review folders 4.0 KiB), kept as the most recent: 3", text)
-        self.assertIn("with an archive: 1 of 2; archive store: 1 archives, 0 prunable "
+        self.assertIn("with an archive: 1 of 2; archive store: 1 archive, 0 prunable "
                       "(older than 30 days)", text)
         self.assertIn("interrupted removals: none", text)
         self.assertEqual(sum(1 for l in lines if l.startswith("next: ")), 1)
@@ -318,7 +318,7 @@ class TestArchiveCoverage(Scratch):
         rep["totals"]["archives"] = 1
         for command in ("status", "doctor"):
             out = self.section(command, rep).stdout
-            self.assertIn("with an archive: 0 of 0; archive store: 1 archives", out)
+            self.assertIn("with an archive: 0 of 0; archive store: 1 archive", out)
             self.assertNotIn("1 of 0", out)
 
     def test_coverage_comes_from_finished_only(self):
@@ -337,11 +337,11 @@ class TestArchiveCoverage(Scratch):
         stores["totals"]["prunable"] = 4
         out = self.section("status", stores).stdout
         self.assertIn("with an archive: 1 of 2; archive store: 9 archives, 4 prunable", out)
-        self.assertIn("with an archive: 1 of 2; archive store: 1 archives, 0 prunable", text)
+        self.assertIn("with an archive: 1 of 2; archive store: 1 archive, 0 prunable", text)
         flipped = copy.deepcopy(base)
         flipped["finished"][1]["archive"].update(present=True)
         out = self.section("status", flipped).stdout
-        self.assertIn("with an archive: 2 of 2; archive store: 1 archives, 0 prunable", out)
+        self.assertIn("with an archive: 2 of 2; archive store: 1 archive, 0 prunable", out)
 
     def test_the_real_script_counts_an_unrelated_archive_in_the_store_only(self):
         if not recipe.available():
@@ -354,7 +354,7 @@ class TestArchiveCoverage(Scratch):
         self.assertEqual(rep["totals"]["archives"], 1)
         self.assertEqual(sum(1 for e in rep["finished"] if e["archive"]["present"]), 0)
         lines = retention.render(rep, "2.22.0", Path("/x"))
-        self.assertTrue(any("with an archive: 0 of 1" in l and "archive store: 1 archives" in l
+        self.assertTrue(any("with an archive: 0 of 1" in l and "archive store: 1 archive" in l
                             for l in lines), lines)
 
 
@@ -379,16 +379,19 @@ class TestNextStep(unittest.TestCase):
         self.assertEqual(self.step(report()), "nothing to archive")
 
     def test_items_the_script_would_refuse_get_no_command(self):
+        one = ("nothing to archive: 1 finished work item has tracked review files; the script "
+               "archives and removes only untracked folders")
         cases = {
-            "folder absent": [finished("a", folder=False)],
-            "tracked files, unarchived": [finished("a", tracked=2)],
-            "unreadable archive": [finished("a", readable=False)],
-            "archived with tracked files": [finished("a", archive=True, tracked=1)],
-            "archived with unreadable archive": [finished("a", archive=True, readable=False)],
+            "folder absent": ([finished("a", folder=False)], "nothing to archive"),
+            "tracked files, unarchived": ([finished("a", tracked=2)], one),
+            "unreadable archive": ([finished("a", readable=False)], "nothing to archive"),
+            "archived with tracked files": ([finished("a", archive=True, tracked=1)], one),
+            "archived with unreadable archive": (
+                [finished("a", archive=True, readable=False)], "nothing to archive"),
         }
-        for name, entries in cases.items():
+        for name, (entries, expected) in cases.items():
             with self.subTest(name=name):
-                self.assertEqual(self.step(report(*entries)), "nothing to archive")
+                self.assertEqual(self.step(report(*entries)), expected)
         rep = report(finished("a", archive=True))
         rep["removing"] = ["a"]
         self.assertEqual(self.step(rep), "nothing to archive")      # a leftover and its folder is back
@@ -922,6 +925,110 @@ class TestNoWrites(Scratch):
         self.assertEqual(tree_hash(self.repo), before)
 
 
+class TestOperatorWording(Scratch):
+    """Roadmap row 24: the step by cause, the linked directory, the list limit,
+    the zero header, the reason and the store noun."""
+
+    def setUp(self):
+        super().setUp()
+        self.install_stub()
+
+    def failed(self, *codes):
+        rep = report()
+        rep["kept_recent"] = []
+        rep["not_finished"] = [{"work_item_id": f"w{n}", "phase": "MILESTONE_COMPLETE",
+                                "reason": f"query_failed:{code}"} for n, code in enumerate(codes)]
+        return rep
+
+    def test_the_forge_step_literals_are_pinned(self):
+        self.assertEqual(retention.STEP_FORGE, "install gh and run `gh auth login`, then run the command again")
+        self.assertEqual(retention.STEP_RATE_LIMITED,
+                         "wait for the forge's rate limit to reset, then run the command again")
+
+    def test_the_step_follows_the_failure_code(self):
+        cases = (
+            (("rate_limited",), "rate_limited, 1 items", retention.STEP_RATE_LIMITED),
+            (("rate_limited",) * 3, "rate_limited, 3 items", retention.STEP_RATE_LIMITED),
+            (("gh_missing",), "gh_missing, 1 items", retention.STEP_FORGE),
+            (("forge_unavailable",), "forge_unavailable, 1 items", retention.STEP_FORGE),
+            (("rate_limited", "gh_missing"), "rate_limited, 2 items", retention.STEP_FORGE),
+        )
+        for codes, cause, step in cases:
+            for command in ("status", "doctor"):
+                with self.subTest(codes=codes, command=command):
+                    got = self.section(command, self.failed(*codes))
+                    self.assertEqual(self.one_note(got, f"the forge could not be queried ({cause})"), step)
+
+    def test_a_linked_scripts_directory_is_a_missing_script(self):
+        real = self.outside / "real-scripts"
+        real.mkdir()
+        (real / "workflow_retention.py").write_text(STUB)
+        __import__("shutil").rmtree(self.repo / "scripts")
+        (self.repo / "scripts").symlink_to(real)
+        before = tree_hash(self.repo)
+        path = self.put_report(report())
+        for command in ("status", "doctor"):
+            with self.subTest(command=command):
+                got = self.both(command, STUB_REPORT=str(path))[1]
+                step = self.one_note(got, "the repository has no scripts/workflow_retention.py")
+                self.assertTrue(step.startswith("workflow-manager update "), step)
+        self.assertFalse(self.marker.exists())
+        self.assertEqual(tree_hash(self.repo), before)
+
+    def test_interrupted_removals_are_limited_to_five(self):
+        expected = {0: "none", 1: "a1", 5: "a1, a2, a3, a4, a5", 6: "a1, a2, a3, a4, a5 and 1 more",
+                    7: "a1, a2, a3, a4, a5 and 2 more"}
+        for count, text in expected.items():
+            with self.subTest(count=count):
+                rep = report(finished("a"))
+                rep["removing"] = [f"a{n}" for n in range(1, count + 1)]
+                lines = retention.render(rep, "2.22.0", Path("/t"))
+                self.assertIn(f"  interrupted removals: {text}", lines)
+
+    def test_the_header_for_zero_finished_items(self):
+        base = "retention (read-only; the Workflow script found no finished work item"
+        for kept, tail in ((0, "):"), (1, " beyond the 1 most recent):"), (3, " beyond the 3 most recent):")):
+            with self.subTest(kept=kept):
+                rep = report()
+                rep["kept_recent"] = fixture()["kept_recent"][:1] * kept
+                self.assertEqual(retention.render(rep, "2.22.0", Path("/t"))[0], base + tail)
+        one = retention.render(report(finished("a")), "2.22.0", Path("/t"))[0]
+        self.assertEqual(one, "retention (read-only; the Workflow script made one forge query "
+                              "per finished item):")
+
+    def test_an_incomplete_report_keeps_its_header_whatever_the_count(self):
+        rep = report()
+        rep["complete"] = False
+        failing = report()
+        failing["not_finished"] = [{"work_item_id": "q", "phase": "MILESTONE_COMPLETE",
+                                    "reason": "query_failed:gh_missing"}]
+        for name, bad in (("complete false", rep), ("query_failed", failing)):
+            with self.subTest(name=name):
+                first = retention.render(bad, "2.22.0", Path("/t"))[0]
+                self.assertEqual(first, "retention: INCOMPLETE (read-only); the numbers below "
+                                        "are lower bounds")
+
+    def test_the_reason_for_nothing_to_archive(self):
+        tail = " tracked review files; the script archives and removes only untracked folders"
+        target = Path("/t")
+        two = retention.next_step(report(finished("a", tracked=1), finished("b", tracked=3)), "2.22.0", target)
+        self.assertEqual(two, "nothing to archive: 2 finished work items have" + tail)
+        one = retention.next_step(report(finished("a", tracked=1), finished("b", folder=False)),
+                                  "2.22.0", target)
+        self.assertEqual(one, "nothing to archive: 1 finished work item has" + tail)
+        archivable = retention.next_step(report(finished("a", tracked=1), finished("b")), "2.22.0", target)
+        self.assertIn("archive b --apply", archivable)
+        self.assertNotIn("tracked review files", archivable)
+
+    def test_the_store_line_counts_the_noun(self):
+        for count, text in ((0, "0 archives"), (1, "1 archive"), (2, "2 archives")):
+            with self.subTest(count=count):
+                rep = report(finished("a"))
+                rep["totals"]["archives"] = count
+                line = next(l for l in retention.render(rep, "2.22.0", Path("/t")) if "archive store" in l)
+                self.assertIn(f"archive store: {text}, 0 prunable", line)
+
+
 class TestRealScript(Scratch):
     def setUp(self):
         super().setUp()
@@ -1003,7 +1110,7 @@ class TestDocs(unittest.TestCase):
             with self.subTest(cause=cause):
                 self.assertIn(cause, text)
         for step in (retention.STEP_REINSTALL, retention.STEP_RUN_DIRECTLY,
-                     retention.STEP_UPDATE_MANAGER, retention.STEP_FORGE):
+                     retention.STEP_UPDATE_MANAGER, retention.STEP_FORGE, retention.STEP_RATE_LIMITED):
             with self.subTest(step=step):
                 self.assertIn(step, text)
 
@@ -1011,6 +1118,7 @@ class TestDocs(unittest.TestCase):
         text = " ".join(self.PAGE.read_text().split())
         self.assertIn("counts finished work items only", text)
         self.assertIn("separate count of every archive", text)
+        self.assertIn("tracked review files; the script archives and removes only untracked folders", text)
 
 
 if __name__ == "__main__":
