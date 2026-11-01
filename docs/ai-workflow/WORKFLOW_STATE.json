@@ -19579,7 +19579,7 @@
       "registry_path": "docs/ai-workflow/registry/retention-view-hardening-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/retention-view-hardening-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "AWAITING_FUNCTIONAL_REVIEW",
       "plan_revision": 3,
       "implementation_revision": 1,
       "functional_review_round": null,
@@ -19688,7 +19688,96 @@
           "workflow_release": "2.25.5"
         }
       },
-      "technical_approval": null,
+      "technical_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "bda25e6be2aab88a8a384208963e30665f271b694d8300a8cdef31fef8958486",
+        "approved_review_content_id": "c492c4fa1a1dcc6ff672d77f0167c522a2f9f9acdc2b1d159e8fec25f198b88c",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/registry/retention-view-hardening-artifacts.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "43540fe6983e9f2ab6210c5669586c286aaaa8de"
+          },
+          {
+            "path": "src/workflow_manager/retention.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "66da4caaf2839e2698bca078a49930c0bfe63dce"
+          },
+          {
+            "path": "tests/test_retention_status.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "fc1fff653c1d23a1a8cf216659e9615231c0dfe9"
+          }
+        ],
+        "reviewed_content_commit": "abc4918b8d89d73ce06d7491c6fa3e706d0fdb61",
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-11-01T01:53:14Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "c492c4fa1a1dcc6ff672d77f0167c522a2f9f9acdc2b1d159e8fec25f198b88c",
+            "ledger": {
+              "local": {
+                "bundle_id": "bda25e6be2aab88a8a384208963e30665f271b694d8300a8cdef31fef8958486",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "a7cb3c556439d6e11193a20f667f51fcf105a9839ad340ed5defd84e0929c9cf",
+                "ledger_entry_sha256": "2757eb44ba9f22b13c8ac22609029dc0a0fdac134fe4b61f8544790ac3b95425",
+                "run_ref": "session:local .ai-review/retention-view-hardening/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "bda25e6be2aab88a8a384208963e30665f271b694d8300a8cdef31fef8958486",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "8cfd83dfbcf7b97ea439b2e68b00f0f8dff2d8061e62f832b49658c3453ae885",
+                "ledger_entry_sha256": "104cf56f06db778e36ce914d5d37319730a87e8d31147f671459d8f5a815f419",
+                "run_ref": "codex:20261101T014957Z-7efaa488",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-11-01T01:53:14Z",
+          "workflow_release": "2.25.5"
+        }
+      },
       "technical_review_block_pins": [],
       "plan_review_stages": {
         "review_content_id": "4b7b05d956f2f28b788b811986e06074a5b71931586771944b2ec70fc40e872c",
@@ -19719,12 +19808,12 @@
           "external": 2
         },
         "implementation": {
-          "local": 0,
-          "external": 0
+          "local": 1,
+          "external": 1
         }
       },
-      "state_revision": 18,
-      "last_transition": "2026-11-01T01:44:07Z",
+      "state_revision": 21,
+      "last_transition": "2026-11-01T01:53:14Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -19840,6 +19929,55 @@
               "at": "2026-11-01T01:11:53Z"
             }
           ]
+        },
+        "F-f1f5066649f7": {
+          "digest": "f1f5066649f713f78d838999eb2913df6e48865d6e106f94d6b9f2d48698dad9",
+          "text": "**LIR1-001 -- The every-field control-character case still cannot tell `finished[].work_item_id` from `not_finished[].work_item_id`.** `test_a_control_character_in_any_string_is_refused_naming_the_field` (`tests/test_retention_status.py`) checks `assertIn(name, got)`, and `finished[].work_item_id` is a substring of `not_finished[].work_item_id`. So the `finished` subcase would also pass on a refusal naming the `not_finished` id. The self-review fix (`abc4918`) aimed to remove this kind of ambiguity, and it does so for `kept_recent`. Asserting `got.startswith(name + \" \")`, or comparing the whole refusal text, would close the gap for every field. No mutation in the plan's table depends on it, and the code names the field correctly, so this changes no behaviour.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "c492c4fa1a1dcc6ff672d77f0167c522a2f9f9acdc2b1d159e8fec25f198b88c",
+              "verdict": "APPROVE",
+              "at": "2026-11-01T01:49:36Z"
+            }
+          ]
+        },
+        "F-05348cd5f2d5": {
+          "digest": "05348cd5f2d517d8dac69596b35a0b4d312e827b491b469a2d8dc35857d35e98",
+          "text": "`tests/test_retention_status.py:771`: `assertIn(name, got)` still allows `finished[].work_item_id` to match a refusal naming `not_finished[].work_item_id`. Compare the complete refusal or assert `got.startswith(name + \" \")` to distinguish the fields. The implementation names them correctly.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "c492c4fa1a1dcc6ff672d77f0167c522a2f9f9acdc2b1d159e8fec25f198b88c",
+              "verdict": "APPROVE",
+              "at": "2026-11-01T01:52:36Z"
+            }
+          ]
+        }
+      },
+      "implementation_review_stages": {
+        "review_content_id": "c492c4fa1a1dcc6ff672d77f0167c522a2f9f9acdc2b1d159e8fec25f198b88c",
+        "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "bda25e6be2aab88a8a384208963e30665f271b694d8300a8cdef31fef8958486",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-11-01T01:49:36Z",
+          "verdict_sha256": "a7cb3c556439d6e11193a20f667f51fcf105a9839ad340ed5defd84e0929c9cf",
+          "run_ref": "session:local .ai-review/retention-view-hardening/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "bda25e6be2aab88a8a384208963e30665f271b694d8300a8cdef31fef8958486",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-11-01T01:52:36Z",
+          "verdict_sha256": "8cfd83dfbcf7b97ea439b2e68b00f0f8dff2d8061e62f832b49658c3453ae885",
+          "run_ref": "codex:20261101T014957Z-7efaa488",
+          "reviewer_model": "openai/gpt-6.1-sol"
         }
       }
     }
