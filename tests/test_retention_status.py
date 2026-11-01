@@ -768,7 +768,7 @@ class TestHardenedValidation(Scratch):
                     put(rep, "a" + char + "b")
                     got = _invalid(rep)
                     self.assertIsNotNone(got)
-                    self.assertIn(name.split("[]")[-1] or name, got)
+                    self.assertIn(name, got)
                     self.assertIn("contains a control character", got)
                     self.assertNotIn(char, got)
 
