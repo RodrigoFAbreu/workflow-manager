@@ -47,6 +47,7 @@ STEP_RUN_DIRECTLY = "run `python3 -I scripts/workflow_retention.py report` in th
 STEP_UPDATE_MANAGER = "update workflow-manager to the newest release"
 STEP_REINSTALL = "reinstall workflow-manager (`pipx reinstall workflow-manager`)"
 STEP_FORGE = "install gh and run `gh auth login`, then run the command again"
+STEP_RATE_LIMITED = "wait for the forge's rate limit to reset, then run the command again"
 STEP_INCOMPLETE = "fix what is named, then run the command again"
 
 
@@ -89,7 +90,7 @@ def _release_key(version) -> tuple[int, int, int] | None:
 
 def _script_is_regular(script: Path) -> bool:
     try:
-        return script.is_file() and not script.is_symlink()
+        return script.is_file() and not script.is_symlink() and not script.parent.is_symlink()
     except OSError:
         return False
 
@@ -278,9 +279,10 @@ def _query_failed_note(report: dict) -> NotAvailable | None:
                 if e["reason"] == "no_pull_request" or e["reason"].startswith("pr_not_merged:")]
     if not failed or answered or report["finished"] or report["kept_recent"]:
         return None
-    code = failed[0]["reason"].split(":", 1)[1]
-    return NotAvailable(f"the forge could not be queried ({code}, {len(failed)} items)",
-                        STEP_FORGE)
+    codes = [e["reason"].split(":", 1)[1] for e in failed]
+    step = STEP_RATE_LIMITED if all(c == "rate_limited" for c in codes) else STEP_FORGE
+    return NotAvailable(f"the forge could not be queried ({codes[0]}, {len(failed)} items)",
+                        step)
 
 
 def fetch(target: Path) -> Outcome:
@@ -348,6 +350,10 @@ def _size(count: int) -> str:
         return f"{count >> 30} GiB"
 
 
+def _count(number: int, noun: str) -> str:
+    return f"{number} {noun}" if number == 1 else f"{number} {noun}s"
+
+
 def _listed(items: list[str], limit: int = 5) -> str:
     shown = ", ".join(items[:limit])
     return shown + (f" and {len(items) - limit} more" if len(items) > limit else "")
@@ -386,7 +392,13 @@ def next_step(report: dict, version, target: Path) -> str:
                 kind, item = "remove", entry["work_item_id"]
                 break
     if kind is None:
-        return "nothing to archive"
+        tracked = sum(1 for e in finished
+                      if e["review_folder"]["present"] and e["review_folder"]["tracked_files"] > 0)
+        if not tracked:
+            return "nothing to archive"
+        who = "1 finished work item has" if tracked == 1 else f"{tracked} finished work items have"
+        return (f"nothing to archive: {who} tracked review files; the script archives and "
+                "removes only untracked folders")
     needed = ARCHIVE_FROM if kind == "archive" else REMOVE_FROM
     key = _release_key(version)
     if key is None or key < needed:
@@ -419,6 +431,11 @@ def render(report: dict, version, target: Path) -> list[str]:
         if failed:
             tried = [f"{e['work_item_id']} ({e['reason'].split(':', 1)[1]})" for e in failed]
             lines.append(f"  not checked against the forge: {_listed(tried)}")
+    elif totals["finished"] == 0:
+        recent = len(report["kept_recent"])
+        beyond = f" beyond the {recent} most recent" if recent else ""
+        lines.append(f"retention (read-only; the Workflow script found no finished work "
+                     f"item{beyond}):")
     else:
         lines.append("retention (read-only; the Workflow script made one forge query per "
                      "finished item):")
@@ -429,14 +446,14 @@ def render(report: dict, version, target: Path) -> list[str]:
                  f"{_size(totals['finished_folder_bytes'])}), kept as the most recent: "
                  f"{len(report['kept_recent'])}")
     lines.append(f"  with an archive: {len(archived)} of {totals['finished']}{unknown_text}; "
-                 f"archive store: {totals['archives']} archives, {totals['prunable']} "
+                 f"archive store: {_count(totals['archives'], 'archive')}, {totals['prunable']} "
                  f"prunable (older than {report['ttl_days']} days)")
     if totals["prunable"]:
         lines.append("  prunable archives get no command yet: the Workflow has none for them")
     if removing is None:
         lines.append("  interrupted removals: not reported by this Workflow release")
     else:
-        lines.append(f"  interrupted removals: {', '.join(removing) if removing else 'none'}")
+        lines.append(f"  interrupted removals: {_listed(removing) if removing else 'none'}")
     step = STEP_INCOMPLETE if incomplete else next_step(report, version, target)
     lines.append(f"  next: {step}")
     return lines

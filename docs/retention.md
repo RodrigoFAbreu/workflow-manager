@@ -40,8 +40,10 @@ retention (read-only; the Workflow script made one forge query per finished item
 - **finished work items** are the work items the script counts as finished and no longer among the most recent ones it keeps. Their review folders are the untracked `.ai-review/<id>/` folders.
 - **with an archive** counts finished work items only. A finished work item whose archive could not be read is shown as `(N unknown)`, never as archived and never as not archived.
 - **archive store** is a separate count of every archive in the archive directory, including archives of work items that are not finished or no longer exist. It is never a share of the finished work items. Prunable archives are older than the time to live; the Workflow has no command to prune them yet, so none is printed.
-- **interrupted removals** lists work items whose removal was started and not finished. A Workflow release before 2.22.0 does not report them, and the line says so.
-- **next** is one command for you to run in the repository, the first that applies: `archive`, then `remove`, then resuming an interrupted `remove`. The Manager never runs them. A command the repository's Workflow release does not have is replaced by `workflow-manager update`. With nothing to do, the step reads `nothing to archive`.
+- **interrupted removals** lists work items whose removal was started and not finished: five ids, then a count (`a1, a2, a3, a4, a5 and 2 more`). A Workflow release before 2.22.0 does not report them, and the line says so.
+- **next** is one command for you to run in the repository, the first that applies: `archive`, then `remove`, then resuming an interrupted `remove`. The Manager never runs them. A command the repository's Workflow release does not have is replaced by `workflow-manager update`. With nothing to do, the step reads `nothing to archive`; when finished work items have tracked review files it adds why: `nothing to archive: 2 finished work items have tracked review files; the script archives and removes only untracked folders`.
+
+With no finished work item, the first line reads `retention (read-only; the Workflow script found no finished work item):`, with `beyond the N most recent` added when the script keeps N recent ones.
 
 The Manager does not pass `--archive-root` or `--ttl-days`: the Workflow's defaults apply, and the section prints the archive directory and the time to live it used.
 
@@ -67,7 +69,8 @@ retention: not available: CAUSE
 | the script refused (its own `error:` code and message, for example no GitHub `origin` remote or no state file) | the script's own `next step` |
 | the script's report is malformed, or the script exited with a status other than 0 or 2 (or with 2 but without its own `error:` and `next step:` lines) | run `python3 -I scripts/workflow_retention.py report` in the repository |
 | the script's report has kind or schema_version this Manager does not read | update workflow-manager to the newest release |
-| the forge could not be queried (CODE, N items) | install gh and run `gh auth login`, then run the command again |
+| the forge could not be queried (CODE, N items), every CODE `rate_limited` | wait for the forge's rate limit to reset, then run the command again |
+| the forge could not be queried (CODE, N items), any other code | install gh and run `gh auth login`, then run the command again |
 
 ## Exit status
 

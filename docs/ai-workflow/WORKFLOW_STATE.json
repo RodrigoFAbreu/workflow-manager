@@ -20267,6 +20267,730 @@
         "evaluated_at": "2026-11-01T02:26:20Z",
         "workflow_release": "2.25.5"
       }
+    },
+    "retention-view-steps": {
+      "work_item_type": "process",
+      "work_item_kind": "process",
+      "work_item_id": "retention-view-steps",
+      "parent_work_item_id": null,
+      "plan_path": "docs/ai-workflow/WORKFLOW_MANAGER_RETENTION_VIEW_STEPS_PLAN.md",
+      "registry_path": "docs/ai-workflow/registry/retention-view-steps-registry.json",
+      "mapping_path": "docs/ai-workflow/requirements/retention-view-steps-mapping.json",
+      "governing_workflow_version": "2.2",
+      "phase": "MILESTONE_COMPLETE",
+      "plan_revision": 3,
+      "implementation_revision": 1,
+      "functional_review_round": null,
+      "base_commit": "e20cfd3353bc3f09b088cf985db66fceaa4617e0",
+      "reviewed_implementation_head": "328c050b15a0be5b8a45763e07941e445c46a42a",
+      "current_checkpoint_id": null,
+      "last_completed_checkpoint_id": "CP2",
+      "checkpoints": {
+        "CP1": {
+          "status": "COMPLETE",
+          "start_commit": "68bba9c7399a0c9a73b33f3808ba8b5551893242"
+        },
+        "CP2": {
+          "status": "COMPLETE",
+          "start_commit": "080a6cedad2e98fe7d3ef282b9ca86d0396d596f"
+        }
+      },
+      "current_bundle_id": "941351e0fc0ba1c27bc02745eae3dce028bf81642d7439965cf07682789bca6f",
+      "plan_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "941351e0fc0ba1c27bc02745eae3dce028bf81642d7439965cf07682789bca6f",
+        "approved_review_content_id": "e1028aadca194f70b8d958f48cdb65660bf756ccb407ca2082c323dd03fb14c3",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/WORKFLOW_MANAGER_RETENTION_VIEW_STEPS_PLAN.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "1eadfe65aeb5e99c6dcb148e70a5c8a26e3abd35"
+          },
+          {
+            "path": "docs/ai-workflow/registry/retention-view-steps-registry.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "a97fe214444f0aaf1669789acfa9a046e42db150"
+          },
+          {
+            "path": "docs/ai-workflow/requirements/retention-view-steps-mapping.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "7489fdd306623409ba0abebe13eb6604b6d98871"
+          }
+        ],
+        "reviewed_content_commit": null,
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-11-01T03:29:49Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "e1028aadca194f70b8d958f48cdb65660bf756ccb407ca2082c323dd03fb14c3",
+            "ledger": {
+              "local": {
+                "bundle_id": "941351e0fc0ba1c27bc02745eae3dce028bf81642d7439965cf07682789bca6f",
+                "verdict": "APPROVE",
+                "round": 3,
+                "verdict_sha256": "02ded9242507464c61e16b722b3cecd6e0ffd49205d272a3348322037ef042b6",
+                "ledger_entry_sha256": "1c64f485ac812f3b78ba31c955ba9e69c49dacef08b61cbd7d1ca2d933926ce9",
+                "run_ref": "session:local .ai-review/retention-view-steps/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "941351e0fc0ba1c27bc02745eae3dce028bf81642d7439965cf07682789bca6f",
+                "verdict": "APPROVE",
+                "round": 3,
+                "verdict_sha256": "e564c11860d35b687b1eca1feb579db8cdb96a9e3024a68406a40a51d610daed",
+                "ledger_entry_sha256": "d06d95b9ff97b2536d0057308cc75b7d6a837175da53a933dacd7b9d6aaa396d",
+                "run_ref": "codex:20261101T032732Z-4cc88f8c",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-11-01T03:29:49Z",
+          "workflow_release": "2.25.5"
+        }
+      },
+      "technical_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "efacefbb260446fc5df41710b7967060a38ceb8d289dc550f8ebaf3d3c46fab3",
+        "approved_review_content_id": "b979fdd61d856a61534800ab7d629c26159a6634fc37ed2278ab01195da2001c",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/registry/retention-view-steps-artifacts.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "d5ad2761eb6bd674410543b7333663ac57d9d7f9"
+          },
+          {
+            "path": "docs/retention.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "7139106d45179878e0d7077e7abfeac43452142e"
+          },
+          {
+            "path": "src/workflow_manager/retention.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "e24ebc1d75c42ddc183a576b2f61a325839736f2"
+          },
+          {
+            "path": "tests/test_retention_status.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "1b2eb0b480b6a0c93d751faa5a71d16a8b73ec32"
+          }
+        ],
+        "reviewed_content_commit": "328c050b15a0be5b8a45763e07941e445c46a42a",
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-11-01T04:23:03Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "b979fdd61d856a61534800ab7d629c26159a6634fc37ed2278ab01195da2001c",
+            "ledger": {
+              "local": {
+                "bundle_id": "efacefbb260446fc5df41710b7967060a38ceb8d289dc550f8ebaf3d3c46fab3",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "679620fe6966330acc5f6977a314470736b022e8cda347e0685dc795c698b993",
+                "ledger_entry_sha256": "2d25c36f0065f9a6923ed59c26b43c6613ce6420415656d95bd1f4d6f33be31c",
+                "run_ref": "session:local .ai-review/retention-view-steps/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "efacefbb260446fc5df41710b7967060a38ceb8d289dc550f8ebaf3d3c46fab3",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "850464d174518cf4753255ad65c6fd067ad02b5e6149470415a7fc3867f2efe7",
+                "ledger_entry_sha256": "74a3981f3d245a987f70ce612198449c1fd18169261627ae243071c167a95880",
+                "run_ref": "codex:20261101T042023Z-b5bfb532",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-11-01T04:23:03Z",
+          "workflow_release": "2.25.5"
+        }
+      },
+      "technical_review_block_pins": [],
+      "plan_review_stages": {
+        "review_content_id": "e1028aadca194f70b8d958f48cdb65660bf756ccb407ca2082c323dd03fb14c3",
+        "LOCAL_MODEL_PLAN_REVIEW": {
+          "bundle_id": "941351e0fc0ba1c27bc02745eae3dce028bf81642d7439965cf07682789bca6f",
+          "verdict": "APPROVE",
+          "round": 3,
+          "completed_at": "2026-11-01T03:27:06Z",
+          "verdict_sha256": "02ded9242507464c61e16b722b3cecd6e0ffd49205d272a3348322037ef042b6",
+          "run_ref": "session:local .ai-review/retention-view-steps/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_PLAN_REVIEW": {
+          "bundle_id": "941351e0fc0ba1c27bc02745eae3dce028bf81642d7439965cf07682789bca6f",
+          "verdict": "APPROVE",
+          "round": 3,
+          "completed_at": "2026-11-01T03:29:13Z",
+          "verdict_sha256": "e564c11860d35b687b1eca1feb579db8cdb96a9e3024a68406a40a51d610daed",
+          "run_ref": "codex:20261101T032732Z-4cc88f8c",
+          "reviewer_model": "openai/gpt-6.1-sol"
+        }
+      },
+      "functional_acceptance_status": null,
+      "blocking_decisions": [],
+      "review_round_counts": {
+        "plan": {
+          "local": 3,
+          "external": 1
+        },
+        "implementation": {
+          "local": 1,
+          "external": 1
+        }
+      },
+      "state_revision": 21,
+      "last_transition": "2026-11-01T04:47:51Z",
+      "feedback_layout": "scoped",
+      "plan_review_binding": {
+        "status": "BOUND",
+        "at": "2026-11-01T03:24:33Z",
+        "consumed": {
+          "review_content_id": "339ecbbde263014fce19d602528b448ebdd3920316ff40403cd3f0ef35ff6453",
+          "plan_revision": 2,
+          "legacy": false
+        },
+        "published": {
+          "review_content_id": "e1028aadca194f70b8d958f48cdb65660bf756ccb407ca2082c323dd03fb14c3",
+          "plan_revision": 3
+        },
+        "bound": {
+          "review_content_id": "e1028aadca194f70b8d958f48cdb65660bf756ccb407ca2082c323dd03fb14c3",
+          "bundle_id": "941351e0fc0ba1c27bc02745eae3dce028bf81642d7439965cf07682789bca6f",
+          "plan_revision": 3
+        }
+      },
+      "consumed_plan_review_content_ids": [
+        "339ecbbde263014fce19d602528b448ebdd3920316ff40403cd3f0ef35ff6453",
+        "9322522e9a488c30b5b1dfca71f5bb47ef1bda0bc88002779413be4c8ecaa7be"
+      ],
+      "optional_findings": {
+        "F-b891b57d4f29": {
+          "digest": "b891b57d4f292e7ea5481a0c5b40b04bb7330439c1f9025d87535abeea1e9729",
+          "text": "Flow 1 and flow 2 build a `not_finished` entry by \"reason `query_failed:rate_limited`\". `_validate` also requires `work_item_id`, and the mix in flow 2 needs two entries. State the `mk.py` expression for each, as flows 3 to 8 nearly do, so the operator does not have to guess the entry's shape.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "9322522e9a488c30b5b1dfca71f5bb47ef1bda0bc88002779413be4c8ecaa7be",
+              "verdict": "REVISE",
+              "at": "2026-11-01T03:19:22Z"
+            }
+          ]
+        },
+        "F-05de93adb989": {
+          "digest": "05de93adb98935dedf26eb279bf60a1add154c6981ce90a6509f943e6785350d",
+          "text": "The incomplete-header test \"through a `query_failed:` entry\" works only if the report also has a non-empty `kept_recent`, or an answered entry, or a finished item. With `kept_recent` empty and only failed entries, `_query_failed_note` turns the report into the forge note, so the INCOMPLETE header never prints. State that this case keeps `report()`'s three `kept_recent` items, as flow 5's third case should too.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "339ecbbde263014fce19d602528b448ebdd3920316ff40403cd3f0ef35ff6453",
+              "verdict": "REVISE",
+              "at": "2026-11-01T03:23:27Z"
+            }
+          ]
+        },
+        "F-c2f2cf7b6f2c": {
+          "digest": "c2f2cf7b6f2c4b99671c5c5372a1fca91f9a63311d04523166433453521f9942",
+          "text": "The mutation \"the reason also for a folder-absent item\" names \"the folder-absent case\", but that case (`finished(\"a\", folder=False)`, `tracked_files` 0) still prints the bare text under the mutation. The case that catches it is the one where the archive is present, the folder is absent and `tracked_files` is 1 (the last case of `test_items_the_script_would_refuse_get_no_command`). Name that case in the table.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "339ecbbde263014fce19d602528b448ebdd3920316ff40403cd3f0ef35ff6453",
+              "verdict": "REVISE",
+              "at": "2026-11-01T03:23:27Z"
+            }
+          ]
+        },
+        "F-c48e41cbfb56": {
+          "digest": "c48e41cbfb569b6bf302b3eea137b1a382cb762be4cb69e5828b43a53b40da65",
+          "text": "Section 6 says `$S/mk.py` \"prints JSON\", and each flow runs with `R=$S/r.json`, but the plan never says to write that output to `$S/r.json` (`python3 -I $S/mk.py '<statements>' > $S/r.json`). Add that redirect to the setup so the operator does not have to infer it.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 3,
+              "review_content_id": "e1028aadca194f70b8d958f48cdb65660bf756ccb407ca2082c323dd03fb14c3",
+              "verdict": "APPROVE",
+              "at": "2026-11-01T03:27:06Z"
+            }
+          ]
+        },
+        "F-169c308b52bf": {
+          "digest": "169c308b52bfe8d06bf9e21595413b9782b880e2a2148ccf3848facfb58392d4",
+          "text": "Section 6 should explicitly show `python3 -I $S/mk.py '<statements>' > $S/r.json` before rendering each report. The output file is currently left for the operator to infer.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "MANUAL_EXTERNAL_PLAN_REVIEW",
+              "round": 3,
+              "review_content_id": "e1028aadca194f70b8d958f48cdb65660bf756ccb407ca2082c323dd03fb14c3",
+              "verdict": "APPROVE",
+              "at": "2026-11-01T03:29:13Z"
+            }
+          ]
+        },
+        "F-e8705a07e0a8": {
+          "digest": "e8705a07e0a86ab28bc98731fb5130f846faa23a4b768fe591c81b1a975c351b",
+          "text": "LIR1-001: `TEST_RESULTS.md` and `docs/ACTIVE_MILESTONE.md` (line 32) attribute the mutation \"the zero header chosen before the INCOMPLETE header\" to `test_the_header_for_zero_finished_items` (the incomplete subtests). That test has no incomplete subtests. Rerun in a scratch clone of `080a6ce`, the mutation fails `test_an_incomplete_report_keeps_its_header_whatever_the_count` (`complete false` and `query_failed`). The mutation is caught, but the record names the wrong test. Correct the row at acceptance.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "b979fdd61d856a61534800ab7d629c26159a6634fc37ed2278ab01195da2001c",
+              "verdict": "APPROVE",
+              "at": "2026-11-01T04:19:35Z"
+            }
+          ]
+        },
+        "F-3d2b4ddd899e": {
+          "digest": "3d2b4ddd899e78483a006dc8dc420b9519d05374947f7a72857766ff66d3496f",
+          "text": "LIR1-002: `docs/retention.md`'s new zero-header sentence (\"With no finished work item, the first line reads ...\") does not say that an incomplete report keeps the INCOMPLETE header whatever the count. The code (`elif` after the INCOMPLETE branch) and the tests do. Add a clause such as \"in a complete report\".",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "b979fdd61d856a61534800ab7d629c26159a6634fc37ed2278ab01195da2001c",
+              "verdict": "APPROVE",
+              "at": "2026-11-01T04:19:35Z"
+            }
+          ]
+        },
+        "F-f5b898452458": {
+          "digest": "f5b8984524582fecadd95402a45fbcdce2b29fb292b800126b6070c16c47153f",
+          "text": "LIR1-003: plan section 4 says the incomplete-report zero-finished cases check that \"neither new text appears\". `test_an_incomplete_report_keeps_its_header_whatever_the_count` checks only that line 0 equals the INCOMPLETE header. The header is only ever line 0, so this is equivalent today. An `assertNotIn(\"found no finished work item\", ...)` over all lines would match the plan's wording exactly.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "b979fdd61d856a61534800ab7d629c26159a6634fc37ed2278ab01195da2001c",
+              "verdict": "APPROVE",
+              "at": "2026-11-01T04:19:35Z"
+            }
+          ]
+        },
+        "F-784d15745472": {
+          "digest": "784d1574547238bce1f37e06ba05149c6af79311ba5dc91f5b8f0be9bd07524d",
+          "text": "`TEST_RESULTS.md:29` and `docs/ACTIVE_MILESTONE.md:32` attribute the INCOMPLETE-precedence mutation to the wrong test. An independent in-memory mutation confirms that `test_an_incomplete_report_keeps_its_header_whatever_the_count` catches it; `test_the_header_for_zero_finished_items` passes. Correct the recorded test name.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "b979fdd61d856a61534800ab7d629c26159a6634fc37ed2278ab01195da2001c",
+              "verdict": "APPROVE",
+              "at": "2026-11-01T04:22:33Z"
+            }
+          ]
+        },
+        "F-48a3043e9e79": {
+          "digest": "48a3043e9e797abb1a89155afaafa654732b8167423b272a13c8f2bae7cb0f00",
+          "text": "`docs/retention.md:46`: qualify the zero-header description with “in a complete report,” since incomplete reports retain the INCOMPLETE header.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "b979fdd61d856a61534800ab7d629c26159a6634fc37ed2278ab01195da2001c",
+              "verdict": "APPROVE",
+              "at": "2026-11-01T04:22:33Z"
+            }
+          ]
+        }
+      },
+      "implementation_review_stages": {
+        "review_content_id": "b979fdd61d856a61534800ab7d629c26159a6634fc37ed2278ab01195da2001c",
+        "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "efacefbb260446fc5df41710b7967060a38ceb8d289dc550f8ebaf3d3c46fab3",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-11-01T04:19:35Z",
+          "verdict_sha256": "679620fe6966330acc5f6977a314470736b022e8cda347e0685dc795c698b993",
+          "run_ref": "session:local .ai-review/retention-view-steps/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "efacefbb260446fc5df41710b7967060a38ceb8d289dc550f8ebaf3d3c46fab3",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-11-01T04:22:33Z",
+          "verdict_sha256": "850464d174518cf4753255ad65c6fd067ad02b5e6149470415a7fc3867f2efe7",
+          "run_ref": "codex:20261101T042023Z-b5bfb532",
+          "reviewer_model": "openai/gpt-6.1-sol"
+        }
+      },
+      "gate_evidence": {
+        "functional": {
+          "flow-1": {
+            "flow_id": "flow-1",
+            "status": "passed",
+            "head": "2584299b4c6c2ab3649cc9419eac5bc1bd7b823b",
+            "ran_at": "2026-11-01T04:26:17Z",
+            "summary": {
+              "checklist_blob": "f29e00776f20b264704322b890bcf03dcd9678d9",
+              "text": "Cand prints rate_limited note with the wait-for-reset step; base prints the gh auth login step. Matches."
+            },
+            "log_digest": "de1617659da787ca78bb54d3602bf4ae87987c2b7b80ef2ae56fb9a69fea02ad",
+            "run_ref": "controller:20261101T042540Z-c93ec965",
+            "reporter": "workflow-controller 1.27.0",
+            "identity": "b979fdd61d856a61534800ab7d629c26159a6634fc37ed2278ab01195da2001c",
+            "recorded_at": "2026-11-01T04:26:17Z"
+          },
+          "flow-2": {
+            "flow_id": "flow-2",
+            "status": "passed",
+            "head": "2584299b4c6c2ab3649cc9419eac5bc1bd7b823b",
+            "ran_at": "2026-11-01T04:26:17Z",
+            "summary": {
+              "checklist_blob": "f29e00776f20b264704322b890bcf03dcd9678d9",
+              "text": "gh_missing and mixed (rate_limited, 2 items) cases are byte-identical between base and cand, with the gh auth login step."
+            },
+            "log_digest": "4aad627c73c20cfba9248f3ab93464f811b1089523996b56a3a42c4388e92f8c",
+            "run_ref": "controller:20261101T042540Z-c93ec965",
+            "reporter": "workflow-controller 1.27.0",
+            "identity": "b979fdd61d856a61534800ab7d629c26159a6634fc37ed2278ab01195da2001c",
+            "recorded_at": "2026-11-01T04:26:17Z"
+          },
+          "flow-3": {
+            "flow_id": "flow-3",
+            "status": "passed",
+            "head": "2584299b4c6c2ab3649cc9419eac5bc1bd7b823b",
+            "ran_at": "2026-11-01T04:26:17Z",
+            "summary": {
+              "checklist_blob": "f29e00776f20b264704322b890bcf03dcd9678d9",
+              "text": "Linked scripts dir: cand prints 'not available: no scripts/workflow_retention.py' with 'workflow-manager update <t2>'; base prints full section."
+            },
+            "log_digest": "147653ce2057b5b6f57860976e161ee8d7cb3cf053391a0430dc9095581e1668",
+            "run_ref": "controller:20261101T042540Z-c93ec965",
+            "reporter": "workflow-controller 1.27.0",
+            "identity": "b979fdd61d856a61534800ab7d629c26159a6634fc37ed2278ab01195da2001c",
+            "recorded_at": "2026-11-01T04:26:17Z"
+          },
+          "flow-4": {
+            "flow_id": "flow-4",
+            "status": "passed",
+            "head": "2584299b4c6c2ab3649cc9419eac5bc1bd7b823b",
+            "ran_at": "2026-11-01T04:26:17Z",
+            "summary": {
+              "checklist_blob": "f29e00776f20b264704322b890bcf03dcd9678d9",
+              "text": "7 ids -> 'a1..a5 and 2 more'; 5 ids joined; 6 ids -> 'and 1 more'; base joins all."
+            },
+            "log_digest": "a626b0e06a5824949d610fda2d369bb323747d6a0e7b7c3cdc22ddff3414a47b",
+            "run_ref": "controller:20261101T042540Z-c93ec965",
+            "reporter": "workflow-controller 1.27.0",
+            "identity": "b979fdd61d856a61534800ab7d629c26159a6634fc37ed2278ab01195da2001c",
+            "recorded_at": "2026-11-01T04:26:17Z"
+          },
+          "flow-5": {
+            "flow_id": "flow-5",
+            "status": "passed",
+            "head": "2584299b4c6c2ab3649cc9419eac5bc1bd7b823b",
+            "ran_at": "2026-11-01T04:26:17Z",
+            "summary": {
+              "checklist_blob": "f29e00776f20b264704322b890bcf03dcd9678d9",
+              "text": "Cand headers 'found no finished work item' / 'beyond the 3 most recent'; INCOMPLETE identical in both; base has 'one forge query per finished item' for first two."
+            },
+            "log_digest": "48d7e9a9fba36366f72b6d59ffac525e8605efe9cbe0ad8716524c48c610a194",
+            "run_ref": "controller:20261101T042540Z-c93ec965",
+            "reporter": "workflow-controller 1.27.0",
+            "identity": "b979fdd61d856a61534800ab7d629c26159a6634fc37ed2278ab01195da2001c",
+            "recorded_at": "2026-11-01T04:26:17Z"
+          },
+          "flow-6": {
+            "flow_id": "flow-6",
+            "status": "passed",
+            "head": "2584299b4c6c2ab3649cc9419eac5bc1bd7b823b",
+            "ran_at": "2026-11-01T04:26:17Z",
+            "summary": {
+              "checklist_blob": "f29e00776f20b264704322b890bcf03dcd9678d9",
+              "text": "Cand next line carries the tracked-files reason; base prints bare 'nothing to archive'."
+            },
+            "log_digest": "5996e991d1c104f6fdf6af4066f47027e408e70d866ef7dabc78ac75144e253c",
+            "run_ref": "controller:20261101T042540Z-c93ec965",
+            "reporter": "workflow-controller 1.27.0",
+            "identity": "b979fdd61d856a61534800ab7d629c26159a6634fc37ed2278ab01195da2001c",
+            "recorded_at": "2026-11-01T04:26:18Z"
+          },
+          "flow-7": {
+            "flow_id": "flow-7",
+            "status": "passed",
+            "head": "2584299b4c6c2ab3649cc9419eac5bc1bd7b823b",
+            "ran_at": "2026-11-01T04:26:18Z",
+            "summary": {
+              "checklist_blob": "f29e00776f20b264704322b890bcf03dcd9678d9",
+              "text": "Cand '1 archive,', '0 archives,', '2 archives,'; base '1 archives,' for the first, same for 0 and 2."
+            },
+            "log_digest": "2ba1ea1b70f777cea9f4a417b42192c642ca99b71b4e2c7d3851f28f03f9ce5f",
+            "run_ref": "controller:20261101T042540Z-c93ec965",
+            "reporter": "workflow-controller 1.27.0",
+            "identity": "b979fdd61d856a61534800ab7d629c26159a6634fc37ed2278ab01195da2001c",
+            "recorded_at": "2026-11-01T04:26:18Z"
+          },
+          "flow-8": {
+            "flow_id": "flow-8",
+            "status": "passed",
+            "head": "2584299b4c6c2ab3649cc9419eac5bc1bd7b823b",
+            "ran_at": "2026-11-01T04:26:18Z",
+            "summary": {
+              "checklist_blob": "f29e00776f20b264704322b890bcf03dcd9678d9",
+              "text": "Cand and base byte-identical (diff empty); next line is the archive item-1 --apply command; no 'not available' line."
+            },
+            "log_digest": "ad97c36ffb42ce9812344c0355570f75aa19d288089d8efb33ba712dcb4cddef",
+            "run_ref": "controller:20261101T042540Z-c93ec965",
+            "reporter": "workflow-controller 1.27.0",
+            "identity": "b979fdd61d856a61534800ab7d629c26159a6634fc37ed2278ab01195da2001c",
+            "recorded_at": "2026-11-01T04:26:18Z"
+          },
+          "flow-9": {
+            "flow_id": "flow-9",
+            "status": "passed",
+            "head": "2584299b4c6c2ab3649cc9419eac5bc1bd7b823b",
+            "ran_at": "2026-11-01T04:27:51Z",
+            "summary": {
+              "checklist_blob": "f29e00776f20b264704322b890bcf03dcd9678d9",
+              "text": "test_retention_status.py in a scratch clone at the candidate head: 13/13 units, 69 tests, exit 0, orphan check on. Supersedes the Controller's environment failure (its sandbox could not prime the release cache)."
+            },
+            "log_digest": "a98d2553fceb439dd8ab9d9c22d351815b07d8674b5ca23779e99c37c8c76d69",
+            "run_ref": "manager-orchestrator:runs/md12-functional-r1",
+            "reporter": "manager-orchestrator (independent run, claude claude-sonnet-5-5)",
+            "identity": "b979fdd61d856a61534800ab7d629c26159a6634fc37ed2278ab01195da2001c",
+            "recorded_at": "2026-11-01T04:27:52Z"
+          }
+        },
+        "pr": {
+          "pr": {
+            "number": 149,
+            "url": "https://github.com/RodrigoFAbreu/workflow-manager/pull/149"
+          },
+          "state": "open",
+          "head": "2584299b4c6c2ab3649cc9419eac5bc1bd7b823b",
+          "review_decision": null,
+          "reviewed_head": null,
+          "checks": {
+            "state": "success",
+            "failing": []
+          },
+          "review_id": null,
+          "findings": null,
+          "identity_at_head": "b979fdd61d856a61534800ab7d629c26159a6634fc37ed2278ab01195da2001c",
+          "observed_at": "2026-11-01T04:47:51Z",
+          "ingest_seq": 1,
+          "repository": "RodrigoFAbreu/workflow-manager",
+          "queried_commit": "328c050b15a0be5b8a45763e07941e445c46a42a",
+          "provenance": {
+            "source": "workflow_gh",
+            "fetched_by": {
+              "name": "workflow-gh",
+              "version": "pr-list-v1"
+            },
+            "fetched_at": "2026-11-01T04:47:51Z",
+            "raw_sha256": "80ab1cf338659137677347df2e6cbaefdba2779a242e722e1bbfc893b740ae2f",
+            "run_ref": null,
+            "gh_path": "/usr/bin/gh",
+            "gh_sha256": "9e824061111fe5f5b6a5d5690909ba37abafca4a4ca830bdf83246d3c94afd21"
+          },
+          "fact_id": "cfaea22ae0c1a2acdadbfe77a1d03d51afd40ab77d3b9c98e46c004240a986d7"
+        },
+        "pr_reported": null,
+        "pr_keys": {
+          "reopened_for": [],
+          "applied": [],
+          "ingest_seq": 1
+        }
+      },
+      "acceptance_satisfaction": {
+        "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "policy_source": "default",
+        "file_digest": null,
+        "adopted_digest": null,
+        "floor_digest": null,
+        "requirements": [
+          {
+            "id": "checkpoints_complete",
+            "met": true,
+            "detail": "every checkpoint of the item's own registry is COMPLETE"
+          },
+          {
+            "id": "technical_approval_current",
+            "met": true,
+            "detail": "the technical approval is CURRENT for the content now"
+          },
+          {
+            "id": "functional_flows_passed",
+            "met": true,
+            "detail": "flows ['flow-1', 'flow-2', 'flow-3', 'flow-4', 'flow-5', 'flow-6', 'flow-7', 'flow-8', 'flow-9'] passed at the approved content"
+          },
+          {
+            "id": "pr_fact_current",
+            "met": true,
+            "detail": "workflow_gh fact for PR #149 at 2584299b4c6c2ab3649cc9419eac5bc1bd7b823b is current"
+          },
+          {
+            "id": "no_standing_pr_objection",
+            "met": true,
+            "detail": "no CHANGES_REQUESTED decision and no failed check"
+          },
+          {
+            "id": "ci_green",
+            "met": true,
+            "detail": "checks are 'success'"
+          }
+        ],
+        "inputs": {
+          "anchor_commit": "328c050b15a0be5b8a45763e07941e445c46a42a",
+          "anchor_identity": "b979fdd61d856a61534800ab7d629c26159a6634fc37ed2278ab01195da2001c",
+          "technical_approval": {
+            "basis": "POLICY_SATISFIED",
+            "approved_review_content_id": "b979fdd61d856a61534800ab7d629c26159a6634fc37ed2278ab01195da2001c",
+            "recorded_at": "2026-11-01T04:23:03Z"
+          },
+          "functional": {
+            "flow-1": {
+              "evidence_id": "a7e6f5071e7d222905afa1549a10684713d37b9f87ce63e322d4e575b656f39e",
+              "log_digest": "de1617659da787ca78bb54d3602bf4ae87987c2b7b80ef2ae56fb9a69fea02ad",
+              "run_ref": "controller:20261101T042540Z-c93ec965"
+            },
+            "flow-2": {
+              "evidence_id": "f0250731634f3a0b83aa12ae24c21f7fb8cec97891ec06ce63047e5c600e55b3",
+              "log_digest": "4aad627c73c20cfba9248f3ab93464f811b1089523996b56a3a42c4388e92f8c",
+              "run_ref": "controller:20261101T042540Z-c93ec965"
+            },
+            "flow-3": {
+              "evidence_id": "c13d7a5a6fc58ad407b021957090bc3002bb380fff5f88b9cbb2f989627f1c67",
+              "log_digest": "147653ce2057b5b6f57860976e161ee8d7cb3cf053391a0430dc9095581e1668",
+              "run_ref": "controller:20261101T042540Z-c93ec965"
+            },
+            "flow-4": {
+              "evidence_id": "6d618ec0decadaf4e81b4c8daf6ed28c81bccfac9b84852b49edad59d96d36ca",
+              "log_digest": "a626b0e06a5824949d610fda2d369bb323747d6a0e7b7c3cdc22ddff3414a47b",
+              "run_ref": "controller:20261101T042540Z-c93ec965"
+            },
+            "flow-5": {
+              "evidence_id": "59c00e64e75d9af92119630e5a0ab54f22669c73bead357f4a7733e5f32e961e",
+              "log_digest": "48d7e9a9fba36366f72b6d59ffac525e8605efe9cbe0ad8716524c48c610a194",
+              "run_ref": "controller:20261101T042540Z-c93ec965"
+            },
+            "flow-6": {
+              "evidence_id": "ccafe9150a395ee8e2d3aa0874313cf417faca5478bdfdf98000ffe3b82116ee",
+              "log_digest": "5996e991d1c104f6fdf6af4066f47027e408e70d866ef7dabc78ac75144e253c",
+              "run_ref": "controller:20261101T042540Z-c93ec965"
+            },
+            "flow-7": {
+              "evidence_id": "d5b5e2aefd3bc0e46990ad8b61796fdbac5f43cb4f228d0a86fdb6dfa365daa0",
+              "log_digest": "2ba1ea1b70f777cea9f4a417b42192c642ca99b71b4e2c7d3851f28f03f9ce5f",
+              "run_ref": "controller:20261101T042540Z-c93ec965"
+            },
+            "flow-8": {
+              "evidence_id": "d095f71dcffdd55ff74fdbfbffcd5f4dceeb9ac6a354302a4daa0aa373cb2800",
+              "log_digest": "ad97c36ffb42ce9812344c0355570f75aa19d288089d8efb33ba712dcb4cddef",
+              "run_ref": "controller:20261101T042540Z-c93ec965"
+            },
+            "flow-9": {
+              "evidence_id": "c2d100419dbde80edef6e8f2f63374e8bc7e3ef6fcf89cf2a28595865f593bb2",
+              "log_digest": "a98d2553fceb439dd8ab9d9c22d351815b07d8674b5ca23779e99c37c8c76d69",
+              "run_ref": "manager-orchestrator:runs/md12-functional-r1"
+            }
+          },
+          "pr": {
+            "fact_id": "cfaea22ae0c1a2acdadbfe77a1d03d51afd40ab77d3b9c98e46c004240a986d7",
+            "head": "2584299b4c6c2ab3649cc9419eac5bc1bd7b823b",
+            "provenance": "workflow_gh",
+            "raw_sha256": "80ab1cf338659137677347df2e6cbaefdba2779a242e722e1bbfc893b740ae2f"
+          }
+        },
+        "trust": {
+          "review_verdicts": "orchestrator",
+          "functional_evidence": "orchestrator",
+          "pr_fact": "workflow_gh"
+        },
+        "evaluated_at": "2026-11-01T04:47:51Z",
+        "workflow_release": "2.25.5"
+      }
     }
   }
 }

@@ -1,0 +1,48 @@
+{
+ "schema_version": 1,
+ "work_item_id": "retention-view-steps",
+ "dispositions": {
+  "F-05de93adb989": {
+   "disposition": "fixed",
+   "note": "answered in the plan or implementation revisions and confirmed by the later local and Codex rounds"
+  },
+  "F-169c308b52bf": {
+   "disposition": "dropped",
+   "reason": "plan section 6 setup redirect; plan text, the checklist shows the command"
+  },
+  "F-3d2b4ddd899e": {
+   "disposition": "follow-up",
+   "link": "RodrigoFAbreu/workflow-manager#116",
+   "note": "docs/retention.md zero-header sentence should say 'in a complete report' (comment on #116)"
+  },
+  "F-48a3043e9e79": {
+   "disposition": "follow-up",
+   "link": "RodrigoFAbreu/workflow-manager#116",
+   "note": "same docs sentence (comment on #116)"
+  },
+  "F-784d15745472": {
+   "disposition": "dropped",
+   "reason": "review-bundle narrative attributes a mutation to the wrong test; not shipped"
+  },
+  "F-b891b57d4f29": {
+   "disposition": "fixed",
+   "note": "answered in the plan or implementation revisions and confirmed by the later local and Codex rounds"
+  },
+  "F-c2f2cf7b6f2c": {
+   "disposition": "fixed",
+   "note": "answered in the plan or implementation revisions and confirmed by the later local and Codex rounds"
+  },
+  "F-c48e41cbfb56": {
+   "disposition": "dropped",
+   "reason": "same plan setup redirect; plan text only"
+  },
+  "F-e8705a07e0a8": {
+   "disposition": "dropped",
+   "reason": "same bundle narrative attribution; not shipped"
+  },
+  "F-f5b898452458": {
+   "disposition": "dropped",
+   "reason": "plan section 4 claim about what a test checks; plan text only"
+  }
+ }
+}
