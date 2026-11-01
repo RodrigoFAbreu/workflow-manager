@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "work_item_id": "null-record-wording",
+  "requirements": {
+    "R1": {
+      "description": "verify and status with an explicit release say the record has no workflow_version instead of printing None; a non-null record keeps its line",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R2": {
+      "description": "The update, update --dry-run and doctor next: line names one step for a null record (the explicit update that rewrites the record); other messages and exit codes stay byte-identical",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R3": {
+      "description": "Under --dry-run the step says it is a real update that writes the record; docs/update.md names the step",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R4": {
+      "description": "Each changed message proven by a deterministic CLI test on a null-record scratch repository and a failure-only mutation; fix: title releases Manager 1.14.2; roadmap row 22 Current at planning, Done at acceptance",
+      "checkpoint_ids": [
+        "CP1",
+        "CP2"
+      ]
+    }
+  }
+}

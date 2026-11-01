@@ -1135,23 +1135,117 @@ class TestNotAVersionRows(TargetCase):
                         step=("repair or re-bootstrap the installation record",)))
         self.assertEqual(tree_hash(repo), before)
 
-    def test_a_null_record_is_refused_by_a_bare_update_as_by_the_dry_run(self):
+    NULL_CAUSE = ("the installation record has no workflow_version (it is null), "
+                  "which is not a version: a release is named X.Y.Z")
+
+    def null_step(self, repo, dry_run=False, tail=""):
+        return (f"run `workflow-manager --release-version X.Y.Z update {repo}` (X.Y.Z is the "
+                f"release to install): it updates the installation record to that release"
+                + (" -- a real update, not a dry run" if dry_run else "") + tail)
+
+    def test_a_null_record_is_refused_with_one_step_by_update_dry_run_and_doctor(self):
         repo = self.damaged(None)
         before = tree_hash(repo)
-        for argv in (["update", str(repo)], ["update", "--dry-run", str(repo)]):
-            self.check(Case(" ".join(argv), argv, exit_code=1,
-                            cause=("the installation record has no workflow_version (it is null), "
-                                   "which is not a version: a release is named X.Y.Z"),
-                            step=("repair or re-bootstrap the installation record",)))
+        for argv, code, dry in ((["update"], 1, False), (["update", "--dry-run"], 1, True),
+                                (["doctor"], 2, False)):
+            proc = self.check(Case(" ".join(argv), [*argv, str(repo)], exit_code=code,
+                                   cause=self.NULL_CAUSE, step=("run `workflow-manager",)))
+            with self.subTest(case=" ".join(argv)):
+                step = next_lines(proc.stderr)[0]
+                expected = self.null_step(repo, dry_run=dry)
+                self.assertEqual(step, expected)
+                self.assertNotIn(" or ", step)
+                self.assertNotIn("repair or re-bootstrap", step)
+                self.assertEqual("not a dry run" in step, dry)
         self.assertEqual(tree_hash(repo), before)
 
-    def test_an_update_naming_the_release_is_the_repair_and_is_not_refused(self):
-        repo = self.damaged("garbage")
-        proc = run("--release-version", PINNED_NEWEST, "update", str(repo))
-        self.assertEqual(proc.returncode, 0, proc.stderr)
-        self.assertIn(f'"workflow_version": "{PINNED_NEWEST}"', (repo / RECORD).read_text())
+    def test_a_null_record_leaves_verify_and_status_to_say_what_it_is(self):
+        repo = self.damaged(None)
+        before = tree_hash(repo)
+        for command in ("verify", "status"):
+            proc = run("--release-version", PINNED_NEWEST, command, str(repo))
+            with self.subTest(command=command):
+                self.assertEqual(proc.returncode, 1, proc.stdout + proc.stderr)
+                self.assertIn("version: the installation record has no workflow_version, "
+                              f"release {PINNED_NEWEST}", proc.stdout)
+                self.assertNotIn("installed None", proc.stdout + proc.stderr)
+        self.assertEqual(tree_hash(repo), before)
+
+    def test_a_non_null_version_line_is_unchanged(self):
+        repo = self.damaged("1.0.0")
+        proc = run("--release-version", PINNED_NEWEST, "verify", str(repo))
+        self.assertIn(f"version: installed 1.0.0, release {PINNED_NEWEST}", proc.stdout)
+
+    def test_a_null_record_with_a_release_dir_names_one_step_without_it(self):
+        work = tempfile.TemporaryDirectory()
+        self.addCleanup(work.cleanup)
+        root = Path(work.name)
+        null_release, genuine = root / "null release", root / "genuine"
+        for directory in (null_release, genuine):
+            shutil.copytree(support.release(PINNED_NEWEST).root, directory)
+        manifest = null_release / "manifest.json"
+        text = manifest.read_text()
+        needle = f'"workflow_version": "{PINNED_NEWEST}"'
+        self.assertIn(needle, text)
+        manifest.write_text(text.replace(needle, '"workflow_version": null', 1))
+        by_null = root / "by-null"
+        proc = run("--release-dir", str(null_release), "bootstrap", str(empty_repo(by_null)))
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        # Matching null versions are no drift: verify and status stay healthy.
+        for command in ("verify", "status"):
+            proc = run("--release-dir", str(null_release), command, str(by_null))
+            with self.subTest(command=command, matching="null"):
+                self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+                self.assertNotIn("version:", proc.stdout + proc.stderr)
+        by_hand = root / "by-hand"
+        shutil.copytree(Pristine.pristine(), by_hand, symlinks=True)
+        record = by_hand / RECORD
+        record.write_text(record.read_text().replace(
+            f'"workflow_version": "{PINNED_NEWEST}"', '"workflow_version": null'))
+        for name, repo, directory in (("null-manifest", by_null, null_release),
+                                      ("genuine", by_hand, genuine)):
+            self.assertIn('"workflow_version": null', (repo / RECORD).read_text(), name)
+            before = tree_hash(repo)
+            for argv, code, dry in ((["update", "--dry-run"], 1, True), (["doctor"], 2, False)):
+                full = ["--release-dir", str(directory), *argv, str(repo)]
+                proc = run(*full)
+                step_text = f"{name} {' '.join(argv)}"
+                with self.subTest(case=step_text):
+                    self.assertEqual(proc.returncode, code, proc.stdout + proc.stderr)
+                    steps = next_lines(proc.stderr)
+                    self.assertEqual(len(steps), 1, proc.stderr)
+                    quoted = shlex.quote(str(directory))
+                    clause = (f"; --release-dir {quoted} is left out: name it too if "
+                              f"{quoted} holds release X.Y.Z")
+                    self.assertEqual(steps[0], self.null_step(repo, dry_run=dry, tail=clause))
+                    self.assertNotIn(" holds no ", steps[0])
+            self.assertEqual(tree_hash(repo), before, name)
+            run_it = ["--release-version", PINNED_NEWEST, "update", str(repo)]
+            if name == "genuine":
+                # The clause is true: naming the directory too works as well.
+                alone = shutil.copytree(repo, root / "genuine-alone", symlinks=True)
+                proc = run("--release-version", PINNED_NEWEST, "--release-dir", str(directory),
+                           "update", str(alone))
+                self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+            proc = run(*run_it)
+            self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+            self.assertIn(f'"workflow_version": "{PINNED_NEWEST}"', (repo / RECORD).read_text())
+        # A bare `--release-dir REL update` is not refused today; only noted.
+        bare = self.damaged(None)
+        proc = run("--release-dir", str(null_release), "update", str(bare))
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
         self.assertNotIn("is not a version", proc.stdout + proc.stderr)
-        self.assertNotIn("Traceback", proc.stdout + proc.stderr)
+
+    def test_an_update_naming_the_release_is_the_repair_and_is_not_refused(self):
+        for value in ("garbage", None):
+            with self.subTest(value=value):
+                repo = self.damaged(value)
+                proc = run("--release-version", PINNED_NEWEST, "update", str(repo))
+                self.assertEqual(proc.returncode, 0, proc.stderr)
+                self.assertIn(f'"workflow_version": "{PINNED_NEWEST}"',
+                              (repo / RECORD).read_text())
+                self.assertNotIn("is not a version", proc.stdout + proc.stderr)
+                self.assertNotIn("Traceback", proc.stdout + proc.stderr)
 
 
 class TestAdviceCp2Units(unittest.TestCase):

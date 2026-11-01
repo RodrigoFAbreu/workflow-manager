@@ -1,0 +1,34 @@
+{
+ "schema_version": 1,
+ "work_item_id": "null-record-wording",
+ "dispositions": {
+  "F-00932eed1378": {
+   "disposition": "dropped",
+   "reason": "review-bundle narrative file, regenerated every round and not shipped"
+  },
+  "F-0d65cddd24ab": {
+   "disposition": "follow-up",
+   "link": "RodrigoFAbreu/workflow-manager#145",
+   "note": "--release-dir clause not shell-quoted (item 3)"
+  },
+  "F-4896c5e1dfad": {
+   "disposition": "follow-up",
+   "link": "RodrigoFAbreu/workflow-manager#145",
+   "note": "empty-string version prints an empty value (item 2)"
+  },
+  "F-4907cb6df20b": {
+   "disposition": "dropped",
+   "reason": "plan section 7 citation of a test row; plan text only, archived at acceptance"
+  },
+  "F-bd7815c35f76": {
+   "disposition": "follow-up",
+   "link": "RodrigoFAbreu/workflow-manager#145",
+   "note": "remaining None in the next line and the status header (issue item 1)"
+  },
+  "F-f25d8b8ba23c": {
+   "disposition": "follow-up",
+   "link": "RodrigoFAbreu/workflow-manager#145",
+   "note": "update vs update --dry-run disagree about --release-dir (item 4)"
+  }
+ }
+}

@@ -354,9 +354,15 @@ def verify(target: Path, release: Release) -> list[str]:
     problems += [f"release: {p}" for p in release.verify()]
     installation = Installation.read(Path(target))
     if installation.workflow_version != release.version:
-        problems.append(
-            f"version: installed {installation.workflow_version}, release {release.version}"
-        )
+        if installation.workflow_version is None:
+            problems.append(
+                f"version: the installation record has no workflow_version, "
+                f"release {release.version}"
+            )
+        else:
+            problems.append(
+                f"version: installed {installation.workflow_version}, release {release.version}"
+            )
     return problems
 
 
