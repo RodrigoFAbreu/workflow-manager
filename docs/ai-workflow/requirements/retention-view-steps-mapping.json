@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "work_item_id": "retention-view-steps",
+  "requirements": {
+    "R1": {
+      "description": "When every failed query has the code rate_limited the next step is to wait and run the command again; every other code or mix keeps the login step byte for byte",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R2": {
+      "description": "A scripts/ directory that is a link is refused like a linked script file: same cause, same step, the script never started",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R3": {
+      "description": "The interrupted-removals line lists five ids then a count; five or fewer print as before",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R4": {
+      "description": "Three texts: a header true for zero finished items (also when kept_recent is non-empty; the INCOMPLETE header still wins), a reason for nothing to archive when finished items have tracked review files, 1 archive; exact before/after assertions; docs page updated",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R5": {
+      "description": "Both commands have deterministic stub-engine tests and a failure-only mutation per change; every other output and exit code byte-identical; fix: title releases Manager 1.14.4; roadmap row 24 Current at planning, Done at acceptance",
+      "checkpoint_ids": [
+        "CP1",
+        "CP2"
+      ]
+    }
+  }
+}
