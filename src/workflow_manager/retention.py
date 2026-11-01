@@ -18,6 +18,7 @@ import signal
 import subprocess
 import sys
 import time
+import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -26,6 +27,13 @@ SCRIPT = Path("scripts") / "workflow_retention.py"
 TIMEOUT_SECONDS = 300
 SCHEMA_VERSION = 1
 KIND = "retention-report"
+
+# What the report may carry before any of it is printed.
+INT_MAX = 2**63 - 1  # the largest signed 64-bit value: bounds any size or count the engine reads
+PATH_LIMIT = 4096  # Linux PATH_MAX
+ERROR_LIMIT = 8192  # a PATH_MAX path plus the operating system's message
+ID_LIMIT = 256  # a checked Workflow id is at most 64 characters; a reason is a short code
+SHOWN_LIMIT = 40  # characters of a refused value echoed
 
 # The first Workflow release whose script has each command.
 ARCHIVE_FROM = (2, 21, 0)
@@ -164,7 +172,7 @@ def _type_name(value) -> str:
     return type(value).__name__
 
 
-def _need(obj, key, kinds, where):
+def _need(obj, key, kinds, where, limit=None):
     if not isinstance(obj, dict):
         raise _Invalid(f"{where} is {_type_name(obj)}, not an object")
     if key not in obj:
@@ -175,31 +183,54 @@ def _need(obj, key, kinds, where):
         name = getattr(kinds, "__name__", "value")
         raise _Invalid(f"{where}.{key} is {_type_name(value)}, not {name}" if where
                        else f"{key} is {_type_name(value)}, not {name}")
+    name = f"{where}.{key}" if where else key
     if kinds is str:
-        _printable(value, f"{where}.{key}" if where else key)
+        _printable(value, name, limit)
+    elif kinds is int and not 0 <= value <= INT_MAX:
+        raise _Invalid(f"{name} is out of range (0 to 2**63 - 1)")
     return value
 
 
-def _printable(text: str, name: str) -> None:
-    """A string the report carries must be printable (no unpaired surrogate)."""
+def _printable(text: str, name: str, limit: int | None) -> None:
+    """A string the report carries must be valid text (no unpaired surrogate)
+    and, with a `limit`, at most that long and free of control characters (Unicode
+    category Cc, and the line and paragraph separators): it is printed as is."""
     try:
         text.encode("utf-8")
     except UnicodeEncodeError:
         raise _Invalid(f"{name} is not valid text") from None
+    if limit is None:
+        return
+    if len(text) > limit:
+        raise _Invalid(f"{name} is longer than {limit} characters")
+    if any(unicodedata.category(c) == "Cc" or c in "\u2028\u2029" for c in text):
+        raise _Invalid(f"{name} contains a control character")
+
+
+def _shown(value) -> str:
+    """A report value echoed in a refusal: its `repr` (which escapes every control
+    character), cut to SHOWN_LIMIT characters and marked with the whole length."""
+    try:
+        text = repr(value)
+    except RecursionError:
+        return "<value>"
+    if len(text) <= SHOWN_LIMIT:
+        return text
+    return f"{text[:SHOWN_LIMIT]}... ({len(text)} characters)"
 
 
 def _validate(report: dict) -> None:
     _need(report, "complete", bool, "")
     for entry in _need(report, "read_errors", list, ""):
-        _need(entry, "path", str, "read_errors[]")
-        _need(entry, "error", str, "read_errors[]")
-    _need(report, "repository", str, "")
-    _need(report, "archive_dir", str, "")
+        _need(entry, "path", str, "read_errors[]", PATH_LIMIT)
+        _need(entry, "error", str, "read_errors[]", ERROR_LIMIT)
+    _need(report, "repository", str, "", PATH_LIMIT)
+    _need(report, "archive_dir", str, "", PATH_LIMIT)
     _need(report, "ttl_days", int, "")
     _need(report, "keep_recent", int, "")
     finished = _need(report, "finished", list, "")
     for entry in finished:
-        _need(entry, "work_item_id", str, "finished[]")
+        _need(entry, "work_item_id", str, "finished[]", ID_LIMIT)
         folder = _need(entry, "review_folder", dict, "finished[]")
         _need(folder, "present", bool, "finished[].review_folder")
         _need(folder, "tracked_files", int, "finished[].review_folder")
@@ -208,10 +239,13 @@ def _validate(report: dict) -> None:
         _need(archive, "present", bool, "finished[].archive")
         _need(archive, "readable", bool, "finished[].archive")
     for entry in _need(report, "kept_recent", list, ""):
-        _need(entry, "work_item_id", str, "kept_recent[]")
+        _need(entry, "work_item_id", str, "kept_recent[]", ID_LIMIT)
     for entry in _need(report, "not_finished", list, ""):
-        _need(entry, "work_item_id", str, "not_finished[]")
-        _need(entry, "reason", str, "not_finished[]")
+        reason = _need(entry, "reason", str, "not_finished[]", ID_LIMIT)
+        # The engine files a key that fails its id pattern under `invalid_id`, raw and
+        # unbounded; the Manager never prints it, so only its encoding is checked.
+        _need(entry, "work_item_id", str, "not_finished[]",
+              None if reason == "invalid_id" else ID_LIMIT)
     totals = _need(report, "totals", dict, "")
     for key in ("finished", "finished_folder_bytes", "archives", "prunable"):
         _need(totals, key, int, "totals")
@@ -223,7 +257,7 @@ def _validate(report: dict) -> None:
         if not isinstance(removing, list) or not all(isinstance(i, str) for i in removing):
             raise _Invalid(f"removing is {_type_name(removing)}, not a list of strings")
         for item in removing:
-            _printable(item, "removing")
+            _printable(item, "removing", ID_LIMIT)
 
 
 def _first_line(text: str) -> str:
@@ -283,12 +317,12 @@ def fetch(target: Path) -> Outcome:
         return _other_failure("the script's output is not one JSON object")
     if report.get("kind") != KIND:
         return Outcome(refusal=NotAvailable(
-            f"the script's report has kind {report.get('kind')!r}, not {KIND!r}",
+            f"the script's report has kind {_shown(report.get('kind'))}, not {KIND!r}",
             STEP_UPDATE_MANAGER))
     if report.get("schema_version") != SCHEMA_VERSION or isinstance(
             report.get("schema_version"), bool):
         return Outcome(refusal=NotAvailable(
-            f"the script's report has schema_version {report.get('schema_version')!r}; "
+            f"the script's report has schema_version {_shown(report.get('schema_version'))}; "
             f"this workflow-manager reads {SCHEMA_VERSION}", STEP_UPDATE_MANAGER))
     try:
         _validate(report)

@@ -662,15 +662,16 @@ class TestMalformedReports(Scratch):
         self.assertEqual(lines[0], "retention: not available: the script's report is "
                                    "malformed: RuntimeError")
 
-    def test_a_huge_byte_count_is_rendered_without_a_traceback_for_both_commands(self):
-        # EIR-001: beyond float range the size is whole GiB, the exit code unchanged.
+    def test_an_integer_outside_the_range_falls_back_for_both_commands(self):
         for command in ("status", "doctor"):
-            with self.subTest(command=command):
-                rep = report(finished())
-                rep["totals"]["finished_folder_bytes"] = 10 ** 400
-                path = self.put_report(rep)
-                got = self.both(command, STUB_REPORT=str(path))[1]
-                self.assertNotIn("not available", got.stdout)
+            for value in (-1, 10 ** 400):
+                with self.subTest(command=command, value=value):
+                    rep = report(finished())
+                    rep["totals"]["finished_folder_bytes"] = value
+                    got = self.both(command, STUB_REPORT=str(self.put_report(rep)))[1]
+                    self.one_note(got, "the script's report is malformed")
+                    self.assertIn("totals.finished_folder_bytes is out of range (0 to 2**63 - 1)",
+                                  got.stdout)
 
     def test_size_is_exact_for_ordinary_counts_and_safe_beyond_float_range(self):
         self.assertEqual(retention._size(5), "5 B")
@@ -696,6 +697,208 @@ class TestMalformedReports(Scratch):
         rep = report(finished())
         rep["removing"] = [1]
         self.case_six(rep, "removing is list, not a list of strings")
+
+
+CONTROLS = ["\n", "\r", "\t", "\x00", "\x1b", "\x7f", "\x85"]
+SEPARATORS = ["\u2028", "\u2029"]
+
+# (name in the refusal, how to put a value in a fresh report)
+def _set(*path):
+    def put(rep, value):
+        holder = rep
+        for key in path[:-1]:
+            holder = holder[key]
+        holder[path[-1]] = value
+    return put
+
+
+def _with_removing(rep, value):
+    rep["removing"] = [value]
+
+
+def _with_invalid_id(rep, value):
+    rep["not_finished"] = [{"work_item_id": value, "reason": "no_pull_request"}]
+
+
+STRING_FIELDS = {
+    "repository": (_set("repository"), 4096),
+    "archive_dir": (_set("archive_dir"), 4096),
+    "read_errors[].path": (lambda r, v: r.update(read_errors=[{"path": v, "error": "e"}]), 4096),
+    "read_errors[].error": (lambda r, v: r.update(read_errors=[{"path": "p", "error": v}]), 8192),
+    "finished[].work_item_id": (_set("finished", 0, "work_item_id"), 256),
+    "kept_recent[].work_item_id": (lambda r, v: r.update(kept_recent=[{"work_item_id": v}]), 256),
+    "not_finished[].work_item_id": (_with_invalid_id, 256),
+    "not_finished[].reason": (lambda r, v: r.update(
+        not_finished=[{"work_item_id": "x", "reason": v}]), 256),
+    "removing": (_with_removing, 256),
+}
+INT_FIELDS = {
+    "ttl_days": _set("ttl_days"),
+    "keep_recent": _set("keep_recent"),
+    "finished[].review_folder.tracked_files": _set("finished", 0, "review_folder", "tracked_files"),
+    "finished[].review_folder.bytes": _set("finished", 0, "review_folder", "bytes"),
+    "totals.finished": _set("totals", "finished"),
+    "totals.finished_folder_bytes": _set("totals", "finished_folder_bytes"),
+    "totals.archives": _set("totals", "archives"),
+    "totals.prunable": _set("totals", "prunable"),
+}
+
+
+def _invalid(rep) -> str | None:
+    try:
+        retention._validate(rep)
+    except retention._Invalid as invalid:
+        return str(invalid)
+    return None
+
+
+class TestHardenedValidation(Scratch):
+    def setUp(self):
+        super().setUp()
+        self.install_stub()
+
+    def test_the_clean_report_passes(self):
+        self.assertIsNone(_invalid(report(finished())))
+
+    def test_a_control_character_in_any_string_is_refused_naming_the_field(self):
+        for name, (put, _limit) in STRING_FIELDS.items():
+            for char in CONTROLS + SEPARATORS:
+                with self.subTest(field=name, char=repr(char)):
+                    rep = report(finished())
+                    put(rep, "a" + char + "b")
+                    got = _invalid(rep)
+                    self.assertIsNotNone(got)
+                    self.assertIn(name.split("[]")[-1] or name, got)
+                    self.assertIn("contains a control character", got)
+                    self.assertNotIn(char, got)
+
+    def test_a_forged_line_and_an_escape_fall_back_for_both_commands(self):
+        for command in ("status", "doctor"):
+            with self.subTest(command=command, case="newline"):
+                rep = report(finished())
+                rep["repository"] = "a\nretention: forged"
+                before = tree_hash(self.repo)
+                got = self.section(command, rep)
+                self.assertEqual(self.one_note(got, "repository contains a control character"),
+                                 retention.STEP_RUN_DIRECTLY)
+                self.assertNotIn("forged", got.stdout)
+                self.assertEqual(tree_hash(self.repo), before)
+                self.assertEqual(list(self.repo.rglob("__pycache__")), [])
+            with self.subTest(command=command, case="escape"):
+                rep = report(finished(), complete=False)
+                rep["read_errors"] = [{"path": "p", "error": "\x1b[31mred"}]
+                got = self.section(command, rep)
+                self.one_note(got, "read_errors[].error contains a control character")
+                self.assertNotIn("\x1b", got.stdout)
+
+    def test_every_integer_field_is_range_checked(self):
+        for name, put in INT_FIELDS.items():
+            for value in (-1, 2 ** 63, 10 ** 400):
+                with self.subTest(field=name, value=value):
+                    rep = report(finished())
+                    put(rep, value)
+                    got = _invalid(rep)
+                    self.assertIsNotNone(got)
+                    self.assertIn("is out of range (0 to 2**63 - 1)", got)
+            with self.subTest(field=name, value=0):
+                rep = report(finished())
+                put(rep, 0)
+                if name == "totals.finished":
+                    rep["finished"] = []
+                self.assertIsNone(_invalid(rep))
+            if name != "totals.finished":
+                with self.subTest(field=name, value="2**63 - 1"):
+                    rep = report(finished())
+                    put(rep, 2 ** 63 - 1)
+                    self.assertIsNone(_invalid(rep))
+
+    def test_the_upper_bound_of_totals_finished_is_accepted_by_need(self):
+        self.assertEqual(retention._need({"n": 2 ** 63 - 1}, "n", int, "totals"), 2 ** 63 - 1)
+        self.assertRaises(retention._Invalid, retention._need, {"n": 2 ** 63}, "n", int, "totals")
+
+    def test_every_string_field_is_length_checked_at_its_limit(self):
+        for name, (put, limit) in STRING_FIELDS.items():
+            with self.subTest(field=name, at="limit"):
+                rep = report(finished())
+                put(rep, "a" * limit)
+                self.assertIsNone(_invalid(rep))
+            with self.subTest(field=name, at="over"):
+                rep = report(finished())
+                put(rep, "a" * (limit + 1))
+                got = _invalid(rep)
+                self.assertIsNotNone(got)
+                self.assertIn(f"is longer than {limit} characters", got)
+
+    def test_the_length_falls_back_end_to_end_for_both_commands(self):
+        for command in ("status", "doctor"):
+            with self.subTest(command=command, size=4097):
+                rep = report(finished())
+                rep["repository"] = "a" * 4097
+                got = self.section(command, rep)
+                self.one_note(got, "repository is longer than 4096 characters")
+            with self.subTest(command=command, size=4096):
+                rep = report(finished())
+                rep["repository"] = "a" * 4096
+                got = self.section(command, rep)
+                self.assertNotIn("not available", got.stdout)
+                self.assertIn("a" * 4096, got.stdout)
+
+    def test_a_value_echoed_in_a_refusal_is_cut_and_escaped(self):
+        cases = {
+            "kind": (dict(kind="x" * 5000),
+                     "the script's report has kind '" + "x" * 39 + "... (5002 characters), not "
+                     "'retention-report'"),
+            "schema_version": (dict(schema_version=10 ** 400),
+                               "the script's report has schema_version 1" + "0" * 39
+                               + "... (401 characters); this workflow-manager reads 1"),
+        }
+        for command in ("status", "doctor"):
+            for name, (override, cause) in cases.items():
+                with self.subTest(command=command, field=name):
+                    got = self.section(command, dict(report(finished()), **override))
+                    self.one_note(got, cause)
+                    line = next(l for l in got.stdout.splitlines() if l.startswith("retention:"))
+                    self.assertEqual(line, "retention: not available: " + cause)
+                    self.assertLessEqual(len(cause), 140)
+            with self.subTest(command=command, field="controls"):
+                got = self.section(command, dict(report(finished()), kind="a\x1b[31m\u2028b"))
+                self.one_note(got, "kind 'a\\x1b[31m\\u2028b'")
+                self.assertNotIn("\x1b", got.stdout)
+                self.assertNotIn("\u2028", got.stdout)
+
+    def test_shown_keeps_a_short_value_and_survives_deep_nesting(self):
+        self.assertEqual(retention._shown("x"), "'x'")
+        self.assertEqual(retention._shown(2), "2")
+        text = repr("y" * 38)  # exactly 40 characters
+        self.assertEqual(retention._shown("y" * 38), text)
+        self.assertTrue(retention._shown("y" * 39).endswith("... (41 characters)"))
+        deep = []
+        for _ in range(100000):
+            deep = [deep]
+        self.assertEqual(retention._shown(deep), "<value>")
+
+    def test_an_invalid_id_entry_is_not_refused_for_its_id(self):
+        base = report(finished())
+        base["not_finished"] = [{"work_item_id": "x", "reason": "invalid_id"}]
+        for command in ("status", "doctor"):
+            expected = self.section(command, base).stdout
+            self.assertNotIn("not available", expected)
+            for raw in ("a" * 300, "a\nb"):
+                with self.subTest(command=command, id=raw[:4], reason="invalid_id"):
+                    rep = copy.deepcopy(base)
+                    rep["not_finished"][0]["work_item_id"] = raw
+                    self.assertEqual(self.section(command, rep).stdout, expected)
+                with self.subTest(command=command, id=raw[:4], reason="no_pull_request"):
+                    rep = copy.deepcopy(base)
+                    rep["not_finished"] = [{"work_item_id": raw, "reason": "no_pull_request"}]
+                    self.one_note(self.section(command, rep), "not_finished[].work_item_id")
+
+    def test_the_exemption_does_not_cover_the_reason_or_a_lone_surrogate(self):
+        rep = report(finished())
+        rep["not_finished"] = [{"work_item_id": "x", "reason": "invalid_id\n"}]
+        self.assertIn("not_finished[].reason contains a control character", _invalid(rep))
+        rep["not_finished"] = [{"work_item_id": "\ud800", "reason": "invalid_id"}]
+        self.assertIn("not_finished[].work_item_id is not valid text", _invalid(rep))
 
 
 class TestNoWrites(Scratch):
