@@ -2,41 +2,42 @@
 
 ## Milestone
 
-`null-record-wording` -- complete (accepted by policy; `governing_workflow_version: "2.2"`, `process`, plan revision 3, base `4cbd162`, branch `milestone/null-record-wording`): roadmap row 22 (#108). A `test:` pull request title (releases nothing). Plan: `docs/ai-workflow/WORKFLOW_MANAGER_NULL_RECORD_WORDING_PLAN.md`.
+`retention-view-hardening` -- in progress (`governing_workflow_version: "2.2"`, `process`, plan revision 3, base `e5fa61f`, branch `milestone/retention-view-hardening`): roadmap row 23 (#116, items 1 and 2). A `fix:` pull request title (releases Manager 1.14.3; no version is edited). Plan: `docs/ai-workflow/WORKFLOW_MANAGER_RETENTION_VIEW_HARDENING_PLAN.md`.
 
-What the Manager says about an installation record whose `workflow_version` is null, and its next step: `verify` and `status` with an explicit release no longer print `None`; the `update`, `update --dry-run` and `doctor` `next:` line names one step (the explicit update that rewrites the record); under `--dry-run` that step says it is a real update; a `--release-dir` is left out of the step. Messages outside the null record and every exit code are unchanged.
+`status --retention` and `doctor --retention` print nothing from the engine's JSON report until it has passed a stricter validation: no string with a control character (Unicode category Cc, U+2028, U+2029), every integer in 0 to 2**63 - 1, every string within a stated length, and the `kind` and `schema_version` refusals echo a cut, escaped value. Items 3 to 6 of #116 stay open.
 
-### CP1: the wording, the docs and the tests -- complete
+### CP1: the validation and its tests -- complete
 
-- `verify` (`install.py`) says the record has no `workflow_version`; `_not_a_version` (`advice.py`) returns the single step for a read, null record, built without `--release-dir`.
-- `docs/update.md` names the step; new and changed cases in `tests/test_operator_ux.py` and `tests/test_docs.py`.
+- `retention.py`: limits (`INT_MAX`, `PATH_LIMIT`, `ERROR_LIMIT`, `ID_LIMIT`, `SHOWN_LIMIT`), the integer range in `_need`, the control-character and length checks in `_printable`, `_shown` for the two echoes; an `invalid_id` entry's id is exempt (the Manager never prints it).
+- `tests/test_retention_status.py`: `TestHardenedValidation` and the extended range case (commit `51086fb`).
 
 ### CP2: bookkeeping -- complete
 
-- This record. `docs/ROADMAP.md` row 22 is Current and is Done at acceptance. No version is edited.
+- This record. `docs/ROADMAP.md` row 23 is Current and is Done at acceptance.
 
-### Mutation results (scratch clone of `03f6117`, `python3 tests/run_all.py --select test_operator_ux.py --select test_docs.py --select test_discovery.py`)
+### Mutation results (scratch clone of `51086fb`, `test_retention_status` run directly: the candidate passes 61 of 61)
 
-The candidate passes: 43 of 43 units, 279 tests, exit 0. Each mutation exits 1 and fails the case the plan names (extra failures listed):
+Each mutation exits 1 and fails the case the plan names (extra failures listed):
 
 | Mutation | Failed |
 | --- | --- |
-| `verify` prints `installed None` again | the `verify`/`status` case |
-| the null step is the old two-alternative text | the `update`/dry-run/`doctor` case, the null-manifest REL case |
-| the dry-run clause is dropped | the `update`/dry-run/`doctor` case, the release-directory case |
-| the clause is added to a bare update | the `update`/dry-run/`doctor` case, the release-directory case |
-| the null step is applied to a non-null bad record too | the unchanged non-null case, plus two other damaged-record cases |
-| `--release-dir` is carried onto the null step again | the null-manifest REL case |
-| the clause asserts D holds no version | the genuine-directory D case |
-| the `left out` clause is dropped | the release-directory case (REL and D are subtests of it) |
-| an explicit `--release-version V update` is refused on a null record | the extended explicit-update case, the release-directory case, `test_t4_t5_unmanaged_targets_get_the_bootstrap_command` |
+| the control-character scan removed | the control-character case, the forged-line/escape end-to-end case, plus two `invalid_id` cases |
+| only the U+2028/U+2029 clause removed | the control-character case (the separators are among its subtests) |
+| `\x85` (C1) no longer refused | the control-character case |
+| the length check removed | both length cases, plus the `invalid_id` case |
+| the length limit off by one | both length cases |
+| the lower bound removed | the integer-range cases |
+| the upper bound removed | the integer-range cases, plus the `totals.finished` upper-bound case |
+| the range applied to `bytes` only | the every-integer-field case, plus the upper-bound case |
+| `removing` items skipped by the scan | the `removing` control-character and length cases |
+| the `invalid_id` exemption removed | the `invalid_id` case |
+| the exemption widened to every `not_finished` id | the `invalid_id` case, plus the control-character and length cases |
+| `kind` echoed untruncated | the echo case |
+| `schema_version` echoed untruncated | the echo case |
+| `_shown` returns the raw string instead of `repr` | the echo case, plus `test_shown_keeps_a_short_value...` and `test_other_failures_are_case_six` |
 
-The scratch clone is outside the repository, which was never mutated. The full gate ran at `7240ca8` and again after the review fix at `00849e9` (revision 2: exit 0, same selection and tests digests as the local implementation review's run at `cf31245`).
-
-## Functional review
-
-Flows 1 to 6 from the checklist passed on the candidate (the Controller's automated tester, workflow-controller 1.26.0, run `controller:20261031T234218Z-0f6f5eae`). The milestone was accepted by policy; the six Optional findings are dispositioned in `docs/milestones/completed/null-record-wording-findings.md` (2 fixed, 2 dropped with reasons, 4 follow-ups on #145).
+The scratch clone is outside the repository, which was never mutated.
 
 ## Next action
 
-Roadmap row 22 is Done (a `test:` change, no release). The pull request (#146) merges after the acceptance commit. Open follow-up: issue #145. Then `/milestone-plan` when one is chosen.
+Self-review the diff, run the full gate (`python3 tests/run_all.py`), then prepare the local implementation review bundle.
