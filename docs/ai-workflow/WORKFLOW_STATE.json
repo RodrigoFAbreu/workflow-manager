@@ -21767,7 +21767,7 @@
       "registry_path": "docs/ai-workflow/registry/version-message-wording-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/version-message-wording-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "AWAITING_FUNCTIONAL_REVIEW",
       "plan_revision": 2,
       "implementation_revision": 1,
       "functional_review_round": null,
@@ -21876,7 +21876,108 @@
           "workflow_release": "2.25.5"
         }
       },
-      "technical_approval": null,
+      "technical_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "4e3e6fd1feb9dce967c8f686e9ee3d6e6ca1d995428d79d7eabf37f1f4f8ef64",
+        "approved_review_content_id": "458e54a6d650c9ae0cce9e95ad642ebf2b2879bc1b9611db28523b858dc51497",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/registry/version-message-wording-artifacts.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "a924eab011520d8a46081b91d2a3e74c7c03856f"
+          },
+          {
+            "path": "src/workflow_manager/advice.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "d6dfb1e4925eaf30315931e9c18d7136589acfd1"
+          },
+          {
+            "path": "src/workflow_manager/cli.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "6c65959b21842a3c77a7ada3fac510812ff065b8"
+          },
+          {
+            "path": "src/workflow_manager/install.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "f82c141b4d5ebc6342d81fb97d978e21c3ed9a30"
+          },
+          {
+            "path": "tests/test_operator_ux.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "e3a8cca8a259941fc56ce860579ebb67911d015c"
+          }
+        ],
+        "reviewed_content_commit": "b9ba561be2fe8c711703b362b6b64da376b84024",
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-11-03T12:53:47Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "458e54a6d650c9ae0cce9e95ad642ebf2b2879bc1b9611db28523b858dc51497",
+            "ledger": {
+              "local": {
+                "bundle_id": "4e3e6fd1feb9dce967c8f686e9ee3d6e6ca1d995428d79d7eabf37f1f4f8ef64",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "e85f00bf4f904c107bbf6f2746ae42013a9277e05d34a32780f7eacc6ace7c2d",
+                "ledger_entry_sha256": "e5a5549306ea6739b3c8867040cf4ad3a6fe19f7cba8735abcb5d5adb66136b3",
+                "run_ref": "session:local /home/rodrigo/Workspace/workflow-manager/.ai-review/version-message-wording/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "4e3e6fd1feb9dce967c8f686e9ee3d6e6ca1d995428d79d7eabf37f1f4f8ef64",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "e01e928ca0f1c90c39d75ce6455ff13a70935c2bde3cb1988379ce75d2aa7cc2",
+                "ledger_entry_sha256": "0ec41167b59806a673953d1147b9225545a99827409bf266c8074d70c9ac740e",
+                "run_ref": "codex:20261103T124947Z-8a7b8e86",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-11-03T12:53:47Z",
+          "workflow_release": "2.25.5"
+        }
+      },
       "technical_review_block_pins": [],
       "plan_review_stages": {
         "review_content_id": "00322801c836c9f7b6b3f9c5cd739a7faa02859589fd3f6c58d73ac06c1feb4a",
@@ -21907,12 +22008,12 @@
           "external": 2
         },
         "implementation": {
-          "local": 0,
-          "external": 0
+          "local": 1,
+          "external": 1
         }
       },
-      "state_revision": 18,
-      "last_transition": "2026-11-03T12:45:43Z",
+      "state_revision": 21,
+      "last_transition": "2026-11-03T12:53:47Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -22020,6 +22121,55 @@
               "at": "2026-11-03T12:17:27Z"
             }
           ]
+        },
+        "F-c1f6c76c02aa": {
+          "digest": "c1f6c76c02aa87ffa6b2157e31c408d4d151811b38564f815ad27a08fa046e26",
+          "text": "LIR1-001 (`src/workflow_manager/install.py`, `advice.py`): the empty-value rule (`repr(v) if v == \"\" else v`) is now spelled in three places (`advice._directory_step`, `install.record_head`, `install.verify`). The plan asks for one copy of the header rule only, and `record_head` is that copy, so this matches the plan. A small shared helper would make \"one rule\" literal across all three sites. Not required.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "458e54a6d650c9ae0cce9e95ad642ebf2b2879bc1b9611db28523b858dc51497",
+              "verdict": "APPROVE",
+              "at": "2026-11-03T12:49:30Z"
+            }
+          ]
+        },
+        "F-2a9e1475cb27": {
+          "digest": "2a9e1475cb2747a5cc511b41d14c839c16e9e9b19a934836cd53763a12737b3a",
+          "text": "LIR1-002 (`tests/test_operator_ux.py`): end to end, the `status` header for a null or empty record is checked only by its absence (`workflow None` not printed). Its exact text is pinned at unit level for both `Status.__str__` and `cli._print_record`, which is the coverage plan section 3 asks for. A positive check on the `status` stdout would pin which of the two sites the command actually reaches. Not required.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "458e54a6d650c9ae0cce9e95ad642ebf2b2879bc1b9611db28523b858dc51497",
+              "verdict": "APPROVE",
+              "at": "2026-11-03T12:49:30Z"
+            }
+          ]
+        }
+      },
+      "implementation_review_stages": {
+        "review_content_id": "458e54a6d650c9ae0cce9e95ad642ebf2b2879bc1b9611db28523b858dc51497",
+        "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "4e3e6fd1feb9dce967c8f686e9ee3d6e6ca1d995428d79d7eabf37f1f4f8ef64",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-11-03T12:49:30Z",
+          "verdict_sha256": "e85f00bf4f904c107bbf6f2746ae42013a9277e05d34a32780f7eacc6ace7c2d",
+          "run_ref": "session:local /home/rodrigo/Workspace/workflow-manager/.ai-review/version-message-wording/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "4e3e6fd1feb9dce967c8f686e9ee3d6e6ca1d995428d79d7eabf37f1f4f8ef64",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-11-03T12:53:03Z",
+          "verdict_sha256": "e01e928ca0f1c90c39d75ce6455ff13a70935c2bde3cb1988379ce75d2aa7cc2",
+          "run_ref": "codex:20261103T124947Z-8a7b8e86",
+          "reviewer_model": "openai/gpt-6.1-sol"
         }
       }
     }
