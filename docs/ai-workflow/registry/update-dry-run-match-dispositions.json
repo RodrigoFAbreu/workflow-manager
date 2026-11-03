@@ -1,0 +1,45 @@
+{
+  "dispositions": {
+    "F-069f5d257f54": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#158",
+      "note": "Follow-up item 5 (comment wording)."
+    },
+    "F-3561037d0d6b": {
+      "disposition": "fixed",
+      "note": "The stale comment in advice._not_a_version was rewritten for this item."
+    },
+    "F-42506feb7e51": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#158",
+      "note": "Follow-up item 5 (test detail)."
+    },
+    "F-54ec80c9ea09": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#158",
+      "note": "Follow-up item 3 (Recovery drops --release-version)."
+    },
+    "F-962b3d0a01de": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#158",
+      "note": "Follow-up items 3 and 4."
+    },
+    "F-b372c827e418": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#158",
+      "note": "Follow-up item 4 (no change for a record-only rewrite)."
+    },
+    "F-f4dbce091690": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#158",
+      "note": "Follow-up item 5 (mutation table detail)."
+    },
+    "F-ff1f739af7c4": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#158",
+      "note": "Follow-up item 5 (docs wording)."
+    }
+  },
+  "schema_version": 1,
+  "work_item_id": "update-dry-run-match"
+}

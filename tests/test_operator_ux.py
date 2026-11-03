@@ -16,6 +16,7 @@ import contextlib
 import hashlib
 import importlib.util
 import io
+import json
 import os
 import re
 import shlex
@@ -1261,7 +1262,7 @@ class TestNotAVersionRows(TargetCase):
                                       ("genuine", by_hand, genuine)):
             self.assertIn('"workflow_version": null', (repo / RECORD).read_text(), name)
             before = tree_hash(repo)
-            for argv, code, dry in ((["update", "--dry-run"], 1, True), (["doctor"], 2, False)):
+            for argv, code, dry in ((["doctor"], 2, False),):
                 full = ["--release-dir", str(directory), *argv, str(repo)]
                 proc = run(*full)
                 step_text = f"{name} {' '.join(argv)}"
@@ -1290,6 +1291,84 @@ class TestNotAVersionRows(TargetCase):
         proc = run("--release-dir", str(null_release), "update", str(bare))
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
         self.assertNotIn("is not a version", proc.stdout + proc.stderr)
+
+    def _dry_and_real(self, options, root, tag):
+        """The dry run and the real update of one input on two copies of a null
+        record, each reduced to its decision."""
+        dry_repo, real_repo = (shutil.copytree(self.damaged(None), root / f"{tag}-{kind}",
+                                               symlinks=True) for kind in ("dry", "real"))
+        before = tree_hash(dry_repo)
+        dry = run(*options, "update", "--dry-run", str(dry_repo))
+        real = run(*options, "update", str(real_repo))
+        self.assertEqual(tree_hash(dry_repo), before, f"{tag}: the dry run wrote")
+
+        def decision(proc, repo):
+            if proc.returncode == 0:
+                return ("accepted", None, None)
+            error = [line for line in proc.stderr.splitlines() if line.startswith("error:")]
+            step = [line.replace(" -- a real update, not a dry run", "")
+                    for line in next_lines(proc.stderr)]
+            return (f"refused {proc.returncode}", [e.replace(str(repo), "TARGET") for e in error],
+                    [n.replace(str(repo), "TARGET") for n in step])
+        return dry, real, decision(dry, dry_repo), decision(real, real_repo), real_repo
+
+    def test_update_and_dry_run_decide_the_same_way_on_a_null_record(self):
+        work = tempfile.TemporaryDirectory()
+        self.addCleanup(work.cleanup)
+        root = Path(work.name)
+        genuine, null_release = root / "genuine", root / "null release"
+        for directory in (genuine, null_release):
+            shutil.copytree(support.release(PINNED_NEWEST).root, directory)
+        manifest = null_release / "manifest.json"
+        needle = f'"workflow_version": "{PINNED_NEWEST}"'
+        self.assertIn(needle, manifest.read_text())
+        manifest.write_text(manifest.read_text().replace(needle, '"workflow_version": null', 1))
+        rows = (("release-dir", ["--release-dir", str(genuine)], "accepted"),
+                ("release-dir null manifest", ["--release-dir", str(null_release)], "accepted"),
+                ("release-version", ["--release-version", PINNED_NEWEST], "accepted"),
+                ("bare", [], "refused 1"))
+        for tag, options, expected in rows:
+            with self.subTest(input=tag):
+                dry, real, dry_decision, real_decision, real_repo = self._dry_and_real(
+                    options, root, tag.replace(" ", "-"))
+                self.assertEqual(real_decision[0], expected, real.stdout + real.stderr)
+                self.assertEqual(dry_decision, real_decision, dry.stdout + dry.stderr)
+                if expected != "accepted":
+                    continue
+                recorded = json.loads((real_repo / RECORD).read_text())["workflow_version"]
+                version = "None" if "null" in tag else PINNED_NEWEST
+                self.assertEqual(recorded, None if "null" in tag else PINNED_NEWEST)
+                self.assertIn(f"updated {real_repo} to workflow {version}", real.stdout)
+                self.assertTrue(
+                    dry.stdout.startswith(
+                        f"would update {root / (tag.replace(' ', '-') + '-dry')} from a record "
+                        f"with no workflow_version to workflow {version}     "
+                        f"(dry run: nothing written)\n"), dry.stdout)
+                def block(text, stop):
+                    lines = text.splitlines()[1:]
+                    return [line.strip() for line in lines[:next(
+                        i for i, line in enumerate(lines) if line.startswith(stop))]]
+                real_changes = [line if line == "(no change)" else cli._would(line)
+                                for line in block(real.stdout, "next:")]
+                self.assertEqual(block(dry.stdout, "left alone:"), real_changes,
+                                 (dry.stdout, real.stdout))
+
+    def test_the_dry_run_header_names_a_null_record_in_words(self):
+        null = self.damaged(None)
+        proc = run("--release-version", PINNED_NEWEST, "update", "--dry-run", str(null))
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        self.assertEqual(
+            proc.stdout.splitlines()[0],
+            f"would update {null} from a record with no workflow_version to workflow "
+            f"{PINNED_NEWEST}     (dry run: nothing written)")
+        self.assertNotIn("workflow None", proc.stdout)
+        recorded = self.fresh()
+        proc = run("--release-version", PINNED_NEWEST, "update", "--dry-run", str(recorded))
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        self.assertEqual(
+            proc.stdout.splitlines()[0],
+            f"would update {recorded} from workflow {PINNED_NEWEST} to workflow "
+            f"{PINNED_NEWEST}     (dry run: nothing written)")
 
     def test_an_update_naming_the_release_is_the_repair_and_is_not_refused(self):
         for value in ("garbage", None):

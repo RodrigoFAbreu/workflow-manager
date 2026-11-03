@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "work_item_id": "update-dry-run-match",
+  "requirements": {
+    "R1": {
+      "description": "On a null installation record, update --dry-run accepts the same input (--release-version or --release-dir) the real update accepts and previews it; a run that must choose the release is refused by both with the same cause and step",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R2": {
+      "description": "The dry-run header names a null recorded version in words (a record with no workflow_version), never Python None; a recorded version prints byte for byte as before",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R3": {
+      "description": "A deterministic test runs both commands on the same input and asserts the same decision, with a no-write proof for the accepted dry run and the refused run, and a failure-only mutation each; the one existing test pinning the old divergence is edited",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R4": {
+      "description": "Every other message, every other exit code, doctor, a record damaged but not null, and every Workflow file stay byte-identical; the two user pages state the exact current rule",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R5": {
+      "description": "Roadmap row 28 and the active-milestone record are kept in step; fix patch release",
+      "checkpoint_ids": [
+        "CP2"
+      ]
+    }
+  }
+}
