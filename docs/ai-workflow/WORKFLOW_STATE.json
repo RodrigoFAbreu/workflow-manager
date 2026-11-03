@@ -21001,7 +21001,7 @@
       "registry_path": "docs/ai-workflow/registry/gate-preflight-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/gate-preflight-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "AWAITING_FUNCTIONAL_REVIEW",
       "plan_revision": 3,
       "implementation_revision": 2,
       "functional_review_round": null,
@@ -21110,7 +21110,108 @@
           "workflow_release": "2.25.5"
         }
       },
-      "technical_approval": null,
+      "technical_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "0a73b4826f22093fb8076e8b93af22c2ea7331e93e414e5e40a662da2bfd902b",
+        "approved_review_content_id": "2189451103627cddef9a6d338a99e313fd1c05f38eba68f7bd9f2fc733769ee9",
+        "review_content_manifest": [
+          {
+            "path": "docs/ARCHITECTURE.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "c46c46512b030aaf774f776e5542670bff7f4ce0"
+          },
+          {
+            "path": "docs/ai-workflow/registry/gate-preflight-artifacts.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "af3e0b73380957f69ede67f6140df9a5e82cf03f"
+          },
+          {
+            "path": "tests/parallel/cli.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "c7833cab5547ba1bd3c1e984d8235df5b15afc1b"
+          },
+          {
+            "path": "tests/parallel/priming.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "54008519460e551cf1978dc808200b63bd21a0bc"
+          },
+          {
+            "path": "tests/test_parallel_runner.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "b1cc15ba3a5b97d57e5a26f9257d1f81ad25e0a6"
+          }
+        ],
+        "reviewed_content_commit": "23c6214fdf17e5dcffe91450363eed627c690abb",
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-11-03T03:39:38Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "2189451103627cddef9a6d338a99e313fd1c05f38eba68f7bd9f2fc733769ee9",
+            "ledger": {
+              "local": {
+                "bundle_id": "0a73b4826f22093fb8076e8b93af22c2ea7331e93e414e5e40a662da2bfd902b",
+                "verdict": "APPROVE",
+                "round": 3,
+                "verdict_sha256": "8544ba0f7f54967ecaf21d5d6a59b5c20aefe41e58f52eebeb8342f2b1b0063d",
+                "ledger_entry_sha256": "d7fc3766944156d224c963a1f74f4acb58f4f919a61b794c994e478ad44e148a",
+                "run_ref": "session:local .ai-review/gate-preflight/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "0a73b4826f22093fb8076e8b93af22c2ea7331e93e414e5e40a662da2bfd902b",
+                "verdict": "APPROVE",
+                "round": 3,
+                "verdict_sha256": "fe4a4becec5aefd88e47ab7396d95ce35a4a5174f58f7af6b1049009e6818d28",
+                "ledger_entry_sha256": "14f00837d49f55398a44659a70abb84c6df9950eb75b9207cacf18e2582b0994",
+                "run_ref": "codex:20261103T033523Z-8413c422",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-11-03T03:39:38Z",
+          "workflow_release": "2.25.5"
+        }
+      },
       "technical_review_block_pins": [],
       "plan_review_stages": {
         "review_content_id": "b62207e68dd99fdd00e442851b4ed985291887b61c36885532abfea81da36e20",
@@ -21141,12 +21242,12 @@
           "external": 1
         },
         "implementation": {
-          "local": 2,
-          "external": 0
+          "local": 3,
+          "external": 1
         }
       },
-      "state_revision": 21,
-      "last_transition": "2026-11-03T03:33:58Z",
+      "state_revision": 24,
+      "last_transition": "2026-11-03T03:39:38Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -21366,6 +21467,27 @@
               "at": "2026-11-03T03:32:38Z"
             }
           ]
+        }
+      },
+      "implementation_review_stages": {
+        "review_content_id": "2189451103627cddef9a6d338a99e313fd1c05f38eba68f7bd9f2fc733769ee9",
+        "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "0a73b4826f22093fb8076e8b93af22c2ea7331e93e414e5e40a662da2bfd902b",
+          "verdict": "APPROVE",
+          "round": 3,
+          "completed_at": "2026-11-03T03:35:12Z",
+          "verdict_sha256": "8544ba0f7f54967ecaf21d5d6a59b5c20aefe41e58f52eebeb8342f2b1b0063d",
+          "run_ref": "session:local .ai-review/gate-preflight/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "0a73b4826f22093fb8076e8b93af22c2ea7331e93e414e5e40a662da2bfd902b",
+          "verdict": "APPROVE",
+          "round": 3,
+          "completed_at": "2026-11-03T03:39:09Z",
+          "verdict_sha256": "fe4a4becec5aefd88e47ab7396d95ce35a4a5174f58f7af6b1049009e6818d28",
+          "run_ref": "codex:20261103T033523Z-8413c422",
+          "reviewer_model": "openai/gpt-6.1-sol"
         }
       }
     }
