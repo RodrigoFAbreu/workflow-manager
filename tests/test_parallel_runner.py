@@ -4422,6 +4422,13 @@ class TestGatePreflight(_CliCase):
         for free in (1000, 1001):
             priming.check_free_space(Path("/x/tmp"), minimum=1000, free=free)
 
+    def test_an_unmeasurable_path_is_a_refusal_that_names_it(self):
+        with mock.patch.object(priming.shutil, "disk_usage", side_effect=PermissionError("no")):
+            with self.assertRaises(priming.TmpSpaceError) as caught:
+                priming.check_free_space(Path("/x/tmp"))
+        self.assertIn("/x/tmp", str(caught.exception))
+        self.assertIn("TMPDIR", str(caught.exception))
+
     def test_the_minimum_is_pinned(self):
         self.assertEqual(priming.MIN_FREE_RUN_BYTES, 4 * 1024**3)
 
@@ -4430,11 +4437,12 @@ class TestGatePreflight(_CliCase):
     def test_a_refused_run_stops_before_it_writes_or_fetches_anything(self):
         scratch = scratch_checkout(self.tmp / "scratch")
         digest = tree.tree_digest(scratch)
+        runs_before = set(Path(tempfile.gettempdir()).glob("wm-run-*"))
         code, out, err = refused_in_process(scratch)
         assert_refusal(self, code, err, "TmpSpaceError")
         self.assertIn(tempfile.gettempdir(), err.splitlines()[0])
         self.assertEqual(tree.tree_digest(scratch), digest)
-        self.assertEqual([p for p in Path(tempfile.gettempdir()).glob("wm-run-*")], [])
+        self.assertEqual(set(Path(tempfile.gettempdir()).glob("wm-run-*")), runs_before)
         self.assertFalse(Path(scratch_release_env(scratch)[release_source.CACHE_ENV]).exists())
         for name in ("src", "tools"):
             self.assertTrue(os.access(scratch / name, os.W_OK))
@@ -4535,6 +4543,21 @@ class TestGatePreflight(_CliCase):
         report = priming.prime(scratch, {**os.environ, **scratch_release_env(scratch)})
         self.assertEqual(report["unserved"], [])
         self.assertEqual(report["versions"], ["0.0.1"])
+
+    def test_the_real_script_refuses_a_cache_that_fills_but_does_not_serve(self):
+        scratch = scratch_checkout(self.tmp / "scratch")
+        # `ensure` never calls `cached_manifest`, so the scratch's own copy of the
+        # source can fill the cache and still fail to serve what it filled.
+        source = scratch / "src" / "workflow_manager" / "source.py"
+        with source.open("a", encoding="utf-8") as handle:
+            handle.write("\n\nReleaseCache.cached_manifest = lambda self, version: None\n")
+        env = scratch_release_env(scratch)
+        with self.assertRaises(priming.PrimingError) as caught:
+            priming.prime(scratch, {**os.environ, **env})
+        text = str(caught.exception)
+        for part in ("0.0.1", "does not serve its manifest", env[release_source.CACHE_ENV]):
+            self.assertIn(part, text)
+        self.assertNotIsInstance(caught.exception, priming.TmpSpaceError)
 
 
 class TestTestTreeHygiene(_CliCase):

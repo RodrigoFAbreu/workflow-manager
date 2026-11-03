@@ -84,10 +84,15 @@ def check_free_space(path, minimum=None, free=None, lever="TMPDIR") -> None:
     `lever` is the option the operator changes."""
     minimum = MIN_FREE_RUN_BYTES if minimum is None else minimum
     if free is None:
-        probe = Path(path)
-        while not probe.exists() and probe != probe.parent:
-            probe = probe.parent
-        free = shutil.disk_usage(probe).free
+        try:
+            probe = Path(path)
+            while not probe.exists() and probe != probe.parent:
+                probe = probe.parent
+            free = shutil.disk_usage(probe).free
+        except OSError as exc:
+            raise TmpSpaceError(
+                f"cannot measure the free space of {path} ({exc}): set {lever} to a "
+                f"directory a run can use and run again") from exc
     if free < minimum:
         gib = 1024**3
         raise TmpSpaceError(
