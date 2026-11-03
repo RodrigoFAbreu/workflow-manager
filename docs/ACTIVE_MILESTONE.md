@@ -34,6 +34,11 @@ Each mutation exits 1 and fails the case the plan names (extra failures listed):
 
 One mutation outside the plan's table survives: the script's read-back loop removed while the `unserved: []` key stays. A cache that primes but does not serve cannot be built hermetically against the real script, so the loop is covered by the fake-report case and by review only.
 
+### Self-review
+
+- `nested_in_checked_run` let `OverflowError` out for a marker too large for a pid (`WM_GATE_PREFLIGHT=99999999999999999999`): the run stopped with `run_all: error[OverflowError]` instead of being checked, as a malformed marker must be. It is now caught with the other malformed values, and `test_a_missing_dead_or_malformed_marker_is_checked` covers that value (red on the unfixed code in a scratch clone: `error[OverflowError]`; green after).
+- No other finding: the check runs before priming for the three unit-starting modes only, measures the directory `make_run_dir` uses in each, creates nothing, and the read-back is shared by `tools/release/package.py` and `tools/release/release.py`, which already turn `PrimingError` into their own refusal.
+
 ## Next action
 
 Self-review, the full `python3 tests/run_all.py`, then the implementation-review bundle.

@@ -109,7 +109,7 @@ def nested_in_checked_run(environ=None) -> bool:
         return False
     except PermissionError:
         return True
-    except (ValueError, OSError):
+    except (ValueError, OverflowError, OSError):
         return False
     return True
 

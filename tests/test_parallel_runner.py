@@ -4493,7 +4493,7 @@ class TestGatePreflight(_CliCase):
     def test_a_missing_dead_or_malformed_marker_is_checked(self):
         child = subprocess.Popen([sys.executable, "-c", "pass"])
         child.wait()
-        for value in (None, str(child.pid), "not-a-pid", "", "0", "-1"):
+        for value in (None, str(child.pid), "not-a-pid", "", "0", "-1", "9" * 20):
             with self.subTest(value=value):
                 if value is None:
                     os.environ.pop(priming.GATE_PREFLIGHT_ENV, None)
