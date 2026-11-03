@@ -22409,7 +22409,7 @@
       "registry_path": "docs/ai-workflow/registry/docs-freshness-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/docs-freshness-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "APPLYING_REVIEW_FEEDBACK",
       "plan_revision": 1,
       "implementation_revision": 1,
       "functional_review_round": null,
@@ -22553,12 +22553,12 @@
           "external": 1
         },
         "implementation": {
-          "local": 0,
+          "local": 1,
           "external": 0
         }
       },
-      "state_revision": 19,
-      "last_transition": "2026-11-03T17:13:00Z",
+      "state_revision": 20,
+      "last_transition": "2026-11-03T17:16:01Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -22678,6 +22678,34 @@
               "review_content_id": "07c94b9043a3ebc401a1fc8a8284397603889dab9b68552796ba356a9fbb0177",
               "verdict": "APPROVE",
               "at": "2026-11-03T16:52:01Z"
+            }
+          ]
+        },
+        "F-0b7dfa15ac9a": {
+          "digest": "0b7dfa15ac9aeaec121bdeebe4fbccbee8c54f8cda7fddec912708abbe36635b",
+          "text": "LIR1-002 `docs/release-history.md` (new row 1.14.5): `git diff --stat v1.14.4 v1.14.5 -- src` is empty. The release changed only the Manager's own test runner (`tests/run_all.py`, `tests/parallel/`). The 1.13.1 row describes the same kind of release as \"nothing changes for someone installing\". The 1.14.5 row (\"A test run that cannot succeed ... now stops at its start\") does not say so, and a reader could take it for installer behaviour. Suggest naming it \"the Manager's own test runner\" and adding the same \"nothing changes for someone installing\" clause.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "c5637d0ff9c008e21d6b2a9ed041ddc89c19b6a9ebef99df8550db2aaca40d33",
+              "verdict": "REVISE",
+              "at": "2026-11-03T17:16:01Z"
+            }
+          ]
+        },
+        "F-a79155785692": {
+          "digest": "a7915578569286ccdbd55a889699c2c6521ecad1e819fa93ad4c6349a5b7f296",
+          "text": "LIR1-003 `docs/ROADMAP.md` rows 25 and 26 (excluded file): `e4b29f3` gave rows 15 and 22 to 24 concrete statuses (`a \\`fix:\\` change, Manager 1.14.x`). Rows 25 and 26 still say \"Manager patch release\", although `docs/release-history.md` now names them 1.14.5 (#152) and 1.14.6 (#155). For consistency, use the concrete versions.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "c5637d0ff9c008e21d6b2a9ed041ddc89c19b6a9ebef99df8550db2aaca40d33",
+              "verdict": "REVISE",
+              "at": "2026-11-03T17:16:01Z"
             }
           ]
         }
