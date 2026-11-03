@@ -21001,7 +21001,7 @@
       "registry_path": "docs/ai-workflow/registry/gate-preflight-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/gate-preflight-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "APPLYING_REVIEW_FEEDBACK",
       "plan_revision": 3,
       "implementation_revision": 2,
       "functional_review_round": null,
@@ -21141,12 +21141,12 @@
           "external": 1
         },
         "implementation": {
-          "local": 1,
+          "local": 2,
           "external": 0
         }
       },
-      "state_revision": 19,
-      "last_transition": "2026-11-03T02:48:50Z",
+      "state_revision": 20,
+      "last_transition": "2026-11-03T03:32:38Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -21350,6 +21350,20 @@
               "review_content_id": "e83dde9b73e4af2aa5a11cc7bf5699982dff2c7527e7d941d534a404073af61f",
               "verdict": "REVISE",
               "at": "2026-11-03T02:33:12Z"
+            }
+          ]
+        },
+        "F-2fea6af68f72": {
+          "digest": "2fea6af68f72036e678f2ad806895571af59c8a9a09e215127807fc799fe8566",
+          "text": "`test_the_real_script_refuses_a_cache_that_fills_but_does_not_serve` checks the version, \"does not serve its manifest\" and the cache, but not the next step (`remove <cache>/0.0.1`). The fake-report case already pins that text (`/c/0.0.1`), so this is covered, just not on the real-script path. Adding `f\"{env[CACHE_ENV]}/0.0.1\"` to the asserted parts would pin it there too.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 2,
+              "review_content_id": "2189451103627cddef9a6d338a99e313fd1c05f38eba68f7bd9f2fc733769ee9",
+              "verdict": "REVISE",
+              "at": "2026-11-03T03:32:38Z"
             }
           ]
         }
