@@ -22409,14 +22409,14 @@
       "registry_path": "docs/ai-workflow/registry/docs-freshness-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/docs-freshness-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "IMPLEMENTING",
+      "phase": "SELF_REVIEWING_IMPLEMENTATION",
       "plan_revision": 1,
       "implementation_revision": null,
       "functional_review_round": null,
       "base_commit": "578822299138a574178d899f108034bd5066df33",
       "reviewed_implementation_head": null,
       "current_checkpoint_id": null,
-      "last_completed_checkpoint_id": "CP2",
+      "last_completed_checkpoint_id": "CP3",
       "checkpoints": {
         "CP1": {
           "status": "COMPLETE",
@@ -22425,6 +22425,10 @@
         "CP2": {
           "status": "COMPLETE",
           "start_commit": "f8070448523d4abb2b9b603179beaf7a8e099b0c"
+        },
+        "CP3": {
+          "status": "COMPLETE",
+          "start_commit": "f8b14538f347b50e961580da9d301cfe17166585"
         }
       },
       "current_bundle_id": "a6e8bb2b09ae9e3e3fa0d071a12debd19e695ec69145a4589134ba361de5c310",
@@ -22553,8 +22557,8 @@
           "external": 0
         }
       },
-      "state_revision": 16,
-      "last_transition": "2026-11-03T16:56:20Z",
+      "state_revision": 18,
+      "last_transition": "2026-11-03T16:57:22Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
