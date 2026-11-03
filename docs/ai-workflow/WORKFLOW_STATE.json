@@ -21767,12 +21767,12 @@
       "registry_path": "docs/ai-workflow/registry/version-message-wording-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/version-message-wording-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "SELF_REVIEWING_IMPLEMENTATION",
+      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
       "plan_revision": 2,
-      "implementation_revision": null,
+      "implementation_revision": 1,
       "functional_review_round": null,
       "base_commit": "10213e04d70a0da1129cbaa688b6660fbb6c79a4",
-      "reviewed_implementation_head": null,
+      "reviewed_implementation_head": "b9ba561be2fe8c711703b362b6b64da376b84024",
       "current_checkpoint_id": null,
       "last_completed_checkpoint_id": "CP2",
       "checkpoints": {
@@ -21911,8 +21911,8 @@
           "external": 0
         }
       },
-      "state_revision": 17,
-      "last_transition": "2026-11-03T12:29:05Z",
+      "state_revision": 18,
+      "last_transition": "2026-11-03T12:45:43Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
