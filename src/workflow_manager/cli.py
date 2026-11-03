@@ -710,7 +710,9 @@ def _would(change: str) -> str:
 
 
 def _print_dry_run(args, plan, release) -> None:
-    print(f"would update {args.target} from workflow {plan.current.workflow_version} to "
+    recorded = plan.current.workflow_version
+    current = "a record with no workflow_version" if recorded is None else f"workflow {recorded}"
+    print(f"would update {args.target} from {current} to "
           f"workflow {release.version}     (dry run: nothing written)")
     overwrites = set(plan.overwrites)
     for change in plan.changes:
@@ -791,7 +793,10 @@ def cmd_dry_run(args) -> int:
     if not is_managed(args.target):
         raise NotManagedError(not_managed_text(args.target))
     installed = Installation.read(args.target).workflow_version
-    _refuse_unparseable_record(installed)
+    if installed is not None:
+        # A null record is the repair the real update accepts with a named release,
+        # and refuses when it must choose (`_floor`, below): the dry run decides alike.
+        _refuse_unparseable_record(installed)
     if _chooses(args):
         release, destinations = _choose_and_resolve(
             args, floor=_floor(args), installed=installed, readonly=True)
