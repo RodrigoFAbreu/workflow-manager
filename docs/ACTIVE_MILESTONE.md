@@ -29,6 +29,10 @@ Each mutation exits 1 and fails the case the plan names:
 
 No mutation survives. `python3 tests/run_all.py --select test_operator_ux.py` at `c90589e`: 128 tests, `verdict: exit 0`.
 
+### Self-review of the full diff
+
+- The new test now asserts both commands end to end for the empty value too, as the plan's section 3 says (`verify`: the step alone; `status`: the step, `; `, then `advice.doctor_step` built on the same context), and the `status` line exactly instead of by prefix; the number case no longer builds a scratch repository it does not use. Code unchanged. `python3 tests/run_all.py --select test_operator_ux.py::TestNotAVersionRows`: 10 tests, `verdict: exit 0`.
+
 ## Next action
 
 Run the full gate (`python3 tests/run_all.py`) and prepare the implementation review bundle.

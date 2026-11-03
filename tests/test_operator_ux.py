@@ -1176,9 +1176,9 @@ class TestNotAVersionRows(TargetCase):
         proc = run("--release-version", PINNED_NEWEST, "verify", str(repo))
         self.assertIn(f"version: installed 1.0.0, release {PINNED_NEWEST}", proc.stdout)
 
-    def version_context(self, version):
+    def version_context(self, version, command="verify", target=Path("/t")):
         args = argparse.Namespace(
-            command="verify", target=Path("/t"), release_version=PINNED_NEWEST,
+            command=command, target=target, release_version=PINNED_NEWEST,
             release_source=None, release_cache=None, release_dir=None, profile=None)
         return advice.Context(args=args, installed_version=version, installed_recorded=True)
 
@@ -1203,9 +1203,9 @@ class TestNotAVersionRows(TargetCase):
                     f"{head} — 1 problem(s):")
                 self.assertEqual(str(install.Status(True, version, "full", [], True)),
                                  f"{head} — clean")
-                repo = self.damaged(version if isinstance(version, str) else None)
                 if isinstance(version, int):
                     continue
+                repo = self.damaged(version)
                 before = tree_hash(repo)
                 printed = io.StringIO()
                 with contextlib.redirect_stdout(printed):
@@ -1215,17 +1215,18 @@ class TestNotAVersionRows(TargetCase):
                 if line is not None:
                     proc = run("--release-version", PINNED_NEWEST, "verify", str(repo))
                     self.assertIn(line, proc.stdout)
-                if version is None:
+                if step is not None:
                     for command in ("verify", "status"):
                         proc = run("--release-version", PINNED_NEWEST, command, str(repo))
                         self.assertEqual(proc.returncode, 1, proc.stdout + proc.stderr)
                         nexts = next_lines(proc.stdout + proc.stderr)
                         self.assertEqual(len(nexts), 1, proc.stdout + proc.stderr)
                         if command == "verify":
-                            self.assertEqual(nexts[0], null_step)
+                            self.assertEqual(nexts[0], step)
                         else:
-                            self.assertTrue(nexts[0].startswith(
-                                null_step + "; `workflow-manager doctor "), nexts[0])
+                            doctor = advice.doctor_step(
+                                self.version_context(version, "status", repo))
+                            self.assertEqual(nexts[0], f"{step}; {doctor}")
                         self.assertNotIn("holding None", proc.stdout + proc.stderr)
                         self.assertNotIn("workflow None", proc.stdout + proc.stderr)
                 self.assertEqual(tree_hash(repo), before)
