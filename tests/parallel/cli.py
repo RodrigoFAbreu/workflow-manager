@@ -25,10 +25,11 @@ frozen orphan source sharing a chunk (`OrphanDeclarationError`), a
 repository-integrity violation, another run holding this checkout's run
 lock, a refused root run, a pinned release that cannot be put in the release
 cache or that the cache does not serve once primed (`PrimingError`), a run
-directory filesystem with too little free space (`TmpSpaceError`)) or a usage error (among them an inherited
-`GIT_CONFIG_*` environment the chunk environment cannot extend,
-`GitConfigEnvError`, refused before any chunk starts). Every exit-2 refusal prints
-`run_all: error[<ErrorName>]: ...` as its first stderr line.
+directory filesystem with too little free space (`TmpSpaceError`)) or a usage
+error (among them an inherited `GIT_CONFIG_*` environment the chunk
+environment cannot extend, `GitConfigEnvError`, refused before any chunk
+starts). Every exit-2 refusal prints `run_all: error[<ErrorName>]: ...` as its
+first stderr line.
 
 Order: arguments, path flags (never inside the repository) and `--select`
 syntax are checked first, reading nothing but argv and `git rev-parse`; only

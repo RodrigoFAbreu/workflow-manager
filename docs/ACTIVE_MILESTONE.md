@@ -30,9 +30,11 @@ Each mutation exits 1 and fails the case the plan names (extra failures listed):
 | `free < minimum` to `free <= minimum` | `test_free_equal_to_the_minimum_passes` |
 | `MIN_FREE_RUN_BYTES` changed | `test_the_minimum_is_pinned` |
 | the `unserved` raise removed from `prime` | `test_a_version_the_cache_does_not_serve_is_a_priming_error` |
-| `unserved` (key and read-back loop) removed from the script's report | `test_the_real_script_reports_what_the_cache_serves` |
+| `unserved` key removed from the script's report | `test_the_real_script_reports_what_the_cache_serves` |
+| the script's read-back loop removed, `unserved: []` kept (LIR1-001) | `test_the_real_script_refuses_a_cache_that_fills_but_does_not_serve` |
+| an `OSError` from the measurement escapes (LIR1 optional) | `test_an_unmeasurable_path_is_a_refusal_that_names_it` |
 
-One mutation outside the plan's table survives: the script's read-back loop removed while the `unserved: []` key stays. A cache that primes but does not serve cannot be built hermetically against the real script, so the loop is covered by the fake-report case and by review only.
+No mutation survives. The read-back loop is pinned by driving the real script against a scratch whose `ReleaseCache.cached_manifest` returns `None` (LIR1-001); a first version of this note said that case could not be built hermetically, which was wrong.
 
 ### Self-review
 

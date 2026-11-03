@@ -490,8 +490,8 @@ the tested releases, one selection) in
   the filesystem its run directory is created on (`--results` when given, else
   the effective `TMPDIR`) against 4 GiB, about twice a full run's peak, and
   refuses with the path and the numbers (`TmpSpaceError`, exit `2`); a runner
-  started inside a unit of an enclosing run does not repeat the check. After priming, a run
-  needs no network. `support.cli_env()` carries the cache (and
+  started inside a unit of an enclosing run does not repeat the check. After
+  priming, a run needs no network. `support.cli_env()` carries the cache (and
   `WORKFLOW_MANAGER_RELEASE_SOURCE`, when set) into every from-scratch
   subprocess environment, so a test that moves `HOME` still reads the primed
   cache; a scratch checkout passes its own private source and cache the same
