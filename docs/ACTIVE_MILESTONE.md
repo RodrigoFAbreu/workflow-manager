@@ -2,7 +2,7 @@
 
 ## Milestone
 
-`version-message-wording` -- awaiting functional review (`governing_workflow_version: "2.2"`, `process`, plan revision 2, base `10213e0`, branch `milestone/version-message-wording`): roadmap row 26 (#145, items 1 and 2). A `fix:` pull request title (releases a Manager patch; no version is edited). Plan: `docs/ai-workflow/WORKFLOW_MANAGER_VERSION_MESSAGE_WORDING_PLAN.md`.
+`version-message-wording` -- complete, accepted by policy on 2026-11-03 (`governing_workflow_version: "2.2"`, `process`, plan revision 2, base `10213e0`, branch `milestone/version-message-wording`): roadmap row 26 (#145, items 1 and 2). A `fix:` pull request title (releases a Manager patch; no version is edited). Plan: `docs/ai-workflow/WORKFLOW_MANAGER_VERSION_MESSAGE_WORDING_PLAN.md`.
 
 A version taken from the installation record is named in words in the messages that quote it: a null reads as `no workflow_version recorded` (the `next:` line of `verify` and `status`, and the `status` header), an empty value as `''` (the `status` header and the `verify` `version:` line). Every other value, message and exit code is byte-identical. No Workflow change.
 
@@ -12,7 +12,7 @@ A version taken from the installation record is named in words in the messages t
 
 ### CP2: bookkeeping -- complete
 
-- This record. `docs/ROADMAP.md` row 26 is Current; the acceptance step marks it Done.
+- This record. `docs/ROADMAP.md` row 26 is Done (accepted by policy).
 
 ### Mutation results (scratch copy of `c90589e` outside the repository, `python3 tests/run_all.py --select test_operator_ux.py::TestNotAVersionRows`; the candidate passes)
 
@@ -92,4 +92,4 @@ rm -rf "$S"
 
 ## Next action
 
-Functional review (user). Run the flows above and place any findings at `.ai-review/version-message-wording/feedback/FUNCTIONAL_REVIEW.md`. Clean testing goes to `/accept-milestone`, the only acceptance command, which requires every checkpoint to be `COMPLETE` (CP1 and CP2 are). Findings go to `/apply-functional-review`.
+No milestone is ready: roadmap rows 5 and 6 wait on the Controller, and the open items under "Later" need an owner decision. Merge the pull request when its CI is green (a `fix:` title releases a Manager patch); then plan the next item with `/milestone-plan`.

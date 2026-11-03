@@ -1,0 +1,38 @@
+{
+ "schema_version": 1,
+ "work_item_id": "version-message-wording",
+ "dispositions": {
+  "F-2a9e1475cb27": {
+   "disposition": "dropped",
+   "reason": "optional extra positive check on the status stdout; the exact text is pinned at unit level for both sites and functional flow 2 confirmed the header"
+  },
+  "F-34e2518ed74b": {
+   "disposition": "fixed",
+   "note": "answered in the plan or implementation revisions and confirmed by the later local and Codex rounds"
+  },
+  "F-390dcf9aad5f": {
+   "disposition": "fixed",
+   "note": "answered in the plan or implementation revisions and confirmed by the later local and Codex rounds"
+  },
+  "F-45810c198512": {
+   "disposition": "dropped",
+   "reason": "plan wording on the _repair_step coverage; the implementation tests pass and the implementation review approved them"
+  },
+  "F-68127c0b87be": {
+   "disposition": "fixed",
+   "note": "answered in the plan or implementation revisions and confirmed by the later local and Codex rounds"
+  },
+  "F-b95eeb9bb9ad": {
+   "disposition": "dropped",
+   "reason": "plan wording of a mutation record only; mutation results are recorded with the implementation"
+  },
+  "F-c1f6c76c02aa": {
+   "disposition": "dropped",
+   "reason": "a shared helper for the empty-value rule is optional; the plan asks for one header rule only, which record_head is"
+  },
+  "F-df3d7d7bb9bd": {
+   "disposition": "dropped",
+   "reason": "plan wording: the list of historical hits is incomplete but the conclusion (no current usage page changes) holds"
+  }
+ }
+}
