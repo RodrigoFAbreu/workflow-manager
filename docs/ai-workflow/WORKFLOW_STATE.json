@@ -23291,12 +23291,12 @@
       "registry_path": "docs/ai-workflow/registry/update-dry-run-match-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/update-dry-run-match-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "SELF_REVIEWING_IMPLEMENTATION",
+      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
       "plan_revision": 2,
-      "implementation_revision": null,
+      "implementation_revision": 1,
       "functional_review_round": null,
       "base_commit": "76783c91d01fc9e7db9cd2723e6fe08bdacc8956",
-      "reviewed_implementation_head": null,
+      "reviewed_implementation_head": "d1e5e3c97925c88ed4d38064c63163e98a1f0824",
       "current_checkpoint_id": null,
       "last_completed_checkpoint_id": "CP2",
       "checkpoints": {
@@ -23435,8 +23435,8 @@
           "external": 0
         }
       },
-      "state_revision": 13,
-      "last_transition": "2026-11-03T19:26:19Z",
+      "state_revision": 14,
+      "last_transition": "2026-11-03T19:44:53Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
