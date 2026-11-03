@@ -360,9 +360,9 @@ def verify(target: Path, release: Release) -> list[str]:
                 f"release {release.version}"
             )
         else:
-            problems.append(
-                f"version: installed {installation.workflow_version}, release {release.version}"
-            )
+            installed = repr("") if installation.workflow_version == "" \
+                else installation.workflow_version
+            problems.append(f"version: installed {installed}, release {release.version}")
     return problems
 
 
@@ -704,6 +704,14 @@ def _local_modifications(target: Path, installation: Installation,
 # ---------------------------------------------------------------------------
 
 
+def record_head(version, profile) -> str:
+    """The header naming a recorded version: a null or empty one by what it is."""
+    if version is None:
+        return f"no workflow_version recorded ({profile} profile)"
+    shown = repr(version) if version == "" else version
+    return f"workflow {shown} ({profile} profile)"
+
+
 @dataclass
 class Status:
     managed: bool
@@ -718,7 +726,7 @@ class Status:
     def __str__(self) -> str:
         if not self.managed:
             return f"not a managed repository (no {INSTALLATION_DIR}/{INSTALLATION_FILE})"
-        head = f"workflow {self.workflow_version} ({self.profile} profile)"
+        head = record_head(self.workflow_version, self.profile)
         if self.problems:
             return f"{head} — {len(self.problems)} problem(s):\n  " + "\n  ".join(self.problems)
         if not self.verified:
