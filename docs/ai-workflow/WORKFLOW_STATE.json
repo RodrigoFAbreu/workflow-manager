@@ -22409,7 +22409,7 @@
       "registry_path": "docs/ai-workflow/registry/docs-freshness-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/docs-freshness-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "AWAITING_FUNCTIONAL_REVIEW",
       "plan_revision": 1,
       "implementation_revision": 2,
       "functional_review_round": null,
@@ -22522,7 +22522,114 @@
           "workflow_release": "2.25.5"
         }
       },
-      "technical_approval": null,
+      "technical_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "1273d521af3803caf9c77398cf0f2fee08828abbed332b912111de1304849065",
+        "approved_review_content_id": "fceaefe8e78044894615dc2d531dfc8b39cc4f6c0e23c58d6cd03be97110beca",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/registry/docs-freshness-artifacts.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "c4a1e64082e5248eb84a30b4bdfe37d12bdc90b1"
+          },
+          {
+            "path": "docs/development.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "90b7e9681922f2921f9e7bbdade45e23dacf3c2f"
+          },
+          {
+            "path": "docs/install.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "3a6aa6e2cce12508e003245e6d9073836f3d80bb"
+          },
+          {
+            "path": "docs/release-history.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "37942a00ec0e720117f65e852b0d0c44650b2f38"
+          },
+          {
+            "path": "docs/update.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "5643289cc35f1d7cbc26c56d72d8ef4f86c3c049"
+          },
+          {
+            "path": "docs/verify.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "e7eb08298f4af851b00501ff1b25b886c4dbc518"
+          }
+        ],
+        "reviewed_content_commit": "60f9754a7990f9dc25a08f1478848d28eff81075",
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-11-03T17:55:31Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "fceaefe8e78044894615dc2d531dfc8b39cc4f6c0e23c58d6cd03be97110beca",
+            "ledger": {
+              "local": {
+                "bundle_id": "1273d521af3803caf9c77398cf0f2fee08828abbed332b912111de1304849065",
+                "verdict": "APPROVE",
+                "round": 2,
+                "verdict_sha256": "d0e72f7cf1a9335469af756eb91b1677bdd51a8be49d9f5f77efea42f9b266a9",
+                "ledger_entry_sha256": "32a42b48c9ddf69339a5eda9212dcb267b1062991ea32d432f9170225314d597",
+                "run_ref": "session:local .ai-review/docs-freshness/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "1273d521af3803caf9c77398cf0f2fee08828abbed332b912111de1304849065",
+                "verdict": "APPROVE",
+                "round": 2,
+                "verdict_sha256": "50737107187489b23734f5f10823ee3143e1d6d1efd2f63e0b2a063ea0f51a82",
+                "ledger_entry_sha256": "a80965b04de872a764ac66ab6706dd3493ffdcbebfccde4e0cf2bb9e40f01c66",
+                "run_ref": "codex:20261103T175255Z-bace7226",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-11-03T17:55:31Z",
+          "workflow_release": "2.25.5"
+        }
+      },
       "technical_review_block_pins": [],
       "plan_review_stages": {
         "review_content_id": "07c94b9043a3ebc401a1fc8a8284397603889dab9b68552796ba356a9fbb0177",
@@ -22553,12 +22660,12 @@
           "external": 1
         },
         "implementation": {
-          "local": 1,
-          "external": 0
+          "local": 2,
+          "external": 1
         }
       },
-      "state_revision": 21,
-      "last_transition": "2026-11-03T17:18:18Z",
+      "state_revision": 24,
+      "last_transition": "2026-11-03T17:55:31Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -22708,6 +22815,83 @@
               "at": "2026-11-03T17:16:01Z"
             }
           ]
+        },
+        "F-7fa20e6a88cf": {
+          "digest": "7fa20e6a88cfac613f2e12cbb02e9cb94266c6517fb9e59a259cd8e677835774",
+          "text": "LIR2-001 `docs/release-history.md` (row 1.14.6): the row says the release names a missing or empty recorded version \"in words ... instead of `None` or a blank\". That is true for a null record (`no workflow_version recorded`). An empty one is now shown quoted as `''` (`record_head`, and `cmd_verify`'s `version: installed '', release V`), not in words. A closer wording: \"Names a missing recorded Workflow version in words and shows an empty one as `''`, instead of `None` or a blank.\"",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 2,
+              "review_content_id": "fceaefe8e78044894615dc2d531dfc8b39cc4f6c0e23c58d6cd03be97110beca",
+              "verdict": "APPROVE",
+              "at": "2026-11-03T17:52:31Z"
+            }
+          ]
+        },
+        "F-85d2a89d20d3": {
+          "digest": "85d2a89d20d3cb63b66e0ec05260961bc2e55e28a003b0659bce49a172f1a40b",
+          "text": "LIR2-002 `.ai-review/docs-freshness/current/TEST_RESULTS.md` (bundle content, not a deliverable): it still says `implementation_revision: 1`, and its narrow checks name `e4b29f3` rather than the post-fix head. The citation of the full gate at `3280d60` is still valid, because the only changes since then are docs and workflow state. The post-fix narrow checks are simply not recorded there. I re-ran them at `a99757e`, so acceptance can cite this verdict, or the record can name them.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 2,
+              "review_content_id": "fceaefe8e78044894615dc2d531dfc8b39cc4f6c0e23c58d6cd03be97110beca",
+              "verdict": "APPROVE",
+              "at": "2026-11-03T17:52:31Z"
+            }
+          ]
+        },
+        "F-8563cba6a4f1": {
+          "digest": "8563cba6a4f140561736e7b20f0a6917ca7e161b1d881103c6513d61bb218ceb",
+          "text": "`docs/release-history.md:9`: “missing or empty … in words” slightly misdescribes empty values. The source prints `''` for an empty value and `no workflow_version recorded` for null. Consider describing those separately.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW",
+              "round": 2,
+              "review_content_id": "fceaefe8e78044894615dc2d531dfc8b39cc4f6c0e23c58d6cd03be97110beca",
+              "verdict": "APPROVE",
+              "at": "2026-11-03T17:55:07Z"
+            }
+          ]
+        },
+        "F-f8e76cd53aaf": {
+          "digest": "f8e76cd53aaf51138d74513841d5f87670b4d77a0d4937c08ca0d917ea61fa09",
+          "text": "`.ai-review/docs-freshness/current/TEST_RESULTS.md:3`: the evidence still identifies revision 1. Update its revision label and include the post-fix narrow checks already recorded in `IMPLEMENTATION_SUMMARY.md`.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW",
+              "round": 2,
+              "review_content_id": "fceaefe8e78044894615dc2d531dfc8b39cc4f6c0e23c58d6cd03be97110beca",
+              "verdict": "APPROVE",
+              "at": "2026-11-03T17:55:07Z"
+            }
+          ]
+        }
+      },
+      "implementation_review_stages": {
+        "review_content_id": "fceaefe8e78044894615dc2d531dfc8b39cc4f6c0e23c58d6cd03be97110beca",
+        "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "1273d521af3803caf9c77398cf0f2fee08828abbed332b912111de1304849065",
+          "verdict": "APPROVE",
+          "round": 2,
+          "completed_at": "2026-11-03T17:52:31Z",
+          "verdict_sha256": "d0e72f7cf1a9335469af756eb91b1677bdd51a8be49d9f5f77efea42f9b266a9",
+          "run_ref": "session:local .ai-review/docs-freshness/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "1273d521af3803caf9c77398cf0f2fee08828abbed332b912111de1304849065",
+          "verdict": "APPROVE",
+          "round": 2,
+          "completed_at": "2026-11-03T17:55:07Z",
+          "verdict_sha256": "50737107187489b23734f5f10823ee3143e1d6d1efd2f63e0b2a063ea0f51a82",
+          "run_ref": "codex:20261103T175255Z-bace7226",
+          "reviewer_model": "openai/gpt-6.1-sol"
         }
       }
     }
