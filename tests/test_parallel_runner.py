@@ -4385,12 +4385,16 @@ class TestScratchReleaseIsolation(_CliCase):
         self.assertIn("tools/", resources.GUARDED_TREES)
 
 
+def refused_in_process(scratch_root, *argv) -> tuple[int, str, str]:
+    """`main_in_process` with a free-space minimum no disk has."""
+    with mock.patch.object(priming, "MIN_FREE_RUN_BYTES", 2**62):
+        return main_in_process(scratch_root, *argv)
+
+
 class TestGatePreflight(_CliCase):
     """Roadmap row 25: a run that cannot succeed stops at its start, before any
     unit, with a refusal that names the cause. All hermetic: a scratch checkout
     on its own source and cache, injected numbers, no network."""
-
-    HUGE = 2**62
 
     def setUp(self):
         super().setUp()
@@ -4398,14 +4402,6 @@ class TestGatePreflight(_CliCase):
         patcher.start()
         self.addCleanup(patcher.stop)
         os.environ.pop(priming.GATE_PREFLIGHT_ENV, None)
-        self.scratch = scratch_checkout(self.tmp / "scratch")
-
-    def _refused_run(self, *argv):
-        with mock.patch.object(priming, "MIN_FREE_RUN_BYTES", self.HUGE):
-            return main_in_process(self.scratch, *argv)
-
-    def _private_cache(self) -> Path:
-        return Path(scratch_release_env(self.scratch)[release_source.CACHE_ENV])
 
     # -- the check ---------------------------------------------------------------------
 
@@ -4432,20 +4428,22 @@ class TestGatePreflight(_CliCase):
     # -- the refusal at the start ------------------------------------------------------
 
     def test_a_refused_run_stops_before_it_writes_or_fetches_anything(self):
-        digest = tree.tree_digest(self.scratch)
-        code, out, err = self._refused_run()
+        scratch = scratch_checkout(self.tmp / "scratch")
+        digest = tree.tree_digest(scratch)
+        code, out, err = refused_in_process(scratch)
         assert_refusal(self, code, err, "TmpSpaceError")
         self.assertIn(tempfile.gettempdir(), err.splitlines()[0])
-        self.assertEqual(tree.tree_digest(self.scratch), digest)
+        self.assertEqual(tree.tree_digest(scratch), digest)
         self.assertEqual([p for p in Path(tempfile.gettempdir()).glob("wm-run-*")], [])
-        self.assertFalse(self._private_cache().exists())
+        self.assertFalse(Path(scratch_release_env(scratch)[release_source.CACHE_ENV]).exists())
         for name in ("src", "tools"):
-            self.assertTrue(os.access(self.scratch / name, os.W_OK))
-        isolation.acquire_run_lock(self.scratch).release()
+            self.assertTrue(os.access(scratch / name, os.W_OK))
+        isolation.acquire_run_lock(scratch).release()
 
     def test_results_not_tmpdir_is_the_directory_checked(self):
+        scratch = scratch_checkout(self.tmp / "scratch")
         results = self.tmp / "scratch-parent" / "res"
-        code, out, err = self._refused_run("--results", results)
+        code, out, err = refused_in_process(scratch, "--results", results)
         assert_refusal(self, code, err, "TmpSpaceError")
         first = err.splitlines()[0]
         self.assertIn(str(results), first)
@@ -4453,6 +4451,7 @@ class TestGatePreflight(_CliCase):
         self.assertFalse(results.exists())
 
     def test_the_path_checked_follows_the_run_directory(self):
+        scratch = scratch_checkout(self.tmp / "scratch")
         results = self.tmp / "res"
         temp = Path(tempfile.gettempdir())
         plan = self.tmp / "plan.json"
@@ -4466,7 +4465,7 @@ class TestGatePreflight(_CliCase):
             with self.subTest(argv=argv), \
                     mock.patch.object(priming, "check_free_space",
                                       side_effect=priming.TmpSpaceError("stop")) as check:
-                code, out, err = main_in_process(self.scratch, *argv)
+                code, out, err = main_in_process(scratch, *argv)
                 assert_refusal(self, code, err, "TmpSpaceError")
                 self.assertEqual(Path(check.call_args.args[0]), expected)
 
@@ -4485,12 +4484,13 @@ class TestGatePreflight(_CliCase):
         self.assertNotIn(priming.GATE_PREFLIGHT_ENV, os.environ)
 
     def test_a_nested_run_under_a_live_marker_is_not_checked_again(self):
+        scratch = scratch_checkout(self.tmp / "scratch")
         os.environ[priming.GATE_PREFLIGHT_ENV] = str(os.getpid())
-        with mock.patch.object(priming, "MIN_FREE_RUN_BYTES", self.HUGE):
-            code, out, err = main_in_process(self.scratch, "--select", "test_scratch_shared.py")
+        code, out, err = refused_in_process(scratch, "--select", "test_scratch_shared.py")
         self.assertEqual(code, 0, out + err)
 
     def test_a_missing_dead_or_malformed_marker_is_checked(self):
+        scratch = scratch_checkout(self.tmp / "scratch")
         child = subprocess.Popen([sys.executable, "-c", "pass"])
         child.wait()
         for value in (None, str(child.pid), "not-a-pid", "", "0", "-1", "9" * 20):
@@ -4499,15 +4499,16 @@ class TestGatePreflight(_CliCase):
                     os.environ.pop(priming.GATE_PREFLIGHT_ENV, None)
                 else:
                     os.environ[priming.GATE_PREFLIGHT_ENV] = value
-                code, out, err = self._refused_run("--select", "test_scratch_shared.py")
+                code, out, err = refused_in_process(scratch, "--select", "test_scratch_shared.py")
                 assert_refusal(self, code, err, "TmpSpaceError")
 
     # -- scope -------------------------------------------------------------------------
 
     def test_modes_that_start_no_unit_are_not_refused_for_space(self):
-        code, out, err = self._refused_run("--list")
+        scratch = scratch_checkout(self.tmp / "scratch")
+        code, out, err = refused_in_process(scratch, "--list")
         self.assertEqual(code, 0, out + err)
-        code, out, err = self._refused_run("--plan-only", "--out", self.tmp / "plan.json")
+        code, out, err = refused_in_process(scratch, "--plan-only", "--out", self.tmp / "plan.json")
         self.assertEqual(code, 0, out + err)
 
     # -- the read-back -----------------------------------------------------------------
@@ -4518,18 +4519,20 @@ class TestGatePreflight(_CliCase):
             {"cache": "/c", "source": "s", "versions": ["0.0.1"], "unserved": unserved}))
 
     def test_a_version_the_cache_does_not_serve_is_a_priming_error(self):
+        scratch = scratch_checkout(self.tmp / "scratch")
         with mock.patch.object(priming.subprocess, "run", return_value=self._fake_report(["0.0.1"])):
             with self.assertRaises(priming.PrimingError) as caught:
-                priming.prime(self.scratch)
+                priming.prime(scratch)
         text = str(caught.exception)
         for part in ("0.0.1", "/c", "s", "/c/0.0.1"):
             self.assertIn(part, text)
         self.assertNotIsInstance(caught.exception, priming.TmpSpaceError)
         with mock.patch.object(priming.subprocess, "run", return_value=self._fake_report([])):
-            self.assertEqual(priming.prime(self.scratch)["unserved"], [])
+            self.assertEqual(priming.prime(scratch)["unserved"], [])
 
     def test_the_real_script_reports_what_the_cache_serves(self):
-        report = priming.prime(self.scratch, {**os.environ, **scratch_release_env(self.scratch)})
+        scratch = scratch_checkout(self.tmp / "scratch")
+        report = priming.prime(scratch, {**os.environ, **scratch_release_env(scratch)})
         self.assertEqual(report["unserved"], [])
         self.assertEqual(report["versions"], ["0.0.1"])
 
