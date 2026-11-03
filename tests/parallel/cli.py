@@ -24,18 +24,23 @@ chunk without the orphan check (`OrphanCheckUnavailableError`), a declared
 frozen orphan source sharing a chunk (`OrphanDeclarationError`), a
 repository-integrity violation, another run holding this checkout's run
 lock, a refused root run, a pinned release that cannot be put in the release
-cache (`PrimingError`)) or a usage error (among them an inherited
-`GIT_CONFIG_*` environment the chunk environment cannot extend,
-`GitConfigEnvError`, refused before any chunk starts). Every exit-2 refusal prints
-`run_all: error[<ErrorName>]: ...` as its first stderr line.
+cache or that the cache does not serve once primed (`PrimingError`), a run
+directory filesystem with too little free space (`TmpSpaceError`)) or a usage
+error (among them an inherited `GIT_CONFIG_*` environment the chunk
+environment cannot extend, `GitConfigEnvError`, refused before any chunk
+starts). Every exit-2 refusal prints `run_all: error[<ErrorName>]: ...` as its
+first stderr line.
 
 Order: arguments, path flags (never inside the repository) and `--select`
 syntax are checked first, reading nothing but argv and `git rev-parse`; only
 then is the checkout run lock taken (every mode takes it), and a barrier a
 dead run left behind recovered; everything after that happens under the
-lock. Every mode but `--restore-barrier` then primes the release cache with
-every pinned version and exports it to discovery and to every unit (plan
-7.1).
+lock. For the modes that start units (the local run, `--run-shard` and
+`--aggregate`) the free space of the filesystem the run directory is created on
+is checked next, before anything is fetched, unless an enclosing run has
+already checked it. Every mode but `--restore-barrier` then primes the release
+cache with every pinned version and exports it to discovery and to every unit
+(plan 7.1).
 """
 
 from __future__ import annotations
@@ -43,6 +48,7 @@ from __future__ import annotations
 import argparse
 import subprocess
 import sys
+import tempfile
 import traceback
 from pathlib import Path
 
@@ -250,6 +256,8 @@ def _main(argv, *, repo_root: Path) -> int:
             if not restored:
                 _out("no write barrier to restore")
             return 0
+        if mode in ("run", "run_shard", "aggregate"):
+            _check_run_space(mode, args)
         primed = priming.prime(repo_root)
         before = priming.cache_entries(primed["cache"])
         with priming.exported(primed["cache"]):
@@ -265,6 +273,18 @@ def _main(argv, *, repo_root: Path) -> int:
         return refuse(exc)
     finally:
         lock.release()
+
+
+def _check_run_space(mode, args) -> None:
+    """Refuse a run whose run directory filesystem is too full, unless an
+    enclosing run already checked. `--results` (when the mode creates the run
+    directory there) else the effective temporary directory."""
+    if priming.nested_in_checked_run():
+        return
+    if mode in ("run", "run_shard") and args.results is not None:
+        priming.check_free_space(args.results, lever="--results")
+    else:
+        priming.check_free_space(Path(tempfile.gettempdir()))
 
 
 def _dispatch(mode, args, parsed, repo_root: Path, lock) -> int:

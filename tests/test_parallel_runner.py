@@ -62,7 +62,7 @@ import test_bootstrap_e2e as bootstrap_e2e
 import test_conformance_suite as conformance_suite
 import test_update_path as update_path
 from parallel import (canonical_json, cli, executor, inventory, isolation, matrix, plan_schema,
-                      planner, report, resources, timings, tree, unit)
+                      planner, priming, report, resources, timings, tree, unit)
 from workflow_manager.fixture import build_conformance_repo, configure_throwaway_repo, init_git_repo
 import workflow_manager.package as package_module
 from workflow_manager import source as release_source
@@ -4383,6 +4383,181 @@ class TestScratchReleaseIsolation(_CliCase):
         declared = SCRATCH_RESOURCES["resources"]["repo:tools"]["paths"]
         self.assertEqual(declared, ["tools/"])
         self.assertIn("tools/", resources.GUARDED_TREES)
+
+
+def refused_in_process(scratch_root, *argv) -> tuple[int, str, str]:
+    """`main_in_process` with a free-space minimum no disk has."""
+    with mock.patch.object(priming, "MIN_FREE_RUN_BYTES", 2**62):
+        return main_in_process(scratch_root, *argv)
+
+
+class TestGatePreflight(_CliCase):
+    """Roadmap row 25: a run that cannot succeed stops at its start, before any
+    unit, with a refusal that names the cause. All hermetic: a scratch checkout
+    on its own source and cache, injected numbers, no network."""
+
+    def setUp(self):
+        super().setUp()
+        patcher = mock.patch.dict(os.environ)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        os.environ.pop(priming.GATE_PREFLIGHT_ENV, None)
+
+    # -- the check ---------------------------------------------------------------------
+
+    def test_the_check_names_the_path_the_numbers_and_the_lever(self):
+        path = Path("/x/tmp")
+        with self.assertRaises(priming.TmpSpaceError) as caught:
+            priming.check_free_space(path, minimum=1000, free=999)
+        text = str(caught.exception)
+        for part in ("/x/tmp", "999", "1000", "TMPDIR"):
+            self.assertIn(part, text)
+        self.assertIsInstance(caught.exception, priming.PrimingError)
+        with self.assertRaises(priming.TmpSpaceError) as caught:
+            priming.check_free_space(path, minimum=1000, free=999, lever="--results")
+        self.assertIn("--results", str(caught.exception))
+        self.assertNotIn("TMPDIR", str(caught.exception))
+
+    def test_free_equal_to_the_minimum_passes(self):
+        for free in (1000, 1001):
+            priming.check_free_space(Path("/x/tmp"), minimum=1000, free=free)
+
+    def test_an_unmeasurable_path_is_a_refusal_that_names_it(self):
+        with mock.patch.object(priming.shutil, "disk_usage", side_effect=PermissionError("no")):
+            with self.assertRaises(priming.TmpSpaceError) as caught:
+                priming.check_free_space(Path("/x/tmp"))
+        self.assertIn("/x/tmp", str(caught.exception))
+        self.assertIn("TMPDIR", str(caught.exception))
+
+    def test_the_minimum_is_pinned(self):
+        self.assertEqual(priming.MIN_FREE_RUN_BYTES, 4 * 1024**3)
+
+    # -- the refusal at the start ------------------------------------------------------
+
+    def test_a_refused_run_stops_before_it_writes_or_fetches_anything(self):
+        scratch = scratch_checkout(self.tmp / "scratch")
+        digest = tree.tree_digest(scratch)
+        runs_before = set(Path(tempfile.gettempdir()).glob("wm-run-*"))
+        code, out, err = refused_in_process(scratch)
+        assert_refusal(self, code, err, "TmpSpaceError")
+        self.assertIn(tempfile.gettempdir(), err.splitlines()[0])
+        self.assertEqual(tree.tree_digest(scratch), digest)
+        self.assertEqual(set(Path(tempfile.gettempdir()).glob("wm-run-*")), runs_before)
+        self.assertFalse(Path(scratch_release_env(scratch)[release_source.CACHE_ENV]).exists())
+        for name in ("src", "tools"):
+            self.assertTrue(os.access(scratch / name, os.W_OK))
+        isolation.acquire_run_lock(scratch).release()
+
+    def test_results_not_tmpdir_is_the_directory_checked(self):
+        scratch = scratch_checkout(self.tmp / "scratch")
+        results = self.tmp / "scratch-parent" / "res"
+        code, out, err = refused_in_process(scratch, "--results", results)
+        assert_refusal(self, code, err, "TmpSpaceError")
+        first = err.splitlines()[0]
+        self.assertIn(str(results), first)
+        self.assertIn("--results", first)
+        self.assertFalse(results.exists())
+
+    def test_the_path_checked_follows_the_run_directory(self):
+        scratch = scratch_checkout(self.tmp / "scratch")
+        results = self.tmp / "res"
+        temp = Path(tempfile.gettempdir())
+        plan = self.tmp / "plan.json"
+        cases = (
+            (("--results", results), results),
+            (("--select", "test_scratch_shared.py"), temp),
+            (("--run-shard", "0", "--plan", plan, "--results", results), results),
+            (("--aggregate", results, "--plan", plan), temp),
+        )
+        for argv, expected in cases:
+            with self.subTest(argv=argv), \
+                    mock.patch.object(priming, "check_free_space",
+                                      side_effect=priming.TmpSpaceError("stop")) as check:
+                code, out, err = main_in_process(scratch, *argv)
+                assert_refusal(self, code, err, "TmpSpaceError")
+                self.assertEqual(Path(check.call_args.args[0]), expected)
+
+    # -- nested runs -------------------------------------------------------------------
+
+    def test_exported_sets_and_restores_the_marker(self):
+        os.environ[priming.GATE_PREFLIGHT_ENV] = "previous"
+        with priming.exported("/cache"):
+            self.assertEqual(os.environ[priming.GATE_PREFLIGHT_ENV], str(os.getpid()))
+            self.assertEqual(isolation.chunk_env(self.tmp)[priming.GATE_PREFLIGHT_ENV],
+                             str(os.getpid()))
+        self.assertEqual(os.environ[priming.GATE_PREFLIGHT_ENV], "previous")
+        del os.environ[priming.GATE_PREFLIGHT_ENV]
+        with priming.exported("/cache"):
+            pass
+        self.assertNotIn(priming.GATE_PREFLIGHT_ENV, os.environ)
+
+    def test_a_nested_run_under_a_live_marker_is_not_checked_again(self):
+        scratch = scratch_checkout(self.tmp / "scratch")
+        os.environ[priming.GATE_PREFLIGHT_ENV] = str(os.getpid())
+        code, out, err = refused_in_process(scratch, "--select", "test_scratch_shared.py")
+        self.assertEqual(code, 0, out + err)
+
+    def test_a_missing_dead_or_malformed_marker_is_checked(self):
+        scratch = scratch_checkout(self.tmp / "scratch")
+        child = subprocess.Popen([sys.executable, "-c", "pass"])
+        child.wait()
+        for value in (None, str(child.pid), "not-a-pid", "", "0", "-1", "9" * 20):
+            with self.subTest(value=value):
+                if value is None:
+                    os.environ.pop(priming.GATE_PREFLIGHT_ENV, None)
+                else:
+                    os.environ[priming.GATE_PREFLIGHT_ENV] = value
+                code, out, err = refused_in_process(scratch, "--select", "test_scratch_shared.py")
+                assert_refusal(self, code, err, "TmpSpaceError")
+
+    # -- scope -------------------------------------------------------------------------
+
+    def test_modes_that_start_no_unit_are_not_refused_for_space(self):
+        scratch = scratch_checkout(self.tmp / "scratch")
+        code, out, err = refused_in_process(scratch, "--list")
+        self.assertEqual(code, 0, out + err)
+        code, out, err = refused_in_process(scratch, "--plan-only", "--out", self.tmp / "plan.json")
+        self.assertEqual(code, 0, out + err)
+
+    # -- the read-back -----------------------------------------------------------------
+
+    @staticmethod
+    def _fake_report(unserved):
+        return subprocess.CompletedProcess([], 0, stderr="", stdout=json.dumps(
+            {"cache": "/c", "source": "s", "versions": ["0.0.1"], "unserved": unserved}))
+
+    def test_a_version_the_cache_does_not_serve_is_a_priming_error(self):
+        scratch = scratch_checkout(self.tmp / "scratch")
+        with mock.patch.object(priming.subprocess, "run", return_value=self._fake_report(["0.0.1"])):
+            with self.assertRaises(priming.PrimingError) as caught:
+                priming.prime(scratch)
+        text = str(caught.exception)
+        for part in ("0.0.1", "/c", "s", "/c/0.0.1"):
+            self.assertIn(part, text)
+        self.assertNotIsInstance(caught.exception, priming.TmpSpaceError)
+        with mock.patch.object(priming.subprocess, "run", return_value=self._fake_report([])):
+            self.assertEqual(priming.prime(scratch)["unserved"], [])
+
+    def test_the_real_script_reports_what_the_cache_serves(self):
+        scratch = scratch_checkout(self.tmp / "scratch")
+        report = priming.prime(scratch, {**os.environ, **scratch_release_env(scratch)})
+        self.assertEqual(report["unserved"], [])
+        self.assertEqual(report["versions"], ["0.0.1"])
+
+    def test_the_real_script_refuses_a_cache_that_fills_but_does_not_serve(self):
+        scratch = scratch_checkout(self.tmp / "scratch")
+        # `ensure` never calls `cached_manifest`, so the scratch's own copy of the
+        # source can fill the cache and still fail to serve what it filled.
+        source = scratch / "src" / "workflow_manager" / "source.py"
+        with source.open("a", encoding="utf-8") as handle:
+            handle.write("\n\nReleaseCache.cached_manifest = lambda self, version: None\n")
+        env = scratch_release_env(scratch)
+        with self.assertRaises(priming.PrimingError) as caught:
+            priming.prime(scratch, {**os.environ, **env})
+        text = str(caught.exception)
+        for part in ("0.0.1", "does not serve its manifest", env[release_source.CACHE_ENV]):
+            self.assertIn(part, text)
+        self.assertNotIsInstance(caught.exception, priming.TmpSpaceError)
 
 
 class TestTestTreeHygiene(_CliCase):

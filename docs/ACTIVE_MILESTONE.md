@@ -2,41 +2,51 @@
 
 ## Milestone
 
-`retention-view-steps` -- complete, accepted by policy (`governing_workflow_version: "2.2"`, `process`, plan revision 3, base `e20cfd3`, branch `milestone/retention-view-steps`): roadmap row 24 (#116, items 3 and 4, and the three wording defects of item 5). A `fix:` pull request title (releases Manager 1.14.4; no version is edited). Plan: `docs/ai-workflow/WORKFLOW_MANAGER_RETENTION_VIEW_STEPS_PLAN.md`.
+`gate-preflight` -- complete, accepted by policy (`governing_workflow_version: "2.2"`, `process`, plan revision 3, implementation revision 2, base `2be4b4b`, candidate code head `23c6214`, branch `milestone/gate-preflight`): roadmap row 25 (#150, #125). A `fix:` pull request title (releases a Manager patch; no version is edited). Plan: `docs/ai-workflow/WORKFLOW_MANAGER_GATE_PREFLIGHT_PLAN.md`.
 
-`status --retention` and `doctor --retention` say the right thing: the next step by cause (all `rate_limited`: wait and run again), a linked `scripts/` directory refused like a linked script, the interrupted-removals list cut at five ids with a count, a header that no longer claims a forge query per finished item when there is none, `nothing to archive` with its reason when a finished item has tracked review files, and `1 archive`. Every other output and every exit code stay byte-identical. Item 4's test of every cause (LIR-001), the rest of item 5, item 6 and #147 stay open.
+A gate run that cannot succeed stops at its start with a refusal that names the cause, before any unit starts: (1) after priming, every tested version is read back from the release cache, and one the cache does not serve is a `PrimingError` naming the version, the cache and one next step; (2) a run that starts units checks the free space of the filesystem its run directory is created on (`--results` when given, else the effective `TMPDIR`) against 4 GiB and refuses with the path and the numbers (`TmpSpaceError`, exit 2). A nested run under a live outer run does not check again. No Workflow change, no change to the matrix, the shards or the pins.
 
-### CP1: the five changes, their tests and the page -- complete
+### CP1: the preflight, its tests and the page -- complete
 
-- `retention.py`: `STEP_RATE_LIMITED` and the choice in `_query_failed_note`; the parent check in `_script_is_regular`; `_listed` for the interrupted removals; the zero-finished header; the reason in `next_step`; `_count` for the store line.
-- `tests/test_retention_status.py` and `docs/retention.md` (commit `080a6ce`).
+- `tests/parallel/priming.py` (`MIN_FREE_RUN_BYTES`, `TmpSpaceError`, `check_free_space`, `nested_in_checked_run`, the read-back in the script and in `prime`, the marker in `exported`), `tests/parallel/cli.py` (`_check_run_space` before priming), `tests/test_parallel_runner.py` (`TestGatePreflight`, 12 cases) and `docs/ARCHITECTURE.md` (commit `d19c69b`).
 
 ### CP2: bookkeeping -- complete
 
-- This record. `docs/ROADMAP.md` row 24 is Done (accepted by policy; a `test:` change, no release).
+- This record. `docs/ROADMAP.md` row 25 is Done (accepted by policy; a `fix:` change, Manager patch release).
 
-### Mutation results (scratch clone of `080a6ce`, `test_retention_status` run directly: the candidate passes 69 of 69)
+### Mutation results (scratch clone of `d19c69b` outside the repository, `test_parallel_runner.TestGatePreflight` run directly: the candidate passes 12 of 12; `python3 tests/run_all.py --select test_parallel_runner.py::TestGatePreflight` exits 0)
 
 Each mutation exits 1 and fails the case the plan names (extra failures listed):
 
 | Mutation | Failed |
 | --- | --- |
-| `STEP_FORGE` for every code | `test_the_step_follows_the_failure_code` (the `rate_limited` subtests) |
-| `STEP_RATE_LIMITED` when any code is `rate_limited` | `test_the_step_follows_the_failure_code` (the mixed subtests) |
-| `_script_is_regular` without the parent check | `test_a_linked_scripts_directory_is_a_missing_script` |
-| `', '.join(removing)` | `test_interrupted_removals_are_limited_to_five` (the 6- and 7-id subtests) |
-| the limit `5` changed to `4` | `test_interrupted_removals_are_limited_to_five`, plus `test_read_errors_are_listed_with_a_cap_of_five` |
-| the limit `5` changed to `6` | `test_interrupted_removals_are_limited_to_five`, plus `test_read_errors_are_listed_with_a_cap_of_five` |
-| the old fixed header for zero | `test_the_header_for_zero_finished_items` |
-| the `kept_recent`-empty text also for a non-empty `kept_recent` | `test_the_header_for_zero_finished_items` |
-| the zero header chosen before the INCOMPLETE header | `test_the_header_for_zero_finished_items` (the incomplete subtests) |
-| the bare `nothing to archive` | `test_the_reason_for_nothing_to_archive`, plus `test_items_the_script_would_refuse_get_no_command` |
-| the reason also for a folder-absent item | `test_items_the_script_would_refuse_get_no_command` (the archive-present, folder-absent, `tracked_files` 1 subtest) |
-| `archives` always plural | `test_the_store_line_counts_the_noun`, plus two older store-line cases |
-| the docs row not changed | `test_every_cause_the_code_can_build_is_on_the_page` |
+| the `check_free_space` call removed from `cli._main` | `test_a_refused_run_stops_before_it_writes_or_fetches_anything`, plus three more cases that expect the check |
+| the call moved after `priming.prime` | `test_a_refused_run_stops_before_it_writes_or_fetches_anything` |
+| the call also for `--list` and `--plan-only` | `test_modes_that_start_no_unit_are_not_refused_for_space` |
+| always `tempfile.gettempdir()`, `--results` ignored | `test_results_not_tmpdir_is_the_directory_checked`, `test_the_path_checked_follows_the_run_directory` |
+| a nested run checks again | `test_a_nested_run_under_a_live_marker_is_not_checked_again` |
+| the marker honoured without the liveness test | `test_a_missing_dead_or_malformed_marker_is_checked` |
+| `exported` no longer sets the marker | `test_exported_sets_and_restores_the_marker` |
+| `free < minimum` to `free <= minimum` | `test_free_equal_to_the_minimum_passes` |
+| `MIN_FREE_RUN_BYTES` changed | `test_the_minimum_is_pinned` |
+| the `unserved` raise removed from `prime` | `test_a_version_the_cache_does_not_serve_is_a_priming_error` |
+| `unserved` key removed from the script's report | `test_the_real_script_reports_what_the_cache_serves` |
+| the script's read-back loop removed, `unserved: []` kept (LIR1-001) | `test_the_real_script_refuses_a_cache_that_fills_but_does_not_serve` |
+| an `OSError` from the measurement escapes (LIR1 optional) | `test_an_unmeasurable_path_is_a_refusal_that_names_it` |
 
-The scratch clone is outside the repository, which was never mutated.
+No mutation survives. The read-back loop is pinned by driving the real script against a scratch whose `ReleaseCache.cached_manifest` returns `None` (LIR1-001); a first version of this note said that case could not be built hermetically, which was wrong.
+
+### Self-review
+
+- `nested_in_checked_run` let `OverflowError` out for a marker too large for a pid (`WM_GATE_PREFLIGHT=99999999999999999999`): the run stopped with `run_all: error[OverflowError]` instead of being checked, as a malformed marker must be. It is now caught with the other malformed values, and `test_a_missing_dead_or_malformed_marker_is_checked` covers that value (red on the unfixed code in a scratch clone: `error[OverflowError]`; green after).
+- The full gate at `0d39624` exited 1: `TestTestTreeHygiene.test_every_lock_reaching_call_in_this_module_is_rooted_at_a_scratch_checkout` named `cli.main` (through `main_in_process`) and `acquire_run_lock` as not rooted at a scratch checkout, because `TestGatePreflight` kept its scratch in `self.scratch`, a form the scan does not follow. Each test now binds `scratch = scratch_checkout(...)` itself and the patched run is the top-level `refused_in_process(scratch_root, ...)`; the assertions are unchanged. The scan reports nothing, and both classes pass.
+- The mutation table above, rerun against the restructured tests (scratch clone of `0d39624` plus the new test file, `test_parallel_runner.TestGatePreflight` run directly; the candidate passes 12 of 12): every mutation fails the case named, as before. The moved check (placed after `prime` for every mode) also fails the scope case. One more mutation, `OverflowError` no longer caught, fails `test_a_missing_dead_or_malformed_marker_is_checked`.
+- No other finding: the check runs before priming for the three unit-starting modes only, measures the directory `make_run_dir` uses in each, creates nothing, and the read-back is shared by `tools/release/package.py` and `tools/release/release.py`, which already turn `PrimingError` into their own refusal.
+
+### Full gate
+
+`python3 tests/run_all.py` at `80f8ead` (code head `23c6214`; `2eb537b` and `23c6214` are the last code changes, and `git diff 80f8ead HEAD` touches only `docs/ai-workflow/WORKFLOW_STATE.json`): full selection, 8 workers, 2329/2329 units, 15537 tests, `selection_digest e44f83c5...`, `tests_digest bdd149bc...`, orphan check on (9 tolerated, all declared), `verdict: exit 0`. This is the current evidence (`.ai-review/gate-preflight/current/TEST_RESULTS.md`, revision 2). It supersedes the run at `b8dd8a9` (15535 tests), which predates `2eb537b`. The first full run, at `0d39624`, exited 1 on the hygiene scan (see the self-review).
 
 ## Next action
 
-No incomplete milestone is left in `docs/ROADMAP.md`. Items 3 (the test of every cause, LIR-001), the rest of 5, 6 and #147 of #116 stay open as follow-ups; plan the next one with `/milestone-plan` when it is chosen.
+The next incomplete milestone in `docs/ROADMAP.md`, ready for `PLANNING`: run `/milestone-plan`. The pull request (#152) merges when green; its title is the release (`fix:`, a Manager patch).

@@ -1,0 +1,68 @@
+{
+  "dispositions": {
+    "F-143cf4cb1bbe": {
+      "disposition": "fixed",
+      "note": "cli.py's Order paragraph now names the free-space check before priming."
+    },
+    "F-2fea6af68f72": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#151",
+      "note": "Pin the remove <cache>/0.0.1 step on the real-script path."
+    },
+    "F-6a2df2c933f9": {
+      "disposition": "fixed",
+      "note": "The roadmap row says --results when given, else the effective TMPDIR."
+    },
+    "F-74e029e4b3df": {
+      "disposition": "fixed",
+      "note": "The two long lines were re-wrapped (no line over 100 columns in the added text)."
+    },
+    "F-8204d9932088": {
+      "disposition": "fixed",
+      "note": "The checklist marks the CLI run that primes releases as needing the full environment."
+    },
+    "F-8972889bba6f": {
+      "disposition": "fixed",
+      "note": "check_free_space wraps OSError from the measurement in TmpSpaceError naming the path and the lever."
+    },
+    "F-8cc6d55ef569": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#151",
+      "note": "Plan wording: attach the docstring clauses to cli.py, not priming.exported."
+    },
+    "F-9c670650f283": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#151",
+      "note": "Add a sentence about running the runner tests directly with unittest."
+    },
+    "F-a523487eef5f": {
+      "disposition": "fixed",
+      "note": "The test compares the wm-run-* set before and after the refused run instead of asserting none exist."
+    },
+    "F-aa6a070750c2": {
+      "disposition": "fixed",
+      "note": "The next step now reads 'when no other run is using the cache, remove C/V and run again'."
+    },
+    "F-ba821b649855": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#151",
+      "note": "Say in R2 (or a new requirement) that a nested run with a live marker skips the check."
+    },
+    "F-ce4950a72eac": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#151",
+      "note": "Document that frozen discovery's release snapshot still uses the ambient TMPDIR."
+    },
+    "F-e7e7837be45f": {
+      "disposition": "fixed",
+      "note": "Plan section 7 states the cache-filesystem limitation as out of scope."
+    },
+    "F-fda976a2bba8": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#151",
+      "note": "Section 4: the which-directory stub cases also clear the marker."
+    }
+  },
+  "schema_version": 1,
+  "work_item_id": "gate-preflight"
+}
