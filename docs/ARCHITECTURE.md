@@ -483,7 +483,14 @@ the tested releases, one selection) in
   imports the checkout's own `src/` and reads its own pins, then exports the
   resolved directory as `WORKFLOW_MANAGER_RELEASE_CACHE` to discovery and to
   every unit. A version that cannot be put in the cache is `PrimingError`
-  (exit `2`), naming the cache directory and the source. After priming, a run
+  (exit `2`), naming the cache directory and the source; one primed but not
+  served back by the cache (the read `support` makes) is the same error, naming
+  the version, the cache and one next step. Before priming, a run that starts
+  units (the local run, `--run-shard`, `--aggregate`) checks the free space of
+  the filesystem its run directory is created on (`--results` when given, else
+  the effective `TMPDIR`) against 4 GiB, about twice a full run's peak, and
+  refuses with the path and the numbers (`TmpSpaceError`, exit `2`); a runner
+  started inside a unit of an enclosing run does not repeat the check. After priming, a run
   needs no network. `support.cli_env()` carries the cache (and
   `WORKFLOW_MANAGER_RELEASE_SOURCE`, when set) into every from-scratch
   subprocess environment, so a test that moves `HOME` still reads the primed
