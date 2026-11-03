@@ -441,9 +441,12 @@ def _needs_directory(context: Context, installed, recorded: bool) -> bool:
 
 
 def _directory_step(context: Context, installed) -> str:
-    shown = repr(installed) if installed == "" else installed
-    return (f"a release directory holding {shown} is needed: run the command again "
-            f"with --release-dir DIR")
+    if installed is None:
+        holding = "a release directory is needed (no workflow_version recorded)"
+    else:
+        shown = repr(installed) if installed == "" else installed
+        holding = f"a release directory holding {shown} is needed"
+    return f"{holding}: run the command again with --release-dir DIR"
 
 
 def _repair_step(context: Context, installed, recorded: bool = True) -> str:

@@ -72,6 +72,7 @@ from .install import (
     NotManagedError,
     bootstrap,
     plan_update,
+    record_head,
     status,
     uninstall,
     update,
@@ -477,7 +478,7 @@ def _describe_source(record: dict | None) -> str:
 def _print_record(target: Path) -> None:
     """What `status` knows about a managed target without its release."""
     installation = Installation.read(target)
-    print(f"workflow {installation.workflow_version} ({installation.profile} profile)")
+    print(record_head(installation.workflow_version, installation.profile))
     print(f"  source: {_describe_source(installation.source)}")
     print(f"  installed at {installation.installed_at}, updated at {installation.updated_at}")
 

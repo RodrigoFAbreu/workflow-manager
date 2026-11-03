@@ -32,7 +32,7 @@ from support import PINNED_NEWEST, REPO_ROOT, pinned_env
 
 from frozen_runs import build_bootstrapped_repo, empty_repo
 
-from workflow_manager import advice, cli
+from workflow_manager import advice, cli, install
 
 _spec = importlib.util.spec_from_file_location("check_docs", REPO_ROOT / "tools" / "check_docs.py")
 check_docs = importlib.util.module_from_spec(_spec)
@@ -1175,6 +1175,61 @@ class TestNotAVersionRows(TargetCase):
         repo = self.damaged("1.0.0")
         proc = run("--release-version", PINNED_NEWEST, "verify", str(repo))
         self.assertIn(f"version: installed 1.0.0, release {PINNED_NEWEST}", proc.stdout)
+
+    def version_context(self, version, command="verify", target=Path("/t")):
+        args = argparse.Namespace(
+            command=command, target=target, release_version=PINNED_NEWEST,
+            release_source=None, release_cache=None, release_dir=None, profile=None)
+        return advice.Context(args=args, installed_version=version, installed_recorded=True)
+
+    def test_a_version_the_operator_did_not_type_is_named_in_words(self):
+        null_step = ("a release directory is needed (no workflow_version recorded): "
+                     "run the command again with --release-dir DIR")
+        for version, step, head, line in (
+                (None, null_step, "no workflow_version recorded (full profile)", None),
+                ("", "a release directory holding '' is needed: run the command again "
+                     "with --release-dir DIR",
+                 "workflow '' (full profile)", f"version: installed '', release {PINNED_NEWEST}"),
+                (123, "a release directory holding 123 is needed: run the command again "
+                      "with --release-dir DIR", "workflow 123 (full profile)", None),
+                ("1.0.0", None, "workflow 1.0.0 (full profile)", None)):
+            with self.subTest(version=version):
+                if step is not None:
+                    self.assertEqual(advice.problem_step(self.version_context(version),
+                                                         ["version: x"]), step)
+                self.assertEqual(install.record_head(version, "full"), head)
+                self.assertEqual(
+                    str(install.Status(True, version, "full", ["p"], True)).splitlines()[0],
+                    f"{head} — 1 problem(s):")
+                self.assertEqual(str(install.Status(True, version, "full", [], True)),
+                                 f"{head} — clean")
+                if isinstance(version, int):
+                    continue
+                repo = self.damaged(version)
+                before = tree_hash(repo)
+                printed = io.StringIO()
+                with contextlib.redirect_stdout(printed):
+                    cli._print_record(repo)
+                self.assertTrue(printed.getvalue().startswith(head + "\n"), printed.getvalue())
+                self.assertNotIn("None", printed.getvalue() + (step or ""))
+                if line is not None:
+                    proc = run("--release-version", PINNED_NEWEST, "verify", str(repo))
+                    self.assertIn(line, proc.stdout)
+                if step is not None:
+                    for command in ("verify", "status"):
+                        proc = run("--release-version", PINNED_NEWEST, command, str(repo))
+                        self.assertEqual(proc.returncode, 1, proc.stdout + proc.stderr)
+                        nexts = next_lines(proc.stdout + proc.stderr)
+                        self.assertEqual(len(nexts), 1, proc.stdout + proc.stderr)
+                        if command == "verify":
+                            self.assertEqual(nexts[0], step)
+                        else:
+                            doctor = advice.doctor_step(
+                                self.version_context(version, "status", repo))
+                            self.assertEqual(nexts[0], f"{step}; {doctor}")
+                        self.assertNotIn("holding None", proc.stdout + proc.stderr)
+                        self.assertNotIn("workflow None", proc.stdout + proc.stderr)
+                self.assertEqual(tree_hash(repo), before)
 
     def test_a_null_record_with_a_release_dir_names_one_step_without_it(self):
         work = tempfile.TemporaryDirectory()
