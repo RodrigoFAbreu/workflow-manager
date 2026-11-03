@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_work_item_id": null,
+  "active_work_item_id": "update-dry-run-match",
   "work_items": {
     "plan-amendment-mechanism": {
       "work_item_type": "process",
@@ -23280,6 +23280,191 @@
         },
         "evaluated_at": "2026-11-03T18:21:19Z",
         "workflow_release": "2.25.5"
+      }
+    },
+    "update-dry-run-match": {
+      "work_item_type": "process",
+      "work_item_kind": "process",
+      "work_item_id": "update-dry-run-match",
+      "parent_work_item_id": null,
+      "plan_path": "docs/ai-workflow/WORKFLOW_MANAGER_UPDATE_DRY_RUN_MATCH_PLAN.md",
+      "registry_path": "docs/ai-workflow/registry/update-dry-run-match-registry.json",
+      "mapping_path": "docs/ai-workflow/requirements/update-dry-run-match-mapping.json",
+      "governing_workflow_version": "2.2",
+      "phase": "IMPLEMENTING",
+      "plan_revision": 2,
+      "implementation_revision": null,
+      "functional_review_round": null,
+      "base_commit": "76783c91d01fc9e7db9cd2723e6fe08bdacc8956",
+      "reviewed_implementation_head": null,
+      "current_checkpoint_id": null,
+      "last_completed_checkpoint_id": null,
+      "checkpoints": {},
+      "current_bundle_id": "28365cb3137e8f12efb7e7ff629dddcd619926e574c89467fafc48c67370f04b",
+      "plan_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "28365cb3137e8f12efb7e7ff629dddcd619926e574c89467fafc48c67370f04b",
+        "approved_review_content_id": "a3db291a539ca9a57d90f95cf1946e12cc5ff91233b52f4b9a8515d8de325a40",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/WORKFLOW_MANAGER_UPDATE_DRY_RUN_MATCH_PLAN.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "6db2062f3aa5a38a0264598efb3c310732cdca3c"
+          },
+          {
+            "path": "docs/ai-workflow/registry/update-dry-run-match-registry.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "470b87742dab91e28ffa3557dc39e75cb34d4e65"
+          },
+          {
+            "path": "docs/ai-workflow/requirements/update-dry-run-match-mapping.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "930a85e07acb02d4fd9c64c1481c0013c7a2fa3f"
+          }
+        ],
+        "reviewed_content_commit": null,
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-11-03T19:03:44Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "a3db291a539ca9a57d90f95cf1946e12cc5ff91233b52f4b9a8515d8de325a40",
+            "ledger": {
+              "local": {
+                "bundle_id": "28365cb3137e8f12efb7e7ff629dddcd619926e574c89467fafc48c67370f04b",
+                "verdict": "APPROVE",
+                "round": 2,
+                "verdict_sha256": "b2c59d2640d252802d84bdbe1b5d737e98ea25812fcc32056a4101f7d1af84ed",
+                "ledger_entry_sha256": "0f229a5e9e65b4130e6c5eec77b60070dcbe7ab42f62ce64dbe56ad17605a61b",
+                "run_ref": "session:local .ai-review/update-dry-run-match/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "28365cb3137e8f12efb7e7ff629dddcd619926e574c89467fafc48c67370f04b",
+                "verdict": "APPROVE",
+                "round": 2,
+                "verdict_sha256": "9c28953f2da385c174baf21ba72ee16c0d7a4044a70e4692f7450f4ea5c388a1",
+                "ledger_entry_sha256": "4dcb9e5065a9e64d4125bac2aefc65a1c0f07f95243e2a69f13bca36fc0e6f6a",
+                "run_ref": "codex:20261103T185930Z-ecebfcea",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-11-03T19:03:44Z",
+          "workflow_release": "2.25.5"
+        }
+      },
+      "technical_approval": null,
+      "technical_review_block_pins": [],
+      "plan_review_stages": {
+        "review_content_id": "a3db291a539ca9a57d90f95cf1946e12cc5ff91233b52f4b9a8515d8de325a40",
+        "LOCAL_MODEL_PLAN_REVIEW": {
+          "bundle_id": "28365cb3137e8f12efb7e7ff629dddcd619926e574c89467fafc48c67370f04b",
+          "verdict": "APPROVE",
+          "round": 2,
+          "completed_at": "2026-11-03T18:59:30Z",
+          "verdict_sha256": "b2c59d2640d252802d84bdbe1b5d737e98ea25812fcc32056a4101f7d1af84ed",
+          "run_ref": "session:local .ai-review/update-dry-run-match/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_PLAN_REVIEW": {
+          "bundle_id": "28365cb3137e8f12efb7e7ff629dddcd619926e574c89467fafc48c67370f04b",
+          "verdict": "APPROVE",
+          "round": 2,
+          "completed_at": "2026-11-03T19:02:33Z",
+          "verdict_sha256": "9c28953f2da385c174baf21ba72ee16c0d7a4044a70e4692f7450f4ea5c388a1",
+          "run_ref": "codex:20261103T185930Z-ecebfcea",
+          "reviewer_model": "openai/gpt-6.1-sol"
+        }
+      },
+      "functional_acceptance_status": null,
+      "blocking_decisions": [],
+      "review_round_counts": {
+        "plan": {
+          "local": 2,
+          "external": 1
+        },
+        "implementation": {
+          "local": 0,
+          "external": 0
+        }
+      },
+      "state_revision": 9,
+      "last_transition": "2026-11-03T19:03:44Z",
+      "feedback_layout": "scoped",
+      "plan_review_binding": {
+        "status": "BOUND",
+        "at": "2026-11-03T18:56:37Z",
+        "consumed": {
+          "review_content_id": "bfaf09072bce1ba08cbcff944dbcf740262c55a1b44ae8accaa551a737d67428",
+          "plan_revision": 1,
+          "legacy": false
+        },
+        "published": {
+          "review_content_id": "a3db291a539ca9a57d90f95cf1946e12cc5ff91233b52f4b9a8515d8de325a40",
+          "plan_revision": 2
+        },
+        "bound": {
+          "review_content_id": "a3db291a539ca9a57d90f95cf1946e12cc5ff91233b52f4b9a8515d8de325a40",
+          "bundle_id": "28365cb3137e8f12efb7e7ff629dddcd619926e574c89467fafc48c67370f04b",
+          "plan_revision": 2
+        }
+      },
+      "consumed_plan_review_content_ids": [
+        "bfaf09072bce1ba08cbcff944dbcf740262c55a1b44ae8accaa551a737d67428"
+      ],
+      "optional_findings": {
+        "F-3561037d0d6b": {
+          "digest": "3561037d0d6b4400bf4a3f8f4cd83cfbbedb16f377093db1ef271d92d15bfd6d",
+          "text": "UDM-PL-R1-O1 -- `advice._not_a_version`'s comment (\"The record check runs before the release directory is read, so a --release-dir is left out (it may hold a null-manifest release the update would refuse)\") is stale after this item for `update --dry-run` (only `doctor` still refuses before reading the directory) and was already wrong on its parenthesis: the real `update` accepts a null-manifest release and writes a null record (reproduced: `updated T to workflow None`, record still `null`). CP1 forbids any `src/` change outside `cli.py`; either allow a comment-only edit in `src/workflow_manager/advice.py` (no behaviour or message change) or note it in follow-up (2) of section 7.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "bfaf09072bce1ba08cbcff944dbcf740262c55a1b44ae8accaa551a737d67428",
+              "verdict": "REVISE",
+              "at": "2026-11-03T18:53:10Z"
+            }
+          ]
+        }
       }
     }
   }
