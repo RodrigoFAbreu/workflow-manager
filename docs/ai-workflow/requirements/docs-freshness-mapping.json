@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "work_item_id": "docs-freshness",
+  "requirements": {
+    "R1": {
+      "description": "Install, update and verify pages say only what is true of Manager 1.14.6 and Workflow 2.25.5; stamps moved",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R2": {
+      "description": "Release-history and development pages corrected from git tags and the runner/ARCHITECTURE text; stamps moved",
+      "checkpoint_ids": [
+        "CP2"
+      ]
+    },
+    "R3": {
+      "description": "Roadmap row 27, intro, What's next header, status word and stamp; the other seven stamps unchanged; docs: release none",
+      "checkpoint_ids": [
+        "CP3"
+      ]
+    }
+  }
+}

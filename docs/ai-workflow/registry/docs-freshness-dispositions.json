@@ -1,0 +1,61 @@
+{
+  "dispositions": {
+    "F-0b7dfa15ac9a": {
+      "disposition": "fixed",
+      "note": "The 1.14.5 row now says it is a fix to the Manager's own test runner and changes nothing for someone installing."
+    },
+    "F-7016c073986d": {
+      "disposition": "dropped",
+      "reason": "Plan wording about the declaration's coverage; the declaration classifies every path the item changes."
+    },
+    "F-7fa20e6a88cf": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#156",
+      "note": "Follow-up item 2: describe null and empty separately in the 1.14.6 row."
+    },
+    "F-8563cba6a4f1": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#156",
+      "note": "Follow-up item 2 (same point)."
+    },
+    "F-85d2a89d20d3": {
+      "disposition": "dropped",
+      "reason": "Generated bundle content (TEST_RESULTS.md), not a deliverable; the evidence is cited by the implementation summary."
+    },
+    "F-a79155785692": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#156",
+      "note": "Follow-up item 3: concrete statuses for rows 25 and 26."
+    },
+    "F-ae57070746bc": {
+      "disposition": "dropped",
+      "reason": "Plan wording of flow 3; the check is reproducible with git diff and is the follow-up's proof."
+    },
+    "F-b458e12e435a": {
+      "disposition": "dropped",
+      "reason": "A miscount in the plan's prose; the release-history table was rebuilt from git tag and is what ships."
+    },
+    "F-cb1908da7048": {
+      "disposition": "fixed",
+      "note": "docs/development.md no longer states 'about 5 to 7 minutes'."
+    },
+    "F-da24bda1c0d7": {
+      "disposition": "fixed",
+      "note": "Row 27 now says 'the other six stamped pages'."
+    },
+    "F-f13e9801dd31": {
+      "disposition": "fixed",
+      "note": "docs/install.md no longer says only the pinned releases appear with no network."
+    },
+    "F-f8e76cd53aaf": {
+      "disposition": "dropped",
+      "reason": "Same point: generated bundle content, not a deliverable."
+    },
+    "F-fc1bcfc56539": {
+      "disposition": "fixed",
+      "note": "Row 27 now counts six stamped pages and the unstamped downgrade-posture page."
+    }
+  },
+  "schema_version": 1,
+  "work_item_id": "docs-freshness"
+}

@@ -1,6 +1,6 @@
 # Update
 
-> For: someone moving a repository to a newer Workflow release, or moving the Manager itself to a newer version. Last checked with: Workflow Manager 1.8.0, Workflow 2.12.0.
+> For: someone moving a repository to a newer Workflow release, or moving the Manager itself to a newer version. Last checked with: Workflow Manager 1.14.6, Workflow 2.25.5.
 
 Goal: bring a repository to the newest Workflow release without losing its work-item state.
 
@@ -76,7 +76,7 @@ The report is advisory. It looks at the current state files and a few Git facts;
    workflow-manager update /path/to/your/repo
    ```
 
-   To pick a release yourself, put the option before the command: `workflow-manager --release-version 2.8.0 update /path/to/your/repo`.
+   To pick a release yourself, put the option before the command: `workflow-manager --release-version 2.25.5 update /path/to/your/repo`.
 
 5. Verify again, then review and commit the changes.
 
@@ -108,8 +108,8 @@ The temporary folder only holds the download; it is deleted once pipx has instal
 
 ## What you should see
 
-- Step 4 prints `updated /path/to/your/repo to workflow 2.9.0`, then one line per file: `updated`, `added` or removed. A repository already on that release prints `(no change)`.
-- Step 5 prints `installation matches workflow 2.9.0`.
+- Step 4 prints `updated /path/to/your/repo to workflow 2.25.5` (the newest release, or a newer number), then one line per file: `updated`, `added` or removed, and a `next:` line that points at `verify`. A repository already on that release prints `(no change)`.
+- Step 5 prints `/path/to/your/repo: installation matches workflow 2.25.5`.
 - `WORKFLOW_STATE.json`, `docs/ACTIVE_MILESTONE.md` and `.ai-review/` are untouched.
 
 ## If it fails

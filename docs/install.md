@@ -1,6 +1,6 @@
 # Install
 
-> For: someone setting up the Workflow Manager and putting the Workflow into a repository for the first time. Last checked with: Workflow Manager 1.8.0, Workflow 2.12.0.
+> For: someone setting up the Workflow Manager and putting the Workflow into a repository for the first time. Last checked with: Workflow Manager 1.14.6, Workflow 2.25.5.
 
 Goal: have the `workflow-manager` command on your machine and a repository that runs the Workflow.
 
@@ -64,10 +64,10 @@ Optional choices for step 4:
 
 ## What you should see
 
-- Step 2 prints `workflow-manager 1.5.0` (or a newer number).
-- Step 3 lists one line per Workflow release, from 2.3.1 to 2.12.0 (pinned) and then any discovered, each ending in `[cached]` or `[not cached]`. With no network only the pinned ones appear.
-- Step 4 prints `bootstrapped workflow 2.12.0 (full) into /path/to/your/repo` and a count of managed, state and merged files. The first run of a release downloads it, so it takes a moment.
-- Step 5 prints `installation matches workflow 2.12.0` and exits with status 0.
+- Step 2 prints `workflow-manager 1.14.6` (or a newer number).
+- Step 3 lists one line per Workflow release: the pinned ones, from 2.3.1 to 2.12.0, each ending in `[cached]` or `[not cached]`, then any later release the Manager discovers, each ending in `[discovered, cached; no pin: verified by github:RodrigoFAbreu/workflow]` (or `[discovered, not cached; ...]`). With no network it prints a `could not look for newer releases` warning and lists the pinned ones and any later release already in the cache.
+- Step 4 prints `bootstrapped workflow 2.25.5 (full) into /path/to/your/repo` (the newest release, or a newer number), a count of managed, state and merged files, and a `next:` line that points at `verify`. The first run of a release downloads it, so it takes a moment.
+- Step 5 prints `/path/to/your/repo: installation matches workflow 2.25.5` and exits with status 0.
 - The repository now has `.claude/commands/`, `scripts/`, `docs/ai-workflow/` and `.workflow-manager/installation.json` (the [installation record](glossary.md#installation-record)).
 
 ## Approval gates after a fresh install

@@ -1,6 +1,6 @@
 # Verify
 
-> For: someone who wants to know whether a repository's Workflow installation is intact. Last checked with: Workflow Manager 1.8.0, Workflow 2.12.0.
+> For: someone who wants to know whether a repository's Workflow installation is intact. Last checked with: Workflow Manager 1.14.6, Workflow 2.25.5.
 
 Goal: confirm that every installed Workflow file is exactly the one its release shipped.
 
@@ -41,8 +41,8 @@ To also see which finished work items keep review folders and which are archived
 
 ## What you should see
 
-- Step 1 prints `workflow 2.12.0 (full profile) — clean`, then a `source:` line naming the package and its digest, then `work in flight:`: `none`, or one line per active work item with its phase, type and governing version. A `next:` line ends the output.
-- Step 2 prints `<path>: installation matches workflow 2.12.0`.
+- Step 1 prints `workflow 2.25.5 (full profile) — clean` (the release the record names), then a `source:` line naming the package and its digest, then `work in flight:`: `none`, or one line per active work item with its phase, type and governing version. A `next:` line ends the output.
+- Step 2 prints `<path>: installation matches workflow 2.25.5`.
 - Step 3 prints `0`.
 
 ## If it fails
