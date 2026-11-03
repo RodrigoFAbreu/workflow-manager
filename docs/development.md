@@ -1,6 +1,6 @@
 # Development
 
-> For: people changing the Manager's own code or tests. Last checked with: Workflow Manager 1.5.0, Workflow 2.12.0.
+> For: people changing the Manager's own code or tests. Last checked with: Workflow Manager 1.14.6, Workflow 2.25.5.
 
 Everything here is for contributors. If you only want to install or update the Workflow, use [Install](install.md) and [Update](update.md).
 
@@ -19,7 +19,7 @@ From a checkout, `PYTHONPATH=src python3 -m workflow_manager` is the same comman
 ## Tests
 
 ```bash
-python3 tests/run_all.py                      # the gate: everything, in parallel (about 5 to 7 minutes)
+python3 tests/run_all.py                      # the gate: everything, in parallel
 python3 tests/run_all.py --select test_x.py   # run what you touched -- never a gate
 python3 tests/run_all.py --jobs 1             # serial reference (slow) -- exceptional evidence only
 python3 tests/run_all.py --help               # every mode, flag and exit code
@@ -27,7 +27,7 @@ python3 tests/run_all.py --help               # every mode, flag and exit code
 
 Run what you touched with `--select`; gates run `python3 tests/run_all.py`. CI runs the same full selection on every pull request, every push to `main` and nightly: the Manager's own tests, and the newest tested release's frozen suites in four fixtures, one of them a repository updated from the release below it.
 
-Every run first primes the release cache with every pinned version (the first time, from the network), then runs offline. A full-suite `--jobs 1` (or single-shard) run is exceptional evidence, run only when a plan requires it or to debug a serial or sharded difference. While a run is live, `src/` and `tools/` are read-only; see ["Verification execution"](ARCHITECTURE.md#verification-execution).
+Every run first primes the release cache with every tested version, the pins plus `tests/tested_releases.json` (the first time, from the network), then runs offline. A full-suite `--jobs 1` (or single-shard) run is exceptional evidence, run only when a plan requires it or to debug a serial or sharded difference. While a run is live, `src/` and `tools/` are read-only; see ["Verification execution"](ARCHITECTURE.md#verification-execution).
 
 A new test that needs a plain directory (one with no repository) wraps its body in `support.no_repository_above(<scratch root>)` and never relies on `/tmp` being free of a `.git`; a `workflow_manager` subprocess started against that directory still meets the product's unbounded `.git` walk, so there the test creates the directory where no ancestor can hold a `.git`.
 
