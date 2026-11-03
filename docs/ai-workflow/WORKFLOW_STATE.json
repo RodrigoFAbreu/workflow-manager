@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_work_item_id": null,
+  "active_work_item_id": "version-message-wording",
   "work_items": {
     "plan-amendment-mechanism": {
       "work_item_type": "process",
@@ -21756,6 +21756,262 @@
         },
         "evaluated_at": "2026-11-03T04:06:13Z",
         "workflow_release": "2.25.5"
+      }
+    },
+    "version-message-wording": {
+      "work_item_type": "process",
+      "work_item_kind": "process",
+      "work_item_id": "version-message-wording",
+      "parent_work_item_id": null,
+      "plan_path": "docs/ai-workflow/WORKFLOW_MANAGER_VERSION_MESSAGE_WORDING_PLAN.md",
+      "registry_path": "docs/ai-workflow/registry/version-message-wording-registry.json",
+      "mapping_path": "docs/ai-workflow/requirements/version-message-wording-mapping.json",
+      "governing_workflow_version": "2.2",
+      "phase": "IMPLEMENTING",
+      "plan_revision": 2,
+      "implementation_revision": null,
+      "functional_review_round": null,
+      "base_commit": "10213e04d70a0da1129cbaa688b6660fbb6c79a4",
+      "reviewed_implementation_head": null,
+      "current_checkpoint_id": null,
+      "last_completed_checkpoint_id": null,
+      "checkpoints": {},
+      "current_bundle_id": "67e595eac23bc25651c81a005a886078acbf406c48081085901751f16fd0f6e9",
+      "plan_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "67e595eac23bc25651c81a005a886078acbf406c48081085901751f16fd0f6e9",
+        "approved_review_content_id": "00322801c836c9f7b6b3f9c5cd739a7faa02859589fd3f6c58d73ac06c1feb4a",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/WORKFLOW_MANAGER_VERSION_MESSAGE_WORDING_PLAN.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "6fd7908dfe14551fe7733c664ae45f1161faae10"
+          },
+          {
+            "path": "docs/ai-workflow/registry/version-message-wording-registry.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "f4d2d984dd1695adbfd67bbe284e775a0673f19a"
+          },
+          {
+            "path": "docs/ai-workflow/requirements/version-message-wording-mapping.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "64e51ef5337c5648aec0de91bd2f7a912f859228"
+          }
+        ],
+        "reviewed_content_commit": null,
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-11-03T12:20:40Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "00322801c836c9f7b6b3f9c5cd739a7faa02859589fd3f6c58d73ac06c1feb4a",
+            "ledger": {
+              "local": {
+                "bundle_id": "67e595eac23bc25651c81a005a886078acbf406c48081085901751f16fd0f6e9",
+                "verdict": "APPROVE",
+                "round": 3,
+                "verdict_sha256": "4fdc608d9077fb17f7cd42c8e79f32d5b6c9af9d138a4c2f432e7bb81d3ae36a",
+                "ledger_entry_sha256": "77dd1581294a614f22cd5152f57fa034fb2c1f60e880cb52a918b2a0cdc4a950",
+                "run_ref": "session:local /home/rodrigo/Workspace/workflow-manager/.ai-review/version-message-wording/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "67e595eac23bc25651c81a005a886078acbf406c48081085901751f16fd0f6e9",
+                "verdict": "APPROVE",
+                "round": 3,
+                "verdict_sha256": "1c095d6f24a13c934f0cadba627322bf5bcbb853ed87cedbaf1410d464c72172",
+                "ledger_entry_sha256": "1ea35abd6a094edfe09df4e347b85f9e1ff9873c9a5436bb260e0d817635b9ea",
+                "run_ref": "codex:20261103T121751Z-22281af7",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-11-03T12:20:40Z",
+          "workflow_release": "2.25.5"
+        }
+      },
+      "technical_approval": null,
+      "technical_review_block_pins": [],
+      "plan_review_stages": {
+        "review_content_id": "00322801c836c9f7b6b3f9c5cd739a7faa02859589fd3f6c58d73ac06c1feb4a",
+        "LOCAL_MODEL_PLAN_REVIEW": {
+          "bundle_id": "67e595eac23bc25651c81a005a886078acbf406c48081085901751f16fd0f6e9",
+          "verdict": "APPROVE",
+          "round": 3,
+          "completed_at": "2026-11-03T12:17:27Z",
+          "verdict_sha256": "4fdc608d9077fb17f7cd42c8e79f32d5b6c9af9d138a4c2f432e7bb81d3ae36a",
+          "run_ref": "session:local /home/rodrigo/Workspace/workflow-manager/.ai-review/version-message-wording/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_PLAN_REVIEW": {
+          "bundle_id": "67e595eac23bc25651c81a005a886078acbf406c48081085901751f16fd0f6e9",
+          "verdict": "APPROVE",
+          "round": 3,
+          "completed_at": "2026-11-03T12:19:20Z",
+          "verdict_sha256": "1c095d6f24a13c934f0cadba627322bf5bcbb853ed87cedbaf1410d464c72172",
+          "run_ref": "codex:20261103T121751Z-22281af7",
+          "reviewer_model": "openai/gpt-6.1-sol"
+        }
+      },
+      "functional_acceptance_status": null,
+      "blocking_decisions": [],
+      "review_round_counts": {
+        "plan": {
+          "local": 3,
+          "external": 2
+        },
+        "implementation": {
+          "local": 0,
+          "external": 0
+        }
+      },
+      "state_revision": 13,
+      "last_transition": "2026-11-03T12:20:40Z",
+      "feedback_layout": "scoped",
+      "plan_review_binding": {
+        "status": "BOUND",
+        "at": "2026-11-03T12:15:03Z",
+        "consumed": {
+          "review_content_id": "c978f4833821def20fb1ef47803d42c43fa35a6958a2d35fc1651acb90060d19",
+          "plan_revision": 1,
+          "legacy": false
+        },
+        "published": {
+          "review_content_id": "00322801c836c9f7b6b3f9c5cd739a7faa02859589fd3f6c58d73ac06c1feb4a",
+          "plan_revision": 2
+        },
+        "bound": {
+          "review_content_id": "00322801c836c9f7b6b3f9c5cd739a7faa02859589fd3f6c58d73ac06c1feb4a",
+          "bundle_id": "67e595eac23bc25651c81a005a886078acbf406c48081085901751f16fd0f6e9",
+          "plan_revision": 2
+        }
+      },
+      "consumed_plan_review_content_ids": [
+        "6f40968b450df916b32b89a85433b4f42e5047c41043c6bc2c8c8801a0dda41f",
+        "c978f4833821def20fb1ef47803d42c43fa35a6958a2d35fc1651acb90060d19"
+      ],
+      "optional_findings": {
+        "F-390dcf9aad5f": {
+          "digest": "390dcf9aad5fa793bada179de40d18d85cba71b163e356c5ae9a89c721e80396",
+          "text": "VMW-PL-R1-O1 -- Section 5's setup uses `S=$TMPDIR/fr`. If `TMPDIR` is unset this becomes `/fr`, and on this machine `/tmp` is a shared tmpfs. Use a named scratch directory on disk, for example `S=$(mktemp -d \"$HOME/.cache/vmw-fr.XXXXXX\")`, and delete it when the flows finish.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "6f40968b450df916b32b89a85433b4f42e5047c41043c6bc2c8c8801a0dda41f",
+              "verdict": "REVISE",
+              "at": "2026-11-03T12:08:14Z"
+            }
+          ]
+        },
+        "F-34e2518ed74b": {
+          "digest": "34e2518ed74bcb3dc0e79cb496247e9c1fe495f9fc985d34de7ca6dcd0619ed1",
+          "text": "VMW-PL-R1-O2 -- `_directory_step` is also reached from `advice._repair_step` (a local-source record whose version differs from `--release-dir`'s), so the null branch changes that `next:` line too for a local record with a null version. That is consistent with the rule. Section 2 could say so in one sentence, so a reviewer does not read it as an unplanned change.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "6f40968b450df916b32b89a85433b4f42e5047c41043c6bc2c8c8801a0dda41f",
+              "verdict": "REVISE",
+              "at": "2026-11-03T12:08:14Z"
+            }
+          ]
+        },
+        "F-45810c198512": {
+          "digest": "45810c1985125a2951376db559a666cbac4dec94679c63cc0c6772cec777478b",
+          "text": "VMW-PL-R2-O1 -- Section 2's new paragraph says the `_repair_step` route is \"covered by the null-step unit case below\". Section 3's null-step case does not name its problem lines. With a `version:` line (as in flow 1's `[\"version: x\"]`), `problem_step` returns from its `version:` branch (`advice.py` line 421) and never reaches `_repair_step`. To actually cover that route, give the unit case a second call with a non-`version:` problem line (for example `modified: PATH`) and the same expected null step.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "c978f4833821def20fb1ef47803d42c43fa35a6958a2d35fc1651acb90060d19",
+              "verdict": "APPROVE",
+              "at": "2026-11-03T12:11:03Z"
+            }
+          ]
+        },
+        "F-b95eeb9bb9ad": {
+          "digest": "b95eeb9bb9ade9d4cf13fdfc2367b0d2294b326b2e5f3513ecae4390547831c3",
+          "text": "VMW-PL-R2-O2 -- Mutation (e) (`_print_record` back to its own f-string) is said to fail \"the `_print_record` case only\". Section 3 checks `_print_record` for both `damaged(None)` and `damaged(\"\")`, so it fails both of that function's cases (null and empty) and nothing else. The wording could say \"the two `_print_record` cases only\", so the mutation record at implementation is not read as a discrepancy.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "c978f4833821def20fb1ef47803d42c43fa35a6958a2d35fc1651acb90060d19",
+              "verdict": "APPROVE",
+              "at": "2026-11-03T12:11:03Z"
+            }
+          ]
+        },
+        "F-68127c0b87be": {
+          "digest": "68127c0b87be8a9019808a9ee5ac01634664ad90464a0c3a5cb69737a09f63c7",
+          "text": "Section 3’s “none found” search claim overlooks historical occurrences in `docs/ai-workflow/WORKFLOW_MANAGER_NULL_RECORD_WORDING_PLAN.md` and `docs/milestones/completed/null-record-wording-findings.md`. Qualify the claim as finding no current usage documentation requiring updates; historical evidence can remain unchanged.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "MANUAL_EXTERNAL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "c978f4833821def20fb1ef47803d42c43fa35a6958a2d35fc1651acb90060d19",
+              "verdict": "REVISE",
+              "at": "2026-11-03T12:14:00Z"
+            }
+          ]
+        },
+        "F-df3d7d7bb9bd": {
+          "digest": "df3d7d7bb9bd68230736a89c932e9c81872053fc5eabcf3238a77c56d74a4864",
+          "text": "VMW-PL-R3-O1 -- Section 3 says \"the only other hits are historical records\" and names two of them. The same search also hits a third historical record, `docs/milestones/completed/WORKFLOW_MANAGER_NULL_RECORD_WORDING_PLAN.md` (lines 198 and 200), as well as this item's own `docs/ROADMAP.md` row 26. None of these hits is a current usage page, so the conclusion holds. Only the list is incomplete; it could say \"historical records, for example ...\" or name all three.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 3,
+              "review_content_id": "00322801c836c9f7b6b3f9c5cd739a7faa02859589fd3f6c58d73ac06c1feb4a",
+              "verdict": "APPROVE",
+              "at": "2026-11-03T12:17:27Z"
+            }
+          ]
+        }
       }
     }
   }

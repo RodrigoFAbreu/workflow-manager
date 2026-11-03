@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "work_item_id": "version-message-wording",
+  "requirements": {
+    "R1": {
+      "description": "A null installation-record version is named in words (no workflow_version recorded) in the next: line of verify and status and in the status header, never as a Python None",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R2": {
+      "description": "An empty recorded version is shown as two single quotes in the version: line and in the status header",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R3": {
+      "description": "Issue 145 item 3 (the quoted --release-dir clause) is already fixed and pinned by an existing test with a space in the path; a mutation confirms it, no change",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R4": {
+      "description": "Every other message, every unchanged value, every exit code and every Workflow file stays byte-identical",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R5": {
+      "description": "Roadmap row 26 and the active-milestone record are kept in step; fix patch release",
+      "checkpoint_ids": [
+        "CP2"
+      ]
+    }
+  }
+}
