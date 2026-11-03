@@ -41,6 +41,10 @@ One mutation outside the plan's table survives: the script's read-back loop remo
 - The mutation table above, rerun against the restructured tests (scratch clone of `0d39624` plus the new test file, `test_parallel_runner.TestGatePreflight` run directly; the candidate passes 12 of 12): every mutation fails the case named, as before. The moved check (placed after `prime` for every mode) also fails the scope case. One more mutation, `OverflowError` no longer caught, fails `test_a_missing_dead_or_malformed_marker_is_checked`.
 - No other finding: the check runs before priming for the three unit-starting modes only, measures the directory `make_run_dir` uses in each, creates nothing, and the read-back is shared by `tools/release/package.py` and `tools/release/release.py`, which already turn `PrimingError` into their own refusal.
 
+### Full gate
+
+`python3 tests/run_all.py` at `b8dd8a9`: full selection, 8 workers, 2329/2329 units, 15535 tests, `selection_digest e44f83c5...`, `tests_digest 557d0842...`, orphan check on (9 tolerated, all declared), `verdict: exit 0`. The first full run, at `0d39624`, exited 1 on the hygiene scan (see the self-review).
+
 ## Next action
 
-Self-review, the full `python3 tests/run_all.py`, then the implementation-review bundle.
+The local implementation review of the bundle.
