@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_work_item_id": "gate-preflight",
+  "active_work_item_id": null,
   "work_items": {
     "plan-amendment-mechanism": {
       "work_item_type": "process",
@@ -21001,7 +21001,7 @@
       "registry_path": "docs/ai-workflow/registry/gate-preflight-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/gate-preflight-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_FUNCTIONAL_REVIEW",
+      "phase": "MILESTONE_COMPLETE",
       "plan_revision": 3,
       "implementation_revision": 2,
       "functional_review_round": null,
@@ -21246,8 +21246,8 @@
           "external": 1
         }
       },
-      "state_revision": 24,
-      "last_transition": "2026-11-03T03:39:38Z",
+      "state_revision": 25,
+      "last_transition": "2026-11-03T04:06:13Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -21489,6 +21489,273 @@
           "run_ref": "codex:20261103T033523Z-8413c422",
           "reviewer_model": "openai/gpt-6.1-sol"
         }
+      },
+      "gate_evidence": {
+        "functional": {
+          "flow-1": {
+            "flow_id": "flow-1",
+            "status": "passed",
+            "head": "e941e7b63daa89891c2787b4e45369e7dc9c369e",
+            "ran_at": "2026-11-03T03:43:50Z",
+            "summary": {
+              "checklist_blob": "24536f65404f8cc21349ee8d1421baef8bde37ec",
+              "text": "Both refusals (TmpSpaceError) name /x/tmp, 999 bytes free vs 1000 required, and the lever: TMPDIR by default, --results when passed."
+            },
+            "log_digest": "1c0befbf9ddbbf7e1366aacfb4ae1fb63c9524433225790fc95b557ce68508cc",
+            "run_ref": "controller:20261103T034320Z-5f483984",
+            "reporter": "workflow-controller 1.27.4",
+            "identity": "2189451103627cddef9a6d338a99e313fd1c05f38eba68f7bd9f2fc733769ee9",
+            "recorded_at": "2026-11-03T03:43:50Z"
+          },
+          "flow-2": {
+            "flow_id": "flow-2",
+            "status": "passed",
+            "head": "e941e7b63daa89891c2787b4e45369e7dc9c369e",
+            "ran_at": "2026-11-03T03:43:50Z",
+            "summary": {
+              "checklist_blob": "24536f65404f8cc21349ee8d1421baef8bde37ec",
+              "text": "free==minimum and free>minimum both pass; printed ok twice."
+            },
+            "log_digest": "35d8e889d7b751117f8f7ed6f1786c5a818acee18931e5784f308b3b84bbc1f6",
+            "run_ref": "controller:20261103T034320Z-5f483984",
+            "reporter": "workflow-controller 1.27.4",
+            "identity": "2189451103627cddef9a6d338a99e313fd1c05f38eba68f7bd9f2fc733769ee9",
+            "recorded_at": "2026-11-03T03:43:50Z"
+          },
+          "flow-3": {
+            "flow_id": "flow-3",
+            "status": "passed",
+            "head": "e941e7b63daa89891c2787b4e45369e7dc9c369e",
+            "ran_at": "2026-11-03T03:43:50Z",
+            "summary": {
+              "checklist_blob": "24536f65404f8cc21349ee8d1421baef8bde37ec",
+              "text": "Printed 'True True'."
+            },
+            "log_digest": "2f2b190ca0cd88a775b9bab75d94ba6ff03509bb6eb19d7000c453c3d46813e1",
+            "run_ref": "controller:20261103T034320Z-5f483984",
+            "reporter": "workflow-controller 1.27.4",
+            "identity": "2189451103627cddef9a6d338a99e313fd1c05f38eba68f7bd9f2fc733769ee9",
+            "recorded_at": "2026-11-03T03:43:50Z"
+          },
+          "flow-4": {
+            "flow_id": "flow-4",
+            "status": "passed",
+            "head": "e941e7b63daa89891c2787b4e45369e7dc9c369e",
+            "ran_at": "2026-11-03T03:43:50Z",
+            "summary": {
+              "checklist_blob": "24536f65404f8cc21349ee8d1421baef8bde37ec",
+              "text": "PrimingError names version 7.0.0, cache dir, source and the remove-and-rerun step."
+            },
+            "log_digest": "5f31b0bd3bab2e68e72a12b72b565de67d147266fdd3f422f014e5cffd7618c9",
+            "run_ref": "controller:20261103T034320Z-5f483984",
+            "reporter": "workflow-controller 1.27.4",
+            "identity": "2189451103627cddef9a6d338a99e313fd1c05f38eba68f7bd9f2fc733769ee9",
+            "recorded_at": "2026-11-03T03:43:50Z"
+          },
+          "flow-5": {
+            "flow_id": "flow-5",
+            "status": "passed",
+            "head": "e941e7b63daa89891c2787b4e45369e7dc9c369e",
+            "ran_at": "2026-11-03T03:43:50Z",
+            "summary": {
+              "checklist_blob": "24536f65404f8cc21349ee8d1421baef8bde37ec",
+              "text": "With unserved [] prime returns the report dict without error."
+            },
+            "log_digest": "9f6c779f292173886ae9fcc999186047db284bd0d1c9626dd205198b14469120",
+            "run_ref": "controller:20261103T034320Z-5f483984",
+            "reporter": "workflow-controller 1.27.4",
+            "identity": "2189451103627cddef9a6d338a99e313fd1c05f38eba68f7bd9f2fc733769ee9",
+            "recorded_at": "2026-11-03T03:43:50Z"
+          },
+          "flow-6": {
+            "flow_id": "flow-6",
+            "status": "passed",
+            "head": "e941e7b63daa89891c2787b4e45369e7dc9c369e",
+            "ran_at": "2026-11-03T03:45:15Z",
+            "summary": {
+              "checklist_blob": "24536f65404f8cc21349ee8d1421baef8bde37ec",
+              "text": "Run in a scratch clone at 23c6214 under unshare -rm with a 16 MiB tmpfs: exit 2, TmpSpaceError naming <path>/res, 16777216 bytes free, 4294967296 required, lever --results; the tmpfs was left empty. Supersedes the Controller's environment failure (no user namespaces in its sandbox)."
+            },
+            "log_digest": "114e58a7a76da190041e1bce9506e119ef629b02a6cfafe314993c0e78903a46",
+            "run_ref": "manager-orchestrator:runs/md13-functional-r1",
+            "reporter": "manager-orchestrator (independent run, host with user namespaces)",
+            "identity": "2189451103627cddef9a6d338a99e313fd1c05f38eba68f7bd9f2fc733769ee9",
+            "recorded_at": "2026-11-03T03:45:15Z"
+          },
+          "flow-7": {
+            "flow_id": "flow-7",
+            "status": "passed",
+            "head": "e941e7b63daa89891c2787b4e45369e7dc9c369e",
+            "ran_at": "2026-11-03T03:45:15Z",
+            "summary": {
+              "checklist_blob": "24536f65404f8cc21349ee8d1421baef8bde37ec",
+              "text": "Same scratch clone, TMPDIR on the 16 MiB tmpfs: exit 2, TmpSpaceError naming the small directory, lever set TMPDIR; nothing left in the tmpfs. Supersedes the Controller's environment failure."
+            },
+            "log_digest": "fb9441826744a6714c40df078a1895fe4c79c28e3d3c34b8e7d140aa31208203",
+            "run_ref": "manager-orchestrator:runs/md13-functional-r1",
+            "reporter": "manager-orchestrator (independent run, host with user namespaces)",
+            "identity": "2189451103627cddef9a6d338a99e313fd1c05f38eba68f7bd9f2fc733769ee9",
+            "recorded_at": "2026-11-03T03:45:15Z"
+          },
+          "flow-8": {
+            "flow_id": "flow-8",
+            "status": "passed",
+            "head": "e941e7b63daa89891c2787b4e45369e7dc9c369e",
+            "ran_at": "2026-11-03T03:45:15Z",
+            "summary": {
+              "checklist_blob": "24536f65404f8cc21349ee8d1421baef8bde37ec",
+              "text": "python3 tests/run_all.py --select test_parallel_runner.py::TestGatePreflight in a scratch clone at 23c6214: 1/1 units, 14 tests, orphan check on, verdict exit 0."
+            },
+            "log_digest": "858a8b299fac9f1bcfa55394f56c10f18fe56268229acaf4455407bcd4234b8c",
+            "run_ref": "manager-orchestrator:runs/md13-functional-r1",
+            "reporter": "manager-orchestrator (independent run, host with user namespaces)",
+            "identity": "2189451103627cddef9a6d338a99e313fd1c05f38eba68f7bd9f2fc733769ee9",
+            "recorded_at": "2026-11-03T03:45:15Z"
+          }
+        },
+        "pr": {
+          "pr": {
+            "number": 152,
+            "url": "https://github.com/RodrigoFAbreu/workflow-manager/pull/152"
+          },
+          "state": "open",
+          "head": "e941e7b63daa89891c2787b4e45369e7dc9c369e",
+          "review_decision": null,
+          "reviewed_head": null,
+          "checks": {
+            "state": "success",
+            "failing": []
+          },
+          "review_id": null,
+          "findings": null,
+          "identity_at_head": "2189451103627cddef9a6d338a99e313fd1c05f38eba68f7bd9f2fc733769ee9",
+          "observed_at": "2026-11-03T04:06:13Z",
+          "ingest_seq": 1,
+          "repository": "RodrigoFAbreu/workflow-manager",
+          "queried_commit": "23c6214fdf17e5dcffe91450363eed627c690abb",
+          "provenance": {
+            "source": "workflow_gh",
+            "fetched_by": {
+              "name": "workflow-gh",
+              "version": "pr-list-v1"
+            },
+            "fetched_at": "2026-11-03T04:06:13Z",
+            "raw_sha256": "b43307a3c9dacde92e9c6f9da9ef86f55c991e41af75abb65a5d21779d71a362",
+            "run_ref": null,
+            "gh_path": "/usr/bin/gh",
+            "gh_sha256": "9e824061111fe5f5b6a5d5690909ba37abafca4a4ca830bdf83246d3c94afd21"
+          },
+          "fact_id": "3cbe2754e0a4a77ff3d1ee377cc12e0fc2f77b65bd2bcf040f7618a769a06706"
+        },
+        "pr_reported": null,
+        "pr_keys": {
+          "reopened_for": [],
+          "applied": [],
+          "ingest_seq": 1
+        }
+      },
+      "acceptance_satisfaction": {
+        "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "policy_source": "default",
+        "file_digest": null,
+        "adopted_digest": null,
+        "floor_digest": null,
+        "requirements": [
+          {
+            "id": "checkpoints_complete",
+            "met": true,
+            "detail": "every checkpoint of the item's own registry is COMPLETE"
+          },
+          {
+            "id": "technical_approval_current",
+            "met": true,
+            "detail": "the technical approval is CURRENT for the content now"
+          },
+          {
+            "id": "functional_flows_passed",
+            "met": true,
+            "detail": "flows ['flow-1', 'flow-2', 'flow-3', 'flow-4', 'flow-5', 'flow-6', 'flow-7', 'flow-8'] passed at the approved content"
+          },
+          {
+            "id": "pr_fact_current",
+            "met": true,
+            "detail": "workflow_gh fact for PR #152 at e941e7b63daa89891c2787b4e45369e7dc9c369e is current"
+          },
+          {
+            "id": "no_standing_pr_objection",
+            "met": true,
+            "detail": "no CHANGES_REQUESTED decision and no failed check"
+          },
+          {
+            "id": "ci_green",
+            "met": true,
+            "detail": "checks are 'success'"
+          }
+        ],
+        "inputs": {
+          "anchor_commit": "23c6214fdf17e5dcffe91450363eed627c690abb",
+          "anchor_identity": "2189451103627cddef9a6d338a99e313fd1c05f38eba68f7bd9f2fc733769ee9",
+          "technical_approval": {
+            "basis": "POLICY_SATISFIED",
+            "approved_review_content_id": "2189451103627cddef9a6d338a99e313fd1c05f38eba68f7bd9f2fc733769ee9",
+            "recorded_at": "2026-11-03T03:39:38Z"
+          },
+          "functional": {
+            "flow-1": {
+              "evidence_id": "5dca483aa1148f45755c3be95ab3ca659b0335d82f572cd12fedf15a2b43dd4f",
+              "log_digest": "1c0befbf9ddbbf7e1366aacfb4ae1fb63c9524433225790fc95b557ce68508cc",
+              "run_ref": "controller:20261103T034320Z-5f483984"
+            },
+            "flow-2": {
+              "evidence_id": "9b8b31ece94fa834e21d7dd46d091fc4004c6460d62b3d26128ca0ee409557e7",
+              "log_digest": "35d8e889d7b751117f8f7ed6f1786c5a818acee18931e5784f308b3b84bbc1f6",
+              "run_ref": "controller:20261103T034320Z-5f483984"
+            },
+            "flow-3": {
+              "evidence_id": "cb48568274e40e1523df80c219c98f6a8d04a4e113040e597f2f85aafd7b7cc3",
+              "log_digest": "2f2b190ca0cd88a775b9bab75d94ba6ff03509bb6eb19d7000c453c3d46813e1",
+              "run_ref": "controller:20261103T034320Z-5f483984"
+            },
+            "flow-4": {
+              "evidence_id": "8bfd3733065516f39cf89981ac90b115c74c8ef4cff180598a0f8aeffbd1f389",
+              "log_digest": "5f31b0bd3bab2e68e72a12b72b565de67d147266fdd3f422f014e5cffd7618c9",
+              "run_ref": "controller:20261103T034320Z-5f483984"
+            },
+            "flow-5": {
+              "evidence_id": "f057a08967666b988841a356ff51a35a3ab858e8297d7257eace21dcb6cafc49",
+              "log_digest": "9f6c779f292173886ae9fcc999186047db284bd0d1c9626dd205198b14469120",
+              "run_ref": "controller:20261103T034320Z-5f483984"
+            },
+            "flow-6": {
+              "evidence_id": "f947572800c9d58ae6b405442acd83f4f9fb91eb32f2a2420d192bbc622914af",
+              "log_digest": "114e58a7a76da190041e1bce9506e119ef629b02a6cfafe314993c0e78903a46",
+              "run_ref": "manager-orchestrator:runs/md13-functional-r1"
+            },
+            "flow-7": {
+              "evidence_id": "57f1543038100a6879923ea458936bad555bfd04d49f2de290a1a1061d9f33a0",
+              "log_digest": "fb9441826744a6714c40df078a1895fe4c79c28e3d3c34b8e7d140aa31208203",
+              "run_ref": "manager-orchestrator:runs/md13-functional-r1"
+            },
+            "flow-8": {
+              "evidence_id": "770aff533f142678cac752adb229a52f65558abaa5edb2a9d0b7b0ab75033509",
+              "log_digest": "858a8b299fac9f1bcfa55394f56c10f18fe56268229acaf4455407bcd4234b8c",
+              "run_ref": "manager-orchestrator:runs/md13-functional-r1"
+            }
+          },
+          "pr": {
+            "fact_id": "3cbe2754e0a4a77ff3d1ee377cc12e0fc2f77b65bd2bcf040f7618a769a06706",
+            "head": "e941e7b63daa89891c2787b4e45369e7dc9c369e",
+            "provenance": "workflow_gh",
+            "raw_sha256": "b43307a3c9dacde92e9c6f9da9ef86f55c991e41af75abb65a5d21779d71a362"
+          }
+        },
+        "trust": {
+          "review_verdicts": "orchestrator",
+          "functional_evidence": "orchestrator",
+          "pr_fact": "workflow_gh"
+        },
+        "evaluated_at": "2026-11-03T04:06:13Z",
+        "workflow_release": "2.25.5"
       }
     }
   }
