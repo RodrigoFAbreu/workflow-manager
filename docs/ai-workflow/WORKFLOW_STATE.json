@@ -21001,7 +21001,7 @@
       "registry_path": "docs/ai-workflow/registry/gate-preflight-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/gate-preflight-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "APPLYING_REVIEW_FEEDBACK",
       "plan_revision": 3,
       "implementation_revision": 1,
       "functional_review_round": null,
@@ -21141,12 +21141,12 @@
           "external": 1
         },
         "implementation": {
-          "local": 0,
+          "local": 1,
           "external": 0
         }
       },
-      "state_revision": 17,
-      "last_transition": "2026-11-03T02:30:05Z",
+      "state_revision": 18,
+      "last_transition": "2026-11-03T02:33:12Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -21308,6 +21308,48 @@
               "review_content_id": "b62207e68dd99fdd00e442851b4ed985291887b61c36885532abfea81da36e20",
               "verdict": "APPROVE",
               "at": "2026-11-03T01:13:54Z"
+            }
+          ]
+        },
+        "F-a523487eef5f": {
+          "digest": "a523487eef5f7942dfcc6179fd8213717fe86f8cad77265f9444ca7504e3954a",
+          "text": "`test_a_refused_run_stops_before_it_writes_or_fetches_anything` asserts that `tempfile.gettempdir()` holds no `wm-run-*` directory at all, not that the refused run added none. Inside a gate chunk that directory is the chunk's private `TMPDIR`, which other tests in the same chunk share. A `wm-run-*` directory an earlier test left behind (a kept failed run, for example) would fail this test for a reason unrelated to the preflight. Comparing the set before and after the call proves the same thing without depending on what ran before it.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "e83dde9b73e4af2aa5a11cc7bf5699982dff2c7527e7d941d534a404073af61f",
+              "verdict": "REVISE",
+              "at": "2026-11-03T02:33:12Z"
+            }
+          ]
+        },
+        "F-8972889bba6f": {
+          "digest": "8972889bba6ffedd0152d04e0a2fa4ebb386734981418690bf7827c735b50b92",
+          "text": "`check_free_space` lets an `OSError` from `shutil.disk_usage` (or from `Path.exists` on an unreadable ancestor) out as a generic `run_all: error[OSError]` rather than a refusal naming the path. Both are unlikely on a path the operator chose, but wrapping them in `TmpSpaceError` with the path would keep the \"refusal that names the cause\" promise.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "e83dde9b73e4af2aa5a11cc7bf5699982dff2c7527e7d941d534a404073af61f",
+              "verdict": "REVISE",
+              "at": "2026-11-03T02:33:12Z"
+            }
+          ]
+        },
+        "F-74e029e4b3df": {
+          "digest": "74e029e4b3df9abb64505cb84a3387ffdc266694bb928f1f154b9a924c78e126",
+          "text": "Two added lines run well past the surrounding wrap width: the `tests/parallel/cli.py` module docstring (\"directory filesystem with too little free space ...\") and the `docs/ARCHITECTURE.md` Priming bullet (\"started inside a unit of an enclosing run does not repeat the check. After priming, a run\"). Re-wrapping them matches the rest of each file.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "e83dde9b73e4af2aa5a11cc7bf5699982dff2c7527e7d941d534a404073af61f",
+              "verdict": "REVISE",
+              "at": "2026-11-03T02:33:12Z"
             }
           ]
         }
