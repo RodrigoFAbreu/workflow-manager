@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_work_item_id": null,
+  "active_work_item_id": "gate-preflight",
   "work_items": {
     "plan-amendment-mechanism": {
       "work_item_type": "process",
@@ -20990,6 +20990,318 @@
         },
         "evaluated_at": "2026-11-01T04:47:51Z",
         "workflow_release": "2.25.5"
+      }
+    },
+    "gate-preflight": {
+      "work_item_type": "process",
+      "work_item_kind": "process",
+      "work_item_id": "gate-preflight",
+      "parent_work_item_id": null,
+      "plan_path": "docs/ai-workflow/WORKFLOW_MANAGER_GATE_PREFLIGHT_PLAN.md",
+      "registry_path": "docs/ai-workflow/registry/gate-preflight-registry.json",
+      "mapping_path": "docs/ai-workflow/requirements/gate-preflight-mapping.json",
+      "governing_workflow_version": "2.2",
+      "phase": "IMPLEMENTING",
+      "plan_revision": 3,
+      "implementation_revision": null,
+      "functional_review_round": null,
+      "base_commit": "2be4b4bc6d00f0ea56d5234941c3c22279ef4f63",
+      "reviewed_implementation_head": null,
+      "current_checkpoint_id": null,
+      "last_completed_checkpoint_id": null,
+      "checkpoints": {},
+      "current_bundle_id": "8712d9710f7a9c0eda974daa1d117e5ab379fad0c95c2dbbe20c12f07ed426b1",
+      "plan_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "8712d9710f7a9c0eda974daa1d117e5ab379fad0c95c2dbbe20c12f07ed426b1",
+        "approved_review_content_id": "b62207e68dd99fdd00e442851b4ed985291887b61c36885532abfea81da36e20",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/WORKFLOW_MANAGER_GATE_PREFLIGHT_PLAN.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "096dd8d8fd607e9de897c969b7acabec8fc72edf"
+          },
+          {
+            "path": "docs/ai-workflow/registry/gate-preflight-registry.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "869f8ea75e45dc082c6dbc0164997158802e9d2a"
+          },
+          {
+            "path": "docs/ai-workflow/requirements/gate-preflight-mapping.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "d656279645c3243397b12e1d177aefe312b24d12"
+          }
+        ],
+        "reviewed_content_commit": null,
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-11-03T01:14:39Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "b62207e68dd99fdd00e442851b4ed985291887b61c36885532abfea81da36e20",
+            "ledger": {
+              "local": {
+                "bundle_id": "8712d9710f7a9c0eda974daa1d117e5ab379fad0c95c2dbbe20c12f07ed426b1",
+                "verdict": "APPROVE",
+                "round": 3,
+                "verdict_sha256": "02bb8b2f5e91f3a308fc0925900d04d8b95f12b2cc304ba2ffda428f8658354b",
+                "ledger_entry_sha256": "c32dc267758d71f8455165616a5607a2e236ab11af0d6a6953807b3c71e737f1",
+                "run_ref": "session:local .ai-review/gate-preflight/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "8712d9710f7a9c0eda974daa1d117e5ab379fad0c95c2dbbe20c12f07ed426b1",
+                "verdict": "APPROVE",
+                "round": 3,
+                "verdict_sha256": "35f0d3e97b929edab9238facc4c3d8707807fd669f4ad7bdb0b5a285f5594f03",
+                "ledger_entry_sha256": "f2e59e8982d1fd66126403113dbf38e2e0b607962c5d7c8f3c4974995a99826e",
+                "run_ref": "codex:20261103T011055Z-37a2ced3",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-11-03T01:14:39Z",
+          "workflow_release": "2.25.5"
+        }
+      },
+      "technical_approval": null,
+      "technical_review_block_pins": [],
+      "plan_review_stages": {
+        "review_content_id": "b62207e68dd99fdd00e442851b4ed985291887b61c36885532abfea81da36e20",
+        "LOCAL_MODEL_PLAN_REVIEW": {
+          "bundle_id": "8712d9710f7a9c0eda974daa1d117e5ab379fad0c95c2dbbe20c12f07ed426b1",
+          "verdict": "APPROVE",
+          "round": 3,
+          "completed_at": "2026-11-03T01:10:34Z",
+          "verdict_sha256": "02bb8b2f5e91f3a308fc0925900d04d8b95f12b2cc304ba2ffda428f8658354b",
+          "run_ref": "session:local .ai-review/gate-preflight/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_PLAN_REVIEW": {
+          "bundle_id": "8712d9710f7a9c0eda974daa1d117e5ab379fad0c95c2dbbe20c12f07ed426b1",
+          "verdict": "APPROVE",
+          "round": 3,
+          "completed_at": "2026-11-03T01:13:54Z",
+          "verdict_sha256": "35f0d3e97b929edab9238facc4c3d8707807fd669f4ad7bdb0b5a285f5594f03",
+          "run_ref": "codex:20261103T011055Z-37a2ced3",
+          "reviewer_model": "openai/gpt-6.1-sol"
+        }
+      },
+      "functional_acceptance_status": null,
+      "blocking_decisions": [],
+      "review_round_counts": {
+        "plan": {
+          "local": 3,
+          "external": 1
+        },
+        "implementation": {
+          "local": 0,
+          "external": 0
+        }
+      },
+      "state_revision": 12,
+      "last_transition": "2026-11-03T01:14:39Z",
+      "feedback_layout": "scoped",
+      "plan_review_binding": {
+        "status": "BOUND",
+        "at": "2026-11-03T01:06:45Z",
+        "consumed": {
+          "review_content_id": "7c1ff75a0d556456815967bacc882f3f6caf84a9a9ddacf10f73cdc31b12b8b5",
+          "plan_revision": 2,
+          "legacy": false
+        },
+        "published": {
+          "review_content_id": "b62207e68dd99fdd00e442851b4ed985291887b61c36885532abfea81da36e20",
+          "plan_revision": 3
+        },
+        "bound": {
+          "review_content_id": "b62207e68dd99fdd00e442851b4ed985291887b61c36885532abfea81da36e20",
+          "bundle_id": "8712d9710f7a9c0eda974daa1d117e5ab379fad0c95c2dbbe20c12f07ed426b1",
+          "plan_revision": 3
+        }
+      },
+      "consumed_plan_review_content_ids": [
+        "403ecb1e3fd3240256cffa369752d9e1050613cac2e670deeeb5ad5d15d590a1",
+        "7c1ff75a0d556456815967bacc882f3f6caf84a9a9ddacf10f73cdc31b12b8b5"
+      ],
+      "optional_findings": {
+        "F-aa6a070750c2": {
+          "digest": "aa6a070750c21584e09ac4200658cd8bcd436e9027a63025aaa71bad4eca86b6",
+          "text": "LPR1-003: the read-back's next step, `remove C/V and run again`, is safe only while no other process holds that cache entry. `ReleaseCache` takes a per-version `<version>.lock` for its writers, and another checkout's run can share the same user cache. Consider saying \"when no other run is using the cache\", or have the read-back name the entry without telling the operator to delete it while a peer may hold its lock.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "403ecb1e3fd3240256cffa369752d9e1050613cac2e670deeeb5ad5d15d590a1",
+              "verdict": "REVISE",
+              "at": "2026-11-03T01:01:27Z"
+            }
+          ]
+        },
+        "F-143cf4cb1bbe": {
+          "digest": "143cf4cb1bbe0bb3551946102b14bad8dc35162086717b3b12d95814329320ce",
+          "text": "LPR1-004: `cli.py`'s module docstring has an \"Order:\" paragraph (\"Every mode but `--restore-barrier` then primes...\") that CP1 should also update to say that the free-space check runs before priming for the modes that start units. CP1 currently mentions only the exit-2 list.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "403ecb1e3fd3240256cffa369752d9e1050613cac2e670deeeb5ad5d15d590a1",
+              "verdict": "REVISE",
+              "at": "2026-11-03T01:01:27Z"
+            }
+          ]
+        },
+        "F-e7e7837be45f": {
+          "digest": "e7e7837be45f5109ba71be4db45f5a57f24a75a8608d0b4bb34054f75918b515",
+          "text": "LPR1-005: priming itself writes into the release cache (`XDG_CACHE_HOME`/`HOME`, possibly another filesystem) before any unit starts. The check does not cover a full cache filesystem. That case already fails at its start as `PrimingError`, so it is fine as out of scope, but the plan could say so in section 7.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "403ecb1e3fd3240256cffa369752d9e1050613cac2e670deeeb5ad5d15d590a1",
+              "verdict": "REVISE",
+              "at": "2026-11-03T01:01:27Z"
+            }
+          ]
+        },
+        "F-6a2df2c933f9": {
+          "digest": "6a2df2c933f9bd071f70037d54b2f109b12aac252079e1fa3344ccb74efbb5a9",
+          "text": "LPR2-002: the roadmap row 25 text added by this item (`docs/ROADMAP.md`) still says the run \"checks the free space under the effective `TMPDIR`\". Since revision 2 the check uses `--results` when it is given. CP2 could align the wording when it writes the row at acceptance.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "7c1ff75a0d556456815967bacc882f3f6caf84a9a9ddacf10f73cdc31b12b8b5",
+              "verdict": "REVISE",
+              "at": "2026-11-03T01:05:15Z"
+            }
+          ]
+        },
+        "F-8cc6d55ef569": {
+          "digest": "8cc6d55ef569850477745b4ebff24c0b2561a1930501cb3a2a466054525981ee",
+          "text": "LPR3-001: CP1's paragraph was edited to insert \"`priming.exported` sets and restores the marker\", and now reads \"`priming.exported` sets and restores the marker and lists the two new exit-2 causes in its docstring, and its \"Order:\" paragraph ...\". That makes `exported` the subject of the docstring clauses, which belong to `cli.py`. Restore `cli.py` as the subject (for example, \"`priming.exported` sets and restores the marker. `cli.py`'s docstring lists the two new exit-2 causes, and its \"Order:\" paragraph ...\").",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 3,
+              "review_content_id": "b62207e68dd99fdd00e442851b4ed985291887b61c36885532abfea81da36e20",
+              "verdict": "APPROVE",
+              "at": "2026-11-03T01:10:34Z"
+            }
+          ]
+        },
+        "F-ba821b649855": {
+          "digest": "ba821b64985503cecebeb9f75f658deaa7cfc9f001a37ad82bd82d2f9ee4c00d",
+          "text": "LPR3-002: the mapping's R2 (`docs/ai-workflow/requirements/gate-preflight-mapping.json`) still says \"A run that starts units refuses ... when free space ... is below the named minimum\", with no exception. Since revision 3, a nested run whose marker names a live process skips the check. R2 (or a new requirement) could say that only the outermost run checks, so acceptance is judged against the requirement as designed.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 3,
+              "review_content_id": "b62207e68dd99fdd00e442851b4ed985291887b61c36885532abfea81da36e20",
+              "verdict": "APPROVE",
+              "at": "2026-11-03T01:10:34Z"
+            }
+          ]
+        },
+        "F-fda976a2bba8": {
+          "digest": "fda976a2bba82e5818767fe3f79fa2032caa4883880a185ced4bb4d93933803f",
+          "text": "LPR3-003: section 4 says that \"The refusal tests above clear\" the marker. The which-directory cases that stub `check_free_space` to record its first argument (`--results`, the temp directory, `--run-shard`, `--aggregate`) also need it cleared. Under the outer gate run the marker names the live outer runner, so the stub would never be called and the case would fail for the wrong reason. Name those cases too (every `TestGatePreflight` case that expects the check to run clears the marker).",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 3,
+              "review_content_id": "b62207e68dd99fdd00e442851b4ed985291887b61c36885532abfea81da36e20",
+              "verdict": "APPROVE",
+              "at": "2026-11-03T01:10:34Z"
+            }
+          ]
+        },
+        "F-9c670650f283": {
+          "digest": "9c670650f283f463e23038255a722c2ae1a83ff37c120cf82f5a92264d03a200",
+          "text": "LPR3-004: a nested run checks only when no live outer run is marked, so running `tests/test_parallel_runner.py` directly with `python3 -m unittest`, outside `run_all.py`, makes each of its nested runs check the real effective `TMPDIR` against 4 GiB. That is not a gate path and is acceptable. A sentence in section 7 would keep it from surprising someone who debugs a test that way on a small tmpfs.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 3,
+              "review_content_id": "b62207e68dd99fdd00e442851b4ed985291887b61c36885532abfea81da36e20",
+              "verdict": "APPROVE",
+              "at": "2026-11-03T01:10:34Z"
+            }
+          ]
+        },
+        "F-ce4950a72eac": {
+          "digest": "ce4950a72eac8161fa3b6f555b2723d51ea83e840d560af183de543d377a2f8a",
+          "text": "Section 3 overstates how completely `--results` relocates temporary writes. Frozen discovery calls `support.release()` before `make_run_dir`; its release snapshot still uses the ambient `TMPDIR` (`inventory.py:232`, `support.py:71`, `source.py:795`). Document that residual alongside the cache-filesystem limitation.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "MANUAL_EXTERNAL_PLAN_REVIEW",
+              "round": 3,
+              "review_content_id": "b62207e68dd99fdd00e442851b4ed985291887b61c36885532abfea81da36e20",
+              "verdict": "APPROVE",
+              "at": "2026-11-03T01:13:54Z"
+            }
+          ]
+        },
+        "F-8204d9932088": {
+          "digest": "8204d99320888fb6a9405a7d1844236397039f03dcd45cf8ebdf0f9e281382d2",
+          "text": "Section 6 should distinguish flow 6 from the cold-cache sandbox flows. Its `tests/run_all.py` command primes the full tested release set before applying `--select`, so it requires the stated full environment and cannot satisfy the opening claim that every flow runs offline without cached releases.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "MANUAL_EXTERNAL_PLAN_REVIEW",
+              "round": 3,
+              "review_content_id": "b62207e68dd99fdd00e442851b4ed985291887b61c36885532abfea81da36e20",
+              "verdict": "APPROVE",
+              "at": "2026-11-03T01:13:54Z"
+            }
+          ]
+        }
       }
     }
   }

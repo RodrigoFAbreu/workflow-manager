@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "work_item_id": "gate-preflight",
+  "requirements": {
+    "R1": {
+      "description": "After priming, every tested version is read back from the release cache; one the cache does not serve is a PrimingError naming the version, the cache and one next step, exit 2, before any unit starts",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R2": {
+      "description": "A run that starts units refuses, before priming, when free space of the filesystem the run directory is created on (--results when given, else the effective TMPDIR) is below the named minimum, naming the path, the lever (--results or TMPDIR) and the numbers; exit 2, same error family; --list, --plan-only and the other non-unit modes are never refused for space",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R3": {
+      "description": "The minimum is a named constant chosen from a measured full-run peak, stated in the plan; #125 is explained as not reproduced and its repeat becomes the read-back refusal",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R4": {
+      "description": "Each refusal has a deterministic hermetic test (injected free space, faked cache report, no network), a no-write proof and a failure-only mutation; docs/ARCHITECTURE.md Priming bullet updated; fix: title releases a patch; roadmap row 25 Current at planning, Done at acceptance",
+      "checkpoint_ids": [
+        "CP1",
+        "CP2"
+      ]
+    }
+  }
+}
