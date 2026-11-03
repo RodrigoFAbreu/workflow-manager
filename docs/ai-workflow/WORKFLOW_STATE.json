@@ -21001,18 +21001,22 @@
       "registry_path": "docs/ai-workflow/registry/gate-preflight-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/gate-preflight-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "IMPLEMENTING",
+      "phase": "SELF_REVIEWING_IMPLEMENTATION",
       "plan_revision": 3,
       "implementation_revision": null,
       "functional_review_round": null,
       "base_commit": "2be4b4bc6d00f0ea56d5234941c3c22279ef4f63",
       "reviewed_implementation_head": null,
       "current_checkpoint_id": null,
-      "last_completed_checkpoint_id": "CP1",
+      "last_completed_checkpoint_id": "CP2",
       "checkpoints": {
         "CP1": {
           "status": "COMPLETE",
           "start_commit": "8916b499e21d4b948c8f031fa36981bc7de61ee3"
+        },
+        "CP2": {
+          "status": "COMPLETE",
+          "start_commit": "d19c69b065ea48fc736e3ce0473e6d42739f176d"
         }
       },
       "current_bundle_id": "8712d9710f7a9c0eda974daa1d117e5ab379fad0c95c2dbbe20c12f07ed426b1",
@@ -21141,8 +21145,8 @@
           "external": 0
         }
       },
-      "state_revision": 14,
-      "last_transition": "2026-11-03T01:27:16Z",
+      "state_revision": 16,
+      "last_transition": "2026-11-03T01:57:48Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
