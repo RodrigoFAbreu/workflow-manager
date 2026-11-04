@@ -881,7 +881,7 @@ class TestHardenedValidation(Scratch):
 
     def test_the_echo_count_is_the_values_own_length(self):
         for value, count in (("y" * 39, 39), ("y" * 5000, 5000), ("\x1b" * 50, 50),
-                             (["x"] * 50, len(repr(["x"] * 50))),
+                             (["x"] * 50, len(repr(["x"] * 50))), ({"a": "b" * 50}, 59),
                              (10 ** 400, 401), (-(10 ** 400), 402),
                              ("1" * 100, 100), (int("1" * 100), 100)):
             with self.subTest(value=repr(value)[:20], count=count):
@@ -1197,17 +1197,51 @@ class TestDocs(unittest.TestCase):
         leads = {self._pieces(note, sentinels)[0] for note, sentinels in built}
         self.assertEqual(len(leads | {refusal.cause}), 13)
 
+    def _causes_table(self):
+        """The rows `[cause, step]` of the causes table, and no other text of the page."""
+        section = self.PAGE.read_text().split("## If it is not available", 1)[1]
+        section = section.split("\n###", 1)[0]
+        rows = []
+        for line in section.splitlines():
+            if line.startswith("|") and not set(line) <= set("|- "):
+                cells = [" ".join(cell.split()) for cell in line.strip().strip("|").split("|")]
+                if cells[0] != "Cause":
+                    rows.append(cells)
+        return rows
+
+    @staticmethod
+    def _rows_with(rows, pieces):
+        """The rows whose cause cell holds every piece, in order."""
+        found = []
+        for cells in rows:
+            at = 0
+            for piece in pieces:
+                at = cells[0].find(piece, at)
+                if at < 0:
+                    break
+                at += len(piece)
+            else:
+                found.append(cells)
+        return found
+
     def test_every_cause_the_code_can_build_is_on_the_page(self):
-        text = " ".join(self.PAGE.read_text().split())
+        rows = self._causes_table()
+        self.assertEqual(len(rows), 14)
         for note, sentinels in self._built_causes():
-            for piece in (p.strip() for p in self._pieces(note, sentinels)):
-                if re.search("[A-Za-z]", piece):
-                    with self.subTest(cause=note.cause, piece=piece):
-                        self.assertIn(piece, text)
-        for step in (retention.STEP_REINSTALL, retention.STEP_RUN_DIRECTLY,
-                     retention.STEP_UPDATE_MANAGER, retention.STEP_FORGE, retention.STEP_RATE_LIMITED):
-            with self.subTest(step=step):
-                self.assertIn(step, text)
+            for sentinel in sentinels:  # the variable part is in the cause it splits
+                self.assertIn(sentinel, note.cause)
+            pieces = [p.strip() for p in self._pieces(note, sentinels)]
+            pieces = [p for p in pieces if re.search("[A-Za-z]", p)]
+            with self.subTest(cause=note.cause):
+                found = self._rows_with(rows, pieces)
+                self.assertTrue(found, f"no row of the causes table holds {pieces}")
+                # two forge rows share their words and differ by the code: one has its step
+                steps = [r[1].replace("`", "").replace("TARGET", "/t") for r in found]
+                self.assertIn(note.step.replace("`", ""), steps)
+        # the script's own refusal has no fixed text but its row
+        refused = self._rows_with(rows, ["the script refused"])
+        self.assertEqual(len(refused), 1)
+        self.assertIn("next step", refused[0][1])
 
     def test_the_page_states_the_limits_and_the_zero_header_case(self):
         text = " ".join(self.PAGE.read_text().split())
@@ -1221,6 +1255,7 @@ class TestDocs(unittest.TestCase):
         for figure in (retention.ID_LIMIT, retention.PATH_LIMIT, retention.ERROR_LIMIT):
             self.assertIn(str(figure), text)
         self.assertIn("N is the length of the value itself", text)
+        self.assertIn("A value whose printed form is at most 40 characters is shown whole", text)
         self.assertIn("In a complete report with no finished work item", text)
         self.assertIn("an incomplete report keeps the `retention: INCOMPLETE` first line "
                       "whatever the count", text)
