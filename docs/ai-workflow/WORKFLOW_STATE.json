@@ -24038,18 +24038,22 @@
       "registry_path": "docs/ai-workflow/registry/retention-view-limits-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/retention-view-limits-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "IMPLEMENTING",
+      "phase": "SELF_REVIEWING_IMPLEMENTATION",
       "plan_revision": 3,
       "implementation_revision": null,
       "functional_review_round": null,
       "base_commit": "4a98c25b54ddcca9c63d204cfe0cc340b3e9f373",
       "reviewed_implementation_head": null,
       "current_checkpoint_id": null,
-      "last_completed_checkpoint_id": "CP1",
+      "last_completed_checkpoint_id": "CP2",
       "checkpoints": {
         "CP1": {
           "status": "COMPLETE",
           "start_commit": "56de71df46cae89bf0a4ba5f3f8848a3b7d240c5"
+        },
+        "CP2": {
+          "status": "COMPLETE",
+          "start_commit": "8acd5ee67a45b899680c8fd5fb84dc81dd8573c8"
         }
       },
       "current_bundle_id": "e80444026021903495a736f22ef97b2f1e456fda4c51ab06b4051edb5e693b02",
@@ -24178,8 +24182,8 @@
           "external": 0
         }
       },
-      "state_revision": 14,
-      "last_transition": "2026-11-04T02:09:39Z",
+      "state_revision": 16,
+      "last_transition": "2026-11-04T02:10:34Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
