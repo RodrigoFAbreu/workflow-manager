@@ -2,169 +2,75 @@
 
 ## Milestone
 
-`discovery-test-cleanup` -- complete, accepted by policy (`governing_workflow_version: "2.2"`, `process`, plan revision 3, base `fd423fa`, branch `milestone/discovery-test-cleanup`): roadmap row 31 (#131, items 1 to 3). A `test:` pull request title (releases nothing).
+`runner-test-cleanup` -- complete, accepted by policy (`governing_workflow_version: "2.2"`, `process`, plan revision 3, base `c041050`, branch `milestone/runner-test-cleanup`): roadmap row 32 (#119, items 1 to 4). A `test:` pull request title (releases nothing).
 
-The bounded-read tests of `tests/test_discovery.py` identify the sockets they count, by the descriptor probe's own rules. The positive control decides "this host can list sockets" from what the first existing descriptor directory of `_FD_DIRECTORIES` shows (`_lists_links`) and skips with the probe's one wording (`_blind_reason`). The probe and the control look for the socket pair's own links (`socket:[<inode>]` from `os.fstat` of each end, `_own_links`) instead of counting two new links in a before/after difference, so a descriptor another thread opens or closes between two listings disturbs neither. Four lines of dead setup (`recv_into`, `fileno` on the fake socket, in two tests) are deleted. Item 4 of the issue was already fixed on main. Test code only: no `src/` change, no printed text, no Workflow change.
+The runner-hardening tests and notes say exactly what they check. The interrupt test's cleanup also ends the chunk's process group (`_end_group`, covered by `TestEndGroup`) before it writes the stop file, so a failing run no longer leaves the chunk to `WAIT_MODULE`'s 120-second deadline. `test_a_failing_run_keeps_its_directory_and_attempts_no_removal` asserts the directory the verdict line names exists and holds `results.json`. `remove_run_dir`'s docstring says the directory may be left behind. `docs/ARCHITECTURE.md` says the signal handler covers all three modes through `_install_signal_handlers`. No behaviour, printed text or exit code of the runner changes; no `src/` change; no Workflow change.
 
-### CP1: the probe and its control identify what they count -- complete
+### CP1: the interrupt cleanup, the kept-directory assertion and the two wordings -- complete
 
-- `tests/test_discovery.py` only (commit `392ffe1`): `_blind_reason`, `_own_links`, `_lists_links`; the probe and the control rewritten; the growing-listing test and the coupling test added (`TestTheDescriptorProbe` has 6 tests); the four dead lines removed.
+- Commit `472d138`: `tests/test_parallel_runner.py`, `tests/parallel/executor.py` (docstring lines only), `docs/ARCHITECTURE.md`.
 
 ### CP2: bookkeeping -- complete
 
-- `docs/ROADMAP.md` row 31 is Done (accepted by policy); this record.
+- `docs/ROADMAP.md` row 32 is Done (accepted by policy); this record.
 
 ### Failure-only mutations
 
-Plan section 3, run in a scratch copy of `392ffe1` made with `git archive` (not a repository; the offline `run` of plan section 5: empty scratch lock, empty release cache, `python3 -I -B`). The unmutated copy passes the 6 probe tests; each mutation fails exactly what the plan names:
+Plan section 5, run in a `git clone` of `472d138` (scratch copy; `T` is `test_sigint_interrupts_a_run_that_started_with_it_ignored`, `K` the kept-directory test, `E` is `TestEndGroup`). The unmutated candidate passes `E` (2 tests) and `T` (0.5 s).
 
 | # | Mutation | Result |
 | --- | --- | --- |
-| M1 | control decides with the literal `/proc/self/fd` | `test_the_control_skips_exactly_where_the_probe_does`, both cases |
-| M2 | control words its own skip | the same test, both cases |
-| M3 | control decides by existence only (`return True`) | the same test, `regular files` case only |
-| M4 | control leaves one end open | `test_the_helper_sees_a_socket_it_just_opened` |
-| M5 | `_own_links` names the wrong inodes | `test_the_helper_sees_a_socket_it_just_opened` |
-| M6 | the probe never skips | `test_a_directory_that_cannot_expose_links_is_a_skip_with_its_reason` (three subtests), plus the leak classes' skip test, the coupling test and the growing-listing test (13 s on all of `TestTheDescriptorProbe`: the leak classes then run for real) |
-| M7 | a bounded read leaks one socket (`src/workflow_manager/source.py`, scratch copy only) | the leak checks of `TestAnExpiredReadLeavesNothingBehind` and `TestAProxyConnectReplyIsBounded` fail, and `TestTheBoundedPieces` tests including `test_the_real_socket_outlives_close_while_a_reader_is_open` (22 tests of the three classes, needs loopback sockets; the unmutated three classes pass, 32 tests) |
-| M8 | the directory list is blind (a missing path, and a directory of one regular file) | comparison: on `fd423fa`'s file the control **fails** in both variants; on the change it **skips** with the probe's reason in both |
-| M9 | the probe counts again | `test_the_probe_names_the_pairs_own_links_not_new_ones` |
-| M10 | the control counts again | `test_the_helper_sees_a_socket_it_just_opened` (the bystander makes four new links) |
+| M0 | no stop write in `_interrupt` | applied with M1, M2 or M3 only, so a left-over group is deterministic |
+| M1 | `_end_group` never kills | `E` fails after 5 s; with M2 and M0, `T` fails with "outlived the cleanup" (45.5 s) and the group stays listed |
+| M2 | the executor does not kill chunks on interrupt | base test file with M0: `T` fails at `assertTrue(_dead(pgid))` (30.5 s), group listed; candidate without M0: same assertion (30.5 s), nothing listed; candidate with M0: same, nothing listed |
+| M3 | the cleanup call removed (with M2, M0) | `T` fails at the same assertion without "outlived the cleanup" (30.5 s), group listed |
+| M4 | run directory removed before `if not keep:` | `K` fails at `Path(kept).is_dir()`; the base test file passes the same mutation (the defect item 2 closes) |
+
+Every group a mutation left running was ended with `kill -9 -<pgid>`.
 
 ### Self-review
 
-The full diff against `fd423fa` was read against the plan: `tests/test_discovery.py` is the only code or test file that changed, the helpers, the probe, the control and the two new tests match plan section 3, the four dead lines are gone, and the `recv_into` that is exercised stays. M1 to M10 were run again on `9a0a5d2` through plan section 5's offline `run` (M7 and M8 as in the table above), each with the result listed, by a fresh session. No code finding. Two record corrections, in excluded files only: the M7 row above now names every class the plan names, and roadmap row 31 no longer says "no behaviour change" (the plan names the one test behaviour that changes) and says what the control decides from.
-
-### Verification
-
-`python3 tests/run_all.py` at `9a0a5d2` (full selection, 8 workers): `verdict: exit 0`, 2330/2330 units, 15552 tests, `selection_digest` `4c041765...`, `tests_digest` `348433d5...`.
-
-No `src/`, `tests/` or `tools/` file changed after `9a0a5d2` (`git diff --stat 9a0a5d2 HEAD -- src tests tools` is empty; the later commits are docs and state), so this run is current and was not repeated for the functional gate.
+The diff against `c041050` was read against the plan: three files changed (`tests/test_parallel_runner.py`, `tests/parallel/executor.py` docstring only, `docs/ARCHITECTURE.md`, one sentence with no work-item id); nothing under `src/` or `tools/`.
 
 ## Functional review checklist
 
-The change is test code only: `tests/test_discovery.py`, at `392ffe1`. The product does not change, so this review checks that the tests do what the plan says. Flows 1 to 9 run in the Controller's functional sandbox (no network, no `gh`, no `claude`/`codex`/`ssh`, no origin, no release cache, no loopback socket, `PATH` of the system directories only). Flow 10 does not: it needs a primed release cache and loopback sockets, so the user runs it in a normal shell. Flows 1 to 9 were run at HEAD on 2026-11-04 exactly as written below, under `env -i PATH=/usr/bin:/bin unshare -rn` (no network), and every expectation held. Flow 10 was not run for this checklist.
+Scope: test code, one docstring and one sentence of `docs/ARCHITECTURE.md`. The runner's behaviour, printed text and exit codes do not change, and no `src/` or `tools/` file changes. The functional review checks that the tests and wording say what the plan says. Nothing here needs a forge, a network or a real `claude`, `codex` or `ssh`.
 
-### Setup (flows 1 to 9)
+### Setup (every flow)
 
-Run from the root of the product clone. Nothing below writes inside it; `S` is a new scratch directory outside it (in the sandbox, its writable scratch area; a manual run uses `$HOME/.cache`).
-
-```sh
-REPO=$PWD
-BASE=fd423fa4bf8e53d4e8e2af13986e5152b6de489d
-S=$(mktemp -d "$HOME/.cache/dtc-fr.XXXXXX")
-mkdir -p "$S/base" "$S/cand" "$S/tmp" "$S/cache"
-printf '{"schema_version": 1, "releases": {}}' > "$S/lock.json"
-git archive "$BASE" src tests | tar -x -C "$S/base"
-git archive HEAD src tests | tar -x -C "$S/cand"
-cat > "$S/t.py" <<'PY'
-import sys, unittest
-tree = sys.argv[1]
-sys.path[:0] = [tree + "/src", tree + "/tests"]
-suite = unittest.defaultTestLoader.loadTestsFromNames(sys.argv[2:], __import__("test_discovery"))
-sys.exit(not unittest.TextTestRunner(verbosity=2).run(suite).wasSuccessful())
-PY
-run() { env -u WORKFLOW_MANAGER_RELEASE_SOURCE TMPDIR="$S/tmp" WORKFLOW_MANAGER_RELEASE_CACHE="$S/cache" WORKFLOW_MANAGER_TESTED_RELEASES="$S/lock.json" python3 -I -B "$S/t.py" "$@"; }
-mut() { command rm -rf "$S/mut"; command cp -rf "$S/cand" "$S/mut"; }   # a fresh copy per mutation
-P=TestTheDescriptorProbe; B=TestTheBoundedPieces; T="$S/cand/tests/test_discovery.py"
-```
-
-`verbosity=2` prints each skip's reason, which flow 9 checks.
-
-### Flows 1 to 9
-
-**Flow 1: the change is one file.**
-```sh
-git -C "$REPO" diff --stat "$BASE" HEAD -- src tests tools
-```
-Expect: one file, `tests/test_discovery.py`; nothing under `src/` or `tools/`.
-
-**Flow 2: the six definitions, once each.**
-```sh
-grep -c "def test_the_helper_sees_a_socket_it_just_opened\|def test_the_control_skips_exactly\|def test_the_probe_names\|def _blind_reason\|def _own_links\|def _lists_links" "$T"
-```
-Expect: `6`.
-
-**Flow 3: the dead setup is gone; the exercised `recv_into` stays.**
-```sh
-grep -n "raw.fileno = lambda: 3" "$T"; grep -c 'raw.recv_into = lambda buf, \*a: 0' "$T"
-```
-Expect: the first prints nothing; the second prints `1`.
-
-**Flow 4: the bounded-read tests of this change pass.**
-```sh
-run "$S/cand" $P $B.test_the_real_socket_outlives_close_while_a_reader_is_open $B.test_a_second_reader_keeps_the_fake_socket_open
-```
-Expect: `Ran 8 tests`, `OK`, exit 0.
-
-**Flow 5: the control decides by the probe's rule, and words its skip from the probe (M1, M2).**
-```sh
-mut; sed -i 's|if not _lists_links():|if not os.path.isdir("/proc/self/fd"):|' "$S/mut/tests/test_discovery.py"; run "$S/mut" $P
-mut; sed -i 's|self.skipTest(_blind_reason())|self.skipTest("no descriptor directory")|' "$S/mut/tests/test_discovery.py"; run "$S/mut" $P
-```
-Expect, each: exit 1; the only failing test is `test_the_control_skips_exactly_where_the_probe_does`, in both subtests (`a missing path`, `regular files`).
-
-**Flow 6: the control does not decide by existence alone (M3).**
-```sh
-mut; sed -i 's|return os.path.islink(os.path.join(directory, str(end.fileno())))|return True|' "$S/mut/tests/test_discovery.py"; run "$S/mut" $P
-```
-Expect: exit 1; that test fails in its `regular files` subtest only.
-
-**Flow 7: the control and the helper see the pair's own two links (M4, M5, M10).**
-```sh
-mut; sed -i '/def test_the_helper_sees/,/self.assertEqual(own &/ s/for end in pair:/for end in pair[:1]:/' "$S/mut/tests/test_discovery.py"; run "$S/mut" $P
-mut; sed -i 's|st_ino}\]|st_ino + 1}]|' "$S/mut/tests/test_discovery.py"; run "$S/mut" $P
-mut; sed -i 's|self.assertLessEqual(own, _socket_links())|self.assertEqual(len(_socket_links() - before), 2)|' "$S/mut/tests/test_discovery.py"; run "$S/mut" $P
-```
-Expect, each: exit 1; only `test_the_helper_sees_a_socket_it_just_opened` fails.
-
-**Flow 8: the probe names the pair's own links, and it skips where it cannot list them (M9, M6).**
-```sh
-mut; sed -i -e 's|^    pair = socket.socketpair()$|    _before = _socket_links(directories)\n    pair = socket.socketpair()|' -e 's|shown = _own_links(pair) <= _socket_links(directories)|shown = len(_socket_links(directories) - _before) >= 2|' "$S/mut/tests/test_discovery.py"; run "$S/mut" $P
-mut; sed -i 's|^    if not shown:|    if False:|' "$S/mut/tests/test_discovery.py"; run "$S/mut" $P.test_a_directory_that_cannot_expose_links_is_a_skip_with_its_reason
-```
-Expect: M9, exit 1, only `test_the_probe_names_the_pairs_own_links_not_new_ones` fails. M6, exit 1, three subtests fail (`regular files`, `non-socket links`, `a missing path`). The M6 run selects one test on purpose: with the probe never skipping, the full class runs the leak classes on loopback.
-
-**Flow 9: a blind directory list skips with the probe's reason (M8), on the base file and on the change.**
-```sh
-mkdir -p "$S/reg"; : > "$S/reg/3"
-for tree in base cand; do
-  for dir in /nonexistent-fd "$S/reg"; do
-    command rm -rf "$S/mut"; command cp -rf "$S/$tree" "$S/mut"
-    sed -i "s|^_FD_DIRECTORIES = .*|_FD_DIRECTORIES = (\"$dir\",)|" "$S/mut/tests/test_discovery.py"
-    run "$S/mut" $P.test_the_helper_sees_a_socket_it_just_opened; echo "$tree $dir rc=$?"
-  done
-done
-```
-Expect: `base` (`fd423fa`'s file), both variants: exit 1, the control fails. `cand` (the change), both variants: `OK (skipped=1)`, exit 0, and the printed skip reason says `do not expose socket links`.
-
-### After the flows
-
-```sh
-git -C "$REPO" status --porcelain | wc -l
-find "$S/tmp" "$S/cache" -mindepth 1 | wc -l
-```
-Expect: `0` and `0`. The product clone is untouched; the sandbox wrote only under `$S`.
-
-### Flow 10 (user, outside the sandbox)
-
-Needs the full environment: the release cache primed (network on the first run, or a mirror via `WORKFLOW_MANAGER_RELEASE_SOURCE`) and loopback sockets. Run it in a shell with none of the variables above set.
-
-```sh
-git clone --no-hardlinks "$REPO" "$S/clone" && cd "$S/clone"
-python3 tests/run_all.py --select test_discovery.py          # expect: verdict: exit 0
-sed -i 's|^        self._sock.close()$|        _LEAKED.append(self._sock)|' src/workflow_manager/source.py
-printf '\n_LEAKED = []\n' >> src/workflow_manager/source.py  # M7, in the clone only
-python3 tests/run_all.py --select test_discovery.py          # expect: verdict: exit 1
-```
-Expect: the second run exits 1 with the two leak classes (`TestAnExpiredReadLeavesNothingBehind`, `TestAProxyConnectReplyIsBounded`) among the failures, and some `TestTheBoundedPieces` tests (for example `test_the_real_socket_outlives_close_while_a_reader_is_open`). The second run is meant to fail. It keeps its results directory (`results kept in .../wm-run-...`) under the shell's temporary directory, outside `$S`: remove that directory, then `rm -rf "$S"`.
+- **Run as a non-root user.** `run_all` and the CLI tests refuse to run as root (`RootRefusedError`: running as root disables the write barrier). Under `unshare -rn` (which maps you to root) `TestLockAndRecoveryThroughTheCli` and `TestPostReportCleanupFailure` fail during setup. That is a sandbox setup problem, not a finding.
+- **Never write into the product clone.** Make a scratch directory `S` in the sandbox's writable scratch area (for example `S=$(mktemp -d "$HOME/.cache/rtc-fr.XXXXXX")`), then clone the branch head: `git clone --no-hardlinks <product clone> "$S/cand"`. Flows 1 to 5 read the clone; flows 6 to 10 run there or in copies made with `command cp -rf "$S/cand" "$S/mut"`. The clone's `origin` is the product clone; no flow fetches, pushes or calls `gh`, `claude`, `codex` or `ssh`.
+- **Tools on `PATH`:** `git`, `python3`, `grep`, `sed`, `tr`, `cp`, `rm`, `ps`, `kill`, `mktemp`, `timeout`.
+- **Timeouts:** an interrupt test passes in about 0.5 s; under mutation M2 it takes about 30 s; M1 with M2 about 45 s. Flow 10 takes several minutes. Allow at least 120 s per flow and 1500 s for flow 10.
+- **Flow 10 needs a primed release cache** (every tested release cached under `~/.cache/workflow-manager/releases`, or `WORKFLOW_MANAGER_RELEASE_CACHE` pointing at a primed copy). With no cache and no network, priming fails with `PrimingError` (exit 2). That is an environment failure, not a finding.
 
 ### Test data
 
-None to seed. Each flow builds its own stand-in directories and socket pairs under `$S/tmp` (`TMPDIR`). The release lock is empty and the release cache stays empty.
+None is seeded. The data is the clone at the branch head and its ancestor `c041050`.
 
-### Known limitations
+### Flows
 
-- A pass shows the test file's checks behave as the plan says. It does not exercise the product's descriptor handling; the full gate does (`python3 tests/run_all.py`, exit 0 at `9a0a5d2`, see Verification).
-- If the sandbox hides `/proc/self/fd`, the probe skips and the expectations above change (flow 4 reports skips). Report that as an environment limit, not a defect.
-- Open optional findings in `WORKFLOW_STATE.json` (`optional_findings`), dispositioned at acceptance, none a flow failure: the name `test_the_control_skips_exactly_where_the_probe_does` claims more than it checks for a directory of non-socket links (the code stays); no case pins the first-existing-directory half of `_lists_links`; the `bystander` `socketpair()` (`tests/test_discovery.py:1279`) sits outside the first pair's `try/finally`, so the first pair's cleanup falls to finalisation if that allocation fails.
+Run each command as written, from the directory named. Record the exit code and the matching lines. Report pass or fail per flow.
+
+| Flow | Do | Expect |
+| --- | --- | --- |
+| 1 | `cd "$S/cand" && git diff --stat c041050c55d07ee7dd8f8a4c1eb0534e369b36a3 HEAD -- src tests tools docs/ARCHITECTURE.md` | exactly `tests/test_parallel_runner.py`, `tests/parallel/executor.py` and `docs/ARCHITECTURE.md`; nothing under `src/` or `tools/`. Then `git diff c041050c55d07ee7dd8f8a4c1eb0534e369b36a3 HEAD -- tests/parallel/executor.py \| grep '^[+-]' \| grep -v '^+++\|^---'`: only docstring lines (the `remove_run_dir` docstring) |
+| 2 | `grep -n "def _end_group\|class TestEndGroup\|outlived the cleanup\|results kept in" "$S/cand/tests/test_parallel_runner.py"` | `_end_group` defined once, `TestEndGroup` defined once, the cleanup message once; the kept-directory assertion line (`results kept in` in its `partition`) |
+| 3 | `grep -n "may be left behind" "$S/cand/tests/parallel/executor.py"`; `grep -c "stays where it is" "$S/cand/tests/parallel/executor.py"` | one match in the `remove_run_dir` docstring; count `0` |
+| 4 | `tr '\n' ' ' < "$S/cand/docs/ARCHITECTURE.md" \| grep -o "all three modes (a local run, .\{0,160\}"` | one match (newlines are normalised, so line wrapping cannot hide it) naming a local run, `--run-shard`, `--aggregate` and `_install_signal_handlers` |
+| 5 | `cd "$S/cand" && git diff c041050c55d07ee7dd8f8a4c1eb0534e369b36a3 HEAD -- docs/ARCHITECTURE.md \| grep '^+' \| grep -ci 'milestone\|runner-test-cleanup'` | `0`: no added line names a milestone or a work-item id |
+| 6 | `cd "$S/cand/tests" && python3 -B -m unittest test_parallel_runner.TestEndGroup`; then the unmutated `T` and `K`: `python3 -B -m unittest test_parallel_runner.TestLockAndRecoveryThroughTheCli.test_sigint_interrupts_a_run_that_started_with_it_ignored` and `python3 -B -m unittest test_parallel_runner.TestPostReportCleanupFailure.test_a_failing_run_keeps_its_directory_and_attempts_no_removal` | `TestEndGroup`: 2 tests, `OK`, exit 0. `T` and `K`: `OK`, under a second each |
+| 7 | Make `"$S/mut1"`: in `_end_group`, `sed -i 's\|os.killpg(pgid, signal.SIGKILL)\|pass\|' "$S/mut1/tests/test_parallel_runner.py"`. Run `python3 -B -m unittest test_parallel_runner.TestEndGroup` from `"$S/mut1/tests"`. Then make `"$S/mut4"`: `sed -i '/^    if not keep:$/i\    __import__("shutil").rmtree(run_dir, ignore_errors=True)' "$S/mut4/tests/parallel/executor.py"`, and run `python3 -B -m unittest test_parallel_runner.TestPostReportCleanupFailure.test_a_failing_run_keeps_its_directory_and_attempts_no_removal` from `"$S/mut4/tests"` | Each `sed` changes exactly one line (`git -C "$S/mut1" diff --stat`, `git -C "$S/mut4" diff --stat`). `TestEndGroup`: exit 1, `test_a_live_group_is_ended` fails with `AssertionError: False is not true`, in about 5 s. `K`: exit 1 at `Path(kept).is_dir()` (`False is not true` followed by the kept path), in about 0.5 s |
+| 8 | Make `"$S/mut2b"` from a `cp` of `"$S/cand"`: `git checkout -q c041050c55d07ee7dd8f8a4c1eb0534e369b36a3 -- tests/test_parallel_runner.py` (the base test file); in `_interrupt`, `sed -i '/^    def _interrupt(self, signum)/,/^    def /{s\|^\( *\)stop.write_text("")$\|\1pass\|}' tests/test_parallel_runner.py`; in the executor, `sed -i 's\|os.killpg(pgid, signal.SIGKILL)\|pass\|' tests/parallel/executor.py`. Run `T` from `"$S/mut2b/tests"`. Then `ps -eo pgid,args \| grep '[t]est_scratch_wait'` | exit 1 at `assertTrue(_dead(pgid))` after about 30 s, and the chunk's process group is **listed** (the `test_scratch_wait` process is still running). End that group with `kill -9 -<pgid>` before the next flow. Repeat on the candidate test file with only the executor `sed` applied (`"$S/mut2"`): same assertion; nothing listed |
+| 9 | From `"$S/mut2"` (executor `sed` only), add the `_interrupt` `stop.write_text` `sed` and the `gone = []` `sed` (`sed -i 's\|gone = \[_end_group(group) for group in pgids\]\|gone = []\|' ...`), run `T`, then `ps` as in flow 8. Next, a fresh copy with the executor `sed`, the `_end_group` kill `sed` and the `_interrupt` `stop.write_text` `sed`, run `T`, then `ps` | First run: exit 1 at `assertTrue(_dead(pgid))` with no `outlived the cleanup` message, group listed. Second run: exit 1 at `assertTrue(_dead(pgid))` and also `outlived the cleanup` (chained on the first failure), group listed. End each group with `kill -9 -<pgid>` |
+| 10 | `cd "$S/cand" && python3 tests/run_all.py --select test_parallel_runner.py` (output to a file) | exit 0; no `OrphanProcessError`. Any `tolerated orphans` lines name only the declared classes in `tests/parallel/resources.json`'s `orphan_sources`, and none names `TestEndGroup` |
+
+Flows 1 to 5 write nothing. Flows 6 to 10 write only under `$S`. Before ending any flow, `ps -eo pgid,args | grep '[t]est_scratch_wait'` must show nothing; kill anything it lists (`kill -9 -<pgid>`).
+
+### Known limitations and out of scope
+
+- Flows 7 to 9 are mutation checks on scratch copies. They show that the tests catch each defect; they do not prove the fix on every machine. They are timing-based: a timing-only difference (a wait lengthened by load) is rerun once and reported, not counted as a fail.
+- Flow 10 runs the runner's whole `test_parallel_runner.py` selection through `run_all`, which primes the release cache first. It is slow; a host with a busy `/tmp` can differ in timing, not in outcome.
+- Out of scope: `src/`, every other test (including `test_sigterm_and_sigint_kill_the_chunk_restore_the_barrier_and_exit_2`), the runner's behaviour, `tests/parallel/resources.json`, the version (a `test:` title releases nothing).
+- The `remove_run_dir` docstring and the `ARCHITECTURE.md` sentence are wording only; they are checked by reading, flows 3 to 5.
+- If a flow fails, report the output. Do not fix anything in the product clone; the repair belongs in the item's own findings.

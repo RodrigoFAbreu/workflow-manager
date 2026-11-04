@@ -1,0 +1,26 @@
+{
+  "dispositions": {
+    "F-0d0f295659a3": {
+      "disposition": "dropped",
+      "reason": "Plan, review-request or checklist wording of a test-only item; the flows ran as written and all ten passed (five by the Controller's tester, five by an independent run)."
+    },
+    "F-3384b287ba50": {
+      "disposition": "dropped",
+      "reason": "Plan, review-request or checklist wording of a test-only item; the flows ran as written and all ten passed (five by the Controller's tester, five by an independent run)."
+    },
+    "F-3de4da4aeb8b": {
+      "disposition": "dropped",
+      "reason": "Plan, review-request or checklist wording of a test-only item; the flows ran as written and all ten passed (five by the Controller's tester, five by an independent run)."
+    },
+    "F-40854b988903": {
+      "disposition": "dropped",
+      "reason": "Plan, review-request or checklist wording of a test-only item; the flows ran as written and all ten passed (five by the Controller's tester, five by an independent run)."
+    },
+    "F-4eef6a897e11": {
+      "disposition": "dropped",
+      "reason": "Plan, review-request or checklist wording of a test-only item; the flows ran as written and all ten passed (five by the Controller's tester, five by an independent run)."
+    }
+  },
+  "schema_version": 1,
+  "work_item_id": "runner-test-cleanup"
+}

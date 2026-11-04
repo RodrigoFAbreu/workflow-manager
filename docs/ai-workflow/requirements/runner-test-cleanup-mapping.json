@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "work_item_id": "runner-test-cleanup",
+  "requirements": {
+    "R1": {
+      "description": "The interrupt test's failure cleanup kills the known chunk process group (when its leader is alive) and waits for its exit; a helper test fails when the helper never kills, and a run whose executor leaves the chunk alive no longer leaves it running after the test returns",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R2": {
+      "description": "The failing-run test asserts the wm-run directory named by the verdict line still exists; a mutation that removes the directory without clean_tmpdir fails it",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R3": {
+      "description": "remove_run_dir's docstring says the directory may be left behind (clean_tmpdir can fail midway through rmtree) instead of stays where it is",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R4": {
+      "description": "docs/ARCHITECTURE.md says the SIGINT and SIGTERM handler applies to all three modes (local run, --run-shard, --aggregate) through the shared _install_signal_handlers, naming no milestone",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R5": {
+      "description": "The roadmap carries row 32 for this item, Current now and Done at acceptance, and the active-milestone record states the mutation results",
+      "checkpoint_ids": [
+        "CP2"
+      ]
+    }
+  }
+}

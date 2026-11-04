@@ -797,6 +797,9 @@ does an editor's atomic-rename save, or a `git checkout`/`switch`/`stash`/
 run restores the original modes when it ends, including on `SIGINT` and
 `SIGTERM`, and also when the run was started with `SIGINT` ignored (a `&` job
 of a non-interactive shell): the run installs its own handler for both.
+The same handler covers all three modes (a local run, `--run-shard` and
+`--aggregate`): each installs it through the one shared
+`_install_signal_handlers`.
 After a `SIGKILL`, the next run restores them first. Or run
 `python3 tests/run_all.py --restore-barrier`, which refuses while any
 process of the killed run is still alive. A failure to remove the run's
