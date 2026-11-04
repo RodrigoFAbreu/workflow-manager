@@ -1,0 +1,62 @@
+{
+  "dispositions": {
+    "F-1d3e5b775100": {
+      "disposition": "dropped",
+      "reason": "Plan or checklist wording of a test-only item; the flows ran as written and all ten passed in the independent run."
+    },
+    "F-2411b51e40fa": {
+      "disposition": "dropped",
+      "reason": "Plan or checklist wording of a test-only item; the flows ran as written and all ten passed in the independent run."
+    },
+    "F-46be28cd6390": {
+      "disposition": "dropped",
+      "reason": "Plan or checklist wording of a test-only item; the flows ran as written and all ten passed in the independent run."
+    },
+    "F-4af7b74a39e3": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#164",
+      "note": "Follow-up item 1."
+    },
+    "F-71125a99dbad": {
+      "disposition": "dropped",
+      "reason": "Plan or checklist wording of a test-only item; the flows ran as written and all ten passed in the independent run."
+    },
+    "F-7703dc898492": {
+      "disposition": "dropped",
+      "reason": "Plan or checklist wording of a test-only item; the flows ran as written and all ten passed in the independent run."
+    },
+    "F-918b3dd47c4d": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#164",
+      "note": "Follow-up item 2."
+    },
+    "F-93cb74539f86": {
+      "disposition": "dropped",
+      "reason": "Plan or checklist wording of a test-only item; the flows ran as written and all ten passed in the independent run."
+    },
+    "F-a3e02f601d0c": {
+      "disposition": "dropped",
+      "reason": "Plan or checklist wording of a test-only item; the flows ran as written and all ten passed in the independent run."
+    },
+    "F-a95d4558cb9d": {
+      "disposition": "dropped",
+      "reason": "Plan or checklist wording of a test-only item; the flows ran as written and all ten passed in the independent run."
+    },
+    "F-b38dcbcb9f17": {
+      "disposition": "dropped",
+      "reason": "Plan or checklist wording of a test-only item; the flows ran as written and all ten passed in the independent run."
+    },
+    "F-ed52cba27450": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#164",
+      "note": "Follow-up item 3."
+    },
+    "F-fb1c94417394": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#164",
+      "note": "Follow-up item 4."
+    }
+  },
+  "schema_version": 1,
+  "work_item_id": "discovery-test-cleanup"
+}

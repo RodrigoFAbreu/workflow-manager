@@ -874,21 +874,42 @@ def _socket_links(directories=None) -> set[str]:
     return set()
 
 
+def _blind_reason(directories=None) -> str:
+    return (f"descriptor directories {tuple(directories or _FD_DIRECTORIES)} do not expose "
+            f"socket links on {sys.platform}; the leak check would compare empty with empty")
+
+
+def _own_links(pair) -> set[str]:
+    return {f"socket:[{os.fstat(end.fileno()).st_ino}]" for end in pair}
+
+
+def _lists_links(directories=None) -> bool:
+    """Whether the first existing descriptor directory shows an open socket's
+    descriptor as a symbolic link (not merely exists)."""
+    for directory in directories or _FD_DIRECTORIES:
+        if os.path.isdir(directory):
+            end, other = socket.socketpair()
+            try:
+                return os.path.islink(os.path.join(directory, str(end.fileno())))
+            finally:
+                end.close()
+                other.close()
+    return False
+
+
 def _require_socket_links(directories=None) -> set[str]:
     """The baseline for a descriptor-leak check, or a skip. An empty listing
     means both "no socket is open" and "this platform cannot show sockets", so
-    the probe opens a pair and skips unless both new links appear."""
-    before = _socket_links(directories)
+    the probe opens a pair and skips unless the pair's own links (named by the
+    inode of each end) are listed while it is open."""
     pair = socket.socketpair()
     try:
-        shown = _socket_links(directories) - before
+        shown = _own_links(pair) <= _socket_links(directories)
     finally:
         for end in pair:
             end.close()
-    if len(shown) < 2:
-        raise unittest.SkipTest(
-            f"descriptor directories {tuple(directories or _FD_DIRECTORIES)} do not expose "
-            f"socket links on {sys.platform}; the leak check would compare empty with empty")
+    if not shown:
+        raise unittest.SkipTest(_blind_reason(directories))
     return _socket_links(directories)
 
 
@@ -1251,20 +1272,54 @@ class TestTheDescriptorProbe(unittest.TestCase):
                 self.assertIn(sys.platform, str(caught.exception))
 
     def test_the_helper_sees_a_socket_it_just_opened(self):
-        if not os.path.isdir("/proc/self/fd"):
-            self.skipTest(f"/proc/self/fd is absent on {sys.platform}")
+        if not _lists_links():
+            self.skipTest(_blind_reason())
         before = _socket_links()
         pair = socket.socketpair()
+        bystander = socket.socketpair()
+        self.addCleanup(lambda: [end.close() for end in bystander])
         try:
-            self.assertEqual(len(_socket_links() - before), 2)
+            own = _own_links(pair)
+            self.assertEqual(len(own), 2)
+            self.assertTrue(before.isdisjoint(own))
+            self.assertLessEqual(own, _socket_links())
         finally:
             for end in pair:
                 end.close()
-        self.assertEqual(_socket_links() - before, set())
+        self.assertEqual(own & _socket_links(), set())
         try:
             _require_socket_links()
         except unittest.SkipTest as skipped:
-            self.fail(f"the probe skipped on a host with /proc/self/fd: {skipped}")
+            self.fail(f"the probe skipped on a host that lists descriptors: {skipped}")
+
+    def test_the_probe_names_the_pairs_own_links_not_new_ones(self):
+        calls = []
+
+        def growing(directories=None):
+            calls.append(directories)
+            return {f"socket:[unrelated-{k}]" for k in range(2 * len(calls))}
+
+        with mock.patch.object(sys.modules[__name__], "_socket_links", growing):
+            with self.assertRaises(unittest.SkipTest):
+                _require_socket_links()
+
+    def test_the_control_skips_exactly_where_the_probe_does(self):
+        module = sys.modules[__name__]
+        for label, build in (("a missing path", lambda directory: None),
+                             ("regular files", lambda directory: (directory / "3").write_text("x"))):
+            with self.subTest(label):
+                path = self.standin(build)
+                if label == "a missing path":
+                    path = os.path.join(path, "absent")
+                with mock.patch.object(module, "_FD_DIRECTORIES", (path,)):
+                    with self.assertRaises(unittest.SkipTest) as probe:
+                        _require_socket_links()
+                    result = unittest.TextTestRunner(stream=io.StringIO()).run(
+                        TestTheDescriptorProbe("test_the_helper_sees_a_socket_it_just_opened"))
+                self.assertEqual((result.testsRun, len(result.skipped)), (1, 1))
+                self.assertEqual((result.failures, result.errors), ([], []))
+                self.assertEqual(result.skipped[0][1], str(probe.exception))
+                self.assertIn(path, str(probe.exception))
 
     def test_both_leak_checking_classes_skip_when_sockets_cannot_be_listed(self):
         module = sys.modules[__name__]
@@ -1466,8 +1521,6 @@ class TestTheBoundedPieces(unittest.TestCase):
     def test_the_real_socket_outlives_close_while_a_reader_is_open(self):
         _, deadline = self.clocked(2.0)
         raw = _FakeSock()
-        raw.recv_into = lambda buf, *a: 0
-        raw.fileno = lambda: 3
         wrapper = release_source._Bounded(raw, deadline)
         reader = wrapper.makefile("rb")
         wrapper.close()
@@ -1485,8 +1538,6 @@ class TestTheBoundedPieces(unittest.TestCase):
                 closes.append(1)
 
         raw = Counting()
-        raw.recv_into = lambda buf, *a: 0
-        raw.fileno = lambda: 3
         wrapper = release_source._Bounded(raw, deadline)
         first, second = wrapper.makefile("rb"), wrapper.makefile("rb")
         wrapper.close()

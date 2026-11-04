@@ -25431,6 +25431,780 @@
         "evaluated_at": "2026-11-04T17:53:13Z",
         "workflow_release": "2.25.5"
       }
+    },
+    "discovery-test-cleanup": {
+      "work_item_type": "process",
+      "work_item_kind": "process",
+      "work_item_id": "discovery-test-cleanup",
+      "parent_work_item_id": null,
+      "plan_path": "docs/ai-workflow/WORKFLOW_MANAGER_DISCOVERY_TEST_CLEANUP_PLAN.md",
+      "registry_path": "docs/ai-workflow/registry/discovery-test-cleanup-registry.json",
+      "mapping_path": "docs/ai-workflow/requirements/discovery-test-cleanup-mapping.json",
+      "governing_workflow_version": "2.2",
+      "phase": "MILESTONE_COMPLETE",
+      "plan_revision": 3,
+      "implementation_revision": 1,
+      "functional_review_round": null,
+      "base_commit": "fd423fa4bf8e53d4e8e2af13986e5152b6de489d",
+      "reviewed_implementation_head": "e18bd942b14adfc7a2988d59b62c75568b5a4e3a",
+      "current_checkpoint_id": null,
+      "last_completed_checkpoint_id": "CP2",
+      "checkpoints": {
+        "CP1": {
+          "status": "COMPLETE",
+          "start_commit": "90455029e433041796270eed5481e0584b539d8b"
+        },
+        "CP2": {
+          "status": "COMPLETE",
+          "start_commit": "392ffe1b83525c8313c30fef8942032cbcae5694"
+        }
+      },
+      "current_bundle_id": "9b10d71d87bbe916a2a0cfa1572efcd3c26ef9217a24a551d4ba5fa85c58e2d0",
+      "plan_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "9b10d71d87bbe916a2a0cfa1572efcd3c26ef9217a24a551d4ba5fa85c58e2d0",
+        "approved_review_content_id": "6396b38daff16684150547e31f8643b9c86eb5077c4eb8d0fd20da1b95dd5170",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/WORKFLOW_MANAGER_DISCOVERY_TEST_CLEANUP_PLAN.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "26c5f6b468abe186a87ef4bfdddb68f5b07d64b9"
+          },
+          {
+            "path": "docs/ai-workflow/registry/discovery-test-cleanup-registry.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "fc3a10fb2b8dcde8719c2c10632bb85315a1d6fe"
+          },
+          {
+            "path": "docs/ai-workflow/requirements/discovery-test-cleanup-mapping.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "fcdcffd8550a97eeea1b6022c9624965d5155f8d"
+          }
+        ],
+        "reviewed_content_commit": null,
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-11-04T19:13:09Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "6396b38daff16684150547e31f8643b9c86eb5077c4eb8d0fd20da1b95dd5170",
+            "ledger": {
+              "local": {
+                "bundle_id": "9b10d71d87bbe916a2a0cfa1572efcd3c26ef9217a24a551d4ba5fa85c58e2d0",
+                "verdict": "APPROVE",
+                "round": 3,
+                "verdict_sha256": "d516690287286889b2621ebc7be943be966eba092472c3d9a4cb5ec8d84b86fc",
+                "ledger_entry_sha256": "87f82439aceb02b6300a59616de866fc3f4a1a8f798edf026360dbb3538b4a62",
+                "run_ref": "session:local .ai-review/discovery-test-cleanup/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "9b10d71d87bbe916a2a0cfa1572efcd3c26ef9217a24a551d4ba5fa85c58e2d0",
+                "verdict": "APPROVE",
+                "round": 3,
+                "verdict_sha256": "62aa0d96699804ae07828f448e44b9d99f2ec969ffd71d62931b4285f2ec5016",
+                "ledger_entry_sha256": "b6d2708fa361e3e8decd2660e545ef23e168f328acfe9ae71ac55465637f638e",
+                "run_ref": "codex:20261104T190944Z-136586bc",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-11-04T19:13:09Z",
+          "workflow_release": "2.25.5"
+        }
+      },
+      "technical_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "b0f5b4b47e6c1c2629f9e1dbbede51cabe0b95bec2f80b673c3f23d03619426e",
+        "approved_review_content_id": "49037d5e935016877463b3c8cd12c57e82f705b1f697bcf36e2fab72044bcc03",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/registry/discovery-test-cleanup-artifacts.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "ba3149293a567de867878f7321abdacf1d071690"
+          },
+          {
+            "path": "tests/test_discovery.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "599f9ad9a513253f793018c1609c8c4041da773f"
+          }
+        ],
+        "reviewed_content_commit": "e18bd942b14adfc7a2988d59b62c75568b5a4e3a",
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-11-04T20:12:59Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "49037d5e935016877463b3c8cd12c57e82f705b1f697bcf36e2fab72044bcc03",
+            "ledger": {
+              "local": {
+                "bundle_id": "b0f5b4b47e6c1c2629f9e1dbbede51cabe0b95bec2f80b673c3f23d03619426e",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "e802af15eab68605fee5fbbfa78e33cf9e53ca397a90d50e4805f894170af208",
+                "ledger_entry_sha256": "3233d90a0f92d8e4c27a438b6de9e0ae477684df346f729903d93d79763e627a",
+                "run_ref": "session:local .ai-review/discovery-test-cleanup/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "b0f5b4b47e6c1c2629f9e1dbbede51cabe0b95bec2f80b673c3f23d03619426e",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "60fd23ed8a89473f084103eaeb3c0ea6c8a371e3ff0d35f11f3b7399293e000f",
+                "ledger_entry_sha256": "a4959c14b45b0072262409d5d41c4f66db811b2e608bb7f96e9ba1ef94b36f4a",
+                "run_ref": "codex:20261104T200935Z-5960916d",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-11-04T20:12:59Z",
+          "workflow_release": "2.25.5"
+        }
+      },
+      "technical_review_block_pins": [],
+      "plan_review_stages": {
+        "review_content_id": "6396b38daff16684150547e31f8643b9c86eb5077c4eb8d0fd20da1b95dd5170",
+        "LOCAL_MODEL_PLAN_REVIEW": {
+          "bundle_id": "9b10d71d87bbe916a2a0cfa1572efcd3c26ef9217a24a551d4ba5fa85c58e2d0",
+          "verdict": "APPROVE",
+          "round": 3,
+          "completed_at": "2026-11-04T19:09:21Z",
+          "verdict_sha256": "d516690287286889b2621ebc7be943be966eba092472c3d9a4cb5ec8d84b86fc",
+          "run_ref": "session:local .ai-review/discovery-test-cleanup/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_PLAN_REVIEW": {
+          "bundle_id": "9b10d71d87bbe916a2a0cfa1572efcd3c26ef9217a24a551d4ba5fa85c58e2d0",
+          "verdict": "APPROVE",
+          "round": 3,
+          "completed_at": "2026-11-04T19:12:16Z",
+          "verdict_sha256": "62aa0d96699804ae07828f448e44b9d99f2ec969ffd71d62931b4285f2ec5016",
+          "run_ref": "codex:20261104T190944Z-136586bc",
+          "reviewer_model": "openai/gpt-6.1-sol"
+        }
+      },
+      "functional_acceptance_status": null,
+      "blocking_decisions": [],
+      "review_round_counts": {
+        "plan": {
+          "local": 3,
+          "external": 2
+        },
+        "implementation": {
+          "local": 1,
+          "external": 1
+        }
+      },
+      "state_revision": 22,
+      "last_transition": "2026-11-04T20:42:48Z",
+      "feedback_layout": "scoped",
+      "plan_review_binding": {
+        "status": "BOUND",
+        "at": "2026-11-04T19:00:46Z",
+        "consumed": {
+          "review_content_id": "fdf90be5bae0279b3e153aa890dc97e4f4d04110c58d7ecdd103d4b5850a38d4",
+          "plan_revision": 2,
+          "legacy": false
+        },
+        "published": {
+          "review_content_id": "6396b38daff16684150547e31f8643b9c86eb5077c4eb8d0fd20da1b95dd5170",
+          "plan_revision": 3
+        },
+        "bound": {
+          "review_content_id": "6396b38daff16684150547e31f8643b9c86eb5077c4eb8d0fd20da1b95dd5170",
+          "bundle_id": "9b10d71d87bbe916a2a0cfa1572efcd3c26ef9217a24a551d4ba5fa85c58e2d0",
+          "plan_revision": 3
+        }
+      },
+      "consumed_plan_review_content_ids": [
+        "94bf70f772075a238f197e621b690b3e91d37d41564141d6f3088d93f1ab5043",
+        "fdf90be5bae0279b3e153aa890dc97e4f4d04110c58d7ecdd103d4b5850a38d4"
+      ],
+      "optional_findings": {
+        "F-93cb74539f86": {
+          "digest": "93cb74539f86b171a70426ff18657e72d4882b08bb259277f25d7703342555ac",
+          "text": "**LPR1-O01: flow 9's M5 uses loopback TCP, against section 5's \"no TCP sockets\".** With the probe never skipping, `test_both_leak_checking_classes_skip_when_sockets_cannot_be_listed` runs the leak classes for real (`$P` took 13 s, against 0.002 s otherwise). Exit 1 and the named failure hold anyway, but 5 failures are reported across 3 tests. Selecting `$P.test_a_directory_that_cannot_expose_links_is_a_skip_with_its_reason` for M5 keeps the flow offline and exact.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "94bf70f772075a238f197e621b690b3e91d37d41564141d6f3088d93f1ab5043",
+              "verdict": "REVISE",
+              "at": "2026-11-04T18:45:27Z"
+            }
+          ]
+        },
+        "F-71125a99dbad": {
+          "digest": "71125a99dbadf9ef8732a0663266b47724ca9b99ad41ee3d2ded3079ce6ba4c8",
+          "text": "**LPR1-O02: \"restore\" in flows 6 to 9 is not spelled out, and the obvious reading gives a false pass.** `command cp -rf $S/cand $S/mut` onto an existing `$S/mut` copies into `$S/mut/cand`, so the previous mutation stays in place. Flow 6 would then still see M1's failure of the same test. Spell it as `command rm -rf $S/mut; command cp -rf $S/cand $S/mut`.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "94bf70f772075a238f197e621b690b3e91d37d41564141d6f3088d93f1ab5043",
+              "verdict": "REVISE",
+              "at": "2026-11-04T18:45:27Z"
+            }
+          ]
+        },
+        "F-a95d4558cb9d": {
+          "digest": "a95d4558cb9db2f2b7bad1181961561654c267e6e3b1d8de85f09f579e6e9ebe",
+          "text": "**LPR1-O03: flow 10's and M6's expected failures are incomplete.** M6 also fails `TestTheBoundedPieces` tests (for example `test_the_real_socket_outlives_close_while_a_reader_is_open`), not only the two leak classes. The expectation should say the two leak classes are among the failures.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "94bf70f772075a238f197e621b690b3e91d37d41564141d6f3088d93f1ab5043",
+              "verdict": "REVISE",
+              "at": "2026-11-04T18:45:27Z"
+            }
+          ]
+        },
+        "F-7703dc898492": {
+          "digest": "7703dc898492937214f4ed4ba2666637f373ac4d3d4c171f4d88d7ea83d20187",
+          "text": "**LPR2-O01: flow 9's \"its reason the probe's\" cannot be seen in the output of the command it names.** `$S/t.py` runs with `verbosity=1`, which prints `OK (skipped=1)` and no reason: on all four M8 runs the text `do not expose` appears 0 times in the output. The exit codes and the skip are observable, and the reason is pinned by the coupling test and shown failing by M2, so no property goes unproven; only this one clause of the flow cannot be checked as written. Fix: `verbosity=2` in `t.py`. Run here, it prints `skipped \"descriptor directories ('/nonexistent-fd',) do not expose socket links on linux; ...\"`. The checklist should carry this.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "fdf90be5bae0279b3e153aa890dc97e4f4d04110c58d7ecdd103d4b5850a38d4",
+              "verdict": "APPROVE",
+              "at": "2026-11-04T18:55:54Z"
+            }
+          ]
+        },
+        "F-2411b51e40fa": {
+          "digest": "2411b51e40fa512c73d40a42199a15e962e631782d76ef0973c6a2ec11b80967",
+          "text": "**LPR2-O02: CP1 still names the old mutation number.** \"`src/` is not edited (mutation M6 touches only the scratch copy)\" dates from revision 1. In revision 2 M6 is the probe that never skips, a change to the test file; the mutation that edits `src/` is M7. Section 3 and flow 10 have it right, so the meaning survives.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "fdf90be5bae0279b3e153aa890dc97e4f4d04110c58d7ecdd103d4b5850a38d4",
+              "verdict": "APPROVE",
+              "at": "2026-11-04T18:55:54Z"
+            }
+          ]
+        },
+        "F-4af7b74a39e3": {
+          "digest": "4af7b74a39e39dca021afa4b045263f001bf5310b4dd4aa91244dc06100b4e65",
+          "text": "**LPR2-O03: `test_the_control_skips_exactly_where_the_probe_does` claims more than it shows.** The two can still differ on a directory whose entry for the descriptor is a link to something other than a socket. Reproduced with a stand-in directory of `pipe:[1]` links for descriptors 0 to 255: the probe skips, the control fails. This is the behaviour section 2 asks for (\"on a host whose directory lists links, the control still fails if the probe skips\") and no host is known to show it, so the code should stay. Only the word \"exactly\" is too strong.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "fdf90be5bae0279b3e153aa890dc97e4f4d04110c58d7ecdd103d4b5850a38d4",
+              "verdict": "APPROVE",
+              "at": "2026-11-04T18:55:54Z"
+            }
+          ]
+        },
+        "F-b38dcbcb9f17": {
+          "digest": "b38dcbcb9f17b7bfc61ba518cde3ea2b983ac3f27c486178feeac476d0fa6dca",
+          "text": "**LPR2-O04: section 5's \"No flow writes outside `$S`\" does not hold for flow 10's second run.** The expected exit 1 leaves a kept results directory (`verdict: exit 1; results kept in .../wm-run-...`) under the run's temporary directory, outside `$S`. The flow should say so and remove it, so a functional tester does not read it as a defect or leave it behind.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "fdf90be5bae0279b3e153aa890dc97e4f4d04110c58d7ecdd103d4b5850a38d4",
+              "verdict": "APPROVE",
+              "at": "2026-11-04T18:55:54Z"
+            }
+          ]
+        },
+        "F-a3e02f601d0c": {
+          "digest": "a3e02f601d0c48f872f29dea40d278844c4eebce3a3dfcb064b8476ef1002917",
+          "text": "Section 5’s “No flow writes outside `$S`” is inaccurate: `standin()` uses `TemporaryDirectory()` without a directory argument, so fixtures use the system temporary directory. Set `TMPDIR` under `$S` or qualify the statement.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "MANUAL_EXTERNAL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "fdf90be5bae0279b3e153aa890dc97e4f4d04110c58d7ecdd103d4b5850a38d4",
+              "verdict": "REVISE",
+              "at": "2026-11-04T18:59:18Z"
+            }
+          ]
+        },
+        "F-fb1c94417394": {
+          "digest": "fb1c94417394d741826a3a38e01c678d9ee30c22497e0595adcab8b0ae79d521",
+          "text": "**LPR3-O01: `_lists_links` takes a parameter no caller passes.** Section 3's only call is `_lists_links()`, and the coupling test patches the module's tuple instead. In an item that removes unexercised setup, `def _lists_links() -> bool:` iterating `_FD_DIRECTORIES` is enough. `_blind_reason(directories)` is used by the probe and stays as written.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 3,
+              "review_content_id": "6396b38daff16684150547e31f8643b9c86eb5077c4eb8d0fd20da1b95dd5170",
+              "verdict": "APPROVE",
+              "at": "2026-11-04T19:09:21Z"
+            }
+          ]
+        },
+        "F-46be28cd6390": {
+          "digest": "46be28cd63900f1e5fdc7794c7cda27d5fae3a563adaef4bc038ba0ad461897e",
+          "text": "**LPR3-O02: flow 9 leaves two steps to the tester.** Section 5's fresh-copy recipe copies only `$S/cand`, so a literal reading mutates the candidate for both trees or edits `$S/base` in place, and M8's second variant has no command. The functional checklist should spell out `command cp -rf $S/base $S/mut` for the base runs and the regular-file directory, for example `mkdir $S/reg; : > $S/reg/3` with the matching `sed`. Built that way, both variants gave the expected results.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 3,
+              "review_content_id": "6396b38daff16684150547e31f8643b9c86eb5077c4eb8d0fd20da1b95dd5170",
+              "verdict": "APPROVE",
+              "at": "2026-11-04T19:09:21Z"
+            }
+          ]
+        },
+        "F-1d3e5b775100": {
+          "digest": "1d3e5b775100b4378523144b14e640c263f4b94d2232552c484f60f713b21b5a",
+          "text": "Plan lines 201–206 include M7 under “all through the offline `run`.” Exempt M7 explicitly, consistent with its documented requirement for flow 10’s full environment.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "MANUAL_EXTERNAL_PLAN_REVIEW",
+              "round": 3,
+              "review_content_id": "6396b38daff16684150547e31f8643b9c86eb5077c4eb8d0fd20da1b95dd5170",
+              "verdict": "APPROVE",
+              "at": "2026-11-04T19:12:16Z"
+            }
+          ]
+        },
+        "F-918b3dd47c4d": {
+          "digest": "918b3dd47c4dd20e60c5890f5ced0d5a7a6833ceccfd4a35ff40602388024c3f",
+          "text": "LIR1-001: the \"first existing directory\" half of `_lists_links` has no test. Replacing `return os.path.islink(...)` with `if os.path.islink(...): return True`, so that the loop goes on past a blind first directory, leaves all of `TestTheDescriptorProbe` green, because both cases of `test_the_control_skips_exactly_where_the_probe_does` patch a one-entry tuple. With a tuple of a blind existing directory and then a listing one, that mutant makes the control run and fail where the probe skips. The code itself is correct and matches plan section 2; requirement R1 names only the missing path and the regular-files directory, so this is a gap beyond the plan. A third case with a two-entry tuple would pin it.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "49037d5e935016877463b3c8cd12c57e82f705b1f697bcf36e2fab72044bcc03",
+              "verdict": "APPROVE",
+              "at": "2026-11-04T20:09:20Z"
+            }
+          ]
+        },
+        "F-ed52cba27450": {
+          "digest": "ed52cba27450eed80d0b4ab030b6728869f59e77d8ff3c2d65cc14b295e7ccb2",
+          "text": "In `tests/test_discovery.py:1278`, failure of the second `socketpair()` bypasses explicit cleanup of the first pair, leaving closure to finalization. Fault injection confirmed neither close is invoked. Move the second allocation inside the first pair’s `try/finally`, or register cleanup immediately. The allocation failure is already reported, so this is optional hardening.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "49037d5e935016877463b3c8cd12c57e82f705b1f697bcf36e2fab72044bcc03",
+              "verdict": "APPROVE",
+              "at": "2026-11-04T20:12:31Z"
+            }
+          ]
+        }
+      },
+      "implementation_review_stages": {
+        "review_content_id": "49037d5e935016877463b3c8cd12c57e82f705b1f697bcf36e2fab72044bcc03",
+        "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "b0f5b4b47e6c1c2629f9e1dbbede51cabe0b95bec2f80b673c3f23d03619426e",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-11-04T20:09:20Z",
+          "verdict_sha256": "e802af15eab68605fee5fbbfa78e33cf9e53ca397a90d50e4805f894170af208",
+          "run_ref": "session:local .ai-review/discovery-test-cleanup/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "b0f5b4b47e6c1c2629f9e1dbbede51cabe0b95bec2f80b673c3f23d03619426e",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-11-04T20:12:31Z",
+          "verdict_sha256": "60fd23ed8a89473f084103eaeb3c0ea6c8a371e3ff0d35f11f3b7399293e000f",
+          "run_ref": "codex:20261104T200935Z-5960916d",
+          "reviewer_model": "openai/gpt-6.1-sol"
+        }
+      },
+      "gate_evidence": {
+        "functional": {
+          "flow-1": {
+            "flow_id": "flow-1",
+            "status": "passed",
+            "head": "7bb3b1266570e2733a888172a2a6fb93dc770998",
+            "ran_at": "2026-11-04T20:23:19Z",
+            "summary": {
+              "checklist_blob": "6716e1f73a98766a39e479d5b809f945fee0ed4e",
+              "text": "git diff --stat BASE..HEAD over src tests tools lists only tests/test_discovery.py (1 file changed, 67+/16-). Supersedes the Controller's environment record of the same id. (Run by an independent headless executor in a disposable clone; flows 1-9 in a normal shell, not under unshare -rn.)"
+            },
+            "log_digest": "450f3ae0acded4c11ccd3dc56f1a28001a0d0492653f9b00cc13cec2b3416730",
+            "run_ref": "manager-orchestrator:runs/md19-functional-r1",
+            "reporter": "manager-orchestrator (independent run, claude claude-sonnet-5-5)",
+            "identity": "49037d5e935016877463b3c8cd12c57e82f705b1f697bcf36e2fab72044bcc03",
+            "recorded_at": "2026-11-04T20:23:19Z"
+          },
+          "flow-2": {
+            "flow_id": "flow-2",
+            "status": "passed",
+            "head": "7bb3b1266570e2733a888172a2a6fb93dc770998",
+            "ran_at": "2026-11-04T20:23:19Z",
+            "summary": {
+              "checklist_blob": "6716e1f73a98766a39e479d5b809f945fee0ed4e",
+              "text": "grep -c printed 6. (Run by an independent headless executor in a disposable clone; flows 1-9 in a normal shell, not under unshare -rn.)"
+            },
+            "log_digest": "06e9d52c1720fca412803e3b07c4b228ff113e303f4c7ab94665319d832bbfb7",
+            "run_ref": "manager-orchestrator:runs/md19-functional-r1",
+            "reporter": "manager-orchestrator (independent run, claude claude-sonnet-5-5)",
+            "identity": "49037d5e935016877463b3c8cd12c57e82f705b1f697bcf36e2fab72044bcc03",
+            "recorded_at": "2026-11-04T20:23:19Z"
+          },
+          "flow-3": {
+            "flow_id": "flow-3",
+            "status": "passed",
+            "head": "7bb3b1266570e2733a888172a2a6fb93dc770998",
+            "ran_at": "2026-11-04T20:23:19Z",
+            "summary": {
+              "checklist_blob": "6716e1f73a98766a39e479d5b809f945fee0ed4e",
+              "text": "first grep printed nothing; second printed 1. (Run by an independent headless executor in a disposable clone; flows 1-9 in a normal shell, not under unshare -rn.)"
+            },
+            "log_digest": "0e9376b5d1365683c1741f92380546c767645ddc296324f80756ccde7f63edfe",
+            "run_ref": "manager-orchestrator:runs/md19-functional-r1",
+            "reporter": "manager-orchestrator (independent run, claude claude-sonnet-5-5)",
+            "identity": "49037d5e935016877463b3c8cd12c57e82f705b1f697bcf36e2fab72044bcc03",
+            "recorded_at": "2026-11-04T20:23:19Z"
+          },
+          "flow-4": {
+            "flow_id": "flow-4",
+            "status": "passed",
+            "head": "7bb3b1266570e2733a888172a2a6fb93dc770998",
+            "ran_at": "2026-11-04T20:23:19Z",
+            "summary": {
+              "checklist_blob": "6716e1f73a98766a39e479d5b809f945fee0ed4e",
+              "text": "Ran 8 tests, OK, rc=0. (Run by an independent headless executor in a disposable clone; flows 1-9 in a normal shell, not under unshare -rn.)"
+            },
+            "log_digest": "1be76a37460409f46b12e3a0afec391c60e520c019fccb8940b96f16dfa27ffb",
+            "run_ref": "manager-orchestrator:runs/md19-functional-r1",
+            "reporter": "manager-orchestrator (independent run, claude claude-sonnet-5-5)",
+            "identity": "49037d5e935016877463b3c8cd12c57e82f705b1f697bcf36e2fab72044bcc03",
+            "recorded_at": "2026-11-04T20:23:19Z"
+          },
+          "flow-5": {
+            "flow_id": "flow-5",
+            "status": "passed",
+            "head": "7bb3b1266570e2733a888172a2a6fb93dc770998",
+            "ran_at": "2026-11-04T20:23:19Z",
+            "summary": {
+              "checklist_blob": "6716e1f73a98766a39e479d5b809f945fee0ed4e",
+              "text": "Both mutations: rc=1, only test_the_control_skips_exactly_where_the_probe_does failed, in both subtests (a missing path, regular files); Ran 6, failures=2. (Run by an independent headless executor in a disposable clone; flows 1-9 in a normal shell, not under unshare -rn.)"
+            },
+            "log_digest": "c209ef943505f4c513cb249b2171d05693dcadc6c9729023362a780da8b1443a",
+            "run_ref": "manager-orchestrator:runs/md19-functional-r1",
+            "reporter": "manager-orchestrator (independent run, claude claude-sonnet-5-5)",
+            "identity": "49037d5e935016877463b3c8cd12c57e82f705b1f697bcf36e2fab72044bcc03",
+            "recorded_at": "2026-11-04T20:23:20Z"
+          },
+          "flow-6": {
+            "flow_id": "flow-6",
+            "status": "passed",
+            "head": "7bb3b1266570e2733a888172a2a6fb93dc770998",
+            "ran_at": "2026-11-04T20:23:19Z",
+            "summary": {
+              "checklist_blob": "6716e1f73a98766a39e479d5b809f945fee0ed4e",
+              "text": "M3: rc=1, only the control test failed, in the regular files subtest only (failures=1). (Run by an independent headless executor in a disposable clone; flows 1-9 in a normal shell, not under unshare -rn.)"
+            },
+            "log_digest": "10e4e949824428f96fe5c572dfa043208c66e3904f9b7c9c00dd8003ab42fa3f",
+            "run_ref": "manager-orchestrator:runs/md19-functional-r1",
+            "reporter": "manager-orchestrator (independent run, claude claude-sonnet-5-5)",
+            "identity": "49037d5e935016877463b3c8cd12c57e82f705b1f697bcf36e2fab72044bcc03",
+            "recorded_at": "2026-11-04T20:23:20Z"
+          },
+          "flow-7": {
+            "flow_id": "flow-7",
+            "status": "passed",
+            "head": "7bb3b1266570e2733a888172a2a6fb93dc770998",
+            "ran_at": "2026-11-04T20:23:19Z",
+            "summary": {
+              "checklist_blob": "6716e1f73a98766a39e479d5b809f945fee0ed4e",
+              "text": "M4, M5, M10 each rc=1 with only test_the_helper_sees_a_socket_it_just_opened failing (failures=1 each). (Run by an independent headless executor in a disposable clone; flows 1-9 in a normal shell, not under unshare -rn.)"
+            },
+            "log_digest": "3665aa7352f05e3da88ac3ded30bfc2df801ea9abe5edcb58d10bdfbfc0cc4d5",
+            "run_ref": "manager-orchestrator:runs/md19-functional-r1",
+            "reporter": "manager-orchestrator (independent run, claude claude-sonnet-5-5)",
+            "identity": "49037d5e935016877463b3c8cd12c57e82f705b1f697bcf36e2fab72044bcc03",
+            "recorded_at": "2026-11-04T20:23:20Z"
+          },
+          "flow-8": {
+            "flow_id": "flow-8",
+            "status": "passed",
+            "head": "7bb3b1266570e2733a888172a2a6fb93dc770998",
+            "ran_at": "2026-11-04T20:23:19Z",
+            "summary": {
+              "checklist_blob": "6716e1f73a98766a39e479d5b809f945fee0ed4e",
+              "text": "M9 rc=1, only test_the_probe_names_the_pairs_own_links_not_new_ones failed; M6 rc=1, three subtests failed (regular files, non-socket links, a missing path). (Run by an independent headless executor in a disposable clone; flows 1-9 in a normal shell, not under unshare -rn.)"
+            },
+            "log_digest": "506accac75b2d3a306f4fa69aec24c27afae976a59b6bff71a1bf7bb44287bdf",
+            "run_ref": "manager-orchestrator:runs/md19-functional-r1",
+            "reporter": "manager-orchestrator (independent run, claude claude-sonnet-5-5)",
+            "identity": "49037d5e935016877463b3c8cd12c57e82f705b1f697bcf36e2fab72044bcc03",
+            "recorded_at": "2026-11-04T20:23:20Z"
+          },
+          "flow-9": {
+            "flow_id": "flow-9",
+            "status": "passed",
+            "head": "7bb3b1266570e2733a888172a2a6fb93dc770998",
+            "ran_at": "2026-11-04T20:23:19Z",
+            "summary": {
+              "checklist_blob": "6716e1f73a98766a39e479d5b809f945fee0ed4e",
+              "text": "base both variants rc=1 (control fails); cand both variants OK (skipped=1), rc=0, reason says \"do not expose socket links\". (Run by an independent headless executor in a disposable clone; flows 1-9 in a normal shell, not under unshare -rn.)"
+            },
+            "log_digest": "e3c4dec359ceb1fa4cf70108c8510b1f5c6ab4d5078f37dbda8c13f1abb3b5d4",
+            "run_ref": "manager-orchestrator:runs/md19-functional-r1",
+            "reporter": "manager-orchestrator (independent run, claude claude-sonnet-5-5)",
+            "identity": "49037d5e935016877463b3c8cd12c57e82f705b1f697bcf36e2fab72044bcc03",
+            "recorded_at": "2026-11-04T20:23:20Z"
+          },
+          "flow-10": {
+            "flow_id": "flow-10",
+            "status": "passed",
+            "head": "7bb3b1266570e2733a888172a2a6fb93dc770998",
+            "ran_at": "2026-11-04T20:23:19Z",
+            "summary": {
+              "checklist_blob": "6716e1f73a98766a39e479d5b809f945fee0ed4e",
+              "text": "Unmutated run: verdict exit 0; M7-mutated run: rc=1 with TestAnExpiredReadLeavesNothingBehind and TestAProxyConnectReplyIsBounded failing plus TestTheBoundedPieces (incl. test_the_real_socket_outlives_close_while_a_reader_is_open); scratch and results dir removed. (Run by an independent headless executor in a disposable clone; flows 1-9 in a normal shell, not under unshare -rn.)"
+            },
+            "log_digest": "f49be360ef19ada64e477c17393de401f3266f80fdf6dd9b75ae1ab978605803",
+            "run_ref": "manager-orchestrator:runs/md19-functional-r1",
+            "reporter": "manager-orchestrator (independent run, claude claude-sonnet-5-5)",
+            "identity": "49037d5e935016877463b3c8cd12c57e82f705b1f697bcf36e2fab72044bcc03",
+            "recorded_at": "2026-11-04T20:23:20Z"
+          }
+        },
+        "pr": {
+          "pr": {
+            "number": 165,
+            "url": "https://github.com/RodrigoFAbreu/workflow-manager/pull/165"
+          },
+          "state": "open",
+          "head": "7bb3b1266570e2733a888172a2a6fb93dc770998",
+          "review_decision": null,
+          "reviewed_head": null,
+          "checks": {
+            "state": "success",
+            "failing": []
+          },
+          "review_id": null,
+          "findings": null,
+          "identity_at_head": "49037d5e935016877463b3c8cd12c57e82f705b1f697bcf36e2fab72044bcc03",
+          "observed_at": "2026-11-04T20:42:48Z",
+          "ingest_seq": 1,
+          "repository": "RodrigoFAbreu/workflow-manager",
+          "queried_commit": "e18bd942b14adfc7a2988d59b62c75568b5a4e3a",
+          "provenance": {
+            "source": "workflow_gh",
+            "fetched_by": {
+              "name": "workflow-gh",
+              "version": "pr-list-v1"
+            },
+            "fetched_at": "2026-11-04T20:42:48Z",
+            "raw_sha256": "a955cfd1c6ebc6a34f7d5174dd1d9511654fc0795d4787f364966b8e89101155",
+            "run_ref": null,
+            "gh_path": "/usr/bin/gh",
+            "gh_sha256": "9e824061111fe5f5b6a5d5690909ba37abafca4a4ca830bdf83246d3c94afd21"
+          },
+          "fact_id": "59df5807c526f29663ea1e725f4b90b79c8a60cdcfd993bb16c8776b76f0b6e5"
+        },
+        "pr_reported": null,
+        "pr_keys": {
+          "reopened_for": [],
+          "applied": [],
+          "ingest_seq": 1
+        }
+      },
+      "acceptance_satisfaction": {
+        "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "policy_source": "default",
+        "file_digest": null,
+        "adopted_digest": null,
+        "floor_digest": null,
+        "requirements": [
+          {
+            "id": "checkpoints_complete",
+            "met": true,
+            "detail": "every checkpoint of the item's own registry is COMPLETE"
+          },
+          {
+            "id": "technical_approval_current",
+            "met": true,
+            "detail": "the technical approval is CURRENT for the content now"
+          },
+          {
+            "id": "functional_flows_passed",
+            "met": true,
+            "detail": "flows ['flow-1', 'flow-10', 'flow-2', 'flow-3', 'flow-4', 'flow-5', 'flow-6', 'flow-7', 'flow-8', 'flow-9'] passed at the approved content"
+          },
+          {
+            "id": "pr_fact_current",
+            "met": true,
+            "detail": "workflow_gh fact for PR #165 at 7bb3b1266570e2733a888172a2a6fb93dc770998 is current"
+          },
+          {
+            "id": "no_standing_pr_objection",
+            "met": true,
+            "detail": "no CHANGES_REQUESTED decision and no failed check"
+          },
+          {
+            "id": "ci_green",
+            "met": true,
+            "detail": "checks are 'success'"
+          }
+        ],
+        "inputs": {
+          "anchor_commit": "e18bd942b14adfc7a2988d59b62c75568b5a4e3a",
+          "anchor_identity": "49037d5e935016877463b3c8cd12c57e82f705b1f697bcf36e2fab72044bcc03",
+          "technical_approval": {
+            "basis": "POLICY_SATISFIED",
+            "approved_review_content_id": "49037d5e935016877463b3c8cd12c57e82f705b1f697bcf36e2fab72044bcc03",
+            "recorded_at": "2026-11-04T20:12:59Z"
+          },
+          "functional": {
+            "flow-1": {
+              "evidence_id": "55af7f6fac2220c3a1679569c511c77e3bc66bcc8b1c720c0f756ef20428558f",
+              "log_digest": "450f3ae0acded4c11ccd3dc56f1a28001a0d0492653f9b00cc13cec2b3416730",
+              "run_ref": "manager-orchestrator:runs/md19-functional-r1"
+            },
+            "flow-10": {
+              "evidence_id": "4002ceba262e042925fb984f02711fdeb8efe090781641a5f549949eb7cac4f7",
+              "log_digest": "f49be360ef19ada64e477c17393de401f3266f80fdf6dd9b75ae1ab978605803",
+              "run_ref": "manager-orchestrator:runs/md19-functional-r1"
+            },
+            "flow-2": {
+              "evidence_id": "521fd15ad5fe101074941fff4b691f3904a668b61f4feed0b10b6108d07c0036",
+              "log_digest": "06e9d52c1720fca412803e3b07c4b228ff113e303f4c7ab94665319d832bbfb7",
+              "run_ref": "manager-orchestrator:runs/md19-functional-r1"
+            },
+            "flow-3": {
+              "evidence_id": "9623da1ef00d280a089a599810b7cb0d013f78708e5dfe159cad8062f7fe3592",
+              "log_digest": "0e9376b5d1365683c1741f92380546c767645ddc296324f80756ccde7f63edfe",
+              "run_ref": "manager-orchestrator:runs/md19-functional-r1"
+            },
+            "flow-4": {
+              "evidence_id": "8d95cde9d35a3174cc00d796f5f5f5449b411cc1bcc618cfe7c7321f4c963366",
+              "log_digest": "1be76a37460409f46b12e3a0afec391c60e520c019fccb8940b96f16dfa27ffb",
+              "run_ref": "manager-orchestrator:runs/md19-functional-r1"
+            },
+            "flow-5": {
+              "evidence_id": "3629c6d56036238b73e4ec508baa2e93c07c63f7ca2f695f3a7d6d78bdf5454d",
+              "log_digest": "c209ef943505f4c513cb249b2171d05693dcadc6c9729023362a780da8b1443a",
+              "run_ref": "manager-orchestrator:runs/md19-functional-r1"
+            },
+            "flow-6": {
+              "evidence_id": "83b1a4239a93c5560a671786455051fd7e65672c9649505e96391247491dce44",
+              "log_digest": "10e4e949824428f96fe5c572dfa043208c66e3904f9b7c9c00dd8003ab42fa3f",
+              "run_ref": "manager-orchestrator:runs/md19-functional-r1"
+            },
+            "flow-7": {
+              "evidence_id": "4e436afd3b4e86415f77906f54dbfd36246e2d3a671e9a696ba02afd708bfeeb",
+              "log_digest": "3665aa7352f05e3da88ac3ded30bfc2df801ea9abe5edcb58d10bdfbfc0cc4d5",
+              "run_ref": "manager-orchestrator:runs/md19-functional-r1"
+            },
+            "flow-8": {
+              "evidence_id": "f71d3483937995b5aff3cb79ebd1f57dafc95568bad9290e571622a836d422cc",
+              "log_digest": "506accac75b2d3a306f4fa69aec24c27afae976a59b6bff71a1bf7bb44287bdf",
+              "run_ref": "manager-orchestrator:runs/md19-functional-r1"
+            },
+            "flow-9": {
+              "evidence_id": "7df9fea703de0596e5d262804c15e5e2053833a89720137c5efe75539d1ac7bd",
+              "log_digest": "e3c4dec359ceb1fa4cf70108c8510b1f5c6ab4d5078f37dbda8c13f1abb3b5d4",
+              "run_ref": "manager-orchestrator:runs/md19-functional-r1"
+            }
+          },
+          "pr": {
+            "fact_id": "59df5807c526f29663ea1e725f4b90b79c8a60cdcfd993bb16c8776b76f0b6e5",
+            "head": "7bb3b1266570e2733a888172a2a6fb93dc770998",
+            "provenance": "workflow_gh",
+            "raw_sha256": "a955cfd1c6ebc6a34f7d5174dd1d9511654fc0795d4787f364966b8e89101155"
+          }
+        },
+        "trust": {
+          "review_verdicts": "orchestrator",
+          "functional_evidence": "orchestrator",
+          "pr_fact": "workflow_gh"
+        },
+        "evaluated_at": "2026-11-04T20:42:48Z",
+        "workflow_release": "2.25.5"
+      }
     }
   }
 }
