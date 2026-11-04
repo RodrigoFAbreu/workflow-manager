@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_work_item_id": null,
+  "active_work_item_id": "runner-test-cleanup",
   "work_items": {
     "plan-amendment-mechanism": {
       "work_item_type": "process",
@@ -26204,6 +26204,248 @@
         },
         "evaluated_at": "2026-11-04T20:42:48Z",
         "workflow_release": "2.25.5"
+      }
+    },
+    "runner-test-cleanup": {
+      "work_item_type": "process",
+      "work_item_kind": "process",
+      "work_item_id": "runner-test-cleanup",
+      "parent_work_item_id": null,
+      "plan_path": "docs/ai-workflow/WORKFLOW_MANAGER_RUNNER_TEST_CLEANUP_PLAN.md",
+      "registry_path": "docs/ai-workflow/registry/runner-test-cleanup-registry.json",
+      "mapping_path": "docs/ai-workflow/requirements/runner-test-cleanup-mapping.json",
+      "governing_workflow_version": "2.2",
+      "phase": "IMPLEMENTING",
+      "plan_revision": 3,
+      "implementation_revision": null,
+      "functional_review_round": null,
+      "base_commit": "c041050c55d07ee7dd8f8a4c1eb0534e369b36a3",
+      "reviewed_implementation_head": null,
+      "current_checkpoint_id": null,
+      "last_completed_checkpoint_id": null,
+      "checkpoints": {},
+      "current_bundle_id": "6af61508617be006d0dd74f01304f8ab37a74d3e784eafb98b9a78e2855978e2",
+      "plan_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "6af61508617be006d0dd74f01304f8ab37a74d3e784eafb98b9a78e2855978e2",
+        "approved_review_content_id": "00cfb4af91a87ba723a5f3896736e418c201fa2ca05d6bcd33124c93f550742c",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/WORKFLOW_MANAGER_RUNNER_TEST_CLEANUP_PLAN.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "692f28915dd4dedfa6435e088d6cb73318c4e2fd"
+          },
+          {
+            "path": "docs/ai-workflow/registry/runner-test-cleanup-registry.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "307f71d4c4a05690505424d40796ce23839b4402"
+          },
+          {
+            "path": "docs/ai-workflow/requirements/runner-test-cleanup-mapping.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "7310e0de8d9117163fc13395c16dd38cb6de50e7"
+          }
+        ],
+        "reviewed_content_commit": null,
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-11-04T21:57:06Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "00cfb4af91a87ba723a5f3896736e418c201fa2ca05d6bcd33124c93f550742c",
+            "ledger": {
+              "local": {
+                "bundle_id": "6af61508617be006d0dd74f01304f8ab37a74d3e784eafb98b9a78e2855978e2",
+                "verdict": "APPROVE",
+                "round": 3,
+                "verdict_sha256": "244ca5fcd469dc72a2ec2b43c2ef94622b757cfc7d7bd9a4e4b202d8490e58a3",
+                "ledger_entry_sha256": "da28921f561978207ae104e9bddf39ed68067c115b02a14c65cc871f6edefbf4",
+                "run_ref": "session:local .ai-review/runner-test-cleanup/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "6af61508617be006d0dd74f01304f8ab37a74d3e784eafb98b9a78e2855978e2",
+                "verdict": "APPROVE",
+                "round": 3,
+                "verdict_sha256": "9934db942c60dd8635b6a68ace890717c66b53f1f7e6b679d91a0d2eec440bef",
+                "ledger_entry_sha256": "d8cc9f09fe70c2939de985c8445729f756be5146a11696c92a82dc52175b6887",
+                "run_ref": "codex:20261104T215412Z-2246ad04",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-11-04T21:57:06Z",
+          "workflow_release": "2.25.5"
+        }
+      },
+      "technical_approval": null,
+      "technical_review_block_pins": [],
+      "plan_review_stages": {
+        "review_content_id": "00cfb4af91a87ba723a5f3896736e418c201fa2ca05d6bcd33124c93f550742c",
+        "LOCAL_MODEL_PLAN_REVIEW": {
+          "bundle_id": "6af61508617be006d0dd74f01304f8ab37a74d3e784eafb98b9a78e2855978e2",
+          "verdict": "APPROVE",
+          "round": 3,
+          "completed_at": "2026-11-04T21:53:54Z",
+          "verdict_sha256": "244ca5fcd469dc72a2ec2b43c2ef94622b757cfc7d7bd9a4e4b202d8490e58a3",
+          "run_ref": "session:local .ai-review/runner-test-cleanup/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_PLAN_REVIEW": {
+          "bundle_id": "6af61508617be006d0dd74f01304f8ab37a74d3e784eafb98b9a78e2855978e2",
+          "verdict": "APPROVE",
+          "round": 3,
+          "completed_at": "2026-11-04T21:56:17Z",
+          "verdict_sha256": "9934db942c60dd8635b6a68ace890717c66b53f1f7e6b679d91a0d2eec440bef",
+          "run_ref": "codex:20261104T215412Z-2246ad04",
+          "reviewer_model": "openai/gpt-6.1-sol"
+        }
+      },
+      "functional_acceptance_status": null,
+      "blocking_decisions": [],
+      "review_round_counts": {
+        "plan": {
+          "local": 3,
+          "external": 1
+        },
+        "implementation": {
+          "local": 0,
+          "external": 0
+        }
+      },
+      "state_revision": 12,
+      "last_transition": "2026-11-04T21:57:06Z",
+      "feedback_layout": "scoped",
+      "plan_review_binding": {
+        "status": "BOUND",
+        "at": "2026-11-04T22:40:00Z",
+        "consumed": {
+          "review_content_id": "e1c5346428f07370af3f3da8c3a689ba757840cfddf480663d618b475efd4c2f",
+          "plan_revision": 2,
+          "legacy": false
+        },
+        "published": {
+          "review_content_id": "00cfb4af91a87ba723a5f3896736e418c201fa2ca05d6bcd33124c93f550742c",
+          "plan_revision": 3
+        },
+        "bound": {
+          "review_content_id": "00cfb4af91a87ba723a5f3896736e418c201fa2ca05d6bcd33124c93f550742c",
+          "bundle_id": "6af61508617be006d0dd74f01304f8ab37a74d3e784eafb98b9a78e2855978e2",
+          "plan_revision": 3
+        }
+      },
+      "consumed_plan_review_content_ids": [
+        "78924da988a9aa2cb46516ef18af2c6f8e07cdddb32e1e1043214accadb704f5",
+        "e1c5346428f07370af3f3da8c3a689ba757840cfddf480663d618b475efd4c2f"
+      ],
+      "optional_findings": {
+        "F-0d0f295659a3": {
+          "digest": "0d0f295659a340d4862c8c2c32a27f0ded617ca51f02b8dc6474ad77e885bd24",
+          "text": "RTC-LP1-003 (plan section 8): \"The interrupt tests take about 30 s each and are unchanged in duration on the passing path\" is wrong for the passing path. Measured: 0.5 s for `T`. The 30 s appears only under M2, as section 5 uses it. Say so, or drop the sentence.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "78924da988a9aa2cb46516ef18af2c6f8e07cdddb32e1e1043214accadb704f5",
+              "verdict": "REVISE",
+              "at": "2026-11-04T21:19:38Z"
+            }
+          ]
+        },
+        "F-3de4da4aeb8b": {
+          "digest": "3de4da4aeb8b5984fd0d39b0abfd8a2a774a364cba50eee93243fc77f0525b30",
+          "text": "RTC-LP1-004 (plan section 7): the preamble says flows 1 to 9 run offline and only flow 10 needs the full environment, while flows 6 to 9 are each tagged \"(needs the full environment)\". Say what that tag requires for flows 6 to 9. In the closing line, \"run the repository's own runner scratch checkouts\" is missing \"in\".",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "78924da988a9aa2cb46516ef18af2c6f8e07cdddb32e1e1043214accadb704f5",
+              "verdict": "REVISE",
+              "at": "2026-11-04T21:19:38Z"
+            }
+          ]
+        },
+        "F-3384b287ba50": {
+          "digest": "3384b287ba50698c402daebe79d93c323a881dcc956072332df3bf674dd9b8e6",
+          "text": "RTC-LP3-001 (plan section 7, flows 8 and 9): two flow steps leave out what makes them work. Flow 8 says \"the base test file\" without the command that gets it (`git -C $S/mut show c041050c55d07ee7dd8f8a4c1eb0534e369b36a3:tests/test_parallel_runner.py > $S/mut/tests/test_parallel_runner.py`), and M0 must be applied after that replacement, or the replacement silently undoes it and the race returns. Flow 9's second half (\"then M2, M1 and M0\") does not repeat \"fresh copy\": applied to the first half's copy, M3 has removed the call, so \"outlived the cleanup\" cannot appear. Section 5 does say each mutation runs on a fresh copy, so a careful reader gets both right. Worth spelling out in the functional-review checklist.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 3,
+              "review_content_id": "00cfb4af91a87ba723a5f3896736e418c201fa2ca05d6bcd33124c93f550742c",
+              "verdict": "APPROVE",
+              "at": "2026-11-04T21:53:54Z"
+            }
+          ]
+        },
+        "F-40854b988903": {
+          "digest": "40854b988903b3f9b633d59a31f66851174777108218b3fe435ba834750cfeab",
+          "text": "RTC-LP3-002 (bundle `REVIEW_REQUEST.md` and plan closing lines): the request's first sentence still says \"Review revision 2 of the plan (round 2, after local round 1 REVISE: RTC-LP1-001 to -004)\", while its header says revision 3, and this is round 3, after RTC-LP2-001 and -002. The external reviewer receives this text. Also, CP1's \"M1 to M4 touch scratch copies only\" omits M0, and section 7's closing lines omit flow 6, which also runs in the scratch clone. None of these changes what is built.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 3,
+              "review_content_id": "00cfb4af91a87ba723a5f3896736e418c201fa2ca05d6bcd33124c93f550742c",
+              "verdict": "APPROVE",
+              "at": "2026-11-04T21:53:54Z"
+            }
+          ]
+        },
+        "F-4eef6a897e11": {
+          "digest": "4eef6a897e11400e1ae3a81920766450335b11b5c50d879e872d356c6bf2be4f",
+          "text": "In section 7, explicitly require a fresh copy for each half of flow 9, and specify that flow 8 restores the base test file before applying M0. Section 5 establishes the intended isolation, but repeating these details would prevent accidentally retaining M3 or undoing M0.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "MANUAL_EXTERNAL_PLAN_REVIEW",
+              "round": 3,
+              "review_content_id": "00cfb4af91a87ba723a5f3896736e418c201fa2ca05d6bcd33124c93f550742c",
+              "verdict": "APPROVE",
+              "at": "2026-11-04T21:56:17Z"
+            }
+          ]
+        }
       }
     }
   }
