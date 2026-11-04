@@ -16,7 +16,11 @@ What the retention view (`status --retention`, `doctor --retention`) says about 
 
 ### Failure-only mutations
 
-Planned in section 5 of the plan; run in a scratch clone at self-review, results recorded in the bundle's `TEST_RESULTS.md`.
+Section 5 of the plan, run in a scratch clone at self-review on `d049409`, one `python3 tests/run_all.py --select test_retention_status.py` each: the unmutated clone exit 0; all 20 mutations exit 1, each failing the test the plan names (the 19 of the plan, with the causes one run each, and one more for the distinct-leads guard: `the UTF-8 cause made the JSON cause's text`, failing `test_the_causes_built_from_the_code_are_what_they_say`). The bundle's `TEST_RESULTS.md` has the table.
+
+### Self-review
+
+Commit `d049409`: the zero-header text is the plan's one sentence (the test no longer rewrites the page to match it), the causes table follows the code's refusal order, the distinct-causes guard compares the thirteen leads rather than the whole texts, the read-error-path test compares the complete refusal line and checks the tree at both sizes, a redundant literal is gone, and the roadmap row counts a number by the characters it is written with.
 
 ## Next action
 
