@@ -24038,7 +24038,7 @@
       "registry_path": "docs/ai-workflow/registry/retention-view-limits-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/retention-view-limits-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "APPLYING_REVIEW_FEEDBACK",
       "plan_revision": 3,
       "implementation_revision": 1,
       "functional_review_round": null,
@@ -24178,12 +24178,12 @@
           "external": 1
         },
         "implementation": {
-          "local": 0,
+          "local": 1,
           "external": 0
         }
       },
-      "state_revision": 17,
-      "last_transition": "2026-11-04T02:40:08Z",
+      "state_revision": 18,
+      "last_transition": "2026-11-04T02:50:30Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -24303,6 +24303,90 @@
               "review_content_id": "dbe1ebaf798e3feb00213916bec737dd51dceb66d4bf4c653b436e507a28fffe",
               "verdict": "APPROVE",
               "at": "2026-11-04T01:55:42Z"
+            }
+          ]
+        },
+        "F-01de6dea91e9": {
+          "digest": "01de6dea91e9edbbb77de0f59ec5ec23e299eef9b059bfcfd0e9f2bdcabcc543",
+          "text": "LIR1-O1 The counting test has a list case and no object case, while the page and R2 state both. Verified: `len(value)` for `(str, dict)` passes the whole test file. Add `_shown({\"a\": \"b\" * 50})` ending `(59 characters)`.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "1e701be2bf6b10adc436c0f0c2ef3d171d6a1a5c233542f150e805eb04127555",
+              "verdict": "REVISE",
+              "at": "2026-11-04T02:50:30Z"
+            }
+          ]
+        },
+        "F-20bdb7f05d1c": {
+          "digest": "20bdb7f05d1c84242beb2082a0c65e6819942f6eaf94511dd765cd452be6fad1",
+          "text": "LIR1-O2 A row's step is not tied to its cause: the steps loop only requires each step somewhere on the page (the plan keeps that loop unchanged). Verified: giving the UTF-8 row the update step passes the whole test file. The row lookup of LIR1-001 makes comparing `note.step` with the row's second cell cheap; the `TARGET` rows need the target substituted.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "1e701be2bf6b10adc436c0f0c2ef3d171d6a1a5c233542f150e805eb04127555",
+              "verdict": "REVISE",
+              "at": "2026-11-04T02:50:30Z"
+            }
+          ]
+        },
+        "F-28325f2d40cf": {
+          "digest": "28325f2d40cfd17b16388931236657f364adcb1a1f5b003dd451310a803a1fde",
+          "text": "LIR1-O3 Deleting the `the script refused` row passes the whole test file, since the thirteenth cause has no fixed text and the plan checks only its shape. A fixed-words assertion on that row would close it.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "1e701be2bf6b10adc436c0f0c2ef3d171d6a1a5c233542f150e805eb04127555",
+              "verdict": "REVISE",
+              "at": "2026-11-04T02:50:30Z"
+            }
+          ]
+        },
+        "F-9a2b443dfd5b": {
+          "digest": "9a2b443dfd5bfb547c9d7e66a75355fbdf47216631e23969402749acd75e54ba",
+          "text": "LIR1-O4 The limits paragraph does not list valid text as a check for every string, yet any string carrying an unpaired surrogate is refused (run: `read_errors[].path is not valid text`), and the paragraph mentions it only in the `invalid_id` parenthesis. The plan's list omits it too; a short clause would make the list complete.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "1e701be2bf6b10adc436c0f0c2ef3d171d6a1a5c233542f150e805eb04127555",
+              "verdict": "REVISE",
+              "at": "2026-11-04T02:50:30Z"
+            }
+          ]
+        },
+        "F-b9fdda03db12": {
+          "digest": "b9fdda03db1293938ffbbe188fe7db739b7c246903981fd95cf452c31b65def2",
+          "text": "LIR1-O5 The two status rows say `(FIRST LINE OF ITS ERROR OUTPUT)`; with empty stderr `_first_line` prints `(no message)`, which the page does not state.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "1e701be2bf6b10adc436c0f0c2ef3d171d6a1a5c233542f150e805eb04127555",
+              "verdict": "REVISE",
+              "at": "2026-11-04T02:50:30Z"
+            }
+          ]
+        },
+        "F-5fd7378d3e36": {
+          "digest": "5fd7378d3e3628bfe6896556291de866de3fc85d1ef97c8e8b5c5d9f3428d802",
+          "text": "LIR1-O6 The zero-header sentence's \"an incomplete report keeps the `retention: INCOMPLETE` first line whatever the count\" has one exception: `complete: false` with read errors, nothing finished or kept, and only `query_failed` items prints the forge note, because `_query_failed_note` does not read `complete` (run). The sentence is the plan's own and the forge row covers the output; a follow-up issue is enough.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "1e701be2bf6b10adc436c0f0c2ef3d171d6a1a5c233542f150e805eb04127555",
+              "verdict": "REVISE",
+              "at": "2026-11-04T02:50:30Z"
             }
           ]
         }
