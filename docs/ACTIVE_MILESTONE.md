@@ -2,7 +2,7 @@
 
 ## Milestone
 
-`runner-test-cleanup` -- implementation approved, awaiting functional review (`governing_workflow_version: "2.2"`, `process`, plan revision 3, base `c041050`, branch `milestone/runner-test-cleanup`): roadmap row 32 (#119, items 1 to 4). A `test:` pull request title (releases nothing).
+`runner-test-cleanup` -- complete, accepted by policy (`governing_workflow_version: "2.2"`, `process`, plan revision 3, base `c041050`, branch `milestone/runner-test-cleanup`): roadmap row 32 (#119, items 1 to 4). A `test:` pull request title (releases nothing).
 
 The runner-hardening tests and notes say exactly what they check. The interrupt test's cleanup also ends the chunk's process group (`_end_group`, covered by `TestEndGroup`) before it writes the stop file, so a failing run no longer leaves the chunk to `WAIT_MODULE`'s 120-second deadline. `test_a_failing_run_keeps_its_directory_and_attempts_no_removal` asserts the directory the verdict line names exists and holds `results.json`. `remove_run_dir`'s docstring says the directory may be left behind. `docs/ARCHITECTURE.md` says the signal handler covers all three modes through `_install_signal_handlers`. No behaviour, printed text or exit code of the runner changes; no `src/` change; no Workflow change.
 
@@ -12,7 +12,7 @@ The runner-hardening tests and notes say exactly what they check. The interrupt 
 
 ### CP2: bookkeeping -- complete
 
-- `docs/ROADMAP.md` row 32 (Current; Done at acceptance); this record.
+- `docs/ROADMAP.md` row 32 is Done (accepted by policy); this record.
 
 ### Failure-only mutations
 
