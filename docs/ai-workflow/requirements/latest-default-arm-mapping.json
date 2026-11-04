@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "work_item_id": "latest-default-arm",
+  "requirements": {
+    "R1": {
+      "description": "Tests call the explicit run's latest-available filter with no pins and a default version whose manager block neither the run nor the cache read (kept), and with one whose block the run read or the cache holds (unmet minimum, malformed block: dropped); the tests fail when the version == default arm is deleted, when the pin arm or the readable-minimum check is removed, and when the default skips either block source",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R2": {
+      "description": "The Latest available bullet of docs/update.md no longer says a pin or the default version is always named: the keep applies to a release whose manager block neither this run nor the cache could read, and a test pins the sentence",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R3": {
+      "description": "Row 30 of the roadmap is Current while the item runs and Done at acceptance; the title is a test: change that releases nothing; no behaviour, printed text or exit code changes",
+      "checkpoint_ids": [
+        "CP2"
+      ]
+    }
+  }
+}
