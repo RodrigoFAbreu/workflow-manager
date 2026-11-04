@@ -26,11 +26,15 @@ Plan section 3, run in a scratch copy of `392ffe1` made with `git archive` (not 
 | M4 | control leaves one end open | `test_the_helper_sees_a_socket_it_just_opened` |
 | M5 | `_own_links` names the wrong inodes | `test_the_helper_sees_a_socket_it_just_opened` |
 | M6 | the probe never skips | `test_a_directory_that_cannot_expose_links_is_a_skip_with_its_reason` (three subtests), plus the leak classes' skip test, the coupling test and the growing-listing test (13 s on all of `TestTheDescriptorProbe`: the leak classes then run for real) |
-| M7 | a bounded read leaks one socket (`src/workflow_manager/source.py`, scratch copy only) | the leak checks of `TestAnExpiredReadLeavesNothingBehind` fail (needs loopback sockets) |
+| M7 | a bounded read leaks one socket (`src/workflow_manager/source.py`, scratch copy only) | the leak checks of `TestAnExpiredReadLeavesNothingBehind` and `TestAProxyConnectReplyIsBounded` fail, and `TestTheBoundedPieces` tests including `test_the_real_socket_outlives_close_while_a_reader_is_open` (22 tests of the three classes, needs loopback sockets; the unmutated three classes pass, 32 tests) |
 | M8 | the directory list is blind (a missing path, and a directory of one regular file) | comparison: on `fd423fa`'s file the control **fails** in both variants; on the change it **skips** with the probe's reason in both |
 | M9 | the probe counts again | `test_the_probe_names_the_pairs_own_links_not_new_ones` |
 | M10 | the control counts again | `test_the_helper_sees_a_socket_it_just_opened` (the bystander makes four new links) |
 
 ### Self-review
 
-Pending (step 2).
+The full diff against `fd423fa` was read against the plan: `tests/test_discovery.py` is the only code or test file that changed, the helpers, the probe, the control and the two new tests match plan section 3, the four dead lines are gone, and the `recv_into` that is exercised stays. M1 to M10 were run again on `9a0a5d2` through plan section 5's offline `run` (M7 and M8 as in the table above), each with the result listed, by a fresh session. No code finding. Two record corrections, in excluded files only: the M7 row above now names every class the plan names, and roadmap row 31 no longer says "no behaviour change" (the plan names the one test behaviour that changes) and says what the control decides from.
+
+### Verification
+
+`python3 tests/run_all.py` at `9a0a5d2` (full selection, 8 workers): `verdict: exit 0`, 2330/2330 units, 15552 tests, `selection_digest` `4c041765...`, `tests_digest` `348433d5...`.
