@@ -1172,9 +1172,15 @@ class TestDocs(unittest.TestCase):
         ]
 
     @staticmethod
-    def _pieces(note, sentinels):
-        """The fixed text around the sentinels of a cause, in order."""
-        pieces = [note.cause]
+    def _pieces(note, sentinels, page_form=()):
+        """The fixed text around the sentinels of a cause, in order. A sentinel in
+        `page_form` is first written as the page writes it (`77` as `N`) and stays in
+        the fixed text, so the row of the cause, not another row, holds it."""
+        cause = note.cause
+        for sentinel, written in page_form:
+            cause = cause.replace(sentinel, written)
+            sentinels = [s for s in sentinels if s != sentinel]
+        pieces = [cause]
         for sentinel in sentinels:
             pieces = [part for piece in pieces for part in piece.split(sentinel)]
         return pieces
@@ -1230,7 +1236,7 @@ class TestDocs(unittest.TestCase):
         for note, sentinels in self._built_causes():
             for sentinel in sentinels:  # the variable part is in the cause it splits
                 self.assertIn(sentinel, note.cause)
-            pieces = [p.strip() for p in self._pieces(note, sentinels)]
+            pieces = [p.strip() for p in self._pieces(note, sentinels, (("77", "N"),))]
             pieces = [p for p in pieces if re.search("[A-Za-z]", p)]
             with self.subTest(cause=note.cause):
                 found = self._rows_with(rows, pieces)
@@ -1238,10 +1244,28 @@ class TestDocs(unittest.TestCase):
                 # two forge rows share their words and differ by the code: one has its step
                 steps = [r[1].replace("`", "").replace("TARGET", "/t") for r in found]
                 self.assertIn(note.step.replace("`", ""), steps)
+        # the forge cause is two rows by its code: each has its own words and step
+        for code, wording, other in (("rate_limited", "every CODE `rate_limited`", "any other code"),
+                                     ("gh_missing", "any other code", "every CODE `rate_limited`")):
+            note = retention._query_failed_note(
+                {"not_finished": [{"work_item_id": "w", "reason": f"query_failed:{code}"}],
+                 "finished": [], "kept_recent": []})
+            head = "the forge could not be queried (CODE, N items), "
+            own = [r for r in rows if r[0] == head + wording]
+            self.assertEqual(len(own), 1, code)
+            self.assertEqual(own[0][1].replace("`", ""), note.step.replace("`", ""), code)
+            self.assertNotEqual(own[0][1], [r for r in rows if r[0] == head + other][0][1], code)
         # the script's own refusal has no fixed text but its row
         refused = self._rows_with(rows, ["the script refused"])
         self.assertEqual(len(refused), 1)
         self.assertIn("next step", refused[0][1])
+
+    def test_a_script_that_wrote_no_message_is_no_message(self):
+        for stderr in (b"", b" \n\t\n"):
+            with mock.patch.object(retention, "_script_is_regular", return_value=True), \
+                    mock.patch.object(retention, "_run", return_value=(77, b"", stderr)):
+                self.assertEqual(retention.fetch(Path("/t")).refusal.cause,
+                                 "the script exited with status 77 (no message)")
 
     def test_the_page_states_the_limits_and_the_zero_header_case(self):
         text = " ".join(self.PAGE.read_text().split())
@@ -1254,7 +1278,9 @@ class TestDocs(unittest.TestCase):
         self.assertIn("PATH_MAX", text)
         for figure in (retention.ID_LIMIT, retention.PATH_LIMIT, retention.ERROR_LIMIT):
             self.assertIn(str(figure), text)
+        self.assertIn("A string is valid text and has no control character", text)
         self.assertIn("N is the length of the value itself", text)
+        self.assertIn("or `(no message)` when it wrote none", text)
         self.assertIn("A value whose printed form is at most 40 characters is shown whole", text)
         self.assertIn("In a complete report with no finished work item", text)
         self.assertIn("an incomplete report keeps the `retention: INCOMPLETE` first line "
