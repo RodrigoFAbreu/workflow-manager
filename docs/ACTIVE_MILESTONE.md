@@ -2,26 +2,22 @@
 
 ## Milestone
 
-`retention-view-limits` -- complete, accepted by policy (`governing_workflow_version: "2.2"`, `process`, plan revision 3, base `4a98c25`, branch `milestone/retention-view-limits`): roadmap row 29 (#147 items 1 to 3; #116 item 4's test of every cause, item 5's leftovers and the leftover of its last comment). A `fix:` pull request title (releases Manager 1.14.8).
+`latest-default-arm` -- in progress (`governing_workflow_version: "2.2"`, `process`, plan revision 2, base `d785aa8`, branch `milestone/latest-default-arm`): roadmap row 30 (#100). A `test:` pull request title (releases nothing).
 
-What the retention view (`status --retention`, `doctor --retention`) says about its limits and causes is exact, documented and tested: the value it echoes in a refusal is counted by its own length (`(5000 characters)` for a 5000-character `kind`, where `(5002 characters)` was printed), its page states the limits on the report (the 4096-character limit on `read_errors[].path` is not a strict bound by `PATH_MAX`, and what the view prints above it) and that the zero-finished header belongs to a complete report, and its tests compare the complete refusal and build every cause the view can return (thirteen) from the code. Every other message and exit code is unchanged; no Workflow change.
+The default-version arm of the filter that keeps a release this Manager cannot use out of the explicit run's latest (`_latest_filter`) is pinned by tests, and the `Latest available` bullet of `docs/update.md` no longer says a pin or the default version is "always named": the keep applies to a release whose `manager` block neither the run nor the cache could read. No behaviour, printed text or exit code changes; no Workflow change.
 
-### CP1: the count, the page and the tests -- complete
+### CP1: the arm test and the true sentence -- complete
 
-- `src/workflow_manager/retention.py` (`_shown` counts the value's own length), `tests/test_retention_status.py` (the complete-refusal comparison, the counting test, the read-error-path fallback test, the causes built from the code, the page test), `docs/retention.md` (the limits subsection, the zero-header sentence, the causes table) (commit `8acd5ee`).
+- `tests/test_release_metadata.py` (`TestTheLatestFilterKeepsTheDefault`, four tests, and the docs test), `docs/update.md` (the one sentence) (commit `3fff782`).
 
 ### CP2: bookkeeping -- complete
 
-- `docs/ROADMAP.md` row 29 is Done (accepted by policy; a `fix:` change, Manager patch release); this record.
+- `docs/ROADMAP.md` row 30 is Current (Done at acceptance); this record.
 
 ### Failure-only mutations
 
-Section 5 of the plan, run in a scratch clone at self-review on `d049409`, one `python3 tests/run_all.py --select test_retention_status.py` each: the unmutated clone exit 0; all 20 mutations exit 1, each failing the test the plan names (the 19 of the plan, with the causes one run each, and one more for the distinct-leads guard: `the UTF-8 cause made the JSON cause's text`, failing `test_the_causes_built_from_the_code_are_what_they_say`). The bundle's `TEST_RESULTS.md` has the table.
-
-### Self-review
-
-Commit `d049409`: the zero-header text is the plan's one sentence (the test no longer rewrites the page to match it), the causes table follows the code's refusal order, the distinct-causes guard compares the thirteen leads rather than the whole texts, the read-error-path test compares the complete refusal line and checks the tree at both sizes, a redundant literal is gone, and the roadmap row counts a number by the characters it is written with.
+Plan section 3, run in a scratch clone at `3fff782`, one `python3 tests/run_all.py --select test_release_metadata.py` each: the unmutated clone exit 0; all five mutations exit 1, each failing the test the plan names (delete `or version == default`: the default-with-no-pins test and the pin test; delete `version in pins or`: the pin test; the default skips the run's block: the unmet-minimum test; the default skips the cache's block: the cached-block test, subtests `7.0.9` and `7.0.8`; the qualification removed from `docs/update.md`: the docs test).
 
 ## Next action
 
-No incomplete milestone is left in `docs/ROADMAP.md`. Plan the next one with `/milestone-plan` when it is chosen.
+Self-review, then the implementation-review bundle.

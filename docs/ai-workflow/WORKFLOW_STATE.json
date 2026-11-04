@@ -24814,18 +24814,22 @@
       "registry_path": "docs/ai-workflow/registry/latest-default-arm-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/latest-default-arm-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "IMPLEMENTING",
+      "phase": "SELF_REVIEWING_IMPLEMENTATION",
       "plan_revision": 2,
       "implementation_revision": null,
       "functional_review_round": null,
       "base_commit": "d785aa8c8af1e2725563a7fa4beeaed4c8f16804",
       "reviewed_implementation_head": null,
       "current_checkpoint_id": null,
-      "last_completed_checkpoint_id": "CP1",
+      "last_completed_checkpoint_id": "CP2",
       "checkpoints": {
         "CP1": {
           "status": "COMPLETE",
           "start_commit": "c8fdbddf093ace7bbe4b4f9759a8f9ba0da5ee43"
+        },
+        "CP2": {
+          "status": "COMPLETE",
+          "start_commit": "3fff782b23289084b8372a05e08a0304111a7c21"
         }
       },
       "current_bundle_id": "e2b751f27d7044b926a7ad67ca143a086e0321dc3bca3b694fed132b74a75a29",
@@ -24954,8 +24958,8 @@
           "external": 0
         }
       },
-      "state_revision": 11,
-      "last_transition": "2026-11-04T16:17:53Z",
+      "state_revision": 13,
+      "last_transition": "2026-11-04T16:21:44Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
