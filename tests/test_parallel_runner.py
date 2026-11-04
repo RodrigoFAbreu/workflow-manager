@@ -2891,6 +2891,19 @@ def _wait_until(predicate, timeout: float = 15.0) -> bool:
     return predicate()
 
 
+def _end_group(pgid, timeout: float = 15.0) -> bool:
+    """Failure cleanup: SIGKILL the process group `pgid` unless its leader has
+    already exited, then wait until the leader has exited. True when it has
+    (also when there is nothing to kill: `None`, or a group already gone)."""
+    if pgid is None or _dead(pgid):
+        return True
+    try:
+        os.killpg(pgid, signal.SIGKILL)
+    except ProcessLookupError:
+        return True
+    return _wait_until(lambda: _dead(pgid), timeout)
+
+
 def _script_argv(code: str, *args) -> list[str]:
     return [sys.executable, "-B", "-c", textwrap.dedent(code), *map(str, args)]
 
@@ -4939,21 +4952,50 @@ class TestLockAndRecoveryThroughTheCli(_CliCase):
             pgid = _lock_holder(scratch)["chunk_pgids"][0]
             os.kill(proc.pid, signum)
             out, err = proc.communicate(timeout=60)
+            assert_refusal(self, proc.returncode, err, "InterruptedRunError")
+            self.assertTrue(_dead(pgid))
+            self.assertEqual(_guarded_modes(scratch), pre_modes)
+            self.assertFalse((isolation.state_dir(scratch) / "barrier.json").exists())
         finally:
+            # Failure cleanup: end the known chunk group(s) first (the stop
+            # file would let the chunk exit by itself), then release and reap.
+            pgids = {pgid, *_lock_holder(scratch).get("chunk_pgids", ())}
+            gone = [_end_group(group) for group in pgids]
             stop.write_text("")
             if proc.poll() is None:
                 proc.kill()
                 proc.communicate()
-        assert_refusal(self, proc.returncode, err, "InterruptedRunError")
-        self.assertTrue(_dead(pgid))
-        self.assertEqual(_guarded_modes(scratch), pre_modes)
-        self.assertFalse((isolation.state_dir(scratch) / "barrier.json").exists())
+            self.assertTrue(all(gone), "the chunk's process group outlived the cleanup")
 
     def test_sigint_interrupts_a_run_that_started_with_it_ignored(self):
         self._interrupt(signal.SIGINT)
 
     def test_sigterm_interrupts_a_run_that_started_with_sigint_ignored(self):
         self._interrupt(signal.SIGTERM)
+
+
+class TestEndGroup(unittest.TestCase):
+    """The interrupt test's failure cleanup ends a process group and waits."""
+
+    def test_a_live_group_is_ended(self):
+        proc = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"],
+                                start_new_session=True)
+
+        def reap():
+            with contextlib.suppress(ProcessLookupError):
+                os.killpg(proc.pid, signal.SIGKILL)
+            proc.wait()
+
+        self.addCleanup(reap)
+        self.assertFalse(_dead(proc.pid))
+        self.assertTrue(_end_group(proc.pid, timeout=5))
+        self.assertTrue(_dead(proc.pid))
+
+    def test_nothing_to_kill_is_true(self):
+        self.assertTrue(_end_group(None))
+        proc = subprocess.Popen([sys.executable, "-c", "pass"], start_new_session=True)
+        proc.wait()
+        self.assertTrue(_end_group(proc.pid, timeout=5))
 
 
 class TestSignalHandlerInstallation(unittest.TestCase):
@@ -5048,6 +5090,11 @@ class TestPostReportCleanupFailure(_CliCase):
         self.assertEqual(code, 1, out + err)
         self.assertEqual(attempted, [])
         self.assertNotIn("warning: could not remove", err)
+        kept = out.rstrip().splitlines()[-1].partition("results kept in ")[2]
+        self.assertTrue(kept, out[-500:])
+        self.assertTrue(Path(kept).name.startswith("wm-run-"), kept)
+        self.assertTrue(Path(kept).is_dir(), kept)
+        self.assertTrue((Path(kept) / "results.json").is_file(), kept)
 
     def test_a_barrier_restore_that_raises_stays_a_pre_report_exit_2(self):
         scratch = scratch_checkout(self.tmp / "scratch")

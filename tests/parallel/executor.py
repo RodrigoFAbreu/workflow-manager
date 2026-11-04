@@ -627,7 +627,8 @@ def append_side_effect(write, what: str, path, err) -> None:
 
 def remove_run_dir(run_dir, err) -> None:
     """Remove the run's own temporary directory, after the report: an `OSError`
-    becomes a warning, never an exit code, and the directory stays where it is."""
+    becomes a warning, never an exit code, and the directory may be left behind
+    (`clean_tmpdir` can fail midway through `shutil.rmtree`)."""
     try:
         isolation.clean_tmpdir(run_dir)
     except OSError as exc:
