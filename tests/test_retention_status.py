@@ -899,14 +899,17 @@ class TestHardenedValidation(Scratch):
                 before = tree_hash(self.repo)
                 got = self.section(command, rep)
                 self.assertEqual(self.one_note(got, cause), retention.STEP_RUN_DIRECTLY)
+                self.assertIn(f"retention: not available: {cause}\n", got.stdout)
                 self.assertNotIn("a" * 100, got.stdout)
                 self.assertEqual(tree_hash(self.repo), before)
             with self.subTest(command=command, size=4096):
                 rep = report(finished(), complete=False)
                 rep["read_errors"] = [{"path": "a" * 4096, "error": "e"}]
+                before = tree_hash(self.repo)
                 got = self.section(command, rep)
                 self.assertNotIn("not available", got.stdout)
                 self.assertIn("a" * 4096, got.stdout)
+                self.assertEqual(tree_hash(self.repo), before)
 
     def test_an_invalid_id_entry_is_not_refused_for_its_id(self):
         base = report(finished())
@@ -1168,9 +1171,16 @@ class TestDocs(unittest.TestCase):
             (retention._query_failed_note(failed), ["VAR", "1"]),
         ]
 
+    @staticmethod
+    def _pieces(note, sentinels):
+        """The fixed text around the sentinels of a cause, in order."""
+        pieces = [note.cause]
+        for sentinel in sentinels:
+            pieces = [part for piece in pieces for part in piece.split(sentinel)]
+        return pieces
+
     def test_the_causes_built_from_the_code_are_what_they_say(self):
         built = self._built_causes()
-        self.assertEqual(len({note.cause for note, _ in built}), len(built))
         # the script's own refusal has no fixed text: its code and message, its step
         stderr = b"error: repository_unknown: no origin\nnext step: add an origin"
         with mock.patch.object(retention, "_script_is_regular", return_value=True), \
@@ -1183,18 +1193,17 @@ class TestDocs(unittest.TestCase):
                 mock.patch.object(retention, "_run", return_value=(0, b"not json", b"")):
             self.assertEqual(retention.fetch(Path("/t")).refusal.cause,
                              built[7][0].cause)
+        # two causes never collapse into one: the fixed text before the variable part differs
+        leads = {self._pieces(note, sentinels)[0] for note, sentinels in built}
+        self.assertEqual(len(leads | {refusal.cause}), 13)
 
     def test_every_cause_the_code_can_build_is_on_the_page(self):
         text = " ".join(self.PAGE.read_text().split())
         for note, sentinels in self._built_causes():
-            pieces = [note.cause]
-            for sentinel in sentinels:
-                pieces = [part for piece in pieces for part in piece.split(sentinel)]
-            for piece in (p.strip() for p in pieces):
+            for piece in (p.strip() for p in self._pieces(note, sentinels)):
                 if re.search("[A-Za-z]", piece):
                     with self.subTest(cause=note.cause, piece=piece):
                         self.assertIn(piece, text)
-        self.assertIn(f"the report did not finish within {retention.TIMEOUT_SECONDS} seconds", text)
         for step in (retention.STEP_REINSTALL, retention.STEP_RUN_DIRECTLY,
                      retention.STEP_UPDATE_MANAGER, retention.STEP_FORGE, retention.STEP_RATE_LIMITED):
             with self.subTest(step=step):
@@ -1214,7 +1223,7 @@ class TestDocs(unittest.TestCase):
         self.assertIn("N is the length of the value itself", text)
         self.assertIn("In a complete report with no finished work item", text)
         self.assertIn("an incomplete report keeps the `retention: INCOMPLETE` first line "
-                      "whatever the count", text.replace("An incomplete", "an incomplete"))
+                      "whatever the count", text)
 
     def test_the_page_separates_finished_coverage_from_the_store(self):
         text = " ".join(self.PAGE.read_text().split())
