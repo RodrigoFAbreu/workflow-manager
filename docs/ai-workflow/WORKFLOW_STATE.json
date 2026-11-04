@@ -25441,7 +25441,7 @@
       "registry_path": "docs/ai-workflow/registry/discovery-test-cleanup-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/discovery-test-cleanup-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "AWAITING_FUNCTIONAL_REVIEW",
       "plan_revision": 3,
       "implementation_revision": 1,
       "functional_review_round": null,
@@ -25550,7 +25550,90 @@
           "workflow_release": "2.25.5"
         }
       },
-      "technical_approval": null,
+      "technical_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "b0f5b4b47e6c1c2629f9e1dbbede51cabe0b95bec2f80b673c3f23d03619426e",
+        "approved_review_content_id": "49037d5e935016877463b3c8cd12c57e82f705b1f697bcf36e2fab72044bcc03",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/registry/discovery-test-cleanup-artifacts.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "ba3149293a567de867878f7321abdacf1d071690"
+          },
+          {
+            "path": "tests/test_discovery.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "599f9ad9a513253f793018c1609c8c4041da773f"
+          }
+        ],
+        "reviewed_content_commit": "e18bd942b14adfc7a2988d59b62c75568b5a4e3a",
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-11-04T20:12:59Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "49037d5e935016877463b3c8cd12c57e82f705b1f697bcf36e2fab72044bcc03",
+            "ledger": {
+              "local": {
+                "bundle_id": "b0f5b4b47e6c1c2629f9e1dbbede51cabe0b95bec2f80b673c3f23d03619426e",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "e802af15eab68605fee5fbbfa78e33cf9e53ca397a90d50e4805f894170af208",
+                "ledger_entry_sha256": "3233d90a0f92d8e4c27a438b6de9e0ae477684df346f729903d93d79763e627a",
+                "run_ref": "session:local .ai-review/discovery-test-cleanup/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "b0f5b4b47e6c1c2629f9e1dbbede51cabe0b95bec2f80b673c3f23d03619426e",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "60fd23ed8a89473f084103eaeb3c0ea6c8a371e3ff0d35f11f3b7399293e000f",
+                "ledger_entry_sha256": "a4959c14b45b0072262409d5d41c4f66db811b2e608bb7f96e9ba1ef94b36f4a",
+                "run_ref": "codex:20261104T200935Z-5960916d",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-11-04T20:12:59Z",
+          "workflow_release": "2.25.5"
+        }
+      },
       "technical_review_block_pins": [],
       "plan_review_stages": {
         "review_content_id": "6396b38daff16684150547e31f8643b9c86eb5077c4eb8d0fd20da1b95dd5170",
@@ -25581,12 +25664,12 @@
           "external": 2
         },
         "implementation": {
-          "local": 0,
-          "external": 0
+          "local": 1,
+          "external": 1
         }
       },
-      "state_revision": 18,
-      "last_transition": "2026-11-04T19:48:32Z",
+      "state_revision": 21,
+      "last_transition": "2026-11-04T20:12:59Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -25764,6 +25847,55 @@
               "at": "2026-11-04T19:12:16Z"
             }
           ]
+        },
+        "F-918b3dd47c4d": {
+          "digest": "918b3dd47c4dd20e60c5890f5ced0d5a7a6833ceccfd4a35ff40602388024c3f",
+          "text": "LIR1-001: the \"first existing directory\" half of `_lists_links` has no test. Replacing `return os.path.islink(...)` with `if os.path.islink(...): return True`, so that the loop goes on past a blind first directory, leaves all of `TestTheDescriptorProbe` green, because both cases of `test_the_control_skips_exactly_where_the_probe_does` patch a one-entry tuple. With a tuple of a blind existing directory and then a listing one, that mutant makes the control run and fail where the probe skips. The code itself is correct and matches plan section 2; requirement R1 names only the missing path and the regular-files directory, so this is a gap beyond the plan. A third case with a two-entry tuple would pin it.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "49037d5e935016877463b3c8cd12c57e82f705b1f697bcf36e2fab72044bcc03",
+              "verdict": "APPROVE",
+              "at": "2026-11-04T20:09:20Z"
+            }
+          ]
+        },
+        "F-ed52cba27450": {
+          "digest": "ed52cba27450eed80d0b4ab030b6728869f59e77d8ff3c2d65cc14b295e7ccb2",
+          "text": "In `tests/test_discovery.py:1278`, failure of the second `socketpair()` bypasses explicit cleanup of the first pair, leaving closure to finalization. Fault injection confirmed neither close is invoked. Move the second allocation inside the first pair’s `try/finally`, or register cleanup immediately. The allocation failure is already reported, so this is optional hardening.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "49037d5e935016877463b3c8cd12c57e82f705b1f697bcf36e2fab72044bcc03",
+              "verdict": "APPROVE",
+              "at": "2026-11-04T20:12:31Z"
+            }
+          ]
+        }
+      },
+      "implementation_review_stages": {
+        "review_content_id": "49037d5e935016877463b3c8cd12c57e82f705b1f697bcf36e2fab72044bcc03",
+        "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "b0f5b4b47e6c1c2629f9e1dbbede51cabe0b95bec2f80b673c3f23d03619426e",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-11-04T20:09:20Z",
+          "verdict_sha256": "e802af15eab68605fee5fbbfa78e33cf9e53ca397a90d50e4805f894170af208",
+          "run_ref": "session:local .ai-review/discovery-test-cleanup/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "b0f5b4b47e6c1c2629f9e1dbbede51cabe0b95bec2f80b673c3f23d03619426e",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-11-04T20:12:31Z",
+          "verdict_sha256": "60fd23ed8a89473f084103eaeb3c0ea6c8a371e3ff0d35f11f3b7399293e000f",
+          "run_ref": "codex:20261104T200935Z-5960916d",
+          "reviewer_model": "openai/gpt-6.1-sol"
         }
       }
     }
