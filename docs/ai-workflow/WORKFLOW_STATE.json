@@ -24038,7 +24038,7 @@
       "registry_path": "docs/ai-workflow/registry/retention-view-limits-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/retention-view-limits-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "APPLYING_REVIEW_FEEDBACK",
       "plan_revision": 3,
       "implementation_revision": 2,
       "functional_review_round": null,
@@ -24178,12 +24178,12 @@
           "external": 1
         },
         "implementation": {
-          "local": 1,
+          "local": 2,
           "external": 0
         }
       },
-      "state_revision": 19,
-      "last_transition": "2026-11-04T03:13:06Z",
+      "state_revision": 20,
+      "last_transition": "2026-11-04T03:28:46Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -24387,6 +24387,34 @@
               "review_content_id": "1e701be2bf6b10adc436c0f0c2ef3d171d6a1a5c233542f150e805eb04127555",
               "verdict": "REVISE",
               "at": "2026-11-04T02:50:30Z"
+            }
+          ]
+        },
+        "F-0d60411396c1": {
+          "digest": "0d60411396c105549d5fbf3ebbba2019435c3d6ae8e626d1f13e1c01b842b3a1",
+          "text": "LIR2-O1 The two clauses added for LIR1-O4 and LIR1-O5 are pinned by no test. Verified: removing `, or `(no message)` when it wrote none`, removing \"valid text\" from the limits paragraph, or changing `_first_line` to return `nothing` each leave the whole file green. `_first_line`'s text is what the page now promises, so a one-line pin of the empty-stderr cause would hold it.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 2,
+              "review_content_id": "126b89499a7f24e7e78a160c7d553c00c4715a3e37b29fb260daec8ae25caf9d",
+              "verdict": "REVISE",
+              "at": "2026-11-04T03:28:46Z"
+            }
+          ]
+        },
+        "F-5ccadf76d88c": {
+          "digest": "5ccadf76d88c5bfd4763952a5f1da694ae93264bfa6ba8692c3889b351541637",
+          "text": "LIR2-O2 `TEST_RESULTS.md` still opens \"implementation revision 1\", and its round 1 gate cites `head 23c44fc plus the two fix commits' tree` with no `tree_digest`, so the record does not tie the run to `b5193ca` (`tests_digest` hashes test ids, and helper-only test edits leave it equal). Record the fix's run with its whole `evidence:` line on a committed head.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 2,
+              "review_content_id": "126b89499a7f24e7e78a160c7d553c00c4715a3e37b29fb260daec8ae25caf9d",
+              "verdict": "REVISE",
+              "at": "2026-11-04T03:28:46Z"
             }
           ]
         }
