@@ -67,8 +67,8 @@ retention: not available: CAUSE
 | the Python running workflow-manager cannot start: ERROR | reinstall workflow-manager (`pipx reinstall workflow-manager`) |
 | the report did not finish within 300 seconds | run `python3 -I scripts/workflow_retention.py report` in the repository |
 | the script refused (its own `error:` code and message, for example no GitHub `origin` remote or no state file) | the script's own `next step` |
-| the script exited with status 2 without a refusal (FIRST LINE OF ITS ERROR OUTPUT), that is without its own `error:` and `next step:` lines | run `python3 -I scripts/workflow_retention.py report` in the repository |
-| the script exited with status N (FIRST LINE OF ITS ERROR OUTPUT), N being neither 0 nor 2 | run `python3 -I scripts/workflow_retention.py report` in the repository |
+| the script exited with status 2 without a refusal (FIRST LINE OF ITS ERROR OUTPUT, or `(no message)` when it wrote none), that is without its own `error:` and `next step:` lines | run `python3 -I scripts/workflow_retention.py report` in the repository |
+| the script exited with status N (FIRST LINE OF ITS ERROR OUTPUT, or `(no message)` when it wrote none), N being neither 0 nor 2 | run `python3 -I scripts/workflow_retention.py report` in the repository |
 | the script's output is not UTF-8 text | run `python3 -I scripts/workflow_retention.py report` in the repository |
 | the script's output is not one JSON object | run `python3 -I scripts/workflow_retention.py report` in the repository |
 | the script's report has kind VALUE, not 'retention-report' | update workflow-manager to the newest release |
@@ -79,11 +79,11 @@ retention: not available: CAUSE
 
 ### Limits on the report
 
-The Manager checks the whole report before it prints any of it. A string has no control character. A number lies from 0 to 2**63 - 1. A work-item id or a reason has at most 256 characters (an id the script files as `invalid_id` is never printed and is only checked for valid text). `repository`, `archive_dir` and each `read_errors[].path` have at most 4096 characters, and each `read_errors[].error` at most 8192. A report that breaks a limit is shown as the two lines above with the `malformed` cause, and the exit status does not change.
+The Manager checks the whole report before it prints any of it. A string is valid text and has no control character. A number lies from 0 to 2**63 - 1. A work-item id or a reason has at most 256 characters (an id the script files as `invalid_id` is never printed and is only checked for valid text). `repository`, `archive_dir` and each `read_errors[].path` have at most 4096 characters, and each `read_errors[].error` at most 8192. A report that breaks a limit is shown as the two lines above with the `malformed` cause, and the exit status does not change.
 
 The 4096 on `read_errors[].path` is Linux's `PATH_MAX`, but it is not a strict bound for that field: the script writes the path as a string, so a path can be longer. A valid report with such a path prints `retention: not available: the script's report is malformed: read_errors[].path is longer than 4096 characters`, never the path cut short, and its step is to run `python3 -I scripts/workflow_retention.py report`, which shows the whole report. The Manager does not raise the limit.
 
-When the kind or schema_version is one the Manager does not read, the line shows the value cut at 40 characters, then `... (N characters)`. N is the length of the value itself: a string counts its characters without the quotes the display adds, a number the characters it is written with, a sign included, and a list or object the characters of its printed form, never its elements.
+When the kind or schema_version is one the Manager does not read, the line shows the value as it prints, which puts a string between quotes and escapes each control character, so the printed form can be longer than the value. A value whose printed form is at most 40 characters is shown whole; a longer one shows its first 40 printed characters, then `... (N characters)`. N is the length of the value itself: a string counts its characters without the quotes the display adds, a number the characters it is written with, a sign included, and a list or object the characters of its printed form, never its elements.
 
 ## Exit status
 
