@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_work_item_id": null,
+  "active_work_item_id": "discovery-test-cleanup",
   "work_items": {
     "plan-amendment-mechanism": {
       "work_item_type": "process",
@@ -25430,6 +25430,332 @@
         },
         "evaluated_at": "2026-11-04T17:53:13Z",
         "workflow_release": "2.25.5"
+      }
+    },
+    "discovery-test-cleanup": {
+      "work_item_type": "process",
+      "work_item_kind": "process",
+      "work_item_id": "discovery-test-cleanup",
+      "parent_work_item_id": null,
+      "plan_path": "docs/ai-workflow/WORKFLOW_MANAGER_DISCOVERY_TEST_CLEANUP_PLAN.md",
+      "registry_path": "docs/ai-workflow/registry/discovery-test-cleanup-registry.json",
+      "mapping_path": "docs/ai-workflow/requirements/discovery-test-cleanup-mapping.json",
+      "governing_workflow_version": "2.2",
+      "phase": "IMPLEMENTING",
+      "plan_revision": 3,
+      "implementation_revision": null,
+      "functional_review_round": null,
+      "base_commit": "fd423fa4bf8e53d4e8e2af13986e5152b6de489d",
+      "reviewed_implementation_head": null,
+      "current_checkpoint_id": null,
+      "last_completed_checkpoint_id": null,
+      "checkpoints": {},
+      "current_bundle_id": "9b10d71d87bbe916a2a0cfa1572efcd3c26ef9217a24a551d4ba5fa85c58e2d0",
+      "plan_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "9b10d71d87bbe916a2a0cfa1572efcd3c26ef9217a24a551d4ba5fa85c58e2d0",
+        "approved_review_content_id": "6396b38daff16684150547e31f8643b9c86eb5077c4eb8d0fd20da1b95dd5170",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/WORKFLOW_MANAGER_DISCOVERY_TEST_CLEANUP_PLAN.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "26c5f6b468abe186a87ef4bfdddb68f5b07d64b9"
+          },
+          {
+            "path": "docs/ai-workflow/registry/discovery-test-cleanup-registry.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "fc3a10fb2b8dcde8719c2c10632bb85315a1d6fe"
+          },
+          {
+            "path": "docs/ai-workflow/requirements/discovery-test-cleanup-mapping.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "fcdcffd8550a97eeea1b6022c9624965d5155f8d"
+          }
+        ],
+        "reviewed_content_commit": null,
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-11-04T19:13:09Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "6396b38daff16684150547e31f8643b9c86eb5077c4eb8d0fd20da1b95dd5170",
+            "ledger": {
+              "local": {
+                "bundle_id": "9b10d71d87bbe916a2a0cfa1572efcd3c26ef9217a24a551d4ba5fa85c58e2d0",
+                "verdict": "APPROVE",
+                "round": 3,
+                "verdict_sha256": "d516690287286889b2621ebc7be943be966eba092472c3d9a4cb5ec8d84b86fc",
+                "ledger_entry_sha256": "87f82439aceb02b6300a59616de866fc3f4a1a8f798edf026360dbb3538b4a62",
+                "run_ref": "session:local .ai-review/discovery-test-cleanup/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "9b10d71d87bbe916a2a0cfa1572efcd3c26ef9217a24a551d4ba5fa85c58e2d0",
+                "verdict": "APPROVE",
+                "round": 3,
+                "verdict_sha256": "62aa0d96699804ae07828f448e44b9d99f2ec969ffd71d62931b4285f2ec5016",
+                "ledger_entry_sha256": "b6d2708fa361e3e8decd2660e545ef23e168f328acfe9ae71ac55465637f638e",
+                "run_ref": "codex:20261104T190944Z-136586bc",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-11-04T19:13:09Z",
+          "workflow_release": "2.25.5"
+        }
+      },
+      "technical_approval": null,
+      "technical_review_block_pins": [],
+      "plan_review_stages": {
+        "review_content_id": "6396b38daff16684150547e31f8643b9c86eb5077c4eb8d0fd20da1b95dd5170",
+        "LOCAL_MODEL_PLAN_REVIEW": {
+          "bundle_id": "9b10d71d87bbe916a2a0cfa1572efcd3c26ef9217a24a551d4ba5fa85c58e2d0",
+          "verdict": "APPROVE",
+          "round": 3,
+          "completed_at": "2026-11-04T19:09:21Z",
+          "verdict_sha256": "d516690287286889b2621ebc7be943be966eba092472c3d9a4cb5ec8d84b86fc",
+          "run_ref": "session:local .ai-review/discovery-test-cleanup/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_PLAN_REVIEW": {
+          "bundle_id": "9b10d71d87bbe916a2a0cfa1572efcd3c26ef9217a24a551d4ba5fa85c58e2d0",
+          "verdict": "APPROVE",
+          "round": 3,
+          "completed_at": "2026-11-04T19:12:16Z",
+          "verdict_sha256": "62aa0d96699804ae07828f448e44b9d99f2ec969ffd71d62931b4285f2ec5016",
+          "run_ref": "codex:20261104T190944Z-136586bc",
+          "reviewer_model": "openai/gpt-6.1-sol"
+        }
+      },
+      "functional_acceptance_status": null,
+      "blocking_decisions": [],
+      "review_round_counts": {
+        "plan": {
+          "local": 3,
+          "external": 2
+        },
+        "implementation": {
+          "local": 0,
+          "external": 0
+        }
+      },
+      "state_revision": 13,
+      "last_transition": "2026-11-04T19:13:09Z",
+      "feedback_layout": "scoped",
+      "plan_review_binding": {
+        "status": "BOUND",
+        "at": "2026-11-04T19:00:46Z",
+        "consumed": {
+          "review_content_id": "fdf90be5bae0279b3e153aa890dc97e4f4d04110c58d7ecdd103d4b5850a38d4",
+          "plan_revision": 2,
+          "legacy": false
+        },
+        "published": {
+          "review_content_id": "6396b38daff16684150547e31f8643b9c86eb5077c4eb8d0fd20da1b95dd5170",
+          "plan_revision": 3
+        },
+        "bound": {
+          "review_content_id": "6396b38daff16684150547e31f8643b9c86eb5077c4eb8d0fd20da1b95dd5170",
+          "bundle_id": "9b10d71d87bbe916a2a0cfa1572efcd3c26ef9217a24a551d4ba5fa85c58e2d0",
+          "plan_revision": 3
+        }
+      },
+      "consumed_plan_review_content_ids": [
+        "94bf70f772075a238f197e621b690b3e91d37d41564141d6f3088d93f1ab5043",
+        "fdf90be5bae0279b3e153aa890dc97e4f4d04110c58d7ecdd103d4b5850a38d4"
+      ],
+      "optional_findings": {
+        "F-93cb74539f86": {
+          "digest": "93cb74539f86b171a70426ff18657e72d4882b08bb259277f25d7703342555ac",
+          "text": "**LPR1-O01: flow 9's M5 uses loopback TCP, against section 5's \"no TCP sockets\".** With the probe never skipping, `test_both_leak_checking_classes_skip_when_sockets_cannot_be_listed` runs the leak classes for real (`$P` took 13 s, against 0.002 s otherwise). Exit 1 and the named failure hold anyway, but 5 failures are reported across 3 tests. Selecting `$P.test_a_directory_that_cannot_expose_links_is_a_skip_with_its_reason` for M5 keeps the flow offline and exact.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "94bf70f772075a238f197e621b690b3e91d37d41564141d6f3088d93f1ab5043",
+              "verdict": "REVISE",
+              "at": "2026-11-04T18:45:27Z"
+            }
+          ]
+        },
+        "F-71125a99dbad": {
+          "digest": "71125a99dbadf9ef8732a0663266b47724ca9b99ad41ee3d2ded3079ce6ba4c8",
+          "text": "**LPR1-O02: \"restore\" in flows 6 to 9 is not spelled out, and the obvious reading gives a false pass.** `command cp -rf $S/cand $S/mut` onto an existing `$S/mut` copies into `$S/mut/cand`, so the previous mutation stays in place. Flow 6 would then still see M1's failure of the same test. Spell it as `command rm -rf $S/mut; command cp -rf $S/cand $S/mut`.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "94bf70f772075a238f197e621b690b3e91d37d41564141d6f3088d93f1ab5043",
+              "verdict": "REVISE",
+              "at": "2026-11-04T18:45:27Z"
+            }
+          ]
+        },
+        "F-a95d4558cb9d": {
+          "digest": "a95d4558cb9db2f2b7bad1181961561654c267e6e3b1d8de85f09f579e6e9ebe",
+          "text": "**LPR1-O03: flow 10's and M6's expected failures are incomplete.** M6 also fails `TestTheBoundedPieces` tests (for example `test_the_real_socket_outlives_close_while_a_reader_is_open`), not only the two leak classes. The expectation should say the two leak classes are among the failures.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "94bf70f772075a238f197e621b690b3e91d37d41564141d6f3088d93f1ab5043",
+              "verdict": "REVISE",
+              "at": "2026-11-04T18:45:27Z"
+            }
+          ]
+        },
+        "F-7703dc898492": {
+          "digest": "7703dc898492937214f4ed4ba2666637f373ac4d3d4c171f4d88d7ea83d20187",
+          "text": "**LPR2-O01: flow 9's \"its reason the probe's\" cannot be seen in the output of the command it names.** `$S/t.py` runs with `verbosity=1`, which prints `OK (skipped=1)` and no reason: on all four M8 runs the text `do not expose` appears 0 times in the output. The exit codes and the skip are observable, and the reason is pinned by the coupling test and shown failing by M2, so no property goes unproven; only this one clause of the flow cannot be checked as written. Fix: `verbosity=2` in `t.py`. Run here, it prints `skipped \"descriptor directories ('/nonexistent-fd',) do not expose socket links on linux; ...\"`. The checklist should carry this.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "fdf90be5bae0279b3e153aa890dc97e4f4d04110c58d7ecdd103d4b5850a38d4",
+              "verdict": "APPROVE",
+              "at": "2026-11-04T18:55:54Z"
+            }
+          ]
+        },
+        "F-2411b51e40fa": {
+          "digest": "2411b51e40fa512c73d40a42199a15e962e631782d76ef0973c6a2ec11b80967",
+          "text": "**LPR2-O02: CP1 still names the old mutation number.** \"`src/` is not edited (mutation M6 touches only the scratch copy)\" dates from revision 1. In revision 2 M6 is the probe that never skips, a change to the test file; the mutation that edits `src/` is M7. Section 3 and flow 10 have it right, so the meaning survives.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "fdf90be5bae0279b3e153aa890dc97e4f4d04110c58d7ecdd103d4b5850a38d4",
+              "verdict": "APPROVE",
+              "at": "2026-11-04T18:55:54Z"
+            }
+          ]
+        },
+        "F-4af7b74a39e3": {
+          "digest": "4af7b74a39e39dca021afa4b045263f001bf5310b4dd4aa91244dc06100b4e65",
+          "text": "**LPR2-O03: `test_the_control_skips_exactly_where_the_probe_does` claims more than it shows.** The two can still differ on a directory whose entry for the descriptor is a link to something other than a socket. Reproduced with a stand-in directory of `pipe:[1]` links for descriptors 0 to 255: the probe skips, the control fails. This is the behaviour section 2 asks for (\"on a host whose directory lists links, the control still fails if the probe skips\") and no host is known to show it, so the code should stay. Only the word \"exactly\" is too strong.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "fdf90be5bae0279b3e153aa890dc97e4f4d04110c58d7ecdd103d4b5850a38d4",
+              "verdict": "APPROVE",
+              "at": "2026-11-04T18:55:54Z"
+            }
+          ]
+        },
+        "F-b38dcbcb9f17": {
+          "digest": "b38dcbcb9f17b7bfc61ba518cde3ea2b983ac3f27c486178feeac476d0fa6dca",
+          "text": "**LPR2-O04: section 5's \"No flow writes outside `$S`\" does not hold for flow 10's second run.** The expected exit 1 leaves a kept results directory (`verdict: exit 1; results kept in .../wm-run-...`) under the run's temporary directory, outside `$S`. The flow should say so and remove it, so a functional tester does not read it as a defect or leave it behind.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "fdf90be5bae0279b3e153aa890dc97e4f4d04110c58d7ecdd103d4b5850a38d4",
+              "verdict": "APPROVE",
+              "at": "2026-11-04T18:55:54Z"
+            }
+          ]
+        },
+        "F-a3e02f601d0c": {
+          "digest": "a3e02f601d0c48f872f29dea40d278844c4eebce3a3dfcb064b8476ef1002917",
+          "text": "Section 5’s “No flow writes outside `$S`” is inaccurate: `standin()` uses `TemporaryDirectory()` without a directory argument, so fixtures use the system temporary directory. Set `TMPDIR` under `$S` or qualify the statement.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "MANUAL_EXTERNAL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "fdf90be5bae0279b3e153aa890dc97e4f4d04110c58d7ecdd103d4b5850a38d4",
+              "verdict": "REVISE",
+              "at": "2026-11-04T18:59:18Z"
+            }
+          ]
+        },
+        "F-fb1c94417394": {
+          "digest": "fb1c94417394d741826a3a38e01c678d9ee30c22497e0595adcab8b0ae79d521",
+          "text": "**LPR3-O01: `_lists_links` takes a parameter no caller passes.** Section 3's only call is `_lists_links()`, and the coupling test patches the module's tuple instead. In an item that removes unexercised setup, `def _lists_links() -> bool:` iterating `_FD_DIRECTORIES` is enough. `_blind_reason(directories)` is used by the probe and stays as written.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 3,
+              "review_content_id": "6396b38daff16684150547e31f8643b9c86eb5077c4eb8d0fd20da1b95dd5170",
+              "verdict": "APPROVE",
+              "at": "2026-11-04T19:09:21Z"
+            }
+          ]
+        },
+        "F-46be28cd6390": {
+          "digest": "46be28cd63900f1e5fdc7794c7cda27d5fae3a563adaef4bc038ba0ad461897e",
+          "text": "**LPR3-O02: flow 9 leaves two steps to the tester.** Section 5's fresh-copy recipe copies only `$S/cand`, so a literal reading mutates the candidate for both trees or edits `$S/base` in place, and M8's second variant has no command. The functional checklist should spell out `command cp -rf $S/base $S/mut` for the base runs and the regular-file directory, for example `mkdir $S/reg; : > $S/reg/3` with the matching `sed`. Built that way, both variants gave the expected results.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 3,
+              "review_content_id": "6396b38daff16684150547e31f8643b9c86eb5077c4eb8d0fd20da1b95dd5170",
+              "verdict": "APPROVE",
+              "at": "2026-11-04T19:09:21Z"
+            }
+          ]
+        },
+        "F-1d3e5b775100": {
+          "digest": "1d3e5b775100b4378523144b14e640c263f4b94d2232552c484f60f713b21b5a",
+          "text": "Plan lines 201–206 include M7 under “all through the offline `run`.” Exempt M7 explicitly, consistent with its documented requirement for flow 10’s full environment.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "MANUAL_EXTERNAL_PLAN_REVIEW",
+              "round": 3,
+              "review_content_id": "6396b38daff16684150547e31f8643b9c86eb5077c4eb8d0fd20da1b95dd5170",
+              "verdict": "APPROVE",
+              "at": "2026-11-04T19:12:16Z"
+            }
+          ]
+        }
       }
     }
   }

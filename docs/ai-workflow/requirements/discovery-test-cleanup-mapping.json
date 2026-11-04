@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "work_item_id": "discovery-test-cleanup",
+  "requirements": {
+    "R1": {
+      "description": "The descriptor probe's positive control decides whether the host can list sockets from what the first existing directory of _FD_DIRECTORIES shows (an open socket's descriptor as a symbolic link, not merely that the directory exists) and skips with the probe's own wording; a test fails when the control keeps a literal path, its own wording or an existence-only decision, on a missing directory and on a directory of regular files",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R2": {
+      "description": "The probe and its control look for the socket pair's own links (socket:[inode] from os.fstat of each end) instead of counting two new links in a before/after difference; a bystander pair opened after the first listing and kept open, and a growing-listing probe case, fail a return to counting; mutations that leave one end open or name the wrong inode fail the control, and one that leaks a socket link from the bounded read fails the leak checks",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R3": {
+      "description": "The unexercised recv_into and fileno setup lines are deleted from the two bounded-wrapper tests that carry them, with no assertion changed",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R4": {
+      "description": "Row 31 of the roadmap is Current while the item runs and Done at acceptance; the title is a test: change that releases nothing; only tests/test_discovery.py changes outside the bookkeeping, with no src/ change",
+      "checkpoint_ids": [
+        "CP2"
+      ]
+    }
+  }
+}
