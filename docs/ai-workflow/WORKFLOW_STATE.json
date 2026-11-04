@@ -25441,12 +25441,12 @@
       "registry_path": "docs/ai-workflow/registry/discovery-test-cleanup-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/discovery-test-cleanup-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "SELF_REVIEWING_IMPLEMENTATION",
+      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
       "plan_revision": 3,
-      "implementation_revision": null,
+      "implementation_revision": 1,
       "functional_review_round": null,
       "base_commit": "fd423fa4bf8e53d4e8e2af13986e5152b6de489d",
-      "reviewed_implementation_head": null,
+      "reviewed_implementation_head": "e18bd942b14adfc7a2988d59b62c75568b5a4e3a",
       "current_checkpoint_id": null,
       "last_completed_checkpoint_id": "CP2",
       "checkpoints": {
@@ -25585,8 +25585,8 @@
           "external": 0
         }
       },
-      "state_revision": 17,
-      "last_transition": "2026-11-04T19:21:35Z",
+      "state_revision": 18,
+      "last_transition": "2026-11-04T19:48:32Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
