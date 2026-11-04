@@ -2,7 +2,7 @@
 
 ## Milestone
 
-`latest-default-arm` -- in progress (`governing_workflow_version: "2.2"`, `process`, plan revision 2, base `d785aa8`, branch `milestone/latest-default-arm`): roadmap row 30 (#100). A `test:` pull request title (releases nothing).
+`latest-default-arm` -- complete, accepted by policy (`governing_workflow_version: "2.2"`, `process`, plan revision 2, base `d785aa8`, branch `milestone/latest-default-arm`): roadmap row 30 (#100). A `test:` pull request title (releases nothing).
 
 The default-version arm of the filter that keeps a release this Manager cannot use out of the explicit run's latest (`_latest_filter`) is pinned by tests, and the `Latest available` bullet of `docs/update.md` no longer says a pin or the default version is "always named": the keep applies to a release whose `manager` block neither the run nor the cache could read. No behaviour, printed text or exit code changes; no Workflow change.
 
@@ -12,7 +12,7 @@ The default-version arm of the filter that keeps a release this Manager cannot u
 
 ### CP2: bookkeeping -- complete
 
-- `docs/ROADMAP.md` row 30 is Current (Done at acceptance); this record.
+- `docs/ROADMAP.md` row 30 is Done (accepted by policy); this record.
 
 ### Failure-only mutations
 
@@ -102,5 +102,4 @@ path. Report each flow number with the observed output.
 
 ## Next action
 
-Functional review: run the checklist above (flows 1 to 7 offline; flow 8 in the
-user's environment), then `/accept-milestone` once it is clean.
+No incomplete milestone is left in `docs/ROADMAP.md` (row 30 was the last), and the repository declares no backlog. Pull request #163 (`test:`, releases nothing) is ready to merge; then `/milestone-plan` for the next item once one is added.

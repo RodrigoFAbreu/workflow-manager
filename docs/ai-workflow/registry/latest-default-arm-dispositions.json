@@ -1,0 +1,30 @@
+{
+  "dispositions": {
+    "F-5a2c1737570c": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#162",
+      "note": "Follow-up item 1."
+    },
+    "F-a2c570d7d578": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#162",
+      "note": "Follow-up item 3 (docs wording)."
+    },
+    "F-e2b43dc3d3f3": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#162",
+      "note": "Follow-up item 2."
+    },
+    "F-f3904cfdfd50": {
+      "disposition": "dropped",
+      "reason": "Wording of the review request in the generated bundle; the declaration classifies every path the item changes."
+    },
+    "F-fa25980b3780": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#162",
+      "note": "Follow-up item 3 (docs wording, same point)."
+    }
+  },
+  "schema_version": 1,
+  "work_item_id": "latest-default-arm"
+}
