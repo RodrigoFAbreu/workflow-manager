@@ -843,6 +843,42 @@ class TestTheListedReleasesOfTheMetadata(unittest.TestCase):
         self.assertEqual(comp.explicit_latest(["7.0.1"], metadata), ("7.0.3", ""))
 
 
+class TestTheLatestFilterKeepsTheDefault(unittest.TestCase):
+    def needs(self, pins, default, blocks=None, cached=None):
+        cache = SimpleNamespace(cached_manifest=lambda version: (cached or {}).get(version))
+        metadata = comp.ReleaseMetadata(blocks=blocks or {})
+        return cli_module._latest_filter(cache, metadata, pins, default)
+
+    def test_the_default_version_with_no_pins_is_kept_without_a_manifest(self):
+        needs = self.needs((), "7.0.9")
+        self.assertIsNone(needs("7.0.9"))
+        self.assertIs(needs("7.0.8"), comp.UNREADABLE)
+
+    def test_a_pin_is_kept_without_a_manifest_and_a_release_that_is_neither_is_not(self):
+        needs = self.needs(("7.0.1",), "7.0.9")
+        self.assertIsNone(needs("7.0.1"))
+        self.assertIsNone(needs("7.0.9"))
+        self.assertIs(needs("7.0.8"), comp.UNREADABLE)
+
+    def test_a_default_whose_minimum_the_run_read_and_not_met_is_dropped(self):
+        blocks = {"7.0.9": ManagerBlock(min_manager_version="99.0.0")}
+        with mock.patch.object(cli_module, "_installed_version", return_value="1.14.8"):
+            needs = self.needs((), "7.0.9", blocks)
+            self.assertEqual(needs("7.0.9"), "99.0.0")
+
+    def test_a_default_whose_cached_block_is_read_is_judged_like_any_other_release(self):
+        cached = {
+            "7.0.9": b'{"manager": {"schema_version": 1, "min_manager_version": "99.0.0"}}',
+            "7.0.8": b'{"manager": 5}',
+            "7.0.7": b'{}',
+        }
+        with mock.patch.object(cli_module, "_installed_version", return_value="1.14.8"):
+            for default, expected in (("7.0.9", "99.0.0"), ("7.0.8", comp.MALFORMED_BLOCK),
+                                      ("7.0.7", None)):
+                with self.subTest(default=default):
+                    self.assertEqual(self.needs((), default, cached=cached)(default), expected)
+
+
 class TestTheDocs(unittest.TestCase):
     def test_the_new_error_has_an_advice_row_and_an_exit_code_row(self):
         error = release_source.incompatible("7.0.2", "1.14.0", "1.13.0")
@@ -853,6 +889,14 @@ class TestTheDocs(unittest.TestCase):
         self.assertTrue(step.endswith("then run the same command again"), step)
         exit_codes = (Path(__file__).resolve().parent.parent / "docs" / "exit-codes.md").read_text()
         self.assertIn("needs a newer Manager", exit_codes)
+
+    def test_the_latest_available_bullet_qualifies_the_kept_pins(self):
+        page = (Path(__file__).resolve().parent.parent / "docs" / "update.md").read_text()
+        text = " ".join(page.split())
+        self.assertIn("while a pin or the default version whose `manager` block neither this "
+                      "run nor the cache could read is kept (one whose block was read is judged "
+                      "like any other release)", text)
+        self.assertNotIn("is always named", text)
 
 
 if __name__ == "__main__":
