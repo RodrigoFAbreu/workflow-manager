@@ -26215,12 +26215,12 @@
       "registry_path": "docs/ai-workflow/registry/runner-test-cleanup-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/runner-test-cleanup-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "SELF_REVIEWING_IMPLEMENTATION",
+      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
       "plan_revision": 3,
-      "implementation_revision": null,
+      "implementation_revision": 1,
       "functional_review_round": null,
       "base_commit": "c041050c55d07ee7dd8f8a4c1eb0534e369b36a3",
-      "reviewed_implementation_head": null,
+      "reviewed_implementation_head": "2887256f3c86a205d7da7720b916a0edaff56d73",
       "current_checkpoint_id": null,
       "last_completed_checkpoint_id": "CP2",
       "checkpoints": {
@@ -26359,8 +26359,8 @@
           "external": 0
         }
       },
-      "state_revision": 16,
-      "last_transition": "2026-11-04T22:04:55Z",
+      "state_revision": 17,
+      "last_transition": "2026-11-04T22:20:00Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
