@@ -24814,7 +24814,7 @@
       "registry_path": "docs/ai-workflow/registry/latest-default-arm-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/latest-default-arm-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "AWAITING_FUNCTIONAL_REVIEW",
       "plan_revision": 2,
       "implementation_revision": 1,
       "functional_review_round": null,
@@ -24923,7 +24923,96 @@
           "workflow_release": "2.25.5"
         }
       },
-      "technical_approval": null,
+      "technical_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "a6b509e87ac26ed4d1002a5478ea2115a3fb20801f8e7aea5badf397e99636c8",
+        "approved_review_content_id": "9c6e917c9d85fd796e206aa9455e51d79789625ea0f88e1b1daada939b503162",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/registry/latest-default-arm-artifacts.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "ebd2150c4e70d0758d260d89a3fb2d79e2c77440"
+          },
+          {
+            "path": "docs/update.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "4986ef35627b6e08ea5a071b81b4494f5d6091d1"
+          },
+          {
+            "path": "tests/test_release_metadata.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "8f796b5ff0fd7d8f1f451f5adc4652b12fa8ed96"
+          }
+        ],
+        "reviewed_content_commit": "74ed22253162766851f256518dc07a96ff9c4073",
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-11-04T17:10:24Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "9c6e917c9d85fd796e206aa9455e51d79789625ea0f88e1b1daada939b503162",
+            "ledger": {
+              "local": {
+                "bundle_id": "a6b509e87ac26ed4d1002a5478ea2115a3fb20801f8e7aea5badf397e99636c8",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "17fb9a94649c3e9d27fdf3a8956a18c88383dca9dcc7cb1a84956f3d0cc0f23c",
+                "ledger_entry_sha256": "e8e907664f4f60d0280c535fe16cdb5a9bc5441c7039ee333bd0bac1717148a9",
+                "run_ref": "session:local .ai-review/latest-default-arm/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "a6b509e87ac26ed4d1002a5478ea2115a3fb20801f8e7aea5badf397e99636c8",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "db19c6f2a9a5d78dc3980ec440c00b91ba146677343200d5663bf686b67af50a",
+                "ledger_entry_sha256": "955dda73a9c2bc9da956bce0dd1920c57f21548caf19871b066553cd8e06a559",
+                "run_ref": "codex:20261104T170719Z-22450fc3",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-11-04T17:10:24Z",
+          "workflow_release": "2.25.5"
+        }
+      },
       "technical_review_block_pins": [],
       "plan_review_stages": {
         "review_content_id": "91a5aced954dc433072ea9002acd4ccc0bb903fdbdf33137eee1969254d901ae",
@@ -24954,12 +25043,12 @@
           "external": 1
         },
         "implementation": {
-          "local": 0,
-          "external": 0
+          "local": 1,
+          "external": 1
         }
       },
-      "state_revision": 14,
-      "last_transition": "2026-11-04T16:39:05Z",
+      "state_revision": 17,
+      "last_transition": "2026-11-04T17:10:24Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -24996,6 +25085,83 @@
               "at": "2026-11-04T16:02:44Z"
             }
           ]
+        },
+        "F-a2c570d7d578": {
+          "digest": "a2c570d7d57818f7b33cb8f10d42a89bd7d9b3d3584b0f94ad0f9df344c5c5f6",
+          "text": "`docs/update.md`, the new sentence: \"could read\" leaves a malformed block ambiguous. `_latest_filter` keeps a pin or the default only when `cached_manifest` returns `None` (no trusted cache entry). A trusted manifest that is not JSON, or whose block is `5`, is dropped and named (`MALFORMED_BLOCK`), though a reader may say the cache \"could not read\" that block. The sentence before it names the malformed case and the parenthesis points the right way, so this is ambiguity rather than a contradiction. Tighter words, for a later change of the sentence and its test: \"whose `manager` block this run did not read and that has no trusted cached manifest\".",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "9c6e917c9d85fd796e206aa9455e51d79789625ea0f88e1b1daada939b503162",
+              "verdict": "APPROVE",
+              "at": "2026-11-04T17:07:03Z"
+            }
+          ]
+        },
+        "F-5a2c1737570c": {
+          "digest": "5a2c1737570c19be68f9b4d45201f0a8c50cfdf7bb3a149e0c5ff7d0489d3398",
+          "text": "`tests/test_release_metadata.py`, `TestTheLatestFilterKeepsTheDefault`: the default's cached-block cases cover an unmet minimum, a malformed block and no block, but not a block written for a newer Manager. The mutation `if version == default and exc.newer_manager: return None` in the `except` survives `test_compatibility.py`, `test_discovery.py`, `test_doctor_cli.py` and `test_release_metadata.py`. One more subtest would close it. Mapping R1 does not require it.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "9c6e917c9d85fd796e206aa9455e51d79789625ea0f88e1b1daada939b503162",
+              "verdict": "APPROVE",
+              "at": "2026-11-04T17:07:03Z"
+            }
+          ]
+        },
+        "F-e2b43dc3d3f3": {
+          "digest": "e2b43dc3d3f3d5a5657ef13d12fc26fd0224cb05b90768f7a14950f75512ecf7",
+          "text": "The new sentence also says a pin whose block was read is judged like any other release, and no test pins that for a non-built-in pin: `if version in pins: return None` after the built-in check, and an exemption for pins in the `except`, both survive the same four modules. No real pin reaches this path today, because every pin is at or below 2.12.0, has built-in data and returns first, and no pin is added after 2.12.0. So this gap is theoretical, and a short case in the same class would close it.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "9c6e917c9d85fd796e206aa9455e51d79789625ea0f88e1b1daada939b503162",
+              "verdict": "APPROVE",
+              "at": "2026-11-04T17:07:03Z"
+            }
+          ]
+        },
+        "F-fa25980b3780": {
+          "digest": "fa25980b3780ba1b6c1b0af725f956fca530fad01f56caa8a7e3acf27e7f80a1",
+          "text": "`docs/update.md:45`: “could read” remains ambiguous for malformed blocks, which the filter rejects. Consider “whose `manager` block this run did not read and that has no trusted cached manifest.” The preceding sentence already explains malformed blocks, so this is a wording improvement.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "9c6e917c9d85fd796e206aa9455e51d79789625ea0f88e1b1daada939b503162",
+              "verdict": "APPROVE",
+              "at": "2026-11-04T17:09:56Z"
+            }
+          ]
+        }
+      },
+      "implementation_review_stages": {
+        "review_content_id": "9c6e917c9d85fd796e206aa9455e51d79789625ea0f88e1b1daada939b503162",
+        "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "a6b509e87ac26ed4d1002a5478ea2115a3fb20801f8e7aea5badf397e99636c8",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-11-04T17:07:03Z",
+          "verdict_sha256": "17fb9a94649c3e9d27fdf3a8956a18c88383dca9dcc7cb1a84956f3d0cc0f23c",
+          "run_ref": "session:local .ai-review/latest-default-arm/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "a6b509e87ac26ed4d1002a5478ea2115a3fb20801f8e7aea5badf397e99636c8",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-11-04T17:09:56Z",
+          "verdict_sha256": "db19c6f2a9a5d78dc3980ec440c00b91ba146677343200d5663bf686b67af50a",
+          "run_ref": "codex:20261104T170719Z-22450fc3",
+          "reviewer_model": "openai/gpt-6.1-sol"
         }
       }
     }
