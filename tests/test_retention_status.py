@@ -771,8 +771,7 @@ class TestHardenedValidation(Scratch):
                     put(rep, "a" + char + "b")
                     got = _invalid(rep)
                     self.assertIsNotNone(got)
-                    self.assertIn(name, got)
-                    self.assertIn("contains a control character", got)
+                    self.assertEqual(got, f"{name} contains a control character")
                     self.assertNotIn(char, got)
 
     def test_a_forged_line_and_an_escape_fall_back_for_both_commands(self):
@@ -849,7 +848,7 @@ class TestHardenedValidation(Scratch):
     def test_a_value_echoed_in_a_refusal_is_cut_and_escaped(self):
         cases = {
             "kind": (dict(kind="x" * 5000),
-                     "the script's report has kind '" + "x" * 39 + "... (5002 characters), not "
+                     "the script's report has kind '" + "x" * 39 + "... (5000 characters), not "
                      "'retention-report'"),
             "schema_version": (dict(schema_version=10 ** 400),
                                "the script's report has schema_version 1" + "0" * 39
@@ -874,11 +873,43 @@ class TestHardenedValidation(Scratch):
         self.assertEqual(retention._shown(2), "2")
         text = repr("y" * 38)  # exactly 40 characters
         self.assertEqual(retention._shown("y" * 38), text)
-        self.assertTrue(retention._shown("y" * 39).endswith("... (41 characters)"))
+        self.assertTrue(retention._shown("y" * 39).endswith("... (39 characters)"))
         deep = []
         for _ in range(100000):
             deep = [deep]
         self.assertEqual(retention._shown(deep), "<value>")
+
+    def test_the_echo_count_is_the_values_own_length(self):
+        for value, count in (("y" * 39, 39), ("y" * 5000, 5000), ("\x1b" * 50, 50),
+                             (["x"] * 50, len(repr(["x"] * 50))), ({"a": "b" * 50}, 59),
+                             (10 ** 400, 401), (-(10 ** 400), 402),
+                             ("1" * 100, 100), (int("1" * 100), 100)):
+            with self.subTest(value=repr(value)[:20], count=count):
+                self.assertTrue(retention._shown(value).endswith(f"... ({count} characters)"))
+        self.assertEqual(len(repr(["x"] * 50)), 250)
+        for value in ("y" * 38, 10 ** 39, ["a"] * 5):
+            self.assertEqual(retention._shown(value), repr(value))
+
+    def test_a_read_error_path_over_the_limit_is_the_documented_fallback(self):
+        cause = "the script's report is malformed: read_errors[].path is longer than 4096 characters"
+        for command in ("status", "doctor"):
+            with self.subTest(command=command, size=4097):
+                rep = report(finished(), complete=False)
+                rep["read_errors"] = [{"path": "a" * 4097, "error": "e"}]
+                before = tree_hash(self.repo)
+                got = self.section(command, rep)
+                self.assertEqual(self.one_note(got, cause), retention.STEP_RUN_DIRECTLY)
+                self.assertIn(f"retention: not available: {cause}\n", got.stdout)
+                self.assertNotIn("a" * 100, got.stdout)
+                self.assertEqual(tree_hash(self.repo), before)
+            with self.subTest(command=command, size=4096):
+                rep = report(finished(), complete=False)
+                rep["read_errors"] = [{"path": "a" * 4096, "error": "e"}]
+                before = tree_hash(self.repo)
+                got = self.section(command, rep)
+                self.assertNotIn("not available", got.stdout)
+                self.assertIn("a" * 4096, got.stdout)
+                self.assertEqual(tree_hash(self.repo), before)
 
     def test_an_invalid_id_entry_is_not_refused_for_its_id(self):
         base = report(finished())
@@ -1095,24 +1126,165 @@ class TestDocs(unittest.TestCase):
         self.assertIn("(retention.md)", (REPO_ROOT / "docs" / "verify.md").read_text())
         self.assertIn("(retention.md)", (REPO_ROOT / "docs" / "update.md").read_text())
 
-    def test_every_cause_the_code_can_build_is_on_the_page(self):
-        text = " ".join(self.PAGE.read_text().split())
+    def _built_causes(self):
+        """Every cause the view can return, built by running the code: `(cause,
+        sentinels)`. The sentinels mark the variable part of each text. Nothing
+        is started: `Popen` is replaced and `_stop_group` does nothing."""
         target = Path("/t")
-        causes = [
-            retention.not_managed_note(target).cause,
-            retention.no_script_note(target).cause,
-            "the Python running workflow-manager cannot start",
-            f"the report did not finish within {retention.TIMEOUT_SECONDS} seconds",
-            "the script's report is malformed",
-            "the forge could not be queried",
+        ok = b'{"kind":"retention-report","schema_version":1}'
+
+        class Slow:
+            pid = 0
+
+            def communicate(self, timeout=None):
+                raise subprocess.TimeoutExpired("x", 1)
+
+        def fetch(**patch):
+            with mock.patch.object(retention, "_script_is_regular", return_value=True), \
+                    mock.patch.object(retention, "_stop_group"):
+                if "popen" in patch:
+                    with mock.patch.object(retention.subprocess, "Popen", **patch["popen"]):
+                        return retention.fetch(target)
+                with mock.patch.object(retention, "_run", return_value=patch["run"]):
+                    return retention.fetch(target)
+
+        def cause(**patch):
+            outcome = fetch(**patch)
+            self.assertIsNone(outcome.report)
+            return outcome.refusal
+
+        failed = {"not_finished": [{"work_item_id": "w", "reason": "query_failed:VAR"}],
+                  "finished": [], "kept_recent": []}
+        return [
+            (retention.not_managed_note(target), []),
+            (retention.no_script_note(target), []),
+            (cause(popen=dict(side_effect=OSError("VAR"))), ["VAR"]),
+            (cause(popen=dict(return_value=Slow())), []),
+            (cause(run=(2, b"", b"VAR")), ["VAR"]),
+            (cause(run=(77, b"", b"VAR")), ["77", "VAR"]),
+            (cause(run=(0, b"\xff", b"")), []),
+            (cause(run=(0, b"[]", b"")), []),
+            (cause(run=(0, b'{"kind":"VAR"}', b"")), ["'VAR'"]),
+            (cause(run=(0, b'{"kind":"retention-report","schema_version":"VAR"}', b"")),
+             ["'VAR'"]),
+            (cause(run=(0, ok, b"")), ["complete is missing"]),
+            (retention._query_failed_note(failed), ["VAR", "1"]),
         ]
-        for cause in causes:
-            with self.subTest(cause=cause):
-                self.assertIn(cause, text)
-        for step in (retention.STEP_REINSTALL, retention.STEP_RUN_DIRECTLY,
-                     retention.STEP_UPDATE_MANAGER, retention.STEP_FORGE, retention.STEP_RATE_LIMITED):
-            with self.subTest(step=step):
-                self.assertIn(step, text)
+
+    @staticmethod
+    def _pieces(note, sentinels, page_form=()):
+        """The fixed text around the sentinels of a cause, in order. A sentinel in
+        `page_form` is first written as the page writes it (`77` as `N`) and stays in
+        the fixed text, so the row of the cause, not another row, holds it."""
+        cause = note.cause
+        for sentinel, written in page_form:
+            cause = cause.replace(sentinel, written)
+            sentinels = [s for s in sentinels if s != sentinel]
+        pieces = [cause]
+        for sentinel in sentinels:
+            pieces = [part for piece in pieces for part in piece.split(sentinel)]
+        return pieces
+
+    def test_the_causes_built_from_the_code_are_what_they_say(self):
+        built = self._built_causes()
+        # the script's own refusal has no fixed text: its code and message, its step
+        stderr = b"error: repository_unknown: no origin\nnext step: add an origin"
+        with mock.patch.object(retention, "_script_is_regular", return_value=True), \
+                mock.patch.object(retention, "_run", return_value=(2, b"", stderr)):
+            refusal = retention.fetch(Path("/t")).refusal
+        self.assertEqual((refusal.cause, refusal.step),
+                         ("repository_unknown: no origin", "add an origin"))
+        # an invalid JSON text and a non-object are one cause, from two sites
+        with mock.patch.object(retention, "_script_is_regular", return_value=True), \
+                mock.patch.object(retention, "_run", return_value=(0, b"not json", b"")):
+            self.assertEqual(retention.fetch(Path("/t")).refusal.cause,
+                             built[7][0].cause)
+        # two causes never collapse into one: the fixed text before the variable part differs
+        leads = {self._pieces(note, sentinels)[0] for note, sentinels in built}
+        self.assertEqual(len(leads | {refusal.cause}), 13)
+
+    def _causes_table(self):
+        """The rows `[cause, step]` of the causes table, and no other text of the page."""
+        section = self.PAGE.read_text().split("## If it is not available", 1)[1]
+        section = section.split("\n###", 1)[0]
+        rows = []
+        for line in section.splitlines():
+            if line.startswith("|") and not set(line) <= set("|- "):
+                cells = [" ".join(cell.split()) for cell in line.strip().strip("|").split("|")]
+                if cells[0] != "Cause":
+                    rows.append(cells)
+        return rows
+
+    @staticmethod
+    def _rows_with(rows, pieces):
+        """The rows whose cause cell holds every piece, in order."""
+        found = []
+        for cells in rows:
+            at = 0
+            for piece in pieces:
+                at = cells[0].find(piece, at)
+                if at < 0:
+                    break
+                at += len(piece)
+            else:
+                found.append(cells)
+        return found
+
+    def test_every_cause_the_code_can_build_is_on_the_page(self):
+        rows = self._causes_table()
+        self.assertEqual(len(rows), 14)
+        for note, sentinels in self._built_causes():
+            for sentinel in sentinels:  # the variable part is in the cause it splits
+                self.assertIn(sentinel, note.cause)
+            pieces = [p.strip() for p in self._pieces(note, sentinels, (("77", "N"),))]
+            pieces = [p for p in pieces if re.search("[A-Za-z]", p)]
+            with self.subTest(cause=note.cause):
+                found = self._rows_with(rows, pieces)
+                self.assertTrue(found, f"no row of the causes table holds {pieces}")
+                # two forge rows share their words and differ by the code: one has its step
+                steps = [r[1].replace("`", "").replace("TARGET", "/t") for r in found]
+                self.assertIn(note.step.replace("`", ""), steps)
+        # the forge cause is two rows by its code: each has its own words and step
+        for code, wording, other in (("rate_limited", "every CODE `rate_limited`", "any other code"),
+                                     ("gh_missing", "any other code", "every CODE `rate_limited`")):
+            note = retention._query_failed_note(
+                {"not_finished": [{"work_item_id": "w", "reason": f"query_failed:{code}"}],
+                 "finished": [], "kept_recent": []})
+            head = "the forge could not be queried (CODE, N items), "
+            own = [r for r in rows if r[0] == head + wording]
+            self.assertEqual(len(own), 1, code)
+            self.assertEqual(own[0][1].replace("`", ""), note.step.replace("`", ""), code)
+            self.assertNotEqual(own[0][1], [r for r in rows if r[0] == head + other][0][1], code)
+        # the script's own refusal has no fixed text but its row
+        refused = self._rows_with(rows, ["the script refused"])
+        self.assertEqual(len(refused), 1)
+        self.assertIn("next step", refused[0][1])
+
+    def test_a_script_that_wrote_no_message_is_no_message(self):
+        for stderr in (b"", b" \n\t\n"):
+            with mock.patch.object(retention, "_script_is_regular", return_value=True), \
+                    mock.patch.object(retention, "_run", return_value=(77, b"", stderr)):
+                self.assertEqual(retention.fetch(Path("/t")).refusal.cause,
+                                 "the script exited with status 77 (no message)")
+
+    def test_the_page_states_the_limits_and_the_zero_header_case(self):
+        text = " ".join(self.PAGE.read_text().split())
+        rep = fixture()
+        rep["complete"] = False
+        rep["read_errors"] = [{"path": "a" * (retention.PATH_LIMIT + 1), "error": "e"}]
+        refusal = _invalid(rep)
+        self.assertEqual(refusal, "read_errors[].path is longer than 4096 characters")
+        self.assertIn(f"the script's report is malformed: {refusal}", text)
+        self.assertIn("PATH_MAX", text)
+        for figure in (retention.ID_LIMIT, retention.PATH_LIMIT, retention.ERROR_LIMIT):
+            self.assertIn(str(figure), text)
+        self.assertIn("A string is valid text and has no control character", text)
+        self.assertIn("N is the length of the value itself", text)
+        self.assertIn("or `(no message)` when it wrote none", text)
+        self.assertIn("A value whose printed form is at most 40 characters is shown whole", text)
+        self.assertIn("In a complete report with no finished work item", text)
+        self.assertIn("an incomplete report keeps the `retention: INCOMPLETE` first line "
+                      "whatever the count", text)
 
     def test_the_page_separates_finished_coverage_from_the_store(self):
         text = " ".join(self.PAGE.read_text().split())

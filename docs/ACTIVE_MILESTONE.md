@@ -2,40 +2,26 @@
 
 ## Milestone
 
-`update-dry-run-match` -- complete (accepted by policy) (`governing_workflow_version: "2.2"`, `process`, plan revision 2, base `76783c9`, branch `milestone/update-dry-run-match`): roadmap row 28 (#145, item 4). A `fix:` pull request title (releases a patch).
+`retention-view-limits` -- complete, accepted by policy (`governing_workflow_version: "2.2"`, `process`, plan revision 3, base `4a98c25`, branch `milestone/retention-view-limits`): roadmap row 29 (#147 items 1 to 3; #116 item 4's test of every cause, item 5's leftovers and the leftover of its last comment). A `fix:` pull request title (releases Manager 1.14.8).
 
-`update --dry-run` and the real `update` decide the same way on a record whose `workflow_version` is null: with `--release-version` or `--release-dir` both are accepted (the dry run previews, its header says `from a record with no workflow_version`, not `workflow None`); a run that must choose the release is refused by both with the same cause and step. A record damaged in another way, `doctor`, every other message and every exit code are unchanged. No Workflow change.
+What the retention view (`status --retention`, `doctor --retention`) says about its limits and causes is exact, documented and tested: the value it echoes in a refusal is counted by its own length (`(5000 characters)` for a 5000-character `kind`, where `(5002 characters)` was printed), its page states the limits on the report (the 4096-character limit on `read_errors[].path` is not a strict bound by `PATH_MAX`, and what the view prints above it) and that the zero-finished header belongs to a complete report, and its tests compare the complete refusal and build every cause the view can return (thirteen) from the code. Every other message and exit code is unchanged; no Workflow change.
 
-### CP1: the dry run's record check, its header, the tests and the docs -- complete
+### CP1: the count, the page and the tests -- complete
 
-- `src/workflow_manager/cli.py` (the record check in `cmd_dry_run` runs only for a non-null record; `_print_dry_run` words a null record), a comment in `src/workflow_manager/advice.py`, `tests/test_operator_ux.py` (the agreement test, the header test, one row removed from the test that pinned the divergence), `docs/update.md`, `docs/common-problems.md` (commit `74d55a5`).
+- `src/workflow_manager/retention.py` (`_shown` counts the value's own length), `tests/test_retention_status.py` (the complete-refusal comparison, the counting test, the read-error-path fallback test, the causes built from the code, the page test), `docs/retention.md` (the limits subsection, the zero-header sentence, the causes table) (commit `8acd5ee`).
 
 ### CP2: bookkeeping -- complete
 
-- `docs/ROADMAP.md` row 28 is Done; this record.
+- `docs/ROADMAP.md` row 29 is Done (accepted by policy; a `fix:` change, Manager patch release); this record.
 
-### Failure-only mutations (each restores one old behaviour, then `python3 tests/run_all.py --select test_operator_ux.py`, restored afterwards)
+### Failure-only mutations
 
-| Mutation | Fails |
-| --- | --- |
-| (a) unconditional `_refuse_unparseable_record(installed)` in `cmd_dry_run` | `test_update_and_dry_run_decide_the_same_way_on_a_null_record`, the three accepted rows |
-| (b) `_print_dry_run` back to `workflow {plan.current.workflow_version}` | `test_the_dry_run_header_names_a_null_record_in_words` and the agreement test's accepted rows |
-| (c) the record check skipped on any explicit run, not only a null record | `test_the_record_is_the_cause_for_each_command_and_its_own_step` |
-| (d) `floor=None` in `cmd_dry_run`'s `_choose_and_resolve` call | `test_update_and_dry_run_decide_the_same_way_on_a_null_record` (the refused row) and `test_a_null_record_is_refused_with_one_step_by_update_dry_run_and_doctor` |
-
-Unmutated: `python3 tests/run_all.py --select test_operator_ux.py` green (130 tests, head `74d55a5`).
+Section 5 of the plan, run in a scratch clone at self-review on `d049409`, one `python3 tests/run_all.py --select test_retention_status.py` each: the unmutated clone exit 0; all 20 mutations exit 1, each failing the test the plan names (the 19 of the plan, with the causes one run each, and one more for the distinct-leads guard: `the UTF-8 cause made the JSON cause's text`, failing `test_the_causes_built_from_the_code_are_what_they_say`). The bundle's `TEST_RESULTS.md` has the table.
 
 ### Self-review
 
-The full diff (`76783c9..1b7481c`) was read against plan sections 2 to 4, and the branch's `update --dry-run` was run by hand on a bootstrapped 2.25.5 repository whose record was set to `null`: with `--release-version 2.25.5` it exits 0, its header reads `from a record with no workflow_version to workflow 2.25.5`, and the real `update` with the same option prints the same changes and rewrites the record to `2.25.5`; without an option it is refused with the null-record cause and the step that ends in ` -- a real update, not a dry run`. No blocking or important finding. Two minor observations on the newly reachable preview, both outside this item's declared files and recorded for follow-up issues at acceptance:
-
-1. When `--release-version` names the latest release, the report's Recovery step 2 ("re-run with the same command") renders a bare `workflow-manager update TARGET`, which a null record refuses (`compatibility.build_report` passes a `--release-version` to Recovery only when it differs from the latest). The refusal is safe and its `next:` names the right command. With `--release-dir` the step carries the directory and is right.
-2. The real `update` prints `(no change)` while it rewrites a null record to the release; the dry run matches it, as the agreement test requires. The record rewrite is not listed by either.
-
-## Acceptance
-
-Functional review passed (flows 1 to 11, recorded as `functional_evidence`) and the milestone was accepted by policy (`/satisfy-gate acceptance`): pull request #159 green at `88f9b95`, every Optional finding dispositioned (`docs/milestones/completed/update-dry-run-match-findings.md`; follow-ups in RodrigoFAbreu/workflow-manager#158).
+Commit `d049409`: the zero-header text is the plan's one sentence (the test no longer rewrites the page to match it), the causes table follows the code's refusal order, the distinct-causes guard compares the thirteen leads rather than the whole texts, the read-error-path test compares the complete refusal line and checks the tree at both sizes, a redundant literal is gone, and the roadmap row counts a number by the characters it is written with.
 
 ## Next action
 
-No item is ready: row 28 was the last row of the roadmap's Workflow Manager table, and none is **Current**. `/milestone-plan` once the next row exists.
+No incomplete milestone is left in `docs/ROADMAP.md`. Plan the next one with `/milestone-plan` when it is chosen.

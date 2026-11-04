@@ -1,0 +1,80 @@
+{
+  "dispositions": {
+    "F-01de6dea91e9": {
+      "disposition": "fixed",
+      "note": "The counting test now has an object case ({'a': 'b'*50} ends '(59 characters)')."
+    },
+    "F-04f562af55bd": {
+      "disposition": "fixed",
+      "note": "Plan section 4 fixes the order the fetch docstring points to."
+    },
+    "F-0d60411396c1": {
+      "disposition": "fixed",
+      "note": "The no-message clauses are pinned (commit 6e74814)."
+    },
+    "F-1fe314bec9cd": {
+      "disposition": "fixed",
+      "note": "The plan now says Popen is patched for the duration of each call."
+    },
+    "F-20bdb7f05d1c": {
+      "disposition": "fixed",
+      "note": "Each cause is bound to its own row, step and variable part (commit b5193ca)."
+    },
+    "F-28325f2d40cf": {
+      "disposition": "fixed",
+      "note": "The script-refused row has a fixed-words assertion (commit b5193ca)."
+    },
+    "F-5ccadf76d88c": {
+      "disposition": "dropped",
+      "reason": "Generated bundle content (TEST_RESULTS.md), not a deliverable."
+    },
+    "F-5fd7378d3e36": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#160",
+      "note": "Follow-up item 1."
+    },
+    "F-6fb122f4e01b": {
+      "disposition": "fixed",
+      "note": "The mutation table lists the no_script and not_managed rows."
+    },
+    "F-98fad72613e3": {
+      "disposition": "fixed",
+      "note": "Flow 4 compares against STEP_RUN_DIRECTLY."
+    },
+    "F-99726f121a5d": {
+      "disposition": "fixed",
+      "note": "The scratch is a named directory on disk (mktemp under ~/.cache)."
+    },
+    "F-9a2b443dfd5b": {
+      "disposition": "fixed",
+      "note": "The limits paragraph states the valid-text check."
+    },
+    "F-a3790580f18d": {
+      "disposition": "dropped",
+      "reason": "Generated bundle content (REVIEW_REQUEST.md, TEST_RESULTS.md), not a deliverable."
+    },
+    "F-b5a7cf7766dd": {
+      "disposition": "fixed",
+      "note": "The plan defines a cause's lead."
+    },
+    "F-b9fdda03db12": {
+      "disposition": "fixed",
+      "note": "The page states the (no message) text."
+    },
+    "F-cd4371a5d5fc": {
+      "disposition": "fixed",
+      "note": "The plan says 'the view can return' and builds the not-managed cause separately."
+    },
+    "F-d6be2236a1e8": {
+      "disposition": "dropped",
+      "reason": "Same point: stale generated bundle metadata, not a deliverable."
+    },
+    "F-d88f98a8f9a1": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#160",
+      "note": "Follow-up item 2."
+    }
+  },
+  "schema_version": 1,
+  "work_item_id": "retention-view-limits"
+}

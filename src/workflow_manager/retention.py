@@ -210,14 +210,17 @@ def _printable(text: str, name: str, limit: int | None) -> None:
 
 def _shown(value) -> str:
     """A report value echoed in a refusal: its `repr` (which escapes every control
-    character), cut to SHOWN_LIMIT characters and marked with the whole length."""
+    character), cut to SHOWN_LIMIT characters and marked with the value's own length:
+    a string counts its characters (not the quotes the display adds), any other value
+    the characters of its printed form."""
     try:
         text = repr(value)
     except RecursionError:
         return "<value>"
     if len(text) <= SHOWN_LIMIT:
         return text
-    return f"{text[:SHOWN_LIMIT]}... ({len(text)} characters)"
+    length = len(value) if isinstance(value, str) else len(text)
+    return f"{text[:SHOWN_LIMIT]}... ({length} characters)"
 
 
 def _validate(report: dict) -> None:

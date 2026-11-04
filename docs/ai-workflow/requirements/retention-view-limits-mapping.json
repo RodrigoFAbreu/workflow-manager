@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "work_item_id": "retention-view-limits",
+  "requirements": {
+    "R1": {
+      "description": "The every-field control-character test compares the complete refusal, so finished[].work_item_id cannot pass for a refusal naming not_finished[].work_item_id",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R2": {
+      "description": "The kind and schema_version refusals count the value itself by one rule (a string without the display's quotes, a number its characters); only a string over the cut changes its printed number, 5002 becomes 5000; a list or object counts its printed form, never its elements",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R3": {
+      "description": "The page states the limits it checks, that the 4096 limit on read_errors[].path is not a strict PATH_MAX bound, what is printed above it, and what the echoed count counts; a test pins the printed fallback; no code change for the limit",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R4": {
+      "description": "The test of every cause builds all thirteen causes the view can return from the code and finds each, in its fixed words, on the page; the page gains the two rows it lacked (output not UTF-8, output not one JSON object)",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R5": {
+      "description": "The page says the zero-finished header applies to a complete report; the fixture description and the chmod 000 case are checked by hand and dropped as already right or non-existent",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R6": {
+      "description": "Each changed text or behaviour has a deterministic stub-engine test and a failure-only mutation; every other output and exit code byte-identical; a fix: title releases Manager 1.14.8; roadmap row 29 Current at planning, Done at acceptance",
+      "checkpoint_ids": [
+        "CP1",
+        "CP2"
+      ]
+    }
+  }
+}
