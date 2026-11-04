@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_work_item_id": "discovery-test-cleanup",
+  "active_work_item_id": null,
   "work_items": {
     "plan-amendment-mechanism": {
       "work_item_type": "process",
@@ -25441,7 +25441,7 @@
       "registry_path": "docs/ai-workflow/registry/discovery-test-cleanup-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/discovery-test-cleanup-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_FUNCTIONAL_REVIEW",
+      "phase": "MILESTONE_COMPLETE",
       "plan_revision": 3,
       "implementation_revision": 1,
       "functional_review_round": null,
@@ -25668,8 +25668,8 @@
           "external": 1
         }
       },
-      "state_revision": 21,
-      "last_transition": "2026-11-04T20:12:59Z",
+      "state_revision": 22,
+      "last_transition": "2026-11-04T20:42:48Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -25897,6 +25897,313 @@
           "run_ref": "codex:20261104T200935Z-5960916d",
           "reviewer_model": "openai/gpt-6.1-sol"
         }
+      },
+      "gate_evidence": {
+        "functional": {
+          "flow-1": {
+            "flow_id": "flow-1",
+            "status": "passed",
+            "head": "7bb3b1266570e2733a888172a2a6fb93dc770998",
+            "ran_at": "2026-11-04T20:23:19Z",
+            "summary": {
+              "checklist_blob": "6716e1f73a98766a39e479d5b809f945fee0ed4e",
+              "text": "git diff --stat BASE..HEAD over src tests tools lists only tests/test_discovery.py (1 file changed, 67+/16-). Supersedes the Controller's environment record of the same id. (Run by an independent headless executor in a disposable clone; flows 1-9 in a normal shell, not under unshare -rn.)"
+            },
+            "log_digest": "450f3ae0acded4c11ccd3dc56f1a28001a0d0492653f9b00cc13cec2b3416730",
+            "run_ref": "manager-orchestrator:runs/md19-functional-r1",
+            "reporter": "manager-orchestrator (independent run, claude claude-sonnet-5-5)",
+            "identity": "49037d5e935016877463b3c8cd12c57e82f705b1f697bcf36e2fab72044bcc03",
+            "recorded_at": "2026-11-04T20:23:19Z"
+          },
+          "flow-2": {
+            "flow_id": "flow-2",
+            "status": "passed",
+            "head": "7bb3b1266570e2733a888172a2a6fb93dc770998",
+            "ran_at": "2026-11-04T20:23:19Z",
+            "summary": {
+              "checklist_blob": "6716e1f73a98766a39e479d5b809f945fee0ed4e",
+              "text": "grep -c printed 6. (Run by an independent headless executor in a disposable clone; flows 1-9 in a normal shell, not under unshare -rn.)"
+            },
+            "log_digest": "06e9d52c1720fca412803e3b07c4b228ff113e303f4c7ab94665319d832bbfb7",
+            "run_ref": "manager-orchestrator:runs/md19-functional-r1",
+            "reporter": "manager-orchestrator (independent run, claude claude-sonnet-5-5)",
+            "identity": "49037d5e935016877463b3c8cd12c57e82f705b1f697bcf36e2fab72044bcc03",
+            "recorded_at": "2026-11-04T20:23:19Z"
+          },
+          "flow-3": {
+            "flow_id": "flow-3",
+            "status": "passed",
+            "head": "7bb3b1266570e2733a888172a2a6fb93dc770998",
+            "ran_at": "2026-11-04T20:23:19Z",
+            "summary": {
+              "checklist_blob": "6716e1f73a98766a39e479d5b809f945fee0ed4e",
+              "text": "first grep printed nothing; second printed 1. (Run by an independent headless executor in a disposable clone; flows 1-9 in a normal shell, not under unshare -rn.)"
+            },
+            "log_digest": "0e9376b5d1365683c1741f92380546c767645ddc296324f80756ccde7f63edfe",
+            "run_ref": "manager-orchestrator:runs/md19-functional-r1",
+            "reporter": "manager-orchestrator (independent run, claude claude-sonnet-5-5)",
+            "identity": "49037d5e935016877463b3c8cd12c57e82f705b1f697bcf36e2fab72044bcc03",
+            "recorded_at": "2026-11-04T20:23:19Z"
+          },
+          "flow-4": {
+            "flow_id": "flow-4",
+            "status": "passed",
+            "head": "7bb3b1266570e2733a888172a2a6fb93dc770998",
+            "ran_at": "2026-11-04T20:23:19Z",
+            "summary": {
+              "checklist_blob": "6716e1f73a98766a39e479d5b809f945fee0ed4e",
+              "text": "Ran 8 tests, OK, rc=0. (Run by an independent headless executor in a disposable clone; flows 1-9 in a normal shell, not under unshare -rn.)"
+            },
+            "log_digest": "1be76a37460409f46b12e3a0afec391c60e520c019fccb8940b96f16dfa27ffb",
+            "run_ref": "manager-orchestrator:runs/md19-functional-r1",
+            "reporter": "manager-orchestrator (independent run, claude claude-sonnet-5-5)",
+            "identity": "49037d5e935016877463b3c8cd12c57e82f705b1f697bcf36e2fab72044bcc03",
+            "recorded_at": "2026-11-04T20:23:19Z"
+          },
+          "flow-5": {
+            "flow_id": "flow-5",
+            "status": "passed",
+            "head": "7bb3b1266570e2733a888172a2a6fb93dc770998",
+            "ran_at": "2026-11-04T20:23:19Z",
+            "summary": {
+              "checklist_blob": "6716e1f73a98766a39e479d5b809f945fee0ed4e",
+              "text": "Both mutations: rc=1, only test_the_control_skips_exactly_where_the_probe_does failed, in both subtests (a missing path, regular files); Ran 6, failures=2. (Run by an independent headless executor in a disposable clone; flows 1-9 in a normal shell, not under unshare -rn.)"
+            },
+            "log_digest": "c209ef943505f4c513cb249b2171d05693dcadc6c9729023362a780da8b1443a",
+            "run_ref": "manager-orchestrator:runs/md19-functional-r1",
+            "reporter": "manager-orchestrator (independent run, claude claude-sonnet-5-5)",
+            "identity": "49037d5e935016877463b3c8cd12c57e82f705b1f697bcf36e2fab72044bcc03",
+            "recorded_at": "2026-11-04T20:23:20Z"
+          },
+          "flow-6": {
+            "flow_id": "flow-6",
+            "status": "passed",
+            "head": "7bb3b1266570e2733a888172a2a6fb93dc770998",
+            "ran_at": "2026-11-04T20:23:19Z",
+            "summary": {
+              "checklist_blob": "6716e1f73a98766a39e479d5b809f945fee0ed4e",
+              "text": "M3: rc=1, only the control test failed, in the regular files subtest only (failures=1). (Run by an independent headless executor in a disposable clone; flows 1-9 in a normal shell, not under unshare -rn.)"
+            },
+            "log_digest": "10e4e949824428f96fe5c572dfa043208c66e3904f9b7c9c00dd8003ab42fa3f",
+            "run_ref": "manager-orchestrator:runs/md19-functional-r1",
+            "reporter": "manager-orchestrator (independent run, claude claude-sonnet-5-5)",
+            "identity": "49037d5e935016877463b3c8cd12c57e82f705b1f697bcf36e2fab72044bcc03",
+            "recorded_at": "2026-11-04T20:23:20Z"
+          },
+          "flow-7": {
+            "flow_id": "flow-7",
+            "status": "passed",
+            "head": "7bb3b1266570e2733a888172a2a6fb93dc770998",
+            "ran_at": "2026-11-04T20:23:19Z",
+            "summary": {
+              "checklist_blob": "6716e1f73a98766a39e479d5b809f945fee0ed4e",
+              "text": "M4, M5, M10 each rc=1 with only test_the_helper_sees_a_socket_it_just_opened failing (failures=1 each). (Run by an independent headless executor in a disposable clone; flows 1-9 in a normal shell, not under unshare -rn.)"
+            },
+            "log_digest": "3665aa7352f05e3da88ac3ded30bfc2df801ea9abe5edcb58d10bdfbfc0cc4d5",
+            "run_ref": "manager-orchestrator:runs/md19-functional-r1",
+            "reporter": "manager-orchestrator (independent run, claude claude-sonnet-5-5)",
+            "identity": "49037d5e935016877463b3c8cd12c57e82f705b1f697bcf36e2fab72044bcc03",
+            "recorded_at": "2026-11-04T20:23:20Z"
+          },
+          "flow-8": {
+            "flow_id": "flow-8",
+            "status": "passed",
+            "head": "7bb3b1266570e2733a888172a2a6fb93dc770998",
+            "ran_at": "2026-11-04T20:23:19Z",
+            "summary": {
+              "checklist_blob": "6716e1f73a98766a39e479d5b809f945fee0ed4e",
+              "text": "M9 rc=1, only test_the_probe_names_the_pairs_own_links_not_new_ones failed; M6 rc=1, three subtests failed (regular files, non-socket links, a missing path). (Run by an independent headless executor in a disposable clone; flows 1-9 in a normal shell, not under unshare -rn.)"
+            },
+            "log_digest": "506accac75b2d3a306f4fa69aec24c27afae976a59b6bff71a1bf7bb44287bdf",
+            "run_ref": "manager-orchestrator:runs/md19-functional-r1",
+            "reporter": "manager-orchestrator (independent run, claude claude-sonnet-5-5)",
+            "identity": "49037d5e935016877463b3c8cd12c57e82f705b1f697bcf36e2fab72044bcc03",
+            "recorded_at": "2026-11-04T20:23:20Z"
+          },
+          "flow-9": {
+            "flow_id": "flow-9",
+            "status": "passed",
+            "head": "7bb3b1266570e2733a888172a2a6fb93dc770998",
+            "ran_at": "2026-11-04T20:23:19Z",
+            "summary": {
+              "checklist_blob": "6716e1f73a98766a39e479d5b809f945fee0ed4e",
+              "text": "base both variants rc=1 (control fails); cand both variants OK (skipped=1), rc=0, reason says \"do not expose socket links\". (Run by an independent headless executor in a disposable clone; flows 1-9 in a normal shell, not under unshare -rn.)"
+            },
+            "log_digest": "e3c4dec359ceb1fa4cf70108c8510b1f5c6ab4d5078f37dbda8c13f1abb3b5d4",
+            "run_ref": "manager-orchestrator:runs/md19-functional-r1",
+            "reporter": "manager-orchestrator (independent run, claude claude-sonnet-5-5)",
+            "identity": "49037d5e935016877463b3c8cd12c57e82f705b1f697bcf36e2fab72044bcc03",
+            "recorded_at": "2026-11-04T20:23:20Z"
+          },
+          "flow-10": {
+            "flow_id": "flow-10",
+            "status": "passed",
+            "head": "7bb3b1266570e2733a888172a2a6fb93dc770998",
+            "ran_at": "2026-11-04T20:23:19Z",
+            "summary": {
+              "checklist_blob": "6716e1f73a98766a39e479d5b809f945fee0ed4e",
+              "text": "Unmutated run: verdict exit 0; M7-mutated run: rc=1 with TestAnExpiredReadLeavesNothingBehind and TestAProxyConnectReplyIsBounded failing plus TestTheBoundedPieces (incl. test_the_real_socket_outlives_close_while_a_reader_is_open); scratch and results dir removed. (Run by an independent headless executor in a disposable clone; flows 1-9 in a normal shell, not under unshare -rn.)"
+            },
+            "log_digest": "f49be360ef19ada64e477c17393de401f3266f80fdf6dd9b75ae1ab978605803",
+            "run_ref": "manager-orchestrator:runs/md19-functional-r1",
+            "reporter": "manager-orchestrator (independent run, claude claude-sonnet-5-5)",
+            "identity": "49037d5e935016877463b3c8cd12c57e82f705b1f697bcf36e2fab72044bcc03",
+            "recorded_at": "2026-11-04T20:23:20Z"
+          }
+        },
+        "pr": {
+          "pr": {
+            "number": 165,
+            "url": "https://github.com/RodrigoFAbreu/workflow-manager/pull/165"
+          },
+          "state": "open",
+          "head": "7bb3b1266570e2733a888172a2a6fb93dc770998",
+          "review_decision": null,
+          "reviewed_head": null,
+          "checks": {
+            "state": "success",
+            "failing": []
+          },
+          "review_id": null,
+          "findings": null,
+          "identity_at_head": "49037d5e935016877463b3c8cd12c57e82f705b1f697bcf36e2fab72044bcc03",
+          "observed_at": "2026-11-04T20:42:48Z",
+          "ingest_seq": 1,
+          "repository": "RodrigoFAbreu/workflow-manager",
+          "queried_commit": "e18bd942b14adfc7a2988d59b62c75568b5a4e3a",
+          "provenance": {
+            "source": "workflow_gh",
+            "fetched_by": {
+              "name": "workflow-gh",
+              "version": "pr-list-v1"
+            },
+            "fetched_at": "2026-11-04T20:42:48Z",
+            "raw_sha256": "a955cfd1c6ebc6a34f7d5174dd1d9511654fc0795d4787f364966b8e89101155",
+            "run_ref": null,
+            "gh_path": "/usr/bin/gh",
+            "gh_sha256": "9e824061111fe5f5b6a5d5690909ba37abafca4a4ca830bdf83246d3c94afd21"
+          },
+          "fact_id": "59df5807c526f29663ea1e725f4b90b79c8a60cdcfd993bb16c8776b76f0b6e5"
+        },
+        "pr_reported": null,
+        "pr_keys": {
+          "reopened_for": [],
+          "applied": [],
+          "ingest_seq": 1
+        }
+      },
+      "acceptance_satisfaction": {
+        "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "policy_source": "default",
+        "file_digest": null,
+        "adopted_digest": null,
+        "floor_digest": null,
+        "requirements": [
+          {
+            "id": "checkpoints_complete",
+            "met": true,
+            "detail": "every checkpoint of the item's own registry is COMPLETE"
+          },
+          {
+            "id": "technical_approval_current",
+            "met": true,
+            "detail": "the technical approval is CURRENT for the content now"
+          },
+          {
+            "id": "functional_flows_passed",
+            "met": true,
+            "detail": "flows ['flow-1', 'flow-10', 'flow-2', 'flow-3', 'flow-4', 'flow-5', 'flow-6', 'flow-7', 'flow-8', 'flow-9'] passed at the approved content"
+          },
+          {
+            "id": "pr_fact_current",
+            "met": true,
+            "detail": "workflow_gh fact for PR #165 at 7bb3b1266570e2733a888172a2a6fb93dc770998 is current"
+          },
+          {
+            "id": "no_standing_pr_objection",
+            "met": true,
+            "detail": "no CHANGES_REQUESTED decision and no failed check"
+          },
+          {
+            "id": "ci_green",
+            "met": true,
+            "detail": "checks are 'success'"
+          }
+        ],
+        "inputs": {
+          "anchor_commit": "e18bd942b14adfc7a2988d59b62c75568b5a4e3a",
+          "anchor_identity": "49037d5e935016877463b3c8cd12c57e82f705b1f697bcf36e2fab72044bcc03",
+          "technical_approval": {
+            "basis": "POLICY_SATISFIED",
+            "approved_review_content_id": "49037d5e935016877463b3c8cd12c57e82f705b1f697bcf36e2fab72044bcc03",
+            "recorded_at": "2026-11-04T20:12:59Z"
+          },
+          "functional": {
+            "flow-1": {
+              "evidence_id": "55af7f6fac2220c3a1679569c511c77e3bc66bcc8b1c720c0f756ef20428558f",
+              "log_digest": "450f3ae0acded4c11ccd3dc56f1a28001a0d0492653f9b00cc13cec2b3416730",
+              "run_ref": "manager-orchestrator:runs/md19-functional-r1"
+            },
+            "flow-10": {
+              "evidence_id": "4002ceba262e042925fb984f02711fdeb8efe090781641a5f549949eb7cac4f7",
+              "log_digest": "f49be360ef19ada64e477c17393de401f3266f80fdf6dd9b75ae1ab978605803",
+              "run_ref": "manager-orchestrator:runs/md19-functional-r1"
+            },
+            "flow-2": {
+              "evidence_id": "521fd15ad5fe101074941fff4b691f3904a668b61f4feed0b10b6108d07c0036",
+              "log_digest": "06e9d52c1720fca412803e3b07c4b228ff113e303f4c7ab94665319d832bbfb7",
+              "run_ref": "manager-orchestrator:runs/md19-functional-r1"
+            },
+            "flow-3": {
+              "evidence_id": "9623da1ef00d280a089a599810b7cb0d013f78708e5dfe159cad8062f7fe3592",
+              "log_digest": "0e9376b5d1365683c1741f92380546c767645ddc296324f80756ccde7f63edfe",
+              "run_ref": "manager-orchestrator:runs/md19-functional-r1"
+            },
+            "flow-4": {
+              "evidence_id": "8d95cde9d35a3174cc00d796f5f5f5449b411cc1bcc618cfe7c7321f4c963366",
+              "log_digest": "1be76a37460409f46b12e3a0afec391c60e520c019fccb8940b96f16dfa27ffb",
+              "run_ref": "manager-orchestrator:runs/md19-functional-r1"
+            },
+            "flow-5": {
+              "evidence_id": "3629c6d56036238b73e4ec508baa2e93c07c63f7ca2f695f3a7d6d78bdf5454d",
+              "log_digest": "c209ef943505f4c513cb249b2171d05693dcadc6c9729023362a780da8b1443a",
+              "run_ref": "manager-orchestrator:runs/md19-functional-r1"
+            },
+            "flow-6": {
+              "evidence_id": "83b1a4239a93c5560a671786455051fd7e65672c9649505e96391247491dce44",
+              "log_digest": "10e4e949824428f96fe5c572dfa043208c66e3904f9b7c9c00dd8003ab42fa3f",
+              "run_ref": "manager-orchestrator:runs/md19-functional-r1"
+            },
+            "flow-7": {
+              "evidence_id": "4e436afd3b4e86415f77906f54dbfd36246e2d3a671e9a696ba02afd708bfeeb",
+              "log_digest": "3665aa7352f05e3da88ac3ded30bfc2df801ea9abe5edcb58d10bdfbfc0cc4d5",
+              "run_ref": "manager-orchestrator:runs/md19-functional-r1"
+            },
+            "flow-8": {
+              "evidence_id": "f71d3483937995b5aff3cb79ebd1f57dafc95568bad9290e571622a836d422cc",
+              "log_digest": "506accac75b2d3a306f4fa69aec24c27afae976a59b6bff71a1bf7bb44287bdf",
+              "run_ref": "manager-orchestrator:runs/md19-functional-r1"
+            },
+            "flow-9": {
+              "evidence_id": "7df9fea703de0596e5d262804c15e5e2053833a89720137c5efe75539d1ac7bd",
+              "log_digest": "e3c4dec359ceb1fa4cf70108c8510b1f5c6ab4d5078f37dbda8c13f1abb3b5d4",
+              "run_ref": "manager-orchestrator:runs/md19-functional-r1"
+            }
+          },
+          "pr": {
+            "fact_id": "59df5807c526f29663ea1e725f4b90b79c8a60cdcfd993bb16c8776b76f0b6e5",
+            "head": "7bb3b1266570e2733a888172a2a6fb93dc770998",
+            "provenance": "workflow_gh",
+            "raw_sha256": "a955cfd1c6ebc6a34f7d5174dd1d9511654fc0795d4787f364966b8e89101155"
+          }
+        },
+        "trust": {
+          "review_verdicts": "orchestrator",
+          "functional_evidence": "orchestrator",
+          "pr_fact": "workflow_gh"
+        },
+        "evaluated_at": "2026-11-04T20:42:48Z",
+        "workflow_release": "2.25.5"
       }
     }
   }

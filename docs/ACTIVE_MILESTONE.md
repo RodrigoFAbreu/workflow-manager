@@ -2,7 +2,7 @@
 
 ## Milestone
 
-`discovery-test-cleanup` -- awaiting functional review (`governing_workflow_version: "2.2"`, `process`, plan revision 3, base `fd423fa`, branch `milestone/discovery-test-cleanup`): roadmap row 31 (#131, items 1 to 3). A `test:` pull request title (releases nothing).
+`discovery-test-cleanup` -- complete, accepted by policy (`governing_workflow_version: "2.2"`, `process`, plan revision 3, base `fd423fa`, branch `milestone/discovery-test-cleanup`): roadmap row 31 (#131, items 1 to 3). A `test:` pull request title (releases nothing).
 
 The bounded-read tests of `tests/test_discovery.py` identify the sockets they count, by the descriptor probe's own rules. The positive control decides "this host can list sockets" from what the first existing descriptor directory of `_FD_DIRECTORIES` shows (`_lists_links`) and skips with the probe's one wording (`_blind_reason`). The probe and the control look for the socket pair's own links (`socket:[<inode>]` from `os.fstat` of each end, `_own_links`) instead of counting two new links in a before/after difference, so a descriptor another thread opens or closes between two listings disturbs neither. Four lines of dead setup (`recv_into`, `fileno` on the fake socket, in two tests) are deleted. Item 4 of the issue was already fixed on main. Test code only: no `src/` change, no printed text, no Workflow change.
 
@@ -12,7 +12,7 @@ The bounded-read tests of `tests/test_discovery.py` identify the sockets they co
 
 ### CP2: bookkeeping -- complete
 
-- `docs/ROADMAP.md` row 31 is Current (Done at acceptance); this record.
+- `docs/ROADMAP.md` row 31 is Done (accepted by policy); this record.
 
 ### Failure-only mutations
 
