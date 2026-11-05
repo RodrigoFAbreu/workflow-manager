@@ -26889,7 +26889,7 @@
       "registry_path": "docs/ai-workflow/registry/preflight-leftovers-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/preflight-leftovers-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "AWAITING_FUNCTIONAL_REVIEW",
       "plan_revision": 1,
       "implementation_revision": 1,
       "functional_review_round": null,
@@ -26998,7 +26998,96 @@
           "workflow_release": "2.25.5"
         }
       },
-      "technical_approval": null,
+      "technical_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "852b10ae59b7e0c07ad24014040bf6602b07c4426915cf8f5866f4fab5175755",
+        "approved_review_content_id": "4f4f2c83b3615dc15d9e8319dcf4fc5053bc4cdf836169d4bb43181bc62d2603",
+        "review_content_manifest": [
+          {
+            "path": "docs/ARCHITECTURE.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "058d7bcffc11475dcdabc7d806a82d7bf275d45d"
+          },
+          {
+            "path": "docs/ai-workflow/registry/preflight-leftovers-artifacts.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "c5a33b27a6da3efa5fae4fe7366ace4bbbe90365"
+          },
+          {
+            "path": "tests/test_parallel_runner.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "c7cc230713e2be856c605371d7f13ebeb38452ad"
+          }
+        ],
+        "reviewed_content_commit": "65e26dc041e7c8c2d7467a73feaf8515ac2a18b8",
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-11-05T01:00:35Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "4f4f2c83b3615dc15d9e8319dcf4fc5053bc4cdf836169d4bb43181bc62d2603",
+            "ledger": {
+              "local": {
+                "bundle_id": "852b10ae59b7e0c07ad24014040bf6602b07c4426915cf8f5866f4fab5175755",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "b148dadee6cd4b0f3a9c3d66f175b3c2293ac2e8a949ca4f8499999280c182c0",
+                "ledger_entry_sha256": "1a420d9fc13a052ef53c6f8689b7afb6f12471eec9cb6410428aae4b5aac9c70",
+                "run_ref": "session:local .ai-review/preflight-leftovers/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "852b10ae59b7e0c07ad24014040bf6602b07c4426915cf8f5866f4fab5175755",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "ab17d8b361579b9f34f3ef06e497da3c3524fea0947b34dd7110bb1189f6b983",
+                "ledger_entry_sha256": "ecceb642f48e4b0fa6f6ad3cd257b781039bc4c37f13d7c0062bdcd625855bb9",
+                "run_ref": "codex:20261105T005845Z-e903436d",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-11-05T01:00:35Z",
+          "workflow_release": "2.25.5"
+        }
+      },
       "technical_review_block_pins": [],
       "plan_review_stages": {
         "review_content_id": "ab2d300a2a755435af4252eb4d63c2a72529e341e9bfecf56d1a6ccaf87249a1",
@@ -27029,12 +27118,12 @@
           "external": 1
         },
         "implementation": {
-          "local": 0,
-          "external": 0
+          "local": 1,
+          "external": 1
         }
       },
-      "state_revision": 14,
-      "last_transition": "2026-11-05T00:34:56Z",
+      "state_revision": 17,
+      "last_transition": "2026-11-05T01:00:35Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -27127,6 +27216,41 @@
               "at": "2026-11-05T00:05:48Z"
             }
           ]
+        },
+        "F-e0cd8da1850e": {
+          "digest": "e0cd8da1850e9a7859ed97426d8c843a0286e3f504c6c0f9593b722bb258ebf0",
+          "text": "`docs/ARCHITECTURE.md:496`: “a filesystem the check does not then measure” could say “which the check does not cover when `--results` is on another filesystem.” Snapshot placement is correctly described, but `--results` and `TMPDIR` can share a filesystem.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "4f4f2c83b3615dc15d9e8319dcf4fc5053bc4cdf836169d4bb43181bc62d2603",
+              "verdict": "APPROVE",
+              "at": "2026-11-05T01:00:05Z"
+            }
+          ]
+        }
+      },
+      "implementation_review_stages": {
+        "review_content_id": "4f4f2c83b3615dc15d9e8319dcf4fc5053bc4cdf836169d4bb43181bc62d2603",
+        "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "852b10ae59b7e0c07ad24014040bf6602b07c4426915cf8f5866f4fab5175755",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-11-05T00:58:30Z",
+          "verdict_sha256": "b148dadee6cd4b0f3a9c3d66f175b3c2293ac2e8a949ca4f8499999280c182c0",
+          "run_ref": "session:local .ai-review/preflight-leftovers/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "852b10ae59b7e0c07ad24014040bf6602b07c4426915cf8f5866f4fab5175755",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-11-05T01:00:05Z",
+          "verdict_sha256": "ab17d8b361579b9f34f3ef06e497da3c3524fea0947b34dd7110bb1189f6b983",
+          "run_ref": "codex:20261105T005845Z-e903436d",
+          "reviewer_model": "openai/gpt-6.1-sol"
         }
       }
     }
