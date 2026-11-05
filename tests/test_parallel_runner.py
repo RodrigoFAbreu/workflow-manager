@@ -4568,7 +4568,9 @@ class TestGatePreflight(_CliCase):
         with self.assertRaises(priming.PrimingError) as caught:
             priming.prime(scratch, {**os.environ, **env})
         text = str(caught.exception)
-        for part in ("0.0.1", "does not serve its manifest", env[release_source.CACHE_ENV]):
+        cache = env[release_source.CACHE_ENV]
+        for part in ("0.0.1", "does not serve its manifest", cache,
+                     f"remove {cache}/0.0.1"):
             self.assertIn(part, text)
         self.assertNotIsInstance(caught.exception, priming.TmpSpaceError)
 
