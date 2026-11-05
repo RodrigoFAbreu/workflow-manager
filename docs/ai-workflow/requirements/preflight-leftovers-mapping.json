@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "work_item_id": "preflight-leftovers",
+  "requirements": {
+    "R1": {
+      "description": "The real-script priming test asserts the next step the refusal names, `remove <cache>/<version>` whole; it fails when the step is reworded or loses the version, and the base test file passes the same mutations",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R2": {
+      "description": "docs/ARCHITECTURE.md's Priming bullet says --results moves the run directory only: frozen discovery's support.release() snapshot still uses the ambient TMPDIR and the free-space check does not measure it, naming no milestone",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R3": {
+      "description": "The roadmap carries row 33 for this item, Current now and Done at acceptance, and the active-milestone record states the mutation results",
+      "checkpoint_ids": [
+        "CP2"
+      ]
+    }
+  }
+}
