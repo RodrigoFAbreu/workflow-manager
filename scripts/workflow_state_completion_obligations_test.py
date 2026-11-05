@@ -4499,6 +4499,316 @@ def _ra_extract(archive, into):
     return names
 
 
+class _Inject:
+    """Injects the errors the report must tell apart, so the cases hold as
+    root too. `lstat` of the archive, `stat` of the folder, and `open` of a
+    named sub-directory (by kind: a real directory or a symlink) fail with
+    `PermissionError`; `scandir` lists by name so the visiting order is fixed
+    (an iterator: 3.12's `os.walk` calls `next()` on it)."""
+
+    def __init__(self, archive=None, folder=None, opens=()):
+        self.archive, self.folder = archive, folder
+        self.opens = list(opens)
+        self.count = {}
+
+    def __enter__(self):
+        self.real = {n: getattr(os, n) for n in ("lstat", "stat", "open", "scandir")}
+        real, me = self.real, self
+
+        def lstat(path, *a, **k):
+            if me.archive and isinstance(path, (str, os.PathLike)) and os.fspath(path).endswith(me.archive):
+                raise PermissionError(errno.EACCES, "denied", os.fspath(path))
+            return real["lstat"](path, *a, **k)
+
+        def stat_(path, *a, **k):
+            if me.folder and path == me.folder and k.get("dir_fd") is not None:
+                raise PermissionError(errno.EACCES, "denied", path)
+            return real["stat"](path, *a, **k)
+
+        def open_(path, flags, *a, **k):
+            fd = k.get("dir_fd")
+            for name, kind, first in me.opens:
+                if path != name or fd is None:
+                    continue
+                linked = stat.S_ISLNK(real["lstat"](path, dir_fd=fd).st_mode)
+                if (kind == "link") != linked:
+                    continue
+                me.count[name] = me.count.get(name, 0) + 1
+                if me.count[name] >= first:
+                    raise PermissionError(errno.EACCES, "denied", name)
+            return real["open"](path, flags, *a, **k)
+
+        class Sorted:
+            def __init__(self, inner):
+                self.inner = inner
+                self.items = iter(sorted(inner, key=lambda e: e.name))
+
+            def __iter__(self):
+                return self
+
+            def __next__(self):
+                return next(self.items)
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                self.inner.close()
+
+            def close(self):
+                self.inner.close()
+
+        def scandir(*a, **k):
+            return Sorted(real["scandir"](*a, **k))
+
+        os.lstat, os.stat, os.open, os.scandir = lstat, stat_, open_, scandir
+        return self
+
+    def __exit__(self, *exc):
+        for name, fn in self.real.items():
+            setattr(os, name, fn)
+
+
+_RRU_KEYS = {"present", "complete", "files", "bytes", "tracked_files"}
+_RRU_REPORT_KEYS = ("archive_dir", "archives", "complete", "finished", "generated_at", "keep_recent", "kept_recent",
+                    "kind", "not_finished", "read_errors", "removing", "repository", "schema_version", "totals",
+                    "ttl_days")
+_RRU_ABSENT = {"present": False, "readable": True, "bytes": None, "modified": None, "age_days": None,
+               "prunable": False}
+_RRU_UNREADABLE = {**_RRU_ABSENT, "readable": False}
+_RRU_NO_FOLDER = {"present": False, "complete": True, "files": 0, "bytes": 0, "tracked_files": 0}
+_RRU_PARTIAL = {"present": True, "complete": False, "files": 1, "bytes": 5, "tracked_files": 0}
+_RRU_WARNING = ("warning: incomplete: {} path(s) could not be read (see read_errors); a missing size or archive "
+                "may be unreadable, not absent\n")
+
+
+class RetentionReportUnreadable(unittest.TestCase):
+    def rr(self, count=4, folder=True, items=None):
+        rr = _RR(items if items is not None else _rr_many(count))
+        self.addCleanup(rr.__exit__, None, None, None)
+        rr.__enter__()
+        if folder:
+            _write(rr.repo, ".ai-review/w00/a.txt", "12345")
+        return rr
+
+    def case(self, rr, want, item="w00", **inject):
+        """One case whole: the exact line, exit 0, the stderr warning only when the
+        view is partial, the `--json` shape, and nothing written or removed. The
+        snapshots walk, so they run with the injection lifted."""
+        before = _rr_snapshot(rr.root, rr.archive_root)
+        with _Inject(**inject) as injected:
+            code, out, err = rr.cli()
+            injected.count.clear()  # the Nth-open rule counts per report
+            json_code, printed, json_err = rr.cli("--json")
+        self.assertEqual(_rr_snapshot(rr.root, rr.archive_root), before)
+        self.assertEqual((code, json_code), (0, 0))
+        self.assertEqual([ln for ln in out.splitlines() if ln.startswith(f"  {item}:")], [f"  {item}: {want}"], out)
+        data = json.loads(printed)
+        self.assertEqual(set(data), set(_RRU_REPORT_KEYS))
+        record = {r["work_item_id"]: r for r in data["finished"]}[item]
+        self.assertEqual(set(record["review_folder"]), _RRU_KEYS)
+        self.assertEqual(set(record["archive"]), set(_RRU_ABSENT))
+        warning = _RRU_WARNING.format(len(data["read_errors"])) if data["read_errors"] else ""
+        self.assertEqual((err, json_err), (warning, warning))
+        self.assertEqual(data["complete"], not data["read_errors"])
+        self.assertEqual("\nINCOMPLETE: " in out, not data["complete"])
+        return record, data, out
+
+    def test_t1_an_archive_that_cannot_be_looked_at_is_unreadable_not_absent(self):
+        rr = self.rr()
+        record, _, _ = self.case(rr, "5 B in 1 files; no archive")
+        self.assertEqual(record["archive"], _RRU_ABSENT)
+        record, data, _ = self.case(rr, "5 B in 1 files; archive unreadable", archive="w00.tar.zst")
+        self.assertEqual(record["archive"], _RRU_UNREADABLE)
+        self.assertFalse(data["complete"])
+        self.case(rr, "5 B in 1 files; no archive")
+        rr.archive("w00.tar.zst", 40 * 86400, size=20)
+        record, _, _ = self.case(rr, "5 B in 1 files; archive 20 B, 40 days old, prunable")
+        self.assertEqual((record["archive"]["present"], record["archive"]["readable"]), (True, True))
+        # no folder: the archive fragment still says unreadable
+        rr2 = self.rr(folder=False)
+        record, _, _ = self.case(rr2, "no review folder; archive unreadable", archive="w00.tar.zst")
+        self.assertEqual(record["archive"], _RRU_UNREADABLE)
+        self.assertEqual(record["review_folder"], _RRU_NO_FOLDER)
+        self.case(rr2, "no review folder; no archive")
+
+    def test_t2_a_folder_that_cannot_be_counted_is_unreadable_or_a_lower_bound(self):
+        rr = self.rr()
+        self.case(rr, "5 B in 1 files; no archive")
+        record, _, _ = self.case(rr, "review folder unreadable; no archive", folder="w00")
+        self.assertEqual(record["review_folder"], {**_RRU_NO_FOLDER, "complete": False})
+        _write(rr.repo, ".ai-review/w00/zz/b.txt", "123")
+        record, _, _ = self.case(rr, "at least 5 B in 1 files (partly unreadable); no archive",
+                                 opens=[("zz", "dir", 1)])
+        self.assertEqual(record["review_folder"], _RRU_PARTIAL)
+        record, _, _ = self.case(rr, "8 B in 2 files; no archive")
+        self.assertEqual(record["review_folder"], {"present": True, "complete": True, "files": 2, "bytes": 8,
+                                                   "tracked_files": 0})
+        record, _, _ = self.case(self.rr(folder=False), "no review folder; no archive")
+        self.assertEqual(record["review_folder"], _RRU_NO_FOLDER)
+
+    def test_t3_a_folder_left_in_removing_is_named_and_unreadable_wins(self):
+        rr = self.rr(folder=False)
+        removing = rr.archive_root / "widgets" / ".removing"
+        (removing / "w00").mkdir(parents=True)
+        record, data, out = self.case(rr, "review folder in .removing; no archive")
+        self.assertEqual(record["review_folder"], _RRU_NO_FOLDER)
+        self.assertEqual(data["removing"], ["w00"])
+        self.assertIn("Interrupted removals (1): w00", out)
+        rr.archive("w00.tar.zst", 40 * 86400, size=20)
+        self.case(rr, "review folder in .removing; archive 20 B, 40 days old, prunable")
+        (rr.archive_root / "widgets" / "w00.tar.zst").unlink()
+        shutil.rmtree(removing / "w00")
+        self.case(rr, "no review folder; no archive")
+        (removing / "w01").mkdir()
+        self.case(rr, "no review folder; no archive")
+        (removing / "w00").mkdir()
+        _write(rr.repo, ".ai-review/w00/a.txt", "12345")
+        self.case(rr, "5 B in 1 files; no archive")
+        shutil.rmtree(rr.root / ".ai-review" / "w00")
+        self.case(rr, "review folder unreadable; no archive", folder="w00")
+
+    def layout(self, rr, spec):
+        """spec: relative path -> 'dir' | 'link' (to a directory outside the tree)."""
+        outside = rr.root / "outside-dir"
+        outside.mkdir(exist_ok=True)
+        base = rr.root / ".ai-review" / "w00"
+        base.mkdir(parents=True, exist_ok=True)
+        for rel, kind in spec.items():
+            path = base / rel
+            path.parent.mkdir(parents=True, exist_ok=True)
+            if kind == "dir":
+                path.mkdir(exist_ok=True)
+            else:
+                os.symlink(outside, path)
+
+    def test_t4_the_recorded_path_is_the_failed_directory_in_every_layout(self):
+        cases = [
+            ("empty + zz", {"empty": "dir", "zz": "dir"}, [("zz", "dir", 1)], [("zz",)]),
+            ("a/b/c + zz", {"a/b/c": "dir", "zz": "dir"}, [("zz", "dir", 1)], [("zz",)]),
+            ("a/zz and zz", {"a/zz": "dir", "zz": "dir"}, [("zz", "dir", 1)], [("a", "zz"), ("zz",)]),
+            ("link opens, zz fails", {"a/zz": "link", "zz": "dir"}, [("zz", "dir", 1)], [("zz",)]),
+            ("link fails, zz readable", {"a/zz": "link", "zz": "dir"}, [("zz", "link", 1)], [("a", "zz")]),
+            ("link fails before zz", {"a/lnk": "link", "zz": "dir"}, [("lnk", "link", 1), ("zz", "dir", 1)],
+             [("a", "lnk"), ("zz",)]),
+            ("link fails, later subtree", {"a/lnk": "link", "m/deep": "dir"},
+             [("lnk", "link", 1), ("deep", "dir", 1)], [("a", "lnk"), ("m", "deep")]),
+            ("link probe ok, walk fails", {"a/lnk": "link", "zz": "dir"}, [("lnk", "link", 2), ("zz", "dir", 1)],
+             [(), ("zz",)]),
+        ]
+        for label, spec, opens, expected in cases:
+            with self.subTest(label):
+                rr = self.rr()
+                self.layout(rr, spec)
+                base = rr.root / ".ai-review" / "w00"
+                want = sorted(str(base.joinpath(*p)) for p in expected)
+                record, data, out = self.case(rr, "at least 5 B in 1 files (partly unreadable); no archive",
+                                              opens=opens)
+                self.assertEqual(sorted(e["path"] for e in data["read_errors"]), want)
+                self.assertEqual(record["review_folder"], _RRU_PARTIAL)
+                for path in want:
+                    self.assertIn(f"  {path}: ", out)
+        rr = self.rr()
+        self.layout(rr, {"a/b": "dir", "zz": "dir"})
+        record, data, _ = self.case(rr, "5 B in 1 files; no archive")
+        self.assertEqual(data["read_errors"], [])
+        self.assertEqual(record["review_folder"], {**_RRU_PARTIAL, "complete": True})
+
+    @unittest.skipUnless(_HAVE_ZSTD, "remove needs a verified archive")
+    def test_t6_the_refusals_name_the_corrected_path_and_write_nothing(self):
+        ra = _RA(_rr_many(7))
+        self.addCleanup(ra.__exit__, None, None, None)
+        ra.__enter__()
+        ra.folder("w00", links=False)
+        (ra.root / ".ai-review" / "w00" / "zz").mkdir()
+        want = str(ra.root / ".ai-review" / "w00" / "zz")
+        before = ra.snap()
+        with _Inject(opens=[("zz", "dir", 1)]):
+            result = ra.call("w00", apply=True)
+            self.assertEqual(result.code, 2)
+            self.assertEqual(result.err_code, "unreadable")
+            self.assertIn(f"{want} cannot be read", result.error.message)
+            self.assertNotIn("empty/zz", result.error.message)
+        self.assertEqual(ra.snap(), before)
+        archived = ra.call("w00", apply=True)
+        self.assertEqual(archived.code, 0, getattr(archived.error, "message", None))
+        before = ra.snap()
+        out, err = io.StringIO(), io.StringIO()
+        with _Inject(opens=[("zz", "dir", 1)]), contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            code = wr.main(["remove", "w00", "--apply", "--repo-root", str(ra.root), "--archive-root",
+                            str(ra.archive_root)], run=ra.run, resolve=ra.resolve, now=_RR_NOW)
+        self.assertEqual(code, 2)
+        self.assertIn("error: unreadable: ", err.getvalue())
+        self.assertIn(f"{want} cannot be read", err.getvalue())
+        self.assertEqual(ra.snap(), before)
+
+    def test_t5_nothing_else_moves(self):
+        rr = self.rr(items={**_rr_many(6), "busy": _rr_item(phase="IMPLEMENTING")})
+        _write(rr.repo, ".ai-review/w01/k.txt", "1")
+        _run(["git", "add", "-f", ".ai-review/w01/k.txt"], cwd=rr.root)
+        rr.archive("w02.tar.zst", 3 * 86400, size=7)
+        (rr.archive_root / "widgets" / ".removing" / "w04").mkdir(parents=True)
+        store = rr.archive_root / "widgets"
+        head = ("Retention report for acme/widgets (2026-11-01T12:00:00Z)\n"
+                f"Archive directory: {store}\n"
+                "Time to live: 30 days; the 3 most recent merged items are kept\n"
+                "\n"
+                "Finished (3):\n"
+                "  w02: no review folder; archive 7 B, 3 days old\n"
+                "  w01: 1 B in 1 files; no archive\n"
+                "    1 tracked file(s) under .ai-review/w01/\n")
+        tail = ("\n"
+                "Interrupted removals (1): w04, finish them with `remove <id> --apply`\n"
+                "\n"
+                "Kept as recent (3): w05, w04, w03\n"
+                "\n"
+                "Not finished (1):\n"
+                "  open_phase: 1\n"
+                "\n"
+                "Archives (1), prunable (0):\n"
+                "  none prunable\n")
+        clean = head + "  w00: 5 B in 1 files; no archive\n" + tail
+        code, out, err = rr.cli()
+        self.assertEqual((code, err), (0, ""))
+        self.assertEqual(out, clean)
+        report = rr.build()
+        copy = json.loads(json.dumps(report))
+        self.assertEqual(wr.render_text(report), clean)
+        self.assertEqual(report, copy)
+        for record in report["finished"]:
+            self.assertEqual(set(record["review_folder"]), _RRU_KEYS)
+            self.assertEqual(set(record["archive"]), set(_RRU_ABSENT))
+        # a hand-built record without the keys the new branches read renders as before
+        bare = json.loads(json.dumps(report))
+        for record in bare["finished"]:
+            record["archive"].pop("readable", None)
+            record["review_folder"].pop("complete", None)
+        bare.pop("removing")
+        self.assertEqual(wr.render_text(bare), clean.replace(
+            "\nInterrupted removals (1): w04, finish them with `remove <id> --apply`\n\n", "\n"))
+        # the same report with one archive and one sub-directory denied: only the w00 line and the
+        # INCOMPLETE section differ
+        _write(rr.repo, ".ai-review/w00/zz/b.txt", "1")
+        before = _rr_snapshot(rr.root, rr.archive_root)
+        with _Inject(archive="w00.tar.zst", opens=[("zz", "dir", 1)]):
+            code, out, err = rr.cli()
+            json_code, printed, _ = rr.cli("--json")
+        self.assertEqual(_rr_snapshot(rr.root, rr.archive_root), before)
+        self.assertEqual((code, json_code), (0, 0))
+        self.assertEqual(err, _RRU_WARNING.format(2))
+        folder = rr.root / ".ai-review" / "w00" / "zz"
+        self.assertEqual(out, head + "  w00: at least 5 B in 1 files (partly unreadable); archive unreadable\n" + tail
+                         + "\nINCOMPLETE: 2 path(s) could not be read; the sizes, archives and absences above are "
+                           "not reliable for them:\n"
+                         + f"  {store}/w00.tar.zst: PermissionError: denied\n"
+                         + f"  {folder}: PermissionError: denied\n")
+        data = json.loads(printed)
+        self.assertEqual(set(data), set(_RRU_REPORT_KEYS))
+        by_id = {r["work_item_id"]: r for r in data["finished"]}
+        self.assertEqual(by_id["w00"]["review_folder"], _RRU_PARTIAL)
+        self.assertEqual(by_id["w00"]["archive"], _RRU_UNREADABLE)
+
+
 @unittest.skipUnless(_HAVE_ZSTD, "the archive tests need the zstd program on PATH")
 class RetentionArchive(unittest.TestCase):
     def setUp(self):
