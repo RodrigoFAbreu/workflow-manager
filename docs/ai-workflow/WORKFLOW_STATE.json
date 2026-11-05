@@ -26889,12 +26889,12 @@
       "registry_path": "docs/ai-workflow/registry/preflight-leftovers-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/preflight-leftovers-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "SELF_REVIEWING_IMPLEMENTATION",
+      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
       "plan_revision": 1,
-      "implementation_revision": null,
+      "implementation_revision": 1,
       "functional_review_round": null,
       "base_commit": "f0f90952b8c25938f43189460874d132aaad4b5c",
-      "reviewed_implementation_head": null,
+      "reviewed_implementation_head": "65e26dc041e7c8c2d7467a73feaf8515ac2a18b8",
       "current_checkpoint_id": null,
       "last_completed_checkpoint_id": "CP2",
       "checkpoints": {
@@ -27033,8 +27033,8 @@
           "external": 0
         }
       },
-      "state_revision": 13,
-      "last_transition": "2026-11-05T00:11:48Z",
+      "state_revision": 14,
+      "last_transition": "2026-11-05T00:34:56Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
