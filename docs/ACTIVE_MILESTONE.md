@@ -2,7 +2,7 @@
 
 ## Milestone
 
-`preflight-leftovers` -- in progress (`governing_workflow_version: "2.2"`, `process`, plan revision 1, base `f0f9095`, branch `milestone/preflight-leftovers`): roadmap row 33 (#151, items 1 and 4). A `test:` pull request title (releases nothing; one documentation sentence rides along).
+`preflight-leftovers` -- complete, accepted by policy 2026-11-05 (`governing_workflow_version: "2.2"`, `process`, plan revision 1, base `f0f9095`, branch `milestone/preflight-leftovers`): roadmap row 33 (#151, items 1 and 4). A `test:` pull request title (releases nothing; one documentation sentence rides along).
 
 The gate preflight's test and note say the whole truth. `test_the_real_script_refuses_a_cache_that_fills_but_does_not_serve` also asserts the next step the refusal names (`remove <cache>/0.0.1`). The Priming bullet of `docs/ARCHITECTURE.md` says `--results` moves the run directory only: frozen discovery still creates its release snapshot (`support.release()`) under the ambient `TMPDIR`, a filesystem the check does not then measure. No behaviour, printed text or exit code changes; no `src/` change; no Workflow change. Items 2 and 3 of the issue stay as they are.
 

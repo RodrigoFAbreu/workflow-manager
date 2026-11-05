@@ -1,0 +1,33 @@
+{
+  "dispositions": {
+    "F-0c39a532c145": {
+      "disposition": "dropped",
+      "reason": "Plan or checklist wording of a test-only item; the flows ran as written and all nine passed (five by the Controller's tester, four by an independent run)."
+    },
+    "F-325f06792599": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#168",
+      "note": "Follow-up item 1 (ARCHITECTURE sentence wording)."
+    },
+    "F-5a93d5428cc2": {
+      "disposition": "dropped",
+      "reason": "Plan or checklist wording of a test-only item; the flows ran as written and all nine passed (five by the Controller's tester, four by an independent run)."
+    },
+    "F-6fa67dbd51e8": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#168",
+      "note": "Follow-up item 1 (ARCHITECTURE sentence wording)."
+    },
+    "F-a436275ca231": {
+      "disposition": "dropped",
+      "reason": "Plan or checklist wording of a test-only item; the flows ran as written and all nine passed (five by the Controller's tester, four by an independent run)."
+    },
+    "F-e0cd8da1850e": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#168",
+      "note": "Follow-up item 1 (ARCHITECTURE sentence wording)."
+    }
+  },
+  "schema_version": 1,
+  "work_item_id": "preflight-leftovers"
+}
