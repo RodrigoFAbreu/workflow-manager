@@ -213,6 +213,26 @@ def _open_review_root(repo_root: Path, errors: dict[str, str]) -> int | None:
         return None
 
 
+def _can_fail_walk(name: str, dirfd: int) -> bool:
+    """Whether `os.fwalk` can still report `name` (a sub-directory it listed)
+    to `onerror`: a real directory, an entry that cannot be examined, or a
+    symlink whose open fails the way the walk opens it. A symlink that opens
+    is dropped silently by the walk."""
+    try:
+        info = os.stat(name, dir_fd=dirfd, follow_symlinks=False)
+    except OSError:
+        return True
+    if stat.S_ISDIR(info.st_mode):
+        return True
+    if not stat.S_ISLNK(info.st_mode):
+        return False
+    try:
+        os.close(os.open(name, os.O_RDONLY | os.O_NONBLOCK, dir_fd=dirfd))
+    except OSError:
+        return True
+    return False
+
+
 def _review_folder(ai_fd: int | None, repo_root: Path, item_id: str, tracked: dict[str, int],
                    errors: dict[str, str]) -> dict:
     """Reads only through the `.ai-review` descriptor, so a link in an ancestor
@@ -229,18 +249,33 @@ def _review_folder(ai_fd: int | None, repo_root: Path, item_id: str, tracked: di
                 _unreadable(errors, folder, exc)
                 complete = False
     if present:
-        here = item_id
+        # The walk reports a failed sub-directory by its base name only, so
+        # `pending` mirrors its pre-order, as (path, name) pairs, to find the
+        # parent of the one that failed.
+        pending: list[tuple[str, str]] = []
 
         def walk_failed(exc: OSError) -> None:
             nonlocal complete
             name = exc.filename if isinstance(exc.filename, str) else None
-            where = folder if name is None else repo_root / ".ai-review" / here / name
+            where = folder
+            if name is not None:
+                for index in range(len(pending) - 1, -1, -1):
+                    if pending[index][1] == name:
+                        where = repo_root / ".ai-review" / pending[index][0]
+                        del pending[index:]
+                        break
             _unreadable(errors, where, exc)
             complete = False
 
-        for directory, _, names, dirfd in os.fwalk(item_id, dir_fd=ai_fd, follow_symlinks=False,
-                                                    onerror=walk_failed):
-            here = directory
+        for directory, dirs, names, dirfd in os.fwalk(item_id, dir_fd=ai_fd, follow_symlinks=False,
+                                                       onerror=walk_failed):
+            for index, (path, _) in enumerate(pending):
+                if path == directory:
+                    del pending[index:]
+                    break
+            for sub in reversed(dirs):
+                if _can_fail_walk(sub, dirfd):
+                    pending.append((os.path.join(directory, sub), sub))
             for name in names:
                 try:
                     info = os.stat(name, dir_fd=dirfd, follow_symlinks=False)
@@ -2002,9 +2037,21 @@ def render_text(report: dict) -> str:
         if archive["present"]:
             state = f"archive {_size(archive['bytes'])}, {archive['age_days']} days old" \
                     + (", prunable" if archive["prunable"] else "")
+        elif not archive.get("readable", True):
+            state = "archive unreadable"
         else:
             state = "no archive"
-        shown = f"{_size(folder['bytes'])} in {folder['files']} files" if folder["present"] else "no review folder"
+        complete = folder.get("complete", True)
+        if folder["present"] and complete:
+            shown = f"{_size(folder['bytes'])} in {folder['files']} files"
+        elif folder["present"]:
+            shown = f"at least {_size(folder['bytes'])} in {folder['files']} files (partly unreadable)"
+        elif not complete:
+            shown = "review folder unreadable"
+        elif record["work_item_id"] in report.get("removing", ()):
+            shown = "review folder in .removing"
+        else:
+            shown = "no review folder"
         lines.append(f"  {record['work_item_id']}: {shown}; {state}")
         if folder["tracked_files"]:
             lines.append(f"    {folder['tracked_files']} tracked file(s) under .ai-review/{record['work_item_id']}/")
