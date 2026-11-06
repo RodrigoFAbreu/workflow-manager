@@ -206,11 +206,30 @@ record and the order unchanged) in one process, and prints exactly `{"record",
 reopening, named in the message) was stored, as step 2 says. Any other
 `state_changed: true` means another writer changed the state: stop and re-read it. A refusal is never
 worked around by hand-writing the completion. The command does not commit, does
-not edit documents, does not write the findings record and does not record the
-floor: steps 4 and 5 below stay the worker's own edits, `git commit` and the two
-Python calls (the findings record and the floor) until their own plain commands
-exist. Run it as written, not under `python3 -I`. The Python descriptions in this
-section stay the specification.
+not edit documents, does not write the findings record (the next paragraph does)
+and does not record the floor: steps 4 and 5 below stay the worker's own edits,
+`git commit` and, for the floor, one Python call. Run it as written, not under
+`python3 -I`. The Python descriptions in this section stay the specification.
+
+Once the completion command has printed its answer, step 4's findings record is one
+plain command too (workflow-2.28.0):
+
+```
+python3 scripts/workflow_state.py --write-findings-record <work-item-id>
+```
+
+It is `/accept-milestone` step 5a's call (`write_finding_dispositions_record`) on the
+stored state, which the completion command just wrote, and prints exactly `{"paths":
+[...]}` with exit 0: the paths the completion commit stages. It refuses an item that
+is not `MILESTONE_COMPLETE` (`work_item_not_complete`) and takes no lock; it commits
+nothing and writes no file but the record. A refusal exits 1 with one object
+`{"error", "message", "record_changed", "state_changed"}` (plus `"code"`): with both
+`false` nothing was written, so stop and fix the cause; `record_changed: true` means
+the record moved and the write then failed, so do not stage or commit it, fix the
+cause and run it again (a successful run rewrites the whole file);
+`state_changed: true` means another writer changed the state: stop and re-read it.
+Run it as written, not under `python3 -I`. The floor (step 5,
+`commit_gate_policy_floor`) is the one Python call that remains.
 
 0. **Backlog pre-flight, before the first step** (workflow-2.17.0, `D-Accept`).
    Step 1 below stores the pull-request fact, so run `python3

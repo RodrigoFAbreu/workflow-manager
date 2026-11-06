@@ -1116,7 +1116,10 @@ _GOLDEN_COMMAND_FILE_SHA256 = {
     # user-only /resume-implementation for a 2.1/2.2 item and drops the wrong
     # "legacy promotion" origin -- intentional content change, outside every
     # "1"-inert span.
-    "accept-milestone.md": "8eb653d3352bb4dba6efc4fb637a12b8d16ad71b857a33a366f13b7851e8f8f7",
+    # accept-milestone.md further updated, workflow-2.28.0 (acceptance-findings-floor, CP1):
+    # step 5a names `python3 scripts/workflow_state.py --write-findings-record <id>` first and
+    # keeps the Python call as the specification -- intentional content change.
+    "accept-milestone.md": "3e67bc6b045f93ed25b22132b51f8cf10d9138953c964c7acf2c3bc1706e6107",
     # prepare-functional-review.md further updated, baseline-portability
     # correctness fix (OPUS-R129-001): step 3a's checklist-evidence
     # provenance commit instruction now states the same "trailers must be

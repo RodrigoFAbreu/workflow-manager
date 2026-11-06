@@ -5997,5 +5997,355 @@ class TestSatisfyAcceptanceCommand(unittest.TestCase):
             self.assertIsNone(ws._acceptance_reachability_blocker(ev.root, WI, ev.item()))
 
 
+class TestWriteFindingsRecordCommand(unittest.TestCase):
+    """workflow-2.28.0: `workflow_state.py --write-findings-record <id>`, the findings record as one plain command."""
+
+    helpers = TestFindingDispositions(methodName="test_no_key_passes_and_an_undispositioned_finding_refuses_naming_everything")
+    RECORD = Path(f"docs/milestones/completed/{WI}-findings.md")
+
+    # -- helpers -------------------------------------------------------------
+
+    @staticmethod
+    def files(root: Path) -> dict:
+        """Every file outside `.git`: path to bytes (directories included as markers)."""
+        import hashlib
+        return {str(p.relative_to(root)): "dir" if p.is_dir() else hashlib.sha256(p.read_bytes()).hexdigest()
+                for p in sorted(Path(root).rglob("*")) if ".git" not in p.parts}
+
+    @staticmethod
+    def git_view(root: Path) -> tuple:
+        out = lambda *a: subprocess.run(["git", *a], cwd=root, capture_output=True, text=True).stdout  # noqa: E731
+        return out("rev-parse", "HEAD"), out("for-each-ref"), out("diff", "--cached", "--name-only")
+
+    def call(self, root, work_item_id=WI, *argv):
+        """Run the flag through the argument parser in-process in `root`. Returns (exit, raw stdout)."""
+        import contextlib as cl
+        import io
+        import os
+
+        out = io.StringIO()
+        old = os.getcwd()
+        os.chdir(root)
+        try:
+            with cl.redirect_stdout(out):
+                code = ws._plan_review_publication_status_cli(list(argv) or ["--write-findings-record", work_item_id])
+        finally:
+            os.chdir(old)
+        return code, out.getvalue()
+
+    def complete(self, ev, *entries, dispose=None):
+        """A completed item with the given findings; `dispose` maps a finding's position to a disposition."""
+        keys = self.helpers.record(ev, WI, *entries) if entries else []
+        if dispose:
+            self.helpers.write_dispositions(ev, {keys[i]: d for i, d in dispose.items()})
+        ev.set_state(phase="MILESTONE_COMPLETE")
+        return keys
+
+    def library(self, ev, work_item_id=WI):
+        copy_root = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, copy_root, True)
+        target = copy_root / "copy"
+        shutil.copytree(ev.root, target, symlinks=True)
+        paths = ws.write_finding_dispositions_record(target, ev.state(), work_item_id)
+        return [Path(p).as_posix() for p in paths], target
+
+    def assert_refused(self, ev, name, code=None, *, record_changed=False, **call):
+        before = (self.files(ev.root), self.git_view(ev.root))
+        exit_code, raw = self.call(ev.root, **call)
+        body = json.loads(raw)
+        self.assertEqual(exit_code, 1)
+        self.assertEqual(body["error"], name)
+        self.assertIs(body["record_changed"], record_changed)
+        self.assertIs(body["state_changed"], False)
+        if code is not None:
+            self.assertEqual(body["code"], code)
+        else:
+            self.assertNotIn("code", body)
+        if not record_changed:
+            self.assertEqual(before, (self.files(ev.root), self.git_view(ev.root)))
+        return body
+
+    # -- R1: parity with the Python path ---------------------------------------
+
+    def test_r1_the_command_equals_the_python_path_in_five_states(self):
+        def one(ev):
+            self.complete(ev, "O1: add a test", dispose={0: {"disposition": "fixed"}})
+
+        def two(ev):
+            self.complete(ev, "O1: add a test", "O2: reword | x",
+                          dispose={0: {"disposition": "fixed"}, 1: {"disposition": "dropped", "reason": "not needed"}})
+
+        def empty(ev):
+            self.complete(ev)
+
+        def child(ev):
+            """A completed parent with its own finding, and a completed remediation child with a different one."""
+            child_id = ev.add_remediation_child()
+            self.complete(ev, "O1: parent finding", dispose={0: {"disposition": "fixed"}})
+            (key,) = self.helpers.record(ev, child_id, "O1: child finding")
+            self.helpers.write_dispositions(ev, {key: {"disposition": "fixed"}}, item_id=child_id)
+            state = ev.state()
+            state["work_items"][child_id]["phase"] = "MILESTONE_COMPLETE"
+            h.write_state(ev.repo, state)
+            return child_id
+
+        def removed(ev):
+            self.complete(ev, "O1: add a test", dispose={0: {"disposition": "fixed"}})
+            self.call(ev.root)
+            (ev.root / ws.finding_dispositions_path(WI)).unlink()
+
+        for name, setup in {"one": one, "two": two, "empty": empty, "child": child, "removed": removed}.items():
+            with self.subTest(name), AcceptanceRepo() as ev:
+                target = setup(ev) or WI
+                record = Path(f"docs/milestones/completed/{target}-findings.md")
+                expected, copy_root = self.library(ev, target)
+                before = self.files(ev.root)
+                exit_code, raw = self.call(ev.root, target)
+                self.assertEqual(exit_code, 0)
+                self.assertEqual(raw, json.dumps({"paths": expected}, sort_keys=True, indent=2) + "\n")
+                after = self.files(ev.root)
+                self.assertEqual(after, self.files(copy_root))
+                changed = {k for k in after if before.get(k) != after[k]}
+                self.assertLessEqual(changed, {"docs/milestones", "docs/milestones/completed", str(record)})
+                if target != WI:
+                    self.assertEqual(expected, [record.as_posix(), ws.finding_dispositions_path(target).as_posix()])
+                    self.assertIn("child finding", (ev.root / record).read_text())
+                    self.assertFalse((ev.root / self.RECORD).exists())
+
+    # -- R2: re-run --------------------------------------------------------------
+
+    def test_r2_a_re_run_is_idempotent_and_restores_a_stale_record(self):
+        with AcceptanceRepo() as ev:
+            self.complete(ev, "O1: add a test", dispose={0: {"disposition": "fixed"}})
+            first = self.call(ev.root)
+            tree = self.files(ev.root)
+            self.assertEqual(self.call(ev.root), first)
+            self.assertEqual(tree, self.files(ev.root))
+            (ev.root / self.RECORD).write_text("stale\n")
+            self.assertEqual(self.call(ev.root), first)
+            self.assertEqual(tree, self.files(ev.root))
+            (ev.root / ws.finding_dispositions_path(WI)).unlink()
+            code, raw = self.call(ev.root)
+            self.assertEqual((code, json.loads(raw)), (0, {"paths": [self.RECORD.as_posix()]}))
+
+    def test_r2_an_item_without_a_finding_prints_no_paths_and_creates_nothing(self):
+        with AcceptanceRepo() as ev:
+            self.complete(ev)
+            before = self.files(ev.root)
+            self.assertEqual(self.call(ev.root), (0, json.dumps({"paths": []}, sort_keys=True, indent=2) + "\n"))
+            self.assertEqual(before, self.files(ev.root))
+            self.assertFalse((ev.root / "docs/milestones").exists())
+
+    # -- R3: no write, one per refusal -------------------------------------------
+
+    def test_r3_a_phase_other_than_complete_is_refused_and_writes_nothing(self):
+        for phase in ("IMPLEMENTING", "AWAITING_LOCAL_IMPLEMENTATION_REVIEW", "AWAITING_FUNCTIONAL_REVIEW"):
+            with self.subTest(phase), AcceptanceRepo() as ev:
+                self.complete(ev, "O1: add a test")
+                ev.set_state(phase=phase)
+                (ev.root / self.RECORD).parent.mkdir(parents=True)
+                (ev.root / self.RECORD).write_text("old\n")
+                body = self.assert_refused(ev, "FindingsRecordPreflightError", "work_item_not_complete")
+                self.assertIn(phase, body["message"])
+                self.assertEqual((ev.root / self.RECORD).read_text(), "old\n")
+
+    def test_r3_an_invalid_dispositions_file_is_refused_before_any_write(self):
+        with AcceptanceRepo() as ev:
+            self.complete(ev, "O1: add a test")
+            (ev.root / ws.finding_dispositions_path(WI)).write_text("{nope")
+            (ev.root / self.RECORD).parent.mkdir(parents=True)
+            (ev.root / self.RECORD).write_text("stale\n")
+            self.assert_refused(ev, "InvalidFindingDispositionsError")
+            self.assertEqual((ev.root / self.RECORD).read_text(), "stale\n")
+
+    def test_r3_a_record_path_that_cannot_be_created_is_refused(self):
+        with AcceptanceRepo() as ev:
+            self.complete(ev, "O1: add a test")
+            (ev.root / "docs/milestones").mkdir(exist_ok=True)
+            (ev.root / "docs/milestones/completed").write_text("x")
+            self.assert_refused(ev, "FileExistsError")
+        with AcceptanceRepo() as ev:
+            self.complete(ev, "O1: add a test")
+            (ev.root / self.RECORD).mkdir(parents=True)
+            body = self.assert_refused(ev, "IsADirectoryError")
+            self.assertNotIn("Traceback", json.dumps(body))
+
+    def test_r3_every_error_before_the_call_is_the_read_only_flags_object(self):
+        with AcceptanceRepo() as ev:
+            self.complete(ev, "O1: add a test")
+            (ev.root / self.RECORD).parent.mkdir(parents=True)
+            (ev.root / self.RECORD).write_text("stale\n")
+            state_path = ev.root / ws.DEFAULT_STATE_PATH
+            good = state_path.read_text()
+            self.assert_refused(ev, "UnknownWorkItem", work_item_id="nope")
+            self.assert_refused(ev, "UnknownWorkItem", work_item_id="")
+            for text, name in (("corrupt", "CorruptJsonError"), ("[]", "StateMalformed"), ("{}", "StateMalformed")):
+                state_path.write_text(text)
+                self.assert_refused(ev, name)
+            state_path.unlink()
+            self.assert_refused(ev, "StateMissing")
+            state_path.write_text(good)
+        outside = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, outside, True)
+        code, raw = self.call(outside)
+        body = json.loads(raw)
+        self.assertEqual((code, body["record_changed"], body["state_changed"]), (1, False, False))
+        self.assertNotIn("Traceback", raw)
+
+    # -- R4: discipline ------------------------------------------------------------
+
+    def test_r4_the_command_takes_no_lock_commits_nothing_and_calls_no_forge(self):
+        from unittest import mock
+
+        with AcceptanceRepo() as ev:
+            self.complete(ev, "O1: add a test", dispose={0: {"disposition": "fixed"}})
+            before = self.files(ev.root)
+            git_before = self.git_view(ev.root)
+            with mock.patch.object(ws, "state_transaction") as tx, mock.patch.object(ws, "state_lock") as lock, \
+                    mock.patch.object(forge, "resolve_gh") as gh, \
+                    mock.patch("subprocess.run", wraps=subprocess.run) as run:
+                code, _ = self.call(ev.root)
+            self.assertEqual(code, 0)
+            for spy in (tx, lock, gh):
+                spy.assert_not_called()
+            for call in run.call_args_list:
+                argv = call.args[0] if call.args else call.kwargs.get("args", [])
+                self.assertFalse(list(argv[:2]) in (["git", "commit"], ["git", "add"]), argv)
+                self.assertNotEqual(list(argv[:1]), ["gh"], argv)
+            after = self.files(ev.root)
+            self.assertEqual({k for k in after if before.get(k) != after[k]} - {"docs/milestones", "docs/milestones/completed"},
+                             {str(self.RECORD)})
+            self.assertEqual(git_before, self.git_view(ev.root))
+            self.assertFalse((ev.root / ".ai-review/runtime/WORKFLOW_STATE.lock").exists())
+
+    # -- R5: interface ------------------------------------------------------------
+
+    def test_r5_the_flag_is_exclusive_and_an_empty_id_is_an_unknown_item(self):
+        import contextlib as cl
+        import io
+
+        for other in ("--plan-review-publication-status", "--finding-dispositions", "--acceptance-gate", "--satisfy-acceptance"):
+            with self.subTest(other), cl.redirect_stderr(io.StringIO()) as err:
+                with self.assertRaises(SystemExit) as caught:
+                    ws._plan_review_publication_status_cli(["--write-findings-record", WI, other, WI])
+                self.assertEqual(caught.exception.code, 2)
+                self.assertIn("not allowed with argument", err.getvalue())
+        with AcceptanceRepo() as ev:
+            self.complete(ev, "O1: add a test")
+            before = self.files(ev.root)
+            code, raw = self.call(ev.root, "")
+            self.assertEqual((code, json.loads(raw)["error"]), (1, "UnknownWorkItem"))
+            self.assertEqual(before, self.files(ev.root))
+
+    def test_r5_the_existing_flags_print_what_they_printed(self):
+        import contextlib as cl
+        import io
+
+        with AcceptanceRepo() as ev:
+            self.complete(ev, "O1: add a test")
+            state = ev.state()
+            expected_gate = json.dumps(ws.acceptance_gate_report(ev.root, state, WI), sort_keys=True, indent=2) + "\n"
+            buffer = io.StringIO()
+            with cl.redirect_stdout(buffer):
+                direct_code = ws._finding_dispositions_cli(ev.root, WI)
+            self.assertEqual(self.call(ev.root, WI, "--finding-dispositions", WI), (direct_code, buffer.getvalue()))
+            self.assertEqual(self.call(ev.root, WI, "--acceptance-gate", WI), (0, expected_gate))
+            code, raw = self.call(ev.root, WI, "--plan-review-publication-status", WI)
+            status = ws.plan_review_publication_status(ev.root, state, WI)
+            self.assertEqual((code, raw), (0, json.dumps({k: v for k, v in status.items() if not k.startswith("_")},
+                                                         sort_keys=True) + "\n"))
+            blocker = ws._acceptance_reachability_blocker(ev.root, WI, state["work_items"][WI])
+            self.assertEqual(blocker["code"], "work_item_terminal")
+            self.assertEqual(self.call(ev.root, WI, "--satisfy-acceptance", WI),
+                             (1, json.dumps({"code": blocker["code"], "error": "AcceptancePreflightError",
+                                             "message": blocker["detail"], "state_changed": False}, sort_keys=True) + "\n"))
+
+    # -- R6: the command text -------------------------------------------------------
+
+    def test_r6_the_command_texts_name_the_flag_and_state_the_boundaries(self):
+        root = Path(__file__).resolve().parents[1] / ".claude" / "commands"
+        accept = (root / "accept-milestone.md").read_text()
+        satisfy = (root / "satisfy-gate.md").read_text()
+        flag = "python3 scripts/workflow_state.py --write-findings-record"
+        self.assertIn(flag, accept)
+        self.assertLess(accept.index("--write-findings-record"), accept.index("write_finding_dispositions_record"))
+        flat_accept, flat_satisfy = " ".join(accept.split()), " ".join(satisfy.split())
+        for needle in ("5a. **Write the findings record**", "skip steps 3, 5 and 7, but run step 5a",
+                       "does not commit", "work_item_not_complete", "The Python description is the specification",
+                       "written to `docs/ai-workflow/WORKFLOW_STATE.json`"):
+            self.assertIn(needle, flat_accept)
+        for needle in ("`record_changed: true` means the record moved", "do not stage or commit it",
+                       "fix the cause and run it again", "`state_changed: true` means another writer changed the state",
+                       "stop and re-read it", "work_item_not_complete"):
+            self.assertIn(needle, flat_accept)
+            self.assertIn(needle, flat_satisfy)
+        self.assertIn(flag, satisfy)
+        self.assertIn("write_finding_dispositions_record", satisfy)
+        self.assertIn("`commit_gate_policy_floor`) is the one Python call that remains", flat_satisfy)
+        self.assertIn("steps 4 and 5 below stay the worker's own edits", satisfy)
+        self.assertNotIn("until its own plain", satisfy)
+        for text in (accept, satisfy):
+            for line in text.splitlines():
+                if "--write-findings-record" in line and "python3" in line:
+                    self.assertNotIn("python3 -I", line)
+
+    def test_r6_the_documented_line_runs_as_written_in_a_scratch_repository(self):
+        accept = (Path(__file__).resolve().parents[1] / ".claude" / "commands" / "accept-milestone.md").read_text()
+        (line,) = [ln.strip() for ln in accept.splitlines()
+                   if ln.strip().startswith("python3 scripts/workflow_state.py --write-findings-record")]
+        argv = line.replace("<work-item-id>", WI).replace("`", "").split()
+        with AcceptanceRepo() as ev:
+            self.complete(ev, "O1: add a test")
+            ev.set_state(phase="IMPLEMENTING")
+            shutil.copytree(Path(__file__).parent, ev.root / "scripts", ignore=shutil.ignore_patterns("__pycache__"),
+                            dirs_exist_ok=True)
+            ran = subprocess.run(argv, cwd=ev.root, capture_output=True, text=True)
+            self.assertNotIn("ModuleNotFoundError", ran.stderr)
+            body = json.loads(ran.stdout)
+            self.assertEqual((ran.returncode, body["code"]), (1, "work_item_not_complete"))
+
+    # -- R7: accuracy of the fields ---------------------------------------------------
+
+    def test_r7_record_changed_and_state_changed_can_each_report_true(self):
+        from unittest import mock
+
+        def rewrite_then_raise(path_self, text, *a, **k):
+            path_self.write_bytes(text.encode())
+            raise OSError("disk full")
+
+        with AcceptanceRepo() as ev:
+            self.complete(ev, "O1: add a test")
+            self.call(ev.root)  # a record already present and unchanged
+            with mock.patch.object(ws, "write_finding_dispositions_record", side_effect=RuntimeError("boom")):
+                self.assert_refused(ev, "RuntimeError", record_changed=False)
+            (ev.root / self.RECORD).write_text("old\n")
+            with mock.patch.object(Path, "write_text", rewrite_then_raise):
+                body = json.loads(self.call(ev.root)[1])
+            self.assertEqual((body["error"], body["record_changed"], body["state_changed"]), ("OSError", True, False))
+
+            def touch_state_then_raise(*a, **k):
+                (ev.root / ws.DEFAULT_STATE_PATH).write_text((ev.root / ws.DEFAULT_STATE_PATH).read_text() + "\n")
+                raise RuntimeError("another writer")
+
+            with mock.patch.object(ws, "write_finding_dispositions_record", touch_state_then_raise):
+                body = json.loads(self.call(ev.root)[1])
+            self.assertEqual((body["record_changed"], body["state_changed"]), (False, True))
+
+    # -- R8: the CLI calls the library itself ------------------------------------------
+
+    def test_r8_the_command_calls_the_library_function_and_does_not_render(self):
+        import inspect
+        from unittest import mock
+
+        source = inspect.getsource(ws._write_findings_record_cli)
+        self.assertIn("write_finding_dispositions_record(", source)
+        self.assertNotIn("render_finding_dispositions(", source)
+        with AcceptanceRepo() as ev:
+            self.complete(ev, "O1: add a test")
+            with mock.patch.object(ws, "write_finding_dispositions_record", wraps=ws.write_finding_dispositions_record) as spy:
+                self.call(ev.root)
+            spy.assert_called_once()
+
+
 if __name__ == "__main__":
     unittest.main()
