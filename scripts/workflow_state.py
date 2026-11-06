@@ -20430,15 +20430,83 @@ def _satisfy_acceptance_cli(work_item_id: str, *, now: Callable[[], str] | None 
     return 0
 
 
+class FindingsRecordPreflightError(Exception):
+    """`--write-findings-record` found the item not complete before anything was
+    read for the record; `code` is `work_item_not_complete`."""
+
+    def __init__(self, code: str, detail: str):
+        super().__init__(detail)
+        self.code = code
+
+
+def _path_marker(path: Path) -> str:
+    """A comparable marker of one path: the sha256 of a regular file's bytes, or a
+    distinct marker for an absent path, a directory or an unreadable one."""
+    try:
+        if path.is_dir():
+            return "directory"
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+    except FileNotFoundError:
+        return "absent"
+    except OSError:
+        return "unreadable"
+
+
+def _write_findings_record_cli(work_item_id: str) -> int:
+    """`--write-findings-record` (workflow-2.28.0): the findings record of
+    `/accept-milestone` step 5a as one plain command. Refuses unless the item's
+    stored phase is `MILESTONE_COMPLETE` (the library has no phase guard), then calls
+    `write_finding_dispositions_record` on the stored state and prints `{"paths"}`
+    (exit 0), or one `{"error", "message", "record_changed", "state_changed"[,
+    "code"]}` object (exit 1). It takes no lock, enters no `state_transaction`,
+    stages nothing and commits nothing; the one file it may write is the record.
+    `record_changed` and `state_changed` compare digests taken before the call with
+    ones taken after the failure."""
+    repo_root: Path | None = None
+    record_before: str | None = None
+    state_before: str | None = None
+
+    def fail(name: str, message: str, code: str | None = None) -> int:
+        record_changed = state_changed = False
+        if repo_root is not None:
+            record_changed = _path_marker(repo_root / finding_dispositions_record_path(work_item_id)) != record_before
+            state_changed = _state_file_digest(repo_root) != state_before
+        body = {"error": name, "message": message, "record_changed": record_changed, "state_changed": state_changed}
+        if code is not None:
+            body["code"] = code
+        print(json.dumps(body, sort_keys=True))
+        return 1
+
+    try:
+        repo_root, state = _acceptance_cli_context(work_item_id)
+        record_before = _path_marker(repo_root / finding_dispositions_record_path(work_item_id))
+        state_before = _state_file_digest(repo_root)
+        phase = state["work_items"][work_item_id].get("phase")
+        if phase != "MILESTONE_COMPLETE":
+            raise FindingsRecordPreflightError(
+                "work_item_not_complete",
+                f"{work_item_id} is at phase {phase!r}; the findings record is written on the completed state (MILESTONE_COMPLETE)",
+            )
+        paths = write_finding_dispositions_record(repo_root, state, work_item_id)
+    except _AcceptanceCliRefusal as exc:
+        return fail(exc.name, str(exc))
+    except Exception as exc:  # the contract is JSON, never a traceback
+        code = getattr(exc, "code", None)
+        return fail(type(exc).__name__, str(exc), code if isinstance(code, str) else None)
+    print(json.dumps({"paths": [Path(p).as_posix() for p in paths]}, sort_keys=True, indent=2))
+    return 0
+
+
 def _plan_review_publication_status_cli(argv: list[str] | None = None) -> int:
-    """CLI (`D-Plan-Review-Bundle-Binding`, workflow-2.6.0), read-only except `--satisfy-acceptance`: print
+    """CLI (`D-Plan-Review-Bundle-Binding`, workflow-2.6.0), read-only except the last two options: print
     `plan_review_publication_status` for one work item as a single JSON
     object -- the contract Controller consumes instead of re-deriving the
     table. Rows 4d and 6 print `{"error": <name>, "message": ...}` and exit
     1. That option writes nothing. `--finding-dispositions` (workflow-2.14.0) is the second,
     equally read-only option, and `--acceptance-gate` (workflow-2.26.0) the third.
     `--satisfy-acceptance` (workflow-2.27.0) is the fourth and the first that writes:
-    through `state_transaction`, as `satisfy_acceptance_gate` does."""
+    through `state_transaction`, as `satisfy_acceptance_gate` does. `--write-findings-record`
+    (workflow-2.28.0) is the fifth: it writes only the findings record file, no state."""
     import argparse
 
     parser = argparse.ArgumentParser(description=_plan_review_publication_status_cli.__doc__)
@@ -20447,7 +20515,10 @@ def _plan_review_publication_status_cli(argv: list[str] | None = None) -> int:
     group.add_argument("--finding-dispositions", metavar="WORK_ITEM_ID")
     group.add_argument("--acceptance-gate", metavar="WORK_ITEM_ID")
     group.add_argument("--satisfy-acceptance", metavar="WORK_ITEM_ID")
+    group.add_argument("--write-findings-record", metavar="WORK_ITEM_ID")
     args = parser.parse_args(argv)
+    if args.write_findings_record is not None:  # before the shared `git rev-parse`; an empty id is not "absent"
+        return _write_findings_record_cli(args.write_findings_record)
     if args.satisfy_acceptance is not None:  # before the shared `git rev-parse`, like the report
         return _satisfy_acceptance_cli(args.satisfy_acceptance)
     if args.acceptance_gate is not None:  # before the shared `git rev-parse`; an empty id is not "absent"

@@ -250,7 +250,26 @@ says.
    `completion_obligations_accepted` is kept (not rewritten) when the item
    declares no completion obligations.
 5a. **Write the findings record** (workflow-2.14.0, `D-Record`; every item,
-   a remediation child included): call
+   a remediation child included). Run one plain command (workflow-2.28.0):
+
+   ```
+   python3 scripts/workflow_state.py --write-findings-record <work-item-id>
+   ```
+
+   It reads the stored state, so the completed state step 2a returned must already
+   be **written to `docs/ai-workflow/WORKFLOW_STATE.json`** (step 2a persists it as
+   part of step 6's commit, but this flag reads the file: a worker holding the state
+   only in memory gets a clean `work_item_not_complete` refusal, no harm done). It
+   prints exactly `{"paths": [...]}` with exit 0, the paths step 6 stages, and
+   refuses an item that is not `MILESTONE_COMPLETE`. It takes no lock, does not
+   commit and writes no file but the record. A refusal exits 1 with one object
+   `{"error", "message", "record_changed", "state_changed"}` (plus `"code"`): with
+   both `false` nothing was written, stop and fix the cause; `record_changed: true`
+   means the record moved and the write then failed, so do not stage or commit it,
+   fix the cause and run it again (a successful run rewrites the whole file);
+   `state_changed: true` means another writer changed the state: stop and re-read it.
+   Run it as written, not under `python3 -I`. The Python description is the
+   specification: call
    `workflow_state.write_finding_dispositions_record(repo_root, state,
    work_item_id)` on the completed state. It writes
    `docs/milestones/completed/<id>-findings.md` (every recorded Optional
