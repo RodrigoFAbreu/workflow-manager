@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import contextlib
 import copy
+import hashlib
 import json
 import re
 import shutil
@@ -24,6 +25,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import workflow_gate_policy as g
 import workflow_protocol as wp
@@ -6281,7 +6283,7 @@ class TestWriteFindingsRecordCommand(unittest.TestCase):
             self.assertIn(needle, flat_satisfy)
         self.assertIn(flag, satisfy)
         self.assertIn("write_finding_dispositions_record", satisfy)
-        self.assertIn("`commit_gate_policy_floor`) is the one Python call that remains", flat_satisfy)
+        self.assertIn("The acceptance stage has no inline Python call; the plan-stage and implementation-stage floors keep the Python description (`commit_gate_policy_floor`).", flat_satisfy)
         self.assertIn("steps 4 and 5 below stay the worker's own edits", satisfy)
         self.assertNotIn("until its own plain", satisfy)
         for text in (accept, satisfy):
@@ -6345,6 +6347,599 @@ class TestWriteFindingsRecordCommand(unittest.TestCase):
             with mock.patch.object(ws, "write_finding_dispositions_record", wraps=ws.write_finding_dispositions_record) as spy:
                 self.call(ev.root)
             spy.assert_called_once()
+
+
+class TestCommitFloorCommand(unittest.TestCase):
+    """workflow-2.29.0: `workflow_state.py --commit-gate-policy-floor <id>`, the floor commit as one plain command."""
+
+    FLOOR_SOURCE_SHA256 = "0a7e6ff110ea4b4de1e722a218270ae73b6968c5730b1eb411985ec595d8d6d1"
+    STAMP = "2026-11-06T10:00:00Z"
+    STRICT = ACCEPTANCE_HUMAN
+    GATE_SUBJECT = re.compile(r"^chore: record gate policy floor [0-9a-f]{12}$")
+
+    class Kill(BaseException):
+        """A kill: not an `Exception`, so nothing in the flag turns it into a JSON object."""
+
+    # -- helpers -------------------------------------------------------------
+
+    def mk(self, phase="MILESTONE_COMPLETE", policy=STRICT, *, committed_phase=None):
+        """A repository with item `wi` committed at `committed_phase` (default `phase`) and, unless `policy` is None,
+        a stricter policy file in the working tree (never committed)."""
+        repo = PolicyRepo().__enter__()
+        self.addCleanup(repo.__exit__, None, None, None)
+        state = repo.state()
+        state["work_items"] = {"wi": {"work_item_id": "wi", "phase": committed_phase or phase}}
+        repo.write_state(state)
+        repo.commit("item", STATE_REL)
+        if committed_phase is not None:
+            state["work_items"]["wi"]["phase"] = phase
+            repo.write_state(state)
+        if policy is not None:
+            repo.write_policy(policy)
+        return repo
+
+    def copy(self, repo):
+        target = Path(tempfile.mkdtemp()) / "copy"
+        self.addCleanup(shutil.rmtree, target.parent, True)
+        shutil.copytree(repo.root, target, symlinks=True)
+        clone = PolicyRepo.__new__(PolicyRepo)
+        clone.root = target
+        return clone
+
+    @staticmethod
+    def snap(repo, *, runtime=True):
+        out = lambda *a: subprocess.run(["git", *a], cwd=repo.root, capture_output=True, text=True).stdout  # noqa: E731
+        files = {}
+        for p in sorted(Path(repo.root).rglob("*")):
+            rel = p.relative_to(repo.root)
+            if ".git" in rel.parts or (not runtime and ".ai-review" in rel.parts):
+                continue
+            files[str(rel)] = "dir" if p.is_dir() else hashlib.sha256(p.read_bytes()).hexdigest()
+        return (out("rev-parse", "HEAD"), out("for-each-ref"), out("diff", "--cached", "--name-only"),
+                out("status", "--porcelain"), files)
+
+    def call(self, root, wid="wi", *, now=None):
+        """The flag in-process in `root`, as a fresh process would see it. Returns (exit, parsed stdout)."""
+        import io
+        import os
+
+        g.clear_caches()
+        out = io.StringIO()
+        old = os.getcwd()
+        os.chdir(root)
+        try:
+            with contextlib.redirect_stdout(out):
+                code = ws._commit_gate_policy_floor_cli(wid, now=now or (lambda: self.STAMP))
+        finally:
+            os.chdir(old)
+            g.clear_caches()
+        return code, json.loads(out.getvalue()), out.getvalue()
+
+    def refused(self, repo, name, code=None, *, wid="wi", state_changed=False):
+        before = self.snap(repo)
+        exit_code, body, _ = self.call(repo.root, wid)
+        self.assertEqual(exit_code, 1, body)
+        self.assertEqual(body["error"], name, body)
+        self.assertIsNone(body["commit"])
+        self.assertIs(body["state_changed"], state_changed)
+        if code is None:
+            self.assertNotIn("code", body)
+        else:
+            self.assertEqual(body["code"], code)
+        if not state_changed:
+            self.assertEqual(before, self.snap(repo))
+        return body
+
+    def message(self, repo, rev="HEAD"):
+        return repo.git("log", "-1", "--format=%B", rev)
+
+    def kill_at(self, repo, step):
+        """Run the Python call and stop it at one step, as a kill would."""
+        kill = self.Kill
+        original = ws._run
+
+        def stop(*a, **k):
+            raise kill()
+
+        patches = {"state": mock.patch.object(ws, "_stage_state_for_commit", stop),
+                   "validate": mock.patch.object(ws, "validate_gate_policy_floor_commit", stop),
+                   "stage": mock.patch.object(ws, "_run", lambda cmd, **k: stop() if list(cmd[:2]) == ["git", "commit"]
+                                              else original(cmd, **k))}
+        g.clear_caches()
+        with patches[step]:
+            with self.assertRaises(kill):
+                ws.commit_gate_policy_floor(repo.root, now=self.STAMP)
+        g.clear_caches()
+
+    def broken_provenance(self, repo):
+        """A malformed floor commit: provenance fails at HEAD."""
+        repo.hand_state_commit(lambda s: s.__setitem__("gate_policy_floor", {"policy": {}, "digest": "x", "recorded_at": "t", "observed": []}),
+                               "malformed floor")
+
+    def waiting_floor(self, repo):
+        """The floor of the policy file written into the state file, nothing committed."""
+        self.kill_at(repo, "state")
+        self.assertIn("gate_policy_floor", repo.state())
+
+    def stage_foreign(self, repo):
+        (repo.root / "x.md").write_text("x")
+        repo.git("add", "x.md")
+
+    def edit_floor(self, repo, **fields):
+        state = repo.state()
+        state["gate_policy_floor"].update(fields)
+        repo.write_state(state)
+
+    # -- F1: parity with the Python path ---------------------------------------
+
+    def test_f1_the_flag_makes_the_commit_the_python_call_makes(self):
+        repo = self.mk()
+        twin = self.copy(repo)
+        g.clear_caches()
+        sha = ws.commit_gate_policy_floor(twin.root, now=self.STAMP)
+        code, body, raw = self.call(repo.root)
+        self.assertEqual((code, body["recovered"]), (0, False))
+        self.assertEqual(raw, json.dumps({"commit": repo.head(), "recovered": False}, sort_keys=True, indent=2) + "\n")
+        self.assertEqual(body["commit"], repo.head())
+        self.assertEqual(repo.git("diff-tree", "--no-commit-id", "--name-only", "-r", "HEAD"), STATE_REL)
+        self.assertEqual(self.message(repo), self.message(twin, sha))
+        self.assertRegex(self.message(repo).splitlines()[0], self.GATE_SUBJECT)
+        self.assertEqual(repo.git("show", f"HEAD:{STATE_REL}"), twin.git("show", f"{sha}:{STATE_REL}"))
+        self.assertEqual(repo.git("status", "--porcelain"), "?? docs/ai-workflow/GATE_POLICY.json")
+        ws.validate_gate_policy_floor_commit(repo.root, repo.head())
+
+    # -- F2: nothing to do ------------------------------------------------------
+
+    def test_f2_nothing_stricter_is_a_no_op_that_writes_nothing(self):
+        repo = self.mk(policy=None)
+        before = self.snap(repo)
+        code, body, raw = self.call(repo.root)
+        self.assertEqual((code, raw), (0, json.dumps({"commit": None, "recovered": False}, sort_keys=True, indent=2) + "\n"))
+        self.assertEqual(before, self.snap(repo))
+        self.assertFalse((repo.root / ".ai-review").exists())
+
+    def test_f2_a_second_run_after_a_success_changes_nothing(self):
+        repo = self.mk()
+        self.assertEqual(self.call(repo.root)[0], 0)
+        before = self.snap(repo, runtime=False)
+        code, body, _ = self.call(repo.root)
+        self.assertEqual((code, body), (0, {"commit": None, "recovered": False}))
+        self.assertEqual(before, self.snap(repo, runtime=False))
+
+    def test_f2_a_looser_edit_of_a_recorded_floor_leaves_nothing_pending(self):
+        repo = self.mk()
+        self.call(repo.root)
+        head = repo.head()
+        loose = copy.deepcopy(g.DEFAULT_RESOLVED)
+        self.edit_floor(repo, policy=loose, digest=g.policy_digest(loose))
+        repo.remove_policy()
+        code, body, _ = self.call(repo.root)
+        self.assertEqual((code, body), (0, {"commit": None, "recovered": False}))
+        self.assertEqual(repo.head(), head)
+        self.assertEqual(repo.git("diff", "--cached", "--name-only"), "")
+        self.assertEqual(repo.state(), json.loads(repo.git("show", f"HEAD:{STATE_REL}")))
+
+    def test_f2_only_recorded_at_or_observed_edited_commits_nothing_new(self):
+        for field, value in (("recorded_at", "2030-01-01T00:00:00Z"), ("observed", ["0" * 64])):
+            with self.subTest(field):
+                repo = self.mk()
+                self.call(repo.root)
+                head = repo.head()
+                self.edit_floor(repo, **{field: value})
+                code, body, _ = self.call(repo.root)
+                self.assertEqual((code, body), (0, {"commit": None, "recovered": False}))
+                self.assertEqual(repo.head(), head)
+
+    # -- F3: the order ------------------------------------------------------------
+
+    def test_f3_a_phase_other_than_complete_is_refused_before_anything_is_written(self):
+        for phase in ("IMPLEMENTING", "AWAITING_FUNCTIONAL_REVIEW"):
+            with self.subTest(phase):
+                repo = self.mk(phase)
+                twin = self.copy(repo)
+                g.clear_caches()
+                self.assertIsNotNone(ws.commit_gate_policy_floor(twin.root, now=self.STAMP))  # the function would commit
+                body = self.refused(repo, "FloorCommitPreflightError", "work_item_not_complete")
+                self.assertIn(phase, body["message"])
+                self.assertFalse((repo.root / ".ai-review").exists())
+
+    def test_f3_an_uncommitted_completion_is_refused_before_anything_is_written(self):
+        repo = self.mk(committed_phase="IMPLEMENTING")
+        twin = self.copy(repo)
+        g.clear_caches()
+        self.assertIsNotNone(ws.commit_gate_policy_floor(twin.root, now=self.STAMP))
+        self.refused(repo, "FloorCommitPreflightError", "completion_not_committed")
+        self.assertFalse((repo.root / ".ai-review").exists())
+
+    def test_f3_a_foreign_item_edit_does_not_matter(self):
+        repo = self.mk()
+        state = repo.state()
+        state["work_items"]["other"] = {"work_item_id": "other", "phase": "IMPLEMENTING"}
+        repo.write_state(state)
+        code, body, _ = self.call(repo.root)
+        self.assertEqual((code, body["recovered"]), (0, False))
+        self.assertIsNotNone(body["commit"])
+        self.assertIn("other", repo.state()["work_items"])
+        self.assertNotIn("other", json.loads(repo.git("show", f"HEAD:{STATE_REL}"))["work_items"])
+
+    # -- F4: the other refusals -------------------------------------------------------
+
+    def test_f4_a_staged_foreign_path_is_refused_and_nothing_changes(self):
+        repo = self.mk()
+        self.stage_foreign(repo)
+        body = self.refused(repo, "DirtyIndexBeforeStagingError")
+        self.assertIn("x.md", body["message"])
+
+    def test_f4_errors_before_the_call_write_nothing(self):
+        repo = self.mk()
+        state_path = repo.root / STATE_REL
+        good = state_path.read_bytes()
+        self.refused(repo, "UnknownWorkItem", wid="nope")
+        self.refused(repo, "UnknownWorkItem", wid="")
+        for text, name in (("{nope", "CorruptJsonError"), ("[]", "StateMalformed"), ("{}", "StateMalformed")):
+            state_path.write_text(text)
+            self.refused(repo, name)
+        state_path.unlink()
+        self.refused(repo, "StateMissing")
+        state_path.write_bytes(good)
+
+    def test_f4_a_directory_outside_git_is_a_class_name_not_a_traceback(self):
+        outside = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, outside, True)
+        code, body, raw = self.call(outside)
+        self.assertEqual((code, body["commit"], body["state_changed"]), (1, None, False))
+        self.assertNotIn("Traceback", raw)
+
+    # -- F5: recovery -------------------------------------------------------------------
+
+    def assert_recovered(self, repo):
+        code, body, _ = self.call(repo.root)
+        self.assertEqual((code, body), (0, {"commit": repo.head(), "recovered": True}))
+        self.assertRegex(self.message(repo).splitlines()[0], self.GATE_SUBJECT)
+        self.assertEqual(repo.git("diff-tree", "--no-commit-id", "--name-only", "-r", "HEAD"), STATE_REL)
+        self.assertEqual(repo.git("status", "--porcelain", "--", STATE_REL), "")
+        ws.validate_gate_policy_floor_commit(repo.root, repo.head())
+        self.assertEqual(self.call(repo.root)[1], {"commit": None, "recovered": False})
+
+    def test_f5_a_stop_after_the_state_write_is_completed_by_a_re_run(self):
+        repo = self.mk()
+        head = repo.head()
+        self.kill_at(repo, "state")
+        self.assertEqual(repo.git("status", "--porcelain", "--", STATE_REL), "M docs/ai-workflow/WORKFLOW_STATE.json")
+        twin = self.copy(repo)
+        g.clear_caches()
+        self.assertIsNone(ws.commit_gate_policy_floor(twin.root, now=self.STAMP))  # the measured blindness
+        self.assertEqual(twin.head(), head)
+        self.assert_recovered(repo)
+
+    def test_f5_a_stop_after_staging_is_completed_by_a_re_run(self):
+        repo = self.mk()
+        self.kill_at(repo, "stage")
+        self.assertEqual(repo.git("diff", "--cached", "--name-only"), STATE_REL)
+        self.assert_recovered(repo)
+
+    def test_f5_a_stop_after_the_commit_leaves_nothing_to_do(self):
+        repo = self.mk()
+        head = repo.head()
+        self.kill_at(repo, "validate")
+        committed = repo.head()
+        self.assertNotEqual(committed, head)
+        code, body, _ = self.call(repo.root)
+        self.assertEqual((code, body), (0, {"commit": None, "recovered": False}))
+        self.assertEqual(repo.head(), committed)
+
+    def test_f5_a_stop_after_staging_with_a_foreign_edit_is_refused_until_unstaged(self):
+        repo = self.mk()
+        self.kill_at(repo, "stage")
+        state = repo.state()
+        state["work_items"]["other"] = {"work_item_id": "other", "phase": "IMPLEMENTING"}
+        repo.write_state(state)
+        self.refused(repo, "DirtyIndexBeforeStagingError")
+        repo.git("restore", "--staged", STATE_REL)
+        code, body, _ = self.call(repo.root)
+        self.assertEqual((code, body["recovered"]), (0, True))
+        self.assertNotIn("other", json.loads(repo.git("show", f"HEAD:{STATE_REL}"))["work_items"])
+        self.assertIn("other", repo.state()["work_items"])
+
+    def test_f5_an_error_after_the_state_write_reports_state_changed(self):
+        repo = self.mk()
+        head = repo.head()
+
+        def boom(*a, **k):
+            raise RuntimeError("after the write")
+
+        with mock.patch.object(ws, "_stage_state_for_commit", boom):
+            code, body, _ = self.call(repo.root)
+        self.assertEqual((code, body["error"], body["commit"], body["state_changed"]), (1, "RuntimeError", None, True))
+        self.assertEqual(repo.head(), head)
+
+    def test_f5_a_waiting_floor_with_a_foreign_path_staged_reports_state_unchanged(self):
+        repo = self.mk()
+        self.waiting_floor(repo)
+        self.stage_foreign(repo)
+        self.refused(repo, "DirtyIndexBeforeStagingError")
+        repo.git("rm", "-q", "--cached", "x.md")
+        (repo.root / "x.md").unlink()
+        self.assertEqual(self.call(repo.root)[1]["recovered"], True)
+
+    # -- F9: the sibling proves before it stages -----------------------------------------
+
+    def committed_floor_repo(self):
+        repo = self.mk()
+        self.call(repo.root)
+        return repo
+
+    def test_f9_a_damaged_record_is_refused_with_its_own_code(self):
+        def damaged_digest(repo):
+            self.edit_floor(repo, digest="0" * 64)
+
+        def no_digest(repo):
+            state = repo.state()
+            del state["gate_policy_floor"]["digest"]
+            repo.write_state(state)
+
+        def malformed_policy(repo):
+            state = repo.state()
+            state["gate_policy_floor"] = {"policy": {"x": 1}, "digest": "0" * 64, "recorded_at": "t", "observed": []}
+            repo.write_state(state)
+
+        cases = {"a": (self.committed_floor_repo, damaged_digest, False),
+                 "b": (lambda: self.mk(policy=None), malformed_policy, False),
+                 "d": (self.committed_floor_repo, no_digest, False),
+                 "e": (self.committed_floor_repo, damaged_digest, True)}
+        for name, (build, damage, staged) in cases.items():
+            with self.subTest(name):
+                repo = build()
+                damage(repo)
+                if staged:
+                    self.stage_foreign(repo)
+                provenance = g.verify_gate_policy_provenance(repo.root)
+                self.refused(repo, "FloorRecoveryRefusedError", "floor_record_invalid")
+                if staged:
+                    self.assertEqual(repo.git("diff", "--cached", "--name-only"), "x.md")
+                g.clear_caches()
+                self.assertEqual(provenance, g.verify_gate_policy_provenance(repo.root))
+
+    def test_f9_a_failed_provenance_is_refused_whether_or_not_a_floor_waits(self):
+        for name, staged, looser in (("c", False, True), ("i", True, True), ("f", False, False)):
+            with self.subTest(name):
+                repo = self.mk(policy=None)
+                self.broken_provenance(repo)
+                if looser:
+                    self.edit_floor(repo, policy=copy.deepcopy(g.DEFAULT_RESOLVED), digest=g.policy_digest(g.DEFAULT_RESOLVED))
+                else:
+                    repo.write_state(json.loads(repo.git("show", f"HEAD:{STATE_REL}")))
+                if staged:
+                    self.stage_foreign(repo)
+                self.assertFalse(g.verify_gate_policy_provenance(repo.root)["ok"])
+                self.refused(repo, "FloorRecoveryRefusedError", "floor_provenance_failed")
+                if staged:
+                    self.assertEqual(repo.git("diff", "--cached", "--name-only"), "x.md")
+
+    def waiting_better_floor(self, repo):
+        """The working file holds a valid floor stricter than the default; HEAD holds none."""
+        policy = g.resolve_policy(self.STRICT)
+        state = repo.state()
+        state["gate_policy_floor"] = {"policy": policy, "digest": g.policy_digest(policy), "recorded_at": "t", "observed": []}
+        repo.write_state(state)
+        return policy
+
+    def test_f9_a_floor_that_is_not_the_computed_one_is_refused_by_a_direct_call(self):
+        for staged in (False, True):
+            with self.subTest(staged=staged):
+                repo = self.mk(policy=None)
+                self.waiting_better_floor(repo)
+                if staged:
+                    self.stage_foreign(repo)
+                before = self.snap(repo)
+                g.clear_caches()
+                with mock.patch.object(g, "_virtual_floor", lambda *a, **k: (copy.deepcopy(g.ALL_HUMAN_RESOLVED), [])):
+                    with self.assertRaises(ws.FloorRecoveryRefusedError) as caught:
+                        ws.commit_pending_gate_policy_floor(repo.root)
+                self.assertEqual(caught.exception.code, "floor_not_virtual")
+                self.assertEqual(before, self.snap(repo))
+
+    def test_f9_a_floor_looser_than_heads_is_refused(self):
+        for staged in (False, True):
+            with self.subTest(staged=staged):
+                repo = self.committed_floor_repo()
+                loose = copy.deepcopy(g.DEFAULT_RESOLVED)
+                self.edit_floor(repo, policy=loose, digest=g.policy_digest(loose))
+                if staged:
+                    self.stage_foreign(repo)
+                before = self.snap(repo)
+                g.clear_caches()
+                with mock.patch.object(g, "_virtual_floor", lambda *a, **k: (copy.deepcopy(loose), [])):
+                    code, body, _ = self.call_keeping_patch(repo.root)
+                self.assertEqual((code, body["code"], body["commit"], body["state_changed"]),
+                                 (1, "floor_looser_than_head", None, False))
+                self.assertEqual(before, self.snap(repo))
+
+    def call_keeping_patch(self, root):
+        import io
+        import os
+
+        out = io.StringIO()
+        old = os.getcwd()
+        os.chdir(root)
+        try:
+            with contextlib.redirect_stdout(out):
+                code = ws._commit_gate_policy_floor_cli("wi", now=lambda: self.STAMP)
+        finally:
+            os.chdir(old)
+        return code, json.loads(out.getvalue()), out.getvalue()
+
+    def test_f9_nothing_waiting_answers_null_even_with_a_foreign_path_staged(self):
+        plain = self.mk(policy=None)
+        self.stage_foreign(plain)
+        before = self.snap(plain)
+        self.assertEqual(self.call(plain.root)[:2], (0, {"commit": None, "recovered": False}))
+        self.assertEqual(before, self.snap(plain))
+        repo = self.committed_floor_repo()
+        self.edit_floor(repo, recorded_at="2031-01-01T00:00:00Z")
+        self.stage_foreign(repo)
+        before = self.snap(repo)
+        self.assertEqual(self.call(repo.root)[:2], (0, {"commit": None, "recovered": False}))
+        self.assertEqual(before, self.snap(repo))
+        self.assertEqual(repo.git("diff", "--cached", "--name-only"), "x.md")
+
+    # -- F6: a refusal after the commit ---------------------------------------------------
+
+    def test_f6_a_validator_refusal_reports_the_commit_and_the_error(self):
+        repo = self.mk()
+        head = repo.head()
+
+        def bad(*a, **k):
+            raise ws.MalformedGatePolicyFloorCommitError("synthetic")
+
+        with mock.patch.object(ws, "validate_gate_policy_floor_commit", bad):
+            code, body, _ = self.call(repo.root)
+        self.assertEqual(code, 1)
+        self.assertEqual((body["error"], body["message"], body["commit"], body["state_changed"]),
+                         ("MalformedGatePolicyFloorCommitError", "synthetic", repo.head(), True))
+        self.assertEqual(repo.git("rev-list", "--count", f"{head}..HEAD"), "1")
+
+    def test_f6_a_validator_refusal_on_a_recovery_commit_reports_the_commit_and_the_error(self):
+        """LOCAL-IMPL-R1-001: the sibling's own validator call is what refuses a bad recovery commit."""
+        repo = self.mk()
+        self.waiting_floor(repo)
+        head = repo.head()
+        state_before = (repo.root / STATE_REL).read_bytes()
+
+        def bad(*a, **k):
+            raise ws.MalformedGatePolicyFloorCommitError("synthetic recovery")
+
+        with mock.patch.object(ws, "validate_gate_policy_floor_commit", bad):
+            code, body, _ = self.call(repo.root)
+        self.assertEqual(code, 1)
+        self.assertEqual((body["error"], body["message"], body["commit"], body["state_changed"]),
+                         ("MalformedGatePolicyFloorCommitError", "synthetic recovery", repo.head(), False))
+        self.assertNotEqual(repo.head(), head)
+        self.assertNotIn("recovered", body)
+        self.assertEqual(repo.git("rev-list", "--count", f"{head}..HEAD"), "1")
+        self.assertEqual((repo.root / STATE_REL).read_bytes(), state_before)
+
+    # -- F7: interface ----------------------------------------------------------------------
+
+    def test_f7_the_flag_is_exclusive_with_the_other_five(self):
+        for other in ("--plan-review-publication-status", "--finding-dispositions", "--acceptance-gate",
+                      "--satisfy-acceptance", "--write-findings-record"):
+            with self.subTest(other), contextlib.redirect_stderr(__import__("io").StringIO()) as err:
+                with self.assertRaises(SystemExit) as caught:
+                    ws._plan_review_publication_status_cli(["--commit-gate-policy-floor", "wi", other, "wi"])
+                self.assertEqual(caught.exception.code, 2)
+                self.assertIn("not allowed with argument", err.getvalue())
+
+    def test_f7_the_argument_parser_reaches_the_command(self):
+        repo = self.mk(phase="IMPLEMENTING")
+        import io
+        import os
+
+        out = io.StringIO()
+        old = os.getcwd()
+        os.chdir(repo.root)
+        try:
+            with contextlib.redirect_stdout(out):
+                code = ws._plan_review_publication_status_cli(["--commit-gate-policy-floor", "wi"])
+        finally:
+            os.chdir(old)
+        self.assertEqual((code, json.loads(out.getvalue())["code"]), (1, "work_item_not_complete"))
+        helper = TestWriteFindingsRecordCommand(methodName="test_r5_the_existing_flags_print_what_they_printed")
+        code, raw = helper.call(repo.root, "wi", "--commit-gate-policy-floor", "")  # an empty id is not "absent"
+        self.assertEqual((code, json.loads(raw)["error"]), (1, "UnknownWorkItem"))
+        outside = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, outside, True)
+        code, raw = helper.call(outside, "wi", "--commit-gate-policy-floor", "wi")  # dispatched before the shared `git rev-parse`
+        body = json.loads(raw)
+        self.assertEqual((code, body["commit"], body["state_changed"]), (1, None, False))
+        self.assertIn("error", body)
+
+    def test_f7_the_existing_flags_print_what_they_printed(self):
+        import io
+
+        helper = TestWriteFindingsRecordCommand(methodName="test_r5_the_existing_flags_print_what_they_printed")
+        with AcceptanceRepo() as ev:
+            helper.complete(ev, "O1: add a test")
+            state = ev.state()
+            buffer = io.StringIO()
+            with contextlib.redirect_stdout(buffer):
+                direct_code = ws._finding_dispositions_cli(ev.root, WI)
+            self.assertEqual(helper.call(ev.root, WI, "--finding-dispositions", WI), (direct_code, buffer.getvalue()))
+            self.assertEqual(helper.call(ev.root, WI, "--acceptance-gate", WI),
+                             (0, json.dumps(ws.acceptance_gate_report(ev.root, state, WI), sort_keys=True, indent=2) + "\n"))
+            status = ws.plan_review_publication_status(ev.root, state, WI)
+            self.assertEqual(helper.call(ev.root, WI, "--plan-review-publication-status", WI),
+                             (0, json.dumps({k: v for k, v in status.items() if not k.startswith("_")}, sort_keys=True) + "\n"))
+            blocker = ws._acceptance_reachability_blocker(ev.root, WI, state["work_items"][WI])
+            self.assertEqual(helper.call(ev.root, WI, "--satisfy-acceptance", WI),
+                             (1, json.dumps({"code": blocker["code"], "error": "AcceptancePreflightError",
+                                             "message": blocker["detail"], "state_changed": False}, sort_keys=True) + "\n"))
+            record = TestWriteFindingsRecordCommand.RECORD.as_posix()
+            self.assertEqual(helper.call(ev.root, WI, "--write-findings-record", WI),
+                             (0, json.dumps({"paths": [record]}, sort_keys=True, indent=2) + "\n"))
+
+    # -- F8: the function is untouched -------------------------------------------------------
+
+    def test_f8_commit_gate_policy_floor_is_unchanged_and_called_first(self):
+        import inspect
+
+        self.assertEqual(hashlib.sha256(inspect.getsource(ws.commit_gate_policy_floor).encode()).hexdigest(),
+                         self.FLOOR_SOURCE_SHA256)
+        repo = self.mk()
+        calls = []
+        real, sibling = ws.commit_gate_policy_floor, ws.commit_pending_gate_policy_floor
+        with mock.patch.object(ws, "commit_gate_policy_floor", lambda *a, **k: (calls.append("function"), real(*a, **k))[1]), \
+                mock.patch.object(ws, "commit_pending_gate_policy_floor", lambda *a, **k: (calls.append("sibling"), sibling(*a, **k))[1]):
+            self.call(repo.root)
+            self.assertEqual(calls, ["function"])
+            self.call(repo.root)
+            self.assertEqual(calls, ["function", "function", "sibling"])
+
+    def test_f8_the_sibling_and_the_function_make_the_same_commit(self):
+        repo = self.mk()
+        twin = self.copy(repo)
+        g.clear_caches()
+        sha = ws.commit_gate_policy_floor(twin.root, now=self.STAMP)
+        self.waiting_floor(repo)
+        g.clear_caches()
+        sibling = ws.commit_pending_gate_policy_floor(repo.root)
+        self.assertEqual(self.message(repo, sibling), self.message(twin, sha))
+        self.assertEqual(repo.git("show", f"{sibling}:{STATE_REL}"), twin.git("show", f"{sha}:{STATE_REL}"))
+
+    # -- R6: the command text -------------------------------------------------------------------
+
+    def test_r6_the_command_text_names_the_flag_and_the_rule(self):
+        satisfy = (REPO_ROOT / ".claude" / "commands" / "satisfy-gate.md").read_text()
+        flat = " ".join(satisfy.split())
+        flag = "python3 scripts/workflow_state.py --commit-gate-policy-floor <work-item-id>"
+        self.assertIn(flag, [ln.strip().strip("`") for ln in satisfy.splitlines()])
+        for line in satisfy.splitlines():
+            if "--commit-gate-policy-floor" in line and "python3" in line:
+                self.assertNotIn("python3 -I", line)
+        for needle in ("after step 4's completion commit", "work_item_not_complete", "completion_not_committed",
+                       "floor_provenance_failed", "floor_record_invalid", "floor_not_virtual", "floor_looser_than_head",
+                       "recovered", "git restore --staged docs/ai-workflow/WORKFLOW_STATE.json",
+                       "do not run it again", "never commit the file by hand",
+                       "`state_changed: true` with `commit: null` means this call wrote the floor into the file before it stopped",
+                       "steps 4 and 5 below stay the worker's own edits, `git commit` and, for the floor, the plain command below",
+                       '(see "Plain commands first"), not the Python call',
+                       "The acceptance stage has no inline Python call",
+                       "the plan-stage and implementation-stage floors keep the Python description (`commit_gate_policy_floor`)"):
+            self.assertIn(needle, flat)
+        self.assertNotIn("one Python call", flat)
+        self.assertNotIn("until its own plain", flat)
+        self.assertIn("commit_gate_policy_floor", flat)
+
+    def test_r6_the_documented_line_runs_as_written_and_refuses_an_early_item(self):
+        satisfy = (REPO_ROOT / ".claude" / "commands" / "satisfy-gate.md").read_text()
+        (line,) = [ln.strip().strip("`") for ln in satisfy.splitlines()
+                   if ln.strip().strip("`").startswith("python3 scripts/workflow_state.py --commit-gate-policy-floor")]
+        argv = line.replace("<work-item-id>", "wi").split()
+        repo = self.mk("IMPLEMENTING")
+        shutil.copytree(SCRIPTS, repo.root / "scripts", ignore=shutil.ignore_patterns("__pycache__"), dirs_exist_ok=True)
+        ran = subprocess.run(argv, cwd=repo.root, capture_output=True, text=True)
+        self.assertNotIn("ModuleNotFoundError", ran.stderr)
+        self.assertEqual((ran.returncode, json.loads(ran.stdout)["code"]), (1, "work_item_not_complete"))
 
 
 if __name__ == "__main__":
