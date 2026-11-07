@@ -20497,6 +20497,80 @@ def _write_findings_record_cli(work_item_id: str) -> int:
     return 0
 
 
+class FloorCommitPreflightError(Exception):
+    """`--commit-gate-policy-floor` found the acceptance order unmet before anything was
+    written; `code` is `work_item_not_complete` or `completion_not_committed`."""
+
+    def __init__(self, code: str, detail: str):
+        super().__init__(detail)
+        self.code = code
+
+
+def _head_sha_or_none(repo_root: Path | None) -> str | None:
+    if repo_root is None:
+        return None
+    try:
+        return _head_sha(repo_root)
+    except Exception:
+        return None
+
+
+def _commit_gate_policy_floor_cli(work_item_id: str, *, now: Callable[[], str] | None = None) -> int:
+    """`--commit-gate-policy-floor` (workflow-2.29.0): `/satisfy-gate acceptance` step 5
+    as one plain command. Refuses unless the item is `MILESTONE_COMPLETE` and `HEAD`
+    holds its completed copy, then calls `commit_gate_policy_floor` (unchanged) and,
+    when that answers `None`, `commit_pending_gate_policy_floor`; prints `{commit,
+    recovered}` (exit 0), or one `{"error", "message", "commit", "state_changed"[,
+    "code"]}` object (exit 1). `commit` is the new `HEAD` when it moved during the
+    call. It takes no lock of its own. `now` is a test seam."""
+    repo_root: Path | None = None
+    head_before: str | None = None
+    state_before: str | None = None
+
+    def fail(name: str, message: str, code: str | None = None) -> int:
+        head_after = _head_sha_or_none(repo_root)
+        moved = repo_root is not None and head_after is not None and head_after != head_before
+        changed = repo_root is not None and _state_file_digest(repo_root) != state_before
+        body = {"error": name, "message": message, "commit": head_after if moved else None,
+                "state_changed": changed}
+        if code is not None:
+            body["code"] = code
+        print(json.dumps(body, sort_keys=True))
+        return 1
+
+    try:
+        repo_root, state = _acceptance_cli_context(work_item_id)
+        head_before = _head_sha_or_none(repo_root)
+        state_before = _state_file_digest(repo_root)
+        item = state["work_items"][work_item_id]
+        phase = item.get("phase")
+        if phase != "MILESTONE_COMPLETE":
+            raise FloorCommitPreflightError(
+                "work_item_not_complete",
+                f"{work_item_id} is at phase {phase!r}; the floor is committed after the completion commit (MILESTONE_COMPLETE)")
+        head_item = None
+        if head_before is not None:
+            head_item = _read_json_at_commit_or_empty(
+                repo_root, "HEAD", DEFAULT_STATE_PATH.as_posix()).get("work_items", {}).get(work_item_id)
+        if head_item != item:
+            raise FloorCommitPreflightError(
+                "completion_not_committed",
+                f"HEAD does not hold {work_item_id}'s completed copy; commit the completion first (step 4)")
+        stamp = now() if now is not None else _utc_now_stamp()
+        commit = commit_gate_policy_floor(repo_root, now=stamp)
+        recovered = False
+        if commit is None:
+            commit = commit_pending_gate_policy_floor(repo_root)
+            recovered = commit is not None
+    except _AcceptanceCliRefusal as exc:
+        return fail(exc.name, str(exc))
+    except Exception as exc:  # the contract is JSON, never a traceback
+        code = getattr(exc, "code", None)
+        return fail(type(exc).__name__, str(exc), code if isinstance(code, str) else None)
+    print(json.dumps({"commit": commit, "recovered": recovered}, sort_keys=True, indent=2))
+    return 0
+
+
 def _plan_review_publication_status_cli(argv: list[str] | None = None) -> int:
     """CLI (`D-Plan-Review-Bundle-Binding`, workflow-2.6.0), read-only except the last two options: print
     `plan_review_publication_status` for one work item as a single JSON
@@ -20506,7 +20580,8 @@ def _plan_review_publication_status_cli(argv: list[str] | None = None) -> int:
     equally read-only option, and `--acceptance-gate` (workflow-2.26.0) the third.
     `--satisfy-acceptance` (workflow-2.27.0) is the fourth and the first that writes:
     through `state_transaction`, as `satisfy_acceptance_gate` does. `--write-findings-record`
-    (workflow-2.28.0) is the fifth: it writes only the findings record file, no state."""
+    (workflow-2.28.0) is the fifth: it writes only the findings record file, no state.
+    `--commit-gate-policy-floor` (workflow-2.29.0) is the sixth: it commits the gate-policy floor after the completion commit."""
     import argparse
 
     parser = argparse.ArgumentParser(description=_plan_review_publication_status_cli.__doc__)
@@ -20516,7 +20591,10 @@ def _plan_review_publication_status_cli(argv: list[str] | None = None) -> int:
     group.add_argument("--acceptance-gate", metavar="WORK_ITEM_ID")
     group.add_argument("--satisfy-acceptance", metavar="WORK_ITEM_ID")
     group.add_argument("--write-findings-record", metavar="WORK_ITEM_ID")
+    group.add_argument("--commit-gate-policy-floor", metavar="WORK_ITEM_ID")
     args = parser.parse_args(argv)
+    if args.commit_gate_policy_floor is not None:  # before the shared `git rev-parse`; an empty id is not "absent"
+        return _commit_gate_policy_floor_cli(args.commit_gate_policy_floor)
     if args.write_findings_record is not None:  # before the shared `git rev-parse`; an empty id is not "absent"
         return _write_findings_record_cli(args.write_findings_record)
     if args.satisfy_acceptance is not None:  # before the shared `git rev-parse`, like the report
@@ -20982,6 +21060,61 @@ def commit_gate_policy_floor(repo_root: Path, *, now: str) -> str | None:
     _stage_state_for_commit(repo_root, GATE_POLICY_FLOOR_SCOPE)
     if not _run(["git", "diff", "--cached", "--name-only"], cwd=repo_root).strip():
         return None  # a concurrent writer recorded the same floor first
+    _run(["git", "commit", "-q", "-m", f"chore: record gate policy floor {floor['digest'][:12]}",
+          "-m", f"{GATE_POLICY_FLOOR_TRAILER}: {floor['digest']}"], cwd=repo_root)
+    commit = _head_sha(repo_root)
+    validate_gate_policy_floor_commit(repo_root, commit)
+    gate_policy.clear_caches()
+    return commit
+
+
+class FloorRecoveryRefusedError(Exception):
+    """`commit_pending_gate_policy_floor` refused to commit the floor waiting in the
+    working state file; `code` is `floor_provenance_failed`, `floor_record_invalid`,
+    `floor_not_virtual` or `floor_looser_than_head`. Raised before anything is staged."""
+
+    def __init__(self, code: str, detail: str):
+        super().__init__(detail)
+        self.code = code
+
+
+def commit_pending_gate_policy_floor(repo_root: Path) -> str | None:
+    """workflow-2.29.0: commits a floor already waiting in the working state file,
+    which `commit_gate_policy_floor` cannot see (its own `record_gate_policy_floor`
+    answers the same object once the floor is the virtual one). It proves what it
+    commits before it stages anything, writing nothing: (1) a working
+    `gate_policy_floor` exists, else `None`; (2) provenance holds at `HEAD`; (3) the
+    record is valid; (4) its policy equals the recomputed virtual floor; (5) it is no
+    looser than `HEAD`'s effective floor; (6) its policy differs from `HEAD`'s committed
+    floor, else `None`. Then the index check, the top-level-scoped staging, the same
+    subject and trailer as the function, and the validator. Takes no lock and writes no
+    state. Returns the commit sha, or `None` when nothing new is waiting."""
+    working = _load_json(repo_root / DEFAULT_STATE_PATH)
+    floor = working.get(GATE_POLICY_FLOOR_KEY) if isinstance(working, dict) else None
+    if floor is None:
+        return None
+    if not gate_policy.verify_gate_policy_provenance(repo_root)["ok"]:
+        raise FloorRecoveryRefusedError(
+            "floor_provenance_failed",
+            "the gate-policy provenance fails at HEAD; a floor commit on a broken chain is not repaired by another commit")
+    errors = gate_policy.floor_record_errors(floor)
+    if errors:
+        raise FloorRecoveryRefusedError("floor_record_invalid", "; ".join(errors))
+    history = gate_policy._history(repo_root)
+    adoption, committed = gate_policy._committed_gp(history)
+    virtual, _observed = gate_policy._virtual_floor(repo_root, working, history, gate_policy._base_resolved(adoption))
+    if virtual != floor["policy"]:
+        raise FloorRecoveryRefusedError(
+            "floor_not_virtual", "the working gate_policy_floor is not the floor the Workflow computes")
+    if gate_policy.stricter(gate_policy._effective_floor_of(adoption, committed), floor["policy"]) != floor["policy"]:
+        raise FloorRecoveryRefusedError(
+            "floor_looser_than_head", "the working gate_policy_floor is looser than HEAD's effective floor")
+    if gate_policy._floor_resolved(committed) == floor["policy"]:
+        return None  # only recorded_at or observed differ: nothing new is waiting
+    _assert_index_clean_apart_from_state(repo_root)
+    _stage_state_for_commit(repo_root, GATE_POLICY_FLOOR_SCOPE)
+    if not _run(["git", "diff", "--cached", "--name-only"], cwd=repo_root).strip():
+        return None
     _run(["git", "commit", "-q", "-m", f"chore: record gate policy floor {floor['digest'][:12]}",
           "-m", f"{GATE_POLICY_FLOOR_TRAILER}: {floor['digest']}"], cwd=repo_root)
     commit = _head_sha(repo_root)
