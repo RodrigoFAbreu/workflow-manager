@@ -93,7 +93,12 @@ says.
       is_terminal=is_terminal)`. `False` stops here — report the actual
       `phase` and, if `not is_terminal`, name `outstanding_checkpoint_id`
       and what the next bullet says about it; do not proceed past
-      this point.
+      this point. `complete_work_item` makes the same phase check itself
+      (workflow-2.29.1): called from any phase but `AWAITING_FUNCTIONAL_REVIEW`
+      or `AWAITING_USER_ACCEPTANCE` it raises `CompletionPhaseNotReachableError`
+      (`code` `work_item_terminal` or `phase_not_reachable`), after the child and
+      own-registry checks and before the completion obligations. That is a stop
+      too: it writes nothing; report the phase and its `code`.
     - **A non-terminal registry** (ledger
       `I10` of the Workflow v2.x defect ledger retired the non-terminal
       acceptance command that used to be named here; its

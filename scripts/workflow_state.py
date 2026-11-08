@@ -13679,6 +13679,17 @@ def _incomplete_own_checkpoints_route(work_item: dict) -> str:
     )
 
 
+class CompletionPhaseNotReachableError(Exception):
+    """`complete_work_item` refused: the item is not at a phase the acceptance
+    gate reaches (workflow-2.29.1). `code` is `work_item_terminal` (already
+    `MILESTONE_COMPLETE`) or `phase_not_reachable`, the codes
+    `_acceptance_reachability_blocker` and the acceptance flag already use."""
+
+    def __init__(self, code: str, detail: str):
+        super().__init__(detail)
+        self.code = code
+
+
 def complete_work_item(state: dict, work_item_id: str, now: str, *, repo_root: Path) -> dict:
     """D1's completion/reset text: on `MILESTONE_COMPLETE` (or
     process-completion archival), the entry's phase becomes terminal and,
@@ -13703,8 +13714,13 @@ def complete_work_item(state: dict, work_item_id: str, now: str, *, repo_root: P
     naming the outstanding checkpoint, when the item's own registry has any
     checkpoint that is not `COMPLETE`.
 
+    The phase guard (workflow-2.29.1): after those two checks and before the
+    obligations, refuses with `CompletionPhaseNotReachableError` unless the
+    item is at `AWAITING_FUNCTIONAL_REVIEW` or `AWAITING_USER_ACCEPTANCE`
+    (`milestone_complete_gate_reachable`).
+
     `D-Completion-Obligations` (item 356(a)): independent of, and in
-    addition to, both checks above, every completion obligation the
+    addition to, the checks above, every completion obligation the
     item's own registry declares must derive `PASS` --
     `UnsatisfiedCompletionObligationError` otherwise, naming each
     outstanding obligation, its classification, and (for `FAIL`) the
@@ -13732,6 +13748,15 @@ def complete_work_item(state: dict, work_item_id: str, now: str, *, repo_root: P
             f"{outstanding_checkpoint_id!r} is not COMPLETE. "
             + _incomplete_own_checkpoints_route(work_item)
         )
+
+    # The phase guard (workflow-2.29.1): after the child and registry checks, so
+    # their released refusals keep their order, and before the obligations.
+    phase = work_item.get("phase")
+    if phase == "MILESTONE_COMPLETE":
+        raise CompletionPhaseNotReachableError("work_item_terminal", f"{work_item_id} is already MILESTONE_COMPLETE")
+    if not milestone_complete_gate_reachable(phase=phase, is_terminal=is_terminal):
+        raise CompletionPhaseNotReachableError(
+            "phase_not_reachable", f"the phase is {phase}; the acceptance stage needs AWAITING_FUNCTIONAL_REVIEW")
 
     verdicts = resolve_completion_obligations(repo_root, work_item)
     outstanding = {oid: v for oid, v in verdicts.items() if v.classification != "PASS"}
@@ -20395,12 +20420,12 @@ def _state_file_digest(repo_root: Path) -> str | None:
 
 def _satisfy_acceptance_cli(work_item_id: str, *, now: Callable[[], str] | None = None, run=None, resolve=None) -> int:
     """`--satisfy-acceptance` (workflow-2.27.0): the act of `/satisfy-gate acceptance`
-    as one plain command. Makes step 2a's phase and registry check (the library does
-    not), then calls `satisfy_acceptance_gate` -- one `state_transaction`, nothing
-    else -- and prints `{record, trailer}` (exit 0), or one `{"error", "message",
-    "state_changed"[, "code"]}` object (exit 1). It takes no lock of its own, makes no
+    as one plain command. Calls `satisfy_acceptance_gate` -- one `state_transaction`
+    whose mutator makes step 2a's phase and registry check first, under the lock
+    (workflow-2.29.1) -- and prints `{record, trailer}` (exit 0), or one `{"error", "message",
+    "state_changed"[, "code"]}` object (exit 1). It takes no lock beyond the transaction's, makes no
     commit and writes no file besides the state file. `now`, `run` and `resolve` are
-    test seams. `state_changed` compares the state file's digest before the pre-flight
+    test seams. `state_changed` compares the state file's digest before the transaction
     with the one after the failure."""
     before: str | None = None
     repo_root: Path | None = None
@@ -20414,11 +20439,8 @@ def _satisfy_acceptance_cli(work_item_id: str, *, now: Callable[[], str] | None 
         return 1
 
     try:
-        repo_root, state = _acceptance_cli_context(work_item_id)
+        repo_root, _state = _acceptance_cli_context(work_item_id)
         before = _state_file_digest(repo_root)
-        blocker = _acceptance_reachability_blocker(repo_root, work_item_id, state["work_items"][work_item_id])
-        if blocker is not None:
-            raise AcceptancePreflightError(blocker["code"], blocker["detail"])
         stamp = now() if now is not None else _utc_now_stamp()
         result = satisfy_acceptance_gate(repo_root, work_item_id, now=stamp, run=run, resolve=resolve)
     except _AcceptanceCliRefusal as exc:
@@ -21616,6 +21638,11 @@ def satisfy_acceptance_gate(repo_root: Path, work_item_id: str, *, now: str, run
 
     def mutator(state: dict) -> dict:
         work_item = state["work_items"][work_item_id]
+        # Step 2a's phase and registry check, on the state re-read under the lock
+        # (workflow-2.29.1): the phase judged is the phase completed from.
+        blocker = _acceptance_reachability_blocker(repo_root, work_item_id, work_item)
+        if blocker is not None:
+            raise AcceptancePreflightError(blocker["code"], blocker["detail"])
         anchor = gate_policy.anchor_of(repo_root, work_item_id, work_item)
         if anchor is None:
             raise workflow_forge.ForgeUndecidableError(

@@ -3746,6 +3746,7 @@ class AcceptanceRepo(EvidenceRepo):
         super().__enter__()
         self.approve_plan()
         self.approve()
+        self.set_state(phase="AWAITING_FUNCTIONAL_REVIEW")
         return self
 
     def approve_plan(self) -> None:
@@ -4105,7 +4106,7 @@ class TestSatisfyAcceptance(unittest.TestCase):
             with self.assertRaises(ws.GateNotSatisfiableError):
                 ev.satisfy([pr_record(ev.anchor, checks="failure")])
             item = ev.item()
-            self.assertEqual(item["phase"], "AWAITING_LOCAL_IMPLEMENTATION_REVIEW")
+            self.assertEqual(item["phase"], "AWAITING_FUNCTIONAL_REVIEW")
             self.assertNotIn("acceptance_satisfaction", item)
             self.assertEqual(item["gate_evidence"]["pr"]["checks"]["state"], "failure",
                              "the fact the query read is stored when the gate refuses")
@@ -4150,7 +4151,7 @@ class TestSatisfyAcceptance(unittest.TestCase):
             g.clear_caches()
             with self.assertRaises(ws.GateNotSatisfiableError):
                 ev.satisfy()
-            self.assertEqual(ev.item()["phase"], "AWAITING_LOCAL_IMPLEMENTATION_REVIEW")
+            self.assertEqual(ev.item()["phase"], "AWAITING_FUNCTIONAL_REVIEW")
             self.assertNotIn("acceptance_satisfaction", ev.item())
 
     def test_a_re_acceptance_overwrites_the_record(self):
@@ -5983,7 +5984,8 @@ class TestSatisfyAcceptanceCommand(unittest.TestCase):
         import inspect
         self.assertTrue(callable(ws._acceptance_reachability_blocker))
         self.assertIn("_acceptance_reachability_blocker(", inspect.getsource(ws.acceptance_gate_report))
-        self.assertIn("_acceptance_reachability_blocker(", inspect.getsource(ws._satisfy_acceptance_cli))
+        self.assertIn("_acceptance_reachability_blocker(", inspect.getsource(ws.satisfy_acceptance_gate))
+        self.assertNotIn("_acceptance_reachability_blocker(", inspect.getsource(ws._satisfy_acceptance_cli))
         self.assertNotIn("milestone_complete_gate_reachable", inspect.getsource(ws._satisfy_acceptance_cli))
         with AcceptanceRepo() as ev:
             for phase, expected in (("IMPLEMENTING", "phase_not_reachable"), ("MILESTONE_COMPLETE", "work_item_terminal")):
@@ -5997,6 +5999,182 @@ class TestSatisfyAcceptanceCommand(unittest.TestCase):
             ev.set_state(phase="AWAITING_FUNCTIONAL_REVIEW")
             g.clear_caches()
             self.assertIsNone(ws._acceptance_reachability_blocker(ev.root, WI, ev.item()))
+
+
+class TestCompletionPhaseGuard(unittest.TestCase):
+    """workflow-2.29.1: the phase guard in `complete_work_item` and, inside the lock, in the acceptance stage."""
+
+    ACCEPTANCE_PHASES = ("AWAITING_FUNCTIONAL_REVIEW", "AWAITING_USER_ACCEPTANCE")
+
+    def setUp(self):
+        self.c = TestSatisfyAcceptanceCommand(methodName="test_s1_the_command_equals_the_python_path_in_six_states")
+        self.c.setUp()
+        self.addCleanup(shutil.rmtree, self.c.r.scratch, True)
+
+    @staticmethod
+    def complete(root: Path, state: dict) -> dict:
+        return ws.complete_work_item(state, WI, now(), repo_root=root)
+
+    def run_flag(self, ev, seam=None, spy=None):
+        """The flag in-process with `now` as the race seam; returns (exit, output, queries)."""
+        import contextlib as cl
+        import io
+        import os
+
+        queries: list = []
+
+        def run(argv, timeout):
+            queries.append(argv)
+            return json.dumps([pr_record(ev.anchor)])
+
+        def stamp():
+            if seam is not None:
+                seam()
+            return "2026-11-06T10:00:00Z"
+
+        out = io.StringIO()
+        old = os.getcwd()
+        os.chdir(ev.root)
+        try:
+            with cl.redirect_stdout(out):
+                if spy is None:
+                    code = ws._satisfy_acceptance_cli(WI, now=stamp, run=run, resolve=lambda r: dict(FAKE_GH))
+                else:
+                    with mock.patch.object(ws, "_acceptance_reachability_blocker", spy):
+                        code = ws._satisfy_acceptance_cli(WI, now=stamp, run=run, resolve=lambda r: dict(FAKE_GH))
+        finally:
+            os.chdir(old)
+        return code, json.loads(out.getvalue()), queries
+
+    # -- P1: every phase ---------------------------------------------------------
+
+    def test_p1_each_phase_completes_or_is_refused_with_its_code_and_no_write(self):
+        with AcceptanceRepo() as ev:
+            for phase in sorted(ws.KNOWN_PHASES):
+                with self.subTest(phase):
+                    state = ev.state()
+                    state["work_items"][WI]["phase"] = phase
+                    before = copy.deepcopy(state)
+                    if phase in self.ACCEPTANCE_PHASES:
+                        done = self.complete(ev.root, state)
+                        self.assertEqual(done["work_items"][WI]["phase"], "MILESTONE_COMPLETE")
+                    else:
+                        expected = "work_item_terminal" if phase == "MILESTONE_COMPLETE" else "phase_not_reachable"
+                        with self.assertRaises(ws.CompletionPhaseNotReachableError) as ctx:
+                            self.complete(ev.root, state)
+                        self.assertEqual(ctx.exception.code, expected)
+                    self.assertEqual(state, before)
+
+    # -- P2: the order --------------------------------------------------------------
+
+    def test_p2_the_guard_sits_after_the_registry_and_before_the_obligations(self):
+        with AcceptanceRepo() as ev:
+            state = ev.state()
+            state["work_items"][WI]["phase"] = "IMPLEMENTING"
+            with mock.patch.object(ws, "resolve_own_registry_completion_status", return_value=(False, "CP1")):
+                with self.assertRaises(ws.IncompleteOwnCheckpointsError):
+                    self.complete(ev.root, state)
+            with self.assertRaises(ws.CompletionPhaseNotReachableError):
+                self.complete(ev.root, state)
+            outstanding = {"WFO-X": mock.Mock(classification="FAIL", detail="x", failing_assertions=())}
+            with mock.patch.object(ws, "resolve_completion_obligations", return_value=outstanding):
+                with self.assertRaises(ws.CompletionPhaseNotReachableError):
+                    self.complete(ev.root, state)
+                state["work_items"][WI]["phase"] = "AWAITING_FUNCTIONAL_REVIEW"
+                with self.assertRaises(ws.UnsatisfiedCompletionObligationError):
+                    self.complete(ev.root, state)
+            state["work_items"][WI]["phase"] = "MILESTONE_COMPLETE"
+            state["work_items"]["wi-child"] = copy.deepcopy(state["work_items"][WI])
+            state["work_items"]["wi-child"].update(work_item_id="wi-child", parent_work_item_id=WI,
+                                                   phase="IMPLEMENTING")
+            with self.assertRaises(ws.IncompleteChildWorkItemError):
+                self.complete(ev.root, state)
+
+    # -- P3: the library race ----------------------------------------------------------
+
+    def test_p3_a_writer_landing_before_the_lock_cannot_make_the_library_complete(self):
+        for phase in ("IMPLEMENTING", "MILESTONE_COMPLETE"):
+            with self.subTest(phase), AcceptanceRepo() as ev:
+                self.assertEqual(ev.item()["phase"], "AWAITING_FUNCTIONAL_REVIEW")
+                ev.set_state(phase=phase)
+                before = state_bytes(ev.repo)
+                with self.assertRaises(ws.CompletionPhaseNotReachableError):
+                    ws.state_transaction(ev.root, lambda s: self.complete(ev.root, s))
+                self.assertEqual(state_bytes(ev.repo), before)
+
+    # -- P4: the stage race and the lock --------------------------------------------------
+
+    def test_p4_the_flag_refuses_a_phase_a_writer_set_in_the_gap_and_queries_nothing(self):
+        for phase, code in (("IMPLEMENTING", "phase_not_reachable"), ("MILESTONE_COMPLETE", "work_item_terminal")):
+            with self.subTest(phase), AcceptanceRepo() as ev:
+                self.c.r.fixture(ev, "ready")
+                written: list = []
+
+                def seam():
+                    ev.set_state(phase=phase)
+                    written.append(state_bytes(ev.repo))
+                exit_code, out, queries = self.run_flag(ev, seam)
+                self.assertEqual((exit_code, out["error"], out["code"], out["state_changed"]),
+                                 (1, "AcceptancePreflightError", code, True))
+                self.assertEqual(queries, [])
+                self.assertNotIn("acceptance_satisfaction", ev.item())
+                self.assertEqual(state_bytes(ev.repo), written[0])
+
+    def test_p4_the_stage_judges_the_phase_while_the_state_lock_is_held(self):
+        import fcntl
+
+        with AcceptanceRepo() as ev:
+            self.c.r.fixture(ev, "ready")
+            held: list = []
+            real = ws._acceptance_reachability_blocker
+
+            def spy(repo_root, work_item_id, work_item):
+                with open(Path(repo_root) / ".ai-review/runtime/WORKFLOW_STATE.lock", "a") as handle:
+                    try:
+                        fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    except BlockingIOError:
+                        held.append(True)
+                    else:
+                        fcntl.flock(handle, fcntl.LOCK_UN)
+                        held.append(False)
+                return real(repo_root, work_item_id, work_item)
+            exit_code, out, _ = self.run_flag(ev, spy=spy)
+            self.assertEqual(exit_code, 0, out)
+            self.assertEqual(held, [True])
+
+    def test_p4_the_python_path_refuses_an_early_item_before_any_query(self):
+        with AcceptanceRepo() as ev:
+            self.c.r.fixture(ev, "early")
+            before = state_bytes(ev.repo)
+            queries: list = []
+
+            def run(argv, timeout):
+                queries.append(argv)
+                return json.dumps([pr_record(ev.anchor)])
+            with self.assertRaises(ws.AcceptancePreflightError) as ctx:
+                ws.satisfy_acceptance_gate(ev.root, WI, now=now(), run=run, resolve=lambda r: dict(FAKE_GH))
+            self.assertEqual(ctx.exception.code, "phase_not_reachable")
+            self.assertEqual((queries, state_bytes(ev.repo)), ([], before))
+
+    # -- P5: the shapes stay ----------------------------------------------------------------
+
+    def test_p5_a_phase_refusal_keeps_its_shape_and_adds_only_the_lock(self):
+        with AcceptanceRepo() as ev:
+            self.c.r.fixture(ev, "early")
+            before = self.c.tree_without_lock(ev.root)
+            exit_code, out, queries = self.run_flag(ev)
+            self.assertEqual(sorted(out), ["code", "error", "message", "state_changed"])
+            self.assertEqual((exit_code, out["code"], out["state_changed"], queries), (1, "phase_not_reachable", False, []))
+            self.assertEqual(before, self.c.tree_without_lock(ev.root))
+
+    # -- P6: the shipped texts -----------------------------------------------------------------
+
+    def test_p6_the_command_texts_say_where_the_check_is_made(self):
+        satisfy = " ".join((REPO_ROOT / ".claude" / "commands" / "satisfy-gate.md").read_text().split())
+        accept = " ".join((REPO_ROOT / ".claude" / "commands" / "accept-milestone.md").read_text().split())
+        self.assertNotIn("the library does not", satisfy)
+        self.assertIn("inside the transaction", satisfy)
+        self.assertIn("CompletionPhaseNotReachableError", accept)
 
 
 class TestWriteFindingsRecordCommand(unittest.TestCase):
