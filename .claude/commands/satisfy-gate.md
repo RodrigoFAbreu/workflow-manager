@@ -192,11 +192,16 @@ Then, once step 0 passed, complete with one plain command (workflow-2.27.0):
 python3 scripts/workflow_state.py --satisfy-acceptance <work-item-id>
 ```
 
-It makes `/accept-milestone` step 2a's phase and registry check first (the library
-does not; the same code the report uses for `work_item_terminal`,
-`registry_unresolvable` and `phase_not_reachable`), then runs steps 1 to 3's one
-transaction (`workflow_state.satisfy_acceptance_gate`: the query, the trust
-record and the order unchanged) in one process, and prints exactly `{"record",
+It runs steps 1 to 3's one transaction (`workflow_state.satisfy_acceptance_gate`:
+the query, the trust record and the order unchanged) in one process, and
+`/accept-milestone` step 2a's phase and registry check is that transaction's first
+act, made inside the transaction, under the state lock, on the state just re-read and
+before anything is queried (the same code the report uses for `work_item_terminal`,
+`registry_unresolvable` and `phase_not_reachable`), so a writer that lands before the
+lock cannot make it complete from a phase it must refuse; a phase refusal therefore
+takes the lock (it creates the lock file on first use) and writes nothing else.
+`workflow_state.complete_work_item` refuses the same phases (`CompletionPhaseNotReachableError`,
+the same codes) for every other caller. It prints exactly `{"record",
 "trailer"}` with exit 0; `trailer` is the value for step 4's
 `Workflow-Gate-Satisfied-By`. A refusal exits 1 with one object `{"error",
 "message", "state_changed"}` (plus `"code"` when the exception has one:
