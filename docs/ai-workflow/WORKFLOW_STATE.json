@@ -27550,7 +27550,7 @@
       "registry_path": "docs/ai-workflow/registry/timings-rebalance-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/timings-rebalance-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "APPLYING_REVIEW_FEEDBACK",
       "plan_revision": 4,
       "implementation_revision": 1,
       "functional_review_round": null,
@@ -27690,12 +27690,12 @@
           "external": 2
         },
         "implementation": {
-          "local": 0,
-          "external": 0
+          "local": 1,
+          "external": 1
         }
       },
-      "state_revision": 21,
-      "last_transition": "2026-11-09T04:13:57Z",
+      "state_revision": 23,
+      "last_transition": "2026-11-09T04:22:56Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -27804,7 +27804,76 @@
               "at": "2026-11-09T02:31:11Z"
             }
           ]
+        },
+        "F-f8d1c3b0540b": {
+          "digest": "f8d1c3b0540bdcd978e6ca571972c74f589e9044e0e8095415f9308ff85c3dab",
+          "text": "**TR-LIR1-001** (`docs/ACTIVE_MILESTONE.md`, \"Self-review\"): the record contradicts itself and is stale. It says \"the docstring sentence and the Architecture paragraph match the plan's text\", then says the paragraph was reworded. It also says \"Not run yet: the gate\", but `TEST_RESULTS.md` records the full gate at `1106a83` with exit 0. The file is excluded at both stages and the acceptance step writes it, so fix both sentences there.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "e28b829bfbdf97dcd39bd13cabd158a320b14764a81f75c7245d54b8cdcc5c12",
+              "verdict": "APPROVE",
+              "at": "2026-11-09T04:19:18Z"
+            }
+          ]
+        },
+        "F-14104b35c36e": {
+          "digest": "14104b35c36e80e55cdf8a36622fb3a795d8578007fdd4a8dc043af5434dbf49",
+          "text": "**TR-LIR1-002** (`tests/parallel/timings.json`, `profiles.ci.source`): the provenance text says the profile covers \"every host class\" and names \"results-shard-* and results-aggregate artifacts\" as its sources. The four phase-B matrix host classes are not in the profile (they stay `other_profile`). The `results-aggregate` artifact added nothing new: its 2056 `frozen-records/*.record.json` are byte-identical copies of the shards' records, `read_observations` deduplicates them (every unit has exactly 3 samples), and the fold does not read its host `records/*.json`. The numbers are right; the text over-claims slightly. Correct it on the next refresh, which rewrites `--source` anyway. A hand edit would break \"written by the tool, never by hand\".",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "e28b829bfbdf97dcd39bd13cabd158a320b14764a81f75c7245d54b8cdcc5c12",
+              "verdict": "APPROVE",
+              "at": "2026-11-09T04:19:18Z"
+            }
+          ]
+        },
+        "F-20941b602379": {
+          "digest": "20941b602379c11055f0c2bc65a89d82ea18c12775dc9a02033de4a1f91fbfef",
+          "text": "**TR-LIR1-003** (plan conformance, plan sections 2, 3 H3, 4 G2 and 7 flow 7): the approved plan says downloading `results-aggregate` folds the matrix host classes, quotes the Architecture paragraph as ending \"lists no unit under `timing defaulted`\", and expects flow 7 to show \"candidate: 0 defaulted\". All three are false of the unchanged code. I traced it: `executor.aggregate` writes no `timings.jsonl` (only `local_run` at line 773 and `run_shard` at line 899 do), `read_observations` reads only `*.jsonl` and `*.record.json`, and host records are `records/<name>.json` (`isolation.py:285`). The reworded paragraph is true: phase-B estimates feed only the `aggregate_job` makespan term in `build_plan`, never `make_chunks`/`_assign`/`shard_count` of phase A. The deviation stays inside G2's own tolerance (4 units, each named with its cause, limit 10) and keeps every term flow 5 looks for, so no amendment is needed. The functional checklist must restate flow 7's expectation as \"4 defaulted, all `other_profile`, the four phase-B matrix host classes\" so the reviewer does not record a false failure.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "e28b829bfbdf97dcd39bd13cabd158a320b14764a81f75c7245d54b8cdcc5c12",
+              "verdict": "APPROVE",
+              "at": "2026-11-09T04:19:18Z"
+            }
+          ]
+        },
+        "F-7beb5720939b": {
+          "digest": "7beb5720939b9140f800bbf1c1a451b289cdb7e191ce7b6350b7f0416a716cbd",
+          "text": "[docs/ACTIVE_MILESTONE.md:38](docs/ACTIVE_MILESTONE.md#L38) says the Architecture paragraph matches the plan before explaining its deviation, and says the gate has not run despite the passing result in `TEST_RESULTS.md`. Update these bookkeeping statements.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "e28b829bfbdf97dcd39bd13cabd158a320b14764a81f75c7245d54b8cdcc5c12",
+              "verdict": "REVISE",
+              "at": "2026-11-09T04:22:56Z"
+            }
+          ]
         }
+      },
+      "implementation_review_stages": {
+        "review_content_id": "e28b829bfbdf97dcd39bd13cabd158a320b14764a81f75c7245d54b8cdcc5c12",
+        "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "baa51b74117534ec9d937d80dfd64ddc313a292d64124c3d115e75fc7ec39f76",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-11-09T04:19:18Z",
+          "verdict_sha256": "d815e217fb69838508ddef359f17a1860fd766a78713556eee527cf312dfdf5b",
+          "run_ref": "session:local /home/rodrigo/Workspace/workflow-manager/.ai-review/timings-rebalance/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": null
       }
     }
   }
