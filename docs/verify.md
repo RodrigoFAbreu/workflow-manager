@@ -39,6 +39,8 @@ Goal: confirm that every installed Workflow file is exactly the one its release 
 
 To also see which finished work items keep review folders and which are archived, add `--retention` after the command (it makes a GitHub query per finished work item, so it takes longer): see [Retention report](retention.md).
 
+For a retention policy adopted with mode `notify` or `both`, `verify` also runs the retention report and prints a `retention alert:` block when a threshold is reached, or one `not evaluated` line when the report cannot be had. That costs one forge query per finished work item (up to 300 seconds) and never changes the exit code; a repository without such a policy pays nothing. See [The retention alert](retention.md#the-retention-alert).
+
 ## What you should see
 
 - Step 1 prints `workflow 2.25.5 (full profile) — clean` (the release the record names), then a `source:` line naming the package and its digest, then `work in flight:`: `none`, or one line per active work item with its phase, type and governing version. A `next:` line ends the output.

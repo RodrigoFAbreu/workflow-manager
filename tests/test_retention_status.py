@@ -429,6 +429,54 @@ class TestNextStep(unittest.TestCase):
         self.assertIn(shlex.quote("a b"), step)
 
 
+class TestPruneLine(Scratch):
+    """The section's prunable line, on each side of `retention.PRUNE_FROM`."""
+
+    PRUNE = "python3 -I scripts/workflow_retention.py prune ID --apply removes one"
+
+    def lines(self, version):
+        rep = report(finished("a"))
+        rep["totals"].update(archives=2, prunable=2)
+        return "\n".join(retention.render(rep, version, Path("/x")))
+
+    def test_the_line_at_or_after_prune_from_names_the_command(self):
+        for version in ("2.24.0", "2.30.1"):
+            with self.subTest(version=version):
+                text = self.lines(version)
+                self.assertIn(f"  prunable archives: {self.PRUNE} (run `report` to list them)", text)
+                self.assertNotIn("no command yet", text)
+                self.assertNotIn("the next step", text)
+
+    def test_the_line_before_prune_from_says_the_release_has_no_prune_command(self):
+        for version in ("2.23.0", None, "latest"):
+            with self.subTest(version=version):
+                text = self.lines(version)
+                self.assertIn("  prunable archives: this Workflow release has no prune command: "
+                              "workflow-manager update /x", text)
+                self.assertNotIn("no command yet", text)
+                self.assertNotIn(self.PRUNE, text)
+
+    def test_nothing_prunable_prints_no_line(self):
+        self.assertNotIn("prunable archives:", "\n".join(
+            retention.render(report(finished("a")), "2.24.0", Path("/x"))))
+
+    def test_status_and_doctor_print_it_end_to_end(self):
+        self.install_stub()
+        rep = report(finished("a"))
+        rep["totals"].update(archives=2, prunable=2)
+        path = self.put_report(rep)
+        record = self.repo / ".workflow-manager" / "installation.json"
+        for version, expected in (("2.24.0", self.PRUNE), ("2.23.0", "has no prune command")):
+            data = json.loads(record.read_text())
+            data["workflow_version"] = version
+            record.write_text(json.dumps(data))
+            for command in ("status", "doctor"):
+                with self.subTest(version=version, command=command):
+                    got = self.invoke(command, True, STUB_REPORT=str(path))
+                    self.assertIn(expected, got.stdout)
+                    self.assertNotIn("no command yet", got.stdout)
+
+
 class TestCapabilityEndToEnd(Scratch):
     def test_the_recorded_release_decides_which_command_is_offered(self):
         self.install_stub()

@@ -38,6 +38,7 @@ SHOWN_LIMIT = 40  # characters of a refused value echoed
 # The first Workflow release whose script has each command.
 ARCHIVE_FROM = (2, 21, 0)
 REMOVE_FROM = (2, 22, 0)
+PRUNE_FROM = (2, 24, 0)
 
 _RELEASE = re.compile(r"^(\d+)\.(\d+)\.(\d+)$")
 _REFUSAL = re.compile(r"^error: ([A-Za-z0-9_]+): (.*)$")
@@ -452,7 +453,13 @@ def render(report: dict, version, target: Path) -> list[str]:
                  f"archive store: {_count(totals['archives'], 'archive')}, {totals['prunable']} "
                  f"prunable (older than {report['ttl_days']} days)")
     if totals["prunable"]:
-        lines.append("  prunable archives get no command yet: the Workflow has none for them")
+        key = _release_key(version)
+        if key is not None and key >= PRUNE_FROM:
+            lines.append("  prunable archives: python3 -I scripts/workflow_retention.py prune ID "
+                         "--apply removes one (run `report` to list them)")
+        else:
+            lines.append("  prunable archives: this Workflow release has no prune command: "
+                         f"{PROGRAM} update {shlex.quote(str(target))}")
     if removing is None:
         lines.append("  interrupted removals: not reported by this Workflow release")
     else:
@@ -462,9 +469,11 @@ def render(report: dict, version, target: Path) -> list[str]:
     return lines
 
 
-def section(target: Path, version) -> list[str]:
-    """The lines to print under `--retention` for a managed repository."""
-    outcome = fetch(target)
+def section(target: Path, version, outcome: Outcome | None = None) -> list[str]:
+    """The lines to print under `--retention` for a managed repository. A caller
+    that already ran the script passes its `outcome`, so it runs once."""
+    if outcome is None:
+        outcome = fetch(target)
     if outcome.report is None:
         return render_note(outcome.refusal)
     try:

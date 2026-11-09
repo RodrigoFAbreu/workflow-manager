@@ -37,9 +37,9 @@ retention (read-only; the Workflow script made one forge query per finished item
   next: in the repository, run `python3 -I scripts/workflow_retention.py archive ID --apply` (run it without `--apply` first for a dry run)
 ```
 
-- **finished work items** are the work items the script counts as finished and no longer among the most recent ones it keeps. Their review folders are the untracked `.ai-review/<id>/` folders.
+- **finished work items** are the finished work items with a review folder, beyond the most recent ones the script keeps. Their review folders are the untracked `.ai-review/<id>/` folders.
 - **with an archive** counts finished work items only. A finished work item whose archive could not be read is shown as `(N unknown)`, never as archived and never as not archived.
-- **archive store** is a separate count of every archive in the archive directory, including archives of work items that are not finished or no longer exist. It is never a share of the finished work items. Prunable archives are older than the time to live; the Workflow has no command to prune them yet, so none is printed.
+- **archive store** is a separate count of every archive in the archive directory, including archives of work items that are not finished or no longer exist. It is never a share of the finished work items. Prunable archives are older than the time to live. From Workflow 2.24.0 the line `prunable archives: python3 -I scripts/workflow_retention.py prune ID --apply removes one (run `report` to list them)` names the command; before that it reads `prunable archives: this Workflow release has no prune command: workflow-manager update TARGET`. Neither is run by the Manager.
 - **interrupted removals** lists work items whose removal was started and not finished: five ids, then a count (`a1, a2, a3, a4, a5 and 2 more`). A Workflow release before 2.22.0 does not report them, and the line says so.
 - **next** is one command for you to run in the repository, the first that applies: `archive`, then `remove`, then resuming an interrupted `remove`. The Manager never runs them. A command the repository's Workflow release does not have is replaced by `workflow-manager update`. With nothing to do, the step reads `nothing to archive`; when finished work items have tracked review files it adds why: `nothing to archive: 2 finished work items have tracked review files; the script archives and removes only untracked folders`.
 
@@ -87,7 +87,7 @@ When the kind or schema_version is one the Manager does not read, the line shows
 
 ## Retention policy
 
-The owner of a repository can write down how much finished work it tolerates, and adopt that policy so the Manager knows it was meant. This release only **reads** the policy: it sends nothing, archives nothing, removes nothing and prunes nothing. A later release evaluates the thresholds.
+The owner of a repository can write down how much finished work it tolerates, and adopt that policy so the Manager knows it was meant. The Manager reads the policy and, for mode `notify` or `both`, evaluates its thresholds in `verify` and `doctor` (see [The retention alert](#the-retention-alert)). It sends nothing, archives nothing, removes nothing and prunes nothing, and decides nothing for the owner. A later release sends notifications and cleans up.
 
 The policy is the file `.workflow-manager/retention-policy.json`, committed by the owner. With no file nothing is printed and nothing changes.
 
@@ -101,7 +101,7 @@ The policy is the file `.workflow-manager/retention-policy.json`, committed by t
 |---|---|---|
 | `schema_version` | the integer 1 | a newer file is refused, so an older Manager falls back to `off` |
 | `mode` | `off`, `notify`, `cleanup` or `both` (lower case) | `off`: nothing; `notify`: tell the owner; `cleanup`: clean up silently; `both`: both |
-| `thresholds.finished_items` | integer, 1 to 100000 | finished work items beyond the most recent ones, at or above it |
+| `thresholds.finished_items` | integer, 1 to 100000 | finished work items with a review folder, beyond the most recent ones, at or above it |
 | `thresholds.finished_folder_mib` | integer, 1 to 1048576 | MiB in the review folders of those items, at or above it |
 | `thresholds.archives` | integer, 1 to 100000 | archives in the store, at or above it |
 | `thresholds.prunable_archives` | integer, 1 to 100000 | archives older than the script's time to live, at or above it |
@@ -153,6 +153,26 @@ Any other state reads `retention policy: STATE (WHY); mode off is in force`, the
 
 `workflow-manager uninstall` removes `.workflow-manager/` and with it an adopted policy, so the mode returns to `off`. The block never changes an exit code.
 
+## The retention alert
+
+For a policy that is adopted with mode `notify` or `both`, `workflow-manager verify` and `workflow-manager doctor` compare the four thresholds with the retention report and print a block after their own output when one is reached:
+
+```text
+retention alert: 2 of 4 thresholds reached (mode notify, policy 1a2b3c4d5e6f)
+  finished items: 12, limit 10: reached
+  finished folders: 612 MiB, limit 500 MiB: reached
+  archives: at least 5, limit 20: not known (the report is incomplete)
+  next: in the repository, run `python3 -I scripts/workflow_retention.py archive ID --apply` (run it without `--apply` first for a dry run); ...
+```
+
+- A number **at or above** its limit is reached. Only thresholds the policy sets are checked. A threshold that is within its limit is not listed; when every threshold is within, nothing is printed.
+- **finished items** counts the finished work items that still have a review folder, the number archiving and removing lowers. The folders limit is in MiB; the printed size is rounded down.
+- An incomplete report gives lower bounds: a number at or above its limit is still reached (printed `at least N`), and one below it is `not known`, never within. The `next:` step then ends with the incomplete-report step.
+- The `next:` step names the user-only command for the cause: `archive` or `remove` for the finished items and their folders, `prune` for prunable archives (and for the archive count when some archive is past the time to live; otherwise the line says none can be pruned yet and that the policy's `thresholds.archives` is yours to raise). A Workflow release without the command gets `workflow-manager update`. The Manager never runs any of them.
+- When the report cannot be had, one line reads `retention alert: not evaluated: CAUSE` with an indented `next:`: the script is missing or refuses, its report is malformed or times out, the report is incomplete with nothing reached, the installed `scripts/workflow_retention.py` does not match the release (the alert never starts a script `verify` reports as modified; run `workflow-manager update TARGET --force`), or the installed release cannot be checked. It is never an all-clear.
+- The alert is not a `[warning]` finding and **never changes an exit code**: `verify` and `doctor` exit as they would without the policy.
+- It costs a run of the report: one forge query per finished work item (about 20 to 40 seconds for 25 items, 300 seconds at most), and `gh` signed in for a complete answer. A repository without an adopted `notify` or `both` policy pays nothing and sees no change. With `doctor --retention` the script runs once for both the section and the alert; `doctor` judges the script against the installed release, not the one `--release-version` names.
+
 ## Exit status
 
-`--retention` never changes an exit code; `adopt-retention-policy` exits 0 when it previews or adopts and 2 when it refuses. See [Exit codes](exit-codes.md).
+`--retention` and the retention alert never change an exit code; `adopt-retention-policy` exits 0 when it previews or adopts and 2 when it refuses. See [Exit codes](exit-codes.md).
