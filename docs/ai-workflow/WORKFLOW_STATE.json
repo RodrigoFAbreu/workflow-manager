@@ -29772,7 +29772,7 @@
       "registry_path": "docs/ai-workflow/registry/retention-alert-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/retention-alert-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "AWAITING_FUNCTIONAL_REVIEW",
       "plan_revision": 5,
       "implementation_revision": 1,
       "functional_review_round": null,
@@ -29881,7 +29881,144 @@
           "workflow_release": "2.29.1"
         }
       },
-      "technical_approval": null,
+      "technical_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "07682b1b20afa9b2dc7e225620d84208f6267906bf1f69cc39ce5259335318b1",
+        "approved_review_content_id": "7489182f595ac11a323ccebffca4999246640fd0ce9f4b4d6275a820a82d2630",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/registry/retention-alert-artifacts.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "189c1c7f4390e150bf36d703b64db312f1a60552"
+          },
+          {
+            "path": "docs/exit-codes.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "1029de493d81edfc19788b5acef30a7095049ac6"
+          },
+          {
+            "path": "docs/retention.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "9654c61981c705685d60426212a400de94333a25"
+          },
+          {
+            "path": "docs/verify.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "cf648d8bbae2655a663107cba43ff62e9a6a19d6"
+          },
+          {
+            "path": "src/workflow_manager/cli.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "7367a2241305421a456e8dc79797de8341139569"
+          },
+          {
+            "path": "src/workflow_manager/retention.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "176ff6fccf31f71770a91dcba2942f07f797ddc2"
+          },
+          {
+            "path": "src/workflow_manager/retention_alert.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "738848d3756c01b6240fa87eed7651b208490fe6"
+          },
+          {
+            "path": "src/workflow_manager/retention_policy.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "e43e8d459da504211592ede24d674be08f1b3e0f"
+          },
+          {
+            "path": "tests/test_retention_alert.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "5640828ea6e41d94b79891804981e0ae4b09f8a1"
+          },
+          {
+            "path": "tests/test_retention_policy.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "eb904302fca10fc95a6ae43a29b560a8f5a3d952"
+          },
+          {
+            "path": "tests/test_retention_status.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "fa477ea7e6a20b36d111513ef22a5eceab435b8e"
+          }
+        ],
+        "reviewed_content_commit": "67d9aa199ea69b4cf8549e5d6a8e8193841cf638",
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-11-09T15:12:37Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "7489182f595ac11a323ccebffca4999246640fd0ce9f4b4d6275a820a82d2630",
+            "ledger": {
+              "local": {
+                "bundle_id": "07682b1b20afa9b2dc7e225620d84208f6267906bf1f69cc39ce5259335318b1",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "8366b9e6578473fc845727d7584861aa95930c328e6958664a0ec8d7d8938795",
+                "ledger_entry_sha256": "ac1dad9cb0dd3d35a58d1f394ebe5a7ce2a3c94321bdbb42ad15901b8316050e",
+                "run_ref": "session:local .ai-review/retention-alert/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "07682b1b20afa9b2dc7e225620d84208f6267906bf1f69cc39ce5259335318b1",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "dbc3bffb0c8a6d9927dda280f4bd19a57dc97f33aacbe38a5280e6f2080968fe",
+                "ledger_entry_sha256": "50639d7c1cc0c966ce013641ffe4e05f0e52503c7343f83c2729dd7bcd00f4e1",
+                "run_ref": "codex:20261109T150901Z-3a5c629b",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-11-09T15:12:37Z",
+          "workflow_release": "2.29.1"
+        }
+      },
       "technical_review_block_pins": [],
       "plan_review_stages": {
         "review_content_id": "eb5a66064378a49b5c1bbc7266fe16c1e66fba7e15cf794de67c84e546122664",
@@ -29912,12 +30049,12 @@
           "external": 1
         },
         "implementation": {
-          "local": 0,
-          "external": 0
+          "local": 1,
+          "external": 1
         }
       },
-      "state_revision": 23,
-      "last_transition": "2026-11-09T15:04:37Z",
+      "state_revision": 26,
+      "last_transition": "2026-11-09T15:12:37Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -30125,6 +30262,83 @@
               "at": "2026-11-09T14:19:01Z"
             }
           ]
+        },
+        "F-0fdddbf29784": {
+          "digest": "0fdddbf2978481cf3e8a8bf7dcde7afed53f7d942a42ebc6da154c0bf351c9d2",
+          "text": "LIR1-001 (tests): `TestUnavailable.test_doctor_with_the_option_runs_the_script_once_for_the_section_only` compares only the last line of the `--retention` section (after an odd `split(\"retention policy\")`), not the whole section. Plan section 4 says \"the section output equals 1.15.0's\" for a modified script. The code is right (`section` gets the same `outcome` and is not gated), but a change that altered an earlier section line for a modified script would pass. Compare the full section text between the run with the policy and the one without it, minus the policy block.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "7489182f595ac11a323ccebffca4999246640fd0ce9f4b4d6275a820a82d2630",
+              "verdict": "APPROVE",
+              "at": "2026-11-09T15:08:32Z"
+            }
+          ]
+        },
+        "F-ea6c8a69374b": {
+          "digest": "ea6c8a69374b5af84eae3538d8663d2830cc81cdc2f3c1e210c19b667f0ffe5c",
+          "text": "LIR1-002 (tests): `TestScriptState.test_the_releases_own_script_reaches_the_evaluation` and `test_doctor_judges_the_installed_release_not_the_candidate` assert only that some `not evaluated: ` line is printed and that three strings are missing. Any other exception class from the boundary (`KeyError`, `OSError`) would pass, so the tests do not prove that the real script was started. Assert the real script's own refusal cause in the scratch repository, the one the plan asks for (\"the real script's own refusal line\"). Relatedly, the `SCRIPT_UNCHECKED` output case (M31) runs only through the patched seam. The real `_installed_script_state` path is covered for `7` and `9.9.9`, but only against a missing `.workflow-manager/snapshots` in the target, not \"nothing written outside the destinations\".",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "7489182f595ac11a323ccebffca4999246640fd0ce9f4b4d6275a820a82d2630",
+              "verdict": "APPROVE",
+              "at": "2026-11-09T15:08:32Z"
+            }
+          ]
+        },
+        "F-24f41ef13379": {
+          "digest": "24f41ef133790b2b66321b6c151147bcadf69c3fe6a7fd138ba5ecbf977d8dcb",
+          "text": "LIR1-003 (usability): for a record whose `workflow_version` is null, which `doctor` accepts as a repair with a named release, `_installed_script_state` returns `SCRIPT_UNCHECKED`. The alert then reads \"the installed release cannot be checked\" with the step \"run the command again with the network, or with WORKFLOW_MANAGER_RELEASE_SOURCE set to a mirror\". Neither the cause nor the step fits that case, because no network will make a null version resolve. This is an edge case and harmless, since nothing runs and no exit code changes. A distinct cause, such as \"the installation record names no release\" with the `update --release-version` step, would be accurate.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "7489182f595ac11a323ccebffca4999246640fd0ce9f4b4d6275a820a82d2630",
+              "verdict": "APPROVE",
+              "at": "2026-11-09T15:08:32Z"
+            }
+          ]
+        },
+        "F-64201aed86f0": {
+          "digest": "64201aed86f08b8a5d6602ca6ded73cbd9088edc10b6195b5ff1c325f5023ba1",
+          "text": "`src/workflow_manager/retention_alert.py:138`: Qualify “none can be pruned” when the report is incomplete. With `archives=3`, limit `3`, and `prunable=0`, the alert recommends raising the threshold even though unreadable archives might be prunable. “No prunable archives were observed” would preserve the lower-bound meaning. The reached alert and incomplete-report notice remain correct.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "7489182f595ac11a323ccebffca4999246640fd0ce9f4b4d6275a820a82d2630",
+              "verdict": "APPROVE",
+              "at": "2026-11-09T15:12:06Z"
+            }
+          ]
+        }
+      },
+      "implementation_review_stages": {
+        "review_content_id": "7489182f595ac11a323ccebffca4999246640fd0ce9f4b4d6275a820a82d2630",
+        "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "07682b1b20afa9b2dc7e225620d84208f6267906bf1f69cc39ce5259335318b1",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-11-09T15:08:32Z",
+          "verdict_sha256": "8366b9e6578473fc845727d7584861aa95930c328e6958664a0ec8d7d8938795",
+          "run_ref": "session:local .ai-review/retention-alert/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "07682b1b20afa9b2dc7e225620d84208f6267906bf1f69cc39ce5259335318b1",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-11-09T15:12:06Z",
+          "verdict_sha256": "dbc3bffb0c8a6d9927dda280f4bd19a57dc97f33aacbe38a5280e6f2080968fe",
+          "run_ref": "codex:20261109T150901Z-3a5c629b",
+          "reviewer_model": "openai/gpt-6.1-sol"
         }
       }
     }
