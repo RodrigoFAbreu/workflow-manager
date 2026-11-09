@@ -27540,6 +27540,845 @@
         "evaluated_at": "2026-11-05T01:29:17Z",
         "workflow_release": "2.25.5"
       }
+    },
+    "timings-rebalance": {
+      "work_item_type": "process",
+      "work_item_kind": "process",
+      "work_item_id": "timings-rebalance",
+      "parent_work_item_id": null,
+      "plan_path": "docs/ai-workflow/WORKFLOW_MANAGER_TIMINGS_REBALANCE_PLAN.md",
+      "registry_path": "docs/ai-workflow/registry/timings-rebalance-registry.json",
+      "mapping_path": "docs/ai-workflow/requirements/timings-rebalance-mapping.json",
+      "governing_workflow_version": "2.2",
+      "phase": "MILESTONE_COMPLETE",
+      "plan_revision": 4,
+      "implementation_revision": 2,
+      "functional_review_round": null,
+      "base_commit": "3917010d11dbfdaf958908ffa45d4347fece2877",
+      "reviewed_implementation_head": "c74d71dd4445be34853367c1308f0ae1f8440894",
+      "current_checkpoint_id": null,
+      "last_completed_checkpoint_id": "CP2",
+      "checkpoints": {
+        "CP1": {
+          "status": "COMPLETE",
+          "start_commit": "1bd4fcf1995b19bbcce1a61d6979306e728d8b1b"
+        },
+        "CP2": {
+          "status": "COMPLETE",
+          "start_commit": "5c88edeb6f6fea2c7c7d8f91768ccd0d7de2290f"
+        }
+      },
+      "current_bundle_id": "cca6e988921cdf624ae63a36451b9e949f6a8073413049c06bc31b47054b0405",
+      "plan_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "cca6e988921cdf624ae63a36451b9e949f6a8073413049c06bc31b47054b0405",
+        "approved_review_content_id": "d92ac6e81c3854d55fa362bc88022923d7337ce9300fdb2ad98ab9df4ea97e98",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/WORKFLOW_MANAGER_TIMINGS_REBALANCE_PLAN.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "f55e8491040adf24c25a10bf10ff6143741b0270"
+          },
+          {
+            "path": "docs/ai-workflow/registry/timings-rebalance-registry.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "8603c0c16f5b9762f51ec015e8d6ae605a873288"
+          },
+          {
+            "path": "docs/ai-workflow/requirements/timings-rebalance-mapping.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "9bd257caf0b1a1f5a121d38901a22a284945fa17"
+          }
+        ],
+        "reviewed_content_commit": null,
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-11-09T02:34:03Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "d92ac6e81c3854d55fa362bc88022923d7337ce9300fdb2ad98ab9df4ea97e98",
+            "ledger": {
+              "local": {
+                "bundle_id": "cca6e988921cdf624ae63a36451b9e949f6a8073413049c06bc31b47054b0405",
+                "verdict": "APPROVE",
+                "round": 4,
+                "verdict_sha256": "7af769751c6f1337d594e9c84f14815c667045460bd1ee16007ee51dea1db177",
+                "ledger_entry_sha256": "c5283dd3ab8fffbadfdefedc0147bbf8bcfacf1b66c9524518b87922b1d9f4bb",
+                "run_ref": "session:local /home/rodrigo/Workspace/workflow-manager/.ai-review/timings-rebalance/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "cca6e988921cdf624ae63a36451b9e949f6a8073413049c06bc31b47054b0405",
+                "verdict": "APPROVE",
+                "round": 4,
+                "verdict_sha256": "d851fac6884978a3ce2e05b94523f461b42a932384916e6aa2dac82ea89392e9",
+                "ledger_entry_sha256": "257333cc52b2f1a204a0416303b73f5660958c51fec277dd435f21d0f2021bd7",
+                "run_ref": "codex:20261109T023123Z-2ad9a8e4",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-11-09T02:34:03Z",
+          "workflow_release": "2.29.1"
+        }
+      },
+      "technical_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "46223ed3e20993b9db869a025b5ae266657f6a07e8adea5444fc9cec21b67bf3",
+        "approved_review_content_id": "272d9f2f989a9a63ab209bde06867426c1616f56136b6bf726aa0cbb1363b800",
+        "review_content_manifest": [
+          {
+            "path": "docs/ARCHITECTURE.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "96dfeaf799e08eb62f1a59b9b6399f1aa99b1a1d"
+          },
+          {
+            "path": "docs/ai-workflow/registry/timings-rebalance-artifacts.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "3860e79a7e5bc37686f6e955c24e9ab5b10125c2"
+          },
+          {
+            "path": "tests/parallel/timings.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "1e12f836a77cc63525f7ffaa2ffb099a49962c16"
+          },
+          {
+            "path": "tests/parallel/timings.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "652a2990d4a344d601364df055069b226e2b6bab"
+          },
+          {
+            "path": "tests/test_parallel_runner.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "a848655476bc582a0a768773ce982420d89531bf"
+          }
+        ],
+        "reviewed_content_commit": "c74d71dd4445be34853367c1308f0ae1f8440894",
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-11-09T05:02:12Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "272d9f2f989a9a63ab209bde06867426c1616f56136b6bf726aa0cbb1363b800",
+            "ledger": {
+              "local": {
+                "bundle_id": "46223ed3e20993b9db869a025b5ae266657f6a07e8adea5444fc9cec21b67bf3",
+                "verdict": "APPROVE",
+                "round": 2,
+                "verdict_sha256": "387ece883adc1219b09aa09b1edef9943b360360f243ff085731452fea7dca7a",
+                "ledger_entry_sha256": "d09c9b63acf8c40365742ceb47541ff2e3d5eec3d5bbf2449675a5185cc39a7f",
+                "run_ref": "session:local .ai-review/timings-rebalance/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "46223ed3e20993b9db869a025b5ae266657f6a07e8adea5444fc9cec21b67bf3",
+                "verdict": "APPROVE",
+                "round": 2,
+                "verdict_sha256": "3991bfd52bc1479fec41cfc68a04c628f860c6a05d536427d43e145f854322ad",
+                "ledger_entry_sha256": "18c15b7aa753b13d99a79fc21f8d2a8cd9a923aa83e0c35069b53d156a0c7161",
+                "run_ref": "codex:20261109T045851Z-6a90dd55",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-11-09T05:02:12Z",
+          "workflow_release": "2.29.1"
+        }
+      },
+      "technical_review_block_pins": [],
+      "plan_review_stages": {
+        "review_content_id": "d92ac6e81c3854d55fa362bc88022923d7337ce9300fdb2ad98ab9df4ea97e98",
+        "LOCAL_MODEL_PLAN_REVIEW": {
+          "bundle_id": "cca6e988921cdf624ae63a36451b9e949f6a8073413049c06bc31b47054b0405",
+          "verdict": "APPROVE",
+          "round": 4,
+          "completed_at": "2026-11-09T02:31:11Z",
+          "verdict_sha256": "7af769751c6f1337d594e9c84f14815c667045460bd1ee16007ee51dea1db177",
+          "run_ref": "session:local /home/rodrigo/Workspace/workflow-manager/.ai-review/timings-rebalance/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_PLAN_REVIEW": {
+          "bundle_id": "cca6e988921cdf624ae63a36451b9e949f6a8073413049c06bc31b47054b0405",
+          "verdict": "APPROVE",
+          "round": 4,
+          "completed_at": "2026-11-09T02:33:27Z",
+          "verdict_sha256": "d851fac6884978a3ce2e05b94523f461b42a932384916e6aa2dac82ea89392e9",
+          "run_ref": "codex:20261109T023123Z-2ad9a8e4",
+          "reviewer_model": "openai/gpt-6.1-sol"
+        }
+      },
+      "functional_acceptance_status": null,
+      "blocking_decisions": [],
+      "review_round_counts": {
+        "plan": {
+          "local": 4,
+          "external": 2
+        },
+        "implementation": {
+          "local": 2,
+          "external": 2
+        }
+      },
+      "state_revision": 28,
+      "last_transition": "2026-11-09T06:35:18Z",
+      "feedback_layout": "scoped",
+      "plan_review_binding": {
+        "status": "BOUND",
+        "at": "2026-11-09T02:29:36Z",
+        "consumed": {
+          "review_content_id": "e91f11f8b89d9dd5853c0cb5287e42d2ee517f9accb11cb24f923474f4172103",
+          "plan_revision": 3,
+          "legacy": false
+        },
+        "published": {
+          "review_content_id": "d92ac6e81c3854d55fa362bc88022923d7337ce9300fdb2ad98ab9df4ea97e98",
+          "plan_revision": 4
+        },
+        "bound": {
+          "review_content_id": "d92ac6e81c3854d55fa362bc88022923d7337ce9300fdb2ad98ab9df4ea97e98",
+          "bundle_id": "cca6e988921cdf624ae63a36451b9e949f6a8073413049c06bc31b47054b0405",
+          "plan_revision": 4
+        }
+      },
+      "consumed_plan_review_content_ids": [
+        "36863cff00f8dc9dd1b066d08b69967a8508d175b774b7ad3d93f774183be827",
+        "e0b96da696123b696fd07d80fef5765f26a39fa49a055dd44b88c6a6affc5b8b",
+        "e91f11f8b89d9dd5853c0cb5287e42d2ee517f9accb11cb24f923474f4172103"
+      ],
+      "optional_findings": {
+        "F-46dc585a5207": {
+          "digest": "46dc585a5207b4269dc62e356382fa11fe07e5ac42de6bf8f29d938be59545ed",
+          "text": "TR-R1-002: Flow 3 expects `profiles.ci.source` to name \"median\". Section 3 step 2's spec for the `--source` text lists the run ids, the measurement commit, 6 shards x 4 workers, Python 3.12 and the emptied profile, but not \"median\". Add it to the step 2 spec, or drop it from flow 3.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "e0b96da696123b696fd07d80fef5765f26a39fa49a055dd44b88c6a6affc5b8b",
+              "verdict": "REVISE",
+              "at": "2026-11-09T02:19:41Z"
+            }
+          ]
+        },
+        "F-55bdc58b7858": {
+          "digest": "55bdc58b78587341413adfdbc45bb6036185928dfe7a660d1ea0fc68f5bd3ee5",
+          "text": "TR-R1-003: Flow 5 greps the literal `oldest samples` in `timings.py`, but the current `update` docstring already says the stored estimate \"stands in for its own samples as the oldest values\". Section 2 does not fix the new wording. State the exact docstring sentence, or loosen the grep, so a correct edit cannot fail flow 5 on wording alone.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "e0b96da696123b696fd07d80fef5765f26a39fa49a055dd44b88c6a6affc5b8b",
+              "verdict": "REVISE",
+              "at": "2026-11-09T02:19:41Z"
+            }
+          ]
+        },
+        "F-4e0eead5bed9": {
+          "digest": "4e0eead5bed9f9a48f5b660b1cabff7fb3192601ef0c4811501a0b99df42a682",
+          "text": "TR-R1-004: G2 requires a predicted shard-wall max/min \"no worse than the base's 1.000 (rounded to three digits)\", that is at most 1.0005, with no stated basis that the refreshed model can meet it. The refreshed model will have chunks of about 300 s against walls of about 750 s at 4 workers, while the base's largest is about 112 s. The planner packs shard sums, not 4-worker walls, so list scheduling can leave a spread of a few tenths of a percent, and a refresh that Pin 2 (10 %) and G3 accept would then be abandoned. Consider a tolerance (for example at most 1.02), or say what happens on a narrow miss.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "e0b96da696123b696fd07d80fef5765f26a39fa49a055dd44b88c6a6affc5b8b",
+              "verdict": "REVISE",
+              "at": "2026-11-09T02:19:41Z"
+            }
+          ]
+        },
+        "F-c9a34f70c7d7": {
+          "digest": "c9a34f70c7d7c35bcdb6fedc50202b1bb33e4b0b48989ee739c2e0ca82387289",
+          "text": "TR-R1-005: G3 scores against the `results-shard-*` artifacts of the three section-1 runs (42434510363, 42447145326, 42448347885), but H3 only downloads the three measurement runs. Name where those control artifacts come from (the investigation's run directory, or a download step like H3) and note GitHub's artifact retention.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "e0b96da696123b696fd07d80fef5765f26a39fa49a055dd44b88c6a6affc5b8b",
+              "verdict": "REVISE",
+              "at": "2026-11-09T02:19:41Z"
+            }
+          ]
+        },
+        "F-ce2eceffaf77": {
+          "digest": "ce2eceffaf77bea169718efb89bd333488e72c268731dddc8e2c191c5d9d52c2",
+          "text": "TR-R1-006: The plan-stage `excluded_paths` of `timings-rebalance-artifacts.json` carry inherited template reasons that do not describe this repository (Android build files, `AGENTS.md`, `docs/TECHNICAL_DECISIONS.md` \"recorded in the protected docs/TECHNICAL_DECISIONS.md\" for `.github/workflows/ci.yml`, which does not exist here). They are harmless to classification, but the reason text is wrong for this repository.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "e0b96da696123b696fd07d80fef5765f26a39fa49a055dd44b88c6a6affc5b8b",
+              "verdict": "REVISE",
+              "at": "2026-11-09T02:19:41Z"
+            }
+          ]
+        },
+        "F-6a80c6e1cc76": {
+          "digest": "6a80c6e1cc7671b340f0d87c4a49c40286f122a9384b35341c08fce4d52b372a",
+          "text": "TR-R4-001: The requirements mapping was not carried forward with revision 4. R1 still says only \"three green one-class-per-chunk CI dispatches\" and R4 lists the refresh procedure without the `results-*` download. G1 now also requires a passing `results-aggregate` record for each of the four matrix host classes, and flow 5 now checks for `results-*`. The plan text is authoritative and complete, so nothing is lost. The acceptance record at CP2 should state the G1 aggregate-record check explicitly, so R1's evidence covers it.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 4,
+              "review_content_id": "d92ac6e81c3854d55fa362bc88022923d7337ce9300fdb2ad98ab9df4ea97e98",
+              "verdict": "APPROVE",
+              "at": "2026-11-09T02:31:11Z"
+            }
+          ]
+        },
+        "F-f8d1c3b0540b": {
+          "digest": "f8d1c3b0540bdcd978e6ca571972c74f589e9044e0e8095415f9308ff85c3dab",
+          "text": "**TR-LIR1-001** (`docs/ACTIVE_MILESTONE.md`, \"Self-review\"): the record contradicts itself and is stale. It says \"the docstring sentence and the Architecture paragraph match the plan's text\", then says the paragraph was reworded. It also says \"Not run yet: the gate\", but `TEST_RESULTS.md` records the full gate at `1106a83` with exit 0. The file is excluded at both stages and the acceptance step writes it, so fix both sentences there.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "e28b829bfbdf97dcd39bd13cabd158a320b14764a81f75c7245d54b8cdcc5c12",
+              "verdict": "APPROVE",
+              "at": "2026-11-09T04:19:18Z"
+            }
+          ]
+        },
+        "F-14104b35c36e": {
+          "digest": "14104b35c36e80e55cdf8a36622fb3a795d8578007fdd4a8dc043af5434dbf49",
+          "text": "**TR-LIR1-002** (`tests/parallel/timings.json`, `profiles.ci.source`): the provenance text says the profile covers \"every host class\" and names \"results-shard-* and results-aggregate artifacts\" as its sources. The four phase-B matrix host classes are not in the profile (they stay `other_profile`). The `results-aggregate` artifact added nothing new: its 2056 `frozen-records/*.record.json` are byte-identical copies of the shards' records, `read_observations` deduplicates them (every unit has exactly 3 samples), and the fold does not read its host `records/*.json`. The numbers are right; the text over-claims slightly. Correct it on the next refresh, which rewrites `--source` anyway. A hand edit would break \"written by the tool, never by hand\".",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "e28b829bfbdf97dcd39bd13cabd158a320b14764a81f75c7245d54b8cdcc5c12",
+              "verdict": "APPROVE",
+              "at": "2026-11-09T04:19:18Z"
+            }
+          ]
+        },
+        "F-20941b602379": {
+          "digest": "20941b602379c11055f0c2bc65a89d82ea18c12775dc9a02033de4a1f91fbfef",
+          "text": "**TR-LIR1-003** (plan conformance, plan sections 2, 3 H3, 4 G2 and 7 flow 7): the approved plan says downloading `results-aggregate` folds the matrix host classes, quotes the Architecture paragraph as ending \"lists no unit under `timing defaulted`\", and expects flow 7 to show \"candidate: 0 defaulted\". All three are false of the unchanged code. I traced it: `executor.aggregate` writes no `timings.jsonl` (only `local_run` at line 773 and `run_shard` at line 899 do), `read_observations` reads only `*.jsonl` and `*.record.json`, and host records are `records/<name>.json` (`isolation.py:285`). The reworded paragraph is true: phase-B estimates feed only the `aggregate_job` makespan term in `build_plan`, never `make_chunks`/`_assign`/`shard_count` of phase A. The deviation stays inside G2's own tolerance (4 units, each named with its cause, limit 10) and keeps every term flow 5 looks for, so no amendment is needed. The functional checklist must restate flow 7's expectation as \"4 defaulted, all `other_profile`, the four phase-B matrix host classes\" so the reviewer does not record a false failure.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "e28b829bfbdf97dcd39bd13cabd158a320b14764a81f75c7245d54b8cdcc5c12",
+              "verdict": "APPROVE",
+              "at": "2026-11-09T04:19:18Z"
+            }
+          ]
+        },
+        "F-7beb5720939b": {
+          "digest": "7beb5720939b9140f800bbf1c1a451b289cdb7e191ce7b6350b7f0416a716cbd",
+          "text": "[docs/ACTIVE_MILESTONE.md:38](docs/ACTIVE_MILESTONE.md#L38) says the Architecture paragraph matches the plan before explaining its deviation, and says the gate has not run despite the passing result in `TEST_RESULTS.md`. Update these bookkeeping statements.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "e28b829bfbdf97dcd39bd13cabd158a320b14764a81f75c7245d54b8cdcc5c12",
+              "verdict": "REVISE",
+              "at": "2026-11-09T04:22:56Z"
+            }
+          ]
+        },
+        "F-2c2381ab0503": {
+          "digest": "2c2381ab0503866aa0ea7a40872160999b2ca418f97840a3a327faddfb6fd50d",
+          "text": "**TR-LIR2-001** (`TEST_RESULTS.md` of the post-fix bundle): the heading still says \"implementation revision 1\" and the full gate is cited at `1106a83`. Nothing after `0d28745` (the provenance rewrite) or `c74d71d` is mentioned. The evidence still holds: the rewrite changes only `profiles.ci.source`, and this review re-ran the full gate at `87d0ce2` with the same `selection_digest` and `tests_digest` (exit 0). Still, the record should name the revision and the post-fix commit it covers. The acceptance record can carry the corrected citation.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 2,
+              "review_content_id": "272d9f2f989a9a63ab209bde06867426c1616f56136b6bf726aa0cbb1363b800",
+              "verdict": "APPROVE",
+              "at": "2026-11-09T04:58:34Z"
+            }
+          ]
+        },
+        "F-724e36b3162f": {
+          "digest": "724e36b3162fa07d5d78f4169e9ec78add54b66c83c007391c10be58863994dd",
+          "text": "**TR-LIR2-002** (carried from TR-LIR1-003, still open by design): the functional checklist must restate plan flow 7's expectation as \"4 defaulted, all `other_profile`, the four phase-B matrix host classes\". Otherwise the reviewer would record a false failure against the plan's \"candidate: 0 defaulted\".",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 2,
+              "review_content_id": "272d9f2f989a9a63ab209bde06867426c1616f56136b6bf726aa0cbb1363b800",
+              "verdict": "APPROVE",
+              "at": "2026-11-09T04:58:34Z"
+            }
+          ]
+        }
+      },
+      "implementation_review_stages": {
+        "review_content_id": "272d9f2f989a9a63ab209bde06867426c1616f56136b6bf726aa0cbb1363b800",
+        "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "46223ed3e20993b9db869a025b5ae266657f6a07e8adea5444fc9cec21b67bf3",
+          "verdict": "APPROVE",
+          "round": 2,
+          "completed_at": "2026-11-09T04:58:34Z",
+          "verdict_sha256": "387ece883adc1219b09aa09b1edef9943b360360f243ff085731452fea7dca7a",
+          "run_ref": "session:local .ai-review/timings-rebalance/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "46223ed3e20993b9db869a025b5ae266657f6a07e8adea5444fc9cec21b67bf3",
+          "verdict": "APPROVE",
+          "round": 2,
+          "completed_at": "2026-11-09T05:01:45Z",
+          "verdict_sha256": "3991bfd52bc1479fec41cfc68a04c628f860c6a05d536427d43e145f854322ad",
+          "run_ref": "codex:20261109T045851Z-6a90dd55",
+          "reviewer_model": "openai/gpt-6.1-sol"
+        }
+      },
+      "gate_evidence": {
+        "functional": {
+          "flow-1": {
+            "flow_id": "flow-1",
+            "status": "passed",
+            "head": "a3e6371b1c87006d87bafc98049d7f1a6f9c09db",
+            "ran_at": "2026-11-09T05:51:26Z",
+            "summary": {
+              "checklist_blob": "a26436a08c5a72a35a7bf93f2cbca8268c264cd7",
+              "text": "Diff lists exactly docs/ARCHITECTURE.md, timings.json, timings.py, test_parallel_runner.py; config.json unchanged."
+            },
+            "log_digest": "f5a54e82066cc1c37c57e38ea4d21f78bdd3a6f9e2aa10b28ba7be956c7d5108",
+            "run_ref": "controller:20261109T055039Z-31186ea8",
+            "reporter": "workflow-controller 1.27.10",
+            "identity": "272d9f2f989a9a63ab209bde06867426c1616f56136b6bf726aa0cbb1363b800",
+            "recorded_at": "2026-11-09T05:51:26Z"
+          },
+          "flow-2": {
+            "flow_id": "flow-2",
+            "status": "passed",
+            "head": "a3e6371b1c87006d87bafc98049d7f1a6f9c09db",
+            "ran_at": "2026-11-09T05:51:26Z",
+            "summary": {
+              "checklist_blob": "a26436a08c5a72a35a7bf93f2cbca8268c264cd7",
+              "text": "Both test defs found at lines 2423 and 2432, inside class TestTheRealCheckoutPlans (line 2395)."
+            },
+            "log_digest": "54fe2fb91ba3430449fb0328676f1ea5e4df582a554426dbbd58597aaa5b2c8f",
+            "run_ref": "controller:20261109T055039Z-31186ea8",
+            "reporter": "workflow-controller 1.27.10",
+            "identity": "272d9f2f989a9a63ab209bde06867426c1616f56136b6bf726aa0cbb1363b800",
+            "recorded_at": "2026-11-09T05:51:27Z"
+          },
+          "flow-3": {
+            "flow_id": "flow-3",
+            "status": "passed",
+            "head": "a3e6371b1c87006d87bafc98049d7f1a6f9c09db",
+            "ran_at": "2026-11-09T05:51:27Z",
+            "summary": {
+              "checklist_blob": "a26436a08c5a72a35a7bf93f2cbca8268c264cd7",
+              "text": "Local profile, ci_job_setup_seconds and local group overhead equal base; source names the three run ids, median, 6 shards, emptied; FLOW 3 PASS exit 0."
+            },
+            "log_digest": "552a149b8d9b8f10d730441d1730ef3d403d062c79377eecfe4b82a2b5165b69",
+            "run_ref": "controller:20261109T055039Z-31186ea8",
+            "reporter": "workflow-controller 1.27.10",
+            "identity": "272d9f2f989a9a63ab209bde06867426c1616f56136b6bf726aa0cbb1363b800",
+            "recorded_at": "2026-11-09T05:51:27Z"
+          },
+          "flow-4": {
+            "flow_id": "flow-4",
+            "status": "passed",
+            "head": "a3e6371b1c87006d87bafc98049d7f1a6f9c09db",
+            "ran_at": "2026-11-09T05:51:27Z",
+            "summary": {
+              "checklist_blob": "a26436a08c5a72a35a7bf93f2cbca8268c264cd7",
+              "text": "grep -c returned 0."
+            },
+            "log_digest": "d15d0edf16d99d8903be3938ca01b315ca5b082184399ef866dc72f3b1fe22dd",
+            "run_ref": "controller:20261109T055039Z-31186ea8",
+            "reporter": "workflow-controller 1.27.10",
+            "identity": "272d9f2f989a9a63ab209bde06867426c1616f56136b6bf726aa0cbb1363b800",
+            "recorded_at": "2026-11-09T05:51:27Z"
+          },
+          "flow-5": {
+            "flow_id": "flow-5",
+            "status": "passed",
+            "head": "a3e6371b1c87006d87bafc98049d7f1a6f9c09db",
+            "ran_at": "2026-11-09T05:51:27Z",
+            "summary": {
+              "checklist_blob": "a26436a08c5a72a35a7bf93f2cbca8268c264cd7",
+              "text": "timings.py line 433 docstring says a refresh empties the profile first; ARCHITECTURE paragraph names profiles.ci.units, three dispatches, target_shard_seconds, results-* and timing defaulted."
+            },
+            "log_digest": "62c31139db310d1c76dd66809d92dcf5c82e35fe5288c850d753c462c240abb0",
+            "run_ref": "controller:20261109T055039Z-31186ea8",
+            "reporter": "workflow-controller 1.27.10",
+            "identity": "272d9f2f989a9a63ab209bde06867426c1616f56136b6bf726aa0cbb1363b800",
+            "recorded_at": "2026-11-09T05:51:27Z"
+          },
+          "flow-6": {
+            "flow_id": "flow-6",
+            "status": "passed",
+            "head": "a3e6371b1c87006d87bafc98049d7f1a6f9c09db",
+            "ran_at": "2026-11-09T05:51:27Z",
+            "summary": {
+              "checklist_blob": "a26436a08c5a72a35a7bf93f2cbca8268c264cd7",
+              "text": "0 added lines mention milestone/timings-rebalance; check_docs.py exit 0."
+            },
+            "log_digest": "220cdf45f0d48bbe3aa81863c790fb565848a3debcbee445509057de92bb208b",
+            "run_ref": "controller:20261109T055039Z-31186ea8",
+            "reporter": "workflow-controller 1.27.10",
+            "identity": "272d9f2f989a9a63ab209bde06867426c1616f56136b6bf726aa0cbb1363b800",
+            "recorded_at": "2026-11-09T05:51:27Z"
+          },
+          "flow-7": {
+            "flow_id": "flow-7",
+            "status": "passed",
+            "head": "a3e6371b1c87006d87bafc98049d7f1a6f9c09db",
+            "ran_at": "2026-11-09T05:55:46Z",
+            "summary": {
+              "checklist_blob": "a26436a08c5a72a35a7bf93f2cbca8268c264cd7",
+              "text": "Candidate: 2363 units, 4 defaulted (all other_profile, the four phase-B host classes), orphaned [], warnings [], max/min 1.0000957; base: 386 defaulted."
+            },
+            "log_digest": "7afef460a68545d0afbf6c93b9527a386843164cc97b260f582fcba046274b45",
+            "run_ref": "claude-functional:md23-functional-r1",
+            "reporter": "manager claude-functional.sh (Sonnet 5.5)",
+            "identity": "272d9f2f989a9a63ab209bde06867426c1616f56136b6bf726aa0cbb1363b800",
+            "recorded_at": "2026-11-09T05:55:46Z"
+          },
+          "flow-8": {
+            "flow_id": "flow-8",
+            "status": "passed",
+            "head": "a3e6371b1c87006d87bafc98049d7f1a6f9c09db",
+            "ran_at": "2026-11-09T05:55:46Z",
+            "summary": {
+              "checklist_blob": "a26436a08c5a72a35a7bf93f2cbca8268c264cd7",
+              "text": "The unmutated copy passes T1 and T2."
+            },
+            "log_digest": "7afef460a68545d0afbf6c93b9527a386843164cc97b260f582fcba046274b45",
+            "run_ref": "claude-functional:md23-functional-r1",
+            "reporter": "manager claude-functional.sh (Sonnet 5.5)",
+            "identity": "272d9f2f989a9a63ab209bde06867426c1616f56136b6bf726aa0cbb1363b800",
+            "recorded_at": "2026-11-09T05:55:46Z"
+          },
+          "flow-9": {
+            "flow_id": "flow-9",
+            "status": "passed",
+            "head": "a3e6371b1c87006d87bafc98049d7f1a6f9c09db",
+            "ran_at": "2026-11-09T05:55:46Z",
+            "summary": {
+              "checklist_blob": "a26436a08c5a72a35a7bf93f2cbca8268c264cd7",
+              "text": "TestTheRealCheckoutPlans ran 3 tests, OK, exit 0."
+            },
+            "log_digest": "7afef460a68545d0afbf6c93b9527a386843164cc97b260f582fcba046274b45",
+            "run_ref": "claude-functional:md23-functional-r1",
+            "reporter": "manager claude-functional.sh (Sonnet 5.5)",
+            "identity": "272d9f2f989a9a63ab209bde06867426c1616f56136b6bf726aa0cbb1363b800",
+            "recorded_at": "2026-11-09T05:55:47Z"
+          },
+          "flow-10": {
+            "flow_id": "flow-10",
+            "status": "passed",
+            "head": "a3e6371b1c87006d87bafc98049d7f1a6f9c09db",
+            "ran_at": "2026-11-09T05:55:46Z",
+            "summary": {
+              "checklist_blob": "a26436a08c5a72a35a7bf93f2cbca8268c264cd7",
+              "text": "run_all --select test_parallel_runner.py and --select test_docs.py both gave verdict exit 0, no OrphanProcessError."
+            },
+            "log_digest": "7afef460a68545d0afbf6c93b9527a386843164cc97b260f582fcba046274b45",
+            "run_ref": "claude-functional:md23-functional-r1",
+            "reporter": "manager claude-functional.sh (Sonnet 5.5)",
+            "identity": "272d9f2f989a9a63ab209bde06867426c1616f56136b6bf726aa0cbb1363b800",
+            "recorded_at": "2026-11-09T05:55:47Z"
+          },
+          "flow-11": {
+            "flow_id": "flow-11",
+            "status": "passed",
+            "head": "a3e6371b1c87006d87bafc98049d7f1a6f9c09db",
+            "ran_at": "2026-11-09T05:55:46Z",
+            "summary": {
+              "checklist_blob": "a26436a08c5a72a35a7bf93f2cbca8268c264cd7",
+              "text": "M1: T1 fails with 386 of 2363 units unmeasured, T2 passes."
+            },
+            "log_digest": "7afef460a68545d0afbf6c93b9527a386843164cc97b260f582fcba046274b45",
+            "run_ref": "claude-functional:md23-functional-r1",
+            "reporter": "manager claude-functional.sh (Sonnet 5.5)",
+            "identity": "272d9f2f989a9a63ab209bde06867426c1616f56136b6bf726aa0cbb1363b800",
+            "recorded_at": "2026-11-09T05:55:47Z"
+          },
+          "flow-12": {
+            "flow_id": "flow-12",
+            "status": "passed",
+            "head": "a3e6371b1c87006d87bafc98049d7f1a6f9c09db",
+            "ran_at": "2026-11-09T05:55:46Z",
+            "summary": {
+              "checklist_blob": "a26436a08c5a72a35a7bf93f2cbca8268c264cd7",
+              "text": "M2: T1 passes, T2 fails (slowest shard 20001 s, over 10% above the fastest)."
+            },
+            "log_digest": "7afef460a68545d0afbf6c93b9527a386843164cc97b260f582fcba046274b45",
+            "run_ref": "claude-functional:md23-functional-r1",
+            "reporter": "manager claude-functional.sh (Sonnet 5.5)",
+            "identity": "272d9f2f989a9a63ab209bde06867426c1616f56136b6bf726aa0cbb1363b800",
+            "recorded_at": "2026-11-09T05:55:47Z"
+          },
+          "flow-13": {
+            "flow_id": "flow-13",
+            "status": "passed",
+            "head": "a3e6371b1c87006d87bafc98049d7f1a6f9c09db",
+            "ran_at": "2026-11-09T05:55:46Z",
+            "summary": {
+              "checklist_blob": "a26436a08c5a72a35a7bf93f2cbca8268c264cd7",
+              "text": "M3 deleted 514 keys: T1 fails with 518 of 2363 units unmeasured, T2 passes."
+            },
+            "log_digest": "7afef460a68545d0afbf6c93b9527a386843164cc97b260f582fcba046274b45",
+            "run_ref": "claude-functional:md23-functional-r1",
+            "reporter": "manager claude-functional.sh (Sonnet 5.5)",
+            "identity": "272d9f2f989a9a63ab209bde06867426c1616f56136b6bf726aa0cbb1363b800",
+            "recorded_at": "2026-11-09T05:55:47Z"
+          }
+        },
+        "pr": {
+          "pr": {
+            "number": 187,
+            "url": "https://github.com/RodrigoFAbreu/workflow-manager/pull/187"
+          },
+          "state": "open",
+          "head": "a3e6371b1c87006d87bafc98049d7f1a6f9c09db",
+          "review_decision": null,
+          "reviewed_head": null,
+          "checks": {
+            "state": "success",
+            "failing": []
+          },
+          "review_id": null,
+          "findings": null,
+          "identity_at_head": "272d9f2f989a9a63ab209bde06867426c1616f56136b6bf726aa0cbb1363b800",
+          "observed_at": "2026-11-09T06:35:18Z",
+          "ingest_seq": 1,
+          "repository": "RodrigoFAbreu/workflow-manager",
+          "queried_commit": "c74d71dd4445be34853367c1308f0ae1f8440894",
+          "provenance": {
+            "source": "workflow_gh",
+            "fetched_by": {
+              "name": "workflow-gh",
+              "version": "pr-list-v1"
+            },
+            "fetched_at": "2026-11-09T06:35:18Z",
+            "raw_sha256": "aa8445916fdf102ec556ffb9819d866d5137e12d707db445c187dbfa9a7afbfc",
+            "run_ref": null,
+            "gh_path": "/usr/bin/gh",
+            "gh_sha256": "a6b35a153e40cc347601522acdb583da3dccfc06401505a63eacaeab6909ed80"
+          },
+          "fact_id": "2d769e734ce0c57fe216cf510114ba19196ac11592de3ad36ba9d04170aa0807"
+        },
+        "pr_reported": null,
+        "pr_keys": {
+          "reopened_for": [],
+          "applied": [],
+          "ingest_seq": 1
+        }
+      },
+      "acceptance_satisfaction": {
+        "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "policy_source": "default",
+        "file_digest": null,
+        "adopted_digest": null,
+        "floor_digest": null,
+        "requirements": [
+          {
+            "id": "checkpoints_complete",
+            "met": true,
+            "detail": "every checkpoint of the item's own registry is COMPLETE"
+          },
+          {
+            "id": "technical_approval_current",
+            "met": true,
+            "detail": "the technical approval is CURRENT for the content now"
+          },
+          {
+            "id": "functional_flows_passed",
+            "met": true,
+            "detail": "flows ['flow-1', 'flow-10', 'flow-11', 'flow-12', 'flow-13', 'flow-2', 'flow-3', 'flow-4', 'flow-5', 'flow-6', 'flow-7', 'flow-8', 'flow-9'] passed at the approved content"
+          },
+          {
+            "id": "pr_fact_current",
+            "met": true,
+            "detail": "workflow_gh fact for PR #187 at a3e6371b1c87006d87bafc98049d7f1a6f9c09db is current"
+          },
+          {
+            "id": "no_standing_pr_objection",
+            "met": true,
+            "detail": "no CHANGES_REQUESTED decision and no failed check"
+          },
+          {
+            "id": "ci_green",
+            "met": true,
+            "detail": "checks are 'success'"
+          }
+        ],
+        "inputs": {
+          "anchor_commit": "c74d71dd4445be34853367c1308f0ae1f8440894",
+          "anchor_identity": "272d9f2f989a9a63ab209bde06867426c1616f56136b6bf726aa0cbb1363b800",
+          "technical_approval": {
+            "basis": "POLICY_SATISFIED",
+            "approved_review_content_id": "272d9f2f989a9a63ab209bde06867426c1616f56136b6bf726aa0cbb1363b800",
+            "recorded_at": "2026-11-09T05:02:12Z"
+          },
+          "functional": {
+            "flow-1": {
+              "evidence_id": "ccef848edde13004957815c99e938e78b091f2764ba9402e627e14b48c8b2360",
+              "log_digest": "f5a54e82066cc1c37c57e38ea4d21f78bdd3a6f9e2aa10b28ba7be956c7d5108",
+              "run_ref": "controller:20261109T055039Z-31186ea8"
+            },
+            "flow-10": {
+              "evidence_id": "00b4500d428991d53c28c8a208f2c10529b88038d869081654dab58cd99f68ee",
+              "log_digest": "7afef460a68545d0afbf6c93b9527a386843164cc97b260f582fcba046274b45",
+              "run_ref": "claude-functional:md23-functional-r1"
+            },
+            "flow-11": {
+              "evidence_id": "1731c20157c9f97016af7202885a839f52850692518c8ba05eda113e1af8f2a5",
+              "log_digest": "7afef460a68545d0afbf6c93b9527a386843164cc97b260f582fcba046274b45",
+              "run_ref": "claude-functional:md23-functional-r1"
+            },
+            "flow-12": {
+              "evidence_id": "6280fc67ff1d5b440c8f6971c75082e39c1aa36a76ad321a53da4ccd39480301",
+              "log_digest": "7afef460a68545d0afbf6c93b9527a386843164cc97b260f582fcba046274b45",
+              "run_ref": "claude-functional:md23-functional-r1"
+            },
+            "flow-13": {
+              "evidence_id": "5f4406ae1e4d88d814e04f12eedee821ce4f11854cb63d5be215c849c8bd495b",
+              "log_digest": "7afef460a68545d0afbf6c93b9527a386843164cc97b260f582fcba046274b45",
+              "run_ref": "claude-functional:md23-functional-r1"
+            },
+            "flow-2": {
+              "evidence_id": "5deecf41cc081413d344e922bebae5be3ab3a484c33a6a36c8638c7bc0b134b9",
+              "log_digest": "54fe2fb91ba3430449fb0328676f1ea5e4df582a554426dbbd58597aaa5b2c8f",
+              "run_ref": "controller:20261109T055039Z-31186ea8"
+            },
+            "flow-3": {
+              "evidence_id": "486319b49e7c512b30b9252dce3126ba11ba64f0c119e5cd18fd64bd8a96d5f2",
+              "log_digest": "552a149b8d9b8f10d730441d1730ef3d403d062c79377eecfe4b82a2b5165b69",
+              "run_ref": "controller:20261109T055039Z-31186ea8"
+            },
+            "flow-4": {
+              "evidence_id": "2d33882f9619558a53142f428a0c10df29c0a05fe956b5546559f0647403f337",
+              "log_digest": "d15d0edf16d99d8903be3938ca01b315ca5b082184399ef866dc72f3b1fe22dd",
+              "run_ref": "controller:20261109T055039Z-31186ea8"
+            },
+            "flow-5": {
+              "evidence_id": "d16af573ec2a7a78ed487e327289f912b0c5e23b0dc4aeb3cb60264635ad99c9",
+              "log_digest": "62c31139db310d1c76dd66809d92dcf5c82e35fe5288c850d753c462c240abb0",
+              "run_ref": "controller:20261109T055039Z-31186ea8"
+            },
+            "flow-6": {
+              "evidence_id": "a70a8810c808a15bf1ee3bc491d0e74eda57fc1ad13d1bdb6a4e85743e412025",
+              "log_digest": "220cdf45f0d48bbe3aa81863c790fb565848a3debcbee445509057de92bb208b",
+              "run_ref": "controller:20261109T055039Z-31186ea8"
+            },
+            "flow-7": {
+              "evidence_id": "6c0df30f4bf4b9c3f169ee20da89f21fede86fc99eb5c1b3a7561620895f8473",
+              "log_digest": "7afef460a68545d0afbf6c93b9527a386843164cc97b260f582fcba046274b45",
+              "run_ref": "claude-functional:md23-functional-r1"
+            },
+            "flow-8": {
+              "evidence_id": "14e0ef14b25d32be132d72f963b15c6ab13649362af9fe81f4331a54a5a44772",
+              "log_digest": "7afef460a68545d0afbf6c93b9527a386843164cc97b260f582fcba046274b45",
+              "run_ref": "claude-functional:md23-functional-r1"
+            },
+            "flow-9": {
+              "evidence_id": "5f76450d2451d0554144b4c4275e348555baec6998241714f5a0584aa91d9d07",
+              "log_digest": "7afef460a68545d0afbf6c93b9527a386843164cc97b260f582fcba046274b45",
+              "run_ref": "claude-functional:md23-functional-r1"
+            }
+          },
+          "pr": {
+            "fact_id": "2d769e734ce0c57fe216cf510114ba19196ac11592de3ad36ba9d04170aa0807",
+            "head": "a3e6371b1c87006d87bafc98049d7f1a6f9c09db",
+            "provenance": "workflow_gh",
+            "raw_sha256": "aa8445916fdf102ec556ffb9819d866d5137e12d707db445c187dbfa9a7afbfc"
+          }
+        },
+        "trust": {
+          "review_verdicts": "orchestrator",
+          "functional_evidence": "orchestrator",
+          "pr_fact": "workflow_gh"
+        },
+        "evaluated_at": "2026-11-09T06:35:18Z",
+        "workflow_release": "2.29.1"
+      }
     }
   }
 }

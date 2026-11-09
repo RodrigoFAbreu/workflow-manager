@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "work_item_id": "timings-rebalance",
+  "requirements": {
+    "R1": {
+      "description": "tests/parallel/timings.json's ci profile and ci group overheads are re-derived from three green one-class-per-chunk CI dispatches folded into an emptied ci profile; the local profile, ci_job_setup_seconds and config.json are unchanged; the file loads with no warning and has no versioned key",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R2": {
+      "description": "The committed model passes the offline acceptance rules before any commit: no defaulted unit (at most 10, each named), no orphan, predicted shard-wall max/min at most 1.02, and against the artifacts of three real runs a correlation above 0.911 and slowest/mean shard at most 1.10",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R3": {
+      "description": "Two tests in TestTheRealCheckoutPlans pin that at most a tenth of the real full selection's units are unmeasured for ci and that the predicted shard walls at 4 workers differ by at most 10 %; M1 (stale file), M2 (one 20000 s class) and M3 (no updated-fixture entries) each fail exactly the named test and the unmutated candidate passes both",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R4": {
+      "description": "timings.update's docstring and a paragraph of docs/ARCHITECTURE.md state that a fold counts the stored estimate as the oldest samples and give the refresh procedure (emptied profile, three one-class-per-chunk dispatches, no timing defaulted unit), naming no milestone",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R5": {
+      "description": "The roadmap carries row 34 for this item, Current now and Done at acceptance, and the active-milestone record states G1 to G4 and the mutation results; nothing in this item depends on a run of the merged main",
+      "checkpoint_ids": [
+        "CP2"
+      ]
+    }
+  }
+}

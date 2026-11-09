@@ -1,0 +1,45 @@
+{
+  "dispositions": {
+    "F-14104b35c36e": {
+      "disposition": "fixed"
+    },
+    "F-20941b602379": {
+      "disposition": "fixed"
+    },
+    "F-2c2381ab0503": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#188",
+      "note": "Follow-up item 1."
+    },
+    "F-46dc585a5207": {
+      "disposition": "fixed"
+    },
+    "F-4e0eead5bed9": {
+      "disposition": "fixed"
+    },
+    "F-55bdc58b7858": {
+      "disposition": "fixed"
+    },
+    "F-6a80c6e1cc76": {
+      "disposition": "fixed"
+    },
+    "F-724e36b3162f": {
+      "disposition": "fixed"
+    },
+    "F-7beb5720939b": {
+      "disposition": "fixed"
+    },
+    "F-c9a34f70c7d7": {
+      "disposition": "fixed"
+    },
+    "F-ce2eceffaf77": {
+      "disposition": "dropped",
+      "reason": "The .github/workflows/ci.yml reason in the artifact declaration was corrected to name the real workflow files; the remaining inherited reasons are generic template text that is harmless to classification, as the plan's revision-2 note records."
+    },
+    "F-f8d1c3b0540b": {
+      "disposition": "fixed"
+    }
+  },
+  "schema_version": 1,
+  "work_item_id": "timings-rebalance"
+}
