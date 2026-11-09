@@ -2,7 +2,7 @@
 
 ## Milestone
 
-`retention-policy-file` -- in progress (`governing_workflow_version: "2.2"`, `process`, plan revision 2, base `0db1638`, branch `milestone/retention-policy-file`): roadmap row 36 (#90, wf#84). A `feat:` pull request title; a Manager release (minor) follows.
+`retention-policy-file` -- complete, accepted by policy (`governing_workflow_version: "2.2"`, `process`, plan revision 2, base `0db1638`, branch `milestone/retention-policy-file`): roadmap row 36 (#90, wf#84). A `feat:` pull request title; a Manager release (minor) follows.
 
 First slice of the owner's retention track: the retention policy file (`.workflow-manager/retention-policy.json`, closed and strict), its strict loader (`src/workflow_manager/retention_policy.py`, mode `off` unless the file is adopted unchanged), the `workflow-manager adopt-retention-policy` command (read-only preview; with the literal sentence bound to the digest it writes `.workflow-manager/retention-adoption.json`) and a read-only block in `status --retention` and `doctor --retention`. Nothing alerts, nothing is sent, nothing is cleaned in this slice.
 
