@@ -28389,18 +28389,22 @@
       "registry_path": "docs/ai-workflow/registry/hermetic-cache-gap-test-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/hermetic-cache-gap-test-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "IMPLEMENTING",
+      "phase": "SELF_REVIEWING_IMPLEMENTATION",
       "plan_revision": 1,
       "implementation_revision": null,
       "functional_review_round": null,
       "base_commit": "8569235357ed88edd5487bbc6db98fd4c4166bc7",
       "reviewed_implementation_head": null,
       "current_checkpoint_id": null,
-      "last_completed_checkpoint_id": "CP1",
+      "last_completed_checkpoint_id": "CP2",
       "checkpoints": {
         "CP1": {
           "status": "COMPLETE",
           "start_commit": "dba0500ebe9f7999db6ff76d93504c8dc2499f12"
+        },
+        "CP2": {
+          "status": "COMPLETE",
+          "start_commit": "351fa0c43cbb0f03881551635c9b471426a00e96"
         }
       },
       "current_bundle_id": "1d0b67b33574d719be3b8a0e0f001deeec7270621e4c4e977528eef23a356ad9",
@@ -28529,8 +28533,8 @@
           "external": 0
         }
       },
-      "state_revision": 8,
-      "last_transition": "2026-11-09T08:44:39Z",
+      "state_revision": 10,
+      "last_transition": "2026-11-09T08:46:48Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
