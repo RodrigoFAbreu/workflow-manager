@@ -18,3 +18,9 @@ First slice of the owner's retention track: the retention policy file (`.workflo
 - Files: `docs/ROADMAP.md` (row 36, Current; Done at acceptance), this record.
 - No version is edited. The pull-request title `feat: add the retention policy file and its adoption command` passes `python3 tools/release/release.py check-title` (feat, release impact minor); the release workflow computes the minor from the tags after `main`'s run is green.
 - After the release publishes, the orchestrator's follow-up `docs:` pull request adds the row to `docs/release-history.md` and moves the `Last checked with:` stamps of `docs/retention.md` and `docs/exit-codes.md`; a comment on #90 records the slice and lists plan section 2.6 as the next rows.
+
+### Self-review and full gate
+
+- One confirmed defect, fixed in `43346d6`: `check_record` matched `adopted_at` with `^...$` and `\d`, so a record whose timestamp ended in a newline, or used non-ASCII digits, was accepted, and the newline reached the `status --retention` block raw. It is now a full match of ASCII digits; `TestStates.test_record_shape_refusals` gains both cases, and each fails on the old check (run alone from `tests/` on a scratch copy holding the old module) and passes on the fix.
+- No other finding: the loader, the adoption command, the block and the pages agree with plan sections 2.1 to 2.5; nothing in `retention.py`, `scripts/`, `.claude/` or `.github/` changed.
+- Evidence: `--select test_retention_policy.py` exit 0 (71 tests); the full gate `python3 tests/run_all.py`: full selection, local, 8 workers, head `43346d6`, 2369/2369 units, 16023 tests, `verdict: exit 0`.
