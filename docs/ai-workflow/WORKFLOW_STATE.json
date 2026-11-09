@@ -28389,7 +28389,7 @@
       "registry_path": "docs/ai-workflow/registry/hermetic-cache-gap-test-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/hermetic-cache-gap-test-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "AWAITING_FUNCTIONAL_REVIEW",
       "plan_revision": 1,
       "implementation_revision": 1,
       "functional_review_round": null,
@@ -28498,7 +28498,96 @@
           "workflow_release": "2.29.1"
         }
       },
-      "technical_approval": null,
+      "technical_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "ccec0d1a8436a209079af8f232debc47576cef9d99fad51d7c12de0c2e1071a0",
+        "approved_review_content_id": "08b01acb712879ca6f8d93caedc0c28a1879dccded1eb1baf17b53c4be8c54e7",
+        "review_content_manifest": [
+          {
+            "path": "docs/ARCHITECTURE.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "04e9ac5f6f2146847ce78bcb9f8810d0c296103e"
+          },
+          {
+            "path": "docs/ai-workflow/registry/hermetic-cache-gap-test-artifacts.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "d5f1d9fea7b0f9ae99bb17d710641d16f6550981"
+          },
+          {
+            "path": "tests/test_operator_ux_report.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "e619ec864d4498cc00e761ceb5eecf8298205c93"
+          }
+        ],
+        "reviewed_content_commit": "a8a4f84ae8797ef9cdc1c1d8f58ef2db20fffa47",
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-11-09T09:07:42Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "08b01acb712879ca6f8d93caedc0c28a1879dccded1eb1baf17b53c4be8c54e7",
+            "ledger": {
+              "local": {
+                "bundle_id": "ccec0d1a8436a209079af8f232debc47576cef9d99fad51d7c12de0c2e1071a0",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "8ada125c121011e59b130f38ee7f0ac3749fdf66c5cc015587d7d7bbd160b93b",
+                "ledger_entry_sha256": "dd8411ad8944d331023894e905864281009833b8c5fc45e7b355d9bb36a81d0d",
+                "run_ref": "session:local .ai-review/hermetic-cache-gap-test/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "ccec0d1a8436a209079af8f232debc47576cef9d99fad51d7c12de0c2e1071a0",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "c760626a97318e813ad0d425c98eed1540a78a7f8a35ab8bf5edc9e6931c14d7",
+                "ledger_entry_sha256": "f9cc1b1d503ba1f916f9eaab001aa4d3032e5d2e554f446bd4a745625bcb6eac",
+                "run_ref": "codex:20261109T090552Z-37393974",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-11-09T09:07:42Z",
+          "workflow_release": "2.29.1"
+        }
+      },
       "technical_review_block_pins": [],
       "plan_review_stages": {
         "review_content_id": "01a6e1fba582e74021748bf24faf0ee3b5c719149341ee0dd9d19796ba31e954",
@@ -28529,12 +28618,12 @@
           "external": 1
         },
         "implementation": {
-          "local": 0,
-          "external": 0
+          "local": 1,
+          "external": 1
         }
       },
-      "state_revision": 11,
-      "last_transition": "2026-11-09T09:02:08Z",
+      "state_revision": 14,
+      "last_transition": "2026-11-09T09:07:42Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -28592,6 +28681,69 @@
               "at": "2026-11-09T08:38:55Z"
             }
           ]
+        },
+        "F-a46413272791": {
+          "digest": "a464132727913a0438a1ffe7d170bfb874d393e73d5b4a174942c43c7fec518c",
+          "text": "LIR1-001 (`docs/ARCHITECTURE.md`, Priming bullet): the new sentence \"no test fetches a release at test time: a test that runs the CLI against a release the cache does not hold gives it a `--release-source` mirror or a `--release-dir`\" contradicts itself: a fill from a `--release-source` mirror (this item's own test) is a fetch of a release at test time, and the loopback servers of `tests/test_discovery.py` serve release data at test time too. Both plan-stage reviewers raised this as Optional (F-970ec6f6974f, F-196f4418ed11) and the wording was kept as plan section 2 states it, so the implementation conforms to the plan. Suggest \"no test fetches a release from a remote host\" at acceptance or in a follow-up; record the disposition at acceptance.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "08b01acb712879ca6f8d93caedc0c28a1879dccded1eb1baf17b53c4be8c54e7",
+              "verdict": "APPROVE",
+              "at": "2026-11-09T09:05:09Z"
+            }
+          ]
+        },
+        "F-004f88a655fc": {
+          "digest": "004f88a655fc58f9cdcd732284332149614ced511e374605c161c456d8367a6d",
+          "text": "LIR1-002 (plan sections 3 and 5, flow 5): the approved plan still names mutation M3 (expected message `a managed repository `), which passes because it is a substring of `not a managed repository`; the deviation is recorded in `IMPLEMENTATION_SUMMARY.md` and `docs/ACTIVE_MILESTONE.md` with M3' (`is a managed repository`) in its place. The functional-review checklist must apply M3', not the plan's M3, or flow 5 reads as a failed mutation. (Plan-stage LPR1-002, the `sed` line-layout concern, is resolved: the argv keeps `\"--release-source\", str(self.mirror()),` on one line, so the plan's `sed` text matches.)",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "08b01acb712879ca6f8d93caedc0c28a1879dccded1eb1baf17b53c4be8c54e7",
+              "verdict": "APPROVE",
+              "at": "2026-11-09T09:05:09Z"
+            }
+          ]
+        },
+        "F-ebd534ec9f25": {
+          "digest": "ebd534ec9f2556cf03a44648b51cb33248669ab876c6ebf6e662e07c5f06b4b0",
+          "text": "In `docs/ARCHITECTURE.md`, clarify “no test fetches a release at test time” as “no test fetches a release from a remote host.” Local mirrors and loopback servers intentionally serve releases during tests.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "08b01acb712879ca6f8d93caedc0c28a1879dccded1eb1baf17b53c4be8c54e7",
+              "verdict": "APPROVE",
+              "at": "2026-11-09T09:07:27Z"
+            }
+          ]
+        }
+      },
+      "implementation_review_stages": {
+        "review_content_id": "08b01acb712879ca6f8d93caedc0c28a1879dccded1eb1baf17b53c4be8c54e7",
+        "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "ccec0d1a8436a209079af8f232debc47576cef9d99fad51d7c12de0c2e1071a0",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-11-09T09:05:09Z",
+          "verdict_sha256": "8ada125c121011e59b130f38ee7f0ac3749fdf66c5cc015587d7d7bbd160b93b",
+          "run_ref": "session:local .ai-review/hermetic-cache-gap-test/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "ccec0d1a8436a209079af8f232debc47576cef9d99fad51d7c12de0c2e1071a0",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-11-09T09:07:27Z",
+          "verdict_sha256": "c760626a97318e813ad0d425c98eed1540a78a7f8a35ab8bf5edc9e6931c14d7",
+          "run_ref": "codex:20261109T090552Z-37393974",
+          "reviewer_model": "openai/gpt-6.1-sol"
         }
       }
     }
