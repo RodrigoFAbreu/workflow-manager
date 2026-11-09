@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_work_item_id": "hermetic-cache-gap-test",
+  "active_work_item_id": null,
   "work_items": {
     "plan-amendment-mechanism": {
       "work_item_type": "process",
@@ -28389,7 +28389,7 @@
       "registry_path": "docs/ai-workflow/registry/hermetic-cache-gap-test-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/hermetic-cache-gap-test-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_FUNCTIONAL_REVIEW",
+      "phase": "MILESTONE_COMPLETE",
       "plan_revision": 1,
       "implementation_revision": 1,
       "functional_review_round": null,
@@ -28622,8 +28622,8 @@
           "external": 1
         }
       },
-      "state_revision": 14,
-      "last_transition": "2026-11-09T09:07:42Z",
+      "state_revision": 15,
+      "last_transition": "2026-11-09T09:34:13Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -28745,6 +28745,253 @@
           "run_ref": "codex:20261109T090552Z-37393974",
           "reviewer_model": "openai/gpt-6.1-sol"
         }
+      },
+      "gate_evidence": {
+        "functional": {
+          "flow-1": {
+            "flow_id": "flow-1",
+            "status": "passed",
+            "head": "5d75ea55f8c703997277d5e6f231440ce74ccf91",
+            "ran_at": "2026-11-09T09:11:29Z",
+            "summary": {
+              "checklist_blob": "29ecc7b8e3ba0da19508afd2bd470b20400db307",
+              "text": "diff --stat lists exactly tests/test_operator_ux_report.py and docs/ARCHITECTURE.md; nothing under src/, tools/, .github/."
+            },
+            "log_digest": "ecbad843ef08273b9a8b8226a256b881f6959fa25010133940c47b18532ee7ae",
+            "run_ref": "controller:20261109T091049Z-8cd34f99",
+            "reporter": "workflow-controller 1.27.10",
+            "identity": "08b01acb712879ca6f8d93caedc0c28a1879dccded1eb1baf17b53c4be8c54e7",
+            "recorded_at": "2026-11-09T09:11:29Z"
+          },
+          "flow-2": {
+            "flow_id": "flow-2",
+            "status": "passed",
+            "head": "5d75ea55f8c703997277d5e6f231440ce74ccf91",
+            "ran_at": "2026-11-09T09:11:29Z",
+            "summary": {
+              "checklist_blob": "29ecc7b8e3ba0da19508afd2bd470b20400db307",
+              "text": "Class is TestStatusContainment(ux.ReleaseCase); test argv has --release-source str(self.mirror()) and --release-cache str(cache) with cache = target/.git/c."
+            },
+            "log_digest": "fcf956a211d07cb51addcbac24d067919a506c2d37cb0af6874c44cf7d24f05d",
+            "run_ref": "controller:20261109T091049Z-8cd34f99",
+            "reporter": "workflow-controller 1.27.10",
+            "identity": "08b01acb712879ca6f8d93caedc0c28a1879dccded1eb1baf17b53c4be8c54e7",
+            "recorded_at": "2026-11-09T09:11:29Z"
+          },
+          "flow-3": {
+            "flow_id": "flow-3",
+            "status": "passed",
+            "head": "5d75ea55f8c703997277d5e6f231440ce74ccf91",
+            "ran_at": "2026-11-09T09:11:29Z",
+            "summary": {
+              "checklist_blob": "29ecc7b8e3ba0da19508afd2bd470b20400db307",
+              "text": "Test asserts returncode 0, assertIn 'not a managed repository', and (target/.git/c/PINNED_NEWEST).is_dir(); docstring says release comes from a local mirror."
+            },
+            "log_digest": "fcf956a211d07cb51addcbac24d067919a506c2d37cb0af6874c44cf7d24f05d",
+            "run_ref": "controller:20261109T091049Z-8cd34f99",
+            "reporter": "workflow-controller 1.27.10",
+            "identity": "08b01acb712879ca6f8d93caedc0c28a1879dccded1eb1baf17b53c4be8c54e7",
+            "recorded_at": "2026-11-09T09:11:29Z"
+          },
+          "flow-4": {
+            "flow_id": "flow-4",
+            "status": "passed",
+            "head": "5d75ea55f8c703997277d5e6f231440ce74ccf91",
+            "ran_at": "2026-11-09T09:11:29Z",
+            "summary": {
+              "checklist_blob": "29ecc7b8e3ba0da19508afd2bd470b20400db307",
+              "text": "Sentence matches the expected wording (no test fetches a release at test time ... --release-source mirror or --release-dir); added-lines count of milestone/hermetic-cache-gap is 0."
+            },
+            "log_digest": "d03a541415f29fa6b4899fc435f7fe7fc26fb2e615d72c51c82d3c7084cab14e",
+            "run_ref": "controller:20261109T091049Z-8cd34f99",
+            "reporter": "workflow-controller 1.27.10",
+            "identity": "08b01acb712879ca6f8d93caedc0c28a1879dccded1eb1baf17b53c4be8c54e7",
+            "recorded_at": "2026-11-09T09:11:30Z"
+          },
+          "flow-5": {
+            "flow_id": "flow-5",
+            "status": "passed",
+            "head": "5d75ea55f8c703997277d5e6f231440ce74ccf91",
+            "ran_at": "2026-11-09T09:13:51Z",
+            "summary": {
+              "checklist_blob": "29ecc7b8e3ba0da19508afd2bd470b20400db307",
+              "text": "Unmutated known-gap test is OK offline (unshare -rn); M1 (1 != 0, Network is unreachable), M2 (False is not true), M3' ('is a managed repository' not found) and M4 (0 != 1) each FAILED as expected, each copy differing from the candidate."
+            },
+            "log_digest": "3acef882d340d9f1923b9d2d65300223263c55328559ba5b0d0d46202690f580",
+            "run_ref": "claude-functional:md24-functional-r1",
+            "reporter": "manager claude-functional.sh (Sonnet 5.5)",
+            "identity": "08b01acb712879ca6f8d93caedc0c28a1879dccded1eb1baf17b53c4be8c54e7",
+            "recorded_at": "2026-11-09T09:13:51Z"
+          },
+          "flow-6": {
+            "flow_id": "flow-6",
+            "status": "passed",
+            "head": "5d75ea55f8c703997277d5e6f231440ce74ccf91",
+            "ran_at": "2026-11-09T09:13:51Z",
+            "summary": {
+              "checklist_blob": "29ecc7b8e3ba0da19508afd2bd470b20400db307",
+              "text": "tools/check_docs.py, run_all.py --select test_operator_ux_report.py and --select test_docs.py all exit 0 (verdict: exit 0) with no OrphanProcessError, using the local release mirror."
+            },
+            "log_digest": "3acef882d340d9f1923b9d2d65300223263c55328559ba5b0d0d46202690f580",
+            "run_ref": "claude-functional:md24-functional-r1",
+            "reporter": "manager claude-functional.sh (Sonnet 5.5)",
+            "identity": "08b01acb712879ca6f8d93caedc0c28a1879dccded1eb1baf17b53c4be8c54e7",
+            "recorded_at": "2026-11-09T09:13:51Z"
+          },
+          "flow-7": {
+            "flow_id": "flow-7",
+            "status": "passed",
+            "head": "5d75ea55f8c703997277d5e6f231440ce74ccf91",
+            "ran_at": "2026-11-09T09:13:51Z",
+            "summary": {
+              "checklist_blob": "29ecc7b8e3ba0da19508afd2bd470b20400db307",
+              "text": "TestStatusContainment offline under unshare -rn: Ran 10 tests, OK."
+            },
+            "log_digest": "3acef882d340d9f1923b9d2d65300223263c55328559ba5b0d0d46202690f580",
+            "run_ref": "claude-functional:md24-functional-r1",
+            "reporter": "manager claude-functional.sh (Sonnet 5.5)",
+            "identity": "08b01acb712879ca6f8d93caedc0c28a1879dccded1eb1baf17b53c4be8c54e7",
+            "recorded_at": "2026-11-09T09:13:51Z"
+          }
+        },
+        "pr": {
+          "pr": {
+            "number": 191,
+            "url": "https://github.com/RodrigoFAbreu/workflow-manager/pull/191"
+          },
+          "state": "open",
+          "head": "5d75ea55f8c703997277d5e6f231440ce74ccf91",
+          "review_decision": null,
+          "reviewed_head": null,
+          "checks": {
+            "state": "success",
+            "failing": []
+          },
+          "review_id": null,
+          "findings": null,
+          "identity_at_head": "08b01acb712879ca6f8d93caedc0c28a1879dccded1eb1baf17b53c4be8c54e7",
+          "observed_at": "2026-11-09T09:34:13Z",
+          "ingest_seq": 1,
+          "repository": "RodrigoFAbreu/workflow-manager",
+          "queried_commit": "a8a4f84ae8797ef9cdc1c1d8f58ef2db20fffa47",
+          "provenance": {
+            "source": "workflow_gh",
+            "fetched_by": {
+              "name": "workflow-gh",
+              "version": "pr-list-v1"
+            },
+            "fetched_at": "2026-11-09T09:34:13Z",
+            "raw_sha256": "3b721f8fd6299bf2b7322a6a52a35aa029079d0f081697b417f7bb2d80939b79",
+            "run_ref": null,
+            "gh_path": "/usr/bin/gh",
+            "gh_sha256": "a6b35a153e40cc347601522acdb583da3dccfc06401505a63eacaeab6909ed80"
+          },
+          "fact_id": "ff014677ef82bb64f48ccb492c1f54215696b82ee7a15c3b7adc6fcaf8b1dbf9"
+        },
+        "pr_reported": null,
+        "pr_keys": {
+          "reopened_for": [],
+          "applied": [],
+          "ingest_seq": 1
+        }
+      },
+      "acceptance_satisfaction": {
+        "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "policy_source": "default",
+        "file_digest": null,
+        "adopted_digest": null,
+        "floor_digest": null,
+        "requirements": [
+          {
+            "id": "checkpoints_complete",
+            "met": true,
+            "detail": "every checkpoint of the item's own registry is COMPLETE"
+          },
+          {
+            "id": "technical_approval_current",
+            "met": true,
+            "detail": "the technical approval is CURRENT for the content now"
+          },
+          {
+            "id": "functional_flows_passed",
+            "met": true,
+            "detail": "flows ['flow-1', 'flow-2', 'flow-3', 'flow-4', 'flow-5', 'flow-6', 'flow-7'] passed at the approved content"
+          },
+          {
+            "id": "pr_fact_current",
+            "met": true,
+            "detail": "workflow_gh fact for PR #191 at 5d75ea55f8c703997277d5e6f231440ce74ccf91 is current"
+          },
+          {
+            "id": "no_standing_pr_objection",
+            "met": true,
+            "detail": "no CHANGES_REQUESTED decision and no failed check"
+          },
+          {
+            "id": "ci_green",
+            "met": true,
+            "detail": "checks are 'success'"
+          }
+        ],
+        "inputs": {
+          "anchor_commit": "a8a4f84ae8797ef9cdc1c1d8f58ef2db20fffa47",
+          "anchor_identity": "08b01acb712879ca6f8d93caedc0c28a1879dccded1eb1baf17b53c4be8c54e7",
+          "technical_approval": {
+            "basis": "POLICY_SATISFIED",
+            "approved_review_content_id": "08b01acb712879ca6f8d93caedc0c28a1879dccded1eb1baf17b53c4be8c54e7",
+            "recorded_at": "2026-11-09T09:07:42Z"
+          },
+          "functional": {
+            "flow-1": {
+              "evidence_id": "41d68cfdad47dcea6a68340a23fb38a185b0f6dc9a8332160f260be67862780e",
+              "log_digest": "ecbad843ef08273b9a8b8226a256b881f6959fa25010133940c47b18532ee7ae",
+              "run_ref": "controller:20261109T091049Z-8cd34f99"
+            },
+            "flow-2": {
+              "evidence_id": "6605cfbff8d2a8a7e3f2f2a4d7ef53c5065b92c8ceff885bb48ae44aae13a31a",
+              "log_digest": "fcf956a211d07cb51addcbac24d067919a506c2d37cb0af6874c44cf7d24f05d",
+              "run_ref": "controller:20261109T091049Z-8cd34f99"
+            },
+            "flow-3": {
+              "evidence_id": "99c859bce4217c9137feca3c03b23e895397374fa19361ba082114310c542e91",
+              "log_digest": "fcf956a211d07cb51addcbac24d067919a506c2d37cb0af6874c44cf7d24f05d",
+              "run_ref": "controller:20261109T091049Z-8cd34f99"
+            },
+            "flow-4": {
+              "evidence_id": "567b89f9de6817698d0c0bf2c89e3256f066e2cc24bf19582fae7acf9fa2cd13",
+              "log_digest": "d03a541415f29fa6b4899fc435f7fe7fc26fb2e615d72c51c82d3c7084cab14e",
+              "run_ref": "controller:20261109T091049Z-8cd34f99"
+            },
+            "flow-5": {
+              "evidence_id": "a2b1740a62b209f6cebc4f541fe6ee73cbb81a8548119473933d7b7b7d907185",
+              "log_digest": "3acef882d340d9f1923b9d2d65300223263c55328559ba5b0d0d46202690f580",
+              "run_ref": "claude-functional:md24-functional-r1"
+            },
+            "flow-6": {
+              "evidence_id": "340701c8baf9cdc966c3c2b97b0bb9f1093f92a1a2f7439edb9c03092acd65f9",
+              "log_digest": "3acef882d340d9f1923b9d2d65300223263c55328559ba5b0d0d46202690f580",
+              "run_ref": "claude-functional:md24-functional-r1"
+            },
+            "flow-7": {
+              "evidence_id": "8de29a3976541bcf7089b33c06e54b97e6fe087ab5d2cf63a1058c5c69f5ef64",
+              "log_digest": "3acef882d340d9f1923b9d2d65300223263c55328559ba5b0d0d46202690f580",
+              "run_ref": "claude-functional:md24-functional-r1"
+            }
+          },
+          "pr": {
+            "fact_id": "ff014677ef82bb64f48ccb492c1f54215696b82ee7a15c3b7adc6fcaf8b1dbf9",
+            "head": "5d75ea55f8c703997277d5e6f231440ce74ccf91",
+            "provenance": "workflow_gh",
+            "raw_sha256": "3b721f8fd6299bf2b7322a6a52a35aa029079d0f081697b417f7bb2d80939b79"
+          }
+        },
+        "trust": {
+          "review_verdicts": "orchestrator",
+          "functional_evidence": "orchestrator",
+          "pr_fact": "workflow_gh"
+        },
+        "evaluated_at": "2026-11-09T09:34:13Z",
+        "workflow_release": "2.29.1"
       }
     }
   }

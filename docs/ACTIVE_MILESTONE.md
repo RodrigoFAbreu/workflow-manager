@@ -2,7 +2,7 @@
 
 ## Milestone
 
-`hermetic-cache-gap-test` -- in functional review, `AWAITING_FUNCTIONAL_REVIEW` (`governing_workflow_version: "2.2"`, `process`, plan revision 1, base `8569235`, branch `milestone/hermetic-cache-gap-test`): roadmap row 35 (#189). A `test:` pull request title (releases nothing).
+`hermetic-cache-gap-test` -- complete, accepted by policy 2026-11-09 (`governing_workflow_version: "2.2"`, `process`, plan revision 1, base `8569235`, branch `milestone/hermetic-cache-gap-test`): roadmap row 35 (#189). A `test:` pull request title (releases nothing).
 
 The required check failed in 3 of the last 4 runs of 2026-11-09 only because of `test_an_unmanaged_target_with_a_cache_inside_git_is_the_known_gap`: it ran the real CLI with a release cache inside `.git` and no release source, so `status` downloaded the release from GitHub, and a GitHub 504 turned the check red. The test now takes its release from a local mirror (`TestStatusContainment` extends `ux.ReleaseCase`; the test passes `--release-source str(self.mirror())`), keeps its cache inside `.git`, keeps its exit-0 and "not a managed repository" assertions, and gains one: the release landed at `<target>/.git/c/<PINNED_NEWEST>`, so a cache moved out of git cannot pass. `docs/ARCHITECTURE.md` says that no test fetches a release at test time. No `src/` change, no other test, no workflow file, no shard change.
 
