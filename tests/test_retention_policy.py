@@ -326,7 +326,10 @@ class TestStates(Base):
         cases = {"extra key": dict(good, extra=1),
                  "missing key": {k: v for k, v in good.items() if k != "adopted_at"},
                  "version": dict(good, schema_version=2),
-                 "timestamp": dict(good, adopted_at="yesterday")}
+                 "timestamp": dict(good, adopted_at="yesterday"),
+                 # a trailing newline would reach the status block raw
+                 "timestamp newline": dict(good, adopted_at=good["adopted_at"] + "\n"),
+                 "timestamp digits": dict(good, adopted_at="\u0662" + good["adopted_at"][1:])}
         for name, record in cases.items():
             with self.subTest(case=name):
                 self.record_file().write_text(json.dumps(record))

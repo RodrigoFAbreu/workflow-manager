@@ -54,7 +54,7 @@ ADOPTED = "adopted"
 
 _RECORD_KEYS = ("schema_version", "sha256", "adopted_at", "confirmation", "policy")
 _SENTENCE = re.compile(r"adopt the retention policy ([0-9a-f]{%d})\." % DIGEST_SHOWN)
-_TIMESTAMP = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
+_TIMESTAMP = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z")  # fullmatch
 
 
 @dataclass(frozen=True)
@@ -220,7 +220,7 @@ def check_record(record) -> list[str]:
         return problems
     if not _is_int(record["schema_version"]) or record["schema_version"] != SCHEMA_VERSION:
         problems.append(f"record schema_version must be the integer {SCHEMA_VERSION}")
-    if not isinstance(record["adopted_at"], str) or not _TIMESTAMP.match(record["adopted_at"]):
+    if not isinstance(record["adopted_at"], str) or not _TIMESTAMP.fullmatch(record["adopted_at"]):
         problems.append(f"record adopted_at is not a UTC timestamp: {_shown(record['adopted_at'])}")
     inner = policy_errors(record["policy"])
     if inner:
