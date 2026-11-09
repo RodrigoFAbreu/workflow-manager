@@ -1,11 +1,12 @@
 # Release history
 
-> For: someone choosing a Manager version or wondering what changed. Last checked with: Workflow Manager 1.14.8, Workflow 2.29.1.
+> For: someone choosing a Manager version or wondering what changed. Last checked with: Workflow Manager 1.15.0, Workflow 2.29.1.
 
 One line per Workflow Manager release, newest first. The Manager's version is the Git tag. Each release links to its GitHub page, which lists the changes and carries the files. A Manager release carries no Workflow release of its own. The last column says which Workflow releases it can install.
 
 | Manager | Date | What changed, in plain words | Workflow releases it installs | Release page |
 |---|---|---|---|---|
+| 1.15.0 | 2026-11-09 | New command `adopt-retention-policy TARGET`: it previews and, with a confirmation sentence, adopts a retention policy file (mode off, notify, cleanup or both, and thresholds). `status --retention` and `doctor --retention` show the policy's state. Nothing alerts or cleans yet, and with no policy file nothing changes. | 2.3.1 and every later published release | [v1.15.0](https://github.com/RodrigoFAbreu/workflow-manager/releases/tag/v1.15.0) |
 | 1.14.8 | 2026-11-04 | The retention view counts what it echoes by one rule, states its limits in words, and tests every cause exactly; nothing else changes for someone installing. | 2.3.1 and every later published release | [v1.14.8](https://github.com/RodrigoFAbreu/workflow-manager/releases/tag/v1.14.8) |
 | 1.14.7 | 2026-11-03 | `update --dry-run` now decides the same way as `update` for a record that has no recorded Workflow version, so a dry run no longer promises something the real update would not do. | 2.3.1 and every later published release | [v1.14.7](https://github.com/RodrigoFAbreu/workflow-manager/releases/tag/v1.14.7) |
 | 1.14.6 | 2026-11-03 | Names a missing or empty recorded Workflow version in words in the messages that quote it, instead of `None` or a blank. | 2.3.1 and every later published release | [v1.14.6](https://github.com/RodrigoFAbreu/workflow-manager/releases/tag/v1.14.6) |
