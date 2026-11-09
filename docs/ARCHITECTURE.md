@@ -697,9 +697,12 @@ toward them. For a refresh, fold in a scratch checkout whose
 `profiles.ci.units` is emptied first, from the runs of at least three
 one-class-per-chunk dispatches (a throwaway branch with
 `target_shard_seconds` set to 0.01 in `tests/parallel/config.json`, run with
-`workflow_dispatch`), downloading each run's `results-*` artifacts so the
-aggregate job's matrix classes are folded with the shards', then check that
-the planner lists no unit under `timing defaulted`.
+`workflow_dispatch`), downloading each run's `results-*` artifacts, then
+check that the planner lists no unit under `timing defaulted` except the
+matrix host classes. The fold reads the shards' timing histories and frozen
+records; the aggregate job's phase B writes no timing history, so those
+classes keep the `other_profile` estimate, which only the aggregate job's own
+packing uses, never a shard's.
 
 *Note, 2026-10-11:* the CI rows above, and the 16- and 19-shard figures, were
 measured with one worker per shard. Since then a shard runs on every runner
