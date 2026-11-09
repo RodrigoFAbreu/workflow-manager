@@ -2,74 +2,37 @@
 
 ## Milestone
 
-`preflight-leftovers` -- complete, accepted by policy 2026-11-05 (`governing_workflow_version: "2.2"`, `process`, plan revision 1, base `f0f9095`, branch `milestone/preflight-leftovers`): roadmap row 33 (#151, items 1 and 4). A `test:` pull request title (releases nothing; one documentation sentence rides along).
+`timings-rebalance` -- in implementation (`governing_workflow_version: "2.2"`, `process`, plan revision 4, base `3917010`, branch `milestone/timings-rebalance`): roadmap row 34 (#181, second mechanism). A `test:` pull request title (releases nothing).
 
-The gate preflight's test and note say the whole truth. `test_the_real_script_refuses_a_cache_that_fills_but_does_not_serve` also asserts the next step the refusal names (`remove <cache>/0.0.1`). The Priming bullet of `docs/ARCHITECTURE.md` says `--results` moves the run directory only: frozen discovery still creates its release snapshot (`support.release()`) under the ambient `TMPDIR`, a filesystem the check does not then measure. No behaviour, printed text or exit code changes; no `src/` change; no Workflow change. Items 2 and 3 of the issue stay as they are.
+The CI timing model is re-derived so the six shards balance. `tests/parallel/timings.json`'s `ci` profile was folded from three one-class-per-chunk CI dispatches (runs 42551845166, 42553923351, 42556118176, branch `ci/timings-measurement`) into an emptied profile; two pins in `TestTheRealCheckoutPlans` keep the committed model measured (at most a tenth of the units unmeasured) and even (predicted shard walls within 10 %); `timings.update`'s docstring and `docs/ARCHITECTURE.md` say how to refresh. No planner change, no `src/` change, `ci_max_shards` stays 6. The real CI effect is measured after the merge (H4) and is not claimed here.
 
-### CP1: the pinned next step and the residual sentence -- complete
+### CP1: the refreshed model and its pins -- complete
 
-- Commit `800c152`: `tests/test_parallel_runner.py`, `docs/ARCHITECTURE.md`.
+- Commit `5c88ede`: `tests/parallel/timings.json`, `tests/test_parallel_runner.py`, `tests/parallel/timings.py`, `docs/ARCHITECTURE.md`.
 
 ### CP2: bookkeeping -- complete
 
-- `docs/ROADMAP.md` row 33 (Current; Done at acceptance); this record.
+- `docs/ROADMAP.md` row 34 (Current; Done at acceptance); this record.
 
-### Failure-only mutations
+### Acceptance rules for the data (plan section 4), on a clean clone of `5c88ede`
 
-Plan section 4, each on a fresh `git clone` of `800c152` (scratch copy), run as `python3 -B -m unittest test_parallel_runner.TestGatePreflight.test_the_real_script_refuses_a_cache_that_fills_but_does_not_serve` from `tests/`. The unmutated candidate passes (0.18 s).
+| Rule | Result |
+| --- | --- |
+| G1 | The three dispatches exited 0. Each `meas-<n>` holds 2359 phase-A records (one per selected non-matrix unit) and a `results-aggregate` run directory (the four matrix host classes). |
+| G2 | 2363 units, 4 defaulted, all `other_profile` (the four phase-B matrix classes, which the plan allows up to 10), `orphaned` empty, no warnings. Predicted shard walls at 4 workers 836 s on every shard, max/min 1.0001 (limit 1.02). |
+| G3 | Against the three real runs of section 1, 410 chunks re-priced: correlation 0.970 (base 0.911, control re-run 0.911); slowest/mean after an LPT re-pack 1.044 (limit 1.10; base 1.091). The model's total now sits at 0.89 of the measured chunk time (base 1.49). This is a model check at the old chunk granularity, not a prediction of the new wall. |
+| G4 | Against `3917010:tests/parallel/timings.json`: the `local` profile, `ci_job_setup_seconds` and the `local` group overheads are equal. |
 
-| # | Mutation (`tests/parallel/priming.py`) | Candidate test | Base test file (`f0f9095`) |
+### Failure-only mutations (plan section 5)
+
+Each on a fresh copy of the clone of `5c88ede`, T1 `test_the_committed_ci_timings_measure_almost_every_unit`, T2 `test_the_committed_ci_model_packs_the_shards_evenly`, run from `tests/` with `python3 -B -m unittest`. The unmutated copy passes both.
+
+| # | Mutation | T1 | T2 |
 | --- | --- | --- | --- |
-| M1 | `remove {cache}/{version}` reworded to `delete ...` | fails: `remove <cache>/0.0.1` not found in the message | passes (the gap item 1 closes) |
-| M2 | the step loses the version (`remove {cache}`) | fails at the same assertion | passes |
+| M1 | the base `timings.json` (stale model) | fails: 386 of 2363 units unmeasured | passes |
+| M2 | one class set to 20000 s | passes | fails: walls `[20001, 1006, 1006, 1006, 1006, 1006]` |
+| M3 | every `frozen:updated/` entry of `ci` dropped | fails: 518 of 2363 units unmeasured | passes |
 
 ### Self-review
 
-The diff against `f0f9095` was read against the plan: `tests/test_parallel_runner.py` (one assertion), `docs/ARCHITECTURE.md` (one sentence, no work-item id), plus the bookkeeping files; nothing under `src/` or `tools/`.
-
-## Functional review checklist
-
-Stage: `AWAITING_FUNCTIONAL_REVIEW`, implementation revision 1. The change is a `test:` change with one documentation sentence: no behaviour, printed text or exit code changes, no `src/` or `tools/` change. Plan section 6 is the source of these flows.
-
-### Setup
-
-- The flows run in a scratch clone, never the product clone:
-
-  ```bash
-  S=$(mktemp -d "$HOME/.cache/pl-fr.XXXXXX")
-  git clone --no-hardlinks <product clone> "$S/cand"   # checks out the branch head
-  cd "$S/cand"
-  ```
-
-- Run as a non-root user. Remove the scratch afterwards: `command rm -rf "$S"`.
-- Flows 1 to 6 need no network, no `gh` and no agent CLI. Flows 7 to 9 run the repository's suite and need the primed release cache (`${XDG_CACHE_HOME:-$HOME/.cache}/workflow-manager/releases`, or a local `WORKFLOW_MANAGER_RELEASE_SOURCE` mirror); `tests/run_all.py` primes that cache before it runs. If the sandbox cannot supply it, record flows 7 to 9 as not run; do not count a `PrimingError` as a product failure.
-
-### Test data
-
-None. Flow 6 builds its own synthetic release `0.0.1` inside a scratch checkout. Flows 7 and 8 edit scratch copies of `tests/parallel/priming.py` only.
-
-### Flows
-
-Each flow runs from `$S/cand` unless it says otherwise. Flows 1 to 5 write nothing.
-
-| Flow | Do | Expected result |
-| --- | --- | --- |
-| 1 | `git diff --stat f0f90952b8c25938f43189460874d132aaad4b5c HEAD -- src tools tests docs/ARCHITECTURE.md` | Exactly `docs/ARCHITECTURE.md` and `tests/test_parallel_runner.py`; nothing under `src/` or `tools/`. |
-| 2 | `grep -n 'remove {cache}/0.0.1' tests/test_parallel_runner.py`; then `git diff f0f90952b8c25938f43189460874d132aaad4b5c HEAD -- tests/test_parallel_runner.py \| grep -c '^-[^-]'` | One match, inside `test_the_real_script_refuses_a_cache_that_fills_but_does_not_serve`. The count is at most 2 (the replaced lines); no other line of the file changes. |
-| 3 | `tr '\n' ' ' < docs/ARCHITECTURE.md \| tr -s ' ' \| grep -o 'does not repeat the check\. `--results` moves the run directory only.\{0,260\}'` | One match: it starts at "does not repeat the check." and names `support.release()`, the ambient `TMPDIR`, and that the check does not measure that filesystem. |
-| 4 | `git diff f0f90952b8c25938f43189460874d132aaad4b5c HEAD -- docs/ARCHITECTURE.md \| grep '^+' \| grep -ci 'milestone\|preflight-leftovers'` | `0`: no added line names a milestone or a work-item id. |
-| 5 | `python3 tools/check_docs.py` | Exit 0. |
-| 6 | In `$S/cand/tests`: `python3 -B -m unittest test_parallel_runner.TestGatePreflight.test_the_real_script_refuses_a_cache_that_fills_but_does_not_serve` | `OK`, 1 test, exit 0. |
-| 7 | (needs the full environment) Fresh copy of `$S/cand`; in `tests/parallel/priming.py`, `s\|remove {report\['cache'\]}/{unserved}\|delete {report['cache']}/{unserved}\|`. Run flow 6's test. Then copy the base test file over (`git show f0f90952b8c25938f43189460874d132aaad4b5c:tests/test_parallel_runner.py`) and run it again. | Candidate: exit 1, `AssertionError` on `remove <cache>/0.0.1`. Base file: exit 0. |
-| 8 | (needs the full environment) Fresh copy; in `tests/parallel/priming.py`, `s\|remove {report\['cache'\]}/{unserved}\|remove {report['cache']}\|`. Run the candidate test, then the base test file. | Candidate: exit 1, the same assertion. Base file: exit 0. |
-| 9 | (needs the full environment) In `$S/cand`: `python3 tests/run_all.py --select test_parallel_runner.py`, then `python3 tests/run_all.py --select test_docs.py` | Exit 0 each; no `OrphanProcessError`. A `--select` run is not a gate. |
-
-Verified before this checklist was written: flows 1 to 6 pass in a scratch clone of the branch head, and flow 6 passes under `unshare -rn` (a network namespace with only loopback), so it runs with no network.
-
-### Known limitations and out of scope
-
-- Items 2 and 3 of #151 stay as they are: both change records of finished work.
-- Nothing under `src/`, `tools/` or `tests/parallel/` changes. The runner's behaviour, printed text and exit codes are unchanged.
-- The `--results` sentence describes the usual case, where `--results` is on a different filesystem from `TMPDIR`. When they share a filesystem the check still measures the snapshot's location, so the sentence is conservative, not wrong.
-- Open Optional finding (`docs/ARCHITECTURE.md:496`, implementation review round 1, `MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW`): the sentence could say "which the check does not cover when `--results` is on another filesystem". It does not block functional review; its disposition is recorded at acceptance.
-- No serial or single-shard run was made: neither the plan nor an acceptance criterion requires one. CI has not run; the branch is not pushed.
+The diff against `3917010` was read against the plan: the data file was written by `parallel.timings` (never by hand), the two tests share one helper, the docstring sentence and the Architecture paragraph match the plan's text; nothing under `src/` or `tools/`. Not run yet: the gate (`python3 tests/run_all.py`) and the narrow `--select` runs at the implementation-review step.
