@@ -2,7 +2,7 @@
 
 ## Milestone
 
-`retention-alert` -- in progress (`governing_workflow_version: "2.2"`, `process`, plan revision 5, base `7810ff6`, branch `milestone/retention-alert`): roadmap row 37 (#90, #192, wf#84). A `feat:` pull request title; a Manager release (minor) follows.
+`retention-alert` -- complete, accepted by policy (`governing_workflow_version: "2.2"`, `process`, plan revision 5, base `7810ff6`, branch `milestone/retention-alert`): roadmap row 37 (#90, #192, wf#84). A `feat:` pull request title; a Manager release (minor) follows.
 
 Second slice of the owner's retention track: for a retention policy adopted with mode `notify` or `both`, `verify` and `doctor` evaluate the four thresholds against the retention report and print a `retention alert:` block when one is reached (one `not evaluated` line when the report cannot be had). The alert never starts a script that is not the release's, never changes an exit code, and sends and cleans nothing. The four follow-ups of #192 ride along in CP2.
 

@@ -1,0 +1,69 @@
+{
+  "dispositions": {
+    "F-0fdddbf29784": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#195",
+      "note": "Follow-up item 2."
+    },
+    "F-17727d476d90": {
+      "disposition": "fixed"
+    },
+    "F-24f41ef13379": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#195",
+      "note": "Follow-up item 1b."
+    },
+    "F-2bc0a3304e85": {
+      "disposition": "fixed"
+    },
+    "F-3adea3c18bdc": {
+      "disposition": "fixed"
+    },
+    "F-49ca6373de7a": {
+      "disposition": "fixed"
+    },
+    "F-59dc723b072e": {
+      "disposition": "fixed"
+    },
+    "F-5c671bd1f07f": {
+      "disposition": "fixed"
+    },
+    "F-5fb6022b4ee5": {
+      "disposition": "fixed"
+    },
+    "F-64201aed86f0": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#195",
+      "note": "Follow-up item 1a."
+    },
+    "F-8e29a8a60b5b": {
+      "disposition": "fixed"
+    },
+    "F-90ddeb1977e2": {
+      "disposition": "dropped",
+      "reason": "Plan wording only (an approved artifact): section 4 and TestScriptState in tests/test_retention_alert.py (lines 679-735) already run the unpatched cases, so the behaviour is right."
+    },
+    "F-ccb5df3d7819": {
+      "disposition": "dropped",
+      "reason": "The requirements mapping JSON (an approved artifact) still says 'only with a reached threshold'; plan section 1.5 and mutations M3/M4 state the correct behaviour and the manual reviewer confirmed the plan is correct."
+    },
+    "F-dfab17394af7": {
+      "disposition": "dropped",
+      "reason": "Duplicate of F-90ddeb1977e2."
+    },
+    "F-e6e107dae271": {
+      "disposition": "fixed"
+    },
+    "F-ea6c8a69374b": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#195",
+      "note": "Follow-up item 2."
+    },
+    "F-f9da3290e934": {
+      "disposition": "dropped",
+      "reason": "Plan wording only: the plan says ':60' is accepted but the code rejects it (datetime.strptime raises ValueError, checked); an optional pinning case is listed in the follow-up issue item 3."
+    }
+  },
+  "schema_version": 1,
+  "work_item_id": "retention-alert"
+}
