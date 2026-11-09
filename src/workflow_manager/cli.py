@@ -5,6 +5,7 @@
     workflow-manager update    <target> [--profile ...] [--force] [--dry-run]
     workflow-manager doctor    <target> [--retention]
     workflow-manager verify    <target>
+    workflow-manager adopt-retention-policy <target> [--confirm TEXT]
     workflow-manager uninstall <target>
     workflow-manager releases
     workflow-manager package build <release-dir> --out <dir>
@@ -42,7 +43,7 @@ from contextlib import nullcontext
 from importlib import metadata
 from pathlib import Path
 
-from . import advice, retention
+from . import advice, retention, retention_policy
 from . import source as release_source
 from .compatibility import (
     ContainmentError,
@@ -600,6 +601,13 @@ def _print_lines(lines) -> None:
         print(line)
 
 
+def _retention_lines(target: Path, version) -> list[str]:
+    """The retention policy block (none without a policy file or record), then the
+    retention section; the block changes nothing the section or an exit code does."""
+    state = retention_policy.load(target)
+    return retention_policy.block(state, target) + retention.section(target, version)
+
+
 def cmd_status(args) -> int:
     if not is_managed(args.target):
         # Unchanged: nothing is resolved without --release-version, and no
@@ -641,7 +649,7 @@ def cmd_status(args) -> int:
     print(f"  source: {_describe_source(Installation.read(args.target).source)}")
     _print_in_flight(args)
     if args.retention:
-        _print_lines(retention.section(args.target, installed))
+        _print_lines(_retention_lines(args.target, installed))
     context = _context(args, with_data=bool(result.problems))
     step = advice.problem_step(context, result.problems)
     doctor = advice.doctor_step(context)
@@ -858,7 +866,7 @@ def cmd_doctor(args) -> int:
         report = _compatibility_report(args, plan, refusal, release, installed_resolved)
     print(render_report(report), end="")
     if args.retention:
-        _print_lines(retention.section(args.target, installed))
+        _print_lines(_retention_lines(args.target, installed))
     return report.doctor_exit_code
 
 
@@ -900,6 +908,34 @@ def cmd_uninstall(args) -> int:
     return 0
 
 
+def cmd_adopt_retention_policy(args) -> int:
+    if not is_managed(args.target):
+        raise NotManagedError(not_managed_text(args.target))
+    try:
+        state = retention_policy.usable_policy(args.target)
+        if args.confirm is None:
+            print(f"retention policy file: {retention_policy.policy_path(args.target)}")
+            print(f"digest: {state.digest} ({state.digest[:retention_policy.DIGEST_SHOWN]})")
+            print(f"mode: {state.policy['mode']}")
+            print(f"thresholds: {retention_policy.describe(state.policy)}")
+            print(f"state: {state.state}; mode {state.mode} is in force")
+            print("nothing was written. Only the repository's owner adopts a policy: to adopt "
+                  "this file, --confirm must contain the sentence")
+            print(f"  {retention_policy.sentence(state.digest)}")
+            return 0
+        record = retention_policy.apply(args.target, state, args.confirm)
+    except retention_policy.Refusal as refusal:
+        print(f"error: {refusal.cause}", file=sys.stderr)
+        print(f"next: {refusal.step}", file=sys.stderr)
+        return 2
+    print(f"adopted the retention policy {record['sha256']}: mode {record['policy']['mode']}")
+    print(f"wrote {retention_policy.record_path(args.target)}; commit it with "
+          f"{retention_policy.policy_path(args.target).name} (both files are the owner's)")
+    print("this Manager release only reads the policy: nothing is archived, removed, pruned "
+          "or sent")
+    return 0
+
+
 def cmd_package(args) -> int:
     if args.package_command == "build":
         built = build_package(args.release_dir, args.out)
@@ -926,6 +962,7 @@ COMMANDS = {
     "doctor": cmd_doctor,
     "verify": cmd_verify,
     "uninstall": cmd_uninstall,
+    "adopt-retention-policy": cmd_adopt_retention_policy,
     "package": cmd_package,
 }
 
@@ -1072,6 +1109,20 @@ def build_parser() -> argparse.ArgumentParser:
                 "is kept. Exit 0: removed; 2: the repository is not managed or its record is "
                 "unreadable.")
     p.add_argument("target", type=Path, help="the managed repository to uninstall")
+
+    p = command("adopt-retention-policy", "adopt the repository's retention policy file",
+                "Read .workflow-manager/retention-policy.json and print its digest, mode, "
+                "thresholds and the sentence that adopts it; writes nothing. With --confirm "
+                "holding that sentence it writes .workflow-manager/retention-adoption.json, "
+                "which you then commit. The mode in force stays off unless the file is "
+                "adopted unchanged. This release only reads the policy: it archives, removes, "
+                "prunes and sends nothing. Only the repository's owner runs it with --confirm; "
+                "an agent must not. Exit 0: previewed or adopted; 2: refused, nothing written "
+                "(not managed, no valid file, the sentence does not match).")
+    p.add_argument("target", type=Path, help="the managed repository whose policy to adopt")
+    p.add_argument("--confirm", default=None, metavar="TEXT",
+                   help="adopt the file: text containing 'Adopt the retention policy "
+                        "DIGEST12.' for the digest the preview prints")
 
     p = command("bootstrap", "install the Workflow into a Git repository",
                 "Install a Workflow release into a Git repository that is not yet managed: the "

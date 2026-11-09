@@ -24,6 +24,8 @@ Every command ends with a status. This is the one table of them. Every error mes
 | 2 | `verify` | The repository is not managed, or its record is unreadable. | Run `bootstrap`, or delete `.workflow-manager/` and bootstrap again. |
 | 2 | `status` | Its record is unreadable. (A repository that is not managed is exit 0.) | Delete `.workflow-manager/` and run `bootstrap` again. |
 | 2 | `uninstall` | The repository is not managed, or its record is unreadable. | Delete `.workflow-manager/` by hand if the record is damaged. |
+| 0 | `adopt-retention-policy` | It printed the preview of the retention policy file and wrote nothing, or, with `--confirm` holding the sentence for the file's digest, wrote `.workflow-manager/retention-adoption.json`. | Commit the file the command names; see [Retention report](retention.md#retention-policy). |
+| 2 | `adopt-retention-policy` | The repository is not managed, there is no valid policy file, `--confirm` does not contain the sentence for the file's digest, `.workflow-manager` is a link, or the record path is not a regular file. Nothing was written. A file error such as a full disk exits 1. | Fix what the message names, then run the preview again. |
 | 1 | `package verify` | The archive does not match `--sha256`, cannot be read, or is not a valid package. | Download the archive again and check it against `SHA256SUMS`. |
 
 ## Global options

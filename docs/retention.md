@@ -85,6 +85,74 @@ The 4096 on `read_errors[].path` is Linux's `PATH_MAX`, but it is not a strict b
 
 When the kind or schema_version is one the Manager does not read, the line shows the value as it prints, which puts a string between quotes and escapes each control character, so the printed form can be longer than the value. A value whose printed form is at most 40 characters is shown whole; a longer one shows its first 40 printed characters, then `... (N characters)`. N is the length of the value itself: a string counts its characters without the quotes the display adds, a number the characters it is written with, a sign included, and a list or object the characters of its printed form, never its elements.
 
+## Retention policy
+
+The owner of a repository can write down how much finished work it tolerates, and adopt that policy so the Manager knows it was meant. This release only **reads** the policy: it sends nothing, archives nothing, removes nothing and prunes nothing. A later release evaluates the thresholds.
+
+The policy is the file `.workflow-manager/retention-policy.json`, committed by the owner. With no file nothing is printed and nothing changes.
+
+```json
+{"schema_version": 1, "mode": "off",
+ "thresholds": {"finished_items": 10, "finished_folder_mib": 500,
+                "archives": 20, "prunable_archives": 5}}
+```
+
+| Key | Value | Meaning, for the release that evaluates it |
+|---|---|---|
+| `schema_version` | the integer 1 | a newer file is refused, so an older Manager falls back to `off` |
+| `mode` | `off`, `notify`, `cleanup` or `both` (lower case) | `off`: nothing; `notify`: tell the owner; `cleanup`: clean up silently; `both`: both |
+| `thresholds.finished_items` | integer, 1 to 100000 | finished work items beyond the most recent ones, at or above it |
+| `thresholds.finished_folder_mib` | integer, 1 to 1048576 | MiB in the review folders of those items, at or above it |
+| `thresholds.archives` | integer, 1 to 100000 | archives in the store, at or above it |
+| `thresholds.prunable_archives` | integer, 1 to 100000 | archives older than the script's time to live, at or above it |
+
+`thresholds` and each key in it are optional, and a missing one is not checked. A mode other than `off` needs at least one threshold. The file is closed and strict: an unknown key, a wrong type (a boolean or a decimal where an integer goes), a number out of range, a duplicate key, a link, a file that is not regular or one larger than 4096 bytes is refused.
+
+### Adopting it
+
+The file is only a proposal. Adopting it records its digest, so a later edit is never taken for the owner's decision.
+
+1. Preview. This writes nothing.
+
+   ```
+   workflow-manager adopt-retention-policy /path/to/your/repo
+   ```
+
+   It prints the file's digest, its mode and thresholds, the state, and the sentence that adopts it: `Adopt the retention policy`, then the first 12 characters of the digest and a full stop.
+
+2. Adopt. Only the repository's owner runs this, with that sentence in `--confirm` (an agent must not: the sentence is the owner's decision, bound to this digest). Other words around it are allowed; the sentence for another digest, or without the full stop, is refused and nothing is written.
+
+   ```
+   workflow-manager adopt-retention-policy /path/to/your/repo --confirm "Adopt the retention policy 1a2b3c4d5e6f."
+   ```
+
+   It writes `.workflow-manager/retention-adoption.json`. Commit it with the policy file. The command commits nothing.
+
+The mode in force is `off` unless the file is valid and the record names exactly the file's digest. Editing the file after adopting it returns the mode to `off` (state `changed`) until you adopt it again.
+
+### What `status --retention` and `doctor --retention` print
+
+Before the report, one block, only when there is a policy file or a record:
+
+```
+retention policy: adopted, mode both (digest 1a2b3c4d5e6f, adopted 2026-11-10T12:00:00Z)
+  thresholds: finished items 10, finished folders 500 MiB, archives 20, prunable archives 5
+  this Manager release only reads the policy: it sends nothing and cleans nothing
+```
+
+Any other state reads `retention policy: STATE (WHY); mode off is in force`, then up to five problems, and an indented `next:` step.
+
+| State | When | Mode in force |
+|---|---|---|
+| `not-adopted` | a valid file and no record | `off` |
+| `adopted` | a valid file and a valid record with the same digest | the file's mode |
+| `changed` | a valid file and a valid record with another digest | `off` |
+| `invalid` | the file is refused (or `.workflow-manager` is a link) | `off` |
+| `record-invalid` | a valid file and a refused record | `off` |
+| `file-missing` | a record and no file | `off` |
+
+`workflow-manager uninstall` removes `.workflow-manager/` and with it an adopted policy, so the mode returns to `off`. The block never changes an exit code.
+
 ## Exit status
 
-`--retention` never changes an exit code. See [Exit codes](exit-codes.md).
+`--retention` never changes an exit code; `adopt-retention-policy` exits 0 when it previews or adopts and 2 when it refuses. See [Exit codes](exit-codes.md).

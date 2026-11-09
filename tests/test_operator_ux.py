@@ -41,7 +41,8 @@ sys.modules.setdefault("check_docs", check_docs)
 _spec.loader.exec_module(check_docs)
 
 GLOBAL_OPTIONS = ("--release-version", "--release-source", "--release-cache", "--release-dir")
-TARGET_COMMANDS = ("bootstrap", "update", "verify", "status", "doctor", "uninstall")
+TARGET_COMMANDS = ("bootstrap", "update", "verify", "status", "doctor", "uninstall",
+                   "adopt-retention-policy")
 
 
 def run(*args, env=None):
