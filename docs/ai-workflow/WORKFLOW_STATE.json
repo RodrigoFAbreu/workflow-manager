@@ -27550,7 +27550,7 @@
       "registry_path": "docs/ai-workflow/registry/timings-rebalance-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/timings-rebalance-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "AWAITING_FUNCTIONAL_REVIEW",
       "plan_revision": 4,
       "implementation_revision": 2,
       "functional_review_round": null,
@@ -27659,7 +27659,108 @@
           "workflow_release": "2.29.1"
         }
       },
-      "technical_approval": null,
+      "technical_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "46223ed3e20993b9db869a025b5ae266657f6a07e8adea5444fc9cec21b67bf3",
+        "approved_review_content_id": "272d9f2f989a9a63ab209bde06867426c1616f56136b6bf726aa0cbb1363b800",
+        "review_content_manifest": [
+          {
+            "path": "docs/ARCHITECTURE.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "96dfeaf799e08eb62f1a59b9b6399f1aa99b1a1d"
+          },
+          {
+            "path": "docs/ai-workflow/registry/timings-rebalance-artifacts.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "3860e79a7e5bc37686f6e955c24e9ab5b10125c2"
+          },
+          {
+            "path": "tests/parallel/timings.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "1e12f836a77cc63525f7ffaa2ffb099a49962c16"
+          },
+          {
+            "path": "tests/parallel/timings.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "652a2990d4a344d601364df055069b226e2b6bab"
+          },
+          {
+            "path": "tests/test_parallel_runner.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "a848655476bc582a0a768773ce982420d89531bf"
+          }
+        ],
+        "reviewed_content_commit": "c74d71dd4445be34853367c1308f0ae1f8440894",
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-11-09T05:02:12Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "272d9f2f989a9a63ab209bde06867426c1616f56136b6bf726aa0cbb1363b800",
+            "ledger": {
+              "local": {
+                "bundle_id": "46223ed3e20993b9db869a025b5ae266657f6a07e8adea5444fc9cec21b67bf3",
+                "verdict": "APPROVE",
+                "round": 2,
+                "verdict_sha256": "387ece883adc1219b09aa09b1edef9943b360360f243ff085731452fea7dca7a",
+                "ledger_entry_sha256": "d09c9b63acf8c40365742ceb47541ff2e3d5eec3d5bbf2449675a5185cc39a7f",
+                "run_ref": "session:local .ai-review/timings-rebalance/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "46223ed3e20993b9db869a025b5ae266657f6a07e8adea5444fc9cec21b67bf3",
+                "verdict": "APPROVE",
+                "round": 2,
+                "verdict_sha256": "3991bfd52bc1479fec41cfc68a04c628f860c6a05d536427d43e145f854322ad",
+                "ledger_entry_sha256": "18c15b7aa753b13d99a79fc21f8d2a8cd9a923aa83e0c35069b53d156a0c7161",
+                "run_ref": "codex:20261109T045851Z-6a90dd55",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-11-09T05:02:12Z",
+          "workflow_release": "2.29.1"
+        }
+      },
       "technical_review_block_pins": [],
       "plan_review_stages": {
         "review_content_id": "d92ac6e81c3854d55fa362bc88022923d7337ce9300fdb2ad98ab9df4ea97e98",
@@ -27690,12 +27791,12 @@
           "external": 2
         },
         "implementation": {
-          "local": 1,
-          "external": 1
+          "local": 2,
+          "external": 2
         }
       },
-      "state_revision": 24,
-      "last_transition": "2026-11-09T04:40:08Z",
+      "state_revision": 27,
+      "last_transition": "2026-11-09T05:02:12Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -27860,20 +27961,56 @@
               "at": "2026-11-09T04:22:56Z"
             }
           ]
+        },
+        "F-2c2381ab0503": {
+          "digest": "2c2381ab0503866aa0ea7a40872160999b2ca418f97840a3a327faddfb6fd50d",
+          "text": "**TR-LIR2-001** (`TEST_RESULTS.md` of the post-fix bundle): the heading still says \"implementation revision 1\" and the full gate is cited at `1106a83`. Nothing after `0d28745` (the provenance rewrite) or `c74d71d` is mentioned. The evidence still holds: the rewrite changes only `profiles.ci.source`, and this review re-ran the full gate at `87d0ce2` with the same `selection_digest` and `tests_digest` (exit 0). Still, the record should name the revision and the post-fix commit it covers. The acceptance record can carry the corrected citation.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 2,
+              "review_content_id": "272d9f2f989a9a63ab209bde06867426c1616f56136b6bf726aa0cbb1363b800",
+              "verdict": "APPROVE",
+              "at": "2026-11-09T04:58:34Z"
+            }
+          ]
+        },
+        "F-724e36b3162f": {
+          "digest": "724e36b3162fa07d5d78f4169e9ec78add54b66c83c007391c10be58863994dd",
+          "text": "**TR-LIR2-002** (carried from TR-LIR1-003, still open by design): the functional checklist must restate plan flow 7's expectation as \"4 defaulted, all `other_profile`, the four phase-B matrix host classes\". Otherwise the reviewer would record a false failure against the plan's \"candidate: 0 defaulted\".",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 2,
+              "review_content_id": "272d9f2f989a9a63ab209bde06867426c1616f56136b6bf726aa0cbb1363b800",
+              "verdict": "APPROVE",
+              "at": "2026-11-09T04:58:34Z"
+            }
+          ]
         }
       },
       "implementation_review_stages": {
-        "review_content_id": "e28b829bfbdf97dcd39bd13cabd158a320b14764a81f75c7245d54b8cdcc5c12",
+        "review_content_id": "272d9f2f989a9a63ab209bde06867426c1616f56136b6bf726aa0cbb1363b800",
         "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {
-          "bundle_id": "baa51b74117534ec9d937d80dfd64ddc313a292d64124c3d115e75fc7ec39f76",
+          "bundle_id": "46223ed3e20993b9db869a025b5ae266657f6a07e8adea5444fc9cec21b67bf3",
           "verdict": "APPROVE",
-          "round": 1,
-          "completed_at": "2026-11-09T04:19:18Z",
-          "verdict_sha256": "d815e217fb69838508ddef359f17a1860fd766a78713556eee527cf312dfdf5b",
-          "run_ref": "session:local /home/rodrigo/Workspace/workflow-manager/.ai-review/timings-rebalance/feedback/REVIEW_FEEDBACK.md",
+          "round": 2,
+          "completed_at": "2026-11-09T04:58:34Z",
+          "verdict_sha256": "387ece883adc1219b09aa09b1edef9943b360360f243ff085731452fea7dca7a",
+          "run_ref": "session:local .ai-review/timings-rebalance/feedback/REVIEW_FEEDBACK.md",
           "reviewer_model": "anthropic/claude-opus-5-5"
         },
-        "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": null
+        "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "46223ed3e20993b9db869a025b5ae266657f6a07e8adea5444fc9cec21b67bf3",
+          "verdict": "APPROVE",
+          "round": 2,
+          "completed_at": "2026-11-09T05:01:45Z",
+          "verdict_sha256": "3991bfd52bc1479fec41cfc68a04c628f860c6a05d536427d43e145f854322ad",
+          "run_ref": "codex:20261109T045851Z-6a90dd55",
+          "reviewer_model": "openai/gpt-6.1-sol"
+        }
       }
     }
   }
