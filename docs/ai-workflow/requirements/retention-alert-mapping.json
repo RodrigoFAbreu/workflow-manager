@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "work_item_id": "retention-alert",
+  "requirements": {
+    "R1": {
+      "description": "A pure evaluation of the adopted thresholds against the retention report: per threshold within, reached or unknown with the number and the limit; at or above the limit is reached; the folder limit is MiB compared as bytes with integer arithmetic; an incomplete report gives lower bounds (at or above is reached, below is unknown); an omitted threshold is not checked; nothing but an adopted policy with mode notify or both alerts",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R2": {
+      "description": "verify and doctor print a retention alert block (reached and unknown thresholds, the user-only archive or prune step by cause, never run) only for an adopted notify or both policy with a reached threshold; every other case is byte-identical to 1.15.0 and starts no script; doctor --retention runs the script once",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R3": {
+      "description": "An unavailable or incomplete retention query prints one not-evaluated line with its cause and step, never an all-clear and never a reached threshold; each failure path leaves the target unchanged",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R4": {
+      "description": "The alert changes no exit code and never makes verify fail; it runs only the report command of the retention script, once; the pages document it with its cost",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R5": {
+      "description": "The four follow-ups of #192: the adopt-retention-policy help names the link and non-regular-file refusals; the invalid state's next step names the command; adopted_at is parsed with strptime after the shape check; the record's parent directory is fsynced after the atomic replace without masking a successful write",
+      "checkpoint_ids": [
+        "CP2"
+      ]
+    },
+    "R6": {
+      "description": "Bookkeeping and release: roadmap row 37, the milestone record, a feat pull request title for a minor Manager release",
+      "checkpoint_ids": [
+        "CP2"
+      ]
+    }
+  }
+}

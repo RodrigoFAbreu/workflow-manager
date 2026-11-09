@@ -43,7 +43,7 @@ from contextlib import nullcontext
 from importlib import metadata
 from pathlib import Path
 
-from . import advice, retention, retention_policy
+from . import advice, retention, retention_alert, retention_policy
 from . import source as release_source
 from .compatibility import (
     ContainmentError,
@@ -601,11 +601,11 @@ def _print_lines(lines) -> None:
         print(line)
 
 
-def _retention_lines(target: Path, version) -> list[str]:
+def _retention_lines(target: Path, version, outcome=None) -> list[str]:
     """The retention policy block (none without a policy file or record), then the
     retention section; the block changes nothing the section or an exit code does."""
     state = retention_policy.load(target)
-    return retention_policy.block(state, target) + retention.section(target, version)
+    return retention_policy.block(state, target) + retention.section(target, version, outcome)
 
 
 def cmd_status(args) -> int:
@@ -840,6 +840,21 @@ def _installed_resolves(args, installed: str, destinations: Destinations) -> boo
     return True
 
 
+def _installed_script_state(args, installed, destinations) -> str:
+    """Whether the installed `scripts/workflow_retention.py` is the *installed*
+    release's (never the update candidate's), resolved read-only like
+    `_installed_resolves`, and checked before the resolution closes."""
+    if not isinstance(installed, str):
+        return retention_alert.SCRIPT_UNCHECKED
+    try:
+        with _cache(args, _pins()).resolve(
+                installed, snapshot_parent=destinations.snapshot_parent,
+                read_only=True) as installed_release:
+            return retention_alert.script_state(args.target, installed_release)
+    except RELEASE_ERRORS:
+        return retention_alert.SCRIPT_UNCHECKED
+
+
 def cmd_doctor(args) -> int:
     """Report what an update would meet. Exit 0 with no blocked or warning
     finding, 1 with one, 2 when it could not check."""
@@ -865,8 +880,12 @@ def cmd_doctor(args) -> int:
         installed_resolved = _installed_resolves(args, installed, destinations)
         report = _compatibility_report(args, plan, refusal, release, installed_resolved)
     print(render_report(report), end="")
+    outcome = retention.fetch(args.target) if args.retention else None
     if args.retention:
-        _print_lines(_retention_lines(args.target, installed))
+        _print_lines(_retention_lines(args.target, installed, outcome))
+    _print_lines(retention_alert.alert_lines(
+        args.target, installed,
+        lambda: _installed_script_state(args, installed, destinations), outcome))
     return report.doctor_exit_code
 
 
@@ -891,12 +910,18 @@ def cmd_verify(args) -> int:
     with release:
         problems = verify(args.target, release)
         _note_release_needs(release)
+        # Inside the `with`: the script check reads the release's files.
+        alert = retention_alert.alert_lines(
+            args.target, Installation.read(args.target).workflow_version,
+            lambda: retention_alert.script_state(args.target, release))
     if not problems:
         print(f"{args.target}: installation matches workflow {release.version}")
+        _print_lines(alert)
         return 0
     print(f"{args.target}: {len(problems)} problem(s)")
     for problem in problems:
         print(f"  {problem}")
+    _print_lines(alert)
     print(f"next: {advice.problem_step(_context(args, with_data=True), problems)}")
     return 1
 
@@ -931,8 +956,8 @@ def cmd_adopt_retention_policy(args) -> int:
     print(f"adopted the retention policy {record['sha256']}: mode {record['policy']['mode']}")
     print(f"wrote {retention_policy.record_path(args.target)}; commit it with "
           f"{retention_policy.policy_path(args.target).name} (both files are the owner's)")
-    print("this Manager release only reads the policy: nothing is archived, removed, pruned "
-          "or sent")
+    print("this Manager release reads the policy and, for notify and both, evaluates its "
+          "thresholds in verify and doctor: nothing is archived, removed, pruned or sent")
     return 0
 
 
@@ -1084,7 +1109,9 @@ def build_parser() -> argparse.ArgumentParser:
                 "guarantees it would cross. Writes the release cache and a temporary snapshot "
                 "outside the repository, never the repository. Exit 0: no blocked or warning "
                 "finding (notes alone still exit 0); 1: a blocked or warning finding, an "
-                "incomplete inspection included; 2: could not check.")
+                "incomplete inspection included; 2: could not check. For a retention policy adopted "
+                "with mode notify or both it also runs the retention report and prints a "
+                "retention alert when a threshold is reached; that never changes the exit code.")
     p.add_argument("target", type=Path, help="the managed repository to inspect")
     p.add_argument("--retention", action="store_true", help=_RETENTION_HELP)
     p.set_defaults(profile=None, force=False)
@@ -1100,7 +1127,10 @@ def build_parser() -> argparse.ArgumentParser:
     p = command("verify", "check that a repository matches its installed release",
                 "Compare a managed repository's installed files with its release and list "
                 "every difference. Writes nothing. Exit 0: matches; 1: problems found or no "
-                "usable release; 2: the repository is not managed or its record is unreadable.")
+                "usable release; 2: the repository is not managed or its record is unreadable. For a "
+                "retention policy adopted with mode notify or both it also runs the retention "
+                "report and prints a retention alert when a threshold is reached; that never "
+                "changes the exit code.")
     p.add_argument("target", type=Path, help="the managed repository to check")
 
     p = command("uninstall", "remove the files the Manager installed",
@@ -1115,10 +1145,12 @@ def build_parser() -> argparse.ArgumentParser:
                 "thresholds and the sentence that adopts it; writes nothing. With --confirm "
                 "holding that sentence it writes .workflow-manager/retention-adoption.json, "
                 "which you then commit. The mode in force stays off unless the file is "
-                "adopted unchanged. This release only reads the policy: it archives, removes, "
-                "prunes and sends nothing. Only the repository's owner runs it with --confirm; "
+                "adopted unchanged. This release reads the policy and, for notify and both, "
+                "evaluates its thresholds in verify and doctor; it archives, removes, prunes "
+                "and sends nothing. Only the repository's owner runs it with --confirm; "
                 "an agent must not. Exit 0: previewed or adopted; 2: refused, nothing written "
-                "(not managed, no valid file, the sentence does not match).")
+                "(not managed, no valid file, the sentence does not match, .workflow-manager "
+                "is a link, the record path is not a regular file).")
     p.add_argument("target", type=Path, help="the managed repository whose policy to adopt")
     p.add_argument("--confirm", default=None, metavar="TEXT",
                    help="adopt the file: text containing 'Adopt the retention policy "
