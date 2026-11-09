@@ -2,110 +2,92 @@
 
 ## Milestone
 
-`hermetic-cache-gap-test` -- complete, accepted by policy 2026-11-09 (`governing_workflow_version: "2.2"`, `process`, plan revision 1, base `8569235`, branch `milestone/hermetic-cache-gap-test`): roadmap row 35 (#189). A `test:` pull request title (releases nothing).
+`retention-policy-file` -- complete, accepted by policy (`governing_workflow_version: "2.2"`, `process`, plan revision 2, base `0db1638`, branch `milestone/retention-policy-file`): roadmap row 36 (#90, wf#84). A `feat:` pull request title; a Manager release (minor) follows.
 
-The required check failed in 3 of the last 4 runs of 2026-11-09 only because of `test_an_unmanaged_target_with_a_cache_inside_git_is_the_known_gap`: it ran the real CLI with a release cache inside `.git` and no release source, so `status` downloaded the release from GitHub, and a GitHub 504 turned the check red. The test now takes its release from a local mirror (`TestStatusContainment` extends `ux.ReleaseCase`; the test passes `--release-source str(self.mirror())`), keeps its cache inside `.git`, keeps its exit-0 and "not a managed repository" assertions, and gains one: the release landed at `<target>/.git/c/<PINNED_NEWEST>`, so a cache moved out of git cannot pass. `docs/ARCHITECTURE.md` says that no test fetches a release at test time. No `src/` change, no other test, no workflow file, no shard change.
+First slice of the owner's retention track: the retention policy file (`.workflow-manager/retention-policy.json`, closed and strict), its strict loader (`src/workflow_manager/retention_policy.py`, mode `off` unless the file is adopted unchanged), the `workflow-manager adopt-retention-policy` command (read-only preview; with the literal sentence bound to the digest it writes `.workflow-manager/retention-adoption.json`) and a read-only block in `status --retention` and `doctor --retention`. Nothing alerts, nothing is sent, nothing is cleaned in this slice.
 
-### CP1: the hermetic test and its sentence -- complete
+### CP1: the policy file: schema, loader, adoption, report, docs -- complete
 
-- Commit `351fa0c`: `tests/test_operator_ux_report.py`, `docs/ARCHITECTURE.md`.
+- Files: `src/workflow_manager/retention_policy.py`, `src/workflow_manager/cli.py`, `tests/test_retention_policy.py` (70 tests, six classes), `tests/test_operator_ux.py` (`TARGET_COMMANDS`), `docs/retention.md`, `docs/exit-codes.md`.
+- One deviation from the plan text, to the safe side: a refusal for a wrong `--confirm` does not print the sentence again (the preview is the one place it appears). One test is added beyond the plan's list: `apply` itself refuses a directory swapped for a link after the load (M19's apply half is unreachable through the CLI, because the load already reports a link).
+- Evidence: `python3 tools/check_docs.py` exit 0; `--select` of `test_retention_policy.py` (71 tests), `test_retention_status.py` (74), `test_operator_ux.py` (130) and `test_docs.py` (44) each exit 0; the full gate `python3 tests/run_all.py`: full selection, 2369/2369 units, 16023 tests, 8 workers, head `50c505c` plus the CP1 working tree, `verdict: exit 0`.
+- Failure-only mutations M1 to M21 (plan section 3), each on a fresh copy, the named test run alone from `tests/`: the unmutated copy passes, and every mutation fails its named test (M1 and M19 in two parts each: unknown key at either level; the load check and the apply check; M5 in two parts: policy and record size).
 
-### CP2: bookkeeping -- complete
+### CP2: bookkeeping and the release -- complete
 
-- `docs/ROADMAP.md` row 35 (Done at acceptance); this record.
+- Files: `docs/ROADMAP.md` (row 36, Current; Done at acceptance), this record.
+- No version is edited. The pull-request title `feat: add the retention policy file and its adoption command` passes `python3 tools/release/release.py check-title` (feat, release impact minor); the release workflow computes the minor from the tags after `main`'s run is green.
+- After the release publishes, the orchestrator's follow-up `docs:` pull request adds the row to `docs/release-history.md` and moves the `Last checked with:` stamps of `docs/retention.md` and `docs/exit-codes.md`; a comment on #90 records the slice and lists plan section 2.6 as the next rows.
 
-### Offline measurement (plan sections 1 and 5)
+### Self-review and full gate
 
-On a clone of `351fa0c`, non-root, under `unshare -rn` (no network), with a read-only link to the primed release cache, from `tests/` with `python3 -B -m unittest`.
-
-| Run | Result |
-| --- | --- |
-| the known-gap test | OK |
-| `test_operator_ux_report.TestStatusContainment` | OK, 10 tests |
-| the known-gap test at the base `8569235` (plan section 1) | fails: exit 1, `Network is unreachable` fetching `SHA256SUMS` from github.com |
-
-### Failure-only mutations (plan section 3)
-
-Each on a fresh copy of the clone of `351fa0c`, the known-gap test alone, offline. The unmutated copy passes.
-
-| # | Mutation | Result |
-| --- | --- | --- |
-| M1 | delete `"--release-source", str(self.mirror()),` | fails: `1 != 0`, `Network is unreachable` |
-| M2 | cache `self.workdir() / "c"` (outside `.git`) | fails on the literal-path pin (`False is not true`) |
-| M3 | expected message `a managed repository ` (as the plan words it) | **passes**: that text is a substring of the real message `not a managed repository`, so the mutation does not change what is pinned |
-| M3' | expected message `is a managed repository` | fails: `'is a managed repository' not found` |
-| M4 | expected exit code `0` to `1` | fails: `0 != 1` |
-
-M3 as written in plan section 3 was not a failing mutation; M3' (a message the output does not contain) is the one that proves the message pin, and flow 5 of the functional review should apply M3' in its place.
-
-### Network-reaching tests (plan section 6)
-
-The plan's measurement of the full selection of `8569235` under `unshare -rn` found exactly one test that fetches from github.com: this one. No follow-up is listed on #189.
+- One confirmed defect, fixed in `43346d6`: `check_record` matched `adopted_at` with `^...$` and `\d`, so a record whose timestamp ended in a newline, or used non-ASCII digits, was accepted, and the newline reached the `status --retention` block raw. It is now a full match of ASCII digits; `TestStates.test_record_shape_refusals` gains both cases, and each fails on the old check (run alone from `tests/` on a scratch copy holding the old module) and passes on the fix.
+- No other finding: the loader, the adoption command, the block and the pages agree with plan sections 2.1 to 2.5; nothing in `retention.py`, `scripts/`, `.claude/` or `.github/` changed.
+- Evidence: `--select test_retention_policy.py` exit 0 (71 tests); the full gate `python3 tests/run_all.py`: full selection, local, 8 workers, head `43346d6`, 2369/2369 units, 16023 tests, `verdict: exit 0`.
 
 ## Functional review checklist
 
-Code under test: branch `milestone/hermetic-cache-gap-test` at `3924163` (the code is `351fa0c`; the rest is records). The checks are offline and write nothing into the product clone. Run them in a scratch clone, not in the product clone.
+Item `retention-policy-file`, implementation revision 1, plan revision 2. The plan's section 6 holds the same flows; this is the run list.
+
+**Automated verification (checked 2026-11-09):** the last full gate is `python3 tests/run_all.py` at head `43346d6`, `verdict: exit 0`. Nothing under `src/`, `tools/`, `tests/`, `scripts/`, `.claude/` or `.github/` has changed since, so it is current. No rerun is needed.
 
 ### Setup
 
-- Tools on the `PATH` the sandbox allows (`/usr/bin:/bin`): `python3` 3.x, `git`, `unshare` (util-linux), `sed`, `tr`, `grep`. Run the shell commands under bash; the `off` function below relies on word-splitting rules that zsh does not share.
-- The primed release cache for `2.12.0` (`~/.cache/workflow-manager/releases/2.12.0`, present on the reviewing machine). Flows 5 and 7 read it through a link. If it is missing, prime it once with network or a mirror (`WORKFLOW_MANAGER_RELEASE_SOURCE`), then rerun.
-- No network, no GitHub, no `gh`, `claude`, `codex` or `ssh`: none of these flows calls them. The release "mirror" the test uses is a local directory, not a socket.
+- Python 3 and git. Nothing else: no network, no `gh`, no `claude`, `codex` or `ssh`, for flows 1 to 6.
+- A scratch directory outside the product clone, on disk, not `/tmp`:
 
-```bash
-PC=/home/rodrigo/Workspace/workflow-manager          # the product clone (read only)
-S=$(mktemp -d "$HOME/.cache/hc-fr.XXXXXX")           # scratch; an empty writable directory
-mkdir -p "$S/home" "$S/tmp" "$S/cache/workflow-manager"
-ln -s "$HOME/.cache/workflow-manager/releases" "$S/cache/workflow-manager/releases"
-git clone -q --no-hardlinks "$PC" "$S/cand" && git -C "$S/cand" checkout -q milestone/hermetic-cache-gap-test
-python3 -m compileall -q "$S/cand/src"
-off() { env -i PATH=/usr/bin:/bin HOME="$S/home" XDG_CACHE_HOME="$S/cache" TMPDIR="$S/tmp" PYTHONDONTWRITEBYTECODE=1 unshare -rn "$@"; }
-T=test_operator_ux_report.TestStatusContainment.test_an_unmanaged_target_with_a_cache_inside_git_is_the_known_gap
-```
+  ```
+  S=$(mktemp -d "${TMPDIR:-$HOME}/rp-fr.XXXXXX")
+  git clone --no-hardlinks <product clone> "$S/cand"
+  git -C "$S/cand" remote remove origin
+  export PYTHONPATH="$S/cand/src"
+  touch "$S/stamp"
+  ```
 
-If `unshare -rn` is refused in the sandbox, the sandbox's own network isolation is the no-network guarantee and the `unshare` step is only extra proof; say which one applied.
+  Removing `origin` cuts the scratch clone off from the product clone, so nothing can push to it.
+- The target, a managed repository holding only the installation record:
+
+  ```
+  mkdir -p "$S/t/.workflow-manager"
+  cp <product clone>/.workflow-manager/installation.json "$S/t/.workflow-manager/"
+  (cd "$S/t" && git init -q .)
+  ```
 
 ### Test data
 
-Nothing to seed. The test builds its own target repository, a mirror of the three `2.12.0` assets, and a cache inside `.git` in temporary folders it cleans up.
+Write `$S/t/.workflow-manager/retention-policy.json` with exactly this line:
+
+```
+{"schema_version": 1, "mode": "both", "thresholds": {"finished_items": 10, "finished_folder_mib": 500, "archives": 20, "prunable_archives": 5}}
+```
+
+Its digest prefix is `5fa01cefcc02`. Take the prefix from the preview in flow 3, not from this page. Nothing else is seeded.
 
 ### Flows
 
-1. **Scope.** `git -C "$S/cand" diff --stat 8569235357ed88edd5487bbc6db98fd4c4166bc7 HEAD -- src tools tests docs/ARCHITECTURE.md .github`
-   - Expect: exactly `tests/test_operator_ux_report.py` and `docs/ARCHITECTURE.md`. Nothing under `src/`, `tools/` or `.github/`.
+Flows 1 to 6 need no network and write only under `$S`: they can run in the sandbox. Flows 7 and 8 need the full environment (a primed release cache, and the suites have failed in the Controller's sandbox before). Flow 9 looks up the release on GitHub.
 
-2. **The test takes a mirror and keeps its cache in git.** `sed -n '/^class TestStatusContainment/p' "$S/cand/tests/test_operator_ux_report.py"` and `sed -n '/def test_an_unmanaged_target_with_a_cache_inside_git/,/^$/p' "$S/cand/tests/test_operator_ux_report.py"`
-   - Expect: the class is `TestStatusContainment(ux.ReleaseCase)`. The test's argv has `"--release-source", str(self.mirror()),` and `"--release-cache", str(cache)` with `cache = target / ".git" / "c"`.
+| Flow | Do | Expect |
+| --- | --- | --- |
+| 1 | `git -C "$S/cand" diff --stat 0db1638ab4d0833218ad24283397a9329f3bb9bf HEAD -- src tools tests docs .github scripts .claude` | 13 files: `src/workflow_manager/cli.py`, `src/workflow_manager/retention_policy.py`, `tests/test_retention_policy.py`, `tests/test_operator_ux.py`, `docs/retention.md`, `docs/exit-codes.md`, and the bookkeeping under `docs`: `docs/ROADMAP.md`, `docs/ACTIVE_MILESTONE.md`, `docs/ai-workflow/WORKFLOW_STATE.json`, the plan, the registry, mapping and artifacts files. Nothing under `scripts`, `.claude` or `.github` |
+| 2 | `grep -c 'def test' "$S/cand/tests/test_retention_policy.py"` and `grep -n '^class Test' "$S/cand/tests/test_retention_policy.py"` | 71 tests; six classes: `TestSchema`, `TestStates`, `TestAdopt`, `TestReport`, `TestNothingElse`, `TestDocs` |
+| 3 | `python3 -B -m workflow_manager adopt-retention-policy "$S/t"`, then `find "$S/t" -newer "$S/stamp"` | Exit 0. The preview prints `digest:` with its 12-character prefix, and the line `Adopt the retention policy <prefix>.`. The `find` prints nothing, so nothing was written |
+| 4 | The same command with `--confirm` set to (a) `adopt the retention policy 000000000000.`, (b) `Adopt the retention policy <prefix>` with no full stop, (c) `Adopt the retention policy <prefix>.` followed by 20000 `x` characters | Each exits 2, with an `error:` line and a `next:` line on stderr. Case (c) reports `the record is larger than 16384 bytes`. `ls "$S/t/.workflow-manager"` still lists only `installation.json` and `retention-policy.json` |
+| 5 | `--confirm "Adopt the retention policy <prefix>."`; then the same command without `--confirm`; then change `"finished_items": 10` to `11` in the policy file and run the command without `--confirm` again | Exit 0 and `adopted the retention policy <full digest>: mode both`. `.workflow-manager/retention-adoption.json` has five keys: `adopted_at`, `confirmation`, `policy`, `schema_version`, `sha256`. The preview then reads `state: adopted; mode both is in force`; after the edit it reads `state: changed; mode off is in force` |
+| 6 | `grep -n 'retention-policy-file' "$S/cand/docs/retention.md" "$S/cand/docs/exit-codes.md"`; then `(cd "$S/cand" && python3 -B tools/check_docs.py)` | No match (grep exits 1). The checker exits 0 |
+| 7 | Full environment, in `$S/cand`: apply each mutation M1 to M21 (plan section 3) with `sed` to a fresh copy, and run its named test alone from `tests/`; first the unmutated copy | Unmutated: passes. Each mutation: fails its named test. Already recorded at CP1; repeat only to confirm |
+| 8 | Full environment, in `$S/cand`: `python3 tests/run_all.py --select test_retention_policy.py`, then `--select` for `test_retention_status.py`, `test_operator_ux.py` and `test_docs.py` | Exit 0 each, no `OrphanProcessError`. `--select` is evidence for this item, not the gate |
+| 9 | Full environment, looks up the release on GitHub. Set `finished_items` back to 10 (the adopted content), then `python3 -B -m workflow_manager status --retention "$S/t"`; then change it to 11 again and repeat | The policy block, after the Workflow status lines and before the retention report: `retention policy: adopted, mode both (digest <prefix>, adopted <time>)`, then the thresholds line and `this Manager release only reads the policy: it sends nothing and cleans nothing`. After the change: `retention policy: changed (...); mode off is in force` with an indented `next:` line. The scratch target is not a complete Workflow repository, so the exit status is not part of the expectation |
 
-3. **The assertions.** The same `sed` output from flow 2.
-   - Expect: `returncode, 0`, `assertIn("not a managed repository", proc.stdout)`, and `assertTrue((target / ".git" / "c" / PINNED_NEWEST).is_dir(), ...)`. The docstring says the release comes from a local mirror.
+### Known limitations (out of scope for this slice)
 
-4. **The sentence in `docs/ARCHITECTURE.md`.** `tr '\n' ' ' < "$S/cand/docs/ARCHITECTURE.md" | tr -s ' ' | grep -o 'After priming, a run needs no network.\{0,400\}'` and `git -C "$PC" diff 8569235 HEAD -- docs/ARCHITECTURE.md | grep '^+' | grep -ci 'milestone\|hermetic-cache-gap'`
-   - Expect: the sentence reads "...no test fetches a release at test time: a test that runs the CLI against a release the cache does not hold gives it a `--release-source` mirror or a `--release-dir`." The count is `0`. (`grep -c` prints `0` and exits 1 when nothing matches; that exit is expected.)
+- Read-only. Nothing alerts, archives, removes, prunes or sends. The thresholds and modes are recorded, not applied; a later release evaluates them.
+- The CLI cannot tell who runs it. The held sentence is the control, as with the Workflow's own commands, and an agent must not run `--confirm`.
+- Whoever can write the repository can forge the policy and the record together. The checks catch a hand edit of one of them only.
+- The record is not yet checked to be committed at `HEAD` (plan section 2.6 item 3, a later slice).
+- `uninstall` deletes an adopted policy with `.workflow-manager/`; the mode is then `off`. Documented, not changed.
+- Twelve Optional findings are recorded in `WORKFLOW_STATE.json` (plan and implementation review). None blocks this gate; each gets a recorded disposition at acceptance.
 
-5. **The known-gap test passes, and each mutation makes it fail (offline).** Apply each mutation to its own copy of `$S/cand` with `sed` or an equivalent edit, then run the test there. Each copy must differ from the candidate; a mutation that changes nothing proves nothing.
-   - Unmutated copy: `cd "$S/cand/tests" && off python3 -B -m unittest "$T"` → `OK`.
-   - **M1** delete `"--release-source", str(self.mirror()),` → FAILED, `1 != 0`, `Network is unreachable`.
-   - **M2** change `cache = target / ".git" / "c"` to `cache = self.workdir() / "c"` → FAILED, `False is not true` (the literal-path pin).
-   - **M3'** change the expected message to `is a managed repository` → FAILED, `'is a managed repository' not found`. **Use M3', not the plan's M3** (see "Known limitations"): the plan's M3 passes by design and is not a defect.
-   - **M4** change the expected exit code `0` to `1` → FAILED, `0 != 1`.
-   - Do not expect M3 (`a managed repository `) to fail. It is a substring of the real message and passes.
+### Reporting
 
-6. **Full-environment checks (run on the reviewing machine, not in the sandbox).** `python3 tools/check_docs.py`; `python3 tests/run_all.py --select test_operator_ux_report.py`; `python3 tests/run_all.py --select test_docs.py`, all run inside `$S/cand` (never in the product clone).
-   - Expect: each exits 0, with no `OrphanProcessError`. These are the gate-style checks; they need the cache and may take minutes.
-
-7. **The whole class, offline.** `cd "$S/cand/tests" && off python3 -B -m unittest test_operator_ux_report.TestStatusContainment`
-   - Expect: `OK`, `Ran 10 tests`.
-
-### Expected results summary
-
-Flows 1–5 and 7 pass offline in the scratch clone with the cache linked (measured on the reviewing machine while preparing this checklist: all as listed above, including the four mutations with M3'). Flow 6 is for the reviewing machine.
-
-### Known limitations and out of scope
-
-- **Open optional findings, not fixed in this item (for the owner at acceptance).** The sentence "no test fetches a release at test time" is literally inaccurate. The `_Stub` loopback servers in `tests/test_discovery.py` serve release data over HTTP at test time, and the mirror itself is a fetch from the test's point of view. The reviewers suggest "no test fetches a release from a remote host". Recorded as `F-970ec6f6974f`, `F-196f4418ed11`, `F-a46413272791` (LIR1-001) and `F-ebd534ec9f25`. A wording change now would be a new implementation round, so the disposition is the owner's at acceptance.
-- **M3 deviation.** The approved plan's M3 (`a managed repository `) is a substring of the real message, so it does not fail. M3' is used in its place (`F-004f88a655fc`, LIR1-002). Plan section 3's table still lists M3.
-- **Loopback tests are not claimed green offline.** Under `unshare -rn` the loopback interface is down, so the discovery tests with a `127.0.0.1` server fail there. That is a sandbox fact, not this item's claim (plan section 6).
-- **Only the one network test is fixed.** The plan's measurement at `8569235` found no other test that fetches from github.com. Any other network-reaching test would be a follow-up on #189, not fixed here.
-- **The gap is pinned, not closed.** `status` on an unmanaged target still accepts a cache inside `.git` (exit 0). The test now proves that without the network; the behaviour is unchanged.
-- **Not verified here:** the required CI check on the pull request, and the 504 flake, which only the CI run can show.
+Findings go in `.ai-review/retention-policy-file/feedback/FUNCTIONAL_REVIEW.md`. Name the flow number for each.

@@ -1,0 +1,54 @@
+{
+  "dispositions": {
+    "F-05b468491bbf": {
+      "disposition": "fixed"
+    },
+    "F-15bc044cb698": {
+      "disposition": "fixed"
+    },
+    "F-1dd200c48aff": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#192",
+      "note": "Follow-up item 1a."
+    },
+    "F-573343cc7b00": {
+      "disposition": "fixed"
+    },
+    "F-606a3677207f": {
+      "disposition": "dropped",
+      "reason": "Flow 8 of the approved plan omits test_operator_ux.py, but the file runs in the full gate and in CP1's --select, so the behaviour is covered; the functional checklist's flow 8 (and the executor run) includes it."
+    },
+    "F-65fdc06060a8": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#192",
+      "note": "Follow-up item 1b."
+    },
+    "F-6650b40f89d3": {
+      "disposition": "fixed"
+    },
+    "F-691c09e70f4a": {
+      "disposition": "dropped",
+      "reason": "Wording gap only: the code opens with O_NOFOLLOW and checks S_ISREG(os.fstat(fd)) (retention_policy.py:260-270); the symlink test runs only after the open fails, so it cannot mask mutation M7, which the executor ran and which failed as expected."
+    },
+    "F-c387c939c8f4": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#192",
+      "note": "Follow-up item 2."
+    },
+    "F-ce47fdaad404": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#192",
+      "note": "Follow-up item 3."
+    },
+    "F-d571ece092eb": {
+      "disposition": "dropped",
+      "reason": "Same as F-691c09e70f4a: the plan text lacks fstat but the code is correct and M7 killed."
+    },
+    "F-ea242b054327": {
+      "disposition": "dropped",
+      "reason": "Plan section 4 groups the preview with the refusals as exit 2, but the behaviour is right (preview exits 0 per plan section 2.3, flow 3 and docs/exit-codes.md) and the tests are the authority."
+    }
+  },
+  "schema_version": 1,
+  "work_item_id": "retention-policy-file"
+}
