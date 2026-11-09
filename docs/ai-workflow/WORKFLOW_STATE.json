@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_work_item_id": null,
+  "active_work_item_id": "timings-rebalance",
   "work_items": {
     "plan-amendment-mechanism": {
       "work_item_type": "process",
@@ -27539,6 +27539,263 @@
         },
         "evaluated_at": "2026-11-05T01:29:17Z",
         "workflow_release": "2.25.5"
+      }
+    },
+    "timings-rebalance": {
+      "work_item_type": "process",
+      "work_item_kind": "process",
+      "work_item_id": "timings-rebalance",
+      "parent_work_item_id": null,
+      "plan_path": "docs/ai-workflow/WORKFLOW_MANAGER_TIMINGS_REBALANCE_PLAN.md",
+      "registry_path": "docs/ai-workflow/registry/timings-rebalance-registry.json",
+      "mapping_path": "docs/ai-workflow/requirements/timings-rebalance-mapping.json",
+      "governing_workflow_version": "2.2",
+      "phase": "IMPLEMENTING",
+      "plan_revision": 4,
+      "implementation_revision": null,
+      "functional_review_round": null,
+      "base_commit": "3917010d11dbfdaf958908ffa45d4347fece2877",
+      "reviewed_implementation_head": null,
+      "current_checkpoint_id": null,
+      "last_completed_checkpoint_id": null,
+      "checkpoints": {},
+      "current_bundle_id": "cca6e988921cdf624ae63a36451b9e949f6a8073413049c06bc31b47054b0405",
+      "plan_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "cca6e988921cdf624ae63a36451b9e949f6a8073413049c06bc31b47054b0405",
+        "approved_review_content_id": "d92ac6e81c3854d55fa362bc88022923d7337ce9300fdb2ad98ab9df4ea97e98",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/WORKFLOW_MANAGER_TIMINGS_REBALANCE_PLAN.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "f55e8491040adf24c25a10bf10ff6143741b0270"
+          },
+          {
+            "path": "docs/ai-workflow/registry/timings-rebalance-registry.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "8603c0c16f5b9762f51ec015e8d6ae605a873288"
+          },
+          {
+            "path": "docs/ai-workflow/requirements/timings-rebalance-mapping.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "9bd257caf0b1a1f5a121d38901a22a284945fa17"
+          }
+        ],
+        "reviewed_content_commit": null,
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-11-09T02:34:03Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "d92ac6e81c3854d55fa362bc88022923d7337ce9300fdb2ad98ab9df4ea97e98",
+            "ledger": {
+              "local": {
+                "bundle_id": "cca6e988921cdf624ae63a36451b9e949f6a8073413049c06bc31b47054b0405",
+                "verdict": "APPROVE",
+                "round": 4,
+                "verdict_sha256": "7af769751c6f1337d594e9c84f14815c667045460bd1ee16007ee51dea1db177",
+                "ledger_entry_sha256": "c5283dd3ab8fffbadfdefedc0147bbf8bcfacf1b66c9524518b87922b1d9f4bb",
+                "run_ref": "session:local /home/rodrigo/Workspace/workflow-manager/.ai-review/timings-rebalance/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "cca6e988921cdf624ae63a36451b9e949f6a8073413049c06bc31b47054b0405",
+                "verdict": "APPROVE",
+                "round": 4,
+                "verdict_sha256": "d851fac6884978a3ce2e05b94523f461b42a932384916e6aa2dac82ea89392e9",
+                "ledger_entry_sha256": "257333cc52b2f1a204a0416303b73f5660958c51fec277dd435f21d0f2021bd7",
+                "run_ref": "codex:20261109T023123Z-2ad9a8e4",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-11-09T02:34:03Z",
+          "workflow_release": "2.29.1"
+        }
+      },
+      "technical_approval": null,
+      "technical_review_block_pins": [],
+      "plan_review_stages": {
+        "review_content_id": "d92ac6e81c3854d55fa362bc88022923d7337ce9300fdb2ad98ab9df4ea97e98",
+        "LOCAL_MODEL_PLAN_REVIEW": {
+          "bundle_id": "cca6e988921cdf624ae63a36451b9e949f6a8073413049c06bc31b47054b0405",
+          "verdict": "APPROVE",
+          "round": 4,
+          "completed_at": "2026-11-09T02:31:11Z",
+          "verdict_sha256": "7af769751c6f1337d594e9c84f14815c667045460bd1ee16007ee51dea1db177",
+          "run_ref": "session:local /home/rodrigo/Workspace/workflow-manager/.ai-review/timings-rebalance/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_PLAN_REVIEW": {
+          "bundle_id": "cca6e988921cdf624ae63a36451b9e949f6a8073413049c06bc31b47054b0405",
+          "verdict": "APPROVE",
+          "round": 4,
+          "completed_at": "2026-11-09T02:33:27Z",
+          "verdict_sha256": "d851fac6884978a3ce2e05b94523f461b42a932384916e6aa2dac82ea89392e9",
+          "run_ref": "codex:20261109T023123Z-2ad9a8e4",
+          "reviewer_model": "openai/gpt-6.1-sol"
+        }
+      },
+      "functional_acceptance_status": null,
+      "blocking_decisions": [],
+      "review_round_counts": {
+        "plan": {
+          "local": 4,
+          "external": 2
+        },
+        "implementation": {
+          "local": 0,
+          "external": 0
+        }
+      },
+      "state_revision": 16,
+      "last_transition": "2026-11-09T02:34:03Z",
+      "feedback_layout": "scoped",
+      "plan_review_binding": {
+        "status": "BOUND",
+        "at": "2026-11-09T02:29:36Z",
+        "consumed": {
+          "review_content_id": "e91f11f8b89d9dd5853c0cb5287e42d2ee517f9accb11cb24f923474f4172103",
+          "plan_revision": 3,
+          "legacy": false
+        },
+        "published": {
+          "review_content_id": "d92ac6e81c3854d55fa362bc88022923d7337ce9300fdb2ad98ab9df4ea97e98",
+          "plan_revision": 4
+        },
+        "bound": {
+          "review_content_id": "d92ac6e81c3854d55fa362bc88022923d7337ce9300fdb2ad98ab9df4ea97e98",
+          "bundle_id": "cca6e988921cdf624ae63a36451b9e949f6a8073413049c06bc31b47054b0405",
+          "plan_revision": 4
+        }
+      },
+      "consumed_plan_review_content_ids": [
+        "36863cff00f8dc9dd1b066d08b69967a8508d175b774b7ad3d93f774183be827",
+        "e0b96da696123b696fd07d80fef5765f26a39fa49a055dd44b88c6a6affc5b8b",
+        "e91f11f8b89d9dd5853c0cb5287e42d2ee517f9accb11cb24f923474f4172103"
+      ],
+      "optional_findings": {
+        "F-46dc585a5207": {
+          "digest": "46dc585a5207b4269dc62e356382fa11fe07e5ac42de6bf8f29d938be59545ed",
+          "text": "TR-R1-002: Flow 3 expects `profiles.ci.source` to name \"median\". Section 3 step 2's spec for the `--source` text lists the run ids, the measurement commit, 6 shards x 4 workers, Python 3.12 and the emptied profile, but not \"median\". Add it to the step 2 spec, or drop it from flow 3.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "e0b96da696123b696fd07d80fef5765f26a39fa49a055dd44b88c6a6affc5b8b",
+              "verdict": "REVISE",
+              "at": "2026-11-09T02:19:41Z"
+            }
+          ]
+        },
+        "F-55bdc58b7858": {
+          "digest": "55bdc58b78587341413adfdbc45bb6036185928dfe7a660d1ea0fc68f5bd3ee5",
+          "text": "TR-R1-003: Flow 5 greps the literal `oldest samples` in `timings.py`, but the current `update` docstring already says the stored estimate \"stands in for its own samples as the oldest values\". Section 2 does not fix the new wording. State the exact docstring sentence, or loosen the grep, so a correct edit cannot fail flow 5 on wording alone.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "e0b96da696123b696fd07d80fef5765f26a39fa49a055dd44b88c6a6affc5b8b",
+              "verdict": "REVISE",
+              "at": "2026-11-09T02:19:41Z"
+            }
+          ]
+        },
+        "F-4e0eead5bed9": {
+          "digest": "4e0eead5bed9f9a48f5b660b1cabff7fb3192601ef0c4811501a0b99df42a682",
+          "text": "TR-R1-004: G2 requires a predicted shard-wall max/min \"no worse than the base's 1.000 (rounded to three digits)\", that is at most 1.0005, with no stated basis that the refreshed model can meet it. The refreshed model will have chunks of about 300 s against walls of about 750 s at 4 workers, while the base's largest is about 112 s. The planner packs shard sums, not 4-worker walls, so list scheduling can leave a spread of a few tenths of a percent, and a refresh that Pin 2 (10 %) and G3 accept would then be abandoned. Consider a tolerance (for example at most 1.02), or say what happens on a narrow miss.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "e0b96da696123b696fd07d80fef5765f26a39fa49a055dd44b88c6a6affc5b8b",
+              "verdict": "REVISE",
+              "at": "2026-11-09T02:19:41Z"
+            }
+          ]
+        },
+        "F-c9a34f70c7d7": {
+          "digest": "c9a34f70c7d7c35bcdb6fedc50202b1bb33e4b0b48989ee739c2e0ca82387289",
+          "text": "TR-R1-005: G3 scores against the `results-shard-*` artifacts of the three section-1 runs (42434510363, 42447145326, 42448347885), but H3 only downloads the three measurement runs. Name where those control artifacts come from (the investigation's run directory, or a download step like H3) and note GitHub's artifact retention.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "e0b96da696123b696fd07d80fef5765f26a39fa49a055dd44b88c6a6affc5b8b",
+              "verdict": "REVISE",
+              "at": "2026-11-09T02:19:41Z"
+            }
+          ]
+        },
+        "F-ce2eceffaf77": {
+          "digest": "ce2eceffaf77bea169718efb89bd333488e72c268731dddc8e2c191c5d9d52c2",
+          "text": "TR-R1-006: The plan-stage `excluded_paths` of `timings-rebalance-artifacts.json` carry inherited template reasons that do not describe this repository (Android build files, `AGENTS.md`, `docs/TECHNICAL_DECISIONS.md` \"recorded in the protected docs/TECHNICAL_DECISIONS.md\" for `.github/workflows/ci.yml`, which does not exist here). They are harmless to classification, but the reason text is wrong for this repository.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "e0b96da696123b696fd07d80fef5765f26a39fa49a055dd44b88c6a6affc5b8b",
+              "verdict": "REVISE",
+              "at": "2026-11-09T02:19:41Z"
+            }
+          ]
+        },
+        "F-6a80c6e1cc76": {
+          "digest": "6a80c6e1cc7671b340f0d87c4a49c40286f122a9384b35341c08fce4d52b372a",
+          "text": "TR-R4-001: The requirements mapping was not carried forward with revision 4. R1 still says only \"three green one-class-per-chunk CI dispatches\" and R4 lists the refresh procedure without the `results-*` download. G1 now also requires a passing `results-aggregate` record for each of the four matrix host classes, and flow 5 now checks for `results-*`. The plan text is authoritative and complete, so nothing is lost. The acceptance record at CP2 should state the G1 aggregate-record check explicitly, so R1's evidence covers it.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 4,
+              "review_content_id": "d92ac6e81c3854d55fa362bc88022923d7337ce9300fdb2ad98ab9df4ea97e98",
+              "verdict": "APPROVE",
+              "at": "2026-11-09T02:31:11Z"
+            }
+          ]
+        }
       }
     }
   }
