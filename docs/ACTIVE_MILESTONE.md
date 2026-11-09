@@ -13,6 +13,8 @@ First slice of the owner's retention track: the retention policy file (`.workflo
 - Evidence: `python3 tools/check_docs.py` exit 0; `--select` of `test_retention_policy.py` (71 tests), `test_retention_status.py` (74), `test_operator_ux.py` (130) and `test_docs.py` (44) each exit 0; the full gate `python3 tests/run_all.py`: full selection, 2369/2369 units, 16023 tests, 8 workers, head `50c505c` plus the CP1 working tree, `verdict: exit 0`.
 - Failure-only mutations M1 to M21 (plan section 3), each on a fresh copy, the named test run alone from `tests/`: the unmutated copy passes, and every mutation fails its named test (M1 and M19 in two parts each: unknown key at either level; the load check and the apply check; M5 in two parts: policy and record size).
 
-### CP2: bookkeeping and the release -- pending
+### CP2: bookkeeping and the release -- complete
 
-- `docs/ROADMAP.md` row 36 (Done at acceptance); this record's final form.
+- Files: `docs/ROADMAP.md` (row 36, Current; Done at acceptance), this record.
+- No version is edited. The pull-request title `feat: add the retention policy file and its adoption command` passes `python3 tools/release/release.py check-title` (feat, release impact minor); the release workflow computes the minor from the tags after `main`'s run is green.
+- After the release publishes, the orchestrator's follow-up `docs:` pull request adds the row to `docs/release-history.md` and moves the `Last checked with:` stamps of `docs/retention.md` and `docs/exit-codes.md`; a comment on #90 records the slice and lists plan section 2.6 as the next rows.
