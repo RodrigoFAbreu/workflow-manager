@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "work_item_id": "hermetic-cache-gap-test",
+  "requirements": {
+    "R1": {
+      "description": "test_an_unmanaged_target_with_a_cache_inside_git_is_the_known_gap takes its release from a local mirror (--release-source) and keeps --release-cache inside .git, so it passes with no network and fails with no network when the source is removed (M1)",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R2": {
+      "description": "The test keeps its exit-0 and 'not a managed repository' assertions and gains a literal-path pin that the release was cached under the target's .git, so a cache moved out of git fails (M2), a changed message fails (M3) and a changed exit code fails (M4)",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R3": {
+      "description": "docs/ARCHITECTURE.md says after the priming sentence that no test fetches a release at test time (a --release-source mirror or a --release-dir), naming no milestone; any other network-reaching test found is listed as a follow-up on #189 and not fixed",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R4": {
+      "description": "The roadmap carries row 35 for this item, Current now and Done at acceptance, and the active-milestone record states the offline measurement and the mutation results; no version is edited",
+      "checkpoint_ids": [
+        "CP2"
+      ]
+    }
+  }
+}

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_work_item_id": null,
+  "active_work_item_id": "hermetic-cache-gap-test",
   "work_items": {
     "plan-amendment-mechanism": {
       "work_item_type": "process",
@@ -28378,6 +28378,212 @@
         },
         "evaluated_at": "2026-11-09T06:35:18Z",
         "workflow_release": "2.29.1"
+      }
+    },
+    "hermetic-cache-gap-test": {
+      "work_item_type": "process",
+      "work_item_kind": "process",
+      "work_item_id": "hermetic-cache-gap-test",
+      "parent_work_item_id": null,
+      "plan_path": "docs/ai-workflow/WORKFLOW_MANAGER_HERMETIC_CACHE_GAP_TEST_PLAN.md",
+      "registry_path": "docs/ai-workflow/registry/hermetic-cache-gap-test-registry.json",
+      "mapping_path": "docs/ai-workflow/requirements/hermetic-cache-gap-test-mapping.json",
+      "governing_workflow_version": "2.2",
+      "phase": "IMPLEMENTING",
+      "plan_revision": 1,
+      "implementation_revision": null,
+      "functional_review_round": null,
+      "base_commit": "8569235357ed88edd5487bbc6db98fd4c4166bc7",
+      "reviewed_implementation_head": null,
+      "current_checkpoint_id": null,
+      "last_completed_checkpoint_id": null,
+      "checkpoints": {},
+      "current_bundle_id": "1d0b67b33574d719be3b8a0e0f001deeec7270621e4c4e977528eef23a356ad9",
+      "plan_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "1d0b67b33574d719be3b8a0e0f001deeec7270621e4c4e977528eef23a356ad9",
+        "approved_review_content_id": "01a6e1fba582e74021748bf24faf0ee3b5c719149341ee0dd9d19796ba31e954",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/WORKFLOW_MANAGER_HERMETIC_CACHE_GAP_TEST_PLAN.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "19785ada8a1d9dd3589613e40c293d52bec6b3d9"
+          },
+          {
+            "path": "docs/ai-workflow/registry/hermetic-cache-gap-test-registry.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "1eb018e934a0b847ae124e4875ab42d7dade190b"
+          },
+          {
+            "path": "docs/ai-workflow/requirements/hermetic-cache-gap-test-mapping.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "744b3d6cea3c210a9c901238494f9a92a9713932"
+          }
+        ],
+        "reviewed_content_commit": null,
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-11-09T08:39:38Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "01a6e1fba582e74021748bf24faf0ee3b5c719149341ee0dd9d19796ba31e954",
+            "ledger": {
+              "local": {
+                "bundle_id": "1d0b67b33574d719be3b8a0e0f001deeec7270621e4c4e977528eef23a356ad9",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "e5e17e8340e27fb0b121987f12823cefe9349641cc1436f66176c461dc6d173c",
+                "ledger_entry_sha256": "53953b456e838ccb872dcafd8c9bc6a200b5f59b2aa0bed7fe71aa40cb18fd08",
+                "run_ref": "session:local .ai-review/hermetic-cache-gap-test/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "1d0b67b33574d719be3b8a0e0f001deeec7270621e4c4e977528eef23a356ad9",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "fe5e4fb0969f378e1f32d6683c56ccfdf745c0e7ab21aa19be9d62751c9dca64",
+                "ledger_entry_sha256": "90755514ecec44ce717213113a3d395c7c2d3410bf2eef681e508dc4e6a85fcb",
+                "run_ref": "codex:20261109T083705Z-e7f9c422",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-11-09T08:39:38Z",
+          "workflow_release": "2.29.1"
+        }
+      },
+      "technical_approval": null,
+      "technical_review_block_pins": [],
+      "plan_review_stages": {
+        "review_content_id": "01a6e1fba582e74021748bf24faf0ee3b5c719149341ee0dd9d19796ba31e954",
+        "LOCAL_MODEL_PLAN_REVIEW": {
+          "bundle_id": "1d0b67b33574d719be3b8a0e0f001deeec7270621e4c4e977528eef23a356ad9",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-11-09T08:36:51Z",
+          "verdict_sha256": "e5e17e8340e27fb0b121987f12823cefe9349641cc1436f66176c461dc6d173c",
+          "run_ref": "session:local .ai-review/hermetic-cache-gap-test/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_PLAN_REVIEW": {
+          "bundle_id": "1d0b67b33574d719be3b8a0e0f001deeec7270621e4c4e977528eef23a356ad9",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-11-09T08:38:55Z",
+          "verdict_sha256": "fe5e4fb0969f378e1f32d6683c56ccfdf745c0e7ab21aa19be9d62751c9dca64",
+          "run_ref": "codex:20261109T083705Z-e7f9c422",
+          "reviewer_model": "openai/gpt-6.1-sol"
+        }
+      },
+      "functional_acceptance_status": null,
+      "blocking_decisions": [],
+      "review_round_counts": {
+        "plan": {
+          "local": 1,
+          "external": 1
+        },
+        "implementation": {
+          "local": 0,
+          "external": 0
+        }
+      },
+      "state_revision": 6,
+      "last_transition": "2026-11-09T08:39:38Z",
+      "feedback_layout": "scoped",
+      "plan_review_binding": {
+        "status": "BOUND",
+        "at": "2026-11-09T08:34:19Z",
+        "consumed": null,
+        "published": {
+          "review_content_id": "01a6e1fba582e74021748bf24faf0ee3b5c719149341ee0dd9d19796ba31e954",
+          "plan_revision": 1
+        },
+        "bound": {
+          "review_content_id": "01a6e1fba582e74021748bf24faf0ee3b5c719149341ee0dd9d19796ba31e954",
+          "bundle_id": "1d0b67b33574d719be3b8a0e0f001deeec7270621e4c4e977528eef23a356ad9",
+          "plan_revision": 1
+        }
+      },
+      "optional_findings": {
+        "F-970ec6f6974f": {
+          "digest": "970ec6f6974f7ab25700d6dfd70df083baa43b240e428d1ef6c3ecdae9175103",
+          "text": "LPR1-001 (`docs/ARCHITECTURE.md` sentence, section 2 and R3): \"no test fetches a release at test time\" is literally false for the loopback tests of `tests/test_discovery.py` (the `_Stub` `ThreadingHTTPServer` on `127.0.0.1`), which serve release data over HTTP at test time, and the plan's own section 6 names them. Suggest wording the sentence as \"no test fetches a release from a remote host\" (or \"from the network\") so the documented rule matches the measured state.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "01a6e1fba582e74021748bf24faf0ee3b5c719149341ee0dd9d19796ba31e954",
+              "verdict": "APPROVE",
+              "at": "2026-11-09T08:36:51Z"
+            }
+          ]
+        },
+        "F-cbe2cf47a8c8": {
+          "digest": "cbe2cf47a8c8382aa8f385acd87aa36a3409506d300447b660d2211ccb334a2f",
+          "text": "LPR1-002 (section 5 flow 5, section 3 M1): the flow applies M1 with `sed` on the exact text `\"--release-source\", str(self.mirror()),`, but section 2 does not fix the argv's line layout. If the implementation wraps the call differently, the `sed` matches nothing, the \"mutant\" is the unmutated candidate, and it passes, which reads as a failed mutation. Either fix the argv line in section 2 or have the flow check that the mutated file differs from the original before running it.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "01a6e1fba582e74021748bf24faf0ee3b5c719149341ee0dd9d19796ba31e954",
+              "verdict": "APPROVE",
+              "at": "2026-11-09T08:36:51Z"
+            }
+          ]
+        },
+        "F-196f4418ed11": {
+          "digest": "196f4418ed11fa253009ac4a7dbed31bf75e9516f2bc15a0c64c575b1339f0a7",
+          "text": "Section 2’s proposed architecture sentence should say “no test fetches a release from a remote host.” Local mirrors and the loopback servers in `tests/test_discovery.py` intentionally serve release assets during tests.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "MANUAL_EXTERNAL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "01a6e1fba582e74021748bf24faf0ee3b5c719149341ee0dd9d19796ba31e954",
+              "verdict": "APPROVE",
+              "at": "2026-11-09T08:38:55Z"
+            }
+          ]
+        }
       }
     }
   }
