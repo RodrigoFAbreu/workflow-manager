@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_work_item_id": null,
+  "active_work_item_id": "retention-alert",
   "work_items": {
     "plan-amendment-mechanism": {
       "work_item_type": "process",
@@ -29761,6 +29761,362 @@
         },
         "evaluated_at": "2026-11-09T11:58:18Z",
         "workflow_release": "2.29.1"
+      }
+    },
+    "retention-alert": {
+      "work_item_type": "process",
+      "work_item_kind": "process",
+      "work_item_id": "retention-alert",
+      "parent_work_item_id": null,
+      "plan_path": "docs/ai-workflow/WORKFLOW_MANAGER_RETENTION_ALERT_PLAN.md",
+      "registry_path": "docs/ai-workflow/registry/retention-alert-registry.json",
+      "mapping_path": "docs/ai-workflow/requirements/retention-alert-mapping.json",
+      "governing_workflow_version": "2.2",
+      "phase": "IMPLEMENTING",
+      "plan_revision": 5,
+      "implementation_revision": null,
+      "functional_review_round": null,
+      "base_commit": "7810ff66bd7b43b3b0ba60d7fa790cd630fd4732",
+      "reviewed_implementation_head": null,
+      "current_checkpoint_id": null,
+      "last_completed_checkpoint_id": null,
+      "checkpoints": {},
+      "current_bundle_id": "af21ae27bb8756f2b5b84bb2fbe0efc466922f9f1dd4f240ab5d6af86b6068b4",
+      "plan_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "af21ae27bb8756f2b5b84bb2fbe0efc466922f9f1dd4f240ab5d6af86b6068b4",
+        "approved_review_content_id": "eb5a66064378a49b5c1bbc7266fe16c1e66fba7e15cf794de67c84e546122664",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/WORKFLOW_MANAGER_RETENTION_ALERT_PLAN.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "81fc07d777bda4aa243672a11ec90acd0a857c4b"
+          },
+          {
+            "path": "docs/ai-workflow/registry/retention-alert-registry.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "cecacbb53a9f304194e685f98e2a4601d2e8dad0"
+          },
+          {
+            "path": "docs/ai-workflow/requirements/retention-alert-mapping.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "0e600eb7e230548850e5178c455f46c58dbbca73"
+          }
+        ],
+        "reviewed_content_commit": null,
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-11-09T14:19:46Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "eb5a66064378a49b5c1bbc7266fe16c1e66fba7e15cf794de67c84e546122664",
+            "ledger": {
+              "local": {
+                "bundle_id": "af21ae27bb8756f2b5b84bb2fbe0efc466922f9f1dd4f240ab5d6af86b6068b4",
+                "verdict": "APPROVE",
+                "round": 5,
+                "verdict_sha256": "ca24d5370a73efd4b1852d21d18025bc9fa6b295ec255bd0fe49eb602616f034",
+                "ledger_entry_sha256": "cae9ea836f131a2da84ab78d8bd981f4c01fea32a2796cc1472079cae7aafb0b",
+                "run_ref": "session:local .ai-review/retention-alert/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "af21ae27bb8756f2b5b84bb2fbe0efc466922f9f1dd4f240ab5d6af86b6068b4",
+                "verdict": "APPROVE",
+                "round": 5,
+                "verdict_sha256": "c89058c29b23cb85df6a6e0cbec52c24a9ca27b673e3395b62663ea57da6f342",
+                "ledger_entry_sha256": "2a8e3393d9c54a9a177fd313ebb28abc0224cd67c9a89cdeab58186783ccb72e",
+                "run_ref": "codex:20261109T141627Z-fb1853c2",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-11-09T14:19:46Z",
+          "workflow_release": "2.29.1"
+        }
+      },
+      "technical_approval": null,
+      "technical_review_block_pins": [],
+      "plan_review_stages": {
+        "review_content_id": "eb5a66064378a49b5c1bbc7266fe16c1e66fba7e15cf794de67c84e546122664",
+        "LOCAL_MODEL_PLAN_REVIEW": {
+          "bundle_id": "af21ae27bb8756f2b5b84bb2fbe0efc466922f9f1dd4f240ab5d6af86b6068b4",
+          "verdict": "APPROVE",
+          "round": 5,
+          "completed_at": "2026-11-09T14:16:03Z",
+          "verdict_sha256": "ca24d5370a73efd4b1852d21d18025bc9fa6b295ec255bd0fe49eb602616f034",
+          "run_ref": "session:local .ai-review/retention-alert/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_PLAN_REVIEW": {
+          "bundle_id": "af21ae27bb8756f2b5b84bb2fbe0efc466922f9f1dd4f240ab5d6af86b6068b4",
+          "verdict": "APPROVE",
+          "round": 5,
+          "completed_at": "2026-11-09T14:19:01Z",
+          "verdict_sha256": "c89058c29b23cb85df6a6e0cbec52c24a9ca27b673e3395b62663ea57da6f342",
+          "run_ref": "codex:20261109T141627Z-fb1853c2",
+          "reviewer_model": "openai/gpt-6.1-sol"
+        }
+      },
+      "functional_acceptance_status": null,
+      "blocking_decisions": [],
+      "review_round_counts": {
+        "plan": {
+          "local": 5,
+          "external": 1
+        },
+        "implementation": {
+          "local": 0,
+          "external": 0
+        }
+      },
+      "state_revision": 18,
+      "last_transition": "2026-11-09T14:19:46Z",
+      "feedback_layout": "scoped",
+      "plan_review_binding": {
+        "status": "BOUND",
+        "at": "2026-11-09T14:12:19Z",
+        "consumed": {
+          "review_content_id": "cb6c38486775a3a2b0c398ff648a702f8c59e8902edcde1af76c7ac782d7b3a4",
+          "plan_revision": 4,
+          "legacy": false
+        },
+        "published": {
+          "review_content_id": "eb5a66064378a49b5c1bbc7266fe16c1e66fba7e15cf794de67c84e546122664",
+          "plan_revision": 5
+        },
+        "bound": {
+          "review_content_id": "eb5a66064378a49b5c1bbc7266fe16c1e66fba7e15cf794de67c84e546122664",
+          "bundle_id": "af21ae27bb8756f2b5b84bb2fbe0efc466922f9f1dd4f240ab5d6af86b6068b4",
+          "plan_revision": 5
+        }
+      },
+      "consumed_plan_review_content_ids": [
+        "097928f0a619317aa27e4114ea230dce073862e371e26d915dbd53e06e519bcb",
+        "2fac2c629aff03a13f5e7581151019329fd074df8728de62e6a23e91305b55d3",
+        "a8a75be9cb4ff17a5c0ef21d065f13272e940c2b8336b85510f4e275282be9ab",
+        "cb6c38486775a3a2b0c398ff648a702f8c59e8902edcde1af76c7ac782d7b3a4"
+      ],
+      "optional_findings": {
+        "F-e6e107dae271": {
+          "digest": "e6e107dae2712996a96ed2bbb751039de851dcb810d62b335de928e058e2a8c8",
+          "text": "**LPR1-004 -- the next step of an incomplete report with a reached threshold is unspecified.** `retention.render` uses `STEP_INCOMPLETE` whenever the report is incomplete; section 2.4 calls `retention.next_step` for a reached `finished_items`/`finished_folder_mib` without saying whether an incomplete report gets that step, `STEP_INCOMPLETE`, or both joined. State it and pin it in `TestNextStep`.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "a8a75be9cb4ff17a5c0ef21d065f13272e940c2b8336b85510f4e275282be9ab",
+              "verdict": "REVISE",
+              "at": "2026-11-09T13:26:17Z"
+            }
+          ]
+        },
+        "F-49ca6373de7a": {
+          "digest": "49ca6373de7ae1c31e47c524ed3c12519381799b75bee7ee2b8a4d7e7a4ced1e",
+          "text": "**LPR1-005 -- two \"only reads the policy\" texts go stale.** `retention_policy.block` prints `this Manager release only reads the policy: it sends nothing and cleans nothing`, and the `adopt-retention-policy` help says `This release only reads the policy: it archives, removes, prunes and sends nothing`. After this item the Manager also evaluates the thresholds; consider rewording both (CP2 already edits that help text and `retention_policy.py`).",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "a8a75be9cb4ff17a5c0ef21d065f13272e940c2b8336b85510f4e275282be9ab",
+              "verdict": "REVISE",
+              "at": "2026-11-09T13:26:17Z"
+            }
+          ]
+        },
+        "F-59dc723b072e": {
+          "digest": "59dc723b072e7c2932bc4ebb746430dd975d11503596dd605d7985cd175dc7a9",
+          "text": "**LPR1-006 -- the timeout case of `TestUnavailable` needs the orphan discipline.** The stub's `sleep` mode starts a grandchild; a lowered-timeout run in-process can leave a re-parented child and fail the gate with `OrphanProcessError`. Name the approach (the existing `SUBREAPER` pattern of `test_retention_status.py`, or a stub mode with no grandchild, or a stubbed `fetch` returning the timeout refusal).",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "a8a75be9cb4ff17a5c0ef21d065f13272e940c2b8336b85510f4e275282be9ab",
+              "verdict": "REVISE",
+              "at": "2026-11-09T13:26:17Z"
+            }
+          ]
+        },
+        "F-3adea3c18bdc": {
+          "digest": "3adea3c18bdc5b04f7484380df9411724dd3d4cb545e3da9c8bb3bb7b4b5bba2",
+          "text": "**LPR2-003 -- a third and a fourth \"only reads the policy\" text go stale.** Beyond the two 2.6 item 5 names, `cmd_adopt_retention_policy`'s success output (`src/workflow_manager/cli.py:934`, `this Manager release only reads the policy: nothing is archived, removed, pruned or sent`) and `docs/retention.md:140` (the example block printing `block`'s line) carry the same claim; reword them with the others (the docs example moves with `block` anyway).",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "097928f0a619317aa27e4114ea230dce073862e371e26d915dbd53e06e519bcb",
+              "verdict": "REVISE",
+              "at": "2026-11-09T13:30:10Z"
+            }
+          ]
+        },
+        "F-17727d476d90": {
+          "digest": "17727d476d908d5e3da024d28bc9583e7b275185252300479b8f22567906e803",
+          "text": "**LPR2-004 -- 2.5a's below-2.24.0 wording contradicts itself.** \"below 2.24.0 the original wording stays, `no command yet` replaced by `this Workflow release has no prune command: workflow-manager update`\" -- the original wording either stays or is replaced; state the exact line for each side of `PRUNE_FROM` and pin both in `test_retention_status.py`.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "097928f0a619317aa27e4114ea230dce073862e371e26d915dbd53e06e519bcb",
+              "verdict": "REVISE",
+              "at": "2026-11-09T13:30:10Z"
+            }
+          ]
+        },
+        "F-8e29a8a60b5b": {
+          "digest": "8e29a8a60b5b46eee3d1090c0cc2e7d30dff254915c4f206a1640f0290787db7",
+          "text": "**LPR2-005 -- `install.verify` returns strings.** `cmd_verify`'s problems are `str(Drift)` (`\"modified: scripts/workflow_retention.py\"`, plus a possible ` (detail)`); taking `script_modified` from them, or \"filtering `install.verify`\" in doctor, is text matching. `install.drift(target, release)` returns the `Drift` objects (`path`, `kind`); name it as the source of the flag in both commands.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "097928f0a619317aa27e4114ea230dce073862e371e26d915dbd53e06e519bcb",
+              "verdict": "REVISE",
+              "at": "2026-11-09T13:30:10Z"
+            }
+          ]
+        },
+        "F-2bc0a3304e85": {
+          "digest": "2bc0a3304e855038f030f284afb2bc1e0cb6ddee59125fa770a465567e607d5f",
+          "text": "**LPR3-004 -- `cmd_doctor` resolves the installed release twice and computes the flag before the gate.** 2.2 resolves the installed release a second time for `install.drift`, after `_installed_resolves` has already resolved and closed it (`cli.py:827`). It also leaves open whether the caller computes `script` before `alert_lines` loads the policy. If it does, every `doctor` pays a snapshot and a full `drift` walk, which 1.5's \"pays nothing\" excludes, and an exception there is outside `alert_lines`' one boundary, so it could change `doctor`'s exit code for a repository without a policy. Compute the flag only when `retention_alert.alerting(retention_policy.load(target))` holds, inside the same boundary, and reuse one resolution if possible.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 3,
+              "review_content_id": "2fac2c629aff03a13f5e7581151019329fd074df8728de62e6a23e91305b55d3",
+              "verdict": "REVISE",
+              "at": "2026-11-09T13:35:37Z"
+            }
+          ]
+        },
+        "F-5fb6022b4ee5": {
+          "digest": "5fb6022b4ee5d9ec924f015b5e70f5a384c3d71b0511c5eca6f4f8b42d52c067",
+          "text": "**LPR3-005 -- the `grep -rn \"only reads\" src docs` claim of 2.6 item 5 is too broad.** `docs/ACTIVE_MILESTONE.md:80` (rewritten by this item's bookkeeping anyway) and `docs/milestones/completed/WORKFLOW_MANAGER_RETENTION_POLICY_FILE_PLAN.md:217` (a completed plan, historical) also match. Narrow the claim to the live sources (`src`, `docs/retention.md`), or say which matches remain on purpose.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 3,
+              "review_content_id": "2fac2c629aff03a13f5e7581151019329fd074df8728de62e6a23e91305b55d3",
+              "verdict": "REVISE",
+              "at": "2026-11-09T13:35:37Z"
+            }
+          ]
+        },
+        "F-5c671bd1f07f": {
+          "digest": "5c671bd1f07fee448cdb831540e14063045d7e02f627ef3071045d1c4867d8eb",
+          "text": "**LPR4-003 -- the M29 case's wording mixes the seam and the real rule.** Section 4's `TestUnavailable` says `doctor --release-version <other release>` on an *untouched* installation evaluates \"with the seam patched only for the stub and the release comparison real\". An untouched installation has no stub, and patching `_installed_script_state` would make the comparison M29 targets not real. Say that this case patches nothing, belongs with `TestScriptState`'s real installation, and proves the evaluation by the real script's own line (not `does not match`). Then M29 fails exactly when `doctor` judges against the candidate whose script differs.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 4,
+              "review_content_id": "cb6c38486775a3a2b0c398ff648a702f8c59e8902edcde1af76c7ac782d7b3a4",
+              "verdict": "REVISE",
+              "at": "2026-11-09T13:42:41Z"
+            }
+          ]
+        },
+        "F-90ddeb1977e2": {
+          "digest": "90ddeb1977e20743946248ee7ba64ba2908494b5d6e889cd907616d287ad0045",
+          "text": "**LPR5-001 -- section 2.2's \"`TestUnavailable` except the case named there\" now names no case.** Revision 5 moved the `doctor --release-version <other>` case (the one that case used to name) to `TestScriptState`, so the exception points nowhere. Read literally, every `TestUnavailable` case patches the seam to `SCRIPT_OK`, but four of them must not: the modified-script cases for `verify`, `doctor` and `doctor --retention` (M26, M30) need the real rule to answer `SCRIPT_MODIFIED`, and the unresolvable-installed-release case (M31) needs the real `cli._installed_script_state` to return `SCRIPT_UNCHECKED`. The `script_state` that raises is patched to raise, not to return `SCRIPT_OK`. Fix: name these unpatched cases in 2.2 and section 4. They can still run in-process, and M37's `call_count` assertion does not apply to them. An implementer would hit the contradiction on the unmutated copy, so this is wording, not a gap in the design.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 5,
+              "review_content_id": "eb5a66064378a49b5c1bbc7266fe16c1e66fba7e15cf794de67c84e546122664",
+              "verdict": "APPROVE",
+              "at": "2026-11-09T14:16:03Z"
+            }
+          ]
+        },
+        "F-ccb5df3d7819": {
+          "digest": "ccb5df3d7819cacfca719979bb414973de8a60eb4c2716689ba001cdd56f0af7",
+          "text": "In `retention-alert-mapping.json`, align R2 and R3 with the design: an adopted policy with all thresholds within still runs the query, and an incomplete report can prove a threshold reached. The detailed plan and mutation tests already specify these outcomes correctly.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "MANUAL_EXTERNAL_PLAN_REVIEW",
+              "round": 5,
+              "review_content_id": "eb5a66064378a49b5c1bbc7266fe16c1e66fba7e15cf794de67c84e546122664",
+              "verdict": "APPROVE",
+              "at": "2026-11-09T14:19:01Z"
+            }
+          ]
+        },
+        "F-dfab17394af7": {
+          "digest": "dfab17394af7350ef60cc472df88bd8d5293d4dd611d6589803ac0243ea17331",
+          "text": "Plan §2.2 should explicitly exclude the modified-script, unchecked-release and raising-callable cases from the blanket `SCRIPT_OK` patch. “Except the case named there” is ambiguous after moving the candidate-release test to `TestScriptState`.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "MANUAL_EXTERNAL_PLAN_REVIEW",
+              "round": 5,
+              "review_content_id": "eb5a66064378a49b5c1bbc7266fe16c1e66fba7e15cf794de67c84e546122664",
+              "verdict": "APPROVE",
+              "at": "2026-11-09T14:19:01Z"
+            }
+          ]
+        },
+        "F-f9da3290e934": {
+          "digest": "f9da3290e93409d2fd7ecc9d2a780ea97035b27825176a1c8e40ce3be295e822",
+          "text": "Plan §2.6 incorrectly says `datetime.strptime` accepts leap seconds. The specified `datetime.strptime(..., \"%Y-%m-%dT%H:%M:%SZ\")` rejects `:60` with `ValueError`; correct that explanatory sentence.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "MANUAL_EXTERNAL_PLAN_REVIEW",
+              "round": 5,
+              "review_content_id": "eb5a66064378a49b5c1bbc7266fe16c1e66fba7e15cf794de67c84e546122664",
+              "verdict": "APPROVE",
+              "at": "2026-11-09T14:19:01Z"
+            }
+          ]
+        }
       }
     }
   }
