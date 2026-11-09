@@ -29003,7 +29003,7 @@
       "registry_path": "docs/ai-workflow/registry/retention-policy-file-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/retention-policy-file-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "AWAITING_FUNCTIONAL_REVIEW",
       "plan_revision": 2,
       "implementation_revision": 1,
       "functional_review_round": null,
@@ -29112,7 +29112,120 @@
           "workflow_release": "2.29.1"
         }
       },
-      "technical_approval": null,
+      "technical_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "ee8b54e6269a73c861b910153e53b2394214679e5fc080cbb1ffc518e3f821af",
+        "approved_review_content_id": "500f0e1b08d7249887235b4052592555cafc8c524c74ee5cab5227206994016e",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/registry/retention-policy-file-artifacts.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "4adcb9e0444d6d064d6eb3a961883ae7341bcff6"
+          },
+          {
+            "path": "docs/exit-codes.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "9e400a1416709bd4236baba36c804eed57f276e2"
+          },
+          {
+            "path": "docs/retention.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "7381ac90b20d9f10a55e584ce5c35dec6ab740c2"
+          },
+          {
+            "path": "src/workflow_manager/cli.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "abbe1794da9470bd7ccbfe34cf93445786781b0a"
+          },
+          {
+            "path": "src/workflow_manager/retention_policy.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "cdbc5e354a5fdb4746bad2b0febf02995a39430b"
+          },
+          {
+            "path": "tests/test_operator_ux.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "9db60447269a4d728df30e3b1bbd05c951b141bc"
+          },
+          {
+            "path": "tests/test_retention_policy.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "38f9074c800f8f8afdd91bd67d45dfd1e6748227"
+          }
+        ],
+        "reviewed_content_commit": "931fbf2612845105d3bd693eb340eb57d8ed16a3",
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-11-09T11:28:30Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "500f0e1b08d7249887235b4052592555cafc8c524c74ee5cab5227206994016e",
+            "ledger": {
+              "local": {
+                "bundle_id": "ee8b54e6269a73c861b910153e53b2394214679e5fc080cbb1ffc518e3f821af",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "fbb45ee89bad0cf1b54e881331ea2996d14d7b3009bfe4f1c4b5a346f8e42e88",
+                "ledger_entry_sha256": "0dc7f0578eeb40e09732e8adb9727911e03cdb18ab559ee785845a52d6223170",
+                "run_ref": "session:local .ai-review/retention-policy-file/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "ee8b54e6269a73c861b910153e53b2394214679e5fc080cbb1ffc518e3f821af",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "bb0eb8481f25e6ecf1be2521c462dd0edcfaf3d640f68662df35cba213102e72",
+                "ledger_entry_sha256": "f0bb9629fbed3e547ebe6b6eca3fa1fac74483cec5369b2ab592ea2a3520a5e4",
+                "run_ref": "codex:20261109T112448Z-b35b7611",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-11-09T11:28:30Z",
+          "workflow_release": "2.29.1"
+        }
+      },
       "technical_review_block_pins": [],
       "plan_review_stages": {
         "review_content_id": "57ddcf5543ab83568cf5430f55899c3cbda57164688c9062089bb347299430ff",
@@ -29143,12 +29256,12 @@
           "external": 1
         },
         "implementation": {
-          "local": 0,
-          "external": 0
+          "local": 1,
+          "external": 1
         }
       },
-      "state_revision": 14,
-      "last_transition": "2026-11-09T11:17:30Z",
+      "state_revision": 17,
+      "last_transition": "2026-11-09T11:28:30Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -29283,6 +29396,83 @@
               "at": "2026-11-09T10:33:03Z"
             }
           ]
+        },
+        "F-c387c939c8f4": {
+          "digest": "c387c939c8f463b04d27abcf30982e1632682afc544eea9aca8f9ca68c5f2290",
+          "text": "LIR1-O1 (`retention_policy.py` `_TIMESTAMP`): `adopted_at` is checked only for its shape, so `2026-99-99T99:99:99Z` is accepted and printed in the adopted block. It is harmless, since only ASCII digits can reach the terminal, but `datetime.strptime(value, \"%Y-%m-%dT%H:%M:%SZ\")` after the fullmatch would also refuse an impossible date, together with a `record_shape_refusals` case.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "500f0e1b08d7249887235b4052592555cafc8c524c74ee5cab5227206994016e",
+              "verdict": "APPROVE",
+              "at": "2026-11-09T11:23:58Z"
+            }
+          ]
+        },
+        "F-65fdc06060a8": {
+          "digest": "65fdc06060a81d9dec74fedfd0f4704facdda0425da661561423c0fa406fb2d7",
+          "text": "LIR1-O2 (`retention_policy.block`, state `invalid`): in `status`/`doctor` output, the step \"fix .workflow-manager/retention-policy.json as named, then run the command again\" does not say which command. Name it, for example \"then run `workflow-manager adopt-retention-policy TARGET` to preview it\", as the other states do.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "500f0e1b08d7249887235b4052592555cafc8c524c74ee5cab5227206994016e",
+              "verdict": "APPROVE",
+              "at": "2026-11-09T11:23:58Z"
+            }
+          ]
+        },
+        "F-1dd200c48aff": {
+          "digest": "1dd200c48aff67cb4d77c96a0217c08b5cadf22302eb5a3fe2f756dfb91fcdca",
+          "text": "LIR1-O3 (`cli.py` `adopt-retention-policy` description): the help text's exit-2 list (\"not managed, no valid file, the sentence does not match\") leaves out the two refusals that `docs/exit-codes.md` names: `.workflow-manager` is a link, and the record path is not a regular file. Add them so the help and the page say the same thing.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "500f0e1b08d7249887235b4052592555cafc8c524c74ee5cab5227206994016e",
+              "verdict": "APPROVE",
+              "at": "2026-11-09T11:23:58Z"
+            }
+          ]
+        },
+        "F-ce47fdaad404": {
+          "digest": "ce47fdaad404fec6452c7956ec8a03a8ab9199a41f10e16425ee1bb70088cd39",
+          "text": "LIR1-O4 (`_write_atomically`): the parent directory is not fsynced after `os.replace`, so a crash right after an adoption can lose the rename. The plan asks only for fsync and `os.replace`, so this conforms. An `os.fsync` of a directory descriptor would make the record durable.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "500f0e1b08d7249887235b4052592555cafc8c524c74ee5cab5227206994016e",
+              "verdict": "APPROVE",
+              "at": "2026-11-09T11:23:58Z"
+            }
+          ]
+        }
+      },
+      "implementation_review_stages": {
+        "review_content_id": "500f0e1b08d7249887235b4052592555cafc8c524c74ee5cab5227206994016e",
+        "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "ee8b54e6269a73c861b910153e53b2394214679e5fc080cbb1ffc518e3f821af",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-11-09T11:23:58Z",
+          "verdict_sha256": "fbb45ee89bad0cf1b54e881331ea2996d14d7b3009bfe4f1c4b5a346f8e42e88",
+          "run_ref": "session:local .ai-review/retention-policy-file/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "ee8b54e6269a73c861b910153e53b2394214679e5fc080cbb1ffc518e3f821af",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-11-09T11:27:53Z",
+          "verdict_sha256": "bb0eb8481f25e6ecf1be2521c462dd0edcfaf3d640f68662df35cba213102e72",
+          "run_ref": "codex:20261109T112448Z-b35b7611",
+          "reviewer_model": "openai/gpt-6.1-sol"
         }
       }
     }
