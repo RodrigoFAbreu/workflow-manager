@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_work_item_id": null,
+  "active_work_item_id": "retention-policy-file",
   "work_items": {
     "plan-amendment-mechanism": {
       "work_item_type": "process",
@@ -28992,6 +28992,289 @@
         },
         "evaluated_at": "2026-11-09T09:34:13Z",
         "workflow_release": "2.29.1"
+      }
+    },
+    "retention-policy-file": {
+      "work_item_type": "process",
+      "work_item_kind": "process",
+      "work_item_id": "retention-policy-file",
+      "parent_work_item_id": null,
+      "plan_path": "docs/ai-workflow/WORKFLOW_MANAGER_RETENTION_POLICY_FILE_PLAN.md",
+      "registry_path": "docs/ai-workflow/registry/retention-policy-file-registry.json",
+      "mapping_path": "docs/ai-workflow/requirements/retention-policy-file-mapping.json",
+      "governing_workflow_version": "2.2",
+      "phase": "IMPLEMENTING",
+      "plan_revision": 2,
+      "implementation_revision": null,
+      "functional_review_round": null,
+      "base_commit": "0db1638ab4d0833218ad24283397a9329f3bb9bf",
+      "reviewed_implementation_head": null,
+      "current_checkpoint_id": null,
+      "last_completed_checkpoint_id": null,
+      "checkpoints": {},
+      "current_bundle_id": "f40ec16757771ccc2683626eb2a650f2c0716424350c070c1fa1ac086ae1f565",
+      "plan_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "f40ec16757771ccc2683626eb2a650f2c0716424350c070c1fa1ac086ae1f565",
+        "approved_review_content_id": "57ddcf5543ab83568cf5430f55899c3cbda57164688c9062089bb347299430ff",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/WORKFLOW_MANAGER_RETENTION_POLICY_FILE_PLAN.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "3e14de9c86e2741de374a7eb9887cc90a236b033"
+          },
+          {
+            "path": "docs/ai-workflow/registry/retention-policy-file-registry.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "8b2719b5386ff04c3aa056a7ca0344436de86d7f"
+          },
+          {
+            "path": "docs/ai-workflow/requirements/retention-policy-file-mapping.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "97167cd4411694975c5de1245f24696c011ef46c"
+          }
+        ],
+        "reviewed_content_commit": null,
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-11-09T10:33:52Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "57ddcf5543ab83568cf5430f55899c3cbda57164688c9062089bb347299430ff",
+            "ledger": {
+              "local": {
+                "bundle_id": "f40ec16757771ccc2683626eb2a650f2c0716424350c070c1fa1ac086ae1f565",
+                "verdict": "APPROVE",
+                "round": 2,
+                "verdict_sha256": "32bcd1693df909307a0a376f2c4773030b159b4bc8d3b063e8e96dbf53e9b6f2",
+                "ledger_entry_sha256": "b59934e21d1f3bab1ba0308bfa3c7f1185938cba5992ac33ff3bdb8963eda29d",
+                "run_ref": "session:local .ai-review/retention-policy-file/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "f40ec16757771ccc2683626eb2a650f2c0716424350c070c1fa1ac086ae1f565",
+                "verdict": "APPROVE",
+                "round": 2,
+                "verdict_sha256": "0030b322e517197a077baaf177f12a44b9723ac517503869a7f6bd425763bb67",
+                "ledger_entry_sha256": "1cd055485d9c474196474802872105dce6d19e2b134805d9a3d15fa3270e22fa",
+                "run_ref": "codex:20261109T103045Z-d364d34c",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-11-09T10:33:52Z",
+          "workflow_release": "2.29.1"
+        }
+      },
+      "technical_approval": null,
+      "technical_review_block_pins": [],
+      "plan_review_stages": {
+        "review_content_id": "57ddcf5543ab83568cf5430f55899c3cbda57164688c9062089bb347299430ff",
+        "LOCAL_MODEL_PLAN_REVIEW": {
+          "bundle_id": "f40ec16757771ccc2683626eb2a650f2c0716424350c070c1fa1ac086ae1f565",
+          "verdict": "APPROVE",
+          "round": 2,
+          "completed_at": "2026-11-09T10:30:31Z",
+          "verdict_sha256": "32bcd1693df909307a0a376f2c4773030b159b4bc8d3b063e8e96dbf53e9b6f2",
+          "run_ref": "session:local .ai-review/retention-policy-file/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_PLAN_REVIEW": {
+          "bundle_id": "f40ec16757771ccc2683626eb2a650f2c0716424350c070c1fa1ac086ae1f565",
+          "verdict": "APPROVE",
+          "round": 2,
+          "completed_at": "2026-11-09T10:33:03Z",
+          "verdict_sha256": "0030b322e517197a077baaf177f12a44b9723ac517503869a7f6bd425763bb67",
+          "run_ref": "codex:20261109T103045Z-d364d34c",
+          "reviewer_model": "openai/gpt-6.1-sol"
+        }
+      },
+      "functional_acceptance_status": null,
+      "blocking_decisions": [],
+      "review_round_counts": {
+        "plan": {
+          "local": 2,
+          "external": 1
+        },
+        "implementation": {
+          "local": 0,
+          "external": 0
+        }
+      },
+      "state_revision": 9,
+      "last_transition": "2026-11-09T10:33:52Z",
+      "feedback_layout": "scoped",
+      "plan_review_binding": {
+        "status": "BOUND",
+        "at": "2026-11-09T10:28:54Z",
+        "consumed": {
+          "review_content_id": "1fece84a48d92645a056ce046c731b1cb6b3fd58db8975c81f8b1de918a3bad4",
+          "plan_revision": 1,
+          "legacy": false
+        },
+        "published": {
+          "review_content_id": "57ddcf5543ab83568cf5430f55899c3cbda57164688c9062089bb347299430ff",
+          "plan_revision": 2
+        },
+        "bound": {
+          "review_content_id": "57ddcf5543ab83568cf5430f55899c3cbda57164688c9062089bb347299430ff",
+          "bundle_id": "f40ec16757771ccc2683626eb2a650f2c0716424350c070c1fa1ac086ae1f565",
+          "plan_revision": 2
+        }
+      },
+      "consumed_plan_review_content_ids": [
+        "1fece84a48d92645a056ce046c731b1cb6b3fd58db8975c81f8b1de918a3bad4"
+      ],
+      "optional_findings": {
+        "F-573343cc7b00": {
+          "digest": "573343cc7b000a877317ae0d1ec2dc2218f5cb9d492cd9eb2ca10aa7c0844197",
+          "text": "LPR1-O1 (2.4): say that the policy block's `next:` line is indented (`  next: ...`), like the retention section's own. `status` keeps exactly one unindented final `next:` line, and `test_retention_status.py` pins that in other states. A TestReport assertion that a policy state adds no unindented `next:` line would hold this in place.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "1fece84a48d92645a056ce046c731b1cb6b3fd58db8975c81f8b1de918a3bad4",
+              "verdict": "REVISE",
+              "at": "2026-11-09T10:27:12Z"
+            }
+          ]
+        },
+        "F-15bc044cb698": {
+          "digest": "15bc044cb6989741112f0d4f81b48022b8b6991a69cf763e2fe7354c80ab12e1",
+          "text": "LPR1-O2 (section 6): flow 1's expectation leaves out files the branch really changes under `docs`: `docs/ROADMAP.md`, `docs/ACTIVE_MILESTONE.md`, `docs/ai-workflow/WORKFLOW_STATE.json`, the artifacts/registry/mapping and the functional-review checklist. List them, or narrow the pathspec, so a functional reviewer does not flag the expected bookkeeping. Flow 3's `find $S/t -newer` has no reference file: name one (for example a stamp file touched before the run).",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "1fece84a48d92645a056ce046c731b1cb6b3fd58db8975c81f8b1de918a3bad4",
+              "verdict": "REVISE",
+              "at": "2026-11-09T10:27:12Z"
+            }
+          ]
+        },
+        "F-6650b40f89d3": {
+          "digest": "6650b40f89d3ed40c59a8518ea0ae2153f4558ca319142779b5d7527e15abdee",
+          "text": "LPR1-O3 (2.3, section 4): the new subcommand is not in `cli.py`'s usage docstring, and not in `test_operator_ux.py`'s `TARGET_COMMANDS` / `test_every_subcommand_has_a_summary_and_a_description_with_exit_codes` inventory. Either extend that inventory (the file is outside CP1's Files list, so add it there) or have TestDocs assert the same properties: a summary in the top-level help, and a description with \"Exit\".",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "1fece84a48d92645a056ce046c731b1cb6b3fd58db8975c81f8b1de918a3bad4",
+              "verdict": "REVISE",
+              "at": "2026-11-09T10:27:12Z"
+            }
+          ]
+        },
+        "F-05b468491bbf": {
+          "digest": "05b468491bbf9748e8297cbe97d407ffbbcafe01e129fde4e4cc455015cea79e",
+          "text": "LPR1-O4 (2.2 state table, 2.3): name the state that `load` reports when `.workflow-manager` is a link, or when either file is a link or not a regular file (presumably `invalid` or `record-invalid`). Also say that apply refuses, with exit 2, writing when `.workflow-manager` is a link or the record path is not a regular file.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "1fece84a48d92645a056ce046c731b1cb6b3fd58db8975c81f8b1de918a3bad4",
+              "verdict": "REVISE",
+              "at": "2026-11-09T10:27:12Z"
+            }
+          ]
+        },
+        "F-d571ece092eb": {
+          "digest": "d571ece092eb77a7e7927b9ab356596a129e59a3a609b79b09558202a2c89d1b",
+          "text": "LPR2-O1 (2.2, M7): M7 kills only if the regular-file check is an `fstat` of the descriptor `O_NOFOLLOW` opened. If the implementation also runs `lstat` (or `Path.is_symlink()`/`is_file()` with `follow_symlinks=False`) on the file before opening it, dropping `O_NOFOLLOW` changes nothing and M7 survives. Say \"requires a regular file by `fstat` of the opened descriptor\", or name the extra check as its own mutation, the same split LPR1-002 made for the directory.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "57ddcf5543ab83568cf5430f55899c3cbda57164688c9062089bb347299430ff",
+              "verdict": "APPROVE",
+              "at": "2026-11-09T10:30:31Z"
+            }
+          ]
+        },
+        "F-606a3677207f": {
+          "digest": "606a3677207fe9e0a32f52cd743795ba43e048409bd90ab160dd417a15e59560",
+          "text": "LPR2-O2 (section 6, flow 8): CP1 now runs `--select test_operator_ux.py`, because the command joins `TARGET_COMMANDS`. Flow 8 still lists only `test_retention_policy.py`, `test_retention_status.py` and `test_docs.py`. Add `test_operator_ux.py` so the functional reviewer runs the inventory and the misplaced-global-option tests that the new command now joins.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "57ddcf5543ab83568cf5430f55899c3cbda57164688c9062089bb347299430ff",
+              "verdict": "APPROVE",
+              "at": "2026-11-09T10:30:31Z"
+            }
+          ]
+        },
+        "F-ea242b054327": {
+          "digest": "ea242b0543272e821e95b46164575c0986897f11528e49a0d0baca0c11fbe24a",
+          "text": "Section 4 groups preview with refusals and says both exit 2. Separate their expectations: a valid preview exits 0, as section 2.3 and functional flow 3 specify; refusals exit 2. Both leave the tree unchanged.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "MANUAL_EXTERNAL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "57ddcf5543ab83568cf5430f55899c3cbda57164688c9062089bb347299430ff",
+              "verdict": "APPROVE",
+              "at": "2026-11-09T10:33:03Z"
+            }
+          ]
+        },
+        "F-691c09e70f4a": {
+          "digest": "691c09e70f4a946f5ac71f55699d44d28cc259c5cc40e00feac5e0eb0700c909",
+          "text": "Section 2.2/M7: clarify how regular files are checked. An additional pre-open symlink check could leave M7’s tests passing after removing `O_NOFOLLOW`. Checking the opened descriptor with `fstat` makes the intended mutation meaningful; otherwise, account for the additional check separately.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "MANUAL_EXTERNAL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "57ddcf5543ab83568cf5430f55899c3cbda57164688c9062089bb347299430ff",
+              "verdict": "APPROVE",
+              "at": "2026-11-09T10:33:03Z"
+            }
+          ]
+        }
       }
     }
   }

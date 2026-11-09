@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "work_item_id": "retention-policy-file",
+  "requirements": {
+    "R1": {
+      "description": "A closed, strict retention policy schema (.workflow-manager/retention-policy.json): mode off|notify|cleanup|both, thresholds in items and MiB with bounds; unknown keys, wrong types, out-of-range numbers, oversize, duplicate keys, links (the file and its directory) and non-regular files are refused, and the loader returns mode off for everything but an adopted unchanged file",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R2": {
+      "description": "The adopt-retention-policy command: a read-only preview and, only with the literal sentence bound to the digest, an atomic adoption record; every refusal and a failed write leave the tree unchanged; it never commits and never sends or cleans anything; the record is checked by the loader's own record check before it is written, so a record the loader would refuse is never written",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R3": {
+      "description": "status --retention and doctor --retention print a read-only policy block only when a file or record exists (byte-identical output otherwise), never change an exit code, and start no other script command",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R4": {
+      "description": "docs/retention.md carries one Retention policy section and docs/exit-codes.md the command's row, naming no internal milestone id; tests carry failure-only mutations M1 to M21",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R5": {
+      "description": "The roadmap carries row 36 (Current, Done at acceptance), the active-milestone record states the evidence, and the Manager release bookkeeping (feat, minor) is described; no version is edited",
+      "checkpoint_ids": [
+        "CP2"
+      ]
+    }
+  }
+}
