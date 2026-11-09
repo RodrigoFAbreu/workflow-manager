@@ -2,7 +2,7 @@
 
 ## Milestone
 
-`timings-rebalance` -- awaiting functional review (`governing_workflow_version: "2.2"`, `process`, plan revision 4, base `3917010`, branch `milestone/timings-rebalance`): roadmap row 34 (#181, second mechanism). A `test:` pull request title (releases nothing).
+`timings-rebalance` -- complete, accepted by policy 2026-11-09 (`governing_workflow_version: "2.2"`, `process`, plan revision 4, base `3917010`, branch `milestone/timings-rebalance`): roadmap row 34 (#181, second mechanism). A `test:` pull request title (releases nothing).
 
 The CI timing model is re-derived so the six shards balance. `tests/parallel/timings.json`'s `ci` profile was folded from three one-class-per-chunk CI dispatches (runs 42551845166, 42553923351, 42556118176, branch `ci/timings-measurement`) into an emptied profile; two pins in `TestTheRealCheckoutPlans` keep the committed model measured (at most a tenth of the units unmeasured) and even (predicted shard walls within 10 %); `timings.update`'s docstring and `docs/ARCHITECTURE.md` say how to refresh. No planner change, no `src/` change, `ci_max_shards` stays 6. The real CI effect is measured after the merge (H4) and is not claimed here.
 
@@ -12,7 +12,7 @@ The CI timing model is re-derived so the six shards balance. `tests/parallel/tim
 
 ### CP2: bookkeeping -- complete
 
-- `docs/ROADMAP.md` row 34 (Current; Done at acceptance); this record.
+- `docs/ROADMAP.md` row 34 (Done at acceptance); this record.
 
 ### Acceptance rules for the data (plan section 4), on a clean clone of `5c88ede`
 
