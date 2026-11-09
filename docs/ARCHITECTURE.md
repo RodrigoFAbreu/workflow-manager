@@ -691,6 +691,16 @@ batch of runs at a time, not every run. A multi-class chunk yields only its
 group overhead, so per-class numbers come from a run planned one class per
 chunk.
 
+A fold counts a unit's stored estimate as its oldest samples, so folding a
+fresh run into numbers that are stale by many releases pulls the result back
+toward them. For a refresh, fold in a scratch checkout whose
+`profiles.ci.units` is emptied first, from the runs of at least three
+one-class-per-chunk dispatches (a throwaway branch with
+`target_shard_seconds` set to 0.01 in `tests/parallel/config.json`, run with
+`workflow_dispatch`), downloading each run's `results-*` artifacts so the
+aggregate job's matrix classes are folded with the shards', then check that
+the planner lists no unit under `timing defaulted`.
+
 *Note, 2026-10-11:* the CI rows above, and the 16- and 19-shard figures, were
 measured with one worker per shard. Since then a shard runs on every runner
 CPU and CI plans 6 shards (see **CI** above); the table is the record of the

@@ -2409,6 +2409,39 @@ class TestTheRealCheckoutPlans(unittest.TestCase):
                 self.assertLessEqual(plan["n"], planner.max_shards(plan["bounds"], profile, 8))
                 self.assertEqual(plan["tree_digest"], inv.tree_digest)
 
+    REFRESH = ("refresh the `ci` profile as docs/ARCHITECTURE.md's timing refresh "
+               "procedure says")
+
+    def ci_plan(self):
+        """The real full selection planned for `ci` the way CI runs it: four
+        workers on each shard's runner."""
+        inv = inventory.discover(REPO_ROOT)
+        selection = inventory.select(inv.host, [], inv.frozen)
+        return planner.plan_checkout(REPO_ROOT, inv, selection, profile="ci", cpu_count=4,
+                                     shard_workers=4)
+
+    def test_the_committed_ci_timings_measure_almost_every_unit(self):
+        plan = self.ci_plan()
+        units = len(_all_plan_units(plan))
+        unmeasured = len(plan["timing"]["defaulted"])
+        self.assertLessEqual(
+            unmeasured * 10, units,
+            f"{unmeasured} of {units} units take an estimate that is not measured (a group "
+            f"median, a default or the other profile), above a tenth: {self.REFRESH}")
+
+    def test_the_committed_ci_model_packs_the_shards_evenly(self):
+        plan = self.ci_plan()
+        walls = []
+        for shard in plan_schema.shard_chunks(plan):
+            shared = [c.estimate for c in shard if not c.resources]
+            exclusive = sum(c.estimate for c in shard if c.resources)
+            walls.append(exclusive + planner.shard_wall(shared, 4))
+        self.assertGreaterEqual(
+            min(walls) * 1.1, max(walls),
+            f"the predicted shard walls at 4 workers are {[round(w) for w in walls]} s; the "
+            f"slowest is more than 10% above the fastest, which a mispriced class causes: "
+            f"{self.REFRESH}")
+
 
 # -- T-INV-6: the selection never depends on timing -------------------------------------
 

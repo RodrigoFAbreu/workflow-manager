@@ -429,8 +429,11 @@ def update(timings: Timings, observations, profile: str, *, inventory_unit_ids=N
     A unit's new estimate is the median of its most recent `MAX_SAMPLES`
     values, rounded to 0.1 s. Only the median and sample count are stored, so
     when fewer than `MAX_SAMPLES` new values exist the stored estimate stands
-    in for its own samples as the oldest values. A fixture's group overhead is
-    the median of every new overhead observation, rounded to 0.01 s. When
+    in for its own samples as the oldest values. A fold therefore counts the
+    stored estimate as the oldest samples, so a refresh of numbers that are
+    stale by many releases empties the profile first. A fixture's group
+    overhead is the median of every new overhead observation, rounded to
+    0.01 s. When
     `inventory_unit_ids` is given, orphaned units are dropped from every
     profile. Failing observations are never folded."""
     if profile not in PROFILES:
