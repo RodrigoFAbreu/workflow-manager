@@ -1,0 +1,33 @@
+{
+  "dispositions": {
+    "F-004f88a655fc": {
+      "disposition": "fixed"
+    },
+    "F-196f4418ed11": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#190",
+      "note": "Architecture sentence wording."
+    },
+    "F-970ec6f6974f": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#190",
+      "note": "Architecture sentence wording (same point)."
+    },
+    "F-a46413272791": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#190",
+      "note": "Architecture sentence wording (same point)."
+    },
+    "F-cbe2cf47a8c8": {
+      "disposition": "dropped",
+      "reason": "The M1 mutation was applied by the independent executor with the flow's sed on the committed argv (tests/test_operator_ux_report.py line 301) and it failed as expected, so the text matched; the layout concern did not materialise."
+    },
+    "F-ebd534ec9f25": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#190",
+      "note": "Architecture sentence wording (same point)."
+    }
+  },
+  "schema_version": 1,
+  "work_item_id": "hermetic-cache-gap-test"
+}

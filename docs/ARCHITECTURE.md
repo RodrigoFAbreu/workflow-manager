@@ -494,8 +494,10 @@ the tested releases, one selection) in
   `--results` moves the run directory only: frozen discovery still creates its
   release snapshot (`support.release()`) under the ambient `TMPDIR`, a
   filesystem the check does not then measure. After
-  priming, a run needs no network. `support.cli_env()` carries the cache (and
-  `WORKFLOW_MANAGER_RELEASE_SOURCE`, when set) into every from-scratch
+  priming, a run needs no network, and no test fetches a release at test time: a
+  test that runs the CLI against a release the cache does not hold gives it a
+  `--release-source` mirror or a `--release-dir`. `support.cli_env()` carries
+  the cache (and `WORKFLOW_MANAGER_RELEASE_SOURCE`, when set) into every from-scratch
   subprocess environment, so a test that moves `HOME` still reads the primed
   cache; a scratch checkout passes its own private source and cache the same
   way and never touches the real one. A unit that imports `tests/support.py`

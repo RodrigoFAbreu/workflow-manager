@@ -201,7 +201,7 @@ class TestStatusBlock(ux.TargetCase):
             f"`workflow-manager doctor {repo}` reports what an update would meet"))
 
 
-class TestStatusContainment(ux.TargetCase):
+class TestStatusContainment(ux.ReleaseCase):
     """3.5a: `status` of a managed target proves its writes stay outside the
     target and its `.git`, or exits 1."""
 
@@ -293,13 +293,17 @@ class TestStatusContainment(ux.TargetCase):
         self.assertIn("release 9.9.9 is not published", proc.stderr)
 
     def test_an_unmanaged_target_with_a_cache_inside_git_is_the_known_gap(self):
-        # 3.6: unchanged at the base, tested as unchanged.
+        """3.6: unchanged at the base, tested as unchanged. The release comes
+        from a local mirror, so the test needs no network."""
         target = self.empty()
         cache = target / ".git" / "c"
         proc = run("--release-version", PINNED_NEWEST, "--release-cache", str(cache),
-                   "status", str(target))
+                   "--release-source", str(self.mirror()), "status", str(target))
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
         self.assertIn("not a managed repository", proc.stdout)
+        # the release landed in a cache inside git: that is the gap
+        self.assertTrue((target / ".git" / "c" / PINNED_NEWEST).is_dir(),
+                        proc.stdout + proc.stderr)
 
 
 class TestReportSteps(ux.ReleaseCase):
