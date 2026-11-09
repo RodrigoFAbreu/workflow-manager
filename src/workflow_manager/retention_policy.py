@@ -201,6 +201,17 @@ def serialize_record(record: dict) -> bytes:
     return (json.dumps(record, indent=2) + "\n").encode("utf-8")
 
 
+def _is_timestamp(value) -> bool:
+    """A UTC timestamp of the exact form, naming a date and time that exist."""
+    if not isinstance(value, str) or not _TIMESTAMP.fullmatch(value):
+        return False
+    try:
+        datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ")
+    except ValueError:
+        return False
+    return True
+
+
 def check_record(record) -> list[str]:
     """The problems of an adoption record (an empty list: the loader accepts it).
     The loader runs it on what it reads and the adoption command on what it has
@@ -220,7 +231,7 @@ def check_record(record) -> list[str]:
         return problems
     if not _is_int(record["schema_version"]) or record["schema_version"] != SCHEMA_VERSION:
         problems.append(f"record schema_version must be the integer {SCHEMA_VERSION}")
-    if not isinstance(record["adopted_at"], str) or not _TIMESTAMP.fullmatch(record["adopted_at"]):
+    if not _is_timestamp(record["adopted_at"]):
         problems.append(f"record adopted_at is not a UTC timestamp: {_shown(record['adopted_at'])}")
     inner = policy_errors(record["policy"])
     if inner:
@@ -349,6 +360,21 @@ def describe(policy: dict) -> str:
     return ", ".join(parts) if parts else "none"
 
 
+def _sync_directory(directory_path: Path) -> None:
+    """Make the replace durable. The record is already in place, so a failure
+    here is ignored: a failed durability sync must not report a failed adoption."""
+    try:
+        fd = os.open(directory_path, os.O_RDONLY | os.O_DIRECTORY)
+    except OSError:
+        return
+    try:
+        os.fsync(fd)
+    except OSError:
+        pass
+    finally:
+        os.close(fd)
+
+
 def _write_atomically(path: Path, data: bytes) -> None:
     handle, name = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
     try:
@@ -358,6 +384,7 @@ def _write_atomically(path: Path, data: bytes) -> None:
             os.fsync(out.fileno())
         os.chmod(name, 0o644)
         os.replace(name, path)
+        _sync_directory(path.parent)
     except BaseException:
         try:
             os.unlink(name)
@@ -373,10 +400,11 @@ def usable_policy(target: Path) -> PolicyState:
         return state
     if state.problems:
         cause = f"the retention policy file is refused: {'; '.join(state.problems[:PROBLEM_LIMIT])}"
-        step = f"fix {DIRECTORY}/{POLICY_FILE} as named, then run the command again"
+        step = (f"fix {DIRECTORY}/{POLICY_FILE} as named, then run "
+                f"{adopt_command(target)} to preview it")
     else:
         cause = f"there is no retention policy file at {DIRECTORY}/{POLICY_FILE}"
-        step = f"write {DIRECTORY}/{POLICY_FILE}, then run the command again"
+        step = f"write {DIRECTORY}/{POLICY_FILE}, then run {adopt_command(target)} to preview it"
     raise Refusal(cause, step)
 
 
@@ -431,7 +459,8 @@ def block(state: PolicyState, target: Path) -> list[str]:
             f"retention policy: adopted, mode {state.mode} (digest {state.digest[:DIGEST_SHOWN]}, "
             f"adopted {state.adopted_at})",
             f"  thresholds: {describe(state.policy)}",
-            "  this Manager release only reads the policy: it sends nothing and cleans nothing",
+            "  this Manager release reads the policy and, for notify and both, evaluates its "
+            "thresholds in verify and doctor; it sends nothing and cleans nothing",
         ]
     lines = [f"retention policy: {state.state} ({_WORDS[state.state]}); mode off is in force"]
     lines.extend(f"  problem: {problem}" for problem in state.problems[:PROBLEM_LIMIT])
@@ -440,7 +469,8 @@ def block(state: PolicyState, target: Path) -> list[str]:
     if state.state in (NOT_ADOPTED, CHANGED, RECORD_INVALID):
         step = adopt_command(target)
     elif state.state == INVALID:
-        step = f"fix {DIRECTORY}/{POLICY_FILE} as named, then run the command again"
+        step = (f"fix {DIRECTORY}/{POLICY_FILE} as named, then run "
+                f"{adopt_command(target)} to preview it")
     else:
         step = (f"restore {DIRECTORY}/{POLICY_FILE}, or remove {DIRECTORY}/{RECORD_FILE} "
                 "if the policy is withdrawn")

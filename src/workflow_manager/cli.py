@@ -956,8 +956,8 @@ def cmd_adopt_retention_policy(args) -> int:
     print(f"adopted the retention policy {record['sha256']}: mode {record['policy']['mode']}")
     print(f"wrote {retention_policy.record_path(args.target)}; commit it with "
           f"{retention_policy.policy_path(args.target).name} (both files are the owner's)")
-    print("this Manager release only reads the policy: nothing is archived, removed, pruned "
-          "or sent")
+    print("this Manager release reads the policy and, for notify and both, evaluates its "
+          "thresholds in verify and doctor: nothing is archived, removed, pruned or sent")
     return 0
 
 
@@ -1145,10 +1145,12 @@ def build_parser() -> argparse.ArgumentParser:
                 "thresholds and the sentence that adopts it; writes nothing. With --confirm "
                 "holding that sentence it writes .workflow-manager/retention-adoption.json, "
                 "which you then commit. The mode in force stays off unless the file is "
-                "adopted unchanged. This release only reads the policy: it archives, removes, "
-                "prunes and sends nothing. Only the repository's owner runs it with --confirm; "
+                "adopted unchanged. This release reads the policy and, for notify and both, "
+                "evaluates its thresholds in verify and doctor; it archives, removes, prunes "
+                "and sends nothing. Only the repository's owner runs it with --confirm; "
                 "an agent must not. Exit 0: previewed or adopted; 2: refused, nothing written "
-                "(not managed, no valid file, the sentence does not match).")
+                "(not managed, no valid file, the sentence does not match, .workflow-manager "
+                "is a link, the record path is not a regular file).")
     p.add_argument("target", type=Path, help="the managed repository whose policy to adopt")
     p.add_argument("--confirm", default=None, metavar="TEXT",
                    help="adopt the file: text containing 'Adopt the retention policy "

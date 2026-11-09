@@ -13,4 +13,9 @@ Second slice of the owner's retention track: for a retention policy adopted with
 - Evidence: `python3 tools/check_docs.py` exit 0; `--select` of `test_retention_alert.py` (53 tests), `test_retention_status.py` (78), `test_retention_policy.py` (71), `test_operator_ux.py` and `test_docs.py` each `verdict: exit 0`.
 - Failure-only mutations (plan section 3), each on a fresh copy, the named tests run alone from `tests/`: the unmutated copy passes and every mutation fails: M1 to M18 (M15 in two parts: order and the unindented `next:`), M24 to M27 (M27 in two parts), M29 to M36 (M34 and M36 in two parts each). M37 is not mutated mechanically: the stub-based cases assert the seam's `call_count` instead. M19 to M23 and M28 belong to CP2.
 
-### CP2: the #192 follow-ups, bookkeeping and the release -- not started
+### CP2: the #192 follow-ups, bookkeeping and the release -- complete
+
+- Files: `src/workflow_manager/retention_policy.py` (`_is_timestamp` with `strptime`, `_sync_directory` after the replace, the `invalid` and refusal steps name `adopt-retention-policy ... to preview it`, the adopted block's wording), `src/workflow_manager/cli.py` (help text names the link and non-regular-file refusals; adoption output and help no longer say "only reads"), `tests/test_retention_policy.py` (`TestFollowUps`, six tests; the exact-block test follows the new wording), `docs/retention.md` (the example line moves with `block`).
+- Evidence: `--select test_retention_policy.py` (77 tests) `verdict: exit 0`; `python3 tools/check_docs.py` exit 0; full gate `python3 tests/run_all.py`: 2380/2380 units, 16086 tests, `verdict: exit 0`, head 3f08866, no `OrphanProcessError`.
+- Failure-only mutations (fresh copy each, `TestFollowUps` run alone from `tests/`): the unmutated copy passes; M19, M20 (both places), M21, M22, M23 and M28 (block, adoption output, help, docs example) each fail.
+- `grep -rn "only reads" src docs/retention.md` finds nothing. No version edited. PR title: `feat: warn in verify and doctor when an adopted retention threshold is reached`.

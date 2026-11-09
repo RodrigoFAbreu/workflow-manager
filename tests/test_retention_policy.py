@@ -544,7 +544,8 @@ class TestReport(Base):
                                   r"adopted \d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ\)$")
         self.assertEqual(got[at + 1], "  thresholds: finished items 10, finished folders 500 MiB, "
                                       "archives 20, prunable archives 5")
-        self.assertEqual(got[at + 2], "  this Manager release only reads the policy: it sends "
+        self.assertEqual(got[at + 2], "  this Manager release reads the policy and, for notify and both, "
+                                      "evaluates its thresholds in verify and doctor; it sends "
                                       "nothing and cleans nothing")
 
     def test_each_other_state_names_mode_off(self):
@@ -634,6 +635,98 @@ class TestNothingElse(Base):
         text = (REPO_ROOT / "src/workflow_manager/retention_policy.py").read_text()
         for word in ("subprocess", "Popen", "workflow_retention", "os.system", "urllib", "socket"):
             self.assertNotIn(word, text)
+
+
+class TestFollowUps(Base):
+    """The four follow-ups of #192 and the two 'only reads' wording fixes."""
+
+    def test_the_help_names_the_link_and_non_regular_file_refusals(self):
+        own = " ".join(ux.help_of(ADOPT).split())
+        self.assertIn(".workflow-manager is a link", own)
+        self.assertIn("the record path is not a regular file", own)
+        self.assertIn("evaluates its thresholds in verify and doctor", own)
+        self.assertNotIn("only reads", own)
+
+    def test_the_invalid_step_names_the_command(self):
+        self.put(with_(mode="nope"))
+        want = f"then run {rp.adopt_command(self.repo)} to preview it"
+        state = self.state()
+        self.assertEqual(state.state, rp.INVALID)
+        self.assertIn(want, rp.block(state, self.repo)[-1])
+        with self.assertRaises(rp.Refusal) as caught:
+            rp.usable_policy(self.repo)
+        self.assertIn(want, caught.exception.step)
+
+    def test_an_impossible_adopted_at_is_a_problem(self):
+        self.adopt()
+        record = json.loads(self.record_file().read_text())
+        self.assertEqual(rp.check_record(record), [])
+        for stamp in ("2026-99-99T99:99:99Z", "2026-02-30T00:00:00Z", "2026-01-01T24:00:00Z"):
+            with self.subTest(stamp=stamp):
+                problems = rp.check_record({**record, "adopted_at": stamp})
+                self.assertEqual(len(problems), 1, problems)
+                self.assertIn("adopted_at is not a UTC timestamp", problems[0])
+
+    def test_the_directory_is_synced_after_the_replace(self):
+        self.put()
+        target = self.repo / "synced.json"
+        events = []
+        real_replace, real_fsync, real_open = os.replace, os.fsync, os.open
+        fds = {}
+
+        def replace(src, dst):
+            events.append("replace")
+            return real_replace(src, dst)
+
+        def opener(path, flags, *a, **k):
+            fd = real_open(path, flags, *a, **k)
+            if flags & os.O_DIRECTORY:
+                fds[fd] = Path(path)
+            return fd
+
+        def fsync(fd):
+            if fd in fds:
+                events.append(("dirsync", fds[fd]))
+            return real_fsync(fd)
+
+        with mock.patch.object(os, "replace", replace), mock.patch.object(os, "open", opener), \
+                mock.patch.object(os, "fsync", fsync):
+            rp._write_atomically(target, b"{}\n")
+        self.assertEqual(events, ["replace", ("dirsync", target.parent)])
+
+    def test_a_failing_directory_sync_does_not_mask_the_write(self):
+        target = self.repo / "synced.json"
+        real_fsync = os.fsync
+        dirs = set()
+        real_open = os.open
+
+        def opener(path, flags, *a, **k):
+            fd = real_open(path, flags, *a, **k)
+            if flags & os.O_DIRECTORY:
+                dirs.add(fd)
+            return fd
+
+        def fsync(fd):
+            if fd in dirs:
+                raise OSError(5, "boom")
+            return real_fsync(fd)
+
+        with mock.patch.object(os, "open", opener), mock.patch.object(os, "fsync", fsync):
+            rp._write_atomically(target, b"{}\n")
+        self.assertEqual(target.read_bytes(), b"{}\n")
+        self.assertEqual([p.name for p in target.parent.glob(".synced.json.*")], [])
+
+    def test_the_old_only_reads_claim_is_gone(self):
+        self.adopt()
+        out = run(ADOPT, str(self.repo), "--confirm", rp.sentence(self.digest()))
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertIn("evaluates its thresholds in verify and doctor", out.stdout)
+        self.assertNotIn("only reads", out.stdout)
+        block = " ".join(rp.block(self.state(), self.repo))
+        self.assertNotIn("only reads", block)
+        page = (REPO_ROOT / "docs/retention.md").read_text()
+        self.assertNotIn("only reads", page)
+        self.assertIn(rp.block(self.state(), self.repo)[2].strip(), page)
 
 
 class TestDocs(unittest.TestCase):

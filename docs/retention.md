@@ -137,7 +137,7 @@ Before the report, one block, only when there is a policy file or a record:
 ```
 retention policy: adopted, mode both (digest 1a2b3c4d5e6f, adopted 2026-11-10T12:00:00Z)
   thresholds: finished items 10, finished folders 500 MiB, archives 20, prunable archives 5
-  this Manager release only reads the policy: it sends nothing and cleans nothing
+  this Manager release reads the policy and, for notify and both, evaluates its thresholds in verify and doctor; it sends nothing and cleans nothing
 ```
 
 Any other state reads `retention policy: STATE (WHY); mode off is in force`, then up to five problems, and an indented `next:` step.
