@@ -30658,8 +30658,8 @@
       "registry_path": "docs/ai-workflow/registry/retention-cleanup-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/retention-cleanup-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AMENDING_PLAN",
-      "plan_revision": 2,
+      "phase": "IMPLEMENTING",
+      "plan_revision": 3,
       "implementation_revision": null,
       "functional_review_round": null,
       "base_commit": "bb5a016b01c62e551eeb0adf255c36db28d86ca9",
@@ -30672,41 +30672,41 @@
           "start_commit": "5f15671ebfe54f05d68f1b63f0ccf2ec1779b626"
         },
         "CP2": {
-          "status": "COMPLETE",
+          "status": "NEEDS_REVALIDATION",
           "start_commit": "44f46f376bb8323c81af9bf4c5d5b16e316b5e4b"
         }
       },
-      "current_bundle_id": "eca328c3f916ac79f2aa0527fc5c07e4a859736c0e60a30abd56854f5c39e26a",
+      "current_bundle_id": "dc4911760efa618ebc920c16022e7b7279788cc33ab58c09a32491ebbd5f20ca",
       "plan_approval": {
-        "status": "SUPERSEDED",
+        "status": "CURRENT",
         "basis": "POLICY_SATISFIED",
-        "reviewed_bundle_id": "eca328c3f916ac79f2aa0527fc5c07e4a859736c0e60a30abd56854f5c39e26a",
-        "approved_review_content_id": "f7a8ebfd529426228884220cfe443fb900fa85cd567da7f08c73e983c7296b4f",
+        "reviewed_bundle_id": "dc4911760efa618ebc920c16022e7b7279788cc33ab58c09a32491ebbd5f20ca",
+        "approved_review_content_id": "1e2f3905843fa88721c0080554547c2505c71d54c1599eba93bc9c67fe7a43ab",
         "review_content_manifest": [
           {
             "path": "docs/ai-workflow/WORKFLOW_MANAGER_RETENTION_CLEANUP_PLAN.md",
             "exists": true,
             "mode": "100644",
-            "blob": "1fdb86f8fc19213030e056339306f74da3973ae9"
+            "blob": "645c1bc3c5a37dcfe8f186a2d90053a0808d6b2d"
           },
           {
             "path": "docs/ai-workflow/registry/retention-cleanup-registry.json",
             "exists": true,
             "mode": "100644",
-            "blob": "35c353485b8202d130be36aab4c1a8ed6ea0a179"
+            "blob": "3eeaf6bfc4cae8fbe73a467b059e4c6555970fc0"
           },
           {
             "path": "docs/ai-workflow/requirements/retention-cleanup-mapping.json",
             "exists": true,
             "mode": "100644",
-            "blob": "c1536642aaf5a05b2d5308b3c70138f0c5c57803"
+            "blob": "80f43ff8532a7821f5bef4768f501042f31eff28"
           }
         ],
         "reviewed_content_commit": null,
         "legacy_evidence": null,
         "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
         "waived_guarantees": [],
-        "recorded_at": "2026-11-10T02:47:29Z",
+        "recorded_at": "2026-11-10T19:26:23Z",
         "policy_evidence": {
           "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
           "policy_source": "default",
@@ -30736,24 +30736,24 @@
             }
           ],
           "inputs": {
-            "review_content_id": "f7a8ebfd529426228884220cfe443fb900fa85cd567da7f08c73e983c7296b4f",
+            "review_content_id": "1e2f3905843fa88721c0080554547c2505c71d54c1599eba93bc9c67fe7a43ab",
             "ledger": {
               "local": {
-                "bundle_id": "eca328c3f916ac79f2aa0527fc5c07e4a859736c0e60a30abd56854f5c39e26a",
+                "bundle_id": "dc4911760efa618ebc920c16022e7b7279788cc33ab58c09a32491ebbd5f20ca",
                 "verdict": "APPROVE",
-                "round": 2,
-                "verdict_sha256": "7cd7a52ee583b0596708db23df0f294b81b337746f9a40c34f1e50ba27f927d8",
-                "ledger_entry_sha256": "6c13d13ca1300fe3ba812335642bfdd02fe932d53f45de54e4881d1d19f4fbaf",
+                "round": 3,
+                "verdict_sha256": "e4dbc3ad7223f1447f031fe1ea48ecd4cbf5e0419b2976298310862f2accc811",
+                "ledger_entry_sha256": "e1d5b1b8ddd19cd732e3b8d9a5b6189d0b331345075109a3f99945d05f7be5d6",
                 "run_ref": "session:local .ai-review/retention-cleanup/feedback/REVIEW_FEEDBACK.md",
                 "reviewer_model": "anthropic/claude-opus-5-5"
               },
               "manual": {
-                "bundle_id": "eca328c3f916ac79f2aa0527fc5c07e4a859736c0e60a30abd56854f5c39e26a",
+                "bundle_id": "dc4911760efa618ebc920c16022e7b7279788cc33ab58c09a32491ebbd5f20ca",
                 "verdict": "APPROVE",
-                "round": 2,
-                "verdict_sha256": "80b2ed708b42c013107149e64cccb920458adf78807afe362a11c9cb45558f04",
-                "ledger_entry_sha256": "285ac2727880ddfa8ab582d4b9f3975e127c0071bc8a61072b7824e52b671f84",
-                "run_ref": "codex:20261110T024443Z-3ac62547",
+                "round": 3,
+                "verdict_sha256": "cbdb9f3ec62240965e8b6c7b850e5a01c506c7b82c6bcba0ec37d0da195bdcb4",
+                "ledger_entry_sha256": "29a8b860334819e28cd12b46192fa39140f4aa2979b75ebbdb1fecd88288f966",
+                "run_ref": "codex:20261110T192337Z-e3227b09",
                 "reviewer_model": "openai/gpt-6.1-sol"
               }
             },
@@ -30763,30 +30763,30 @@
           "trust": {
             "review_verdicts": "orchestrator"
           },
-          "evaluated_at": "2026-11-10T02:47:29Z",
+          "evaluated_at": "2026-11-10T19:26:23Z",
           "workflow_release": "2.29.1"
         }
       },
       "technical_approval": null,
       "technical_review_block_pins": [],
       "plan_review_stages": {
-        "review_content_id": "f7a8ebfd529426228884220cfe443fb900fa85cd567da7f08c73e983c7296b4f",
+        "review_content_id": "1e2f3905843fa88721c0080554547c2505c71d54c1599eba93bc9c67fe7a43ab",
         "LOCAL_MODEL_PLAN_REVIEW": {
-          "bundle_id": "eca328c3f916ac79f2aa0527fc5c07e4a859736c0e60a30abd56854f5c39e26a",
+          "bundle_id": "dc4911760efa618ebc920c16022e7b7279788cc33ab58c09a32491ebbd5f20ca",
           "verdict": "APPROVE",
-          "round": 2,
-          "completed_at": "2026-11-10T01:01:36Z",
-          "verdict_sha256": "7cd7a52ee583b0596708db23df0f294b81b337746f9a40c34f1e50ba27f927d8",
+          "round": 3,
+          "completed_at": "2026-11-10T19:23:22Z",
+          "verdict_sha256": "e4dbc3ad7223f1447f031fe1ea48ecd4cbf5e0419b2976298310862f2accc811",
           "run_ref": "session:local .ai-review/retention-cleanup/feedback/REVIEW_FEEDBACK.md",
           "reviewer_model": "anthropic/claude-opus-5-5"
         },
         "MANUAL_EXTERNAL_PLAN_REVIEW": {
-          "bundle_id": "eca328c3f916ac79f2aa0527fc5c07e4a859736c0e60a30abd56854f5c39e26a",
+          "bundle_id": "dc4911760efa618ebc920c16022e7b7279788cc33ab58c09a32491ebbd5f20ca",
           "verdict": "APPROVE",
-          "round": 2,
-          "completed_at": "2026-11-10T02:46:54Z",
-          "verdict_sha256": "80b2ed708b42c013107149e64cccb920458adf78807afe362a11c9cb45558f04",
-          "run_ref": "codex:20261110T024443Z-3ac62547",
+          "round": 3,
+          "completed_at": "2026-11-10T19:25:34Z",
+          "verdict_sha256": "cbdb9f3ec62240965e8b6c7b850e5a01c506c7b82c6bcba0ec37d0da195bdcb4",
+          "run_ref": "codex:20261110T192337Z-e3227b09",
           "reviewer_model": "openai/gpt-6.1-sol"
         }
       },
@@ -30794,27 +30794,34 @@
       "blocking_decisions": [],
       "review_round_counts": {
         "plan": {
-          "local": 2,
-          "external": 1
+          "local": 3,
+          "external": 2
         },
         "implementation": {
           "local": 0,
           "external": 0
         }
       },
-      "state_revision": 14,
-      "last_transition": "2026-11-10T19:18:24Z",
+      "state_revision": 20,
+      "last_transition": "2026-11-10T19:26:23Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
-        "status": "CONSUMED",
-        "at": "2026-11-10T19:18:24Z",
+        "status": "BOUND",
+        "at": "2026-11-10T19:20:27Z",
         "consumed": {
           "review_content_id": "f7a8ebfd529426228884220cfe443fb900fa85cd567da7f08c73e983c7296b4f",
           "plan_revision": 2,
           "legacy": false
         },
-        "published": null,
-        "bound": null
+        "published": {
+          "review_content_id": "1e2f3905843fa88721c0080554547c2505c71d54c1599eba93bc9c67fe7a43ab",
+          "plan_revision": 3
+        },
+        "bound": {
+          "review_content_id": "1e2f3905843fa88721c0080554547c2505c71d54c1599eba93bc9c67fe7a43ab",
+          "bundle_id": "dc4911760efa618ebc920c16022e7b7279788cc33ab58c09a32491ebbd5f20ca",
+          "plan_revision": 3
+        }
       },
       "consumed_plan_review_content_ids": [
         "005d28ce96a997e4dee7d682da0b12de8e8d97efca5c83e6abb58657b2c294e4",
@@ -30932,6 +30939,62 @@
               "at": "2026-11-10T02:46:54Z"
             }
           ]
+        },
+        "F-9f205e99871b": {
+          "digest": "9f205e99871b2eebf7f02f742663af7e7cd514ad475474d0dc1a72d2e2df2fd5",
+          "text": "**LPR3-O1:** Section 2.9 sits between 2.6 and 2.7, so the section numbers in\n  the design read out of order (2.6, 2.9, 2.7, 2.8). Numbering it 2.9 keeps\n  the earlier 2.7 and 2.8 references stable; the order could be fixed by\n  moving the section after 2.8 at the next edit of the plan.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 3,
+              "review_content_id": "1e2f3905843fa88721c0080554547c2505c71d54c1599eba93bc9c67fe7a43ab",
+              "verdict": "APPROVE",
+              "at": "2026-11-10T19:23:22Z"
+            }
+          ]
+        },
+        "F-162279b056cd": {
+          "digest": "162279b056cdfabbd05eb8a84339d0f6647c8bda459a9e59fd1738734cb7ac2c",
+          "text": "**LPR3-O2:** Section 2.6 still says `docs/retention.md` \"names no internal\n  id\", but under 2.9 it names `retention-cleanup`, which is also the work item\n  id. It is not an internal id by 2.9's decision, so the sentence holds; a\n  cross-reference (\"see 2.9\") would spare a reader the question.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 3,
+              "review_content_id": "1e2f3905843fa88721c0080554547c2505c71d54c1599eba93bc9c67fe7a43ab",
+              "verdict": "APPROVE",
+              "at": "2026-11-10T19:23:22Z"
+            }
+          ]
+        },
+        "F-3086d2211fb2": {
+          "digest": "3086d2211fb2ae35621d08246b54f743014ab3b13ee8d1aa5a36d79ac01a9a92",
+          "text": "**LPR3-O3:** The working-tree edit of\n  `docs/ai-workflow/registry/retention-cleanup-artifacts.json` drops the\n  file's trailing newline. This is cosmetic and does not affect the\n  classification.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 3,
+              "review_content_id": "1e2f3905843fa88721c0080554547c2505c71d54c1599eba93bc9c67fe7a43ab",
+              "verdict": "APPROVE",
+              "at": "2026-11-10T19:23:22Z"
+            }
+          ]
+        },
+        "F-3da2bdd897fe": {
+          "digest": "3da2bdd897fedae9fa34dd579af7208e770d6ff558fe337d46396c52f483b750",
+          "text": "**O1, partially resolved:** `tests/test_retention_cleanup.py:113` covers invalid IDs and reserved IDs `runtime` and `archive`. Add explicit assertions that their skipped folders remain included in measured item and byte totals, completing the previous suggestion.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "MANUAL_EXTERNAL_PLAN_REVIEW",
+              "round": 3,
+              "review_content_id": "1e2f3905843fa88721c0080554547c2505c71d54c1599eba93bc9c67fe7a43ab",
+              "verdict": "APPROVE",
+              "at": "2026-11-10T19:25:34Z"
+            }
+          ]
         }
       },
       "amendment_history": [
@@ -31042,7 +31105,12 @@
             }
           },
           "pre_amendment_approval_commit": "5f15671ebfe54f05d68f1b63f0ccf2ec1779b626",
-          "resolved_at_plan_revision": null
+          "resolved_at_plan_revision": 3,
+          "reconciliation_outcome": {
+            "CP1": "retained",
+            "CP2": "needs_revalidation"
+          },
+          "resolved_review_content_id": "1e2f3905843fa88721c0080554547c2505c71d54c1599eba93bc9c67fe7a43ab"
         }
       ],
       "amendment_base_commit": "0da64237f54b07de867443e751fc048542083f3d"

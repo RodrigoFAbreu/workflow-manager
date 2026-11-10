@@ -42,7 +42,8 @@
       "tests/test_retention_cleanup.py": "implementation deliverable of this item (the tests and failure-only mutations of the cleanup preview), not plan-stage design content",
       "docs/retention.md": "implementation deliverable of this item (the cleanup preview section and the reworded prune sentence), not plan-stage design content",
       "docs/exit-codes.md": "implementation deliverable of this item (the exit codes of retention-cleanup), not plan-stage design content",
-      "tests/test_operator_ux.py": "implementation deliverable of this item (retention-cleanup joins TARGET_COMMANDS), not plan-stage design content"
+      "tests/test_operator_ux.py": "implementation deliverable of this item (retention-cleanup joins TARGET_COMMANDS), not plan-stage design content",
+      "tools/check_docs.py": "implementation deliverable of this item (check_pages exempts Manager command names from the internal-id set), not plan-stage design content"
     },
     "excluded_prefixes": {
       ".claude/commands/": "workflow command files this milestone creates (the bootstrap command, /approve-review, /accept-milestone) or modifies (the eight existing v1 commands, per D-States/D-Self-Governance) -- implementation of the approved design, not the design itself",
@@ -75,7 +76,8 @@
       "tests/test_operator_ux.py": "this item's deliverable: retention-cleanup joins TARGET_COMMANDS",
       "tests/test_retention_cleanup.py": "this item's deliverable: the tests and failure-only mutations of the cleanup preview",
       "docs/retention.md": "this item's deliverable: the cleanup preview section and the reworded prune sentence",
-      "docs/exit-codes.md": "this item's deliverable: the exit codes of retention-cleanup"
+      "docs/exit-codes.md": "this item's deliverable: the exit codes of retention-cleanup",
+      "tools/check_docs.py": "this item's deliverable: the docs check no longer reads a Manager command name as an internal work-item id (check_pages and check_tree only)"
     },
     "protected_prefixes": {
       ".claude/commands/": "this repository's own workflow command files -- process deliverable",

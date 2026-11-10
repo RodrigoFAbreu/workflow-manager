@@ -32,6 +32,12 @@
         "CP1",
         "CP2"
       ]
+    },
+    "R6": {
+      "description": "The docs check (tools/check_docs.py rule 3) does not read a Manager command name as an internal work-item id, so a work item named after its command (retention-cleanup) does not fail the check; check_pages takes the command names and check_tree passes the live ones; a failure-only test pins it",
+      "checkpoint_ids": [
+        "CP2"
+      ]
     }
   }
 }

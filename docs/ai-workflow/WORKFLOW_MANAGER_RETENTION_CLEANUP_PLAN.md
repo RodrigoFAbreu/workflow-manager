@@ -1,4 +1,4 @@
-# Workflow Manager: The Retention Cleanup Preview (Revision 2)
+# Workflow Manager: The Retention Cleanup Preview (Revision 3)
 
 `work_item_id: retention-cleanup` -- `governing_workflow_version: "2.2"`
 
@@ -27,6 +27,13 @@ written": the loader and preflight, the selection, the preview, every
 refusal. The confirmed run is the next row, with the design fixed in 2.7 so
 it is not reopened. This item removes and archives nothing, in tests or in
 use.
+
+**Revision history.** Rev 1-2: the plan as approved. Rev 3 (amendment 0): the
+work item id equals the new command name, so the docs check (`tools/check_docs.py`
+rule 3, internal ids) flagged `retention-cleanup` in `docs/retention.md`. The
+implementation fixed the check, a file the plan and the artifact declaration did
+not name, so the gate refused it; rev 3 records the change (2.9, CP2, M35, flow
+7) and classifies the path. No other design changed.
 
 ## 1. Investigation (done at `bb5a016`, before any design)
 
@@ -310,6 +317,15 @@ it) and the policy block's last line keeps saying "cleans nothing". It names
 no internal id. `docs/exit-codes.md` gets the two rows of the command. The
 `retention-cleanup` help text names the same.
 
+### 2.9 The docs check and the command name (rev 3)
+
+Decision: Manager command names are not internal ids. `check_pages(root,
+commands=())` subtracts `commands` from the work-item id set of rule 3, and
+`check_tree` passes `tuple(cli.COMMANDS)`; the default `()` leaves rule 3 unchanged. Reason: a work item named after the command it builds would otherwise
+make the user page naming the command fail the docs check. Diff scope: only
+`check_pages` and `check_tree` in `tools/check_docs.py`; no rule, page list or
+message changes. It is pinned by `TestCommandNameIsNotAnInternalId` (section 4).
+
 ### 2.7 Fixed for the next row (the confirmed run), not built here
 
 `retention-cleanup TARGET --confirm "Run the retention cleanup <plan
@@ -370,6 +386,7 @@ Each on a fresh copy, one at a time, the named tests run alone from `tests/`
 | M32 | the `after this run:` line always says `run it again` | the `exhausted` cases |
 | M33 | the outcome is `cap` when no candidate is left | the `exhausted` cases |
 | M34 | the plan stops at the first item that brings one threshold below its limit | the `settled` rule of 2.4's example |
+| M35 | `check_pages` does not subtract `commands` (remove `- set(commands)`) | `TestCommandNameIsNotAnInternalId` |
 
 ## 4. Tests
 
@@ -410,6 +427,10 @@ repository. Classes:
   a record at 2.25.4 is refused before any script starts.
 * `tests/test_operator_ux.py`: `retention-cleanup` joins `TARGET_COMMANDS`, so the
   generic help, exit-code and misplaced-global-option cases cover it.
+* `TestCommandNameIsNotAnInternalId` (in `tests/test_retention_cleanup.py`): a
+  scratch tree with one user page naming `item-two` (a work item) and the command
+  word `item-one`; `check_pages` with `commands=("item-one",)` reports exactly one
+  problem, naming `item-two`.
 * `TestDocs`: the help text and `docs/retention.md` name the command, the
   minimum release and that prune is never part of it.
 
@@ -435,15 +456,16 @@ that says none can be pruned. Then mutations M1 to M6, `python3 tests/run_all.py
 <!-- CP2 -->
 ### CP2 -- the cleanup preview
 
-**Files:** `src/workflow_manager/retention_cleanup.py`, `src/workflow_manager/retention_policy.py`, `src/workflow_manager/cli.py`, `tests/test_retention_cleanup.py`, `tests/test_retention_policy.py`, `tests/test_operator_ux.py`, `docs/retention.md`, `docs/exit-codes.md`.
+**Files:** `src/workflow_manager/retention_cleanup.py`, `src/workflow_manager/retention_policy.py`, `src/workflow_manager/cli.py`, `tests/test_retention_cleanup.py`, `tests/test_retention_policy.py`, `tests/test_operator_ux.py`, `docs/retention.md`, `docs/exit-codes.md`, `tools/check_docs.py`.
 
-Sections 2.1 to 2.4, 2.6 and the tests of section 4. `retention_policy.py`
+Sections 2.1 to 2.4, 2.6, 2.9 and the tests of section 4. `retention_policy.py`
 gains `step_for` (the `block` step, extracted, `block`'s output unchanged, and the
 `ABSENT` step of 2.2);
 `cli.py` the command, its help and the wiring of `_installed_script_state`;
 `retention_cleanup.py` is new (`preflight`, `committed`, `clean_tree`, `select`,
-`plan_digest`, `preview_lines`, `Refusal`). Then mutations M7 to M34, `python3
-tools/check_docs.py`, `--select test_retention_cleanup.py`, `--select
+`plan_digest`, `preview_lines`, `Refusal`); `tools/check_docs.py` gains the
+command-name exemption of 2.9 (`check_pages` and `check_tree` only). Then
+mutations M7 to M35, `python3 tools/check_docs.py` (exit 0), `--select test_retention_cleanup.py`, `--select
 test_retention_policy.py`, `--select test_operator_ux.py`, `--select
 test_docs.py`, then the full gate `python3 tests/run_all.py`. Row 38 of
 docs/ROADMAP.md (Current; Done at acceptance) and docs/ACTIVE_MILESTONE.md
@@ -458,22 +480,23 @@ records the slice and that the confirmed run is the next row; #195 is closed.
 
 ## 6. Functional review
 
-Flows 1 to 6 are offline and write nothing into the product clone, in a clone
+Flows 1 to 7 are offline and write nothing into the product clone, in a clone
 `S/cand` (`S=$(mktemp -d "$TMPDIR/rc-fr.XXXXXX")`, `git clone --no-hardlinks
 <product clone> $S/cand`, `git -C $S/cand remote remove origin`, `export
-PYTHONPATH=$S/cand/src`). Flows 7 to 9 need the full environment and run last.
+PYTHONPATH=$S/cand/src`). Flows 8 to 10 need the full environment and run last.
 
 | Flow | Do | Expect |
 | --- | --- | --- |
-| 1 | `cd $S/cand && git diff --stat bb5a016b01c62e551eeb0adf255c36db28d86ca9 HEAD -- src tools tests docs .github scripts .claude` | `retention_alert.py`, `retention_cleanup.py`, `retention_policy.py`, `cli.py`, `tests/test_retention_alert.py`, `tests/test_retention_cleanup.py`, `tests/test_retention_policy.py`, `docs/retention.md`, `docs/exit-codes.md` and the expected bookkeeping under `docs/` only |
+| 1 | `cd $S/cand && git diff --stat bb5a016b01c62e551eeb0adf255c36db28d86ca9 HEAD -- src tools tests docs .github scripts .claude` | `retention_alert.py`, `retention_cleanup.py`, `retention_policy.py`, `cli.py`, `tests/test_retention_alert.py`, `tests/test_retention_cleanup.py`, `tests/test_retention_policy.py`, `tests/test_operator_ux.py`, `tools/check_docs.py`, `docs/retention.md`, `docs/exit-codes.md` and the expected bookkeeping under `docs/` only |
 | 2 | `python3 -m workflow_manager retention-cleanup --help` | names the preview, the preconditions, the minimum release 2.25.5, that nothing is written and that prune is never part of it |
 | 3 | `python3 -c` calling `retention_cleanup.select` on hand-made reports: 12 finished items with folders (limit 10), 7 candidates over a byte limit, a tracked-files entry, only `archives` reached | the oldest first; at most 5; the tracked one skipped with its reason; an empty plan for the last |
 | 4 | `grep -n 'prune' $S/cand/src/workflow_manager/retention_cleanup.py` | only text that says prune is never run; no argv carries it |
 | 5 | `grep -n 'none can be pruned\|no prunable archive was observed' $S/cand/src/workflow_manager/retention_alert.py $S/cand/docs/retention.md` | both wordings are present, the second for an incomplete report |
 | 6 | `python3 $S/cand/tools/check_docs.py` | exit 0 |
-| 7 | (full environment) in `$S/cand` apply M1 to M34 with `sed` in scratch copies and run the named tests; first the unmutated copy | the unmutated copy: OK; each mutation: FAILED |
-| 8 | (full environment) `python3 tests/run_all.py --select test_retention_cleanup.py`, then `test_retention_alert.py`, `test_retention_policy.py`, `test_retention_status.py`, `test_operator_ux.py`, `test_docs.py` | exit 0 each, no `OrphanProcessError` |
-| 9 | (full environment) a scratch managed repository from the newest tested release, a `cleanup` policy adopted and committed, the release's own script untouched and no origin: run `retention-cleanup`; then change a tracked file and run it again | the first: the script's own refusal (no origin), exit 2, nothing written; the second: the uncommitted-change refusal before the script starts, exit 2 |
+| 7 | `grep -n 'set(commands)' $S/cand/tools/check_docs.py`; `cd $S/cand/tests && python3 -B -m unittest test_retention_cleanup.TestCommandNameIsNotAnInternalId`; then in a scratch copy of the clone `sed -i 's/ - set(commands)//' tools/check_docs.py` (the mutation of M35) and run the same test | the grep prints the exemption in `check_pages`; the test passes (OK); in the copy it fails (FAILED) |
+| 8 | (full environment) in `$S/cand` apply M1 to M35 with `sed` in scratch copies and run the named tests; first the unmutated copy | the unmutated copy: OK; each mutation: FAILED |
+| 9 | (full environment) `python3 tests/run_all.py --select test_retention_cleanup.py`, then `test_retention_alert.py`, `test_retention_policy.py`, `test_retention_status.py`, `test_operator_ux.py`, `test_docs.py` | exit 0 each, no `OrphanProcessError` |
+| 10 | (full environment) a scratch managed repository from the newest tested release, a `cleanup` policy adopted and committed, the release's own script untouched and no origin: run `retention-cleanup`; then change a tracked file and run it again | the first: the script's own refusal (no origin), exit 2, nothing written; the second: the uncommitted-change refusal before the script starts, exit 2 |
 
 ## 7. Risks
 
