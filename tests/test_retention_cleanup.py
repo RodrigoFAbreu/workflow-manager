@@ -16,7 +16,6 @@ import contextlib
 import io
 import json
 import os
-import shlex
 import shutil
 import subprocess
 import sys
@@ -544,9 +543,17 @@ class TestPreflight(Base):
         git(self.repo, "add", ".gitattributes")
         git(self.repo, "commit", "-qm", "attributes")
         command = f"sh -c 'touch {marker}'"
-        parameters = " ".join(shlex.quote(entry) for entry in (
+        # Git's own sq_quote form: a quote inside an entry is written as '\'' (shlex.quote's
+        # '"'"' is a parse error to Git, which would make every Git call fail and this test vacuous)
+        parameters = " ".join("'" + entry.replace("'", "'\\''") + "'" for entry in (
             f"filter.probe.process={command}", f"filter.probe.clean={command}",
             "filter.probe.required=true"))
+        # sanity: Git parses the variable and the filter really is defined through it
+        listed = subprocess.run(
+            ["git", "config", "--get-regexp", r"^filter\."], cwd=self.repo, text=True,
+            capture_output=True, env={**os.environ, "GIT_CONFIG_PARAMETERS": parameters})
+        self.assertEqual(listed.returncode, 0, listed.stderr)
+        self.assertIn("filter.probe.process", listed.stdout)
         os.utime(self.repo / "CLAUDE.md", (946684800, 946684800))
         marker.unlink(missing_ok=True)
         # the destinations planner is outside this check (its Git calls are not the preflight's)
