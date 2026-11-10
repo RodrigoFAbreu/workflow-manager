@@ -30658,7 +30658,7 @@
       "registry_path": "docs/ai-workflow/registry/retention-cleanup-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/retention-cleanup-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "APPLYING_REVIEW_FEEDBACK",
       "plan_revision": 3,
       "implementation_revision": 3,
       "functional_review_round": null,
@@ -30798,12 +30798,12 @@
           "external": 2
         },
         "implementation": {
-          "local": 2,
+          "local": 3,
           "external": 1
         }
       },
-      "state_revision": 28,
-      "last_transition": "2026-11-10T20:41:38Z",
+      "state_revision": 29,
+      "last_transition": "2026-11-10T20:45:30Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -31063,6 +31063,34 @@
               "review_content_id": "3e990966690bfaa523dc89ee17f5df7e4918385f88e52f9602523ff9ad1b76b4",
               "verdict": "REVISE",
               "at": "2026-11-10T20:17:48Z"
+            }
+          ]
+        },
+        "F-961b6a37898a": {
+          "digest": "961b6a37898af02da154b756a70cfe75d0f8d6874fae9e9e93ff2b2774a91fb3",
+          "text": "**O1 — Cross-module use of private names** (carried from round 2). `retention_cleanup._git` rebuilds `compatibility.run_git`'s environment from `compatibility._REPOSITORY_SELECTORS` and `compatibility._GIT_ENVIRONMENT`. A public helper would stop the two copies drifting apart.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 3,
+              "review_content_id": "d156abfa3f1816590e2c85e4ca7f2d0e99a1cc25fbb1da813a65738f7f6ae301",
+              "verdict": "REVISE",
+              "at": "2026-11-10T20:45:30Z"
+            }
+          ]
+        },
+        "F-28b015bc76ab": {
+          "digest": "28b015bc76ab1114b4123ef47de1911a82a478f3baadd71fef1c3d00d9850ff0",
+          "text": "**O2 — `TEST_RESULTS.md` \"Full gate\" still names `77c4f75`** (carried from round 2). Record the gate for the current code head there.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 3,
+              "review_content_id": "d156abfa3f1816590e2c85e4ca7f2d0e99a1cc25fbb1da813a65738f7f6ae301",
+              "verdict": "REVISE",
+              "at": "2026-11-10T20:45:30Z"
             }
           ]
         }
