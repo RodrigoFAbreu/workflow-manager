@@ -89,11 +89,38 @@ def committed(target: Path) -> str | None:
     return None
 
 
+def _filter_overrides(target: Path) -> list[str]:
+    """`-c` arguments that switch off every configured filter driver. A driver's
+    clean or process command runs when `git status` re-reads a file whose stat data
+    no longer matches the index (Git LFS installs one globally), and it can write
+    into the repository. An empty command is "no filter"; `required` is turned off
+    so Git does not fail on it. The names come from every configuration scope."""
+    done = _git(target, "config", "--name-only", "--get-regexp", r"^filter\.")
+    if done.returncode not in (0, 1):
+        raise Refusal("retention cleanup: `git config` failed",
+                      "run `git config --list` in the repository and fix what it names, "
+                      "then run the command again")
+    drivers = set()
+    for line in done.stdout.decode("utf-8", "surrogateescape").splitlines():
+        name = line.strip().lower()
+        if name.startswith("filter.") and "." in name[len("filter."):]:
+            drivers.add(name[len("filter."):].rsplit(".", 1)[0])
+    flags: list[str] = []
+    for driver in sorted(drivers):
+        for key in ("clean", "smudge", "process"):
+            flags += ["-c", f"filter.{driver}.{key}="]
+        flags += ["-c", f"filter.{driver}.required=false"]
+    return flags
+
+
 def clean_tree(target: Path) -> bool:
     """True when no tracked file is changed. Untracked files (the review folders)
     are expected. `_git` keeps `git status` from refreshing, and so rewriting, the
-    index, and from running a configured fsmonitor hook."""
-    done = _git(target, "status", "--porcelain", "-z", "--untracked-files=no")
+    index, and from running a configured fsmonitor hook; `_filter_overrides` keeps
+    it from running a configured clean or process filter, so no process but `git`
+    starts and nothing is written."""
+    done = _git(target, *_filter_overrides(target), "status", "--porcelain", "-z",
+                "--untracked-files=no")
     if done.returncode != 0:
         raise Refusal("retention cleanup: `git status` failed",
                       "run `git status` in the repository and fix what it names, then run "

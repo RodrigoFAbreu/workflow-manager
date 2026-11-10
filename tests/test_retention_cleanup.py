@@ -481,11 +481,56 @@ class TestPreflight(Base):
         out = self.refusal_writes_nothing(many(3))
         self.assertEqual(out.code, 0, out.err)
         self.assertFalse(marker.exists())
-        # a later refusal (the mode) does not run it either
+        # a refusal after the tree check (step 5: no release) does not run it either
+        record = self.repo / ".workflow-manager" / "installation.json"
+        data = json.loads(record.read_text())
+        data["workflow_version"] = "02.25.5"
+        record.write_text(json.dumps(data, indent=2) + "\n")
+        self.commit(self.repo, "malformed")
+        marker.unlink(missing_ok=True)
+        out = self.refusal_writes_nothing(many())
+        self.refused(out, "could not resolve the target release")
+        self.assertFalse(marker.exists())
+        # a refusal before any Git call (the mode) does not run it either
         self.adopt({**POLICY, "mode": "notify"})
         out = self.refusal_writes_nothing(many())
         self.assertEqual(out.code, 2)
         self.assertFalse(marker.exists())
+
+    def test_a_configured_clean_or_process_filter_never_runs_on_a_racily_dirty_file(self):
+        marker = self.outside / "filter-ran"
+        for where in ("gitattributes", "info"):
+            with self.subTest(where=where):
+                attributes = ("CLAUDE.md filter=probe\n")
+                if where == "info":
+                    (self.repo / ".git" / "info").mkdir(exist_ok=True)
+                    (self.repo / ".git" / "info" / "attributes").write_text(attributes)
+                else:
+                    (self.repo / ".gitattributes").write_text(attributes)
+                    git(self.repo, "add", ".gitattributes")
+                    git(self.repo, "commit", "-qm", "attributes")
+                git(self.repo, "config", "filter.probe.clean", f"sh -c 'touch {marker}; cat'")
+                git(self.repo, "config", "filter.probe.process", f"sh -c 'touch {marker}'")
+                git(self.repo, "config", "filter.probe.required", "true")
+                # a racily dirty file: same bytes, a stat the index no longer matches
+                os.utime(self.repo / "CLAUDE.md", (946684800, 946684800))
+                marker.unlink(missing_ok=True)
+                out = self.refusal_writes_nothing(many(3))
+                self.assertEqual(out.code, 0, out.err)
+                self.assertFalse(marker.exists())
+                # a tracked change is still seen, and the filter still never runs
+                (self.repo / "CLAUDE.md").write_text("changed\n")
+                out = self.refusal_writes_nothing(many())
+                self.refused(out, "a tracked file is changed")
+                self.assertFalse(marker.exists())
+                for key in ("clean", "process", "required"):
+                    git(self.repo, "config", "--unset", f"filter.probe.{key}")
+                git(self.repo, "checkout", "--", "CLAUDE.md")
+                if where == "info":
+                    (self.repo / ".git" / "info" / "attributes").unlink()
+                else:
+                    git(self.repo, "rm", "-q", ".gitattributes")
+                    git(self.repo, "commit", "-qm", "no attributes")
 
     def test_each_script_state_has_its_cause(self):
         for seam, cause in ((ra.SCRIPT_MODIFIED, ra.CAUSE_MODIFIED),
