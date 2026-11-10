@@ -30658,7 +30658,7 @@
       "registry_path": "docs/ai-workflow/registry/retention-cleanup-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/retention-cleanup-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "APPLYING_REVIEW_FEEDBACK",
       "plan_revision": 3,
       "implementation_revision": 1,
       "functional_review_round": null,
@@ -30798,12 +30798,12 @@
           "external": 2
         },
         "implementation": {
-          "local": 0,
-          "external": 0
+          "local": 1,
+          "external": 1
         }
       },
-      "state_revision": 23,
-      "last_transition": "2026-11-10T19:43:46Z",
+      "state_revision": 25,
+      "last_transition": "2026-11-10T19:55:29Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -30995,6 +30995,48 @@
               "at": "2026-11-10T19:25:34Z"
             }
           ]
+        },
+        "F-99c3945f0bd2": {
+          "digest": "99c3945f0bd20220f9eb173566d37ce61f052009f4e59647094d12b7e3336ae0",
+          "text": "**LIR1-001 (`src/workflow_manager/retention_cleanup.py:70-82`, `committed`): a Git failure is reported as \"not committed\".** The `try` wraps both `_git(...)` and `path.read_bytes()` and catches `(OSError, subprocess.SubprocessError)`, then returns the path name. So if `git` is missing (`FileNotFoundError`) or times out (`TimeoutExpired`), the user sees `error: retention cleanup: .workflow-manager/retention-policy.json is not committed at HEAD with the bytes that were adopted`. The guard `except Exception: raise _git_failed(error)` around `committed` in `preflight` (lines 131-134) cannot catch these, because `committed` handles them first. It is still a refusal (exit 2, nothing written), but the cause and the `next:` step are wrong. Fix: let `_git`'s errors reach the `_git_failed` handler, and keep the `OSError` catch only around `read_bytes`. Also add a test that patches `_git` to raise `TimeoutExpired`.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "e4eef6940e03377de1ddef99e531cda1fbd18f78217d94c7e67b1e344d93aa4c",
+              "verdict": "APPROVE",
+              "at": "2026-11-10T19:51:13Z"
+            }
+          ]
+        },
+        "F-d50a6393e9dc": {
+          "digest": "d50a6393e9dc8d6cddd062d6357188813265dba662b3ae9a61899cf2924547ca",
+          "text": "**LIR1-002 (`tests/test_retention_cleanup.py:470-476`, `test_steps_one_to_six_start_no_script`): the second half of the test checks nothing new.** The test removes the adoption record, and it stays removed. So the second call (a dirty tracked file plus a `SCRIPT_MODIFIED` seam) is refused at step 2 again, not at step 4 or 6. Steps 3 to 6 are still covered elsewhere: `refused()` defaults to `started=False`, and the committed, dirty-tree, release-floor and script-state tests all call it. So this is a weak test, not a missing check. Fix: restore the record, or use a fresh setup, before the second call.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "e4eef6940e03377de1ddef99e531cda1fbd18f78217d94c7e67b1e344d93aa4c",
+              "verdict": "APPROVE",
+              "at": "2026-11-10T19:51:13Z"
+            }
+          ]
+        },
+        "F-aa2b14bc5ac1": {
+          "digest": "aa2b14bc5ac1d4d530d6025c7ce7c7019b88047d72f3019c03c5df36af136107",
+          "text": "**O1 — Malformed release names receive misleading recovery advice.** At `src/workflow_manager/retention_cleanup.py:152`, `_release_key` accepts values such as `\"02.25.5\"` and `\"2.25.5\\n\"` that doctor’s strict validator rejects. I reproduced both reaching the script-state check and receiving “the installed release cannot be checked” with network-retry advice. Reuse doctor’s strict validation so these receive the planned malformed-record refusal. Cleanup still refuses, so this does not independently require revision.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "e4eef6940e03377de1ddef99e531cda1fbd18f78217d94c7e67b1e344d93aa4c",
+              "verdict": "REVISE",
+              "at": "2026-11-10T19:55:29Z"
+            }
+          ]
         }
       },
       "amendment_history": [
@@ -31113,7 +31155,20 @@
           "resolved_review_content_id": "1e2f3905843fa88721c0080554547c2505c71d54c1599eba93bc9c67fe7a43ab"
         }
       ],
-      "amendment_base_commit": "0da64237f54b07de867443e751fc048542083f3d"
+      "amendment_base_commit": "0da64237f54b07de867443e751fc048542083f3d",
+      "implementation_review_stages": {
+        "review_content_id": "e4eef6940e03377de1ddef99e531cda1fbd18f78217d94c7e67b1e344d93aa4c",
+        "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "92a2bcf198899980b969d6a4b7f1dbaa10d0fec0ee8aa8d0bbff1436b0ae47eb",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-11-10T19:51:13Z",
+          "verdict_sha256": "814a04a7a08549da97ee021eb23e6065c552901175bb3baeb99312d5528e35f7",
+          "run_ref": "session:local .ai-review/retention-cleanup/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": null
+      }
     }
   }
 }
