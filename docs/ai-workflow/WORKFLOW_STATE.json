@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_work_item_id": null,
+  "active_work_item_id": "retention-cleanup",
   "work_items": {
     "plan-amendment-mechanism": {
       "work_item_type": "process",
@@ -30647,6 +30647,289 @@
         },
         "evaluated_at": "2026-11-09T15:48:27Z",
         "workflow_release": "2.29.1"
+      }
+    },
+    "retention-cleanup": {
+      "work_item_type": "process",
+      "work_item_kind": "process",
+      "work_item_id": "retention-cleanup",
+      "parent_work_item_id": null,
+      "plan_path": "docs/ai-workflow/WORKFLOW_MANAGER_RETENTION_CLEANUP_PLAN.md",
+      "registry_path": "docs/ai-workflow/registry/retention-cleanup-registry.json",
+      "mapping_path": "docs/ai-workflow/requirements/retention-cleanup-mapping.json",
+      "governing_workflow_version": "2.2",
+      "phase": "IMPLEMENTING",
+      "plan_revision": 2,
+      "implementation_revision": null,
+      "functional_review_round": null,
+      "base_commit": "bb5a016b01c62e551eeb0adf255c36db28d86ca9",
+      "reviewed_implementation_head": null,
+      "current_checkpoint_id": null,
+      "last_completed_checkpoint_id": null,
+      "checkpoints": {},
+      "current_bundle_id": "eca328c3f916ac79f2aa0527fc5c07e4a859736c0e60a30abd56854f5c39e26a",
+      "plan_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "eca328c3f916ac79f2aa0527fc5c07e4a859736c0e60a30abd56854f5c39e26a",
+        "approved_review_content_id": "f7a8ebfd529426228884220cfe443fb900fa85cd567da7f08c73e983c7296b4f",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/WORKFLOW_MANAGER_RETENTION_CLEANUP_PLAN.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "1fdb86f8fc19213030e056339306f74da3973ae9"
+          },
+          {
+            "path": "docs/ai-workflow/registry/retention-cleanup-registry.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "35c353485b8202d130be36aab4c1a8ed6ea0a179"
+          },
+          {
+            "path": "docs/ai-workflow/requirements/retention-cleanup-mapping.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "c1536642aaf5a05b2d5308b3c70138f0c5c57803"
+          }
+        ],
+        "reviewed_content_commit": null,
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-11-10T02:47:29Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "f7a8ebfd529426228884220cfe443fb900fa85cd567da7f08c73e983c7296b4f",
+            "ledger": {
+              "local": {
+                "bundle_id": "eca328c3f916ac79f2aa0527fc5c07e4a859736c0e60a30abd56854f5c39e26a",
+                "verdict": "APPROVE",
+                "round": 2,
+                "verdict_sha256": "7cd7a52ee583b0596708db23df0f294b81b337746f9a40c34f1e50ba27f927d8",
+                "ledger_entry_sha256": "6c13d13ca1300fe3ba812335642bfdd02fe932d53f45de54e4881d1d19f4fbaf",
+                "run_ref": "session:local .ai-review/retention-cleanup/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "eca328c3f916ac79f2aa0527fc5c07e4a859736c0e60a30abd56854f5c39e26a",
+                "verdict": "APPROVE",
+                "round": 2,
+                "verdict_sha256": "80b2ed708b42c013107149e64cccb920458adf78807afe362a11c9cb45558f04",
+                "ledger_entry_sha256": "285ac2727880ddfa8ab582d4b9f3975e127c0071bc8a61072b7824e52b671f84",
+                "run_ref": "codex:20261110T024443Z-3ac62547",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-11-10T02:47:29Z",
+          "workflow_release": "2.29.1"
+        }
+      },
+      "technical_approval": null,
+      "technical_review_block_pins": [],
+      "plan_review_stages": {
+        "review_content_id": "f7a8ebfd529426228884220cfe443fb900fa85cd567da7f08c73e983c7296b4f",
+        "LOCAL_MODEL_PLAN_REVIEW": {
+          "bundle_id": "eca328c3f916ac79f2aa0527fc5c07e4a859736c0e60a30abd56854f5c39e26a",
+          "verdict": "APPROVE",
+          "round": 2,
+          "completed_at": "2026-11-10T01:01:36Z",
+          "verdict_sha256": "7cd7a52ee583b0596708db23df0f294b81b337746f9a40c34f1e50ba27f927d8",
+          "run_ref": "session:local .ai-review/retention-cleanup/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_PLAN_REVIEW": {
+          "bundle_id": "eca328c3f916ac79f2aa0527fc5c07e4a859736c0e60a30abd56854f5c39e26a",
+          "verdict": "APPROVE",
+          "round": 2,
+          "completed_at": "2026-11-10T02:46:54Z",
+          "verdict_sha256": "80b2ed708b42c013107149e64cccb920458adf78807afe362a11c9cb45558f04",
+          "run_ref": "codex:20261110T024443Z-3ac62547",
+          "reviewer_model": "openai/gpt-6.1-sol"
+        }
+      },
+      "functional_acceptance_status": null,
+      "blocking_decisions": [],
+      "review_round_counts": {
+        "plan": {
+          "local": 2,
+          "external": 1
+        },
+        "implementation": {
+          "local": 0,
+          "external": 0
+        }
+      },
+      "state_revision": 9,
+      "last_transition": "2026-11-10T02:47:29Z",
+      "feedback_layout": "scoped",
+      "plan_review_binding": {
+        "status": "BOUND",
+        "at": "2026-11-10T01:35:00Z",
+        "consumed": {
+          "review_content_id": "005d28ce96a997e4dee7d682da0b12de8e8d97efca5c83e6abb58657b2c294e4",
+          "plan_revision": 1,
+          "legacy": false
+        },
+        "published": {
+          "review_content_id": "f7a8ebfd529426228884220cfe443fb900fa85cd567da7f08c73e983c7296b4f",
+          "plan_revision": 2
+        },
+        "bound": {
+          "review_content_id": "f7a8ebfd529426228884220cfe443fb900fa85cd567da7f08c73e983c7296b4f",
+          "bundle_id": "eca328c3f916ac79f2aa0527fc5c07e4a859736c0e60a30abd56854f5c39e26a",
+          "plan_revision": 2
+        }
+      },
+      "consumed_plan_review_content_ids": [
+        "005d28ce96a997e4dee7d682da0b12de8e8d97efca5c83e6abb58657b2c294e4"
+      ],
+      "optional_findings": {
+        "F-e2bbab15610f": {
+          "digest": "e2bbab15610ffdc895fb89697d32962311e6dcb65a1da183128541f62fa6c010",
+          "text": "LPR1-O1: the plan's header says \"Workflow 2.29.0 installed\", but `.workflow-manager/installation.json` at `bb5a016` records `2.29.1` (`62ddb45`, #185). Correct the fact.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "005d28ce96a997e4dee7d682da0b12de8e8d97efca5c83e6abb58657b2c294e4",
+              "verdict": "REVISE",
+              "at": "2026-11-10T00:56:51Z"
+            }
+          ]
+        },
+        "F-8880b35dc29f": {
+          "digest": "8880b35dc29fcfd0ae88711fecd910af4902fac5f3d5eef2050b153e0168df51",
+          "text": "LPR1-O2: `tests/test_operator_ux.py`'s `TARGET_COMMANDS` is a hand list that drives the generic help, exit-code and misplaced-global-option tests. `adopt-retention-policy` was added to it, so `retention-cleanup` should be too. CP2 runs `--select test_operator_ux.py` but does not list the file under **Files:**, so either declare it or say why it is left out.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "005d28ce96a997e4dee7d682da0b12de8e8d97efca5c83e6abb58657b2c294e4",
+              "verdict": "REVISE",
+              "at": "2026-11-10T00:56:51Z"
+            }
+          ]
+        },
+        "F-fcd030f3ac9b": {
+          "digest": "fcd030f3ac9b71bb3690a8196e3d6c60010356162ff53365bed1b5e397fe1f41",
+          "text": "LPR1-O3: section 1.1's refusal-code lists are a subset of the engine's codes (for example `folder_changed`, `partial_present`, `not_in_report`, `path_unsafe`, `pack_failed`, `verify_failed`, `restore_failed` are missing). Mark them as examples so the next row's stop rule (\"any non-zero exit stops\") is not read as keyed to a closed list.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "005d28ce96a997e4dee7d682da0b12de8e8d97efca5c83e6abb58657b2c294e4",
+              "verdict": "REVISE",
+              "at": "2026-11-10T00:56:51Z"
+            }
+          ]
+        },
+        "F-148185921319": {
+          "digest": "148185921319b52de685f81cb932764af21b910c31341618681721201d33d8af",
+          "text": "LPR1-O4: the Manager's re-check of \"an id that fails the engine's pattern\" should also exclude the engine's `RESERVED_IDS`, and use `fullmatch`: the engine's `_ID_RE.match` with `$` accepts a trailing newline. Otherwise say the re-check is defensive only, since `finished[]` ids already passed the engine's own filter.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "005d28ce96a997e4dee7d682da0b12de8e8d97efca5c83e6abb58657b2c294e4",
+              "verdict": "REVISE",
+              "at": "2026-11-10T00:56:51Z"
+            }
+          ]
+        },
+        "F-d9e041567bcf": {
+          "digest": "d9e041567bcfa9ca6763d480fd8d598b5f04e1a8f2bb4e548b4827b4926c01f5",
+          "text": "LPR2-O1: Functional-review flow 1's expected file list (section 6) leaves out `tests/test_operator_ux.py`, which CP2 now changes (LPR1-O2). Add it so the flow's expectation matches the declared files.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "f7a8ebfd529426228884220cfe443fb900fa85cd567da7f08c73e983c7296b4f",
+              "verdict": "APPROVE",
+              "at": "2026-11-10T01:01:36Z"
+            }
+          ]
+        },
+        "F-425aa7cff47f": {
+          "digest": "425aa7cff47f40e2493d53363cf5cfdf861684213a9ed9deac2a0e882e3f01e5",
+          "text": "LPR2-O2: For an `INVALID` policy, preflight step 2's cause is `retention policy: invalid (the policy file is refused)`, and the step reused from `block` says \"fix ... as named\". But the refusal names no problem, because `block` prints the problems on separate `problem:` lines that the cause does not carry. Either append the first problem to the cause, or make the reused step's \"then run adopt-retention-policy to preview it\" carry that meaning.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "f7a8ebfd529426228884220cfe443fb900fa85cd567da7f08c73e983c7296b4f",
+              "verdict": "APPROVE",
+              "at": "2026-11-10T01:01:36Z"
+            }
+          ]
+        },
+        "F-b9004efeec09": {
+          "digest": "b9004efeec094f1e04bf17666f2b1cd9a3b53d591725e8e8ccbca374837fc305",
+          "text": "LPR2-O3: The preview's `next:` line calls `python3 -I scripts/workflow_retention.py archive ID --apply` \"the user-only commands\". In 1.2, though, the user-only commands are `/archive-finished-item` (and the raw script \"checks nothing\"). The line is also wrong for a `remove only` item, which needs no `archive`. Name the Workflow command, or say \"for a remove-only item, `remove` alone\".",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "f7a8ebfd529426228884220cfe443fb900fa85cd567da7f08c73e983c7296b4f",
+              "verdict": "APPROVE",
+              "at": "2026-11-10T01:01:36Z"
+            }
+          ]
+        },
+        "F-c84dadd5be53": {
+          "digest": "c84dadd5be537ea66e0aa422ea02806f252bb66e26f475d2added3d42c708f72",
+          "text": "**O1:** Section 2.3 specifies invalid and reserved ID skips, but section 4 does not explicitly test them. Add selection cases for `runtime`, `archive`, and an invalid ID, asserting that skipped folders remain included in measured totals.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "MANUAL_EXTERNAL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "f7a8ebfd529426228884220cfe443fb900fa85cd567da7f08c73e983c7296b4f",
+              "verdict": "APPROVE",
+              "at": "2026-11-10T02:46:54Z"
+            }
+          ]
+        }
       }
     }
   }
