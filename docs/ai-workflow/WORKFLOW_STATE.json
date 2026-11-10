@@ -30658,7 +30658,7 @@
       "registry_path": "docs/ai-workflow/registry/retention-cleanup-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/retention-cleanup-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "APPLYING_REVIEW_FEEDBACK",
       "plan_revision": 3,
       "implementation_revision": 2,
       "functional_review_round": null,
@@ -30798,12 +30798,12 @@
           "external": 2
         },
         "implementation": {
-          "local": 1,
+          "local": 2,
           "external": 1
         }
       },
-      "state_revision": 26,
-      "last_transition": "2026-11-10T20:12:53Z",
+      "state_revision": 27,
+      "last_transition": "2026-11-10T20:17:48Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -31035,6 +31035,34 @@
               "review_content_id": "e4eef6940e03377de1ddef99e531cda1fbd18f78217d94c7e67b1e344d93aa4c",
               "verdict": "REVISE",
               "at": "2026-11-10T19:55:29Z"
+            }
+          ]
+        },
+        "F-9a445fc08c36": {
+          "digest": "9a445fc08c36a9134867991aeaa5eea669ecc746574d01ab8a6e6d49a28ee0cc",
+          "text": "**O1 — Cross-module use of private names.** `retention_cleanup._git` rebuilds `compatibility.run_git`'s environment from `compatibility._REPOSITORY_SELECTORS` and `compatibility._GIT_ENVIRONMENT`. A small public helper in `compatibility`, such as `git_env()` or a bytes-returning `run_git` variant, would keep the two from drifting. The existing `retention._release_key` and `retention_alert._incomplete` uses follow the same pattern, so this is maintainability only.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 2,
+              "review_content_id": "3e990966690bfaa523dc89ee17f5df7e4918385f88e52f9602523ff9ad1b76b4",
+              "verdict": "REVISE",
+              "at": "2026-11-10T20:17:48Z"
+            }
+          ]
+        },
+        "F-059b4d9a9c2e": {
+          "digest": "059b4d9a9c2ea40c7b529554e93b7d3b90ae1ead3c64a7aea3a6b5bd5e997a55",
+          "text": "**O2 — `TEST_RESULTS.md` is stale for revision 2.** It is still headed \"implementation revision 1\" and records the full gate on `77c4f75`. The `f9e4aa2` gate (2391/2391 units, 16146 tests) appears only in `IMPLEMENTATION_SUMMARY.md`. Record the fix round's gate evidence in `TEST_RESULTS.md`.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 2,
+              "review_content_id": "3e990966690bfaa523dc89ee17f5df7e4918385f88e52f9602523ff9ad1b76b4",
+              "verdict": "REVISE",
+              "at": "2026-11-10T20:17:48Z"
             }
           ]
         }
