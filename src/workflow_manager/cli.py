@@ -844,6 +844,8 @@ def _installed_script_state(args, installed, destinations) -> str:
     """Whether the installed `scripts/workflow_retention.py` is the *installed*
     release's (never the update candidate's), resolved read-only like
     `_installed_resolves`, and checked before the resolution closes."""
+    if installed is None:
+        return retention_alert.SCRIPT_NO_RELEASE
     if not isinstance(installed, str):
         return retention_alert.SCRIPT_UNCHECKED
     try:

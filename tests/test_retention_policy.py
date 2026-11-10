@@ -661,7 +661,8 @@ class TestFollowUps(Base):
         self.adopt()
         record = json.loads(self.record_file().read_text())
         self.assertEqual(rp.check_record(record), [])
-        for stamp in ("2026-99-99T99:99:99Z", "2026-02-30T00:00:00Z", "2026-01-01T24:00:00Z"):
+        for stamp in ("2026-99-99T99:99:99Z", "2026-02-30T00:00:00Z", "2026-01-01T24:00:00Z",
+                      "2026-01-01T00:00:60Z"):
             with self.subTest(stamp=stamp):
                 problems = rp.check_record({**record, "adopted_at": stamp})
                 self.assertEqual(len(problems), 1, problems)
