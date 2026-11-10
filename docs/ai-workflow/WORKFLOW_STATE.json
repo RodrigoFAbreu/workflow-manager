@@ -30658,7 +30658,7 @@
       "registry_path": "docs/ai-workflow/registry/retention-cleanup-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/retention-cleanup-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "APPLYING_REVIEW_FEEDBACK",
       "plan_revision": 3,
       "implementation_revision": 5,
       "functional_review_round": null,
@@ -30798,12 +30798,12 @@
           "external": 2
         },
         "implementation": {
-          "local": 4,
-          "external": 1
+          "local": 5,
+          "external": 2
         }
       },
-      "state_revision": 32,
-      "last_transition": "2026-11-10T21:35:53Z",
+      "state_revision": 34,
+      "last_transition": "2026-11-10T21:43:38Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -31135,6 +31135,48 @@
               "at": "2026-11-10T21:20:27Z"
             }
           ]
+        },
+        "F-3c3f5f8a95eb": {
+          "digest": "3c3f5f8a95eb6427b8ef83cc2072e1fe96cd367f32e4e44d7bff98941ca8eeae",
+          "text": "**O1 — Cross-module use of private names** (carried from rounds 2 to 4). `retention_cleanup._git` rebuilds `compatibility.run_git`'s environment from `compatibility._REPOSITORY_SELECTORS` and `compatibility._GIT_ENVIRONMENT`. A public helper would stop the two copies drifting apart. A follow-up issue is a fine disposition.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 5,
+              "review_content_id": "4bd6ea73fc6ffc18d017f55c295325a0a95c09abd4dd9b055db9de830172ce24",
+              "verdict": "APPROVE",
+              "at": "2026-11-10T21:39:25Z"
+            }
+          ]
+        },
+        "F-76fed0b4e7cd": {
+          "digest": "76fed0b4e7cdf82be3301a821f3409fff03c3e00eda6c47fec0e3868125f25ca",
+          "text": "**O2 — No test pins the round 4 O2 fix.** No test makes `_git` raise (`TimeoutExpired` or `FileNotFoundError`) during step 3 and checks that the refusal is `Git could not be asked` rather than `is not committed at HEAD`. Round 1's LIR1-001 asked for one. The code is right as written; a one-test regression would keep it that way.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 5,
+              "review_content_id": "4bd6ea73fc6ffc18d017f55c295325a0a95c09abd4dd9b055db9de830172ce24",
+              "verdict": "APPROVE",
+              "at": "2026-11-10T21:39:25Z"
+            }
+          ]
+        },
+        "F-fc48293ac00f": {
+          "digest": "fc48293ac00f9f98fcd16c5befa852f35ad2fb6095e1ee2467fb13072b328c6f",
+          "text": "**O3 — `_filter_overrides`' docstring.** The new first line is about 115 characters long, longer than the module's other lines. Re-wrap it.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 5,
+              "review_content_id": "4bd6ea73fc6ffc18d017f55c295325a0a95c09abd4dd9b055db9de830172ce24",
+              "verdict": "APPROVE",
+              "at": "2026-11-10T21:39:25Z"
+            }
+          ]
         }
       },
       "amendment_history": [
@@ -31255,13 +31297,13 @@
       ],
       "amendment_base_commit": "0da64237f54b07de867443e751fc048542083f3d",
       "implementation_review_stages": {
-        "review_content_id": "e4eef6940e03377de1ddef99e531cda1fbd18f78217d94c7e67b1e344d93aa4c",
+        "review_content_id": "4bd6ea73fc6ffc18d017f55c295325a0a95c09abd4dd9b055db9de830172ce24",
         "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {
-          "bundle_id": "92a2bcf198899980b969d6a4b7f1dbaa10d0fec0ee8aa8d0bbff1436b0ae47eb",
+          "bundle_id": "8130076d253244a36bda4345d6899bcf6f9da4ea093cecc91200397d95fc4a88",
           "verdict": "APPROVE",
-          "round": 1,
-          "completed_at": "2026-11-10T19:51:13Z",
-          "verdict_sha256": "814a04a7a08549da97ee021eb23e6065c552901175bb3baeb99312d5528e35f7",
+          "round": 5,
+          "completed_at": "2026-11-10T21:39:25Z",
+          "verdict_sha256": "73f595fc8941b6ba0142fced013289bec4f41965086406f1b98ebecc9c486e63",
           "run_ref": "session:local .ai-review/retention-cleanup/feedback/REVIEW_FEEDBACK.md",
           "reviewer_model": "anthropic/claude-opus-5-5"
         },
