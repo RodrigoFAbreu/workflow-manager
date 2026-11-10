@@ -30658,7 +30658,7 @@
       "registry_path": "docs/ai-workflow/registry/retention-cleanup-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/retention-cleanup-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "SELF_REVIEWING_IMPLEMENTATION",
+      "phase": "AMENDING_PLAN",
       "plan_revision": 2,
       "implementation_revision": null,
       "functional_review_round": null,
@@ -30678,7 +30678,7 @@
       },
       "current_bundle_id": "eca328c3f916ac79f2aa0527fc5c07e4a859736c0e60a30abd56854f5c39e26a",
       "plan_approval": {
-        "status": "CURRENT",
+        "status": "SUPERSEDED",
         "basis": "POLICY_SATISFIED",
         "reviewed_bundle_id": "eca328c3f916ac79f2aa0527fc5c07e4a859736c0e60a30abd56854f5c39e26a",
         "approved_review_content_id": "f7a8ebfd529426228884220cfe443fb900fa85cd567da7f08c73e983c7296b4f",
@@ -30802,29 +30802,23 @@
           "external": 0
         }
       },
-      "state_revision": 13,
-      "last_transition": "2026-11-10T03:24:58Z",
+      "state_revision": 14,
+      "last_transition": "2026-11-10T19:18:24Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
-        "status": "BOUND",
-        "at": "2026-11-10T01:35:00Z",
+        "status": "CONSUMED",
+        "at": "2026-11-10T19:18:24Z",
         "consumed": {
-          "review_content_id": "005d28ce96a997e4dee7d682da0b12de8e8d97efca5c83e6abb58657b2c294e4",
-          "plan_revision": 1,
+          "review_content_id": "f7a8ebfd529426228884220cfe443fb900fa85cd567da7f08c73e983c7296b4f",
+          "plan_revision": 2,
           "legacy": false
         },
-        "published": {
-          "review_content_id": "f7a8ebfd529426228884220cfe443fb900fa85cd567da7f08c73e983c7296b4f",
-          "plan_revision": 2
-        },
-        "bound": {
-          "review_content_id": "f7a8ebfd529426228884220cfe443fb900fa85cd567da7f08c73e983c7296b4f",
-          "bundle_id": "eca328c3f916ac79f2aa0527fc5c07e4a859736c0e60a30abd56854f5c39e26a",
-          "plan_revision": 2
-        }
+        "published": null,
+        "bound": null
       },
       "consumed_plan_review_content_ids": [
-        "005d28ce96a997e4dee7d682da0b12de8e8d97efca5c83e6abb58657b2c294e4"
+        "005d28ce96a997e4dee7d682da0b12de8e8d97efca5c83e6abb58657b2c294e4",
+        "f7a8ebfd529426228884220cfe443fb900fa85cd567da7f08c73e983c7296b4f"
       ],
       "optional_findings": {
         "F-e2bbab15610f": {
@@ -30939,7 +30933,119 @@
             }
           ]
         }
-      }
+      },
+      "amendment_history": [
+        {
+          "amendment_id": "0",
+          "requested_at": "2026-11-10T19:18:24Z",
+          "requested_from_phase": "SELF_REVIEWING_IMPLEMENTATION",
+          "reason": "the work item id equals the new command name, so the docs check (tools/check_docs.py rule 3) treats workflow-manager retention-cleanup in docs/retention.md as an internal work-item id. The implementation exempts Manager command names in tools/check_docs.py (check_pages gets a commands argument), pinned by TestCommandNameIsNotAnInternalId in tests/test_retention_cleanup.py. Add tools/check_docs.py to the artifact declaration (excluded at the plan stage, protected at the implementation stage) and record the change in the plan.",
+          "superseded_plan_revision": 2,
+          "superseded_plan_approval": {
+            "status": "CURRENT",
+            "basis": "POLICY_SATISFIED",
+            "reviewed_bundle_id": "eca328c3f916ac79f2aa0527fc5c07e4a859736c0e60a30abd56854f5c39e26a",
+            "approved_review_content_id": "f7a8ebfd529426228884220cfe443fb900fa85cd567da7f08c73e983c7296b4f",
+            "review_content_manifest": [
+              {
+                "path": "docs/ai-workflow/WORKFLOW_MANAGER_RETENTION_CLEANUP_PLAN.md",
+                "exists": true,
+                "mode": "100644",
+                "blob": "1fdb86f8fc19213030e056339306f74da3973ae9"
+              },
+              {
+                "path": "docs/ai-workflow/registry/retention-cleanup-registry.json",
+                "exists": true,
+                "mode": "100644",
+                "blob": "35c353485b8202d130be36aab4c1a8ed6ea0a179"
+              },
+              {
+                "path": "docs/ai-workflow/requirements/retention-cleanup-mapping.json",
+                "exists": true,
+                "mode": "100644",
+                "blob": "c1536642aaf5a05b2d5308b3c70138f0c5c57803"
+              }
+            ],
+            "reviewed_content_commit": null,
+            "legacy_evidence": null,
+            "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+            "waived_guarantees": [],
+            "recorded_at": "2026-11-10T02:47:29Z",
+            "policy_evidence": {
+              "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+              "policy_source": "default",
+              "file_digest": null,
+              "adopted_digest": null,
+              "adopted_at": null,
+              "requirements": [
+                {
+                  "id": "gate_reachable",
+                  "met": true,
+                  "detail": "the approval gate is reachable"
+                },
+                {
+                  "id": "verdict_approve_bound",
+                  "met": true,
+                  "detail": "the latest verdict is APPROVE and names the current bundle"
+                },
+                {
+                  "id": "distinct_reviewer_models",
+                  "met": true,
+                  "detail": "families 'anthropic' and 'openai' differ"
+                },
+                {
+                  "id": "review_evidence_audited",
+                  "met": true,
+                  "detail": "both stages carry the audit keys"
+                }
+              ],
+              "inputs": {
+                "review_content_id": "f7a8ebfd529426228884220cfe443fb900fa85cd567da7f08c73e983c7296b4f",
+                "ledger": {
+                  "local": {
+                    "bundle_id": "eca328c3f916ac79f2aa0527fc5c07e4a859736c0e60a30abd56854f5c39e26a",
+                    "verdict": "APPROVE",
+                    "round": 2,
+                    "verdict_sha256": "7cd7a52ee583b0596708db23df0f294b81b337746f9a40c34f1e50ba27f927d8",
+                    "ledger_entry_sha256": "6c13d13ca1300fe3ba812335642bfdd02fe932d53f45de54e4881d1d19f4fbaf",
+                    "run_ref": "session:local .ai-review/retention-cleanup/feedback/REVIEW_FEEDBACK.md",
+                    "reviewer_model": "anthropic/claude-opus-5-5"
+                  },
+                  "manual": {
+                    "bundle_id": "eca328c3f916ac79f2aa0527fc5c07e4a859736c0e60a30abd56854f5c39e26a",
+                    "verdict": "APPROVE",
+                    "round": 2,
+                    "verdict_sha256": "80b2ed708b42c013107149e64cccb920458adf78807afe362a11c9cb45558f04",
+                    "ledger_entry_sha256": "285ac2727880ddfa8ab582d4b9f3975e127c0071bc8a61072b7824e52b671f84",
+                    "run_ref": "codex:20261110T024443Z-3ac62547",
+                    "reviewer_model": "openai/gpt-6.1-sol"
+                  }
+                },
+                "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+              },
+              "floor_digest": null,
+              "trust": {
+                "review_verdicts": "orchestrator"
+              },
+              "evaluated_at": "2026-11-10T02:47:29Z",
+              "workflow_release": "2.29.1"
+            }
+          },
+          "checkpoints_snapshot": {
+            "CP1": {
+              "status": "COMPLETE",
+              "start_commit": "5f15671ebfe54f05d68f1b63f0ccf2ec1779b626"
+            },
+            "CP2": {
+              "status": "COMPLETE",
+              "start_commit": "44f46f376bb8323c81af9bf4c5d5b16e316b5e4b"
+            }
+          },
+          "pre_amendment_approval_commit": "5f15671ebfe54f05d68f1b63f0ccf2ec1779b626",
+          "resolved_at_plan_revision": null
+        }
+      ],
+      "amendment_base_commit": "0da64237f54b07de867443e751fc048542083f3d"
     }
   }
 }
