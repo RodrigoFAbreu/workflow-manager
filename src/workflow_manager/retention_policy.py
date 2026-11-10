@@ -449,6 +449,24 @@ _WORDS = {
 }
 
 
+def step_for(state: str, target: Path) -> str:
+    """The one step that leaves `state`: the text of `block`'s `next:` line, and of
+    the `next:` line of `retention-cleanup`. Raises `ValueError` for `ADOPTED`,
+    which needs no step."""
+    if state in (NOT_ADOPTED, CHANGED, RECORD_INVALID):
+        return adopt_command(target)
+    if state == INVALID:
+        return (f"fix {DIRECTORY}/{POLICY_FILE} as named, then run "
+                f"{adopt_command(target)} to preview it")
+    if state == FILE_MISSING:
+        return (f"restore {DIRECTORY}/{POLICY_FILE}, or remove {DIRECTORY}/{RECORD_FILE} "
+                "if the policy is withdrawn")
+    if state == ABSENT:
+        return (f"write {DIRECTORY}/{POLICY_FILE} with mode \"cleanup\" or \"both\" "
+                f"(docs/retention.md shows the file), then run {adopt_command(target)}")
+    raise ValueError(f"no step leaves the state {state!r}")
+
+
 def block(state: PolicyState, target: Path) -> list[str]:
     """The lines printed before the retention report; none when there is neither
     a file nor a record. No `next:` line is unindented, so `status` keeps its one."""
@@ -466,13 +484,6 @@ def block(state: PolicyState, target: Path) -> list[str]:
     lines.extend(f"  problem: {problem}" for problem in state.problems[:PROBLEM_LIMIT])
     if len(state.problems) > PROBLEM_LIMIT:
         lines.append(f"  and {len(state.problems) - PROBLEM_LIMIT} more")
-    if state.state in (NOT_ADOPTED, CHANGED, RECORD_INVALID):
-        step = adopt_command(target)
-    elif state.state == INVALID:
-        step = (f"fix {DIRECTORY}/{POLICY_FILE} as named, then run "
-                f"{adopt_command(target)} to preview it")
-    else:
-        step = (f"restore {DIRECTORY}/{POLICY_FILE}, or remove {DIRECTORY}/{RECORD_FILE} "
-                "if the policy is withdrawn")
+    step = step_for(state.state, target)
     lines.append(f"  next: {step}")
     return lines

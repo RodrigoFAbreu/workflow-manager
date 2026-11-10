@@ -684,9 +684,11 @@ def internal_id_problems(text: str, ids: set[str]) -> list[str]:
     return found
 
 
-def check_pages(root: Path) -> list[str]:
+def check_pages(root: Path, commands=()) -> list[str]:
+    """Rule 3. A word that is a Manager command (``commands``) is not an internal id,
+    even when a work item was named after the command it built."""
     problems = []
-    ids = work_item_ids(root)
+    ids = work_item_ids(root) - set(commands)
     for rel in USER_PAGES:
         page = root / rel
         if not page.is_file():
@@ -709,13 +711,15 @@ def check_pages(root: Path) -> list[str]:
 def check_tree(root: Path, *, build_parser=None) -> list[str]:
     """Every problem in the tree at ``root``. ``build_parser`` defaults to the
     live Manager's."""
+    commands = ()
     if build_parser is None:
         sys.path.insert(0, str(REPO_ROOT / "src"))
         from workflow_manager import cli
         build_parser = cli.build_parser
+        commands = tuple(cli.COMMANDS)
     problems = check_links(root)
     problems += check_commands(root, build_parser)
-    problems += check_pages(root)
+    problems += check_pages(root, commands)
     return problems
 
 
