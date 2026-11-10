@@ -448,6 +448,45 @@ class TestPreflight(Base):
         self.refused(out, "could not resolve the target release: the installation record has "
                           "no workflow_version (it is null)")
 
+    def test_a_noncanonical_release_name_is_a_malformed_record_before_the_script_state(self):
+        record = self.repo / ".workflow-manager" / "installation.json"
+        for version in ("02.25.5", "2.25.5\n"):
+            with self.subTest(version=version):
+                data = json.loads(record.read_text())
+                data["workflow_version"] = version
+                record.write_text(json.dumps(data, indent=2) + "\n")
+                self.commit(self.repo, "malformed")
+                with mock.patch.object(cli, "_installed_script_state",
+                                       side_effect=AssertionError("resolved")):
+                    out = self.refusal_writes_nothing(many())
+                self.refused(out, "could not resolve the target release")
+                self.assertNotIn(ra.CAUSE_UNCHECKED, out.err)
+
+    def test_a_configured_fsmonitor_hook_never_runs_and_the_target_is_unchanged(self):
+        marker = self.outside / "fsmonitor-ran"
+        hook = self.outside / "fsmonitor.sh"
+        hook.write_text(f"#!/bin/sh\ntouch {marker}\n")
+        hook.chmod(0o755)
+        git(self.repo, "config", "core.fsmonitor", str(hook))
+        git(self.repo, "config", "core.hooksPath", str(self.outside / "hooks"))
+        marker.unlink(missing_ok=True)   # `git config` itself may have woken it
+        # a tracked change: the check still sees it, and the hook still never runs
+        (self.repo / "CLAUDE.md").write_text("changed\n")
+        out = self.refusal_writes_nothing(many())
+        self.refused(out, "a tracked file is changed")
+        self.assertFalse(marker.exists())
+        # a clean tree: the preview succeeds, the hook never runs
+        git(self.repo, "checkout", "--", "CLAUDE.md")
+        marker.unlink(missing_ok=True)
+        out = self.refusal_writes_nothing(many(3))
+        self.assertEqual(out.code, 0, out.err)
+        self.assertFalse(marker.exists())
+        # a later refusal (the mode) does not run it either
+        self.adopt({**POLICY, "mode": "notify"})
+        out = self.refusal_writes_nothing(many())
+        self.assertEqual(out.code, 2)
+        self.assertFalse(marker.exists())
+
     def test_each_script_state_has_its_cause(self):
         for seam, cause in ((ra.SCRIPT_MODIFIED, ra.CAUSE_MODIFIED),
                             (ra.SCRIPT_UNCHECKED, ra.CAUSE_UNCHECKED),

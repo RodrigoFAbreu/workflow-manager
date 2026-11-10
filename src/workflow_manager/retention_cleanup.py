@@ -14,13 +14,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import shlex
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import retention, retention_alert, retention_policy
+from . import compatibility, retention, retention_alert, retention_policy, source
 
 CLEANUP_FROM = (2, 25, 5)  # older engines can end in a traceback in the middle of a removal
 CAP = 5                    # items one run plans, at most
@@ -55,10 +56,16 @@ class Refusal(Exception):
 # ---------------------------------------------------------------------------
 
 def _git(target: Path, *args: str) -> subprocess.CompletedProcess:
-    """`git -C TARGET ARGS`: bytes in, no optional locks, nothing written by git."""
+    """`git -C TARGET ARGS`: bytes in, hermetic, nothing written by git. The
+    Manager's own hermetic flags and environment apply (no optional locks, no
+    fsmonitor hook, no hooks path, no untracked cache), so a configured hook never
+    runs before the preflight completes."""
+    env = {key: value for key, value in os.environ.items()
+           if key not in compatibility._REPOSITORY_SELECTORS}
+    env.update(compatibility._GIT_ENVIRONMENT)
     return subprocess.run(
-        ["git", "--no-optional-locks", "-C", str(target), *args],
-        capture_output=True, timeout=GIT_TIMEOUT_SECONDS, check=False)
+        compatibility.git_argv(target, *args),
+        capture_output=True, timeout=GIT_TIMEOUT_SECONDS, check=False, env=env)
 
 
 def _git_failed(error: Exception) -> Refusal:
@@ -84,8 +91,8 @@ def committed(target: Path) -> str | None:
 
 def clean_tree(target: Path) -> bool:
     """True when no tracked file is changed. Untracked files (the review folders)
-    are expected. `--no-optional-locks` keeps `git status` from refreshing, and so
-    rewriting, the index."""
+    are expected. `_git` keeps `git status` from refreshing, and so rewriting, the
+    index, and from running a configured fsmonitor hook."""
     done = _git(target, "status", "--porcelain", "-z", "--untracked-files=no")
     if done.returncode != 0:
         raise Refusal("retention cleanup: `git status` failed",
@@ -149,7 +156,8 @@ def preflight(target: Path, version, script_state, record_refusal=None) -> Clear
         raise Refusal("retention cleanup: a tracked file is changed",
                       "commit or restore the change, or run the command from a clean checkout")
     # 5. the release is one that can be trusted with an unattended removal
-    key = retention._release_key(version)
+    # the strict validator the doctor applies: `02.25.5` and `2.25.5\n` are no release
+    key = retention._release_key(version) if source.is_strict_version(version) else None
     if key is None:
         if record_refusal is not None:
             raise Refusal(*record_refusal())
