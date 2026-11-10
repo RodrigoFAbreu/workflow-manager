@@ -16,6 +16,7 @@ import contextlib
 import io
 import json
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -534,6 +535,36 @@ class TestPreflight(Base):
                 else:
                     git(self.repo, "rm", "-q", ".gitattributes")
                     git(self.repo, "commit", "-qm", "no attributes")
+
+    def test_a_filter_inherited_through_git_config_parameters_never_runs(self):
+        # what a shell alias's `git -c filter.probe.process=...` exports; it outranks
+        # `GIT_CONFIG_COUNT`, so it must not reach the preflight's Git calls
+        marker = self.outside / "inherited-filter-ran"
+        (self.repo / ".gitattributes").write_text("CLAUDE.md filter=probe\n")
+        git(self.repo, "add", ".gitattributes")
+        git(self.repo, "commit", "-qm", "attributes")
+        command = f"sh -c 'touch {marker}'"
+        parameters = " ".join(shlex.quote(entry) for entry in (
+            f"filter.probe.process={command}", f"filter.probe.clean={command}",
+            "filter.probe.required=true"))
+        os.utime(self.repo / "CLAUDE.md", (946684800, 946684800))
+        marker.unlink(missing_ok=True)
+        # the destinations planner is outside this check (its Git calls are not the preflight's)
+        with mock.patch.object(cli, "_readonly_destinations", return_value=None):
+            out = self.refusal_writes_nothing(many(3), GIT_CONFIG_PARAMETERS=parameters)
+            self.assertEqual(out.code, 0, out.err)
+            self.assertFalse(marker.exists())
+            (self.repo / "CLAUDE.md").write_text("changed\n")
+            out = self.refusal_writes_nothing(many(), GIT_CONFIG_PARAMETERS=parameters)
+        self.refused(out, "a tracked file is changed")
+        self.assertFalse(marker.exists())
+
+    def test_a_git_that_cannot_be_run_is_not_a_file_missing_at_head(self):
+        for error in (subprocess.TimeoutExpired("git", 1), FileNotFoundError("git")):
+            with self.subTest(error=type(error).__name__), \
+                    mock.patch.object(rc, "_git", side_effect=error):
+                out = self.refusal_writes_nothing(many())
+            self.refused(out, "Git could not be asked")
 
     def test_a_submodules_own_filter_never_runs_and_a_moved_submodule_is_still_refused(self):
         marker = self.outside / "submodule-filter-ran"

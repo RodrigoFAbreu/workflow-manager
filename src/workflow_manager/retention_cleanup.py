@@ -61,8 +61,12 @@ def _git(target: Path, *args: str,
     Manager's own hermetic flags and environment apply (no optional locks, no
     fsmonitor hook, no hooks path, no untracked cache), so a configured hook never
     runs before the preflight completes."""
+    # `GIT_CONFIG_PARAMETERS` (what a shell alias's `git -c` exports) outranks
+    # `GIT_CONFIG_COUNT`, so it could switch a filter driver back on over the
+    # overrides below; it is dropped, for the discovery and the status alike.
     env = {key: value for key, value in os.environ.items()
-           if key not in compatibility._REPOSITORY_SELECTORS}
+           if key not in compatibility._REPOSITORY_SELECTORS
+           and key != "GIT_CONFIG_PARAMETERS"}
     env.update(compatibility._GIT_ENVIRONMENT)
     if config:
         # `GIT_CONFIG_KEY_n`/`GIT_CONFIG_VALUE_n` take the key and the value apart, so a
@@ -103,8 +107,8 @@ def committed(target: Path) -> str | None:
 
 
 def _filter_overrides(target: Path) -> tuple[tuple[str, str], ...]:
-    """(key, value) pairs, passed through `GIT_CONFIG_*`, that switch off every configured filter driver. A driver's
-    clean or process command runs when `git status` re-reads a file whose stat data
+    """(key, value) pairs, passed through `GIT_CONFIG_*`, that switch off every
+    configured filter driver. A driver's clean or process command runs when `git status` re-reads a file whose stat data
     no longer matches the index (Git LFS installs one globally), and it can write
     into the repository. An empty command is "no filter"; `required` is turned off
     so Git does not fail on it. The names come from every configuration scope."""
