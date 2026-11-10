@@ -30658,7 +30658,7 @@
       "registry_path": "docs/ai-workflow/registry/retention-cleanup-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/retention-cleanup-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "APPLYING_REVIEW_FEEDBACK",
       "plan_revision": 3,
       "implementation_revision": 4,
       "functional_review_round": null,
@@ -30798,12 +30798,12 @@
           "external": 2
         },
         "implementation": {
-          "local": 3,
+          "local": 4,
           "external": 1
         }
       },
-      "state_revision": 30,
-      "last_transition": "2026-11-10T21:17:03Z",
+      "state_revision": 31,
+      "last_transition": "2026-11-10T21:20:27Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -31091,6 +31091,48 @@
               "review_content_id": "d156abfa3f1816590e2c85e4ca7f2d0e99a1cc25fbb1da813a65738f7f6ae301",
               "verdict": "REVISE",
               "at": "2026-11-10T20:45:30Z"
+            }
+          ]
+        },
+        "F-2036a662b2e5": {
+          "digest": "2036a662b2e5812b881e5681c547db51e3cdf1d13ec6f5900424e16a0da5a602",
+          "text": "**O1 — Cross-module use of private names** (carried from rounds 2 and 3, not applied with a reason). `retention_cleanup._git` rebuilds `compatibility.run_git`'s environment from `compatibility._REPOSITORY_SELECTORS` and `compatibility._GIT_ENVIRONMENT`. A follow-up issue is a fine disposition.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 4,
+              "review_content_id": "69f05b83512b41bd21713ffeee6909bef30ef1362952c2ef236de2be56ee380d",
+              "verdict": "REVISE",
+              "at": "2026-11-10T21:20:27Z"
+            }
+          ]
+        },
+        "F-6fc61d4870ea": {
+          "digest": "6fc61d4870ead8b2607c58ba633a9babd4f3507b4a5844639d7d6469dd5b76c6",
+          "text": "**O2 — `committed` still reports a Git failure as \"not committed\"** (round 1's LIR1-001, Optional, never dispositioned in `IMPLEMENTATION_SUMMARY.md`). In `retention_cleanup.py:82-86`, the `except (OSError, subprocess.SubprocessError)` wraps `_git(...)` as well as `read_bytes()`. So a missing `git` or a timeout returns the path, and the user sees \"is not committed at HEAD\" with a commit step. The `_git_failed` handler in `preflight` cannot see it. It still refuses (exit 2, nothing written). Apply it, or record a disposition.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 4,
+              "review_content_id": "69f05b83512b41bd21713ffeee6909bef30ef1362952c2ef236de2be56ee380d",
+              "verdict": "REVISE",
+              "at": "2026-11-10T21:20:27Z"
+            }
+          ]
+        },
+        "F-8e0a447a05ec": {
+          "digest": "8e0a447a05ec0bf87bf12e39e1f34a9e644844244edf09c28e113cae866dafe0",
+          "text": "**O3 — `TEST_RESULTS.md`'s \"Revision 3\" section still says \"This round's gate supersedes the revision 1 and 2 gates above\".** The revision 4 \"Full gate\" at the top now supersedes it. Re-head that section as history, or drop the sentence.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 4,
+              "review_content_id": "69f05b83512b41bd21713ffeee6909bef30ef1362952c2ef236de2be56ee380d",
+              "verdict": "REVISE",
+              "at": "2026-11-10T21:20:27Z"
             }
           ]
         }
