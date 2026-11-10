@@ -662,5 +662,31 @@ class TestDocs(unittest.TestCase):
         self.assertIn("retention-cleanup", page)
 
 
+class TestCommandNameIsNotAnInternalId(unittest.TestCase):
+    """`tools/check_docs.py` does not count a Manager command as an internal id,
+    even when a work item is named after the command it built."""
+
+    def test_a_manager_command_is_not_an_internal_id_even_when_a_work_item_has_its_name(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "check_docs_for_cleanup", REPO_ROOT / "tools" / "check_docs.py")
+        check_docs = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(check_docs)
+        header = "> For: operators. Last checked with: Workflow Manager 1.4.0, Workflow 2.8.0."
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for rel, text in (
+                    ("docs/ai-workflow/WORKFLOW_STATE.json",
+                     json.dumps({"work_items": {"item-one": {}, "item-two": {}}})),
+                    ("docs/glossary.md",
+                     "# Title\n\n" + header + "\n\nRun `workflow-manager item-one`, not item-two.\n")):
+                path = root / rel
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(text, encoding="utf-8")
+            problems = [p for p in check_docs.check_pages(root, ("item-one",)) if "glossary" in p]
+        self.assertEqual(len(problems), 1)
+        self.assertIn("'item-two'", problems[0])
+
+
 if __name__ == "__main__":
     unittest.main()

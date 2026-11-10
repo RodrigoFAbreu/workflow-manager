@@ -365,15 +365,6 @@ class PageRuleTest(TreeTestCase):
         self.assertEqual(len(problems), 1)
         self.assertIn("'item-one'", problems[0])
 
-    def test_a_manager_command_is_not_an_internal_id_even_when_a_work_item_has_its_name(self) -> None:
-        self.tree.write("docs/ai-workflow/WORKFLOW_STATE.json",
-                        json.dumps({"work_items": {"item-one": {}, "item-two": {}}}))
-        self.page("docs/glossary.md", "Run `workflow-manager item-one`, not item-two.")
-        problems = [p for p in check_docs.check_pages(self.tree.root, ("item-one",))
-                    if "glossary" in p]
-        self.assertEqual(len(problems), 1)
-        self.assertIn("'item-two'", problems[0])
-
     def test_link_targets_are_not_scanned(self) -> None:
         self.tree.write("docs/milestones/completed/the-real-item.md", "# x\n")
         self.page("docs/glossary.md", "[plan](milestones/completed/the-real-item.md)")
