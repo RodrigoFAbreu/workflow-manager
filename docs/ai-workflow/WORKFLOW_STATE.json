@@ -30658,12 +30658,12 @@
       "registry_path": "docs/ai-workflow/registry/retention-cleanup-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/retention-cleanup-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "SELF_REVIEWING_IMPLEMENTATION",
+      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
       "plan_revision": 3,
-      "implementation_revision": null,
+      "implementation_revision": 1,
       "functional_review_round": null,
       "base_commit": "bb5a016b01c62e551eeb0adf255c36db28d86ca9",
-      "reviewed_implementation_head": null,
+      "reviewed_implementation_head": "92e495c77d985ee28010b30427bd16c7b2c68267",
       "current_checkpoint_id": null,
       "last_completed_checkpoint_id": "CP2",
       "checkpoints": {
@@ -30802,8 +30802,8 @@
           "external": 0
         }
       },
-      "state_revision": 22,
-      "last_transition": "2026-11-10T19:27:31Z",
+      "state_revision": 23,
+      "last_transition": "2026-11-10T19:43:46Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
