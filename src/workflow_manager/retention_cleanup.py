@@ -55,7 +55,8 @@ class Refusal(Exception):
 # The preflight
 # ---------------------------------------------------------------------------
 
-def _git(target: Path, *args: str) -> subprocess.CompletedProcess:
+def _git(target: Path, *args: str,
+         config: tuple[tuple[str, str], ...] = ()) -> subprocess.CompletedProcess:
     """`git -C TARGET ARGS`: bytes in, hermetic, nothing written by git. The
     Manager's own hermetic flags and environment apply (no optional locks, no
     fsmonitor hook, no hooks path, no untracked cache), so a configured hook never
@@ -63,6 +64,18 @@ def _git(target: Path, *args: str) -> subprocess.CompletedProcess:
     env = {key: value for key, value in os.environ.items()
            if key not in compatibility._REPOSITORY_SELECTORS}
     env.update(compatibility._GIT_ENVIRONMENT)
+    if config:
+        # `GIT_CONFIG_KEY_n`/`GIT_CONFIG_VALUE_n` take the key and the value apart, so a
+        # driver name with an `=` in it (which `-c key=value` splits at the first one)
+        # is switched off too. Entries are appended after any the environment carries.
+        try:
+            start = max(int(env.get("GIT_CONFIG_COUNT", "0")), 0)
+        except ValueError:
+            start = 0
+        for offset, (key, value) in enumerate(config):
+            env[f"GIT_CONFIG_KEY_{start + offset}"] = key
+            env[f"GIT_CONFIG_VALUE_{start + offset}"] = value
+        env["GIT_CONFIG_COUNT"] = str(start + len(config))
     return subprocess.run(
         compatibility.git_argv(target, *args),
         capture_output=True, timeout=GIT_TIMEOUT_SECONDS, check=False, env=env)
@@ -79,18 +92,18 @@ def committed(target: Path) -> str | None:
     exactly the working files' bytes; else the name of the first one that is not."""
     for path in (retention_policy.policy_path(target), retention_policy.record_path(target)):
         relative = f"{retention_policy.DIRECTORY}/{path.name}"
+        shown = _git(target, "show", f"HEAD:./{relative}")   # a Git failure is `_git_failed`'s
         try:
-            shown = _git(target, "show", f"HEAD:./{relative}")
             working = path.read_bytes()
-        except (OSError, subprocess.SubprocessError):
+        except OSError:
             return relative
         if shown.returncode != 0 or shown.stdout != working:
             return relative
     return None
 
 
-def _filter_overrides(target: Path) -> list[str]:
-    """`-c` arguments that switch off every configured filter driver. A driver's
+def _filter_overrides(target: Path) -> tuple[tuple[str, str], ...]:
+    """(key, value) pairs, passed through `GIT_CONFIG_*`, that switch off every configured filter driver. A driver's
     clean or process command runs when `git status` re-reads a file whose stat data
     no longer matches the index (Git LFS installs one globally), and it can write
     into the repository. An empty command is "no filter"; `required` is turned off
@@ -106,12 +119,12 @@ def _filter_overrides(target: Path) -> list[str]:
         # (the driver name), which is case-sensitive, as written.
         if entry.startswith("filter.") and "." in entry[len("filter."):]:
             drivers.add(entry[len("filter."):].rsplit(".", 1)[0])
-    flags: list[str] = []
+    pairs: list[tuple[str, str]] = []
     for driver in sorted(drivers):
         for key in ("clean", "smudge", "process"):
-            flags += ["-c", f"filter.{driver}.{key}="]
-        flags += ["-c", f"filter.{driver}.required=false"]
-    return flags
+            pairs.append((f"filter.{driver}.{key}", ""))
+        pairs.append((f"filter.{driver}.required", "false"))
+    return tuple(pairs)
 
 
 def clean_tree(target: Path) -> bool:
@@ -122,8 +135,8 @@ def clean_tree(target: Path) -> bool:
     keeps it out of a submodule's work tree (which reads the submodule's own
     configuration, not this one's) while a submodule whose HEAD moved is still a
     tracked change; so no process but `git` starts and nothing is written."""
-    done = _git(target, *_filter_overrides(target), "status", "--porcelain", "-z",
-                "--untracked-files=no", "--ignore-submodules=dirty")
+    done = _git(target, "status", "--porcelain", "-z", "--untracked-files=no",
+                "--ignore-submodules=dirty", config=_filter_overrides(target))
     if done.returncode != 0:
         raise Refusal("retention cleanup: `git status` failed",
                       "run `git status` in the repository and fix what it names, then run "

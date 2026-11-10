@@ -499,9 +499,10 @@ class TestPreflight(Base):
 
     def test_a_configured_clean_or_process_filter_never_runs_on_a_racily_dirty_file(self):
         marker = self.outside / "filter-ran"
-        # a driver name is case-sensitive: `Probe` is not `probe`
+        # a driver name is case-sensitive (`Probe` is not `probe`) and may hold an `=`
         for where, name in (("gitattributes", "probe"), ("info", "probe"),
-                            ("gitattributes", "Probe"), ("info", "Mixed.Case")):
+                            ("gitattributes", "Probe"), ("info", "Mixed.Case"),
+                            ("gitattributes", "a=b")):
             with self.subTest(where=where, name=name):
                 attributes = f"CLAUDE.md filter={name}\n"
                 if where == "info":
