@@ -30658,7 +30658,7 @@
       "registry_path": "docs/ai-workflow/registry/retention-cleanup-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/retention-cleanup-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "APPLYING_REVIEW_FEEDBACK",
       "plan_revision": 3,
       "implementation_revision": 6,
       "functional_review_round": null,
@@ -30798,12 +30798,12 @@
           "external": 2
         },
         "implementation": {
-          "local": 5,
+          "local": 6,
           "external": 2
         }
       },
-      "state_revision": 35,
-      "last_transition": "2026-11-10T22:02:12Z",
+      "state_revision": 36,
+      "last_transition": "2026-11-10T22:07:38Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -31175,6 +31175,34 @@
               "review_content_id": "4bd6ea73fc6ffc18d017f55c295325a0a95c09abd4dd9b055db9de830172ce24",
               "verdict": "APPROVE",
               "at": "2026-11-10T21:39:25Z"
+            }
+          ]
+        },
+        "F-ff1405a28936": {
+          "digest": "ff1405a28936dd66ca3bc94e84a5797b7780d2b2c877767e5cc06ea42b9c16e9",
+          "text": "**LIR6-002: `TEST_RESULTS.md` was not refreshed for revision 6.** It is still titled \"implementation revision 5\", and its full gate is on `568faa2`. This round's gate is recorded only in `IMPLEMENTATION_SUMMARY.md`, as \"`e30c8f3` plus this round's uncommitted fix\", which no committed head reproduces. When the LIR6-001 fix lands, record the full gate on the new code head in `TEST_RESULTS.md`.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 6,
+              "review_content_id": "19b9c5303704235ed3f6e8391c06be9c3d2bf67dfb8bd9daa6be05d99380b935",
+              "verdict": "REVISE",
+              "at": "2026-11-10T22:07:38Z"
+            }
+          ]
+        },
+        "F-f8843138e012": {
+          "digest": "f8843138e012b1ba8dba4c32828f4108435b762cefc92bb790716427bc51091c",
+          "text": "Carried: the earlier rounds' O1 (private `compatibility` names used from `retention_cleanup._git`) stays as before: a follow-up issue disposition at acceptance.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 6,
+              "review_content_id": "19b9c5303704235ed3f6e8391c06be9c3d2bf67dfb8bd9daa6be05d99380b935",
+              "verdict": "REVISE",
+              "at": "2026-11-10T22:07:38Z"
             }
           ]
         }
