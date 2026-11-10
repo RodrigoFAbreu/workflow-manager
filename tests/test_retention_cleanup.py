@@ -499,9 +499,11 @@ class TestPreflight(Base):
 
     def test_a_configured_clean_or_process_filter_never_runs_on_a_racily_dirty_file(self):
         marker = self.outside / "filter-ran"
-        for where in ("gitattributes", "info"):
-            with self.subTest(where=where):
-                attributes = ("CLAUDE.md filter=probe\n")
+        # a driver name is case-sensitive: `Probe` is not `probe`
+        for where, name in (("gitattributes", "probe"), ("info", "probe"),
+                            ("gitattributes", "Probe"), ("info", "Mixed.Case")):
+            with self.subTest(where=where, name=name):
+                attributes = f"CLAUDE.md filter={name}\n"
                 if where == "info":
                     (self.repo / ".git" / "info").mkdir(exist_ok=True)
                     (self.repo / ".git" / "info" / "attributes").write_text(attributes)
@@ -509,9 +511,9 @@ class TestPreflight(Base):
                     (self.repo / ".gitattributes").write_text(attributes)
                     git(self.repo, "add", ".gitattributes")
                     git(self.repo, "commit", "-qm", "attributes")
-                git(self.repo, "config", "filter.probe.clean", f"sh -c 'touch {marker}; cat'")
-                git(self.repo, "config", "filter.probe.process", f"sh -c 'touch {marker}'")
-                git(self.repo, "config", "filter.probe.required", "true")
+                git(self.repo, "config", f"filter.{name}.clean", f"sh -c 'touch {marker}; cat'")
+                git(self.repo, "config", f"filter.{name}.process", f"sh -c 'touch {marker}'")
+                git(self.repo, "config", f"filter.{name}.required", "true")
                 # a racily dirty file: same bytes, a stat the index no longer matches
                 os.utime(self.repo / "CLAUDE.md", (946684800, 946684800))
                 marker.unlink(missing_ok=True)
@@ -524,13 +526,53 @@ class TestPreflight(Base):
                 self.refused(out, "a tracked file is changed")
                 self.assertFalse(marker.exists())
                 for key in ("clean", "process", "required"):
-                    git(self.repo, "config", "--unset", f"filter.probe.{key}")
+                    git(self.repo, "config", "--unset", f"filter.{name}.{key}")
                 git(self.repo, "checkout", "--", "CLAUDE.md")
                 if where == "info":
                     (self.repo / ".git" / "info" / "attributes").unlink()
                 else:
                     git(self.repo, "rm", "-q", ".gitattributes")
                     git(self.repo, "commit", "-qm", "no attributes")
+
+    def test_a_submodules_own_filter_never_runs_and_a_moved_submodule_is_still_refused(self):
+        marker = self.outside / "submodule-filter-ran"
+        source = self.outside / "sm-source"
+        source.mkdir()
+        git(source, "init", "-q")
+        git(source, "config", "user.name", "t")
+        git(source, "config", "user.email", "t@example.com")
+        (source / ".gitattributes").write_text("b.txt filter=subf\n")
+        (source / "b.txt").write_text("b\n")
+        git(source, "add", ".")
+        git(source, "-c", "maintenance.auto=false", "-c", "gc.auto=0", "commit", "-qm", "sub")
+        git(self.repo, "-c", "protocol.file.allow=always", "-c", "maintenance.auto=false",
+            "-c", "gc.auto=0", "submodule", "add", "-q",
+            str(source), "sm")
+        git(self.repo, "-c", "maintenance.auto=false", "-c", "gc.auto=0", "commit", "-qm",
+            "add submodule")
+        sub = self.repo / "sm"
+        self.assertTrue((sub / "b.txt").is_file())
+        git(sub, "config", "user.name", "t")
+        git(sub, "config", "user.email", "t@example.com")
+        git(sub, "config", "filter.subf.clean", f"sh -c 'touch {marker}; cat'")
+        git(sub, "config", "filter.subf.required", "true")
+        os.utime(sub / "b.txt", (946684800, 946684800))
+        marker.unlink(missing_ok=True)
+        out = self.refusal_writes_nothing(many(3))
+        self.assertEqual(out.code, 0, out.err)
+        self.assertFalse(marker.exists())
+        # a submodule whose HEAD moved is still a tracked change
+        git(sub, "config", "--unset", "filter.subf.clean")
+        git(sub, "config", "--unset", "filter.subf.required")
+        (sub / "c.txt").write_text("c\n")
+        git(sub, "add", "c.txt")
+        git(sub, "-c", "maintenance.auto=false", "-c", "gc.auto=0", "commit", "-qm", "moved")
+        git(sub, "config", "filter.subf.clean", f"sh -c 'touch {marker}; cat'")
+        git(sub, "config", "filter.subf.required", "true")
+        os.utime(sub / "b.txt", (946684800, 946684800))
+        out = self.refusal_writes_nothing(many())
+        self.refused(out, "a tracked file is changed")
+        self.assertFalse(marker.exists())
 
     def test_each_script_state_has_its_cause(self):
         for seam, cause in ((ra.SCRIPT_MODIFIED, ra.CAUSE_MODIFIED),

@@ -95,16 +95,17 @@ def _filter_overrides(target: Path) -> list[str]:
     no longer matches the index (Git LFS installs one globally), and it can write
     into the repository. An empty command is "no filter"; `required` is turned off
     so Git does not fail on it. The names come from every configuration scope."""
-    done = _git(target, "config", "--name-only", "--get-regexp", r"^filter\.")
+    done = _git(target, "config", "-z", "--name-only", "--get-regexp", r"^filter\.")
     if done.returncode not in (0, 1):
         raise Refusal("retention cleanup: `git config` failed",
                       "run `git config --list` in the repository and fix what it names, "
                       "then run the command again")
     drivers = set()
-    for line in done.stdout.decode("utf-8", "surrogateescape").splitlines():
-        name = line.strip().lower()
-        if name.startswith("filter.") and "." in name[len("filter."):]:
-            drivers.add(name[len("filter."):].rsplit(".", 1)[0])
+    for entry in done.stdout.decode("utf-8", "surrogateescape").split("\0"):
+        # Git prints the section and the key in lower case and keeps the subsection
+        # (the driver name), which is case-sensitive, as written.
+        if entry.startswith("filter.") and "." in entry[len("filter."):]:
+            drivers.add(entry[len("filter."):].rsplit(".", 1)[0])
     flags: list[str] = []
     for driver in sorted(drivers):
         for key in ("clean", "smudge", "process"):
@@ -117,10 +118,12 @@ def clean_tree(target: Path) -> bool:
     """True when no tracked file is changed. Untracked files (the review folders)
     are expected. `_git` keeps `git status` from refreshing, and so rewriting, the
     index, and from running a configured fsmonitor hook; `_filter_overrides` keeps
-    it from running a configured clean or process filter, so no process but `git`
-    starts and nothing is written."""
+    it from running a configured clean or process filter, and `--ignore-submodules=dirty`
+    keeps it out of a submodule's work tree (which reads the submodule's own
+    configuration, not this one's) while a submodule whose HEAD moved is still a
+    tracked change; so no process but `git` starts and nothing is written."""
     done = _git(target, *_filter_overrides(target), "status", "--porcelain", "-z",
-                "--untracked-files=no")
+                "--untracked-files=no", "--ignore-submodules=dirty")
     if done.returncode != 0:
         raise Refusal("retention cleanup: `git status` failed",
                       "run `git status` in the repository and fix what it names, then run "
