@@ -31,7 +31,7 @@ from support import NEWEST_RELEASE, REPO_ROOT
 import test_retention_status as rs
 from frozen_runs import build_bootstrapped_repo
 from test_operator_ux import git, help_of, tree_hash
-from workflow_manager import cli, retention_alert as ra, retention_cleanup as rc, retention_policy as rp
+from workflow_manager import fixture, cli, retention_alert as ra, retention_cleanup as rc, retention_policy as rp
 
 COMMAND = "retention-cleanup"
 SCRIPT = rs.SCRIPT
@@ -538,9 +538,7 @@ class TestPreflight(Base):
         marker = self.outside / "submodule-filter-ran"
         source = self.outside / "sm-source"
         source.mkdir()
-        git(source, "init", "-q")
-        git(source, "config", "user.name", "t")
-        git(source, "config", "user.email", "t@example.com")
+        fixture.init_git_repo(source)
         (source / ".gitattributes").write_text("b.txt filter=subf\n")
         (source / "b.txt").write_text("b\n")
         git(source, "add", ".")
