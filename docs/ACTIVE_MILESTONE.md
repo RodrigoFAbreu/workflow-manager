@@ -2,7 +2,7 @@
 
 ## Milestone
 
-`retention-cleanup` -- in progress (`governing_workflow_version: "2.2"`, `process`, plan revision 3, base `bb5a016`, branch `milestone/retention-cleanup`): roadmap row 38 (#90, #195, wf#84). A `feat:` pull request title; a Manager release (minor) follows.
+`retention-cleanup` -- complete, accepted by policy (`governing_workflow_version: "2.2"`, `process`, plan revision 3, base `bb5a016`, branch `milestone/retention-cleanup`): roadmap row 38 (#90, #195, wf#84). A `feat:` pull request title; a Manager release (minor) follows.
 
 Third slice of the owner's retention track, first half: a new explicit command `retention-cleanup TARGET` that, for a policy adopted with mode `cleanup` or `both`, checks the preconditions of an unattended cleanup and previews which finished items it would archive and remove. It writes nothing and runs no engine verb but the report. The four follow-ups of #195 ride along.
 

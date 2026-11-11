@@ -1,0 +1,117 @@
+{
+  "dispositions": {
+    "F-059b4d9a9c2e": {
+      "disposition": "fixed"
+    },
+    "F-148185921319": {
+      "disposition": "fixed"
+    },
+    "F-162279b056cd": {
+      "disposition": "dropped",
+      "reason": "Cosmetic: the sentence holds by the decision recorded in plan 2.9 (plan 2.6)."
+    },
+    "F-2036a662b2e5": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#198",
+      "note": "Follow-up item 1."
+    },
+    "F-28b015bc76ab": {
+      "disposition": "fixed"
+    },
+    "F-3086d2211fb2": {
+      "disposition": "dropped",
+      "reason": "Cosmetic: the file is committed unchanged and already ends without a newline."
+    },
+    "F-3c3f5f8a95eb": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#198",
+      "note": "Follow-up item 1 (duplicate)."
+    },
+    "F-3da2bdd897fe": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#198",
+      "note": "Follow-up item 2."
+    },
+    "F-425aa7cff47f": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#198",
+      "note": "Follow-up item 3."
+    },
+    "F-6fc61d4870ea": {
+      "disposition": "fixed"
+    },
+    "F-76fed0b4e7cd": {
+      "disposition": "fixed"
+    },
+    "F-8880b35dc29f": {
+      "disposition": "fixed"
+    },
+    "F-8e0a447a05ec": {
+      "disposition": "fixed"
+    },
+    "F-961b6a37898a": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#198",
+      "note": "Follow-up item 1 (duplicate)."
+    },
+    "F-99c3945f0bd2": {
+      "disposition": "fixed"
+    },
+    "F-9a445fc08c36": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#198",
+      "note": "Follow-up item 1 (duplicate)."
+    },
+    "F-9f205e99871b": {
+      "disposition": "dropped",
+      "reason": "Cosmetic: the order of plan sections 2.6, 2.9 and 2.7 is deliberate, so that 2.9 keeps the earlier references stable."
+    },
+    "F-aa2b14bc5ac1": {
+      "disposition": "fixed"
+    },
+    "F-b9004efeec09": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#198",
+      "note": "Follow-up item 3."
+    },
+    "F-b9301bfc33fb": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#198",
+      "note": "Follow-up item 1 (duplicate)."
+    },
+    "F-c84dadd5be53": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#198",
+      "note": "Follow-up item 2 (duplicate)."
+    },
+    "F-d50a6393e9dc": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#198",
+      "note": "Follow-up item 2."
+    },
+    "F-d9e041567bcf": {
+      "disposition": "fixed"
+    },
+    "F-e2bbab15610f": {
+      "disposition": "fixed"
+    },
+    "F-f8843138e012": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#198",
+      "note": "Follow-up item 1 (duplicate)."
+    },
+    "F-fc48293ac00f": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#198",
+      "note": "Follow-up item 1 (docstring wrap)."
+    },
+    "F-fcd030f3ac9b": {
+      "disposition": "fixed"
+    },
+    "F-ff1405a28936": {
+      "disposition": "fixed"
+    }
+  },
+  "schema_version": 1,
+  "work_item_id": "retention-cleanup"
+}
