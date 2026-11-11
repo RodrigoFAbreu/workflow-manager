@@ -472,8 +472,7 @@ class TestUnavailable(Base):
         self.assertEqual(len(self.script_calls()), 1)
         section = lambda out: out[out.index("retention (read-only"):].split("retention alert:")[0]  # noqa: E731
         self.assertIn("retention (read-only", plain.out)
-        self.assertEqual(section(base.out).split("retention policy")[0].strip().splitlines()[-1:],
-                         section(plain.out).strip().splitlines()[-1:])
+        self.assertEqual(section(base.out), section(plain.out))
         self.adopt()
 
     def test_an_installed_release_that_does_not_resolve_is_not_evaluated(self):
@@ -580,6 +579,80 @@ class TestNextStep(Base):
         self.assertTrue(step.endswith("; " + retention.STEP_INCOMPLETE), step)
         self.assertIn("archive a --apply", step)
         self.assertNotEqual(step, retention.STEP_INCOMPLETE)
+
+
+class TestFollowUps(Base):
+    """The #195 follow-ups: the incomplete-store wording, the no-release cause."""
+
+    def test_an_incomplete_store_says_no_prunable_archive_was_observed(self):
+        self.adopt(self.policy_of(archives=2))
+        rep = sized(rs.report(complete=False), archives=2, prunable=0)
+        step = self.alert_block(self.call("doctor", rep).out)[-1]
+        self.assertIn("so no prunable archive was observed (the report is incomplete): "
+                      "raise thresholds.archives", step)
+        self.assertNotIn("none can be pruned", step)
+        self.assertIn("workflow-manager adopt-retention-policy", step)
+        self.assertTrue(step.endswith("; " + retention.STEP_INCOMPLETE), step)
+
+    def test_a_complete_store_still_says_none_can_be_pruned(self):
+        self.adopt(self.policy_of(archives=2))
+        rep = sized(rs.report(), archives=2, prunable=0)
+        step = self.alert_block(self.call("doctor", rep).out)[-1]
+        self.assertIn("so none can be pruned: raise thresholds.archives", step)
+        self.assertNotIn("observed", step)
+
+    @staticmethod
+    def policy_of(**thresholds):
+        return dict(POLICY, thresholds=thresholds)
+
+    def null_record(self):
+        record = self.repo / ".workflow-manager" / "installation.json"
+        data = json.loads(record.read_text())
+        data["workflow_version"] = None
+        record.write_text(json.dumps(data, indent=2) + "\n")
+
+    def test_the_no_release_cause_is_its_own_with_its_own_step(self):
+        self.adopt()
+        got = self.call("doctor", REACHED_TWO(), seam=ra.SCRIPT_NO_RELEASE)
+        self.assertEqual(self.alert_block(got.out), [
+            "retention alert: not evaluated: the installation record names no release",
+            "  next: workflow-manager --release-version X.Y.Z update "
+            f"{self.repo} (workflow-manager releases lists them)"])
+        self.assertNotIn("WORKFLOW_MANAGER_RELEASE_SOURCE", got.out)
+        self.assertEqual(self.script_calls(), [])
+
+    def test_the_installed_script_state_tells_no_release_from_unresolvable(self):
+        self.adopt()
+        self.null_record()
+        before = tree_hash(self.repo)
+        with mock.patch.dict(os.environ, pinned_env(), clear=True):
+            args = cli.build_parser().parse_args(["doctor", str(self.repo)])
+            destinations = cli._readonly_destinations(args, None)
+            self.assertEqual(cli._installed_script_state(args, None, destinations),
+                             ra.SCRIPT_NO_RELEASE)
+            self.assertEqual(cli._installed_script_state(args, "9.9.9", destinations),
+                             ra.SCRIPT_UNCHECKED)
+        self.assertEqual(tree_hash(self.repo), before)
+
+    def test_doctor_on_a_null_record_refuses_before_the_alert_is_asked(self):
+        """The no-release cause is defensive: no command reaches it."""
+        self.adopt()
+        self.null_record()
+        got = self.call_cli("doctor")
+        self.assertEqual(got.code, 2)
+        self.assertIn("could not resolve the target release", got.err)
+        self.assertNotIn("retention alert", got.out + got.err)
+        self.assertEqual(self.script_calls(), [])
+
+    def call_cli(self, command):
+        out, err = io.StringIO(), io.StringIO()
+        with mock.patch.dict(os.environ, self.env(), clear=True), \
+                contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            try:
+                code = cli.main(["--release-version", support.PINNED_NEWEST, command, str(self.repo)])
+            except SystemExit as exit_:
+                code = exit_.code
+        return Result(code, out.getvalue(), err.getvalue(), 0)
 
 
 class TestNothingElse(Base):
@@ -720,10 +793,13 @@ class TestScriptState(unittest.TestCase):
         (self.repo / SCRIPT).unlink()
         self.assert_not_started(self.both())
 
+    REFUSAL = ("retention alert: not evaluated: repository_unknown: git remote get-url "
+               "origin failed: error: No such remote 'origin'")
+
     def test_the_releases_own_script_reaches_the_evaluation(self):
         for command, out in self.both().items():
             with self.subTest(command=command):
-                self.assertIn("retention alert: not evaluated: ", out)
+                self.assertIn(self.REFUSAL, out)
                 for bad in ("does not match", "FileNotFoundError", "cannot be checked"):
                     self.assertNotIn(bad, out)
 
@@ -731,7 +807,7 @@ class TestScriptState(unittest.TestCase):
         if self.other is None:
             self.skipTest("no tested release has a different script")
         out = self.both("--release-version", self.other)["doctor"]
-        self.assertIn("retention alert: not evaluated: ", out)
+        self.assertIn(self.REFUSAL, out)
         for bad in ("does not match", "FileNotFoundError", "cannot be checked"):
             self.assertNotIn(bad, out)
 

@@ -24,11 +24,13 @@ from .installation import Installation
 
 REACHED, WITHIN, UNKNOWN = "reached", "within", "unknown"
 SCRIPT_OK, SCRIPT_MODIFIED, SCRIPT_UNCHECKED = "ok", "modified", "unchecked"
+SCRIPT_NO_RELEASE = "no_release"
 ALERT_MODES = ("notify", "both")
 
 CAUSE_INCOMPLETE = "the retention report is incomplete (the numbers are lower bounds)"
 CAUSE_MODIFIED = "the installed scripts/workflow_retention.py does not match the release"
 CAUSE_UNCHECKED = "the installed release cannot be checked"
+CAUSE_NO_RELEASE = "the installation record names no release"
 STEP_UNCHECKED = ("run the command again with the network, or with "
                   "WORKFLOW_MANAGER_RELEASE_SOURCE set to a mirror")
 
@@ -135,7 +137,9 @@ def _step(result: Result, report: dict, version, target: Path) -> str:
         return retention.next_step(report, version, target)
     if result.key == "prunable_archives" or report["totals"]["prunable"] > 0:
         return _prune_step(version, target)
-    return ("no archive is past the time to live yet, so none can be pruned: raise "
+    observed = ("no prunable archive was observed (the report is incomplete)"
+                if _incomplete(report) else "none can be pruned")
+    return (f"no archive is past the time to live yet, so {observed}: raise "
             "thresholds.archives in the policy if the store is meant to be this large, "
             f"then adopt it again ({retention_policy.adopt_command(target)})")
 
@@ -186,6 +190,11 @@ def alert_lines(target: Path, version, script_state, outcome=None) -> list[str]:
         return []
     try:
         flag = script_state()
+        if flag == SCRIPT_NO_RELEASE:
+            return _not_evaluated(
+                CAUSE_NO_RELEASE,
+                f"{retention.PROGRAM} --release-version X.Y.Z update {shlex.quote(str(target))} "
+                f"({retention.PROGRAM} releases lists them)")
         if flag == SCRIPT_UNCHECKED:
             return _not_evaluated(CAUSE_UNCHECKED, STEP_UNCHECKED)
         if flag != SCRIPT_OK:

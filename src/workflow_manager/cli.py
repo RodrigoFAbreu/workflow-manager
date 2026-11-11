@@ -6,6 +6,7 @@
     workflow-manager doctor    <target> [--retention]
     workflow-manager verify    <target>
     workflow-manager adopt-retention-policy <target> [--confirm TEXT]
+    workflow-manager retention-cleanup <target>
     workflow-manager uninstall <target>
     workflow-manager releases
     workflow-manager package build <release-dir> --out <dir>
@@ -43,7 +44,7 @@ from contextlib import nullcontext
 from importlib import metadata
 from pathlib import Path
 
-from . import advice, retention, retention_alert, retention_policy
+from . import advice, retention, retention_alert, retention_cleanup, retention_policy
 from . import source as release_source
 from .compatibility import (
     ContainmentError,
@@ -844,6 +845,8 @@ def _installed_script_state(args, installed, destinations) -> str:
     """Whether the installed `scripts/workflow_retention.py` is the *installed*
     release's (never the update candidate's), resolved read-only like
     `_installed_resolves`, and checked before the resolution closes."""
+    if installed is None:
+        return retention_alert.SCRIPT_NO_RELEASE
     if not isinstance(installed, str):
         return retention_alert.SCRIPT_UNCHECKED
     try:
@@ -961,6 +964,31 @@ def cmd_adopt_retention_policy(args) -> int:
     return 0
 
 
+def cmd_retention_cleanup(args) -> int:
+    """Preview what an adopted `cleanup` or `both` policy would archive and remove.
+    Writes nothing and starts no script but `report`, after every cheap check."""
+    if not is_managed(args.target):
+        raise NotManagedError(not_managed_text(args.target))
+    installed = Installation.read(args.target).workflow_version
+
+    def record_refusal():
+        error = not_a_version(installed, origin="record")
+        step = advice.next_step(error, _context(args))
+        return f"could not resolve the target release: {error}", step or ""
+
+    def script_state():
+        return _installed_script_state(args, installed, _readonly_destinations(args, installed))
+
+    try:
+        cleared = retention_cleanup.preflight(args.target, installed, script_state, record_refusal)
+    except retention_cleanup.Refusal as refusal:
+        print(f"error: {refusal.cause}", file=sys.stderr)
+        print(f"next: {refusal.step}", file=sys.stderr)
+        return 2
+    _print_lines(retention_cleanup.preview_lines(retention_cleanup.select(cleared.state, cleared.report)))
+    return 0
+
+
 def cmd_package(args) -> int:
     if args.package_command == "build":
         built = build_package(args.release_dir, args.out)
@@ -988,6 +1016,7 @@ COMMANDS = {
     "verify": cmd_verify,
     "uninstall": cmd_uninstall,
     "adopt-retention-policy": cmd_adopt_retention_policy,
+    "retention-cleanup": cmd_retention_cleanup,
     "package": cmd_package,
 }
 
@@ -1155,6 +1184,23 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--confirm", default=None, metavar="TEXT",
                    help="adopt the file: text containing 'Adopt the retention policy "
                         "DIGEST12.' for the digest the preview prints")
+
+    p = command("retention-cleanup", "preview what an adopted retention policy would clean up",
+                "For a retention policy adopted with mode cleanup or both, check that every "
+                "precondition of a cleanup holds (both policy files are committed and unchanged, "
+                "no tracked file is changed, the installed Workflow release is 2.25.5 or later and "
+                "its scripts/workflow_retention.py is the release's own, the retention report is "
+                "complete and no removal is interrupted) and print which finished work items it "
+                "would archive and then remove, oldest first, at most 5 per run, with the plan's "
+                "digest. This release only previews: it writes nothing, archives nothing and "
+                "removes nothing, and it runs the retention report once (one forge query per "
+                "finished item, so gh must be signed in). Prune is never part of cleanup. Exit 0: "
+                "the preview was printed, or there is nothing to do; 2: refused, nothing written "
+                "(not managed, the policy is not adopted with that mode, a policy file is not "
+                "committed, a tracked file is changed, the release is older than 2.25.5, the "
+                "script is modified, the report is incomplete or unavailable, a removal was "
+                "interrupted).")
+    p.add_argument("target", type=Path, help="the managed repository to preview")
 
     p = command("bootstrap", "install the Workflow into a Git repository",
                 "Install a Workflow release into a Git repository that is not yet managed: the "

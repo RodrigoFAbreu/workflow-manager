@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "work_item_id": "retention-cleanup",
+  "requirements": {
+    "R1": {
+      "description": "The four #195 follow-ups: an incomplete report says no prunable archive was observed instead of none can be pruned; a record with no release has its own alert cause and step, distinct from the network-retry cause; the doctor section test compares the whole section and the real script's own refusal cause is asserted, with an unpatched direct-call no-release case that writes nothing (the cause is defensive: doctor refuses a null record first, and a test pins that refusal); a :60 seconds timestamp is refused",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R2": {
+      "description": "The retention-cleanup command refuses, with a cause and one step and writing nothing, unless the policy is adopted with mode cleanup or both, both policy files are committed at HEAD with the working bytes, no tracked file is changed, an absent policy has an exact cause and step, the installed Workflow release is 2.25.5 or later, the installed script is the release's own, the report is complete and no removal is interrupted; cheap checks run before any script starts",
+      "checkpoint_ids": [
+        "CP2"
+      ]
+    },
+    "R3": {
+      "description": "A pure selection: only finished_items and finished_folder_mib trigger a plan; finished items with a folder, oldest first, at most 5 per run, until the set limits are met, ending settled, capped or exhausted (the preview's after-this-run line says which, and a re-run is advised only when it helps); tracked-file or invalid-id entries are skipped with a reason; archive then remove or remove only from the report alone; a plan digest that moves with the policy digest, the repository and each item and action",
+      "checkpoint_ids": [
+        "CP2"
+      ]
+    },
+    "R4": {
+      "description": "The preview prints the plan exactly, or one nothing-to-do line, writes nothing, runs only the report, never runs or names prune as a step, and verify, doctor, status and update stay unchanged for a cleanup policy",
+      "checkpoint_ids": [
+        "CP2"
+      ]
+    },
+    "R5": {
+      "description": "docs/retention.md and docs/exit-codes.md and the command help describe the preview, its preconditions, the minimum release and that prune is never part of cleanup",
+      "checkpoint_ids": [
+        "CP1",
+        "CP2"
+      ]
+    },
+    "R6": {
+      "description": "The docs check (tools/check_docs.py rule 3) does not read a Manager command name as an internal work-item id, so a work item named after its command (retention-cleanup) does not fail the check; check_pages takes the command names and check_tree passes the live ones; a failure-only test pins it",
+      "checkpoint_ids": [
+        "CP2"
+      ]
+    }
+  }
+}

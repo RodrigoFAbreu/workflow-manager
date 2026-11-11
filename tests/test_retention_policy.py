@@ -661,7 +661,8 @@ class TestFollowUps(Base):
         self.adopt()
         record = json.loads(self.record_file().read_text())
         self.assertEqual(rp.check_record(record), [])
-        for stamp in ("2026-99-99T99:99:99Z", "2026-02-30T00:00:00Z", "2026-01-01T24:00:00Z"):
+        for stamp in ("2026-99-99T99:99:99Z", "2026-02-30T00:00:00Z", "2026-01-01T24:00:00Z",
+                      "2026-01-01T00:00:60Z"):
             with self.subTest(stamp=stamp):
                 problems = rp.check_record({**record, "adopted_at": stamp})
                 self.assertEqual(len(problems), 1, problems)
@@ -727,6 +728,60 @@ class TestFollowUps(Base):
         page = (REPO_ROOT / "docs/retention.md").read_text()
         self.assertNotIn("only reads", page)
         self.assertIn(rp.block(self.state(), self.repo)[2].strip(), page)
+
+
+class TestStepFor(unittest.TestCase):
+    """`step_for` is the step `block` prints, extracted so `retention-cleanup` and the
+    block never drift; `block`'s own output is the one it had before."""
+
+    TARGET = Path("/t")
+
+    def states(self):
+        return [rp.PolicyState(name, problems=("a problem",))
+                for name in (rp.FILE_MISSING, rp.INVALID, rp.NOT_ADOPTED, rp.RECORD_INVALID,
+                             rp.CHANGED)]
+
+    def test_block_ends_with_step_for_for_every_state_but_adopted_and_absent(self):
+        for state in self.states():
+            with self.subTest(state=state.state):
+                self.assertEqual(rp.block(state, self.TARGET)[-1],
+                                 f"  next: {rp.step_for(state.state, self.TARGET)}")
+
+    def test_block_output_is_unchanged(self):
+        adopt = "workflow-manager adopt-retention-policy /t"
+        want = {
+            rp.FILE_MISSING: ["retention policy: file-missing (the adoption record has no policy "
+                              "file); mode off is in force", "  problem: a problem",
+                              "  next: restore .workflow-manager/retention-policy.json, or "
+                              "remove .workflow-manager/retention-adoption.json if the policy "
+                              "is withdrawn"],
+            rp.INVALID: ["retention policy: invalid (the policy file is refused); mode off is "
+                         "in force", "  problem: a problem",
+                         "  next: fix .workflow-manager/retention-policy.json as named, then "
+                         f"run {adopt} to preview it"],
+            rp.NOT_ADOPTED: ["retention policy: not-adopted (the policy file is valid and not "
+                             "adopted); mode off is in force", "  problem: a problem",
+                             f"  next: {adopt}"],
+            rp.RECORD_INVALID: ["retention policy: record-invalid (the adoption record is "
+                                "refused); mode off is in force", "  problem: a problem",
+                                f"  next: {adopt}"],
+            rp.CHANGED: ["retention policy: changed (the policy file changed since it was "
+                         "adopted); mode off is in force", "  problem: a problem",
+                         f"  next: {adopt}"],
+        }
+        for state in self.states():
+            with self.subTest(state=state.state):
+                self.assertEqual(rp.block(state, self.TARGET), want[state.state])
+        self.assertEqual(rp.block(rp.PolicyState(rp.ABSENT), self.TARGET), [])
+
+    def test_absent_has_the_first_contact_step_and_adopted_has_none(self):
+        self.assertEqual(
+            rp.step_for(rp.ABSENT, self.TARGET),
+            'write .workflow-manager/retention-policy.json with mode "cleanup" or "both" '
+            "(docs/retention.md shows the file), then run "
+            "workflow-manager adopt-retention-policy /t")
+        with self.assertRaises(ValueError):
+            rp.step_for(rp.ADOPTED, self.TARGET)
 
 
 class TestDocs(unittest.TestCase):
