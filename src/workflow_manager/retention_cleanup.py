@@ -6,8 +6,9 @@ every precondition of an unattended cleanup (`preflight`), selects the finished
 work items past the thresholds that archiving and removing can lower (`select`)
 and prints the plan with its digest (`preview_lines`). It starts no process but
 `git` until the cheap checks have passed, then runs the retention report once.
-It never runs `archive`, `remove` or `prune`; this release does not apply the
-plan, and prune is never part of cleanup.
+The preview never runs `archive`, `remove` or `prune`; `retention_run` applies
+the plan, only for the sentence bound to its digest, and prune is never part of
+cleanup.
 """
 
 from __future__ import annotations
@@ -38,8 +39,27 @@ SETTLED, CAPPED, EXHAUSTED = "settled", "cap", "exhausted"
 REASON_TRACKED = ("Git tracks files under its review folder "
                   "(the engine archives untracked folders only)")
 REASON_ID = "its id is not one the engine accepts"
-APPLY_STEP = ("apply it with the user-only commands, one item at a time: "
-              "`python3 -I scripts/workflow_retention.py archive ID --apply`, then `remove ID --apply`")
+BY_HAND = ("by hand, one item at a time: the Workflow's user-only `/archive-finished-item ID`; "
+           "for an item that is already archived, `python3 -I scripts/workflow_retention.py "
+           "remove ID --apply` alone")
+_SENTENCE = re.compile(r"run the retention cleanup ([0-9a-f]{%d})\." % retention_policy.DIGEST_SHOWN)
+
+
+def sentence(plan_digest_value: str) -> str:
+    """The sentence that confirms a plan: it names the first 12 characters of the
+    plan's digest."""
+    return f"Run the retention cleanup {plan_digest_value[:retention_policy.DIGEST_SHOWN]}."
+
+
+def confirmation_holds(text, plan_digest_value: str) -> bool:
+    """Whether `text` names the plan: after whitespace collapse and ignoring case,
+    every match of the sentence carries the digest's first 12 characters, and there
+    is at least one. Anything but a string is no confirmation."""
+    if not isinstance(text, str):
+        return False
+    found = _SENTENCE.findall(" ".join(text.split()).lower())
+    prefix = plan_digest_value[:retention_policy.DIGEST_SHOWN]
+    return bool(found) and all(match == prefix for match in found)
 
 
 class Refusal(Exception):
@@ -410,7 +430,7 @@ def preview_lines(plan: Plan) -> list[str]:
         verdict = (f"{_names(left)} still reached; no further item is eligible{skipped}; "
                    "running it again will not help")
     lines.append(f"  after this run: {', '.join(numbers)}: {verdict}")
-    lines.append("  this release does not apply the plan. Prune is never part of cleanup; "
-                 "the archive store is not touched.")
-    lines.append(f"  next: {APPLY_STEP}")
+    lines.append(f"  next: workflow-manager retention-cleanup TARGET --confirm "
+                 f"\"{sentence(plan_digest(plan))}\"")
+    lines.append(f"  {BY_HAND}")
     return lines

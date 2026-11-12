@@ -141,29 +141,43 @@ def _stop_group(proc: subprocess.Popen) -> None:
         proc.wait()
 
 
-def _run(root: Path):
-    """`(returncode, stdout bytes, stderr bytes)`, or a `NotAvailable`. On
-    timeout (or any interruption) the whole process group is ended and the
-    leader reaped, so nothing the script started outlives the call."""
-    argv = [sys.executable, "-I", "-B", str(root / SCRIPT), "report", "--json",
-            "--repo-root", str(root)]
+class ScriptTimeout(Exception):
+    """The script did not finish within its time; its group was ended and reaped."""
+
+
+def launch_script(root: Path, *args: str, timeout: float):
+    """Run the target's retention script once, `python3 -I -B SCRIPT ARGS`, in its own
+    process group, and return `(returncode, stdout bytes, stderr bytes)`. On a
+    timeout (`ScriptTimeout`) or any interruption the whole process group is ended
+    and the leader reaped, so nothing the script started outlives the call. An
+    `OSError` from starting it propagates."""
+    argv = [sys.executable, "-I", "-B", str(root / SCRIPT), *args]
+    proc = subprocess.Popen(argv, cwd=str(root), stdin=subprocess.DEVNULL,
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                            start_new_session=True)
     try:
-        proc = subprocess.Popen(argv, cwd=str(root), stdin=subprocess.DEVNULL,
-                                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                start_new_session=True)
-    except OSError as error:
-        return NotAvailable(f"the Python running workflow-manager cannot start: {error}",
-                            STEP_REINSTALL)
-    try:
-        out, err = proc.communicate(timeout=TIMEOUT_SECONDS)
+        out, err = proc.communicate(timeout=timeout)
     except subprocess.TimeoutExpired:
         _stop_group(proc)
-        return NotAvailable(
-            f"the report did not finish within {TIMEOUT_SECONDS} seconds", STEP_RUN_DIRECTLY)
+        raise ScriptTimeout from None
     except BaseException:
         _stop_group(proc)
         raise
     return proc.returncode, out, err
+
+
+def _run(root: Path):
+    """`(returncode, stdout bytes, stderr bytes)` of `report --json`, or a
+    `NotAvailable`."""
+    try:
+        return launch_script(root, "report", "--json", "--repo-root", str(root),
+                             timeout=TIMEOUT_SECONDS)
+    except OSError as error:
+        return NotAvailable(f"the Python running workflow-manager cannot start: {error}",
+                            STEP_REINSTALL)
+    except ScriptTimeout:
+        return NotAvailable(
+            f"the report did not finish within {TIMEOUT_SECONDS} seconds", STEP_RUN_DIRECTLY)
 
 
 class _Invalid(Exception):

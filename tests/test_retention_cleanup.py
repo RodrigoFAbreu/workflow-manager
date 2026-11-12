@@ -185,8 +185,8 @@ retention cleanup: preview (nothing was written; mode {mode}, policy {policy}, p
     3. item-c: 40 MiB, archive then remove
   skipped: item-x: Git tracks files under its review folder (the engine archives untracked folders only)
   after this run: finished items 9, finished folders 359 MiB: below every limit
-  this release does not apply the plan. Prune is never part of cleanup; the archive store is not touched.
-  next: apply it with the user-only commands, one item at a time: `python3 -I scripts/workflow_retention.py archive ID --apply`, then `remove ID --apply`
+  next: workflow-manager retention-cleanup TARGET --confirm "Run the retention cleanup {plan}."
+  by hand, one item at a time: the Workflow's user-only `/archive-finished-item ID`; for an item that is already archived, `python3 -I scripts/workflow_retention.py remove ID --apply` alone
 """
 
 
@@ -808,10 +808,11 @@ class TestRealRules(unittest.TestCase):
 
 
 class TestDocs(unittest.TestCase):
-    def test_the_help_names_the_preview_the_floor_and_prune(self):
+    def test_the_help_names_the_preview_the_run_the_floor_and_prune(self):
         text = " ".join(help_of(COMMAND).split())
-        for words in ("preview", "2.25.5", "writes nothing", "Prune is never part of cleanup",
-                      "at most 5 per run", "Exit 0"):
+        for words in ("preview", "2.25.5", "writes nothing", "Prune is never run",
+                      "at most 5 per run", "Exit 0", "--confirm", "Run the retention cleanup",
+                      "then its verification", "The first failure stops the run", "1: the run"):
             self.assertIn(words, text)
 
     def test_the_retention_page_names_the_command_the_floor_and_prune(self):
