@@ -47,6 +47,13 @@ Scope: `retention-run` (`feat:`, CP1 and CP2, both complete): `workflow-manager 
   export PYTHONPATH="$S/cand/src"
   ```
 
+  Flows 7 and 8 import `tests/support.py`, which needs the primed release cache. Copy the host cache into the scratch directory and point the tests at it; they then run with no network:
+
+  ```bash
+  cp -r "$HOME/.cache/workflow-manager/releases" "$S/releases"
+  export WORKFLOW_MANAGER_RELEASE_CACHE="$S/releases"
+  ```
+
 - Flow 9 needs the full environment: `gh` signed in, and a throwaway GitHub origin. Run it last, in a scratch managed repository under `$S`.
 - Required tools on `PATH`: `git`, `python3`. `zstd` is needed for the end-to-end test (`TestEndToEnd`); without it that one case skips with a named reason, which must be recorded.
 
@@ -66,7 +73,7 @@ Scope: `retention-run` (`feat:`, CP1 and CP2, both complete): `workflow-manager 
 | 5 | `grep -n 'git_env\|def release_key\|def incomplete' "$S"/cand/src/workflow_manager/*.py`; the docstring-length check (command below the table) | the three public names present; no output from the docstring-length check (code lines over 100 characters are not checked: the repository has no line-length rule) |
 | 6 | `python3 "$S/cand/tools/check_docs.py"` | exit 0 |
 | 7 | `cd "$S/cand/tests" && python3 -B -m unittest test_retention_run.TestNeverPrune test_retention_run.TestNoRemovalWithoutVerification` | `OK` |
-| 8 | in scratch copies of the clone, apply mutations M1, M3, M5, M8 and M12 (plan section 4, each with `sed`) and run the named test of each | each mutated copy FAILS its named test; the unmutated clone passes |
+| 8 | in scratch copies of the clone, apply mutations M1, M3, M5, M8 and M12 (plan section 3, with the `sed` commands below the table) and run the named test of each | each mutated copy FAILS its named test; the unmutated clone passes |
 | 9 | (full environment, user only) `python3 tests/run_all.py --select test_retention_run.py`, then `--select` of `test_retention_cleanup.py`, `test_retention_alert.py`, `test_compatibility.py`, `test_read_only.py`, `test_operator_ux.py`, `test_docs.py`. Then in the scratch managed repository, with `export GH_CONFIG_DIR=$HOME/.config/gh HOME=$S/home` (in that order, so `gh` keeps its keyring): run `workflow-manager retention-cleanup TARGET` (the preview), then `--confirm` with its sentence | each `--select` run `verdict: exit 0`, no `OrphanProcessError`; the run archives and removes the planned items; `git status` of the scratch repository unchanged; a second run reports nothing to do |
 
 Flow 5 docstring-length command (run from `$S/cand`):
@@ -88,9 +95,26 @@ Flow 4 command (run from `$S/cand`):
 cd "$S/cand/src/workflow_manager" && grep -nE '(compatibility|retention|retention_alert|retention_policy|retention_run|retention_cleanup)\._|from \.[a-z_]+ import _' retention.py retention_alert.py retention_cleanup.py retention_policy.py retention_run.py
 ```
 
+Flow 8 mutations (each in its own copy, then its named test from that copy's `tests/` with `PYTHONPATH="<copy>/src"`). Start each with `cp -r "$S/cand" "$S/m1"` (use `m3`, `m5`, `m8`, `m12` likewise) and `cd` into it:
+
+```bash
+# M1: the archive argv gains a prune form          (test: test_retention_run.TestNeverPrune)
+sed -i 's/return ("archive", item_id, "--apply", "--json", "--repo-root", root)/return ("prune", "--apply", "--json", "--repo-root", root)/' src/workflow_manager/retention_run.py
+# M3: any 12-hex sentence accepted                  (test: test_retention_run.TestSentence.test_another_plans_sentence_is_refused)
+sed -i 's/return bool(found) and all(match == prefix for match in found)/return bool(found)/' src/workflow_manager/retention_cleanup.py
+# M5: the loop continues after a failure            (test: test_retention_run.TestStop.test_the_first_failure_stops_before_any_further_call)
+sed -i 's/^            return result$/            continue/' src/workflow_manager/retention_run.py
+# M8: a failed verification is ignored, removal still issued   (test: test_retention_run.TestNoRemovalWithoutVerification)
+sed -i 's/^            _call(root, VERIFY, item.work_item_id, result.calls)$/            try:\n                _call(root, VERIFY, item.work_item_id, result.calls)\n            except _Stop:\n                pass/' src/workflow_manager/retention_run.py
+# M12: a timeout read as success                    (test: test_retention_run.TestStop.test_a_timeout_stops_and_leaves_no_process)
+sed -i 's/^    except retention.ScriptTimeout:$/    except retention.ScriptTimeout:\n        return None/' src/workflow_manager/retention_run.py
+```
+
+Run the unmutated clone's named tests the same way first; each must pass there.
+
 ### Known limitations and out of scope
 
-- Functional review round 1 (automated tester, 2026-11-12): flow 5's literal `awk 'length > 100'` expectation was wrong, not the code: the repository has no line-length rule and three code lines of `retention_cleanup.py` (45, 255, 293) pass 100 characters, none a docstring. Flow 5 now checks docstring lines only (no code change; technical approval untouched). Re-test flow 5; flows 1 to 4 and 6 to 8 passed.
+- Functional review round 1 (automated tester, 2026-11-12, evidence at `7637e65`): flow 5's literal `awk 'length > 100'` expectation was wrong, not the code: the repository has no line-length rule and three code lines of `retention_cleanup.py` (45, 255, 293) pass 100 characters, none a docstring. Flow 5 now checks docstring lines only (no code change; technical approval untouched). Flows 1 to 4 and 6 passed. Flows 7 and 8 did not run (the sandbox had no primed release cache), and flow 9 needs the full environment. Round 2 re-tests flow 5, runs flows 7 and 8 with the cache copy in Setup, and gives flow 8's mutations as exact `sed` commands.
 - Prune is never run and never part of cleanup.
 - The sentence proves the plan was shown, not who asked. It is a formality for any job that reads it back from the preview.
 - An archive store on another file system than `.ai-review` is refused with `cross_device` on every run (the default store is under `HOME`).
