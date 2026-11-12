@@ -31819,7 +31819,7 @@
       "registry_path": "docs/ai-workflow/registry/retention-run-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/retention-run-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "APPLYING_REVIEW_FEEDBACK",
       "plan_revision": 3,
       "implementation_revision": 1,
       "functional_review_round": null,
@@ -31959,12 +31959,12 @@
           "external": 1
         },
         "implementation": {
-          "local": 0,
+          "local": 1,
           "external": 0
         }
       },
-      "state_revision": 17,
-      "last_transition": "2026-11-12T04:42:49Z",
+      "state_revision": 18,
+      "last_transition": "2026-11-12T04:47:32Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -32140,6 +32140,48 @@
               "review_content_id": "ef7a6297c481425559004565da6f70c2c4583f5789f33dd54099b712a2cc8b1d",
               "verdict": "APPROVE",
               "at": "2026-11-12T03:42:33Z"
+            }
+          ]
+        },
+        "F-0001a4cbad28": {
+          "digest": "0001a4cbad2875cfe9dc5a06c8d9b7d1aa44ccdfe0a6a905fc294511e463e124",
+          "text": "**LIR1-003 -- `TestReport.test_the_run_is_flushed_as_it_goes` is a source grep behind dead code.** `rr.run(self.repo, self.plan(), emit=lines.append) if False else None` never runs. The test only checks that the text `flush=True` appears in the module. Either drop the dead expression, or test the default emitter by patching `print` (or `sys.stdout` with a write-and-flush recorder) and asserting a flush per line. In the same file, `TestRefusalsWriteNothing.check`'s `assertFalse(set(self.keys()) & {k for k in self.keys()})` duplicates the following `assertEqual(self.keys(), [])` and can go.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "598ad9ec5c7d3791d0ddb709b95e79bc80fa0417a0ac0e714447bf4e209849a4",
+              "verdict": "REVISE",
+              "at": "2026-11-12T04:47:32Z"
+            }
+          ]
+        },
+        "F-bcf1a46b35c4": {
+          "digest": "bcf1a46b35c449d93025f21d6c518add4ccb441b6d3309ce62ddddabf137c103",
+          "text": "**LIR1-004 -- `TestEndToEnd` does not assert the plan's \"a second run says nothing to do\".** The fixture has 15 finished items, threshold 3 and a cap of 5, so a second preview still lists items. The test checks only that the removed ids are absent. Either size the fixture so that one run settles it (for example, 5 items with threshold 1, or 7 with threshold 3) and assert `retention cleanup: nothing to do`, or record the deviation.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "598ad9ec5c7d3791d0ddb709b95e79bc80fa0417a0ac0e714447bf4e209849a4",
+              "verdict": "REVISE",
+              "at": "2026-11-12T04:47:32Z"
+            }
+          ]
+        },
+        "F-bc771e1ee787": {
+          "digest": "bc771e1ee787e38afb0bd9a04ae063411718ef11d7b1c7be15a5fa2974f1d4fe",
+          "text": "**LIR1-005 -- The preview's `next:` line prints the literal `TARGET`.** It reads `workflow-manager retention-cleanup TARGET --confirm \"...\"`, as the plan's 2.4 example does. A scheduled job or a user copying it must substitute the path. The refusal's `next:` already quotes the real target with `shlex.quote`. Consider doing the same in `preview_lines` (it would need the target passed in). This is a usability follow-up, not a defect against the plan.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "598ad9ec5c7d3791d0ddb709b95e79bc80fa0417a0ac0e714447bf4e209849a4",
+              "verdict": "REVISE",
+              "at": "2026-11-12T04:47:32Z"
             }
           ]
         }
