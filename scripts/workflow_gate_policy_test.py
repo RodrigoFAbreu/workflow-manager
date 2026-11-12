@@ -6167,6 +6167,45 @@ class TestCompletionPhaseGuard(unittest.TestCase):
             self.assertEqual((exit_code, out["code"], out["state_changed"], queries), (1, "phase_not_reachable", False, []))
             self.assertEqual(before, self.c.tree_without_lock(ev.root))
 
+    # -- P7, P8: the detail names both acceptance phases; the plain flags' bytes stay ------------------
+
+    def test_p7_the_library_detail_names_both_acceptance_phases(self):
+        with AcceptanceRepo() as ev:
+            state = ev.state()
+            state["work_items"][WI]["phase"] = "IMPLEMENTING"
+            before = copy.deepcopy(state)
+            with self.assertRaises(ws.CompletionPhaseNotReachableError) as ctx:
+                self.complete(ev.root, state)
+            self.assertEqual(ctx.exception.code, "phase_not_reachable")
+            self.assertEqual(
+                str(ctx.exception),
+                "the phase is IMPLEMENTING; the acceptance stage needs AWAITING_FUNCTIONAL_REVIEW or AWAITING_USER_ACCEPTANCE")
+            self.assertEqual(state, before)
+
+    def test_p8_the_plain_flags_at_implementing_keep_their_released_bytes(self):
+        import contextlib as cl
+        import io
+        import os
+
+        old_detail = "the phase is IMPLEMENTING; the acceptance stage needs AWAITING_FUNCTIONAL_REVIEW"
+        with AcceptanceRepo() as ev:
+            self.c.r.fixture(ev, "early")
+            exit_code, out, queries = self.run_flag(ev)
+            self.assertEqual((exit_code, queries), (1, []))
+            self.assertEqual(out, {"code": "phase_not_reachable", "error": "AcceptancePreflightError",
+                                   "message": old_detail, "state_changed": False})
+            buf = io.StringIO()
+            cwd = os.getcwd()
+            os.chdir(ev.root)
+            try:
+                with cl.redirect_stdout(buf):
+                    gate_exit = ws._acceptance_gate_cli(WI)
+            finally:
+                os.chdir(cwd)
+            report = json.loads(buf.getvalue())
+            self.assertEqual((gate_exit, report["ready"]), (0, False))
+            self.assertEqual(report["blockers"][0], {"code": "phase_not_reachable", "detail": old_detail})
+
     # -- P6: the shipped texts -----------------------------------------------------------------
 
     def test_p6_the_command_texts_say_where_the_check_is_made(self):
@@ -7098,7 +7137,8 @@ class TestCommitFloorCommand(unittest.TestCase):
                        "floor_provenance_failed", "floor_record_invalid", "floor_not_virtual", "floor_looser_than_head",
                        "recovered", "git restore --staged docs/ai-workflow/WORKFLOW_STATE.json",
                        "do not run it again", "never commit the file by hand",
-                       "`state_changed: true` with `commit: null` means this call wrote the floor into the file before it stopped",
+                       "`state_changed: true` with `commit: null` means the state file's content changed during the call: this call wrote the floor into the file before it stopped, or another writer changed it",
+                       "restore only the `gate_policy_floor` key",
                        "steps 4 and 5 below stay the worker's own edits, `git commit` and, for the floor, the plain command below",
                        '(see "Plain commands first"), not the Python call',
                        "The acceptance stage has no inline Python call",

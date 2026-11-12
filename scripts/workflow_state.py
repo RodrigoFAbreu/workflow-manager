@@ -13756,7 +13756,7 @@ def complete_work_item(state: dict, work_item_id: str, now: str, *, repo_root: P
         raise CompletionPhaseNotReachableError("work_item_terminal", f"{work_item_id} is already MILESTONE_COMPLETE")
     if not milestone_complete_gate_reachable(phase=phase, is_terminal=is_terminal):
         raise CompletionPhaseNotReachableError(
-            "phase_not_reachable", f"the phase is {phase}; the acceptance stage needs AWAITING_FUNCTIONAL_REVIEW")
+            "phase_not_reachable", f"the phase is {phase}; the acceptance stage needs AWAITING_FUNCTIONAL_REVIEW or AWAITING_USER_ACCEPTANCE")
 
     verdicts = resolve_completion_obligations(repo_root, work_item)
     outstanding = {oid: v for oid, v in verdicts.items() if v.classification != "PASS"}
