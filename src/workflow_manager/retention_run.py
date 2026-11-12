@@ -92,11 +92,12 @@ class _Stop(Exception):
     """A step failed: `line` is the item line, `known` whether the folder's place is
     known (False after a step-3 timeout, interrupt or unreadable output)."""
 
-    def __init__(self, line: str, *, engine=None, known: bool = True):
+    def __init__(self, line: str, *, engine=None, known: bool = True, ran: bool = True):
         super().__init__(line)
         self.line = line
         self.engine = engine          # (cause, next step) the engine printed, or None
         self.known = known
+        self.ran = ran                # False: the script never started
 
 
 def _call(root: str, step: str, item_id: str, calls: list):
@@ -109,7 +110,7 @@ def _call(root: str, step: str, item_id: str, calls: list):
                     f"{CALL_TIMEOUT_SECONDS} seconds", known=step != REMOVE) from None
     except OSError as error:
         raise _Stop(f"stopped at {step}: the script could not be started ({_clean(str(error))})",
-                    known=True) from None
+                    known=True, ran=False) from None
     if code != 0:
         refusal = _engine_refusal(err) if code == 2 else None
         if refusal is not None:
@@ -133,15 +134,21 @@ def _mib(count: int) -> int:
     return count // 2**20
 
 
-def _closing(step: str, known: bool, item, total: int, done: int) -> str:
+def _closing(step: str, known: bool, item, total: int, done: int, settled: bool = False) -> str:
+    """`settled`: the stop is a parsed engine refusal or the script never started, the
+    only stops after which an archive's absence is known."""
     item_id = item.work_item_id
     head = f"retention cleanup: stopped after {done} of {total} items; "
     if step == ARCHIVE:
-        return (head + f"{item_id} was not archived and its folder is untouched (a "
+        if settled:
+            fact = f"{item_id} was not archived"
+        else:
+            fact = (f"{item_id} may or may not be archived (the next preview shows which)")
+        return (head + f"{fact} and its folder is untouched (a "
                 f"`.{item_id}.partial` may remain in the archive store if the script was "
                 "stopped); nothing was committed or needs committing")
     if step == VERIFY:
-        return (head + f"{item_id} has an archive and its folder is untouched; nothing was "
+        return (head + f"{item_id}'s folder is untouched; nothing was "
                 "committed or needs committing")
     if known:
         return (head + f"{item_id} was archived and verified; where its folder is: see the "
@@ -194,6 +201,7 @@ def run(target: Path, plan, emit=None) -> Result:
             result.done += 1
         except (_Stop, KeyboardInterrupt) as stop:
             interrupted = isinstance(stop, KeyboardInterrupt)
+            settled = (not interrupted) and (stop.engine is not None or not stop.ran)
             if interrupted:
                 known = step != REMOVE
                 line = ("stopped before any call for this item: interrupted" if step == POLICY
@@ -219,7 +227,7 @@ def run(target: Path, plan, emit=None) -> Result:
                      f"{item.work_item_id} was not touched; nothing was committed or needs "
                      "committing")
             else:
-                emit(_closing(step, known, item, total, result.done))
+                emit(_closing(step, known, item, total, result.done, settled))
                 result.error = f"retention cleanup: {item.work_item_id}: {line}"
                 engine = getattr(stop, "engine", None)
                 engine_step = engine[1] if engine is not None else ""

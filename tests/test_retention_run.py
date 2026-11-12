@@ -220,7 +220,7 @@ class TestNoRemovalWithoutVerification(RunBase):
         out = self.go({"remove:item-00": refusal("archive_mismatch", "item differs")})
         self.assertEqual(out.code, 1)
         self.assertEqual(self.keys(), ["archive --apply:item-00", "remove:item-00"])
-        self.assertIn("item-00 has an archive and its folder is untouched", out.out)
+        self.assertIn("item-00's folder is untouched", out.out)
 
     def test_a_verification_that_does_not_match_stops(self):
         body = {"kind": "retention-remove", "mode": "dry-run", "work_item_id": "item-00",
@@ -322,6 +322,47 @@ class TestStop(RunBase):
         self.assertNotIn("archived and verified", out.out)
         self.assertNotIn("policy changed", out.out + out.err)
 
+    def test_a_step_one_stop_claims_not_archived_only_for_a_parsed_engine_refusal(self):
+        timeout = [mock.patch.object(rr, "CALL_TIMEOUT_SECONDS", 1)]
+        unexpected = {"kind": "retention-archive", "work_item_id": "other",
+                      "result": {"archived": True}}
+        cases = (
+            ("timeout", {"archive --apply:item-00": {"sleep": 30}}, timeout),
+            ("interrupt", {}, [self.interrupt_at("archive --apply:item-00")]),
+            ("not json", {"archive --apply:item-00": {"stdout": "not json"}}, []),
+            ("unexpected json", {"archive --apply:item-00": {"stdout": unexpected}}, []),
+            ("unparsed exit", {"archive --apply:item-00": {"exit": 3, "stdout": ""}}, []),
+        )
+        for label, scenario, patches in cases:
+            with self.subTest(label=label):
+                out = self.go(scenario, patches=patches)
+                self.assertEqual(out.code, 1, out.out + out.err)
+                self.assertNotIn("was not archived", out.out)
+                self.assertIn("item-00 may or may not be archived (the next preview shows "
+                              "which) and its folder is untouched", out.out)
+        out = self.go({"archive --apply:item-00": refusal("place_failed", "nope")})
+        self.assertIn("item-00 was not archived and its folder is untouched", out.out)
+        self.assertNotIn("may or may not", out.out)
+
+    def test_a_script_that_cannot_start_was_not_archived(self):
+        real = retention.launch_script
+
+        def launch(root, *args, timeout):
+            if args[0] == "archive":
+                raise OSError("no exec")
+            return real(root, *args, timeout=timeout)
+        out = self.go(patches=[mock.patch.object(retention, "launch_script", launch)])
+        self.assertIn("item-00 was not archived and its folder is untouched", out.out)
+
+    def test_a_verify_stop_claims_no_archive(self):
+        rep = tc.oldest_first(*(tc.entry(f"item-{n:02d}", mib=2, archive=(n == 0))
+                                for n in range(12)))
+        out = self.go({"remove:item-00": refusal("not_archived", "no index line")}, rep=rep)
+        self.assertEqual(out.code, 1)
+        self.assertNotIn("has an archive", out.out)
+        self.assertIn("not_archived", out.out)
+        self.assertIn("item-00's folder is untouched", out.out)
+
     def test_a_step_three_timeout_never_claims_the_folder_untouched(self):
         patches = [mock.patch.object(rr, "CALL_TIMEOUT_SECONDS", 1)]
         out = self.go({"remove --apply:item-00": {"sleep": 30}}, patches=patches)
@@ -386,60 +427,91 @@ class TestNeverPrune(RunBase):
 
 
 class TestRefusalsWriteNothing(RunBase):
-    def check(self, out, cause):
-        self.assertEqual((out.code, out.out), (2, ""), out.err)
-        self.assertIn(cause, out.err)
-        self.assertFalse(set(self.keys()) & {k for k in self.keys()}, self.keys())
-        self.assertEqual(self.keys(), [])
+    """Every refusal, with a valid-looking sentence, writes nothing: no engine write
+    verb, the same repository tree, no archive store and an empty scratch TMPDIR."""
 
-    def test_every_preflight_refusal_with_a_sentence(self):
-        text = self.sentence()
-        cases = {}
-        record = self.repo / ".workflow-manager" / "installation.json"
-        good = record.read_text()
+    def scratch(self):
+        home, tmp = Path(tempfile.mkdtemp()), Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, home, ignore_errors=True)
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        return home, tmp
 
-        def old_release():
-            data = json.loads(good)
-            data["workflow_version"] = "2.25.4"
-            record.write_text(json.dumps(data, indent=2) + "\n")
-            self.commit(self.repo, "old")
-        cases["old release"] = (old_release, "older than 2.25.5")
-        cases["dirty tree"] = (lambda: (self.repo / "CLAUDE.md").write_text("dirty\n"),
-                               "a tracked file is changed")
-        for label, (setup, cause) in cases.items():
-            with self.subTest(label=label):
-                setup()
-                self.stale_index()
-                before = tree_hash(self.repo)
-                out = self.go(confirm=text)
-                self.check(out, cause)
-                self.assertEqual(tree_hash(self.repo), before)
-                git(self.repo, "checkout", "-q", "--", ".")
-                git(self.repo, "reset", "-q", "--hard", "HEAD~1" if label == "old release" else "HEAD")
-
-    def test_a_modified_script_is_refused_with_a_sentence(self):
-        with mock.patch.object(cli, "_installed_script_state", return_value=ra.SCRIPT_MODIFIED):
-            out = self.go(confirm=self.sentence(), patches=[
-                mock.patch.object(cli, "_installed_script_state", return_value=ra.SCRIPT_MODIFIED)])
-        self.check(out, ra.CAUSE_MODIFIED)
-
-    def test_a_wrong_sentence_writes_nothing(self):
+    def refuse(self, cause, *, rep=None, confirm=True, patches=()):
+        """Run with a scratch HOME and TMPDIR and assert that nothing was written."""
+        home, tmp = self.scratch()
         self.stale_index()
         before = tree_hash(self.repo)
-        tmp = Path(tempfile.mkdtemp())
-        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
-        out = self.go(confirm="no", TMPDIR=str(tmp))
-        self.check(out, "does not hold the sentence")
-        self.assertEqual(tree_hash(self.repo), before)
-        self.assertEqual(list(tmp.iterdir()), [])
-
-    def test_an_interrupted_removal_is_refused(self):
-        rep = tc.many(12, mib=2)
-        rep["removing"] = ["item-99"]
-        out = self.go(rep=rep, confirm="anything")
-        self.assertEqual(out.code, 2)
-        self.assertIn("a removal was interrupted", out.err)
+        out = self.go(confirm=self.sentence() if confirm is True else confirm, rep=rep,
+                      patches=[*patches, mock.patch.object(tempfile, "tempdir", None)],
+                      HOME=str(home), TMPDIR=str(tmp))   # tempdir is cached: reset it
+        self.assertEqual((out.code, out.out), (2, ""), out.err)
+        self.assertIn(cause, out.err)
         self.assertEqual(self.keys(), [])
+        self.assertEqual(tree_hash(self.repo), before)
+        self.assertFalse((home / ".local" / "share" / "workflow-archive").exists())
+        self.assertEqual(list(tmp.iterdir()), [])
+        return out
+
+    def test_every_preflight_refusal_with_a_sentence(self):
+        policy, record = rp.policy_path(self.repo), rp.record_path(self.repo)
+        installation = self.repo / ".workflow-manager" / "installation.json"
+        modified = mock.patch.object(cli, "_installed_script_state",
+                                     return_value=ra.SCRIPT_MODIFIED)
+
+        def not_adopted():
+            record.unlink()
+
+        def mode():
+            self.adopt({**tc.POLICY, "mode": "notify"})
+            self.commit(self.repo, "notify")
+
+        def uncommitted():
+            git(self.repo, "rm", "-q", "--cached", ".workflow-manager/retention-policy.json")
+            git(self.repo, "commit", "-q", "-m", "untrack")
+
+        def dirty():
+            (self.repo / "CLAUDE.md").write_text("dirty\n")
+
+        def old_release():
+            data = json.loads(installation.read_text())
+            data["workflow_version"] = "2.25.4"
+            installation.write_text(json.dumps(data, indent=2) + "\n")
+            self.commit(self.repo, "old")
+
+        def missing_script():
+            (self.repo / SCRIPT).unlink()
+            git(self.repo, "commit", "-q", "-am", "no script")
+
+        incomplete = dict(self.rep, complete=False)
+        interrupted = dict(self.rep, removing=["half-gone"])
+        cases = [
+            ("policy not adopted", not_adopted, {}, f"retention policy: {rp.NOT_ADOPTED}"),
+            ("mode", mode, {}, "the adopted mode is notify"),
+            ("uncommitted policy file", uncommitted, {},
+             ".workflow-manager/retention-policy.json is not committed at HEAD"),
+            ("dirty tree", dirty, {}, "a tracked file is changed"),
+            ("old release", old_release, {}, "older than 2.25.5"),
+            ("modified script", lambda: None, {"patches": [modified]}, ra.CAUSE_MODIFIED),
+            ("incomplete report", lambda: None, {"rep": incomplete}, ra.CAUSE_INCOMPLETE),
+            ("interrupted removal", lambda: None, {"rep": interrupted},
+             "a removal was interrupted"),
+            ("missing script", missing_script, {},
+             "the repository has no scripts/workflow_retention.py"),
+        ]
+        for label, setup, kwargs, cause in cases:
+            with self.subTest(label=label):
+                head = git(self.repo, "rev-parse", "HEAD").stdout.strip()
+                saved = {p: p.read_bytes() for p in (policy, record, installation)}
+                setup()
+                self.refuse(cause, **kwargs)
+                git(self.repo, "reset", "-q", "--hard", head)
+                for path, data in saved.items():
+                    path.write_bytes(data)
+
+    def test_a_wrong_sentence_writes_nothing(self):
+        for text in ("no", "", "I confirm cleanup of plan 0123456789ab"):
+            with self.subTest(text=text):
+                self.refuse("does not hold the sentence", confirm=text)
 
 
 class TestReport(RunBase):
@@ -467,8 +539,8 @@ class TestReport(RunBase):
             "its archive in 1 entry: REVIEW.md (differs)\n"
             "     next step (the engine's): restore it\n"
             "  3. item-02: not attempted\n"
-            "retention cleanup: stopped after 1 of 3 items; item-01 has an archive and its "
-            "folder is untouched; nothing was committed or needs committing\n"))
+            "retention cleanup: stopped after 1 of 3 items; item-01's folder is "
+            "untouched; nothing was committed or needs committing\n"))
         self.assertTrue(out.err.startswith("error: retention cleanup: item-01: stopped at verify"))
         self.assertIn("next: restore it", out.err)
 
@@ -479,10 +551,25 @@ class TestReport(RunBase):
         self.assertEqual(self.go(confirm=None).code, 0)
 
     def test_the_run_is_flushed_as_it_goes(self):
-        lines = []
-        rr.run(self.repo, self.plan(), emit=lines.append) if False else None
-        # the default emitter prints with flush: pinned by the source
-        self.assertIn("flush=True", Path(rr.__file__).read_text())
+        events = []
+
+        class Recorder(io.StringIO):
+            def write(self, text):
+                events.append(("write", text))
+                return super().write(text)
+
+            def flush(self):
+                events.append(("flush", None))
+
+        self.scenario.write_text("{}")
+        with mock.patch.dict(os.environ, self.env(STUB_REPORT=str(self.put_report(self.rep)),
+                                                  STUB_SCENARIO=str(self.scenario)), clear=True), \
+                mock.patch.object(sys, "stdout", Recorder()):
+            rr.run(self.repo, self.plan())
+        lines = [i for i, (kind, text) in enumerate(events) if kind == "write" and text == "\n"]
+        self.assertGreaterEqual(len(lines), 5)
+        for index in lines:
+            self.assertEqual(events[index + 1], ("flush", None), events[index:index + 2])
 
     def test_nothing_is_committed(self):
         self.stale_index()
@@ -535,7 +622,7 @@ sys.exit(wr.main(sys.argv[1:], run=run, resolve=resolve))
         git(self.repo, "config", "user.email", "t@example.com")
         state = self.repo / "docs" / "ai-workflow" / "WORKFLOW_STATE.json"
         items = {}
-        for n in range(1, 16):
+        for n in range(1, 8):
             items[f"item-{n:02d}"] = {
                 "phase": "MILESTONE_COMPLETE", "work_item_type": "process",
                 "governing_workflow_version": "2.2",
@@ -596,6 +683,7 @@ sys.exit(wr.main(sys.argv[1:], run=run, resolve=resolve))
         self.assertEqual(git(self.repo, "status", "--porcelain").stdout, status)
         again = self.invoke()
         self.assertEqual(again.code, 0, again.err)
+        self.assertIn("retention cleanup: nothing to do", again.out)
         for line in removed:
             self.assertNotIn(line.split(":")[0].split(". ")[1], again.out)
 
