@@ -2,7 +2,7 @@
 
 ## Milestone
 
-`retention-run` -- in progress (`governing_workflow_version: "2.2"`, `process`, plan revision 3, base `662e6c2`, branch `milestone/retention-run`): roadmap row 39 (#90, #198, wf#84). A `feat:` pull request title; a Manager release (minor) follows.
+`retention-run` -- complete, accepted by policy (`governing_workflow_version: "2.2"`, `process`, plan revision 3, base `662e6c2`, branch `milestone/retention-run`): roadmap row 39 (#90, #198, wf#84). A `feat:` pull request title; a Manager release (minor) follows.
 
 Fourth slice of the owner's retention track: `workflow-manager retention-cleanup TARGET --confirm "Run the retention cleanup DIGEST12."` archives and then removes the finished work items the preview lists, through the Workflow's own script, only when the sentence is the one bound to the plan's digest. Prune is never run. The follow-ups of #198 ride along as the closing checkpoint.
 

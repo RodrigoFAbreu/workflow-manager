@@ -1,0 +1,78 @@
+{
+  "dispositions": {
+    "F-0001a4cbad28": {
+      "disposition": "fixed"
+    },
+    "F-0020e0ab05c6": {
+      "disposition": "fixed"
+    },
+    "F-07f03ca63eff": {
+      "disposition": "fixed"
+    },
+    "F-16ced57cc11b": {
+      "disposition": "fixed"
+    },
+    "F-25bbb1a25240": {
+      "disposition": "fixed"
+    },
+    "F-4805653a498d": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#201",
+      "note": "Follow-up item 3."
+    },
+    "F-64c3405f80b0": {
+      "disposition": "fixed"
+    },
+    "F-686b5ec23112": {
+      "disposition": "dropped",
+      "reason": "Duplicate of F-6aaed391bf7a (the step 2 shape point), handled there."
+    },
+    "F-6aaed391bf7a": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#201",
+      "note": "Follow-up item 3."
+    },
+    "F-6c6043d99040": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#201",
+      "note": "Follow-up item 1."
+    },
+    "F-6e3bb4da0086": {
+      "disposition": "dropped",
+      "reason": "Duplicate of F-bc771e1ee787 (the literal TARGET in the preview), handled there."
+    },
+    "F-9cfbe1ad3561": {
+      "disposition": "fixed"
+    },
+    "F-a3627bd8376a": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#201",
+      "note": "Follow-up item 3."
+    },
+    "F-a4eca9d0ed72": {
+      "disposition": "dropped",
+      "reason": "Duplicate of F-6c6043d99040 (the 'was not archived' wording), handled there."
+    },
+    "F-b42fc7c8ad7b": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#201",
+      "note": "Follow-up item 2."
+    },
+    "F-bc771e1ee787": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#201",
+      "note": "Follow-up item 2."
+    },
+    "F-bcf1a46b35c4": {
+      "disposition": "fixed"
+    },
+    "F-ec187d152b69": {
+      "disposition": "fixed"
+    },
+    "F-f146c6f87e1e": {
+      "disposition": "fixed"
+    }
+  },
+  "schema_version": 1,
+  "work_item_id": "retention-run"
+}
