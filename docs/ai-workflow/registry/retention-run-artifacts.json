@@ -81,7 +81,8 @@
       "docs/retention.md": "implementation deliverable of this item (the run section and the preview's changed lines)",
       "docs/exit-codes.md": "implementation deliverable of this item (the exit codes of the confirmed run)",
       "tests/test_retention_status.py": "implementation deliverable of this item (the rename of retention's shown helper in its calls)",
-      "tests/test_compatibility.py": "implementation deliverable of this item (the TestGitEnv tests of the public git_env and of run_git's unchanged environment)"
+      "tests/test_compatibility.py": "implementation deliverable of this item (the TestGitEnv tests of the public git_env and of run_git's unchanged environment)",
+      "tests/test_retention_policy.py": "implementation deliverable of this item (the policy block's pinned line, reworded by the self-review: only retention-cleanup with --confirm cleans up)"
     },
     "protected_prefixes": {
       ".claude/commands/": "this repository's own workflow command files -- process deliverable",
