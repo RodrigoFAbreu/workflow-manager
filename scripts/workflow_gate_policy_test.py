@@ -7120,5 +7120,249 @@ class TestCommitFloorCommand(unittest.TestCase):
         self.assertEqual((ran.returncode, json.loads(ran.stdout)["code"]), (1, "work_item_not_complete"))
 
 
+class TestPlainCommandMalformedState(unittest.TestCase):
+    """workflow-2.29.2: the plain acceptance commands refuse a malformed state or registry with one JSON object, never a traceback."""
+
+    SCRIPT = SCRIPTS / "workflow_state.py"
+    REG = "docs/ai-workflow/registry/wi-registry.json"
+    FLAGS = ("--finding-dispositions", "--acceptance-gate", "--satisfy-acceptance", "--write-findings-record",
+             "--commit-gate-policy-floor")
+    WRITERS = ("--satisfy-acceptance", "--write-findings-record", "--commit-gate-policy-floor")
+    #: (case, flag) -> (exit code, first 16 hex of the stdout SHA-256), captured from the base (2.29.1) before the first edit.
+    GOLDEN = {
+        ("complete", "--acceptance-gate"): (0, "1f56b0a0c0545ed2"),
+        ("complete", "--commit-gate-policy-floor"): (0, "98f00a7550fe1592"),
+        ("complete", "--finding-dispositions"): (0, "b77e07f9bfcaa38c"),
+        ("complete", "--satisfy-acceptance"): (1, "17f7ecadc27c5540"),
+        ("complete", "--write-findings-record"): (0, "063161662e5d4010"),
+        ("implementing", "--acceptance-gate"): (0, "8fe8d742b7a34609"),
+        ("implementing", "--commit-gate-policy-floor"): (1, "c3db6a88924d3f26"),
+        ("implementing", "--finding-dispositions"): (0, "b77e07f9bfcaa38c"),
+        ("implementing", "--satisfy-acceptance"): (1, "be0e66ea17859823"),
+        ("implementing", "--write-findings-record"): (1, "01ab3dd2a113a33a"),
+        ("reg-absent", "--acceptance-gate"): (0, "ec8014a198334b32"),
+        ("reg-absent", "--commit-gate-policy-floor"): (1, "e8effeed45d10900"),
+        ("reg-absent", "--finding-dispositions"): (0, "b77e07f9bfcaa38c"),
+        ("reg-absent", "--satisfy-acceptance"): (1, "31bf361cc096fb53"),
+        ("reg-absent", "--write-findings-record"): (1, "88dbc7362ba950f5"),
+        ("reg-list", "--acceptance-gate"): (0, "a8ce65b7f7284073"),
+        ("reg-list", "--commit-gate-policy-floor"): (1, "e8effeed45d10900"),
+        ("reg-list", "--finding-dispositions"): (0, "b77e07f9bfcaa38c"),
+        ("reg-list", "--satisfy-acceptance"): (1, "caf4bfd0112fe1a1"),
+        ("reg-list", "--write-findings-record"): (1, "88dbc7362ba950f5"),
+        ("reg-notjson", "--acceptance-gate"): (0, "ee140771d5fe491e"),
+        ("reg-notjson", "--commit-gate-policy-floor"): (1, "e8effeed45d10900"),
+        ("reg-notjson", "--finding-dispositions"): (0, "b77e07f9bfcaa38c"),
+        ("reg-notjson", "--satisfy-acceptance"): (1, "4560b47007e62027"),
+        ("reg-notjson", "--write-findings-record"): (1, "88dbc7362ba950f5"),
+        ("reg-null", "--acceptance-gate"): (0, "842f45c71d54811f"),
+        ("reg-null", "--commit-gate-policy-floor"): (1, "e8effeed45d10900"),
+        ("reg-null", "--finding-dispositions"): (0, "b77e07f9bfcaa38c"),
+        ("reg-null", "--satisfy-acceptance"): (1, "ff7b845e68157b1f"),
+        ("reg-null", "--write-findings-record"): (1, "88dbc7362ba950f5"),
+        ("unknown", "--acceptance-gate"): (1, "75e37b3db261fe1e"),
+        ("unknown", "--commit-gate-policy-floor"): (1, "e44bfa0e380d441a"),
+        ("unknown", "--finding-dispositions"): (1, "75e37b3db261fe1e"),
+        ("unknown", "--satisfy-acceptance"): (1, "92ea824c543a346b"),
+        ("unknown", "--write-findings-record"): (1, "a7dfc37d33214004"),
+        ("wellformed", "--acceptance-gate"): (0, "17b562ba04ec5e9b"),
+        ("wellformed", "--commit-gate-policy-floor"): (1, "e8effeed45d10900"),
+        ("wellformed", "--finding-dispositions"): (0, "b77e07f9bfcaa38c"),
+        ("wellformed", "--satisfy-acceptance"): (1, "db4b6cabd47b4a43"),
+        ("wellformed", "--write-findings-record"): (1, "88dbc7362ba950f5"),
+    }
+
+    def setUp(self):
+        self.scratch = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.scratch, True)
+        self.bin = self.scratch / "bin"
+        self.bin.mkdir(mode=0o755)
+        self.log = self.scratch / "gh.log"
+        self.log.write_text("")
+        (self.bin / "gh").write_text(f'#!/bin/sh\necho "gh called: $*" >> "{self.log}"\nexit 1\n')
+        (self.bin / "gh").chmod(0o755)
+
+    # -- helpers -------------------------------------------------------------
+
+    @staticmethod
+    def item(**kw) -> dict:
+        return {"work_item_id": WI, "phase": "AWAITING_FUNCTIONAL_REVIEW", "registry_path": None,
+                "governing_workflow_version": "2.2", **kw}
+
+    @staticmethod
+    def state_of(item) -> str:
+        return json.dumps({"schema_version": 1, "active_work_item_id": WI, "work_items": {WI: item}})
+
+    def registry(self, checkpoints) -> str:
+        return json.dumps({"work_item_id": WI, "checkpoints": checkpoints})
+
+    @staticmethod
+    def blob(text: str) -> str:
+        return subprocess.run(["git", "hash-object", "--stdin"], input=text, capture_output=True, text=True).stdout.strip()
+
+    def sealed(self, reg_text: str, **kw):
+        """A state and registry the plan approval covers, so the coverage check passes and the shape is what is judged."""
+        approval = {"status": "CURRENT", "review_content_manifest": [
+            {"path": self.REG, "exists": True, "mode": "100644", "blob": self.blob(reg_text)}]}
+        return self.state_of(self.item(registry_path=self.REG, plan_approval=approval, **kw)), reg_text
+
+    def repo(self, state, reg=None, *, git=True) -> Path:
+        root = self.scratch / "repo"
+        shutil.rmtree(root, ignore_errors=True)
+        (root / "docs/ai-workflow/registry").mkdir(parents=True)
+        (root / ".gitignore").write_text(".ai-review/\n")
+        if state is not None:
+            (root / "docs/ai-workflow/WORKFLOW_STATE.json").write_text(state)
+        if reg is not None:
+            (root / self.REG).write_text(reg)
+        if git:
+            for a in (["init", "-q", "-b", "main"], ["config", "user.email", "t@t"], ["config", "user.name", "t"],
+                      ["add", "-A"], ["commit", "-q", "-m", "base"]):
+                subprocess.run(["git", "-C", root, *a], check=True, capture_output=True)
+        return root
+
+    def run_flag(self, root: Path, flag: str, work_item_id: str = WI):
+        env = dict(os.environ, PATH=f"{self.bin}:{os.environ['PATH']}", PYTHONDONTWRITEBYTECODE="1")
+        return subprocess.run([sys.executable, str(self.SCRIPT), flag, work_item_id], cwd=root, env=env,
+                              capture_output=True, text=True)
+
+    @staticmethod
+    def tree(root: Path) -> dict:
+        return {str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(root.rglob("*"))
+                if ".git" not in p.parts and p.is_file() and p.name != "WORKFLOW_STATE.lock"}
+
+    def refuses(self, root, flag, name, *, work_item_id=WI):
+        """One JSON object, exit 1, no traceback, the tree unchanged (the lock file aside)."""
+        before = self.tree(root)
+        ran = self.run_flag(root, flag, work_item_id)
+        self.assertNotIn("Traceback", ran.stderr, (flag, ran.stderr))
+        self.assertEqual(ran.returncode, 1, (flag, ran.stdout))
+        body = json.loads(ran.stdout)
+        self.assertEqual(body["error"], name, (flag, body))
+        if flag in self.WRITERS:
+            self.assertIs(body["state_changed"], False)
+        self.assertEqual(before, self.tree(root))
+        self.assertEqual(self.log.read_text(), "")
+        return ran, body
+
+    # -- M1: null versus absent ---------------------------------------------------
+
+    def test_m1_a_null_state_file_is_malformed_and_an_absent_one_is_missing(self):
+        for flag in self.FLAGS:
+            with self.subTest(flag, state="null"):
+                _, body = self.refuses(self.repo("null"), flag, "StateMalformed")
+                self.assertIn("null", body["message"])
+            with self.subTest(flag, state="absent"):
+                self.refuses(self.repo(None), flag, "StateMissing")
+
+    # -- M2: --finding-dispositions answers like its siblings ------------------
+
+    def test_m2_the_dispositions_flag_refuses_a_bad_state_with_one_json_object(self):
+        wrong_item = self.state_of(None)
+        cases = {"empty": ("", "CorruptJsonError"), "notjson": ("{oops", "CorruptJsonError"), "null": ("null", "StateMalformed"),
+                 "list": ("[]", "StateMalformed"), "object": ("{}", "StateMalformed"), "string": ('"x"', "StateMalformed"),
+                 "number": ("5", "StateMalformed"), "items-null": ('{"work_items": null}', "StateMalformed"),
+                 "items-list": ('{"work_items": []}', "StateMalformed"), "item-null": (wrong_item, "StateMalformed"),
+                 "item-list": (self.state_of([]), "StateMalformed"), "unknown": ('{"work_items": {}}', "UnknownWorkItem")}
+        for name, (state, error) in cases.items():
+            with self.subTest(name):
+                root = self.repo(state)
+                ran, _ = self.refuses(root, "--finding-dispositions", error)
+                sibling = self.run_flag(root, "--acceptance-gate")
+                self.assertEqual(ran.stdout, sibling.stdout)
+
+    def test_m2_an_empty_id_is_not_absent_and_outside_git_is_the_class_name(self):
+        root = self.repo(self.state_of(self.item()))
+        self.refuses(root, "--finding-dispositions", "UnknownWorkItem", work_item_id="")
+        self.refuses(root, "--acceptance-gate", "UnknownWorkItem", work_item_id="")
+        outside = self.repo(self.state_of(self.item()), git=False)
+        for flag in self.FLAGS:
+            with self.subTest(flag):
+                self.refuses(outside, flag, "CalledProcessError")
+
+    def test_m2_a_wrong_typed_findings_ledger_and_a_directory_at_the_state_path_are_json(self):
+        for ledger in ("x", 5, ["a"], {"k": 5}):
+            with self.subTest(ledger=ledger):
+                root = self.repo(self.state_of(self.item(optional_findings=ledger)))
+                ran = self.run_flag(root, "--finding-dispositions")
+                self.assertNotIn("Traceback", ran.stderr)
+                self.assertEqual(ran.returncode, 1)
+                self.assertIn("error", json.loads(ran.stdout))
+        root = self.repo(None)
+        (root / "docs/ai-workflow/WORKFLOW_STATE.json").mkdir()
+        self.refuses(root, "--finding-dispositions", "IsADirectoryError")
+
+    def test_m2_a_well_formed_item_lists_nothing(self):
+        ran = self.run_flag(self.repo(self.state_of(self.item())), "--finding-dispositions")
+        self.assertEqual(ran.returncode, 0)
+        self.assertEqual(json.loads(ran.stdout)["findings"], [])
+
+    # -- M3, M4: a malformed registry is a blocker -------------------------------
+
+    SHAPES = {"cps-str": '"x"', "cps-null": "null", "cps-list-int": "[1]", "deps-int": '[{"id": "CP1", "depends_on": 5}]'}
+
+    def malformed_registries(self):
+        for name, cps in self.SHAPES.items():
+            yield name, self.sealed(f'{{"work_item_id": "{WI}", "checkpoints": {cps}}}')
+        yield "cps-missing", self.sealed(json.dumps({"work_item_id": WI}))
+        yield "regpath-int", (self.state_of(self.item(registry_path=5)), None)
+        yield "regpath-list", (self.state_of(self.item(registry_path=["a"])), None)
+        yield "approval-str", (self.state_of(self.item(registry_path=self.REG, plan_approval="x")), self.registry([]))
+
+    def test_m3_a_malformed_registry_is_a_blocker_and_a_preflight_refusal(self):
+        for name, (state, reg) in self.malformed_registries():
+            with self.subTest(name):
+                root = self.repo(state, reg)
+                before = self.tree(root)
+                ran = self.run_flag(root, "--acceptance-gate")
+                self.assertEqual((ran.returncode, "Traceback" in ran.stderr), (0, False), ran.stdout)
+                report = json.loads(ran.stdout)
+                first = report["blockers"][0]
+                self.assertEqual(first["code"], "registry_unresolvable")
+                self.assertRegex(first["detail"], r"^the item's own registry cannot be resolved: [A-Za-z]+Error: ")
+                self.assertFalse([r for r in report["gate"]["requirements"] if r["id"] == "checkpoints_complete" and r["met"]])
+                _, body = self.refuses(root, "--satisfy-acceptance", "AcceptancePreflightError")
+                self.assertEqual(body["code"], "registry_unresolvable")
+                self.assertEqual(before, self.tree(root))
+
+    def test_m4_the_blocker_order_is_terminal_then_registry_then_phase(self):
+        state, reg = self.sealed(self.registry("x"), phase="IMPLEMENTING")
+        _, body = self.refuses(self.repo(state, reg), "--satisfy-acceptance", "AcceptancePreflightError")
+        self.assertEqual(body["code"], "registry_unresolvable")
+        state, reg = self.sealed(self.registry("x"), phase="MILESTONE_COMPLETE")
+        _, body = self.refuses(self.repo(state, reg), "--satisfy-acceptance", "AcceptancePreflightError")
+        self.assertEqual(body["code"], "work_item_terminal")
+
+    def test_m4_the_existing_clauses_keep_their_detail(self):
+        with mock.patch.object(ws, "resolve_own_registry_completion_status", side_effect=ws.RegistryCoverageError("covered detail")):
+            blocker = ws._acceptance_reachability_blocker(Path("."), WI, self.item())
+        self.assertEqual(blocker, {"code": "registry_unresolvable", "detail": "covered detail"})
+
+    # -- M5: the well-formed and already-refused paths are byte-identical -------
+
+    CASES = ("wellformed", "implementing", "complete", "unknown", "reg-absent", "reg-null", "reg-list", "reg-notjson")
+
+    def golden_repo(self, case: str) -> Path:
+        item = {"wellformed": self.item(), "implementing": self.item(phase="IMPLEMENTING"),
+                "complete": self.item(phase="MILESTONE_COMPLETE")}.get(case, self.item(registry_path=self.REG))
+        reg = {"reg-null": "null", "reg-list": "[]", "reg-notjson": "{oops"}.get(case)
+        return self.repo('{"work_items": {}}' if case == "unknown" else self.state_of(item), reg)
+
+    def test_m5_well_formed_and_already_refused_inputs_are_unchanged(self):
+        for case in self.CASES:
+            for flag in self.FLAGS:
+                with self.subTest(case, flag=flag):
+                    ran = self.run_flag(self.golden_repo(case), flag)
+                    self.assertEqual((ran.returncode, hashlib.sha256(ran.stdout.encode()).hexdigest()[:16]),
+                                     self.GOLDEN[(case, flag)])
+
+    # -- M6: the shipped command text --------------------------------------------
+
+    def test_m6_the_command_text_says_never_a_traceback(self):
+        text = " ".join((REPO_ROOT / ".claude" / "commands" / "satisfy-gate.md").read_text().split())
+        self.assertIn("never a traceback", text)
+        self.assertIn("`null`", text)
+
+
 if __name__ == "__main__":
     unittest.main()
