@@ -24,7 +24,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .retention import _shown
+from .retention import shown
 
 PROGRAM = "workflow-manager"
 DIRECTORY = ".workflow-manager"
@@ -81,7 +81,7 @@ def _no_duplicates(pairs):
     result = {}
     for key, value in pairs:
         if key in result:
-            raise _Refused(f"duplicate key {_shown(key)}")
+            raise _Refused(f"duplicate key {shown(key)}")
         result[key] = value
     return result
 
@@ -130,34 +130,34 @@ def _is_int(value) -> bool:
 def policy_errors(policy) -> list[str]:
     """Every way `policy` breaks the schema (an empty list: it is valid)."""
     if not isinstance(policy, dict):
-        return [f"the policy is not an object: {_shown(policy)}"]
+        return [f"the policy is not an object: {shown(policy)}"]
     errors = []
     for key in policy:
         if key not in ("schema_version", "mode", "thresholds"):
-            errors.append(f"unknown key {_shown(key)}")
+            errors.append(f"unknown key {shown(key)}")
     if "schema_version" not in policy:
         errors.append("schema_version is missing")
     elif not _is_int(policy["schema_version"]) or policy["schema_version"] != SCHEMA_VERSION:
         errors.append(f"schema_version must be the integer {SCHEMA_VERSION}, "
-                      f"not {_shown(policy['schema_version'])}")
+                      f"not {shown(policy['schema_version'])}")
     mode = policy.get("mode")
     if "mode" not in policy:
         errors.append("mode is missing")
     elif not isinstance(mode, str) or mode not in MODES:
-        errors.append(f"mode must be one of {', '.join(MODES)}, not {_shown(mode)}")
+        errors.append(f"mode must be one of {', '.join(MODES)}, not {shown(mode)}")
     thresholds = policy.get("thresholds", {})
     count = 0
     if not isinstance(thresholds, dict):
-        errors.append(f"thresholds must be an object, not {_shown(thresholds)}")
+        errors.append(f"thresholds must be an object, not {shown(thresholds)}")
     else:
         for key, value in thresholds.items():
             if key not in THRESHOLDS:
-                errors.append(f"unknown threshold {_shown(key)}")
+                errors.append(f"unknown threshold {shown(key)}")
             elif not _is_int(value):
-                errors.append(f"thresholds.{key} must be an integer, not {_shown(value)}")
+                errors.append(f"thresholds.{key} must be an integer, not {shown(value)}")
             elif not 1 <= value <= THRESHOLDS[key][0]:
                 errors.append(f"thresholds.{key} must be from 1 to {THRESHOLDS[key][0]}, "
-                              f"not {_shown(value)}")
+                              f"not {shown(value)}")
             else:
                 count += 1
     if isinstance(mode, str) and mode in MODES and mode != "off" and count == 0 \
@@ -217,13 +217,13 @@ def check_record(record) -> list[str]:
     The loader runs it on what it reads and the adoption command on what it has
     built, so a record the loader would refuse is never written."""
     if not isinstance(record, dict):
-        return [f"the record is not an object: {_shown(record)}"]
+        return [f"the record is not an object: {shown(record)}"]
     problems = []
     if _has_surrogate(record):
         return ["the record holds a lone surrogate"]
     for key in record:
         if key not in _RECORD_KEYS:
-            problems.append(f"unknown record key {_shown(key)}")
+            problems.append(f"unknown record key {shown(key)}")
     for key in _RECORD_KEYS:
         if key not in record:
             problems.append(f"record key {key} is missing")
@@ -232,7 +232,7 @@ def check_record(record) -> list[str]:
     if not _is_int(record["schema_version"]) or record["schema_version"] != SCHEMA_VERSION:
         problems.append(f"record schema_version must be the integer {SCHEMA_VERSION}")
     if not _is_timestamp(record["adopted_at"]):
-        problems.append(f"record adopted_at is not a UTC timestamp: {_shown(record['adopted_at'])}")
+        problems.append(f"record adopted_at is not a UTC timestamp: {shown(record['adopted_at'])}")
     inner = policy_errors(record["policy"])
     if inner:
         problems.extend(f"record policy: {problem}" for problem in inner)
@@ -440,7 +440,7 @@ def apply(target: Path, state: PolicyState, confirmation: str) -> dict:
 # The block of `status --retention` and `doctor --retention`
 # ---------------------------------------------------------------------------
 
-_WORDS = {
+WORDS = {
     FILE_MISSING: "the adoption record has no policy file",
     INVALID: "the policy file is refused",
     NOT_ADOPTED: "the policy file is valid and not adopted",
@@ -480,7 +480,7 @@ def block(state: PolicyState, target: Path) -> list[str]:
             "  this Manager release reads the policy and, for notify and both, evaluates its "
             "thresholds in verify and doctor; it sends nothing and cleans nothing",
         ]
-    lines = [f"retention policy: {state.state} ({_WORDS[state.state]}); mode off is in force"]
+    lines = [f"retention policy: {state.state} ({WORDS[state.state]}); mode off is in force"]
     lines.extend(f"  problem: {problem}" for problem in state.problems[:PROBLEM_LIMIT])
     if len(state.problems) > PROBLEM_LIMIT:
         lines.append(f"  and {len(state.problems) - PROBLEM_LIMIT} more")

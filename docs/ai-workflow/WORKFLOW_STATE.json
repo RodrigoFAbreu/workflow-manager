@@ -31819,18 +31819,22 @@
       "registry_path": "docs/ai-workflow/registry/retention-run-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/retention-run-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "IMPLEMENTING",
+      "phase": "SELF_REVIEWING_IMPLEMENTATION",
       "plan_revision": 3,
       "implementation_revision": null,
       "functional_review_round": null,
       "base_commit": "662e6c2d95eed185b93aa5a0e38330ab05f3bacb",
       "reviewed_implementation_head": null,
       "current_checkpoint_id": null,
-      "last_completed_checkpoint_id": "CP1",
+      "last_completed_checkpoint_id": "CP2",
       "checkpoints": {
         "CP1": {
           "status": "COMPLETE",
           "start_commit": "5b9483c5a36063bad859b7c0b79ca8945668fea5"
+        },
+        "CP2": {
+          "status": "COMPLETE",
+          "start_commit": "8982cf5c0625baa6a89d0e4c4c261e972eab4aa3"
         }
       },
       "current_bundle_id": "bf93bf286d34b8e03bc2810a0a236720c200e183a00dd787df3a78ce0ca74024",
@@ -31959,8 +31963,8 @@
           "external": 0
         }
       },
-      "state_revision": 14,
-      "last_transition": "2026-11-12T03:52:59Z",
+      "state_revision": 16,
+      "last_transition": "2026-11-12T04:22:33Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",

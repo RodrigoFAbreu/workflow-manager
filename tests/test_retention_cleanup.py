@@ -115,6 +115,9 @@ class TestSelect(unittest.TestCase):
             with self.subTest(bad=bad):
                 plan = plan_for(oldest_first(entry(bad), entry("a")), finished_items=1)
                 self.assertEqual(ids(plan), ["a"])
+                # the skipped folder still counts: it is on disk and still reaches the limit
+                self.assertEqual((plan.candidates, plan.before["finished_items"]), (2, 2))
+                self.assertEqual(plan.after["finished_items"], 1)
                 self.assertEqual(len(plan.skipped), 1)
                 self.assertEqual(plan.skipped[0][1], rc.REASON_ID)
 
@@ -361,9 +364,22 @@ class TestPreflight(Base):
                 loaded = rp.load(self.repo)
                 self.assertEqual(loaded.state, state)
                 out = self.refusal_writes_nothing(many())
-                self.refused(out, f"retention policy: {state} ({rp._WORDS[state]})",
-                             rp.step_for(state, self.repo))
+                cause = f"retention policy: {state} ({rp.WORDS[state]})"
+                if state == rp.INVALID:
+                    # the cause ends with the first problem the loader found
+                    cause += f": {loaded.problems[0]}"
+                    self.assertIn("unknown key 'x'", cause)
+                    self.assertTrue(out.err.splitlines()[0].endswith(cause), out.err)
+                self.refused(out, cause, rp.step_for(state, self.repo))
                 reset()
+
+    def test_an_invalid_policy_names_its_problem(self):
+        rp.policy_path(self.repo).write_text(json.dumps({**POLICY, "mode": "off", "x": 1}))
+        problem = rp.load(self.repo).problems[0]
+        out = self.refusal_writes_nothing(many())
+        self.refused(out, f"retention policy: {rp.INVALID} ({rp.WORDS[rp.INVALID]}): {problem}",
+                     rp.step_for(rp.INVALID, self.repo))
+        self.assertTrue(out.err.splitlines()[0].endswith(f": {problem}"), out.err)
 
     def test_no_policy_at_all_is_the_exact_first_contact_message(self):
         rp.policy_path(self.repo).unlink()
@@ -631,11 +647,22 @@ class TestPreflight(Base):
         self.assertEqual(self.script_calls(), [])
 
     def test_steps_one_to_six_start_no_script(self):
-        rp.record_path(self.repo).unlink()
-        self.refusal_writes_nothing(many())
-        with (self.repo / "CLAUDE.md").open("a") as handle:
+        record = rp.record_path(self.repo)
+        adopted_record = record.read_bytes()
+        record.unlink()                      # step 2: the policy is not adopted
+        out = self.refusal_writes_nothing(many())
+        self.refused(out, f"retention policy: {rp.NOT_ADOPTED}")
+        record.write_bytes(adopted_record)   # adopted again: the next calls reach steps 4 and 6
+        claude = self.repo / "CLAUDE.md"
+        original = claude.read_bytes()
+        with claude.open("a") as handle:     # step 4: a tracked file is changed
             handle.write("x\n")
-        self.refusal_writes_nothing(many(), seam=ra.SCRIPT_MODIFIED)
+        out = self.refusal_writes_nothing(many(), seam=ra.SCRIPT_MODIFIED)
+        self.assertIn("tracked", out.err.splitlines()[0])
+        self.assertNotIn(ra.CAUSE_MODIFIED, out.err)
+        claude.write_bytes(original)         # clean again: step 6 is the one that refuses
+        out = self.refusal_writes_nothing(many(), seam=ra.SCRIPT_MODIFIED)
+        self.refused(out, ra.CAUSE_MODIFIED)
         self.assertEqual(self.script_calls(), [])
 
     def test_an_incomplete_report(self):
@@ -850,6 +877,35 @@ class TestCommandNameIsNotAnInternalId(unittest.TestCase):
             problems = [p for p in check_docs.check_pages(root, ("item-one",)) if "glossary" in p]
         self.assertEqual(len(problems), 1)
         self.assertIn("'item-two'", problems[0])
+
+
+class TestNoPrivateCrossUse(unittest.TestCase):
+    """No retention module uses a sibling's underscore name (#198)."""
+    MODULES = ("retention", "retention_alert", "retention_cleanup", "retention_policy",
+               "retention_run")
+
+    def test_no_attribute_access_or_import_of_a_sibling_private_name(self):
+        import ast
+        found = []
+        source = REPO_ROOT / "src" / "workflow_manager"
+        for name in self.MODULES:
+            tree = ast.parse((source / f"{name}.py").read_text(encoding="utf-8"))
+            siblings = set()
+            for node in ast.walk(tree):
+                if isinstance(node, ast.ImportFrom) and node.level == 1:
+                    for alias in node.names:
+                        if alias.name.startswith("_"):
+                            found.append(f"{name}: from .{node.module} import {alias.name}")
+                        if node.module is None:
+                            siblings.add(alias.asname or alias.name)
+                    if node.module is not None:
+                        siblings.add(node.module)
+            for node in ast.walk(tree):
+                if (isinstance(node, ast.Attribute) and node.attr.startswith("_")
+                        and not node.attr.startswith("__")
+                        and isinstance(node.value, ast.Name) and node.value.id in siblings):
+                    found.append(f"{name}: {node.value.id}.{node.attr}")
+        self.assertEqual(found, [])
 
 
 if __name__ == "__main__":

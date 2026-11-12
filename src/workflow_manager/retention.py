@@ -84,7 +84,7 @@ def render_note(note: NotAvailable) -> list[str]:
     return [f"retention: not available: {note.cause}", f"  next: {note.step}"]
 
 
-def _release_key(version) -> tuple[int, int, int] | None:
+def release_key(version) -> tuple[int, int, int] | None:
     match = _RELEASE.match(version) if isinstance(version, str) else None
     return tuple(int(part) for part in match.groups()) if match else None
 
@@ -223,7 +223,7 @@ def _printable(text: str, name: str, limit: int | None) -> None:
         raise _Invalid(f"{name} contains a control character")
 
 
-def _shown(value) -> str:
+def shown(value) -> str:
     """A report value echoed in a refusal: its `repr` (which escapes every control
     character), cut to SHOWN_LIMIT characters and marked with the value's own length:
     a string counts its characters (not the quotes the display adds), any other value
@@ -337,12 +337,12 @@ def fetch(target: Path) -> Outcome:
         return _other_failure("the script's output is not one JSON object")
     if report.get("kind") != KIND:
         return Outcome(refusal=NotAvailable(
-            f"the script's report has kind {_shown(report.get('kind'))}, not {KIND!r}",
+            f"the script's report has kind {shown(report.get('kind'))}, not {KIND!r}",
             STEP_UPDATE_MANAGER))
     if report.get("schema_version") != SCHEMA_VERSION or isinstance(
             report.get("schema_version"), bool):
         return Outcome(refusal=NotAvailable(
-            f"the script's report has schema_version {_shown(report.get('schema_version'))}; "
+            f"the script's report has schema_version {shown(report.get('schema_version'))}; "
             f"this workflow-manager reads {SCHEMA_VERSION}", STEP_UPDATE_MANAGER))
     try:
         _validate(report)
@@ -418,7 +418,7 @@ def next_step(report: dict, version, target: Path) -> str:
         return (f"nothing to archive: {who} tracked review files; the script archives and "
                 "removes only untracked folders")
     needed = ARCHIVE_FROM if kind == "archive" else REMOVE_FROM
-    key = _release_key(version)
+    key = release_key(version)
     if key is None or key < needed:
         return (f"this Workflow release has no `{kind}` command; "
                 f"{PROGRAM} update {shlex.quote(str(target))}")
@@ -467,7 +467,7 @@ def render(report: dict, version, target: Path) -> list[str]:
                  f"archive store: {_count(totals['archives'], 'archive')}, {totals['prunable']} "
                  f"prunable (older than {report['ttl_days']} days)")
     if totals["prunable"]:
-        key = _release_key(version)
+        key = release_key(version)
         if key is not None and key >= PRUNE_FROM:
             lines.append("  prunable archives: python3 -I scripts/workflow_retention.py prune ID "
                          "--apply removes one (run `report` to list them)")

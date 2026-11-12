@@ -917,15 +917,15 @@ class TestHardenedValidation(Scratch):
                 self.assertNotIn("\u2028", got.stdout)
 
     def test_shown_keeps_a_short_value_and_survives_deep_nesting(self):
-        self.assertEqual(retention._shown("x"), "'x'")
-        self.assertEqual(retention._shown(2), "2")
+        self.assertEqual(retention.shown("x"), "'x'")
+        self.assertEqual(retention.shown(2), "2")
         text = repr("y" * 38)  # exactly 40 characters
-        self.assertEqual(retention._shown("y" * 38), text)
-        self.assertTrue(retention._shown("y" * 39).endswith("... (39 characters)"))
+        self.assertEqual(retention.shown("y" * 38), text)
+        self.assertTrue(retention.shown("y" * 39).endswith("... (39 characters)"))
         deep = []
         for _ in range(100000):
             deep = [deep]
-        self.assertEqual(retention._shown(deep), "<value>")
+        self.assertEqual(retention.shown(deep), "<value>")
 
     def test_the_echo_count_is_the_values_own_length(self):
         for value, count in (("y" * 39, 39), ("y" * 5000, 5000), ("\x1b" * 50, 50),
@@ -933,10 +933,10 @@ class TestHardenedValidation(Scratch):
                              (10 ** 400, 401), (-(10 ** 400), 402),
                              ("1" * 100, 100), (int("1" * 100), 100)):
             with self.subTest(value=repr(value)[:20], count=count):
-                self.assertTrue(retention._shown(value).endswith(f"... ({count} characters)"))
+                self.assertTrue(retention.shown(value).endswith(f"... ({count} characters)"))
         self.assertEqual(len(repr(["x"] * 50)), 250)
         for value in ("y" * 38, 10 ** 39, ["a"] * 5):
-            self.assertEqual(retention._shown(value), repr(value))
+            self.assertEqual(retention.shown(value), repr(value))
 
     def test_a_read_error_path_over_the_limit_is_the_documented_fallback(self):
         cause = "the script's report is malformed: read_errors[].path is longer than 4096 characters"

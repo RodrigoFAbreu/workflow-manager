@@ -83,23 +83,10 @@ def _git(target: Path, *args: str,
     runs before the preflight completes."""
     # `GIT_CONFIG_PARAMETERS` (what a shell alias's `git -c` exports) outranks
     # `GIT_CONFIG_COUNT`, so it could switch a filter driver back on over the
-    # overrides below; it is dropped, for the discovery and the status alike.
-    env = {key: value for key, value in os.environ.items()
-           if key not in compatibility._REPOSITORY_SELECTORS
-           and key != "GIT_CONFIG_PARAMETERS"}
-    env.update(compatibility._GIT_ENVIRONMENT)
-    if config:
-        # `GIT_CONFIG_KEY_n`/`GIT_CONFIG_VALUE_n` take the key and the value apart, so a
-        # driver name with an `=` in it (which `-c key=value` splits at the first one)
-        # is switched off too. Entries are appended after any the environment carries.
-        try:
-            start = max(int(env.get("GIT_CONFIG_COUNT", "0")), 0)
-        except ValueError:
-            start = 0
-        for offset, (key, value) in enumerate(config):
-            env[f"GIT_CONFIG_KEY_{start + offset}"] = key
-            env[f"GIT_CONFIG_VALUE_{start + offset}"] = value
-        env["GIT_CONFIG_COUNT"] = str(start + len(config))
+    # overrides; it is dropped, for the discovery and the status alike. The pairs
+    # go in through `GIT_CONFIG_KEY_n`/`GIT_CONFIG_VALUE_n`, so a driver name with
+    # an `=` in it (which `-c key=value` splits at the first one) is switched off too.
+    env = compatibility.git_env(config, drop_config_parameters=True)
     return subprocess.run(
         compatibility.git_argv(target, *args),
         capture_output=True, timeout=GIT_TIMEOUT_SECONDS, check=False, env=env)
@@ -128,10 +115,11 @@ def committed(target: Path) -> str | None:
 
 def _filter_overrides(target: Path) -> tuple[tuple[str, str], ...]:
     """(key, value) pairs, passed through `GIT_CONFIG_*`, that switch off every
-    configured filter driver. A driver's clean or process command runs when `git status` re-reads a file whose stat data
-    no longer matches the index (Git LFS installs one globally), and it can write
-    into the repository. An empty command is "no filter"; `required` is turned off
-    so Git does not fail on it. The names come from every configuration scope."""
+    configured filter driver. A driver's clean or process command runs when
+    `git status` re-reads a file whose stat data no longer matches the index (Git
+    LFS installs one globally), and it can write into the repository. An empty
+    command is "no filter"; `required` is turned off so Git does not fail on it.
+    The names come from every configuration scope."""
     done = _git(target, "config", "-z", "--name-only", "--get-regexp", r"^filter\.")
     if done.returncode not in (0, 1):
         raise Refusal("retention cleanup: `git config` failed",
@@ -173,8 +161,11 @@ def _policy_refusal(state, target: Path) -> Refusal:
         return Refusal("retention cleanup: no retention policy is adopted (there is no "
                        f"{retention_policy.DIRECTORY}/{retention_policy.POLICY_FILE})",
                        retention_policy.step_for(state.state, target))
-    words = retention_policy._WORDS[state.state]
-    return Refusal(f"retention policy: {state.state} ({words})",
+    words = retention_policy.WORDS[state.state]
+    cause = f"retention policy: {state.state} ({words})"
+    if state.state == retention_policy.INVALID and state.problems:
+        cause += f": {state.problems[0]}"
+    return Refusal(cause,
                    retention_policy.step_for(state.state, target))
 
 
@@ -224,7 +215,7 @@ def preflight(target: Path, version, script_state, record_refusal=None) -> Clear
                       "commit or restore the change, or run the command from a clean checkout")
     # 5. the release is one that can be trusted with an unattended removal
     # the strict validator the doctor applies: `02.25.5` and `2.25.5\n` are no release
-    key = retention._release_key(version) if source.is_strict_version(version) else None
+    key = retention.release_key(version) if source.is_strict_version(version) else None
     if key is None:
         if record_refusal is not None:
             raise Refusal(*record_refusal())
@@ -255,12 +246,12 @@ def preflight(target: Path, version, script_state, record_refusal=None) -> Clear
         raise Refusal(outcome.refusal.cause, outcome.refusal.step)
     report = outcome.report
     # 8. the report is complete and no removal was interrupted
-    if retention_alert._incomplete(report):
+    if retention_alert.incomplete(report):
         raise Refusal(f"retention cleanup: {retention_alert.CAUSE_INCOMPLETE}",
                       retention.STEP_INCOMPLETE)
     interrupted = report.get("removing", [])
     if interrupted:
-        shown = ", ".join(retention._shown(item) for item in interrupted[:PROBLEM_LIMIT])
+        shown = ", ".join(retention.shown(item) for item in interrupted[:PROBLEM_LIMIT])
         more = f" and {len(interrupted) - PROBLEM_LIMIT} more" if len(interrupted) > PROBLEM_LIMIT else ""
         raise Refusal(f"retention cleanup: a removal was interrupted ({shown}{more})",
                       "finish it with the user-only `python3 -I scripts/workflow_retention.py "
@@ -331,7 +322,7 @@ def select(state, report: dict) -> Plan:
         if reason is None:
             eligible.append(entry)
         else:
-            shown = retention._shown(entry["work_item_id"]) if reason == REASON_ID \
+            shown = retention.shown(entry["work_item_id"]) if reason == REASON_ID \
                 else entry["work_item_id"]
             skipped.append((shown, reason))
     after = dict(before)

@@ -262,6 +262,33 @@ def git_argv(repo: Path, *args: str) -> list[str]:
     return ["git", "-C", str(repo), *_GIT_CONFIG_FLAGS, *args]
 
 
+def git_env(extra_config: tuple[tuple[str, str], ...] = (),
+            drop_config_parameters: bool = False) -> dict[str, str]:
+    """The hermetic environment Git runs in: the process environment without the
+    variables that select another repository, plus the fixed hermetic settings.
+
+    `extra_config` pairs are appended through `GIT_CONFIG_COUNT`/`GIT_CONFIG_KEY_n`/
+    `GIT_CONFIG_VALUE_n` (key and value kept apart, so a key with an `=` in it is
+    not split), after any entry the environment already carries.
+    `drop_config_parameters` also drops `GIT_CONFIG_PARAMETERS` (what a shell
+    alias's `git -c` exports), which outranks `GIT_CONFIG_COUNT`; the default keeps it.
+    """
+    env = {key: value for key, value in os.environ.items()
+           if key not in _REPOSITORY_SELECTORS
+           and not (drop_config_parameters and key == "GIT_CONFIG_PARAMETERS")}
+    env.update(_GIT_ENVIRONMENT)
+    if extra_config:
+        try:
+            start = max(int(env.get("GIT_CONFIG_COUNT", "0")), 0)
+        except ValueError:
+            start = 0
+        for offset, (key, value) in enumerate(extra_config):
+            env[f"GIT_CONFIG_KEY_{start + offset}"] = key
+            env[f"GIT_CONFIG_VALUE_{start + offset}"] = value
+        env["GIT_CONFIG_COUNT"] = str(start + len(extra_config))
+    return env
+
+
 def run_git(repo: Path, *args: str, stdin: str | None = None, raw: bool = False) -> GitResult:
     """The one Git entry point of the read-only paths.
 
@@ -274,8 +301,7 @@ def run_git(repo: Path, *args: str, stdin: str | None = None, raw: bool = False)
     no prompts, no optional locks, no lazy fetch. Returns the exit status with
     the output, because the partial-clone probes exit 1 for "key absent".
     """
-    env = {k: v for k, v in os.environ.items() if k not in _REPOSITORY_SELECTORS}
-    env.update(_GIT_ENVIRONMENT)
+    env = git_env()
     try:
         if raw:
             proc = subprocess.run(git_argv(repo, *args), capture_output=True,
