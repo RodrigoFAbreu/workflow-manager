@@ -234,7 +234,7 @@ stored state, which the completion command just wrote, and prints exactly `{"pat
 is not `MILESTONE_COMPLETE` (`work_item_not_complete`) and takes no lock; it commits
 nothing and writes no file but the record. A refusal exits 1 with one object
 `{"error", "message", "record_changed", "state_changed"}` (plus `"code"`): with both
-`false` nothing was written, so stop and fix the cause; `record_changed: true` means
+`false` the content of both files is unchanged, so stop and fix the cause; `record_changed: true` means
 the record moved and the write then failed, so do not stage or commit it, fix the
 cause and run it again (a successful run rewrites the whole file);
 `state_changed: true` means another writer changed the state: stop and re-read it.
@@ -259,15 +259,16 @@ is `MILESTONE_COMPLETE` (`work_item_not_complete`) and `HEAD` holds its complete
 fix the cause the message names (for example unstage a foreign path) and run it
 again; a floor already waiting in the state file is committed by that re-run
 (`recovered: true`), so never commit the file by hand. `state_changed: true` with
-`commit: null` means this call wrote the floor into the file before it stopped (not, as
-for the flags above, that another writer changed the state). After a
+`commit: null` means the state file's content changed during the call: this call wrote
+the floor into the file before it stopped, or another writer changed it. After a
 `DirtyIndexBeforeStagingError` that follows an interrupted staging, run
 `git restore --staged docs/ai-workflow/WORKFLOW_STATE.json` and the same command again.
 The refusals of a waiting floor (`FloorRecoveryRefusedError`, code
 `floor_provenance_failed`, `floor_record_invalid`, `floor_not_virtual` or
-`floor_looser_than_head`) are not worked around by hand either: restore a damaged
-record from `HEAD`, or repair a failed provenance with a new `/adopt-gate-policy`
-commit. With `commit` set, the floor commit exists and a later check refused it: the
+`floor_looser_than_head`) are not worked around by hand either: restore only the
+`gate_policy_floor` key of the state file from `HEAD` (remove the key when `HEAD` has none;
+never restore the whole file, which would discard another item's uncommitted edits), or
+repair a failed provenance with a new `/adopt-gate-policy` commit. With `commit` set, the floor commit exists and a later check refused it: the
 approval stands and the floor stays virtual, so report the commit and the error and
 do not run it again to repair it. Run it as written, not under `python3 -I`. The
 acceptance stage has no inline Python call; the plan-stage and implementation-stage

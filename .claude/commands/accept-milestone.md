@@ -250,8 +250,8 @@ says.
    through this command or `/satisfy-gate acceptance`) finds the archive copy
    and the roadmap row already present: it overwrites the copy with the current
    plan and leaves the one roadmap row complete, so there is exactly one of
-   each per work item id. `complete_work_item` is unchanged: an automatic
-   re-acceptance overwrites `acceptance_satisfaction`, and
+   each per work item id. `complete_work_item` takes no separate path for a
+   re-acceptance: an automatic re-acceptance overwrites `acceptance_satisfaction`, and
    `completion_obligations_accepted` is kept (not rewritten) when the item
    declares no completion obligations.
 5a. **Write the findings record** (workflow-2.14.0, `D-Record`; every item,
@@ -269,9 +269,10 @@ says.
    refuses an item that is not `MILESTONE_COMPLETE`. It takes no lock, does not
    commit and writes no file but the record. A refusal exits 1 with one object
    `{"error", "message", "record_changed", "state_changed"}` (plus `"code"`): with
-   both `false` nothing was written, stop and fix the cause; `record_changed: true`
-   means the record moved and the write then failed, so do not stage or commit it,
-   fix the cause and run it again (a successful run rewrites the whole file);
+   both `false` the content of both files is unchanged, stop and fix the cause;
+   `record_changed: true` means the record moved and the write then failed, so
+   do not stage or commit it, fix the cause and run it again (a successful run
+   rewrites the whole file);
    `state_changed: true` means another writer changed the state: stop and re-read it.
    Run it as written, not under `python3 -I`. The Python description is the
    specification: call
