@@ -63,11 +63,24 @@ Scope: `retention-run` (`feat:`, CP1 and CP2, both complete): `workflow-manager 
 | 2 | `python3 -m workflow_manager retention-cleanup --help` | names `--confirm`, the sentence, archive then verify then remove, the stop rule, exit 0, 1 and 2, and that prune is never run; exit 0 |
 | 3 | `grep -n 'prune' "$S/cand/src/workflow_manager/retention_run.py"` | only text that says prune is never run; no argv form carries it |
 | 4 | the cross-module private-name scan (command below the table) | no output (exit 1) |
-| 5 | `grep -n 'git_env\|def release_key\|def incomplete' "$S"/cand/src/workflow_manager/*.py`; `awk 'length > 100' "$S/cand/src/workflow_manager/retention_cleanup.py"` | the three public names present; no output from the `awk` |
+| 5 | `grep -n 'git_env\|def release_key\|def incomplete' "$S"/cand/src/workflow_manager/*.py`; the docstring-length check (command below the table) | the three public names present; no output from the docstring-length check (code lines over 100 characters are not checked: the repository has no line-length rule) |
 | 6 | `python3 "$S/cand/tools/check_docs.py"` | exit 0 |
 | 7 | `cd "$S/cand/tests" && python3 -B -m unittest test_retention_run.TestNeverPrune test_retention_run.TestNoRemovalWithoutVerification` | `OK` |
 | 8 | in scratch copies of the clone, apply mutations M1, M3, M5, M8 and M12 (plan section 4, each with `sed`) and run the named test of each | each mutated copy FAILS its named test; the unmutated clone passes |
 | 9 | (full environment, user only) `python3 tests/run_all.py --select test_retention_run.py`, then `--select` of `test_retention_cleanup.py`, `test_retention_alert.py`, `test_compatibility.py`, `test_read_only.py`, `test_operator_ux.py`, `test_docs.py`. Then in the scratch managed repository, with `export GH_CONFIG_DIR=$HOME/.config/gh HOME=$S/home` (in that order, so `gh` keeps its keyring): run `workflow-manager retention-cleanup TARGET` (the preview), then `--confirm` with its sentence | each `--select` run `verdict: exit 0`, no `OrphanProcessError`; the run archives and removes the planned items; `git status` of the scratch repository unchanged; a second run reports nothing to do |
+
+Flow 5 docstring-length command (run from `$S/cand`):
+
+```bash
+python3 -I -c "
+import ast,sys
+t=ast.parse(open(sys.argv[1]).read())
+for n in ast.walk(t):
+    if isinstance(n,(ast.Module,ast.FunctionDef,ast.AsyncFunctionDef,ast.ClassDef)):
+        for l in (ast.get_docstring(n,clean=False) or '').splitlines():
+            if len(l)>100: print(l)
+" src/workflow_manager/retention_cleanup.py
+```
 
 Flow 4 command (run from `$S/cand`):
 
@@ -77,6 +90,7 @@ cd "$S/cand/src/workflow_manager" && grep -nE '(compatibility|retention|retentio
 
 ### Known limitations and out of scope
 
+- Functional review round 1 (automated tester, 2026-11-12): flow 5's literal `awk 'length > 100'` expectation was wrong, not the code: the repository has no line-length rule and three code lines of `retention_cleanup.py` (45, 255, 293) pass 100 characters, none a docstring. Flow 5 now checks docstring lines only (no code change; technical approval untouched). Re-test flow 5; flows 1 to 4 and 6 to 8 passed.
 - Prune is never run and never part of cleanup.
 - The sentence proves the plan was shown, not who asked. It is a formality for any job that reads it back from the preview.
 - An archive store on another file system than `.ai-review` is refused with `cross_device` on every run (the default store is under `HOME`).
