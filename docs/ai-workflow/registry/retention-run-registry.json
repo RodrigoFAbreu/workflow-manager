@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "work_item_id": "retention-run",
+  "plan_revision": 3,
+  "checkpoints": [
+    {
+      "id": "CP1",
+      "name": "The confirmed run: sentence, runner, stop rule, report, docs, tests",
+      "depends_on": [],
+      "complexity": 3,
+      "session_target": 1
+    },
+    {
+      "id": "CP2",
+      "name": "The #198 fold-in: public names, test fixes, the INVALID problem",
+      "depends_on": [
+        "CP1"
+      ],
+      "complexity": 2,
+      "session_target": 1
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "work_item_id": "retention-run",
+  "requirements": {
+    "R1": {
+      "description": "retention-cleanup TARGET --confirm SENTENCE runs the same preflight, recomputes the plan and acts only when the sentence is Run the retention cleanup followed by the first 12 characters of that plan's digest; a sentence for another plan, repository or policy digest, an empty or missing one, refuses with exit 2 before any archive or remove call and writes nothing; an empty plan runs nothing",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R2": {
+      "description": "Per planned item, in the preview's order, the Manager runs the target's own script: archive --apply (not for a remove-only item), the engine's verification (the dry run of remove), then remove --apply; the first failure of any step (exit, timeout, output shape, a changed policy, an interrupt, the engine's cross_device refusal) stops the run before any further call; nothing is removed for an item whose archive the engine did not verify; prune is never run and no argv carries it; the Manager implements no archive, hashing or deletion itself",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R3": {
+      "description": "The run prints as it goes what was done and what was not for each item (archived, verified, removed, or the engine's cause and next step, then not attempted), ends with a summary, commits nothing and says nothing needs committing; exit 0 done or nothing to do, 1 stopped after an engine call started, 2 refused before any archive or remove call; every refusal before the first archive writes nothing (no file, lock or temporary), proven per refusal; a stop at the remove step never claims the folder untouched (it quotes the engine's message, or says the state is unknown and names the user-only remove --apply)",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R4": {
+      "description": "The preview's closing lines name the command with the sentence and the by-hand user-only route (including remove alone for an archived item); docs/retention.md, docs/exit-codes.md and the help describe the run, its stop rule, its exit codes and what a re-run does, naming no internal id; tests include a stub script whose archive succeeds and whose verification fails, a never-prune argv test and one end-to-end test with the real engine on a scratch repository; docs/retention.md also names the cross_device case and the scripted-sentence caveat",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R5": {
+      "description": "The #198 follow-ups: a public compatibility.git_env (run_git's environment unchanged, pinned by a test), retention.release_key, retention.shown, retention_policy.WORDS and retention_alert.incomplete replacing the retention modules' cross-module private names, the filter-overrides docstring re-wrapped, the skipped-folders and dirty-tree plus modified-script test fixes, and an INVALID-policy refusal that names its first problem",
+      "checkpoint_ids": [
+        "CP2"
+      ]
+    }
+  }
+}
