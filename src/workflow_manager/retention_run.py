@@ -29,6 +29,12 @@ MESSAGE_LIMIT = 400          # characters of the engine's text echoed on one lin
 
 _REFUSAL = re.compile(r"^error: ([A-Za-z0-9_]+): (.*)$")
 _NEXT_STEP = re.compile(r"^next step: (.*)$")
+# The engine's own prefix when its undo of a failed archive could not remove all it made
+# (`scripts/workflow_retention.py`, `_undo`): after it an archive may still exist.
+UNDO_WARNING = "warning: the undo could not remove"
+# What an archive-step stop leaves known about the archive (None: not known).
+NOT_ARCHIVED, UNSETTLED, FOREIGN = "not-archived", "unsettled", "foreign"
+ALREADY_ARCHIVED = "already_archived"
 
 
 def argv_for(step: str, item_id: str, root: str) -> tuple[str, ...]:
@@ -72,6 +78,12 @@ def _engine_refusal(stderr: bytes) -> tuple[str, str] | None:
     return f"{cause[0]}: {cause[1]}", step or ""
 
 
+def _undo_unsettled(stderr: bytes) -> bool:
+    """Whether the engine said its undo could not remove everything it created."""
+    return any(line.startswith(UNDO_WARNING)
+               for line in stderr.decode("utf-8", "replace").splitlines())
+
+
 def _expected(step: str, item_id: str, document) -> bool:
     """Whether the script's JSON is the success of `step` for `item_id`."""
     if not isinstance(document, dict) or document.get("work_item_id") != item_id:
@@ -92,12 +104,14 @@ class _Stop(Exception):
     """A step failed: `line` is the item line, `known` whether the folder's place is
     known (False after a step-3 timeout, interrupt or unreadable output)."""
 
-    def __init__(self, line: str, *, engine=None, known: bool = True, ran: bool = True):
+    def __init__(self, line: str, *, engine=None, known: bool = True, ran: bool = True,
+                 unsettled: bool = False):
         super().__init__(line)
         self.line = line
         self.engine = engine          # (cause, next step) the engine printed, or None
         self.known = known
         self.ran = ran                # False: the script never started
+        self.unsettled = unsettled    # the engine's undo warning was on stderr
 
 
 def _call(root: str, step: str, item_id: str, calls: list):
@@ -115,7 +129,8 @@ def _call(root: str, step: str, item_id: str, calls: list):
         refusal = _engine_refusal(err) if code == 2 else None
         if refusal is not None:
             raise _Stop(f"stopped at {step} ({refusal[0].split(':', 1)[0]}): "
-                        f"{_clean(refusal[0].split(': ', 1)[1])}", engine=refusal)
+                        f"{_clean(refusal[0].split(': ', 1)[1])}", engine=refusal,
+                        unsettled=_undo_unsettled(err))
         first = next(iter(err.decode("utf-8", "replace").splitlines()), "")
         raise _Stop(f"stopped at {step}: the script exited with status {code} "
                     f"({_clean(first) or 'no message'})", known=step != REMOVE)
@@ -134,13 +149,21 @@ def _mib(count: int) -> int:
     return count // 2**20
 
 
-def _closing(step: str, known: bool, item, total: int, done: int, settled: bool = False) -> str:
-    """`settled`: the stop is a parsed engine refusal or the script never started, the
-    only stops after which an archive's absence is known."""
+def _closing(step: str, known: bool, item, total: int, done: int,
+             archive_state: str | None = None) -> str:
+    """`archive_state`, for a stop at the archive step: `NOT_ARCHIVED` (a parsed engine
+    refusal without the undo warning, or the script never started), `UNSETTLED` (a
+    refusal with the undo warning: an archive may remain), `FOREIGN` (`already_archived`:
+    one exists that this run did not create); None: not known."""
     item_id = item.work_item_id
     head = f"retention cleanup: stopped after {done} of {total} items; "
     if step == ARCHIVE:
-        if settled:
+        if archive_state == FOREIGN:
+            fact = f"this run did not create an archive for {item_id} (one already exists)"
+        elif archive_state == UNSETTLED:
+            fact = (f"{item_id} may or may not be archived (the engine's undo could not "
+                    "remove everything it created; the next preview shows which)")
+        elif archive_state == NOT_ARCHIVED:
             fact = f"{item_id} was not archived"
         else:
             fact = (f"{item_id} may or may not be archived (the next preview shows which)")
@@ -201,7 +224,15 @@ def run(target: Path, plan, emit=None) -> Result:
             result.done += 1
         except (_Stop, KeyboardInterrupt) as stop:
             interrupted = isinstance(stop, KeyboardInterrupt)
-            settled = (not interrupted) and (stop.engine is not None or not stop.ran)
+            archive_state = None
+            if not interrupted:
+                if stop.engine is not None:
+                    if stop.engine[0].split(":", 1)[0] == ALREADY_ARCHIVED:
+                        archive_state = FOREIGN
+                    else:
+                        archive_state = UNSETTLED if stop.unsettled else NOT_ARCHIVED
+                elif not stop.ran:
+                    archive_state = NOT_ARCHIVED
             if interrupted:
                 known = step != REMOVE
                 line = ("stopped before any call for this item: interrupted" if step == POLICY
@@ -227,7 +258,7 @@ def run(target: Path, plan, emit=None) -> Result:
                      f"{item.work_item_id} was not touched; nothing was committed or needs "
                      "committing")
             else:
-                emit(_closing(step, known, item, total, result.done, settled))
+                emit(_closing(step, known, item, total, result.done, archive_state))
                 result.error = f"retention cleanup: {item.work_item_id}: {line}"
                 engine = getattr(stop, "engine", None)
                 engine_step = engine[1] if engine is not None else ""

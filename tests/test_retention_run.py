@@ -354,6 +354,55 @@ class TestStop(RunBase):
         out = self.go(patches=[mock.patch.object(retention, "launch_script", launch)])
         self.assertIn("item-00 was not archived and its folder is untouched", out.out)
 
+    def archive_stop(self, spec):
+        """Run with `spec` as the archive step's answer; return the output after
+        asserting that the stop never reached `verify` or `remove`."""
+        before = tree_hash(self.repo)
+        out = self.go({"archive --apply:item-00": spec})
+        self.assertEqual(out.code, 1, out.out + out.err)
+        self.assertEqual(self.keys(), ["archive --apply:item-00"])
+        self.assertEqual(tree_hash(self.repo), before)
+        self.assertIn("and its folder is untouched", out.out)
+        return out
+
+    def test_an_unsettled_undo_may_or_may_not_be_archived(self):
+        spec = refusal("place_failed", "nope")
+        spec["stderr"] = f"{rr.UNDO_WARNING}: x.partial\n" + spec["stderr"]
+        out = self.archive_stop(spec)
+        self.assertIn("item-00 may or may not be archived (the engine's undo could not "
+                      "remove everything it created; the next preview shows which) and its "
+                      "folder is untouched", out.out)
+        self.assertNotIn("was not archived", out.out)
+
+    def test_already_archived_says_this_run_did_not_create_one(self):
+        out = self.archive_stop(refusal("already_archived", "an archive exists"))
+        self.assertIn("this run did not create an archive for item-00 (one already exists) "
+                      "and its folder is untouched", out.out)
+        self.assertNotIn("was not archived", out.out)
+        self.assertNotIn("may or may not", out.out)
+
+    def test_already_archived_wins_over_an_undo_warning(self):
+        spec = refusal("already_archived", "an archive exists")
+        spec["stderr"] = f"{rr.UNDO_WARNING}: x.partial\n" + spec["stderr"]
+        out = self.archive_stop(spec)
+        self.assertIn("this run did not create an archive for item-00 (one already exists)",
+                      out.out)
+        self.assertNotIn("may or may not", out.out)
+
+    def test_an_archive_step_stop_never_reaches_remove(self):
+        warned = refusal("place_failed", "nope")
+        warned["stderr"] = f"{rr.UNDO_WARNING}: x\n" + warned["stderr"]
+        for label, spec in (("plain", refusal("place_failed", "nope")), ("warned", warned),
+                            ("already", refusal("already_archived", "exists"))):
+            with self.subTest(label=label):
+                self.archive_stop(spec)
+
+    def test_the_undo_warning_is_read_from_stderr_only(self):
+        spec = refusal("place_failed", "nope")
+        spec["stdout"] = f"{rr.UNDO_WARNING}: x\n"
+        out = self.archive_stop(spec)
+        self.assertIn("item-00 was not archived and its folder is untouched", out.out)
+
     def test_a_verify_stop_claims_no_archive(self):
         rep = tc.oldest_first(*(tc.entry(f"item-{n:02d}", mib=2, archive=(n == 0))
                                 for n in range(12)))
