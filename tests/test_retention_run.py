@@ -24,7 +24,7 @@ from pathlib import Path
 from unittest import mock
 
 import support
-from support import NEWEST_RELEASE
+from support import NEWEST_RELEASE, REPO_ROOT
 
 import test_retention_cleanup as tc
 import test_retention_status as rs
@@ -256,14 +256,22 @@ class TestStop(RunBase):
         self.assert_stopped_after(out, ["archive --apply:item-00"])
         self.assertIn("not one JSON object", out.out)
 
-    def test_step_three_requires_the_same_shape_as_the_others(self):
-        good = {"kind": "retention-remove", "mode": "apply", "work_item_id": "item-00",
-                "result": {"removed": True}}
-        for label, change in (("id", {"work_item_id": "other"}), ("kind", {"kind": "retention-x"}),
-                              ("mode", {"mode": "dry-run"})):
-            with self.subTest(label=label):
-                out = self.go({"remove --apply:item-00": {"stdout": {**good, **change}}})
-                self.assert_stopped_after(out, full_run("item-00"))
+    def test_a_step_must_return_its_own_shape(self):
+        apply = {"kind": "retention-remove", "mode": "apply", "work_item_id": "item-00",
+                 "result": {"removed": True}}
+        dry = {"kind": "retention-remove", "mode": "dry-run", "work_item_id": "item-00",
+               "verify": {"matches": True}, "result": {"removed": False}}
+        arms = (("remove --apply:item-00", apply, full_run("item-00"),
+                 (("id", {"work_item_id": "other"}), ("kind", {"kind": "retention-x"}),
+                  ("mode", {"mode": "dry-run"}))),
+                ("remove:item-00", dry, ["archive --apply:item-00", "remove:item-00"],
+                 (("id", {"work_item_id": "other"}), ("kind", {"kind": "retention-x"}),
+                  ("mode", {"mode": "apply"}), ("matches", {"verify": {"matches": False}}))))
+        for key, good, kept, changes in arms:
+            for label, change in changes:
+                with self.subTest(step=key, label=label):
+                    out = self.go({key: {"stdout": {**good, **change}}})
+                    self.assert_stopped_after(out, kept)
 
     def test_a_timeout_stops_and_leaves_no_process(self):
         patches = [mock.patch.object(rr, "CALL_TIMEOUT_SECONDS", 1)]
@@ -551,11 +559,13 @@ class TestRefusalsWriteNothing(RunBase):
             with self.subTest(label=label):
                 head = git(self.repo, "rev-parse", "HEAD").stdout.strip()
                 saved = {p: p.read_bytes() for p in (policy, record, installation)}
-                setup()
-                self.refuse(cause, **kwargs)
-                git(self.repo, "reset", "-q", "--hard", head)
-                for path, data in saved.items():
-                    path.write_bytes(data)
+                try:
+                    setup()
+                    self.refuse(cause, **kwargs)
+                finally:
+                    git(self.repo, "reset", "-q", "--hard", head)
+                    for path, data in saved.items():
+                        path.write_bytes(data)
 
     def test_a_wrong_sentence_writes_nothing(self):
         for text in ("no", "", "I confirm cleanup of plan 0123456789ab"):
@@ -593,11 +603,50 @@ class TestReport(RunBase):
         self.assertTrue(out.err.startswith("error: retention cleanup: item-01: stopped at verify"))
         self.assertIn("next: restore it", out.err)
 
+    def policy_at_item_one(self, kind):
+        """Item 1's policy read (the second `load`: the preflight's was the first)."""
+        real = rp.load
+        count = []
+
+        def load(target):
+            count.append(1)
+            if len(count) >= 2:
+                if kind == "interrupt":
+                    raise KeyboardInterrupt
+                return rp.PolicyState(rp.CHANGED)
+            return real(target)
+        return mock.patch.object(rp, "load", load)
+
     def test_exit_codes(self):
         self.assertEqual(self.go().code, 0)
         self.assertEqual(self.go({"archive --apply:item-00": refusal("x_y", "z")}).code, 1)
         self.assertEqual(self.go(confirm="no").code, 2)
         self.assertEqual(self.go(confirm=None).code, 0)
+        # exit 2: stopped before the first per-item call (only the preflight's report ran)
+        for kind in ("changed", "interrupt"):
+            with self.subTest(before_item_one=kind):
+                before = tree_hash(self.repo)
+                out = self.go(patches=[self.policy_at_item_one(kind)])
+                self.assertEqual(out.code, 2, out.out + out.err)
+                self.assertEqual(self.keys(), [])
+                self.assertEqual(tree_hash(self.repo), before)
+        # exit 1: the first per-item call was attempted, even if its script never started
+        out = self.go({"archive --apply:item-00": refusal("x_y", "z")})
+        self.assertEqual((out.code, self.keys()), (1, ["archive --apply:item-00"]))
+        real = retention.launch_script
+
+        def cannot_start(root, *args, timeout):
+            if args[0] == "report":
+                return real(root, *args, timeout=timeout)
+            raise OSError("no such interpreter")
+        out = self.go(patches=[mock.patch.object(retention, "launch_script", cannot_start)])
+        self.assertEqual(out.code, 1, out.out + out.err)
+        self.assertIn("the script could not be started", out.out)
+        # exit 1: a remove-only first item stopped at its verification (the dry run)
+        rep = tc.oldest_first(*(tc.entry(f"item-{n:02d}", mib=2, archive=(n == 0))
+                                for n in range(12)))
+        out = self.go({"remove:item-00": refusal("archive_mismatch", "differs")}, rep=rep)
+        self.assertEqual((out.code, self.keys()), (1, ["remove:item-00"]))
 
     def test_the_run_is_flushed_as_it_goes(self):
         events = []
@@ -735,6 +784,29 @@ sys.exit(wr.main(sys.argv[1:], run=run, resolve=resolve))
         self.assertIn("retention cleanup: nothing to do", again.out)
         for line in removed:
             self.assertNotIn(line.split(":")[0].split(". ")[1], again.out)
+
+
+class TestDocsSayExitCodes(unittest.TestCase):
+    """The exit-code criterion is the code's: the first per-item call was attempted."""
+
+    def squashed(self, name):
+        return " ".join((REPO_ROOT / "docs" / name).read_text().split())
+
+    def test_the_pages_state_the_first_per_item_call_criterion(self):
+        for name in ("retention.md", "exit-codes.md"):
+            with self.subTest(page=name):
+                text = self.squashed(name)
+                self.assertIn("after its first per-item call (`archive --apply`, the "
+                              "verification or `remove --apply`) was attempted, even if its "
+                              "script could not be started", text)
+                self.assertNotIn("after an engine call started", text)
+        self.assertIn("or stopped before that first call", self.squashed("retention.md"))
+
+    def test_the_old_wording_is_nowhere(self):
+        for path in (REPO_ROOT / "src" / "workflow_manager" / "retention_run.py",
+                     REPO_ROOT / "src" / "workflow_manager" / "cli.py"):
+            with self.subTest(path=path.name):
+                self.assertNotIn("after an engine call started", " ".join(path.read_text().split()))
 
 
 if __name__ == "__main__":

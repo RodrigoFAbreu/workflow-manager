@@ -51,8 +51,10 @@ def argv_for(step: str, item_id: str, root: str) -> tuple[str, ...]:
 
 @dataclass
 class Result:
-    """How the run ended. `exit_code`: 0 every item done; 1 stopped after an engine
-    call started; 2 stopped before any (nothing written)."""
+    """How the run ended. `exit_code`: 0 every item done; 1 stopped after its first
+    per-item call (`archive --apply`, the verification or `remove --apply`) was
+    attempted, even if its script could not be started; 2 refused, or stopped before
+    that first call (nothing written). The preflight's `report` is not one."""
     exit_code: int
     done: int = 0
     total: int = 0

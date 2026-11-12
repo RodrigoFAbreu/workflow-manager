@@ -16,6 +16,7 @@ import contextlib
 import io
 import json
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -100,12 +101,12 @@ class TestSelect(unittest.TestCase):
         self.assertEqual(plan.outcome, rc.EXHAUSTED)
         self.assertIn("  after this run: finished items 2: finished items still reached; no "
                       "further item is eligible (skipped: t1, t2); running it again will not "
-                      "help", rc.preview_lines(plan))
+                      "help", rc.preview_lines(plan, EXAMPLE_TARGET))
 
     def test_exhausted_with_an_empty_plan_prints_a_preview_not_nothing_to_do(self):
         plan = plan_for(oldest_first(entry("t", tracked=1)), finished_items=1)
         self.assertEqual((plan.items, plan.outcome), ((), rc.EXHAUSTED))
-        lines = rc.preview_lines(plan)
+        lines = rc.preview_lines(plan, EXAMPLE_TARGET)
         self.assertIn("  would clean 0 of 1 finished items with a review folder, oldest first, "
                       "at most 5 per run:", lines)
         self.assertTrue(lines[0].startswith("retention cleanup: preview "))
@@ -125,13 +126,13 @@ class TestSelect(unittest.TestCase):
         plan = plan_for(oldest_first(*(entry(f"i{n}") for n in range(4))),
                         finished_items=10, finished_folder_mib=500)
         self.assertEqual((plan.items, plan.outcome), ((), None))
-        self.assertEqual(rc.preview_lines(plan), [
+        self.assertEqual(rc.preview_lines(plan, EXAMPLE_TARGET), [
             "retention cleanup: nothing to do (finished items 4 of 10, finished folders 0 of "
             "500 MiB)"])
 
     def test_an_unset_threshold_is_not_printed(self):
         plan = plan_for(oldest_first(entry("a")), finished_items=10)
-        self.assertEqual(rc.preview_lines(plan),
+        self.assertEqual(rc.preview_lines(plan, EXAMPLE_TARGET),
                          ["retention cleanup: nothing to do (finished items 1 of 10)"])
 
     def test_only_the_two_lowered_thresholds_take_part(self):
@@ -139,9 +140,9 @@ class TestSelect(unittest.TestCase):
         report["totals"].update(archives=99, prunable=99)
         plan = plan_for(report, archives=1, prunable_archives=1, finished_items=10)
         self.assertEqual((plan.items, plan.outcome), ((), None))
-        self.assertIn("nothing to do", rc.preview_lines(plan)[0])
+        self.assertIn("nothing to do", rc.preview_lines(plan, EXAMPLE_TARGET)[0])
         only = plan_for(report, archives=1, prunable_archives=1)
-        self.assertEqual(rc.preview_lines(only), [
+        self.assertEqual(rc.preview_lines(only, EXAMPLE_TARGET), [
             "retention cleanup: nothing to do (the policy sets no threshold that cleanup can "
             "lower)"])
 
@@ -164,7 +165,7 @@ class TestSelect(unittest.TestCase):
         self.assertEqual(len(plan.items), 5)
         self.assertEqual(plan.outcome, rc.CAPPED)
         self.assertIn("finished folders still reached; stopped at the cap of 5 per run; run it "
-                      "again", rc.preview_lines(plan)[-3])
+                      "again", rc.preview_lines(plan, EXAMPLE_TARGET)[-3])
 
     def test_the_rule_on_twelve_items_one_skipped_takes_three(self):
         plan = plan_for(oldest_first(entry("x", tracked=1), *(entry(f"i{n}") for n in range(11))),
@@ -188,9 +189,12 @@ retention cleanup: preview (nothing was written; mode {mode}, policy {policy}, p
     3. item-c: 40 MiB, archive then remove
   skipped: item-x: Git tracks files under its review folder (the engine archives untracked folders only)
   after this run: finished items 9, finished folders 359 MiB: below every limit
-  next: workflow-manager retention-cleanup TARGET --confirm "Run the retention cleanup {plan}."
+  next: workflow-manager retention-cleanup {target} --confirm "Run the retention cleanup {plan}."
   by hand, one item at a time: the Workflow's user-only `/archive-finished-item ID`; for an item that is already archived, `python3 -I scripts/workflow_retention.py remove ID --apply` alone
 """
+
+
+EXAMPLE_TARGET = "/srv/repo"
 
 
 def example_report():
@@ -232,8 +236,18 @@ class TestExample(unittest.TestCase):
         plan = plan_for(example_report(), finished_items=10, finished_folder_mib=500)
         self.assertEqual(ids(plan), ["item-a", "item-b", "item-c"])
         want = EXAMPLE.format(mode="both", policy=plan.policy_digest[:12],
-                              plan=rc.plan_digest(plan)[:12])
-        self.assertEqual("\n".join(rc.preview_lines(plan)) + "\n", want)
+                              plan=rc.plan_digest(plan)[:12], target=EXAMPLE_TARGET)
+        self.assertEqual("\n".join(rc.preview_lines(plan, EXAMPLE_TARGET)) + "\n", want)
+
+    def test_the_preview_quotes_the_target(self):
+        plan = plan_for(example_report(), finished_items=10, finished_folder_mib=500)
+        for target, shown in (("/srv/my repo", "'/srv/my repo'"), (Path("/srv/repo"), "/srv/repo")):
+            with self.subTest(target=str(target)):
+                lines = rc.preview_lines(plan, target)
+                self.assertTrue(lines[-2].startswith(
+                    f"  next: workflow-manager retention-cleanup {shown} --confirm "),
+                    lines[-2])
+                self.assertNotIn("TARGET", "\n".join(lines))
 
 
 class Base(rs.Scratch):
@@ -706,7 +720,8 @@ class TestPreview(Base):
                 self.assertEqual((out.code, out.err), (0, ""))
                 plan = plan_for(example_report(), mode, finished_items=10, finished_folder_mib=500)
                 want = EXAMPLE.format(mode=mode, policy=plan.policy_digest[:12],
-                                      plan=rc.plan_digest(plan)[:12])
+                                      plan=rc.plan_digest(plan)[:12],
+                                      target=shlex.quote(str(self.repo)))
                 self.assertEqual(out.out, want)
                 self.assertIn(f"mode {mode}", out.out)
 
@@ -839,7 +854,8 @@ class TestDocs(unittest.TestCase):
         text = " ".join(help_of(COMMAND).split())
         for words in ("preview", "2.25.5", "writes nothing", "Prune is never run",
                       "at most 5 per run", "Exit 0", "--confirm", "Run the retention cleanup",
-                      "then its verification", "The first failure stops the run", "1: the run"):
+                      "then its verification", "The first failure stops the run", "1: the run",
+                      "after its first per-item call", "or stopped before that first call"):
             self.assertIn(words, text)
 
     def test_the_retention_page_names_the_command_the_floor_and_prune(self):

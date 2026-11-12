@@ -989,7 +989,7 @@ def cmd_retention_cleanup(args) -> int:
         return 2
     plan = retention_cleanup.select(cleared.state, cleared.report)
     if args.confirm is None or not plan.items:
-        _print_lines(retention_cleanup.preview_lines(plan))
+        _print_lines(retention_cleanup.preview_lines(plan, args.target))
         return 0
     if not retention_cleanup.confirmation_holds(args.confirm, retention_cleanup.plan_digest(plan)):
         print("error: retention cleanup: --confirm does not hold the sentence for the current "
@@ -1219,8 +1219,9 @@ def build_parser() -> argparse.ArgumentParser:
                 "the report says what was done and what was not. Nothing is committed (the "
                 "review folders are untracked). Prune is never run. Exit 0: the preview was "
                 "printed, there is nothing to do, or every item was archived and removed; 1: "
-                "the run stopped after it started (the closing 'retention cleanup: stopped' line "
-                "says where); 2: refused, nothing written (not managed, the policy is not "
+                "the run stopped after its first per-item call (archive, the verification or "
+                "remove) was attempted (the closing 'retention cleanup: stopped' line "
+                "says where); 2: refused, or stopped before that first call, nothing written (not managed, the policy is not "
                 "adopted with that mode, a policy file is not committed, a tracked file is "
                 "changed, the release is older than 2.25.5, the script is modified, the report "
                 "is incomplete or unavailable, a removal was interrupted, the sentence does not "
