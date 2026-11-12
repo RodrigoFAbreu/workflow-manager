@@ -24,6 +24,7 @@ from . import retention, retention_cleanup, retention_policy
 
 CALL_TIMEOUT_SECONDS = 600
 ARCHIVE, VERIFY, REMOVE = "archive", "verify", "remove"
+POLICY = "policy"             # the per-item policy check, before any call
 MESSAGE_LIMIT = 400          # characters of the engine's text echoed on one line
 
 _REFUSAL = re.compile(r"^error: ([A-Za-z0-9_]+): (.*)$")
@@ -167,7 +168,7 @@ def run(target: Path, plan, emit=None) -> Result:
          f"{short(plan.policy_digest)}), {total} items")
     for index, item in enumerate(items):
         number = index + 1
-        step = None
+        step = POLICY           # until the first call: nothing has touched this item
         try:
             try:
                 state = retention_policy.load(Path(target))
@@ -176,7 +177,6 @@ def run(target: Path, plan, emit=None) -> Result:
             except Exception:  # noqa: BLE001 -- an unreadable policy is a changed policy
                 unchanged = False
             if not unchanged:
-                step = "policy"
                 raise _Stop("stopped before any call for this item: the policy changed")
             done_steps = []
             if item.action != retention_cleanup.REMOVE_ONLY:
@@ -193,9 +193,11 @@ def run(target: Path, plan, emit=None) -> Result:
             emit(f"  {number}. {item.work_item_id}: {', '.join(done_steps)}")
             result.done += 1
         except (_Stop, KeyboardInterrupt) as stop:
-            if isinstance(stop, KeyboardInterrupt):
+            interrupted = isinstance(stop, KeyboardInterrupt)
+            if interrupted:
                 known = step != REMOVE
-                line = f"stopped at {step}: interrupted"
+                line = ("stopped before any call for this item: interrupted" if step == POLICY
+                        else f"stopped at {step}: interrupted")
                 emit(f"  {number}. {item.work_item_id}: {line}")
             else:
                 known, line = stop.known, stop.line
@@ -204,10 +206,15 @@ def run(target: Path, plan, emit=None) -> Result:
                     emit(f"     next step (the engine's): {_clean(stop.engine[1])}")
             for later, rest in enumerate(items[index + 1:], number + 1):
                 emit(f"  {later}. {rest.work_item_id}: not attempted")
-            if step == "policy":
-                result.error = "retention cleanup: the policy changed during the run"
-                result.next_step = (f"check the policy with {retention.PROGRAM} "
-                                    "adopt-retention-policy and run the preview again")
+            if step == POLICY:
+                if interrupted:
+                    result.error = f"retention cleanup: {item.work_item_id}: {line}"
+                    result.next_step = (f"run {retention.PROGRAM} retention-cleanup again to "
+                                        "see the current plan")
+                else:
+                    result.error = "retention cleanup: the policy changed during the run"
+                    result.next_step = (f"check the policy with {retention.PROGRAM} "
+                                        "adopt-retention-policy and run the preview again")
                 emit(f"retention cleanup: stopped after {result.done} of {total} items; "
                      f"{item.work_item_id} was not touched; nothing was committed or needs "
                      "committing")

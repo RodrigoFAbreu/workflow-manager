@@ -533,7 +533,8 @@ class TestReport(Base):
                 section = next(i for i, l in enumerate(lines) if l.startswith("retention ("))
                 self.assertLess(at, section)
                 self.assertEqual(lines[at + 1].strip()[:11], "thresholds:")
-                self.assertIn("sends nothing and cleans nothing", lines[at + 2])
+                self.assertIn("sends nothing, and cleans up only when retention-cleanup runs "
+                              "with --confirm", lines[at + 2])
                 self.assertNotIn("retention policy", base.stdout)
 
     def test_the_adopted_block_is_exact(self):
@@ -546,7 +547,8 @@ class TestReport(Base):
                                       "archives 20, prunable archives 5")
         self.assertEqual(got[at + 2], "  this Manager release reads the policy and, for notify and both, "
                                       "evaluates its thresholds in verify and doctor; it sends "
-                                      "nothing and cleans nothing")
+                                      "nothing, and cleans up only when retention-cleanup runs "
+                                      "with --confirm")
 
     def test_each_other_state_names_mode_off(self):
         self.put()

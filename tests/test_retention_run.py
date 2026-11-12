@@ -305,6 +305,23 @@ class TestStop(RunBase):
         self.assertIn("the policy changed", out.out + out.err)
         self.assertIn("  3. item-02: not attempted", out.out)
 
+    def test_an_interrupt_while_reading_the_policy_claims_nothing(self):
+        real = rp.load
+        count = []
+
+        def load(target):
+            count.append(1)
+            if len(count) >= 3:   # the preflight, item 1, then item 2
+                raise KeyboardInterrupt
+            return real(target)
+        out = self.go(patches=[mock.patch.object(rp, "load", load)])
+        self.assert_stopped_after(out, full_run("item-00"))
+        self.assertIn("  2. item-01: stopped before any call for this item: interrupted", out.out)
+        self.assertIn("item-01 was not touched", out.out)
+        self.assertNotIn("None", out.out + out.err)
+        self.assertNotIn("archived and verified", out.out)
+        self.assertNotIn("policy changed", out.out + out.err)
+
     def test_a_step_three_timeout_never_claims_the_folder_untouched(self):
         patches = [mock.patch.object(rr, "CALL_TIMEOUT_SECONDS", 1)]
         out = self.go({"remove --apply:item-00": {"sleep": 30}}, patches=patches)

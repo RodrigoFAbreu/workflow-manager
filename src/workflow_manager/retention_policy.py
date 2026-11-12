@@ -478,7 +478,8 @@ def block(state: PolicyState, target: Path) -> list[str]:
             f"adopted {state.adopted_at})",
             f"  thresholds: {describe(state.policy)}",
             "  this Manager release reads the policy and, for notify and both, evaluates its "
-            "thresholds in verify and doctor; it sends nothing and cleans nothing",
+            "thresholds in verify and doctor; it sends nothing, and cleans up only when "
+            "retention-cleanup runs with --confirm",
         ]
     lines = [f"retention policy: {state.state} ({WORDS[state.state]}); mode off is in force"]
     lines.extend(f"  problem: {problem}" for problem in state.problems[:PROBLEM_LIMIT])
