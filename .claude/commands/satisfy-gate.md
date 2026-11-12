@@ -181,6 +181,11 @@ still runs step 1, which queries GitHub and decides; `not_checked` names what th
 report does not claim. The report is **read-only** (no lock, no write, no GitHub
 call). Run it as written, not under `python3 -I`.
 
+A state file or registry that is malformed is answered with one JSON object (for the
+registry, a `registry_unresolvable` blocker in the report), never a traceback; an
+absent state file is `StateMissing` and one holding `null` is `StateMalformed`. The
+same is true of `--finding-dispositions`.
+
 Step 0's `python3 scripts/workflow_backlog.py preflight-accept <work-item-id>`
 runs **first**, before the completion command below: the flag does not run it, and
 `ready: true` does not stand in for it (the report names it in `not_checked`). A

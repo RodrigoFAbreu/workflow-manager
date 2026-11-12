@@ -20252,13 +20252,13 @@ def sweep_applying_review_feedback_version_claims(
 def _finding_dispositions_cli(repo_root: Path, work_item_id: str) -> int:
     """`--finding-dispositions`: print every recorded Optional finding with its
     disposition and a skeleton `dispositions` object for the ones without."""
-    state = _load_json(repo_root / DEFAULT_STATE_PATH)
-    if work_item_id not in state["work_items"]:
-        print(json.dumps({"error": "UnknownWorkItem", "message": work_item_id}, sort_keys=True))
-        return 1
     try:
+        state = _plain_command_state(repo_root, work_item_id)
         report = finding_dispositions_report(repo_root, state, work_item_id)
-    except InvalidFindingDispositionsError as exc:
+    except _AcceptanceCliRefusal as exc:
+        print(json.dumps({"error": exc.name, "message": str(exc)}, sort_keys=True))
+        return 1
+    except Exception as exc:  # the contract is JSON, never a traceback (InvalidFindingDispositionsError included)
         print(json.dumps({"error": type(exc).__name__, "message": str(exc)}, sort_keys=True))
         return 1
     print(json.dumps({
@@ -20294,6 +20294,9 @@ def _acceptance_reachability_blocker(repo_root: Path, work_item_id: str, work_it
         is_terminal, outstanding = resolve_own_registry_completion_status(repo_root, work_item)
     except (RegistryCoverageError, StalePlanApprovalRegistryReadError) as exc:
         return {"code": "registry_unresolvable", "detail": str(exc)}
+    except Exception as exc:  # a malformed registry shape or registry_path: the gate's own requirement refuses it the same way
+        return {"code": "registry_unresolvable",
+                "detail": f"the item's own registry cannot be resolved: {type(exc).__name__}: {exc}"}
     if not milestone_complete_gate_reachable(phase=phase, is_terminal=is_terminal):
         detail = f"the phase is {phase}; the acceptance stage needs AWAITING_FUNCTIONAL_REVIEW"
         if not is_terminal:
@@ -20360,13 +20363,16 @@ class _AcceptanceCliRefusal(Exception):
         self.name = name
 
 
-def _acceptance_cli_context(work_item_id: str) -> tuple[Path, dict]:
-    """The repository root and the validated state both acceptance flags start from;
-    `_AcceptanceCliRefusal` for a missing, malformed or unknown state, and any other
-    exception (`CorruptJsonError`, a run outside Git) for the callers' class-name fallback."""
-    repo_root = Path(_run(["git", "rev-parse", "--show-toplevel"], cwd=Path.cwd()).strip())
+def _plain_command_state(repo_root: Path, work_item_id: str) -> dict:
+    """The validated state the plain commands that read it start from (`_acceptance_cli_context`,
+    `--finding-dispositions`); `_AcceptanceCliRefusal` for a missing, malformed or unknown state, and any
+    other exception (`CorruptJsonError`, `OSError`) for the callers' class-name fallback."""
     state = _load_json(repo_root / DEFAULT_STATE_PATH)  # CorruptJsonError reaches the class-name fallback
     if state is None:
+        if (repo_root / DEFAULT_STATE_PATH).exists():  # _load_json answers None for JSON null as well as for an absent file
+            raise _AcceptanceCliRefusal(
+                "StateMalformed",
+                f"{DEFAULT_STATE_PATH} holds JSON null, not an object holding a work_items object; restore it from Git")
         raise _AcceptanceCliRefusal("StateMissing", f"{DEFAULT_STATE_PATH} does not exist")
     if not isinstance(state, dict) or not isinstance(state.get("work_items"), dict):
         raise _AcceptanceCliRefusal("StateMalformed", f"{DEFAULT_STATE_PATH} is not an object holding a work_items object")
@@ -20374,7 +20380,15 @@ def _acceptance_cli_context(work_item_id: str) -> tuple[Path, dict]:
         raise _AcceptanceCliRefusal("UnknownWorkItem", work_item_id)
     if not isinstance(state["work_items"][work_item_id], dict):
         raise _AcceptanceCliRefusal("StateMalformed", f"work_items[{work_item_id!r}] is not an object")
-    return repo_root, state
+    return state
+
+
+def _acceptance_cli_context(work_item_id: str) -> tuple[Path, dict]:
+    """The repository root and the validated state both acceptance flags start from;
+    `_AcceptanceCliRefusal` for a missing, malformed or unknown state, and any other
+    exception (`CorruptJsonError`, a run outside Git) for the callers' class-name fallback."""
+    repo_root = Path(_run(["git", "rev-parse", "--show-toplevel"], cwd=Path.cwd()).strip())
+    return repo_root, _plain_command_state(repo_root, work_item_id)
 
 
 def _acceptance_gate_cli(work_item_id: str) -> int:
@@ -20623,9 +20637,14 @@ def _plan_review_publication_status_cli(argv: list[str] | None = None) -> int:
         return _satisfy_acceptance_cli(args.satisfy_acceptance)
     if args.acceptance_gate is not None:  # before the shared `git rev-parse`; an empty id is not "absent"
         return _acceptance_gate_cli(args.acceptance_gate)
+    if args.finding_dispositions is not None:  # an empty id is not "absent"; the root lookup answers JSON like the siblings
+        try:
+            dispositions_root = Path(_run(["git", "rev-parse", "--show-toplevel"], cwd=Path.cwd()).strip())
+        except Exception as exc:  # the contract is JSON, never a traceback
+            print(json.dumps({"error": type(exc).__name__, "message": str(exc)}, sort_keys=True))
+            return 1
+        return _finding_dispositions_cli(dispositions_root, args.finding_dispositions)
     repo_root = Path(_run(["git", "rev-parse", "--show-toplevel"], cwd=Path.cwd()).strip())
-    if args.finding_dispositions:
-        return _finding_dispositions_cli(repo_root, args.finding_dispositions)
     work_item_id = args.plan_review_publication_status
     state = _load_json(repo_root / DEFAULT_STATE_PATH)
     try:
