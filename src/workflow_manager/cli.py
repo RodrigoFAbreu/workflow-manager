@@ -1221,9 +1221,10 @@ def build_parser() -> argparse.ArgumentParser:
                 "printed, there is nothing to do, or every item was archived and removed; 1: "
                 "the run stopped after its first per-item call (archive, the verification or "
                 "remove) was attempted (the closing 'retention cleanup: stopped' line "
-                "says where); 2: refused, or stopped before that first call, nothing written (not managed, the policy is not "
-                "adopted with that mode, a policy file is not committed, a tracked file is "
-                "changed, the release is older than 2.25.5, the script is modified, the report "
+                "says where); 2: refused, or stopped before that first call, nothing written "
+                "(not managed, the policy is not adopted with that mode, a policy file is not "
+                "committed, a tracked file is changed, the release is older than 2.25.5, the "
+                "script is modified, the report "
                 "is incomplete or unavailable, a removal was interrupted, the sentence does not "
                 "name the current plan).")
     p.add_argument("target", type=Path, help="the managed repository to clean up")
