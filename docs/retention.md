@@ -87,7 +87,7 @@ When the kind or schema_version is one the Manager does not read, the line shows
 
 ## Retention policy
 
-The owner of a repository can write down how much finished work it tolerates, and adopt that policy so the Manager knows it was meant. The Manager reads the policy and, for mode `notify` or `both`, evaluates its thresholds in `verify` and `doctor` (see [The retention alert](#the-retention-alert)). It sends nothing, archives nothing, removes nothing and prunes nothing, and decides nothing for the owner. For mode `cleanup` or `both`, `workflow-manager retention-cleanup` previews what a cleanup would do (see [Retention cleanup (preview)](#retention-cleanup-preview)); a later release sends notifications and cleans up.
+The owner of a repository can write down how much finished work it tolerates, and adopt that policy so the Manager knows it was meant. The Manager reads the policy and, for mode `notify` or `both`, evaluates its thresholds in `verify` and `doctor` (see [The retention alert](#the-retention-alert)). Reading the policy sends nothing, archives nothing, removes nothing and prunes nothing, and decides nothing for the owner. For mode `cleanup` or `both`, `workflow-manager retention-cleanup` previews what a cleanup would do and, only when its `--confirm` holds the sentence bound to the plan, archives and removes those items (see [Retention cleanup](#retention-cleanup)); prune is never run. A later release sends notifications.
 
 The policy is the file `.workflow-manager/retention-policy.json`, committed by the owner. With no file nothing is printed and nothing changes.
 
@@ -137,7 +137,7 @@ Before the report, one block, only when there is a policy file or a record:
 ```
 retention policy: adopted, mode both (digest 1a2b3c4d5e6f, adopted 2026-11-10T12:00:00Z)
   thresholds: finished items 10, finished folders 500 MiB, archives 20, prunable archives 5
-  this Manager release reads the policy and, for notify and both, evaluates its thresholds in verify and doctor; it sends nothing and cleans nothing
+  this Manager release reads the policy and, for notify and both, evaluates its thresholds in verify and doctor; it sends nothing, and cleans up only when retention-cleanup runs with --confirm
 ```
 
 Any other state reads `retention policy: STATE (WHY); mode off is in force`, then up to five problems, and an indented `next:` step.
@@ -173,9 +173,9 @@ retention alert: 2 of 4 thresholds reached (mode notify, policy 1a2b3c4d5e6f)
 - The alert is not a `[warning]` finding and **never changes an exit code**: `verify` and `doctor` exit as they would without the policy.
 - It costs a run of the report: one forge query per finished work item (about 20 to 40 seconds for 25 items, 300 seconds at most), and `gh` signed in for a complete answer. A repository without an adopted `notify` or `both` policy pays nothing and sees no change. With `doctor --retention` the script runs once for both the section and the alert; `doctor` judges the script against the installed release, not the one `--release-version` names.
 
-## Retention cleanup (preview)
+## Retention cleanup
 
-For a policy adopted with mode `cleanup` or `both`, `workflow-manager retention-cleanup TARGET` shows which finished work items an unattended cleanup would archive and then remove. It is its own command: `verify`, `doctor`, `update` and `status` never run it. **It writes nothing, archives nothing and removes nothing in this release, and it runs no script verb but `report`.** Prune is never part of cleanup: it stays user-only and the archive store is not touched.
+For a policy adopted with mode `cleanup` or `both`, `workflow-manager retention-cleanup TARGET` shows which finished work items an unattended cleanup would archive and then remove. It is its own command: `verify`, `doctor`, `update` and `status` never run it. **Without `--confirm` it is a preview: it writes nothing, archives nothing and removes nothing, and it runs no script verb but `report`.** With `--confirm` holding the plan's sentence it runs the plan (see [The confirmed run](#the-confirmed-run)). Prune is never part of cleanup: it stays user-only and is never run.
 
 It checks these, in order, and the first that fails refuses with `error:` and `next:` on stderr (exit 2) before anything else runs:
 
@@ -199,12 +199,40 @@ retention cleanup: preview (nothing was written; mode both, policy 1a2b3c4d5e6f,
     3. item-c: 40 MiB, archive then remove
   skipped: item-x: Git tracks files under its review folder (the engine archives untracked folders only)
   after this run: finished items 9, finished folders 359 MiB: below every limit
-  this release does not apply the plan. Prune is never part of cleanup; the archive store is not touched.
-  next: apply it with the user-only commands, one item at a time: `python3 -I scripts/workflow_retention.py archive ID --apply`, then `remove ID --apply`
+  next: workflow-manager retention-cleanup TARGET --confirm "Run the retention cleanup 9f8e7d6c5b4a."
+  by hand, one item at a time: the Workflow's user-only `/archive-finished-item ID`; for an item that is already archived, `python3 -I scripts/workflow_retention.py remove ID --apply` alone
 ```
 
 The plan digest identifies the repository, the policy and the ordered items; sizes are rounded down to whole MiB. When no threshold is reached the output is one line, `retention cleanup: nothing to do (...)`, and the exit status is 0. A preview is not a promise: the engine judges each item again when it archives and removes it.
 
+### The confirmed run
+
+`workflow-manager retention-cleanup TARGET --confirm "Run the retention cleanup DIGEST12."` runs the plan. `DIGEST12` is the first 12 characters of the plan digest the preview prints. The command does the same checks as the preview, plans again from a fresh report, and acts only if the sentence names that plan. Whitespace is collapsed and case is ignored, other words may surround it, and at least one match is needed, with every match naming the same 12 characters. A sentence for another plan (a changed plan, repository or policy all change the digest), an empty one or none of the sentence is refused with exit 2 before any `archive` or `remove` runs, and `next:` names the command that shows the current plan. A plan with no items runs nothing and the sentence is not consulted.
+
+Per item, in the preview's order and at most 5 per run, each step is a call of the target's own `scripts/workflow_retention.py` (600 seconds at most per call):
+
+1. `archive ID --apply`, unless the item is `remove only`;
+2. the engine's own verification, the dry run of `remove ID`, which writes nothing;
+3. `remove ID --apply`.
+
+The Manager reimplements none of them: no archive format, no hashing and no deletion of its own, only the three calls above, each ending in `--repo-root` for the target. The adopted policy is read again before each item; a policy that changed stops the run. **The first failure of any step stops the run**: no further call and no further item, and the report says what was done and what was not. The run prints as it goes:
+
+```text
+retention cleanup: running plan 9f8e7d6c5b4a (mode both, policy 1a2b3c4d5e6f), 3 items
+  1. item-a: archived 41 MiB, verified, removed
+  2. item-b: remove only, verified, removed
+  3. item-c: stopped at verify (archive_mismatch): the review folder differs from its archive in 1 entry: REVIEW.md (differs)
+     next step (the engine's): ...
+retention cleanup: stopped after 2 of 3 items; item-c's folder is untouched; nothing was committed or needs committing
+```
+
+A stop at `archive` or `verify` leaves the review folder where it was, and the report says so. After an engine refusal at `archive` the report says the item was not archived; after a timeout, an interrupt or output the Manager cannot read it says the item may or may not be archived, and the next preview shows which. A stop at `remove` quotes the engine's message and next step and says where its folder is only as far as the engine does; after a timeout, an interrupt or output the Manager cannot read, the report says the folder's state is unknown and may be partly removed and names the user-only `python3 -I scripts/workflow_retention.py remove ID --apply`, which finishes it (the next preflight refuses until then, when the folder is in `.removing`). A clean run ends `retention cleanup: done, N of N items archived and removed; Git is unchanged (the review folders were untracked); prune was not run`. **Nothing is committed**: the review folders are untracked, so HEAD and the tracked files are identical before and after.
+
+- **Exit status.** 0: the preview, nothing to do, or every item done. 1: the run stopped after an engine call started (the closing `retention cleanup: stopped` line says where; stderr has `error:` and `next:`). 2: refused with nothing written.
+- **Re-runs.** An item archived by an earlier run whose removal did not happen is planned `remove only`: no second `archive` (the engine refuses `already_archived`). A removal left half done in `.removing/ID` is refused by the preflight and finished by hand. After a killed archiver the next `archive` refuses `partial_present`, and the run stops at that item. Two runs at once: the engine's lock makes the second stop with `archive_busy`.
+- **The archive store.** It is the engine's default, under `HOME` (`~/.local/share/workflow-archive/<repository>`). A job that runs with another `HOME` archives elsewhere. If the store is on another file system than the repository's `.ai-review`, the engine archives, then refuses the removal as `cross_device`, on every run: the report quotes its message and no item progresses. Remove by hand with `--archive-root`, or run with a `HOME` on the repository's file system; a user who changes `HOME` keeps `gh` signed in by setting `GH_CONFIG_DIR` to the real configuration directory first, and needs a Git identity if the run's repository setup commits.
+- **The sentence is a formality for a job that scrapes it.** The sentence proves the plan was shown, not who asked. A scheduled job that reads the sentence from the preview's `next:` line and passes it back makes the confirmation a formality: the owner's control is the adopted policy and the schedule.
+
 ## Exit status
 
-`--retention` and the retention alert never change an exit code; `adopt-retention-policy` exits 0 when it previews or adopts and 2 when it refuses; `retention-cleanup` exits 0 when it previews or has nothing to do and 2 when it refuses. See [Exit codes](exit-codes.md).
+`--retention` and the retention alert never change an exit code; `adopt-retention-policy` exits 0 when it previews or adopts and 2 when it refuses; `retention-cleanup` exits 0 when it previews, has nothing to do or finishes the run, 1 when a confirmed run stopped after it started, and 2 when it refuses. See [Exit codes](exit-codes.md).

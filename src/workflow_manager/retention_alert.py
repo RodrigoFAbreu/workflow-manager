@@ -48,7 +48,7 @@ def alerting(state) -> bool:
     return state.state == retention_policy.ADOPTED and state.mode in ALERT_MODES
 
 
-def _incomplete(report: dict) -> bool:
+def incomplete(report: dict) -> bool:
     failed = any(e["reason"].startswith("query_failed:") for e in report["not_finished"])
     return (not report["complete"]) or bool(report["read_errors"]) or failed
 
@@ -71,7 +71,7 @@ def evaluate(state, report) -> list[Result]:
     if not alerting(state):
         return []
     thresholds = state.policy.get("thresholds", {})
-    incomplete = report is None or _incomplete(report)
+    lower_bound = report is None or incomplete(report)
     results = []
     for key in retention_policy.THRESHOLDS:
         if key not in thresholds:
@@ -85,8 +85,8 @@ def evaluate(state, report) -> list[Result]:
         if value >= bound:
             status = REACHED
         else:
-            status = UNKNOWN if incomplete else WITHIN
-        results.append(Result(key, status, value, limit, incomplete))
+            status = UNKNOWN if lower_bound else WITHIN
+        results.append(Result(key, status, value, limit, lower_bound))
     return results
 
 
@@ -123,7 +123,7 @@ def _not_evaluated(cause: str, step: str) -> list[str]:
 
 
 def _prune_step(version, target: Path) -> str:
-    key = retention._release_key(version)
+    key = retention.release_key(version)
     if key is None or key < retention.PRUNE_FROM:
         return (f"this Workflow release has no `prune` command; "
                 f"{retention.PROGRAM} update {shlex.quote(str(target))}")
@@ -138,7 +138,7 @@ def _step(result: Result, report: dict, version, target: Path) -> str:
     if result.key == "prunable_archives" or report["totals"]["prunable"] > 0:
         return _prune_step(version, target)
     observed = ("no prunable archive was observed (the report is incomplete)"
-                if _incomplete(report) else "none can be pruned")
+                if incomplete(report) else "none can be pruned")
     return (f"no archive is past the time to live yet, so {observed}: raise "
             "thresholds.archives in the policy if the store is meant to be this large, "
             f"then adopt it again ({retention_policy.adopt_command(target)})")
@@ -174,7 +174,7 @@ def render(state, results: list[Result], report: dict, version, target: Path) ->
         step = _step(result, report, version, target)
         if step not in steps:
             steps.append(step)
-    if _incomplete(report) and retention.STEP_INCOMPLETE not in steps:
+    if incomplete(report) and retention.STEP_INCOMPLETE not in steps:
         steps.append(retention.STEP_INCOMPLETE)
     lines.append(f"  next: {'; '.join(steps)}")
     return lines

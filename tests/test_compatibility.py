@@ -658,6 +658,55 @@ class TestRunGit(Case):
             self.assertIsNone(comp._git_path(Path("/a/b"), "--git-common-dir"))
 
 
+class TestGitEnv(unittest.TestCase):
+    def test_the_defaults_keep_the_config_parameters_and_drop_the_selectors(self):
+        extra = {"GIT_CONFIG_PARAMETERS": "'core.x=1'", "GIT_DIR": "/elsewhere"}
+        with mock.patch.dict(os.environ, extra):
+            env = comp.git_env()
+        self.assertEqual(env["GIT_CONFIG_PARAMETERS"], "'core.x=1'")
+        self.assertNotIn("GIT_DIR", env)
+        for key, value in comp._GIT_ENVIRONMENT.items():
+            self.assertEqual(env[key], value)
+
+    def test_drop_config_parameters_drops_only_that(self):
+        with mock.patch.dict(os.environ, {"GIT_CONFIG_PARAMETERS": "'core.x=1'", "KEEP": "1"}):
+            env = comp.git_env(drop_config_parameters=True)
+        self.assertNotIn("GIT_CONFIG_PARAMETERS", env)
+        self.assertEqual(env["KEEP"], "1")
+
+    def test_extra_pairs_follow_the_entries_the_environment_carries(self):
+        with mock.patch.dict(os.environ, {"GIT_CONFIG_COUNT": "1", "GIT_CONFIG_KEY_0": "a.b",
+                                          "GIT_CONFIG_VALUE_0": "c"}):
+            env = comp.git_env((("filter.x=y.clean", ""), ("filter.x=y.required", "false")))
+        self.assertEqual(env["GIT_CONFIG_COUNT"], "3")
+        self.assertEqual((env["GIT_CONFIG_KEY_0"], env["GIT_CONFIG_VALUE_0"]), ("a.b", "c"))
+        self.assertEqual((env["GIT_CONFIG_KEY_1"], env["GIT_CONFIG_VALUE_1"]),
+                         ("filter.x=y.clean", ""))
+        self.assertEqual(env["GIT_CONFIG_KEY_2"], "filter.x=y.required")
+
+    def test_a_bad_count_starts_at_zero(self):
+        with mock.patch.dict(os.environ, {"GIT_CONFIG_COUNT": "nope"}):
+            env = comp.git_env((("k", "v"),))
+        self.assertEqual((env["GIT_CONFIG_COUNT"], env["GIT_CONFIG_KEY_0"]), ("1", "k"))
+
+    def test_run_git_environment_is_unchanged(self):
+        seen = {}
+
+        def fake(argv, **kwargs):
+            seen.update(kwargs["env"])
+            return subprocess.CompletedProcess(argv, 0, "", "")
+        marker = {"GIT_CONFIG_PARAMETERS": "'core.x=1'", "GIT_DIR": "/elsewhere"}
+        with mock.patch.dict(os.environ, marker), \
+                mock.patch.object(comp.subprocess, "run", fake):
+            comp.run_git(Path("/a/b"), "status")
+            # what `run_git` built before `git_env` existed (662e6c2)
+            expected = {k: v for k, v in os.environ.items()
+                        if k not in comp._REPOSITORY_SELECTORS}
+            expected.update(comp._GIT_ENVIRONMENT)
+        self.assertEqual(seen, expected)
+        self.assertEqual(seen["GIT_CONFIG_PARAMETERS"], "'core.x=1'")
+
+
 class TestTrailers(Case):
     def test_a_trailer_in_head_is_found_and_attributed(self):
         self.commit("retire\n\nWorkflow-Legacy-Retirement: old-item\nWorkflow-Work-Item: old-item")

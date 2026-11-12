@@ -6,7 +6,7 @@
     workflow-manager doctor    <target> [--retention]
     workflow-manager verify    <target>
     workflow-manager adopt-retention-policy <target> [--confirm TEXT]
-    workflow-manager retention-cleanup <target>
+    workflow-manager retention-cleanup <target> [--confirm TEXT]
     workflow-manager uninstall <target>
     workflow-manager releases
     workflow-manager package build <release-dir> --out <dir>
@@ -37,6 +37,7 @@ from __future__ import annotations
 import argparse
 import os
 import re
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -44,7 +45,7 @@ from contextlib import nullcontext
 from importlib import metadata
 from pathlib import Path
 
-from . import advice, retention, retention_alert, retention_cleanup, retention_policy
+from . import advice, retention, retention_alert, retention_cleanup, retention_policy, retention_run
 from . import source as release_source
 from .compatibility import (
     ContainmentError,
@@ -965,8 +966,9 @@ def cmd_adopt_retention_policy(args) -> int:
 
 
 def cmd_retention_cleanup(args) -> int:
-    """Preview what an adopted `cleanup` or `both` policy would archive and remove.
-    Writes nothing and starts no script but `report`, after every cheap check."""
+    """Preview what an adopted `cleanup` or `both` policy would archive and remove or,
+    with `--confirm` holding the plan's sentence, run it. The preview writes nothing
+    and starts no script but `report`, after every cheap check."""
     if not is_managed(args.target):
         raise NotManagedError(not_managed_text(args.target))
     installed = Installation.read(args.target).workflow_version
@@ -985,8 +987,22 @@ def cmd_retention_cleanup(args) -> int:
         print(f"error: {refusal.cause}", file=sys.stderr)
         print(f"next: {refusal.step}", file=sys.stderr)
         return 2
-    _print_lines(retention_cleanup.preview_lines(retention_cleanup.select(cleared.state, cleared.report)))
-    return 0
+    plan = retention_cleanup.select(cleared.state, cleared.report)
+    if args.confirm is None or not plan.items:
+        _print_lines(retention_cleanup.preview_lines(plan))
+        return 0
+    if not retention_cleanup.confirmation_holds(args.confirm, retention_cleanup.plan_digest(plan)):
+        print("error: retention cleanup: --confirm does not hold the sentence for the current "
+              "plan (the plan, the policy or the repository changed, or the sentence is wrong)",
+              file=sys.stderr)
+        print(f"next: run {retention.PROGRAM} retention-cleanup {shlex.quote(str(args.target))} "
+              "to see the current plan and its sentence", file=sys.stderr)
+        return 2
+    result = retention_run.run(args.target, plan)
+    if result.exit_code != 0:
+        print(f"error: {result.error}", file=sys.stderr)
+        print(f"next: {result.next_step}", file=sys.stderr)
+    return result.exit_code
 
 
 def cmd_package(args) -> int:
@@ -1175,8 +1191,9 @@ def build_parser() -> argparse.ArgumentParser:
                 "holding that sentence it writes .workflow-manager/retention-adoption.json, "
                 "which you then commit. The mode in force stays off unless the file is "
                 "adopted unchanged. This release reads the policy and, for notify and both, "
-                "evaluates its thresholds in verify and doctor; it archives, removes, prunes "
-                "and sends nothing. Only the repository's owner runs it with --confirm; "
+                "evaluates its thresholds in verify and doctor; adopting archives, removes, "
+                "prunes and sends nothing, and only retention-cleanup with --confirm cleans up "
+                "(for cleanup and both). Only the repository's owner runs it with --confirm; "
                 "an agent must not. Exit 0: previewed or adopted; 2: refused, nothing written "
                 "(not managed, no valid file, the sentence does not match, .workflow-manager "
                 "is a link, the record path is not a regular file).")
@@ -1185,22 +1202,33 @@ def build_parser() -> argparse.ArgumentParser:
                    help="adopt the file: text containing 'Adopt the retention policy "
                         "DIGEST12.' for the digest the preview prints")
 
-    p = command("retention-cleanup", "preview what an adopted retention policy would clean up",
+    p = command("retention-cleanup", "preview or run the cleanup an adopted retention policy allows",
                 "For a retention policy adopted with mode cleanup or both, check that every "
                 "precondition of a cleanup holds (both policy files are committed and unchanged, "
                 "no tracked file is changed, the installed Workflow release is 2.25.5 or later and "
                 "its scripts/workflow_retention.py is the release's own, the retention report is "
                 "complete and no removal is interrupted) and print which finished work items it "
                 "would archive and then remove, oldest first, at most 5 per run, with the plan's "
-                "digest. This release only previews: it writes nothing, archives nothing and "
-                "removes nothing, and it runs the retention report once (one forge query per "
-                "finished item, so gh must be signed in). Prune is never part of cleanup. Exit 0: "
-                "the preview was printed, or there is nothing to do; 2: refused, nothing written "
-                "(not managed, the policy is not adopted with that mode, a policy file is not "
-                "committed, a tracked file is changed, the release is older than 2.25.5, the "
-                "script is modified, the report is incomplete or unavailable, a removal was "
-                "interrupted).")
-    p.add_argument("target", type=Path, help="the managed repository to preview")
+                "digest and the sentence that confirms it. Without --confirm that is a preview: "
+                "it writes nothing and runs the retention report once (one forge query per "
+                "finished item, so gh must be signed in). With --confirm holding the sentence "
+                "'Run the retention cleanup DIGEST12.' for the plan's digest, it runs the "
+                "plan: per item, in order, the Workflow's own `archive ID --apply`, then its "
+                "verification (the dry run of `remove`), then `remove ID --apply`, each as the "
+                "target's own scripts/workflow_retention.py. The first failure stops the run and "
+                "the report says what was done and what was not. Nothing is committed (the "
+                "review folders are untracked). Prune is never run. Exit 0: the preview was "
+                "printed, there is nothing to do, or every item was archived and removed; 1: "
+                "the run stopped after it started (the closing 'retention cleanup: stopped' line "
+                "says where); 2: refused, nothing written (not managed, the policy is not "
+                "adopted with that mode, a policy file is not committed, a tracked file is "
+                "changed, the release is older than 2.25.5, the script is modified, the report "
+                "is incomplete or unavailable, a removal was interrupted, the sentence does not "
+                "name the current plan).")
+    p.add_argument("target", type=Path, help="the managed repository to clean up")
+    p.add_argument("--confirm", default=None, metavar="TEXT",
+                   help="run the plan: text containing 'Run the retention cleanup DIGEST12.' "
+                        "for the plan digest the preview prints")
 
     p = command("bootstrap", "install the Workflow into a Git repository",
                 "Install a Workflow release into a Git repository that is not yet managed: the "
