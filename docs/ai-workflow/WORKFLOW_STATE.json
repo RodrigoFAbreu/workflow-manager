@@ -31819,7 +31819,7 @@
       "registry_path": "docs/ai-workflow/registry/retention-run-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/retention-run-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "AWAITING_FUNCTIONAL_REVIEW",
       "plan_revision": 3,
       "implementation_revision": 2,
       "functional_review_round": null,
@@ -31928,7 +31928,168 @@
           "workflow_release": "2.29.1"
         }
       },
-      "technical_approval": null,
+      "technical_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "41aea8c0a8408aa6cf03b9cd010732006500763b5369fc2885f65362c9f5da23",
+        "approved_review_content_id": "ed7f219a865163d4cadda04127e80d891122606727c5f687647877934fab0863",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/registry/retention-run-artifacts.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "19f7da59d52cafad0892e880efdf0da000ca20d5"
+          },
+          {
+            "path": "docs/exit-codes.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "cbb1d1df966291c76b786a2aee20955a0763a709"
+          },
+          {
+            "path": "docs/retention.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "46aa71b57d90087df820fd6c370e1a297023b47e"
+          },
+          {
+            "path": "src/workflow_manager/cli.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "fd1c886ce4e3991e0902e07fdbfa51544f13a3f0"
+          },
+          {
+            "path": "src/workflow_manager/compatibility.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "7611295b085d87743f3cb7fd98692e1244ecc55a"
+          },
+          {
+            "path": "src/workflow_manager/retention.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "7e66ae810efba23d24e058ae728e2b7206755864"
+          },
+          {
+            "path": "src/workflow_manager/retention_alert.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "cd8ca4e07dd127bfb06cf204f2a12cbcacf46a5c"
+          },
+          {
+            "path": "src/workflow_manager/retention_cleanup.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "1ac255ec6e7e903735443ec0a2fd0ddc5918ee0d"
+          },
+          {
+            "path": "src/workflow_manager/retention_policy.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "3da62a2bc401dcc9d4189015dd82239ca4ccc8b0"
+          },
+          {
+            "path": "src/workflow_manager/retention_run.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "7cdf99b5b5beb2240f2be9be86e691d40652599a"
+          },
+          {
+            "path": "tests/test_compatibility.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "21a27e743330861c859891d3757a5f654ca0e245"
+          },
+          {
+            "path": "tests/test_retention_cleanup.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "0d7852d17d921f3bfb46c44da36b308c5ad4f119"
+          },
+          {
+            "path": "tests/test_retention_policy.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "3291f74da42aed9085b5c6987cdd10b45dfcd159"
+          },
+          {
+            "path": "tests/test_retention_run.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "f6e57b307b7efaa797803fa392698674f443a5b3"
+          },
+          {
+            "path": "tests/test_retention_status.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "4af59a7d836cdb65c7a6afea022ae4e6a1bd78fb"
+          }
+        ],
+        "reviewed_content_commit": "3ae605a9e3dd7df2e3222921c02baf96aba3b201",
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-11-12T05:14:31Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "ed7f219a865163d4cadda04127e80d891122606727c5f687647877934fab0863",
+            "ledger": {
+              "local": {
+                "bundle_id": "41aea8c0a8408aa6cf03b9cd010732006500763b5369fc2885f65362c9f5da23",
+                "verdict": "APPROVE",
+                "round": 2,
+                "verdict_sha256": "e9d355eb8b3b3f2a68151d98582375b03bb22eba9385533e5e27a7c61e557336",
+                "ledger_entry_sha256": "9f4dd8e1416802d7c32188133fde1d95601f704caeb5249ace04e8b93bfade90",
+                "run_ref": "session:local .ai-review/retention-run/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "41aea8c0a8408aa6cf03b9cd010732006500763b5369fc2885f65362c9f5da23",
+                "verdict": "APPROVE",
+                "round": 2,
+                "verdict_sha256": "15c4f0fcb78751d4ffc3a5d37b5ae46f257fb365721d8e5aadfc125b0195c5e6",
+                "ledger_entry_sha256": "116818344284009256692868d077bfa7a7babd9d2ab3a58fa2a21b31e04161a5",
+                "run_ref": "codex:20261112T051054Z-53c822f2",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-11-12T05:14:31Z",
+          "workflow_release": "2.29.1"
+        }
+      },
       "technical_review_block_pins": [],
       "plan_review_stages": {
         "review_content_id": "ef7a6297c481425559004565da6f70c2c4583f5789f33dd54099b712a2cc8b1d",
@@ -31959,12 +32120,12 @@
           "external": 1
         },
         "implementation": {
-          "local": 1,
-          "external": 0
+          "local": 2,
+          "external": 1
         }
       },
-      "state_revision": 19,
-      "last_transition": "2026-11-12T05:06:05Z",
+      "state_revision": 22,
+      "last_transition": "2026-11-12T05:14:31Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -32184,6 +32345,97 @@
               "at": "2026-11-12T04:47:32Z"
             }
           ]
+        },
+        "F-6c6043d99040": {
+          "digest": "6c6043d990402c6353c71aafbb9919475219c446bf1306c4effa34081ca1ad2c",
+          "text": "**LIR2-001 -- \"was not archived\" after a parsed refusal is still not certain in two engine cases.** (1) `_undo` reports its own failures only as a stderr `warning: the undo could not remove: ...` before the `error:` line. If restoring the index or unlinking the placed archive fails, the archive or its index line can remain, yet `_engine_refusal` parses the refusal and the report says \"was not archived\". (2) `already_archived` at link time (`workflow_retention.py` ~1220) means another run has placed the archive, so an archive does exist. The engine's message is quoted on the item line, so the reader can see which case it was. Possible fix: treat a stderr `warning: the undo could not remove` as unsettled, and say \"was not archived by this run\" (or quote the engine) for `already_archived`.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 2,
+              "review_content_id": "ed7f219a865163d4cadda04127e80d891122606727c5f687647877934fab0863",
+              "verdict": "APPROVE",
+              "at": "2026-11-12T05:10:31Z"
+            }
+          ]
+        },
+        "F-a3627bd8376a": {
+          "digest": "a3627bd8376a4c4f1cabe0b77fe7e39334d3cda25acca21dcfb89e2f8015c0a1",
+          "text": "**LIR2-002 -- One failing subtest makes the later subtests of `test_every_preflight_refusal_with_a_sentence` fail too.** The per-case restore (`git reset --hard` plus rewriting the saved files) runs only after `self.refuse(...)` passes. When one case fails, the next cases fail in setup instead of testing their own refusal. Under the mkstemp mutation, 8 of the 9 cases end as `FileNotFoundError` on `retention-adoption.json`, not as assertion failures. Detection is unaffected, because every case still fails, but a single-case regression is reported as nine. Possible fix: do the restore in `try/finally` (or `self.addCleanup` per case).",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 2,
+              "review_content_id": "ed7f219a865163d4cadda04127e80d891122606727c5f687647877934fab0863",
+              "verdict": "APPROVE",
+              "at": "2026-11-12T05:10:31Z"
+            }
+          ]
+        },
+        "F-4805653a498d": {
+          "digest": "4805653a498d90ad12af1cf3b59b83eb41afcec1db5d4247056cf58c5e55c024",
+          "text": "**LIR2-003 -- `TEST_RESULTS.md` does not record the fix-round full gate.** It cites only the run on `7089495`. The summary says the full gate passed \"at `3ae605a`\". The run log shows that run was on head `1b91125` with the fix uncommitted (2401/2401 units, 16197 tests, `verdict: exit 0`), followed by a docs-only edit to `docs/retention.md`'s example before the commit. That edit is a docs change, which does not make the run stale, and this round's targeted run plus `check_docs.py` cover it. Still, the bundle's evidence file should cite the run with its `head`, `tests_digest` and `tree_digest`. Record it in the next `TEST_RESULTS.md`, or at acceptance.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 2,
+              "review_content_id": "ed7f219a865163d4cadda04127e80d891122606727c5f687647877934fab0863",
+              "verdict": "APPROVE",
+              "at": "2026-11-12T05:10:31Z"
+            }
+          ]
+        },
+        "F-6e3bb4da0086": {
+          "digest": "6e3bb4da0086ba9422706d93953dd061ae160f4a016738c1b19f0c2d42d40ed9",
+          "text": "**LIR1-005 (carried, Optional)** -- the preview's `next:` line prints the literal `TARGET`. This is a usability follow-up.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 2,
+              "review_content_id": "ed7f219a865163d4cadda04127e80d891122606727c5f687647877934fab0863",
+              "verdict": "APPROVE",
+              "at": "2026-11-12T05:10:31Z"
+            }
+          ]
+        },
+        "F-a4eca9d0ed72": {
+          "digest": "a4eca9d0ed7295d4657164722e7f9016cf3a8a8c6ef890656cafb8adf49cb9b9",
+          "text": "`src/workflow_manager/retention_run.py:144`: An `already_archived` refusal produces a contradictory closing statement: “was not archived,” although the engine confirms an archive exists. Prefer “this run did not create an archive.” The run stops safely; this is a reporting improvement.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW",
+              "round": 2,
+              "review_content_id": "ed7f219a865163d4cadda04127e80d891122606727c5f687647877934fab0863",
+              "verdict": "APPROVE",
+              "at": "2026-11-12T05:14:11Z"
+            }
+          ]
+        }
+      },
+      "implementation_review_stages": {
+        "review_content_id": "ed7f219a865163d4cadda04127e80d891122606727c5f687647877934fab0863",
+        "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "41aea8c0a8408aa6cf03b9cd010732006500763b5369fc2885f65362c9f5da23",
+          "verdict": "APPROVE",
+          "round": 2,
+          "completed_at": "2026-11-12T05:10:31Z",
+          "verdict_sha256": "e9d355eb8b3b3f2a68151d98582375b03bb22eba9385533e5e27a7c61e557336",
+          "run_ref": "session:local .ai-review/retention-run/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "41aea8c0a8408aa6cf03b9cd010732006500763b5369fc2885f65362c9f5da23",
+          "verdict": "APPROVE",
+          "round": 2,
+          "completed_at": "2026-11-12T05:14:11Z",
+          "verdict_sha256": "15c4f0fcb78751d4ffc3a5d37b5ae46f257fb365721d8e5aadfc125b0195c5e6",
+          "run_ref": "codex:20261112T051054Z-53c822f2",
+          "reviewer_model": "openai/gpt-6.1-sol"
         }
       }
     }
