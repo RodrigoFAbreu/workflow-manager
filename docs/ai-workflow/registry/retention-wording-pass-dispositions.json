@@ -1,0 +1,45 @@
+{
+ "schema_version": 1,
+ "work_item_id": "retention-wording-pass",
+ "dispositions": {
+  "F-022bbfdf632c": {
+   "disposition": "follow-up",
+   "note": "The undo-warning fixtures in tests/test_retention_run.py (lines 378-410) build their text from rr.UNDO_WARNING and no test pins the constant's literal value; add one literal assertion or fixture.",
+   "link": "RodrigoFAbreu/workflow-manager#208"
+  },
+  "F-04fcd133680b": {
+   "disposition": "follow-up",
+   "note": "The cannot-start case in test_exit_codes asserts exit 1 and the 'could not be started' text but not self.keys() or the recorded calls, so it does not directly pin that the first per-item call was attempted.",
+   "link": "RodrigoFAbreu/workflow-manager#208"
+  },
+  "F-2634af8c7d99": {
+   "disposition": "fixed",
+   "note": "The retention-cleanup help now says 'was attempted, even if its script could not be started' and the exit-2 clause names both causes."
+  },
+  "F-2790c2d63233": {
+   "disposition": "dropped",
+   "reason": "Plan-prose precision only (an index-only entry raises already_indexed, not already_archived); the approved precedence and all code and docs behaviour are unaffected."
+  },
+  "F-3b28d6e9b6c3": {
+   "disposition": "fixed",
+   "note": "The plan states the undo-warning prefix is identical in every release from the 2.25.5 floor to 2.29.3."
+  },
+  "F-42754eea009e": {
+   "disposition": "fixed",
+   "note": "docs/retention.md and the help use the 'first per-item call was attempted' criterion; tests pin the new wording and reject the old phrase."
+  },
+  "F-675c4a439f2b": {
+   "disposition": "follow-up",
+   "note": "test_the_help_names_the_preview_the_run_the_floor_and_prune (tests/test_retention_cleanup.py ~855) does not pin the 'even if its script could not be started' qualifier; add the phrase to its word list.",
+   "link": "RodrigoFAbreu/workflow-manager#208"
+  },
+  "F-b78a9cc0ba7c": {
+   "disposition": "fixed",
+   "note": "docs/exit-codes.md row 1 now ends 'or the policy changed before a later item', consistent with row 2."
+  },
+  "F-bcf3afd15141": {
+   "disposition": "fixed",
+   "note": "The help keeps the '1: the run' substring, the help pin was extended, and the example formats the real shell-quoted target."
+  }
+ }
+}

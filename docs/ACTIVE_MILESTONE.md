@@ -2,9 +2,11 @@
 
 ## Milestone
 
-`retention-wording-pass` -- in progress (`governing_workflow_version: "2.2"`, `process`, plan revision 2, base `ec2f368`, branch `milestone/retention-wording-pass`): roadmap row 40 (#201, #195, #192, #198). A `fix:` pull request title; a Manager patch release follows.
+`retention-wording-pass` -- complete, accepted by policy (`governing_workflow_version: "2.2"`, `process`, plan revision 2, base `ec2f368`, branch `milestone/retention-wording-pass`): roadmap row 40 (#201, #195, #192, #198). A `fix:` pull request title; a Manager patch release follows.
 
 The report text of the retention commands says exactly what is known, and a test pins each corrected text. The run's behaviour does not change.
+
+**Next action:** no incomplete milestone remains in `docs/ROADMAP.md` (row 40 is the last); run `/milestone-plan` once the owner names the next item. Follow-ups of this milestone: RodrigoFAbreu/workflow-manager#208.
 
 ### CP1: report accuracy after an archive-step stop -- complete
 

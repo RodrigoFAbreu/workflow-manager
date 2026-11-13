@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_work_item_id": "retention-wording-pass",
+  "active_work_item_id": null,
   "work_items": {
     "plan-amendment-mechanism": {
       "work_item_type": "process",
@@ -32735,7 +32735,7 @@
       "registry_path": "docs/ai-workflow/registry/retention-wording-pass-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/retention-wording-pass-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_FUNCTIONAL_REVIEW",
+      "phase": "MILESTONE_COMPLETE",
       "plan_revision": 2,
       "implementation_revision": 3,
       "functional_review_round": null,
@@ -32998,8 +32998,8 @@
           "external": 1
         }
       },
-      "state_revision": 21,
-      "last_transition": "2026-11-13T01:27:39Z",
+      "state_revision": 22,
+      "last_transition": "2026-11-13T02:17:52Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -33170,6 +33170,233 @@
           "run_ref": "codex:20261113T012403Z-fb1433a5",
           "reviewer_model": "openai/gpt-6.1-sol"
         }
+      },
+      "gate_evidence": {
+        "functional": {
+          "flow-1": {
+            "flow_id": "flow-1",
+            "status": "passed",
+            "head": "2a35f83828ae9391575f5282f7e6e5f3bb5d60be",
+            "ran_at": "2026-11-13T01:44:23Z",
+            "summary": {
+              "checklist_blob": "a045443704c63ae99a1200a6a78085722670b49d",
+              "text": "--help exits 0; exit paragraph has the new 1/2 wording and no 'engine call' text."
+            },
+            "log_digest": "f6f1956b6582523ede79e2831b816c10adf0f3c54602129ede907a466f9929da",
+            "run_ref": "controller:20261113T014358Z-12620809",
+            "reporter": "workflow-controller 1.29.0",
+            "identity": "b0cc28a5178473cd5d7f9309ba73a4f99ddb1147cfed5be6d2c5f412d024de0c",
+            "recorded_at": "2026-11-13T01:44:23Z"
+          },
+          "flow-2": {
+            "flow_id": "flow-2",
+            "status": "passed",
+            "head": "2cab60737cdabc3b1fe76790980ba91ae4b317cb",
+            "ran_at": "2026-11-13T01:49:20Z",
+            "summary": {
+              "checklist_blob": "4889d99a424382ee47b32fff439d043f93967c60",
+              "text": "The grep as written printed nothing and exited 1."
+            },
+            "log_digest": "0c6868c2c44f053619cef1cc383e1d530743b574ca192ace9168a9ccf46a86e3",
+            "run_ref": "claude-functional:md36-functional-r1",
+            "reporter": "manager claude-functional.sh (Sonnet 5.5)",
+            "identity": "b0cc28a5178473cd5d7f9309ba73a4f99ddb1147cfed5be6d2c5f412d024de0c",
+            "recorded_at": "2026-11-13T01:49:20Z"
+          },
+          "flow-3": {
+            "flow_id": "flow-3",
+            "status": "passed",
+            "head": "2a35f83828ae9391575f5282f7e6e5f3bb5d60be",
+            "ran_at": "2026-11-13T01:44:23Z",
+            "summary": {
+              "checklist_blob": "a045443704c63ae99a1200a6a78085722670b49d",
+              "text": "docs/exit-codes.md rows 1/2 and docs/retention.md Exit status bullet and section state the same first-per-item-call criterion; preview example shows /srv/repo, not TARGET."
+            },
+            "log_digest": "426b1b559f2a7dbaa7322147d2740c84b0f8874fd82ea381084e6b1e5e3d0c68",
+            "run_ref": "controller:20261113T014358Z-12620809",
+            "reporter": "workflow-controller 1.29.0",
+            "identity": "b0cc28a5178473cd5d7f9309ba73a4f99ddb1147cfed5be6d2c5f412d024de0c",
+            "recorded_at": "2026-11-13T01:44:23Z"
+          },
+          "flow-4": {
+            "flow_id": "flow-4",
+            "status": "passed",
+            "head": "2cab60737cdabc3b1fe76790980ba91ae4b317cb",
+            "ran_at": "2026-11-13T01:49:20Z",
+            "summary": {
+              "checklist_blob": "4889d99a424382ee47b32fff439d043f93967c60",
+              "text": "Exit 0; next: line quotes the spaced target with the sentence, no TARGET; .ai-review, git status and HEAD identical before and after."
+            },
+            "log_digest": "a92bcd653a3a5ced0acfce1aafc75d65216e8aaa6bcdbdb101b064b0d6909340",
+            "run_ref": "claude-functional:md36-functional-r1",
+            "reporter": "manager claude-functional.sh (Sonnet 5.5)",
+            "identity": "b0cc28a5178473cd5d7f9309ba73a4f99ddb1147cfed5be6d2c5f412d024de0c",
+            "recorded_at": "2026-11-13T01:49:20Z"
+          },
+          "flow-5": {
+            "flow_id": "flow-5",
+            "status": "passed",
+            "head": "2cab60737cdabc3b1fe76790980ba91ae4b317cb",
+            "ran_at": "2026-11-13T01:49:20Z",
+            "summary": {
+              "checklist_blob": "4889d99a424382ee47b32fff439d043f93967c60",
+              "text": "Exit 2 with the expected --confirm error and quoted-target next: line; all review folders remained."
+            },
+            "log_digest": "1f76adbf71cf12754dc667923b100510608b6c75a880aefe238d3a94241bca46",
+            "run_ref": "claude-functional:md36-functional-r1",
+            "reporter": "manager claude-functional.sh (Sonnet 5.5)",
+            "identity": "b0cc28a5178473cd5d7f9309ba73a4f99ddb1147cfed5be6d2c5f412d024de0c",
+            "recorded_at": "2026-11-13T01:49:20Z"
+          },
+          "flow-6": {
+            "flow_id": "flow-6",
+            "status": "passed",
+            "head": "2cab60737cdabc3b1fe76790980ba91ae4b317cb",
+            "ran_at": "2026-11-13T01:49:20Z",
+            "summary": {
+              "checklist_blob": "4889d99a424382ee47b32fff439d043f93967c60",
+              "text": "Exit 0; closing line 'done, 2 of 2 items archived and removed; Git is unchanged'; HEAD unchanged, status clean."
+            },
+            "log_digest": "b953b6535f7ff27c13cb9a2dbaa23ccfb51a53d8a8d9905ae9697b68c3a1e7be",
+            "run_ref": "claude-functional:md36-functional-r1",
+            "reporter": "manager claude-functional.sh (Sonnet 5.5)",
+            "identity": "b0cc28a5178473cd5d7f9309ba73a4f99ddb1147cfed5be6d2c5f412d024de0c",
+            "recorded_at": "2026-11-13T01:49:21Z"
+          }
+        },
+        "pr": {
+          "pr": {
+            "number": 209,
+            "url": "https://github.com/RodrigoFAbreu/workflow-manager/pull/209"
+          },
+          "state": "open",
+          "head": "2cab60737cdabc3b1fe76790980ba91ae4b317cb",
+          "review_decision": null,
+          "reviewed_head": null,
+          "checks": {
+            "state": "success",
+            "failing": []
+          },
+          "review_id": null,
+          "findings": null,
+          "identity_at_head": "b0cc28a5178473cd5d7f9309ba73a4f99ddb1147cfed5be6d2c5f412d024de0c",
+          "observed_at": "2026-11-13T02:17:52Z",
+          "ingest_seq": 1,
+          "repository": "RodrigoFAbreu/workflow-manager",
+          "queried_commit": "430f31f1aeced7e3cb000d123ffc1ee1d0149adf",
+          "provenance": {
+            "source": "workflow_gh",
+            "fetched_by": {
+              "name": "workflow-gh",
+              "version": "pr-list-v1"
+            },
+            "fetched_at": "2026-11-13T02:17:52Z",
+            "raw_sha256": "d82a82dcb5684ffed887be2a97d4357ffe3f04e9ddc98a1f16518bf0882e7424",
+            "run_ref": null,
+            "gh_path": "/usr/bin/gh",
+            "gh_sha256": "a6b35a153e40cc347601522acdb583da3dccfc06401505a63eacaeab6909ed80"
+          },
+          "fact_id": "2f6740b89e26067acc77213d665e894677759d5a2ea9030767de46aa423e6456"
+        },
+        "pr_reported": null,
+        "pr_keys": {
+          "reopened_for": [],
+          "applied": [],
+          "ingest_seq": 1
+        }
+      },
+      "acceptance_satisfaction": {
+        "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "policy_source": "default",
+        "file_digest": null,
+        "adopted_digest": null,
+        "floor_digest": null,
+        "requirements": [
+          {
+            "id": "checkpoints_complete",
+            "met": true,
+            "detail": "every checkpoint of the item's own registry is COMPLETE"
+          },
+          {
+            "id": "technical_approval_current",
+            "met": true,
+            "detail": "the technical approval is CURRENT for the content now"
+          },
+          {
+            "id": "functional_flows_passed",
+            "met": true,
+            "detail": "flows ['flow-1', 'flow-2', 'flow-3', 'flow-4', 'flow-5', 'flow-6'] passed at the approved content"
+          },
+          {
+            "id": "pr_fact_current",
+            "met": true,
+            "detail": "workflow_gh fact for PR #209 at 2cab60737cdabc3b1fe76790980ba91ae4b317cb is current"
+          },
+          {
+            "id": "no_standing_pr_objection",
+            "met": true,
+            "detail": "no CHANGES_REQUESTED decision and no failed check"
+          },
+          {
+            "id": "ci_green",
+            "met": true,
+            "detail": "checks are 'success'"
+          }
+        ],
+        "inputs": {
+          "anchor_commit": "430f31f1aeced7e3cb000d123ffc1ee1d0149adf",
+          "anchor_identity": "b0cc28a5178473cd5d7f9309ba73a4f99ddb1147cfed5be6d2c5f412d024de0c",
+          "technical_approval": {
+            "basis": "POLICY_SATISFIED",
+            "approved_review_content_id": "b0cc28a5178473cd5d7f9309ba73a4f99ddb1147cfed5be6d2c5f412d024de0c",
+            "recorded_at": "2026-11-13T01:27:39Z"
+          },
+          "functional": {
+            "flow-1": {
+              "evidence_id": "8f823d70bd3f20b478e9dcf6e97805ecb4e6b1ab130e025238eae1f749a50b81",
+              "log_digest": "f6f1956b6582523ede79e2831b816c10adf0f3c54602129ede907a466f9929da",
+              "run_ref": "controller:20261113T014358Z-12620809"
+            },
+            "flow-2": {
+              "evidence_id": "11a7226755923e7fac137bcf7fb68aee1b8517684ecfd94da230c1b073569c5b",
+              "log_digest": "0c6868c2c44f053619cef1cc383e1d530743b574ca192ace9168a9ccf46a86e3",
+              "run_ref": "claude-functional:md36-functional-r1"
+            },
+            "flow-3": {
+              "evidence_id": "057d0ce5b89b2113918b93499c62db75aab9fdc38841623fb0a96c49546cdccc",
+              "log_digest": "426b1b559f2a7dbaa7322147d2740c84b0f8874fd82ea381084e6b1e5e3d0c68",
+              "run_ref": "controller:20261113T014358Z-12620809"
+            },
+            "flow-4": {
+              "evidence_id": "01c31a2ff40e068f537aeb4f45105633ca389b7a7972bd930d033fb11422a2bc",
+              "log_digest": "a92bcd653a3a5ced0acfce1aafc75d65216e8aaa6bcdbdb101b064b0d6909340",
+              "run_ref": "claude-functional:md36-functional-r1"
+            },
+            "flow-5": {
+              "evidence_id": "b8771f185731957d40bd15b15d3bffdb009fa86eb8275aff27e80b5bd439ce7f",
+              "log_digest": "1f76adbf71cf12754dc667923b100510608b6c75a880aefe238d3a94241bca46",
+              "run_ref": "claude-functional:md36-functional-r1"
+            },
+            "flow-6": {
+              "evidence_id": "d8c44c5980eb670fa02638c6eaba848c1edb160fa760b88fdaf0085e976bf0ad",
+              "log_digest": "b953b6535f7ff27c13cb9a2dbaa23ccfb51a53d8a8d9905ae9697b68c3a1e7be",
+              "run_ref": "claude-functional:md36-functional-r1"
+            }
+          },
+          "pr": {
+            "fact_id": "2f6740b89e26067acc77213d665e894677759d5a2ea9030767de46aa423e6456",
+            "head": "2cab60737cdabc3b1fe76790980ba91ae4b317cb",
+            "provenance": "workflow_gh",
+            "raw_sha256": "d82a82dcb5684ffed887be2a97d4357ffe3f04e9ddc98a1f16518bf0882e7424"
+          }
+        },
+        "trust": {
+          "review_verdicts": "orchestrator",
+          "functional_evidence": "orchestrator",
+          "pr_fact": "workflow_gh"
+        },
+        "evaluated_at": "2026-11-13T02:17:52Z",
+        "workflow_release": "2.29.3"
       }
     }
   }
