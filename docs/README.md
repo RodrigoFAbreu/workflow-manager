@@ -1,6 +1,6 @@
 # Documentation map
 
-> For: anyone looking for the right Workflow Manager page. Last checked with: Workflow Manager 1.8.0, Workflow 2.12.0.
+> For: anyone looking for the right Workflow Manager page. Last checked with: Workflow Manager 1.18.1, Workflow 2.29.3.
 
 Start with the [project README](../README.md) for what the Manager is and a five-minute quick start. This page says where everything else is.
 
@@ -13,6 +13,7 @@ Start with the [project README](../README.md) for what the Manager is and a five
 | See what an update would do before running it | [Update: check before you update](update.md#check-before-you-update) |
 | Check that a repository's installation is intact | [Verify](verify.md) |
 | See which finished work items still keep review folders, and which are archived | [Retention report](retention.md) |
+| Adopt a retention policy, or preview and run the cleanup it allows | [Retention policy](retention.md#retention-policy) and [Retention cleanup](retention.md#retention-cleanup) |
 | Fix an error message | [Common problems](common-problems.md) |
 | Look up what an exit code means | [Exit codes](exit-codes.md) |
 | Look up a Manager word (pin, release cache, profile...) | [Glossary](glossary.md) |

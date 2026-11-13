@@ -1,6 +1,6 @@
 # Workflow Manager
 
-> For: anyone who wants to put the Workflow into a repository. Last checked with: Workflow Manager 1.8.0, Workflow 2.12.0.
+> For: anyone who wants to put the Workflow into a repository. Last checked with: Workflow Manager 1.18.1, Workflow 2.29.3.
 
 [![Verification](https://github.com/RodrigoFAbreu/workflow-manager/actions/workflows/workflow-manager-verify.yml/badge.svg?branch=main&event=push)](https://github.com/RodrigoFAbreu/workflow-manager/actions/workflows/workflow-manager-verify.yml?query=branch%3Amain+event%3Apush)
 [![Nightly](https://github.com/RodrigoFAbreu/workflow-manager/actions/workflows/workflow-manager-verify.yml/badge.svg?event=schedule)](https://github.com/RodrigoFAbreu/workflow-manager/actions/workflows/workflow-manager-verify.yml?query=event%3Aschedule)
@@ -38,8 +38,8 @@ workflow-manager bootstrap /path/to/your/repo
 workflow-manager verify /path/to/your/repo
 ```
 
-Step 3 should print `installation matches workflow 2.12.0` and exit with
-status 0. If something goes differently, read the `next:` line the error prints, or see
+Step 3 should print `installation matches workflow` and the release step 2
+installed (`2.29.3` at the time of this check), and exit with status 0. If something goes differently, read the `next:` line the error prints, or see
 [Common problems](docs/common-problems.md).
 
 ## Where to go next
@@ -49,6 +49,7 @@ status 0. If something goes differently, read the `next:` line the error prints,
 | Install the Manager, or put the Workflow into a repository | [Install](docs/install.md) |
 | Move a repository to a newer Workflow release | [Update](docs/update.md) |
 | Check that an installation is intact | [Verify](docs/verify.md) |
+| See which finished work items keep review folders, adopt a retention policy, or run the cleanup it allows | [Retention](docs/retention.md) |
 | Fix an error message | [Common problems](docs/common-problems.md) |
 | Look up an exit code | [Exit codes](docs/exit-codes.md) |
 | Look up a word (pin, release cache, profile...) | [Glossary](docs/glossary.md) |
@@ -64,7 +65,10 @@ workflow-manager releases                  # the pinned and discovered Workflow 
 workflow-manager status    /path/to/repo   # managed? clean? work in flight?
 workflow-manager bootstrap /path/to/repo   # install into a repository
 workflow-manager verify    /path/to/repo   # is every installed file as released
+workflow-manager doctor    /path/to/repo   # what an update would meet (writes nothing)
 workflow-manager update    /path/to/repo   # move to the newest release
+workflow-manager adopt-retention-policy /path/to/repo  # adopt the repository's retention policy file
+workflow-manager retention-cleanup      /path/to/repo  # preview, or with --confirm run, the cleanup the policy allows
 workflow-manager uninstall /path/to/repo   # remove the managed files
 workflow-manager --version                 # the Manager's own version
 ```
