@@ -374,8 +374,9 @@ def _names(keys) -> str:
     return " and ".join(retention_policy.THRESHOLDS[key][1] for key in keys)
 
 
-def preview_lines(plan: Plan) -> list[str]:
-    """What `retention-cleanup` prints (stdout, exit 0)."""
+def preview_lines(plan: Plan, target) -> list[str]:
+    """What `retention-cleanup` prints (stdout, exit 0). `target` is the repository as
+    the operator typed it; the `next:` line names it, quoted for a shell."""
     if plan.outcome is None:
         if not plan.thresholds:
             return ["retention cleanup: nothing to do (the policy sets no threshold that "
@@ -421,7 +422,7 @@ def preview_lines(plan: Plan) -> list[str]:
         verdict = (f"{_names(left)} still reached; no further item is eligible{skipped}; "
                    "running it again will not help")
     lines.append(f"  after this run: {', '.join(numbers)}: {verdict}")
-    lines.append(f"  next: workflow-manager retention-cleanup TARGET --confirm "
-                 f"\"{sentence(plan_digest(plan))}\"")
+    lines.append(f"  next: workflow-manager retention-cleanup {shlex.quote(str(target))} "
+                 f"--confirm \"{sentence(plan_digest(plan))}\"")
     lines.append(f"  {BY_HAND}")
     return lines

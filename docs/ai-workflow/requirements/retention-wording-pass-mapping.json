@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "work_item_id": "retention-wording-pass",
+  "requirements": {
+    "R1": {
+      "description": "After a confirmed run stops at the archive step the closing line says 'was not archived' only for an engine refusal that left nothing behind; a refusal with the engine's 'warning: the undo could not remove' on stderr says the item may or may not be archived; already_archived says this run did not create an archive (an archive exists); every other archive-step stop reads as before; a stop at the archive step never reaches verify or remove, prune is never run, and each case has a test and a failure-only mutation",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R2": {
+      "description": "Exit 1 of retention-cleanup is worded as the code has it (bool(result.calls)): the run stopped after its first per-item call (archive --apply, the verification, or remove --apply) was attempted, even if the script could not be started; exit 2 is a refusal or a stop before that first call (the policy changed, or the run was interrupted, while item 1's policy was read), nothing written; the preflight's report is not a per-item call. Worded so in the Result docstring, the help (keeping the pinned substring '1: the run'), docs/retention.md and docs/exit-codes.md; test_exit_codes pins each boundary (policy change before item 1, interrupt at item 1's policy, script that cannot be started at archive, a stop at the first archive call, a remove-only first item stopped at its verification), and a docs test pins the wording",
+      "checkpoint_ids": [
+        "CP2"
+      ]
+    },
+    "R3": {
+      "description": "The preview's next: line names the real target, shell-quoted as the refusal quotes it, instead of the literal TARGET; preview_lines takes the target; the exact-block test and the docs example change with it; the EXAMPLE constant becomes a template with a {target} field used by the whole-stdout comparison and TestExample",
+      "checkpoint_ids": [
+        "CP2"
+      ]
+    },
+    "R4": {
+      "description": "Test hygiene: the step-2 (verify) shape cases join the shape test for the steps, and the per-case restore of the preflight-refusal test runs in try/finally so one failing case does not cascade",
+      "checkpoint_ids": [
+        "CP2"
+      ]
+    },
+    "R5": {
+      "description": "Nothing else changes: well-formed outputs of the run and the preview are byte-identical to the base except the corrected texts (golden before and after), every refusal keeps its no-write proof, exit codes 0/1/2 and the calls issued are unchanged, prune is never run",
+      "checkpoint_ids": [
+        "CP1",
+        "CP2"
+      ]
+    }
+  }
+}

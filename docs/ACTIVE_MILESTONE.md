@@ -2,123 +2,58 @@
 
 ## Milestone
 
-`retention-run` -- complete, accepted by policy (`governing_workflow_version: "2.2"`, `process`, plan revision 3, base `662e6c2`, branch `milestone/retention-run`): roadmap row 39 (#90, #198, wf#84). A `feat:` pull request title; a Manager release (minor) follows.
+`retention-wording-pass` -- complete, accepted by policy (`governing_workflow_version: "2.2"`, `process`, plan revision 2, base `ec2f368`, branch `milestone/retention-wording-pass`): roadmap row 40 (#201, #195, #192, #198). A `fix:` pull request title; a Manager patch release follows.
 
-Fourth slice of the owner's retention track: `workflow-manager retention-cleanup TARGET --confirm "Run the retention cleanup DIGEST12."` archives and then removes the finished work items the preview lists, through the Workflow's own script, only when the sentence is the one bound to the plan's digest. Prune is never run. The follow-ups of #198 ride along as the closing checkpoint.
+The report text of the retention commands says exactly what is known, and a test pins each corrected text. The run's behaviour does not change.
 
-### CP1: the confirmed run -- complete
+**Next action:** no incomplete milestone remains in `docs/ROADMAP.md` (row 40 is the last); run `/milestone-plan` once the owner names the next item. Follow-ups of this milestone: RodrigoFAbreu/workflow-manager#208.
 
-- Files: `src/workflow_manager/retention_run.py` (new: `run`, `Result`, `argv_for`, the three closed argv forms, the report lines, the stop rule), `src/workflow_manager/retention_cleanup.py` (`sentence`, `confirmation_holds`, the preview's closing `next:` and by-hand lines), `src/workflow_manager/retention.py` (the public `launch_script` and `ScriptTimeout`; `_run` calls it with `report --json --repo-root ROOT`, behaviour and the 300 seconds unchanged), `src/workflow_manager/cli.py` (`--confirm`, the help, the dispatch), `tests/test_retention_run.py` (new), `tests/test_retention_cleanup.py` (the pinned preview block and help test), `docs/retention.md`, `docs/exit-codes.md`. Row 39 of `docs/ROADMAP.md` is the plan's first step and is not a deliverable.
-- Behaviour: the same preflight and plan as the preview; with `--confirm` the sentence must name the fresh plan's digest (whitespace collapsed, case ignored, every match the same 12 characters) or the command refuses with exit 2 before any `archive` or `remove`. Per item, in order: `archive ID --apply` (not for `remove only`), the dry run of `remove ID` as the verification, `remove ID --apply`. The adopted policy is read before each item; the first failure of any step stops the run and the report lists what was done, what stopped and what was not attempted. After a step-3 timeout, interrupt or unreadable output the report never says "untouched" and names the user-only `remove ID --apply`. Exit 0 done, 1 stopped after an engine call started, 2 refused. Nothing is committed.
-- Deviations from the plan: none in the file list. `run(target, plan, emit=None)` takes the policy digest from the plan (`plan.policy_digest`) instead of a separate argument. `TestEndToEnd` drives the real release script through the `run=`/`resolve=` seams by patching `retention.launch_script` with a launcher that runs the script in a `python3 -I -B -c` driver, with a scratch `HOME` (the engine's store is named after the origin repository, `example`).
-- Evidence: `--select` of `test_retention_run.py` (38 tests, the end-to-end case ran: `zstd` is on `PATH`), `test_retention_cleanup.py` (56), `test_operator_ux.py` (130) and `test_docs.py` (44) each `verdict: exit 0`; `python3 tools/check_docs.py` exit 0.
-- Failure-only mutations (fresh copy each, the named test run alone from `tests/`): the unmutated copy passes; M1 to M22, M28, M29 and M31 to M33 each fail (M18 by the interrupt killing the test process).
+### CP1: report accuracy after an archive-step stop -- complete
 
-### CP2: the #198 fold-in -- complete
+- Files: `src/workflow_manager/retention_run.py` (`UNDO_WARNING`, `_undo_unsettled`, `_Stop.unsettled`, `_closing` takes an `archive_state`: `NOT_ARCHIVED`, `UNSETTLED`, `FOREIGN`), `tests/test_retention_run.py` (five new tests), `docs/retention.md` (the paragraph after the run example).
+- Behaviour: `already_archived` reads `this run did not create an archive for ID (one already exists)` (it wins over the undo warning); another engine refusal with `warning: the undo could not remove` on stderr reads `ID may or may not be archived (the engine's undo could not remove everything it created; the next preview shows which)`; every other case reads as before.
+- Evidence: `--select test_retention_run.py` (45 tests) and `test_docs.py` `verdict: exit 0`; `tools/check_docs.py` clean. Mutations M1 to M5: each fails its named test (M4 is covered by `test_the_undo_warning_is_read_from_stderr_only` and M1's test).
 
-- Files: `src/workflow_manager/compatibility.py` (public `git_env(extra_config=(), drop_config_parameters=False)`; `run_git` calls it with the defaults, so its environment is unchanged), `retention.py` (`release_key`, `shown`), `retention_alert.py` (`incomplete`; the local of `evaluate` renamed `lower_bound` so it no longer shadows it), `retention_cleanup.py` (`_git` uses `git_env(config, drop_config_parameters=True)`; the `_filter_overrides` docstring re-wrapped; an INVALID refusal's cause ends with the first problem), `retention_policy.py` (`WORDS`, `shown`), `tests/test_compatibility.py` (`TestGitEnv`), `tests/test_retention_cleanup.py` (`TestNoPrivateCrossUse`, `test_an_invalid_policy_names_its_problem`, the two fixed tests), `tests/test_retention_status.py` (the renamed helper's calls).
-- Deviations: `retention_alert._shown` (a different helper, over a `Result`) stays private: no sibling uses it. `test_steps_one_to_six_start_no_script` now asserts all three refusals (step 2, step 4 on a dirty tree, step 6 on a clean tree with a modified script): with the plan's wording alone step 6 was never reached.
-- Evidence: `--select` of `test_retention_cleanup.py`, `test_retention_run.py`, `test_retention_alert.py`, `test_retention_status.py`, `test_retention_policy.py`, `test_compatibility.py` and `test_read_only.py` `verdict: exit 0`. Mutations M23 to M27 and M30 (fresh copy each): the unmutated copy passes, each fails its named test (M26 only after the test was strengthened). The first full gate was stopped by the 30-minute background limit (`InterruptedRunError`, no test failure); the second ran 2401/2401 units, `verdict: exit 1`, one failure: my new INVALID test compared the upper-case state name, fixed (the state is `invalid`) and `--select test_retention_cleanup.py` is `verdict: exit 0` (58 tests). The full gate has not been re-run since that test-only fix; step 3 runs it again.
+### CP2: exit-code wording, the preview's real target, test hygiene -- complete
 
-### Self-review and the full gate
+- Files: `retention_cleanup.py` (`preview_lines(plan, target)` prints the quoted target in `next:`), `retention_run.py` (`Result` docstring), `cli.py` (help; passes `args.target`), `tests/test_retention_cleanup.py` (`EXAMPLE` template with `{target}`, `test_the_preview_quotes_the_target`, help pins), `tests/test_retention_run.py` (`test_exit_codes` gains the policy-before-item-1, interrupt-at-item-1, cannot-start and remove-only-verify cases; `test_a_step_must_return_its_own_shape`; `try/finally` in the refusal test; `TestDocsSayExitCodes`), `docs/retention.md`, `docs/exit-codes.md`.
+- Behaviour: exit 1 = stopped after the first per-item call was attempted; exit 2 = refused or stopped before it. No behaviour change.
+- Evidence: `--select` of `test_retention_run.py` (47), `test_retention_cleanup.py` (59), `test_operator_ux.py` (130), `test_docs.py` (44) all `verdict: exit 0`; `tools/check_docs.py` clean; full gate `python3 tests/run_all.py` 2406/2406 units, 16253 tests, `verdict: exit 0`. Mutations M7, M8, calls-after-launch (M6c-like) and M10 each fail their named test; M6, M6b, M9, M11 and the golden before/after diff were not run.
 
-- The full diff `662e6c2..ccbbff2` was reviewed for correctness, layer boundaries, missing tests and maintainability. Two findings, both fixed in `7089495`:
-  - A Ctrl-C while the run re-read the policy before an item left the step unset: the item line said `stopped at None: interrupted` and the closing line claimed the item "was archived and verified". The policy check is now the item's first step (`retention_run.POLICY`). An interrupt there reports `stopped before any call for this item: interrupted`, says the item was not touched and does not say "the policy changed". The new regression `TestStop.test_an_interrupt_while_reading_the_policy_claims_nothing` fails on `ccbbff2`'s runner (fresh copy, the test alone) and passes after.
-  - Two texts said this Manager release never cleans up, which the confirmed run makes false. The `status`/`doctor --retention` policy block said "it sends nothing and cleans nothing", and the `adopt-retention-policy` help said "it archives, removes, prunes and sends nothing". The block now says "it sends nothing, and cleans up only when retention-cleanup runs with --confirm" (`docs/retention.md` and the two `test_retention_policy.py` pins follow). The help now says adopting archives, removes, prunes and sends nothing, and that only `retention-cleanup` with `--confirm` cleans up.
-- Considered and not changed: an `OSError` starting the first script call ends with exit 1, not 2, because the call is recorded before it is launched. The preflight has just run the same interpreter for `report`, so this cannot happen in practice. A Ctrl-C in the microseconds between a call returning and the next step being set reports the earlier step, which is conservative except at `archive`.
-- Evidence: `--select` of `test_retention_run.py`, `test_retention_cleanup.py`, `test_retention_policy.py`, `test_operator_ux.py` and `test_docs.py` `verdict: exit 0` (351 tests); `python3 tools/check_docs.py` exit 0. Full gate `python3 tests/run_all.py` on `7089495`: `evidence: full selection, local, 8 worker(s), head 7089495b8cec6dd4bbba0bd075008f6d3a49333c, 2401/2401 units, 16196 tests, selection_digest ccbabdbc870008ea096daa97fe4214af8553f8fdbae6caa43492571bfffcef61, tests_digest 6043f2ec6e82b3bcd2ca8e5cccea847b85ec7613d1a81c5e78565daab63e42ad`, `verdict: exit 0`.
+### Self-review -- complete
 
-### Automated verification before functional review
+- The full diff `ec2f368..6e75b8d` was reviewed. One finding, fixed in `a1d7639`: a CP2 help-string line in `cli.py` ran to 126 characters; it is rewrapped and the joined help text is byte-identical.
+- The plan's evidence CP2 left unrun: mutations M6 (`changed` subtest fails), M6b (`changed` and `interrupt` fail), M9 (the verify arm's `mode` case fails) and M11 (only `dirty tree` fails, `failures=1`, later cases still run), each against an unmutated scratch clone that passes. Golden before (`ec2f368`) / after (`a1d7639`), ten shared scenarios: `diff -r` shows only the preview's `next:` line (`TARGET` -> the quoted target) plus the two new scenarios (`already_archived`, the undo warning), which have no before.
+- Full gate `python3 tests/run_all.py` on `a1d7639`: 2406/2406 units, 16253 tests, selection_digest `0f5c56bd...`, tests_digest `daa15450...`, `verdict: exit 0`.
 
-- Full gate `python3 tests/run_all.py` on `0c0e4b6` (the current head; the last code change is `3ae605a`, after the earlier full run on `7089495`): `evidence: full selection, local, 8 worker(s), head 0c0e4b6641a5f7afe34b4001dfe1ff8358d7d082, 2401/2401 units, 16197 tests, selection_digest ccbabdbc870008ea096daa97fe4214af8553f8fdbae6caa43492571bfffcef61, tests_digest 63d96a6203359872063af0aa67aa65768f05cf2552a17f6aeba388b35918342f, tree_digest a4261a9e513de3184ea568ae2bba63d0d897cd500d17106efc521fd5036b9798`, `verdict: exit 0`.
+### Functional review checklist
 
-## Functional review checklist
+Implementation revision 3, code head `28d8c18`. Automated verification re-run on `28d8c18` (the tree changed after `a1d7639`, through `73382e4` and `430f31f`): `python3 tests/run_all.py` `verdict: exit 0`, 2406/2406 units, 16254 tests, selection_digest `0f5c56bd...`, tests_digest `2e4c4796...`, tree_digest `19dd58c6...`.
 
-Scope: `retention-run` (`feat:`, CP1 and CP2, both complete): `workflow-manager retention-cleanup TARGET --confirm "Run the retention cleanup DIGEST12."` archives, verifies and removes the finished work items the preview lists, through the target's own `scripts/workflow_retention.py`. Prune is never run. Nothing is committed by the run.
+**Setup.** Work in a scratch clone, never the product clone. Clone it at this branch (the checklist commit's HEAD) and run the Manager from the clone's source:
 
-### Setup
+```
+S="$HOME/.cache/wm-functional/retention-wording-pass"
+git clone -q --branch milestone/retention-wording-pass <product-clone-path> "$S/clone"
+cd "$S/clone"
+export PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$PWD/src"
+```
 
-- Flows 1 to 8 run offline, in a scratch clone, and write nothing into the product clone. Start with:
+Flows 4 to 6 use a managed scratch repository, a copy of a repository bootstrapped at Workflow 2.25.5 or later, with an adopted `cleanup` policy committed (`workflow-manager adopt-retention-policy`), with a path that contains a space (for example `"$HOME/scratch repo"`) so the quoting is exercised, and with at least one finished work item that has an untracked review folder. Each run needs `gh` signed in, because the retention report makes one forge query per finished work item.
 
-  ```bash
-  S=$(mktemp -d "${TMPDIR:-$HOME}/rr-fr.XXXXXX")
-  git clone --no-hardlinks /home/rodrigo/Workspace/workflow-manager "$S/cand"
-  git -C "$S/cand" remote remove origin
-  export PYTHONPATH="$S/cand/src"
-  ```
-
-  Flows 7 and 8 import `tests/support.py`, which needs the primed release cache. Copy the host cache into the scratch directory and point the tests at it; they then run with no network:
-
-  ```bash
-  cp -r "$HOME/.cache/workflow-manager/releases" "$S/releases"
-  export WORKFLOW_MANAGER_RELEASE_CACHE="$S/releases"
-  ```
-
-- Flow 9 needs the full environment: `gh` signed in, and a throwaway GitHub origin. Run it last, in a scratch managed repository under `$S`.
-- Required tools on `PATH`: `git`, `python3`. `zstd` is needed for the end-to-end test (`TestEndToEnd`); without it that one case skips with a named reason, which must be recorded.
-
-### Test data
-
-- No data to seed for flows 1 to 8: they read the clone's code, docs and tests.
-- Flow 9 seeds a state file of finished work items, their review folders, and a committed adopted retention policy with mode `cleanup` or `both`, in the scratch repository.
-
-### Flows
+Flows 1 to 3 run offline, with no `gh`, `claude`, `codex` or `ssh`, and write nothing: they are the sandbox-runnable flows.
 
 | Flow | Do | Expect |
 | --- | --- | --- |
-| 1 | `cd "$S/cand" && git diff --stat 662e6c2d95eed185b93aa5a0e38330ab05f3bacb HEAD -- src tools tests docs .github scripts .claude` | only the files the checkpoints declare (including `retention_policy.py`) and the expected bookkeeping under `docs/` |
-| 2 | `python3 -m workflow_manager retention-cleanup --help` | names `--confirm`, the sentence, archive then verify then remove, the stop rule, exit 0, 1 and 2, and that prune is never run; exit 0 |
-| 3 | `grep -n 'prune' "$S/cand/src/workflow_manager/retention_run.py"` | only text that says prune is never run; no argv form carries it |
-| 4 | the cross-module private-name scan (command below the table) | no output (exit 1) |
-| 5 | `grep -n 'git_env\|def release_key\|def incomplete' "$S"/cand/src/workflow_manager/*.py`; the docstring-length check (command below the table) | the three public names present; no output from the docstring-length check (code lines over 100 characters are not checked: the repository has no line-length rule) |
-| 6 | `python3 "$S/cand/tools/check_docs.py"` | exit 0 |
-| 7 | `cd "$S/cand/tests" && python3 -B -m unittest test_retention_run.TestNeverPrune test_retention_run.TestNoRemovalWithoutVerification` | `OK` |
-| 8 | in scratch copies of the clone, apply mutations M1, M3, M5, M8 and M12 (plan section 3, with the `sed` commands below the table) and run the named test of each | each mutated copy FAILS its named test; the unmutated clone passes |
-| 9 | (full environment, user only) `python3 tests/run_all.py --select test_retention_run.py`, then `--select` of `test_retention_cleanup.py`, `test_retention_alert.py`, `test_compatibility.py`, `test_read_only.py`, `test_operator_ux.py`, `test_docs.py`. Then in the scratch managed repository, with `export GH_CONFIG_DIR=$HOME/.config/gh HOME=$S/home` (in that order, so `gh` keeps its keyring): run `workflow-manager retention-cleanup TARGET` (the preview), then `--confirm` with its sentence | each `--select` run `verdict: exit 0`, no `OrphanProcessError`; the run archives and removes the planned items; `git status` of the scratch repository unchanged; a second run reports nothing to do |
+| 1 | `python3 -m workflow_manager retention-cleanup --help` | Exit 0. The exit paragraph reads: 1 is "the run stopped after its first per-item call (archive, the verification or remove) was attempted, even if its script could not be started", and 2 is "refused, or stopped before that first call (the policy changed or the run was interrupted while item 1's policy was read)". The text says nothing about "an engine call started". |
+| 2 | `grep -rn --exclude=ACTIVE_MILESTONE.md 'after an engine call started' docs/*.md src` | No output (exit 1). The old criterion is gone from the user-facing docs and the source. (This checklist is excluded because it quotes the phrase; `tests/test_retention_run.py` quotes it only inside two `assertNotIn` guards that keep it out; `docs/ai-workflow/requirements/retention-run-mapping.json` still carries it; see limitations.) |
+| 3 | Read `docs/exit-codes.md`, the `retention-cleanup` rows 1 and 2, and `docs/retention.md`: the "Exit status" bullet of the confirmed run and its closing sentence | Each says the same criterion as flow 1: the first per-item call was attempted (exit 1), or the run stopped before it (exit 2). The `docs/retention.md` preview example shows `next: workflow-manager retention-cleanup /srv/repo --confirm ...`: the real target as typed, not `TARGET`. |
+| 4 | Full environment. `python3 -m workflow_manager retention-cleanup "$HOME/scratch repo"` | Exit 0. The `next:` line names the target quoted for a shell, `'…/scratch repo'`, with the sentence `Run the retention cleanup DIGEST12.`; the literal `TARGET` does not appear. Nothing is written: `git status --short` shows the same untracked review folder, and `.ai-review/` is unchanged. |
+| 5 | Full environment. `python3 -m workflow_manager retention-cleanup "$HOME/scratch repo" --confirm "Run the retention cleanup 000000000000."` | Exit 2. stderr: `error: retention cleanup: --confirm does not hold the sentence for the current plan ...` and `next: run workflow-manager retention-cleanup '…/scratch repo' to see the current plan and its sentence` (the target quoted). Nothing is archived or removed: the review folder is still there. |
+| 6 | Full environment. Run flow 4's `next:` sentence exactly: `python3 -m workflow_manager retention-cleanup "$HOME/scratch repo" --confirm "Run the retention cleanup DIGEST12."` | Exit 0. The closing line reads `retention cleanup: done, N of N items archived and removed; Git is unchanged (the review folders were untracked); prune was not run`. `git rev-parse HEAD` is unchanged. The run's behaviour is the same as before this milestone. |
 
-Flow 5 docstring-length command (run from `$S/cand`):
+**Limitations and out of scope.**
 
-```bash
-python3 -I -c "
-import ast,sys
-t=ast.parse(open(sys.argv[1]).read())
-for n in ast.walk(t):
-    if isinstance(n,(ast.Module,ast.FunctionDef,ast.AsyncFunctionDef,ast.ClassDef)):
-        for l in (ast.get_docstring(n,clean=False) or '').splitlines():
-            if len(l)>100: print(l)
-" src/workflow_manager/retention_cleanup.py
-```
-
-Flow 4 command (run from `$S/cand`):
-
-```bash
-cd "$S/cand/src/workflow_manager" && grep -nE '(compatibility|retention|retention_alert|retention_policy|retention_run|retention_cleanup)\._|from \.[a-z_]+ import _' retention.py retention_alert.py retention_cleanup.py retention_policy.py retention_run.py
-```
-
-Flow 8 mutations (each in its own copy, then its named test from that copy's `tests/` with `PYTHONPATH="<copy>/src"`). Start each with `cp -r "$S/cand" "$S/m1"` (use `m3`, `m5`, `m8`, `m12` likewise) and `cd` into it:
-
-```bash
-# M1: the archive argv gains a prune form          (test: test_retention_run.TestNeverPrune)
-sed -i 's/return ("archive", item_id, "--apply", "--json", "--repo-root", root)/return ("prune", "--apply", "--json", "--repo-root", root)/' src/workflow_manager/retention_run.py
-# M3: any 12-hex sentence accepted                  (test: test_retention_run.TestSentence.test_another_plans_sentence_is_refused)
-sed -i 's/return bool(found) and all(match == prefix for match in found)/return bool(found)/' src/workflow_manager/retention_cleanup.py
-# M5: the loop continues after a failure            (test: test_retention_run.TestStop.test_the_first_failure_stops_before_any_further_call)
-sed -i 's/^            return result$/            continue/' src/workflow_manager/retention_run.py
-# M8: a failed verification is ignored, removal still issued   (test: test_retention_run.TestNoRemovalWithoutVerification)
-sed -i 's/^            _call(root, VERIFY, item.work_item_id, result.calls)$/            try:\n                _call(root, VERIFY, item.work_item_id, result.calls)\n            except _Stop:\n                pass/' src/workflow_manager/retention_run.py
-# M12: a timeout read as success                    (test: test_retention_run.TestStop.test_a_timeout_stops_and_leaves_no_process)
-sed -i 's/^    except retention.ScriptTimeout:$/    except retention.ScriptTimeout:\n        return None/' src/workflow_manager/retention_run.py
-```
-
-Run the unmutated clone's named tests the same way first; each must pass there.
-
-### Known limitations and out of scope
-
-- Functional review round 1 (automated tester, 2026-11-12, evidence at `7637e65`): flow 5's literal `awk 'length > 100'` expectation was wrong, not the code: the repository has no line-length rule and three code lines of `retention_cleanup.py` (45, 255, 293) pass 100 characters, none a docstring. Flow 5 now checks docstring lines only (no code change; technical approval untouched). Flows 1 to 4 and 6 passed. Flows 7 and 8 did not run (the sandbox had no primed release cache), and flow 9 needs the full environment. Round 2 re-tests flow 5, runs flows 7 and 8 with the cache copy in Setup, and gives flow 8's mutations as exact `sed` commands.
-- Prune is never run and never part of cleanup.
-- The sentence proves the plan was shown, not who asked. It is a formality for any job that reads it back from the preview.
-- An archive store on another file system than `.ai-review` is refused with `cross_device` on every run (the default store is under `HOME`).
-- Flows 1 to 8 do not touch GitHub, `gh`, `claude`, `codex` or `ssh`: they run offline against the code. Only flow 9 exercises a real forge.
-- A killed Manager during removal leaves `.removing/ID`; the next preflight refuses it, and the user finishes it by hand.
-- No version is edited, and nothing is pushed or committed by the run.
-- Pull request title (for the later release, not part of this review): `feat: archive and remove finished work items under an adopted retention policy with retention-cleanup --confirm`.
+- The two stop-report texts that CP1 added (`this run did not create an archive for ID (one already exists)` after `already_archived`, and `ID may or may not be archived (the engine's undo could not remove everything it created; ...)` after the undo warning) cannot be produced by hand: they need an engine race or a failing undo. They are pinned by the five new tests in `tests/test_retention_run.py` and were mutation-checked. The functional review does not need to reproduce them.
+- `docs/ai-workflow/requirements/retention-run-mapping.json` still reads "1 stopped after an engine call started". It is the requirement record of the finished item `retention-run`, not user-facing text, and it is not edited here. Record a disposition at acceptance.
+- No behaviour changes; the Manager patch release follows the merge and is not part of this review.

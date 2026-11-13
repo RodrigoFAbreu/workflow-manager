@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "work_item_id": "retention-wording-pass",
+  "plan_revision": 2,
+  "checkpoints": [
+    {
+      "id": "CP1",
+      "name": "Report accuracy after an archive-step stop",
+      "depends_on": [],
+      "complexity": 2,
+      "session_target": 1
+    },
+    {
+      "id": "CP2",
+      "name": "Exit-code wording, the preview's real target, test hygiene",
+      "depends_on": [
+        "CP1"
+      ],
+      "complexity": 2,
+      "session_target": 1
+    }
+  ]
+}
