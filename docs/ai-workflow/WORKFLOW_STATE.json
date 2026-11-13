@@ -34833,7 +34833,7 @@
       "registry_path": "docs/ai-workflow/registry/retention-max-age-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/retention-max-age-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "APPLYING_REVIEW_FEEDBACK",
       "plan_revision": 4,
       "implementation_revision": 1,
       "functional_review_round": null,
@@ -34973,12 +34973,12 @@
           "external": 2
         },
         "implementation": {
-          "local": 0,
+          "local": 1,
           "external": 0
         }
       },
-      "state_revision": 21,
-      "last_transition": "2026-11-13T22:58:09Z",
+      "state_revision": 22,
+      "last_transition": "2026-11-13T23:19:38Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -35141,6 +35141,34 @@
               "review_content_id": "56b34ce96f9efa30906e13a617d7c6afed929970c03866ff87a9e97b29360e37",
               "verdict": "REVISE",
               "at": "2026-11-13T21:40:30Z"
+            }
+          ]
+        },
+        "F-37f2b998f38b": {
+          "digest": "37f2b998f38b1dd0a7837a904ec66fbef8f10e6b7c72732bfebdcfbb59e3630d",
+          "text": "**LIR1-002:** the alert example in `docs/retention.md` prints `finished older than 30 days: 4 items, 2 more ...`. Its `archives` line (`at least 5 ... not known (the report is incomplete)`) shows an incomplete report, and `render` would then print `at least 4 items`. The base example's `finished items: 12` has the same inconsistency already (it would be `at least 12`). Consider making the example a complete report (drop the `archives` line or make it reached) or prefixing `at least`, so the page shows output the code can print.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "ecde08d5c9020312d175561927727622b25d3e799ad762fffafa826f7db18cd8",
+              "verdict": "REVISE",
+              "at": "2026-11-13T23:19:38Z"
+            }
+          ]
+        },
+        "F-703bce29f67b": {
+          "digest": "703bce29f67bf52e0c0c950de1fc321dcc3ee07da0b7e9f22882d8d7574cc8b1",
+          "text": "**LIR1-003:** the known limitation in the summary: when only the age threshold is reached, the age line's `next:` step (`retention.next_step`) names the newest archivable item, which may be young. The plan pins this, and `retention.py` must stay byte-identical, so it is not a defect of this item. Record the follow-up issue at acceptance as the summary proposes.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "ecde08d5c9020312d175561927727622b25d3e799ad762fffafa826f7db18cd8",
+              "verdict": "REVISE",
+              "at": "2026-11-13T23:19:38Z"
             }
           ]
         }
