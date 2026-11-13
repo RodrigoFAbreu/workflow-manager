@@ -32735,7 +32735,7 @@
       "registry_path": "docs/ai-workflow/registry/retention-wording-pass-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/retention-wording-pass-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "APPLYING_REVIEW_FEEDBACK",
       "plan_revision": 2,
       "implementation_revision": 1,
       "functional_review_round": null,
@@ -32875,12 +32875,12 @@
           "external": 1
         },
         "implementation": {
-          "local": 0,
+          "local": 1,
           "external": 0
         }
       },
-      "state_revision": 14,
-      "last_transition": "2026-11-13T00:02:44Z",
+      "state_revision": 15,
+      "last_transition": "2026-11-13T00:06:17Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -32971,6 +32971,20 @@
               "review_content_id": "90524a53b76428c78f464fc331176513ef685cfb2b47acd06adbebbd6b388968",
               "verdict": "APPROVE",
               "at": "2026-11-12T22:28:20Z"
+            }
+          ]
+        },
+        "F-04fcd133680b": {
+          "digest": "04fcd133680b4547879af13ce2776ce9e31faf5ce48833ca4905ec55960573f2",
+          "text": "**LIR1-003 (`tests/test_retention_run.py`, `test_exit_codes`, the cannot-start case).** The case asserts exit 1 and the closing text but not `self.keys()`, so it does not show which call was attempted. Asserting the recorded calls (or the `result.calls` content) would make the case pin \"the first per-item call was attempted, even if its script could not be started\" directly, not only through M6c.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "701d3359a5d1e228b22f067362d443e79ec815472e848373d176ba174f3f1cad",
+              "verdict": "REVISE",
+              "at": "2026-11-13T00:06:17Z"
             }
           ]
         }
