@@ -1,0 +1,34 @@
+{
+ "schema_version": 1,
+ "work_item_id": "retention-pins-and-title",
+ "dispositions": {
+  "F-80cd423e8089": {
+   "disposition": "fixed",
+   "note": "The declaration lists glossary.md, exit-codes.md and test_docs.py as excluded at both stages."
+  },
+  "F-bedc97823a18": {
+   "disposition": "fixed",
+   "note": "The cannot-start pin is a separate assertion on the recorded calls, as flow 6 greps."
+  },
+  "F-f7a9e43fadf5": {
+   "disposition": "fixed",
+   "note": "Plan flow 6 greps the assertion itself, not the bare word."
+  },
+  "F-4c10eea99742": {
+   "disposition": "follow-up",
+   "link": "https://github.com/RodrigoFAbreu/workflow-manager/issues/216"
+  },
+  "F-7e001c82f40b": {
+   "disposition": "follow-up",
+   "link": "https://github.com/RodrigoFAbreu/workflow-manager/issues/216"
+  },
+  "F-b5269fcfc2fa": {
+   "disposition": "follow-up",
+   "link": "https://github.com/RodrigoFAbreu/workflow-manager/issues/216"
+  },
+  "F-b794f0b6431d": {
+   "disposition": "follow-up",
+   "link": "https://github.com/RodrigoFAbreu/workflow-manager/issues/216"
+  }
+ }
+}
