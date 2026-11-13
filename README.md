@@ -65,11 +65,11 @@ workflow-manager releases                  # the pinned and discovered Workflow 
 workflow-manager status    /path/to/repo   # managed? clean? work in flight?
 workflow-manager bootstrap /path/to/repo   # install into a repository
 workflow-manager verify    /path/to/repo   # is every installed file as released
-workflow-manager doctor    /path/to/repo   # what an update would meet (writes nothing)
+workflow-manager doctor    /path/to/repo   # what an update would meet (writes nothing in the repository)
 workflow-manager update    /path/to/repo   # move to the newest release
-workflow-manager adopt-retention-policy /path/to/repo  # adopt the repository's retention policy file
+workflow-manager adopt-retention-policy /path/to/repo  # preview, or with --confirm adopt, the repository's retention policy file
 workflow-manager retention-cleanup      /path/to/repo  # preview, or with --confirm run, the cleanup the policy allows
-workflow-manager uninstall /path/to/repo   # remove the managed files
+workflow-manager uninstall /path/to/repo   # remove the managed files and the .workflow-manager/ folder
 workflow-manager --version                 # the Manager's own version
 ```
 

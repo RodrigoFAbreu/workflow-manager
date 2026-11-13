@@ -58,4 +58,4 @@ The repository's own record of its work: `docs/ai-workflow/WORKFLOW_STATE.json`,
 
 ## Uninstall
 
-`workflow-manager uninstall <repo>` removes the managed files and the `.workflow-manager/` folder, which holds the installation record and, if you adopted one, the [retention policy](retention.md#retention-policy) and its adoption record. State files stay.
+`workflow-manager uninstall <repo>` removes the managed files and the `.workflow-manager/` folder, which holds the installation record and any [retention policy](retention.md#retention-policy) file you wrote there, with its adoption record if you adopted it. State files stay.
