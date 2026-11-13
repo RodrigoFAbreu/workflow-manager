@@ -33408,7 +33408,7 @@
       "registry_path": "docs/ai-workflow/registry/docs-restamp-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/docs-restamp-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "APPLYING_REVIEW_FEEDBACK",
       "plan_revision": 3,
       "implementation_revision": 1,
       "functional_review_round": null,
@@ -33548,12 +33548,12 @@
           "external": 2
         },
         "implementation": {
-          "local": 0,
+          "local": 1,
           "external": 0
         }
       },
-      "state_revision": 18,
-      "last_transition": "2026-11-13T03:55:50Z",
+      "state_revision": 19,
+      "last_transition": "2026-11-13T04:02:59Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -33645,6 +33645,48 @@
               "review_content_id": "2187fe1e707d10ccdf47195aa0575c9e5a85556022d9adb3806ca69ad6cead16",
               "verdict": "APPROVE",
               "at": "2026-11-13T03:31:08Z"
+            }
+          ]
+        },
+        "F-e1ce711f4a30": {
+          "digest": "e1ce711f4a30327cdcb3ecf9aa27509b6044560e8ff5ccb5da0097b3e7ab6ef7",
+          "text": "**LIR1-002 -- The glossary's Uninstall entry says the policy is held \"if you adopted one\", but `uninstall` removes the policy file whether or not it was adopted.** `install.uninstall` runs `shutil.rmtree(target / \".workflow-manager\", ignore_errors=True)`. The owner writes `.workflow-manager/retention-policy.json` before adopting it (`retention_policy.py`'s docstring), so a written but unadopted policy file goes too. The sentence's main clause (\"removes ... the `.workflow-manager/` folder\") is true. Consider \"and any retention policy file you wrote there, with its adoption record if you adopted it\".",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "b369a75bced3c73c7a4a6e1bcde281e92d1437aeec1d7da76a468259a3727437",
+              "verdict": "REVISE",
+              "at": "2026-11-13T04:02:59Z"
+            }
+          ]
+        },
+        "F-98ac052c752d": {
+          "digest": "98ac052c752db1395ef610375155919cd141d5bd592fb338a2d4e9215ddfce2b",
+          "text": "**LIR1-003 -- `docs/retention.md`'s title and `For:` line cover only the report.** The page now also documents the policy, the alert and the cleanup (sections at lines 88, 156, 176), and `docs/README.md`'s new row links into them. Nothing in the header is false, but a reader who opens the page from the README's new \"adopt a retention policy, or run the cleanup\" row meets \"Retention report\" and a `For:` line about counting folders. A later item could widen both (the title is a link target; check the anchors that point at it).",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "b369a75bced3c73c7a4a6e1bcde281e92d1437aeec1d7da76a468259a3727437",
+              "verdict": "REVISE",
+              "at": "2026-11-13T04:02:59Z"
+            }
+          ]
+        },
+        "F-217d2128a185": {
+          "digest": "217d2128a185dc68fad8ffd15ae1c6b3a1197bd97005447b272a7a9c3daf0693",
+          "text": "**LIR1-004 -- `README.md`'s `uninstall` comment (\"remove the managed files\") omits the `.workflow-manager/` folder** that the glossary entry now names. Not false, only incomplete. Optional, for consistency with LIR1-002's entry.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "b369a75bced3c73c7a4a6e1bcde281e92d1437aeec1d7da76a468259a3727437",
+              "verdict": "REVISE",
+              "at": "2026-11-13T04:02:59Z"
             }
           ]
         }
