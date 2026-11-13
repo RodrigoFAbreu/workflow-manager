@@ -34833,12 +34833,12 @@
       "registry_path": "docs/ai-workflow/registry/retention-max-age-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/retention-max-age-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "APPLYING_REVIEW_FEEDBACK",
+      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
       "plan_revision": 4,
-      "implementation_revision": 1,
+      "implementation_revision": 2,
       "functional_review_round": null,
       "base_commit": "8ff4f435d8890d906dd167eac711434eaf751f03",
-      "reviewed_implementation_head": "cd1bff160e3c11d4e8cfa2847b67a12e5d0a767a",
+      "reviewed_implementation_head": "9507c9c7fc00d2238b5514946271119197d5983b",
       "current_checkpoint_id": null,
       "last_completed_checkpoint_id": "CP2",
       "checkpoints": {
@@ -34977,8 +34977,8 @@
           "external": 0
         }
       },
-      "state_revision": 22,
-      "last_transition": "2026-11-13T23:19:38Z",
+      "state_revision": 23,
+      "last_transition": "2026-11-13T23:35:32Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
