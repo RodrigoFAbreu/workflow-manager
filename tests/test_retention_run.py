@@ -375,7 +375,7 @@ class TestStop(RunBase):
 
     def test_the_undo_warning_prefix_is_the_engines_own_text(self):
         # The fixtures derive from the constant; the target's own script prints this literal.
-        self.assertEqual(rr.UNDO_WARNING, "warning: the undo could not remove")
+        self.assertTrue(rr.UNDO_WARNING == "warning: the undo could not remove", rr.UNDO_WARNING)
 
     def test_an_unsettled_undo_may_or_may_not_be_archived(self):
         spec = refusal("place_failed", "nope")
