@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_work_item_id": null,
+  "active_work_item_id": "retention-pins-and-title",
   "work_items": {
     "plan-amendment-mechanism": {
       "work_item_type": "process",
@@ -34165,6 +34165,261 @@
         },
         "evaluated_at": "2026-11-13T05:09:33Z",
         "workflow_release": "2.29.3"
+      }
+    },
+    "retention-pins-and-title": {
+      "work_item_type": "process",
+      "work_item_kind": "process",
+      "work_item_id": "retention-pins-and-title",
+      "parent_work_item_id": null,
+      "plan_path": "docs/ai-workflow/WORKFLOW_MANAGER_RETENTION_PINS_AND_TITLE_PLAN.md",
+      "registry_path": "docs/ai-workflow/registry/retention-pins-and-title-registry.json",
+      "mapping_path": "docs/ai-workflow/requirements/retention-pins-and-title-mapping.json",
+      "governing_workflow_version": "2.2",
+      "phase": "IMPLEMENTING",
+      "plan_revision": 1,
+      "implementation_revision": null,
+      "functional_review_round": null,
+      "base_commit": "72b8e56e4824b0fc73954fe943887afd5c45c8e0",
+      "reviewed_implementation_head": null,
+      "current_checkpoint_id": null,
+      "last_completed_checkpoint_id": null,
+      "checkpoints": {},
+      "current_bundle_id": "1c18ae6f6943dc35995780a9f5b120ea6db6ce7fe526b6eca41bd465307e9ccb",
+      "plan_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "1c18ae6f6943dc35995780a9f5b120ea6db6ce7fe526b6eca41bd465307e9ccb",
+        "approved_review_content_id": "d6931145ec3d522e4f360658f7bd738af7ada05027ce9eb314c767107de1b6e3",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/WORKFLOW_MANAGER_RETENTION_PINS_AND_TITLE_PLAN.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "72feb38c53ca3b4a71951bd9854251e5a619c983"
+          },
+          {
+            "path": "docs/ai-workflow/registry/retention-pins-and-title-registry.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "6ccdc68c0cf4b98751ff222be068cab2e3601325"
+          },
+          {
+            "path": "docs/ai-workflow/requirements/retention-pins-and-title-mapping.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "66fd75149e026066b0d6796ea8618bc671a4e473"
+          }
+        ],
+        "reviewed_content_commit": null,
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-11-13T17:05:40Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "d6931145ec3d522e4f360658f7bd738af7ada05027ce9eb314c767107de1b6e3",
+            "ledger": {
+              "local": {
+                "bundle_id": "1c18ae6f6943dc35995780a9f5b120ea6db6ce7fe526b6eca41bd465307e9ccb",
+                "verdict": "APPROVE",
+                "round": 2,
+                "verdict_sha256": "c3481c01db4fc454e062c21bec23ec45bdc5ed4b6f52c98a5293a4f2666e30e8",
+                "ledger_entry_sha256": "bee255432ff0e6e2ecec440e513f792a3d92c6c9204727deba9df58f493e9e19",
+                "run_ref": "session:local .ai-review/retention-pins-and-title/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "1c18ae6f6943dc35995780a9f5b120ea6db6ce7fe526b6eca41bd465307e9ccb",
+                "verdict": "APPROVE",
+                "round": 2,
+                "verdict_sha256": "f76bef146927e55af4dc1801b8eb089b5ec6690ba3ab1f65e217ff121765ff13",
+                "ledger_entry_sha256": "169d301ce19f4f1b842218399c6ba63c772840a5382bacae9ed4a3091fe27899",
+                "run_ref": "codex:20261113T170150Z-fb8f04eb",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-11-13T17:05:40Z",
+          "workflow_release": "2.29.3"
+        }
+      },
+      "technical_approval": null,
+      "technical_review_block_pins": [],
+      "plan_review_stages": {
+        "review_content_id": "d6931145ec3d522e4f360658f7bd738af7ada05027ce9eb314c767107de1b6e3",
+        "LOCAL_MODEL_PLAN_REVIEW": {
+          "bundle_id": "1c18ae6f6943dc35995780a9f5b120ea6db6ce7fe526b6eca41bd465307e9ccb",
+          "verdict": "APPROVE",
+          "round": 2,
+          "completed_at": "2026-11-13T17:01:01Z",
+          "verdict_sha256": "c3481c01db4fc454e062c21bec23ec45bdc5ed4b6f52c98a5293a4f2666e30e8",
+          "run_ref": "session:local .ai-review/retention-pins-and-title/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_PLAN_REVIEW": {
+          "bundle_id": "1c18ae6f6943dc35995780a9f5b120ea6db6ce7fe526b6eca41bd465307e9ccb",
+          "verdict": "APPROVE",
+          "round": 2,
+          "completed_at": "2026-11-13T17:04:25Z",
+          "verdict_sha256": "f76bef146927e55af4dc1801b8eb089b5ec6690ba3ab1f65e217ff121765ff13",
+          "run_ref": "codex:20261113T170150Z-fb8f04eb",
+          "reviewer_model": "openai/gpt-6.1-sol"
+        }
+      },
+      "functional_acceptance_status": null,
+      "blocking_decisions": [],
+      "review_round_counts": {
+        "plan": {
+          "local": 2,
+          "external": 1
+        },
+        "implementation": {
+          "local": 0,
+          "external": 0
+        }
+      },
+      "state_revision": 9,
+      "last_transition": "2026-11-13T17:05:40Z",
+      "feedback_layout": "scoped",
+      "plan_review_binding": {
+        "status": "BOUND",
+        "at": "2026-11-13T16:57:44Z",
+        "consumed": {
+          "review_content_id": "517d3cbb5af9b737aa4da6a73f18e37a390bb88cad335c6f9e4588326fb2f00c",
+          "plan_revision": 1,
+          "legacy": false
+        },
+        "published": {
+          "review_content_id": "d6931145ec3d522e4f360658f7bd738af7ada05027ce9eb314c767107de1b6e3",
+          "plan_revision": 1
+        },
+        "bound": {
+          "review_content_id": "d6931145ec3d522e4f360658f7bd738af7ada05027ce9eb314c767107de1b6e3",
+          "bundle_id": "1c18ae6f6943dc35995780a9f5b120ea6db6ce7fe526b6eca41bd465307e9ccb",
+          "plan_revision": 1
+        }
+      },
+      "consumed_plan_review_content_ids": [
+        "517d3cbb5af9b737aa4da6a73f18e37a390bb88cad335c6f9e4588326fb2f00c"
+      ],
+      "optional_findings": {
+        "F-f7a9e43fadf5": {
+          "digest": "f7a9e43fadf53a82df9dc22c6f4a2f6ce029f7177ce312b1083680144a4acd4b",
+          "text": "LPR1-002 (section 6, flow 6): `grep -n 'attempted' tests/test_retention_run.py` matches the file at the base already (lines 245, 246, 299, 314, 600, 633, 790, 800: \"not attempted\", comments, docstrings), so the flow passes without the pin. Grep for the assertion itself, e.g. `grep -n 'attempted, \\[(\"archive\", \"item-00\")\\]'` or the variable's assertion line, so the flow fails on the base.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "517d3cbb5af9b737aa4da6a73f18e37a390bb88cad335c6f9e4588326fb2f00c",
+              "verdict": "REVISE",
+              "at": "2026-11-13T16:56:13Z"
+            }
+          ]
+        },
+        "F-80cd423e8089": {
+          "digest": "80cd423e8089139754d25a7fa0f3b329eb14c7d18c006b957096871440e64d60",
+          "text": "LPR1-003 (section 5): the plan says the declaration classifies \"every path this plan names at both stages\", but `docs/glossary.md` and `docs/exit-codes.md` (flow 2) and `tests/test_docs.py` (CP1's `--select test_docs.py`) are in neither stage's lists and under no excluded or protected prefix. They stay byte-identical, so nothing breaks; either add them as excluded entries (\"named in the plan, not a deliverable\") or narrow the sentence.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "517d3cbb5af9b737aa4da6a73f18e37a390bb88cad335c6f9e4588326fb2f00c",
+              "verdict": "REVISE",
+              "at": "2026-11-13T16:56:13Z"
+            }
+          ]
+        },
+        "F-b794f0b6431d": {
+          "digest": "b794f0b6431d53ac9d27fcc314d327708b6f704d4ae53364376976f0b40e21af",
+          "text": "LPR2-001 (section 3, M2): the reason given for \"no other test of the touched files\" fails is false: \"the cannot-start case is the only one where `launch_script` raises `OSError`\" overlooks `test_a_script_that_cannot_start_was_not_archived` (`tests/test_retention_run.py:355-363`), whose patched `launch` raises `OSError` for every `archive` call. The conclusion still holds: under M2 that test's extra `remove` call goes to the real stub, its result is discarded, and the test only asserts the closing text. Verified in a scratch copy: M2 alone leaves all 48 tests of the file green; M2 plus the section 2.1 pin fails exactly `test_exit_codes` at the `attempted` assertion (`[('archive', 'item-00'), ('remove', 'item-00')] != [('archive', 'item-00')]`); the unmutated source with the pin passes. Correct the sentence (name that test and why it still passes) when the plan is next edited, or record it in the implementation evidence.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "d6931145ec3d522e4f360658f7bd738af7ada05027ce9eb314c767107de1b6e3",
+              "verdict": "APPROVE",
+              "at": "2026-11-13T17:01:01Z"
+            }
+          ]
+        },
+        "F-bedc97823a18": {
+          "digest": "bedc97823a18a3f2553eb7f1f6650ca398d7999017abfa0de1b30925a417e483",
+          "text": "LPR2-002 (section 2.1 vs section 6, flow 6): flow 6 greps the literal `attempted, [(\"archive\", \"item-00\")]`, which matches only an `assertEqual(attempted, [(\"archive\", \"item-00\")], ...)` form; section 2.1 says only \"asserts `attempted == [...]` and `self.keys() == []`\", so a combined assertion such as `assertEqual((attempted, self.keys()), ([...], []))` (the style of the neighbouring lines 632-633) satisfies the design and fails the flow. The implementer should write the separate `assertEqual(attempted, ...)` form, or the flow should grep the value `[(\"archive\", \"item-00\")]` alone.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "d6931145ec3d522e4f360658f7bd738af7ada05027ce9eb314c767107de1b6e3",
+              "verdict": "APPROVE",
+              "at": "2026-11-13T17:01:01Z"
+            }
+          ]
+        },
+        "F-7e001c82f40b": {
+          "digest": "7e001c82f40be2475d08fffe112fc02498f3e64630d9f15e8349e774f888f6f0",
+          "text": "The artifact declaration leaves `tests/run_all.py` and `tools/release/release.py` unclassified at both stages, although both appear in the plan. Add excluded entries for these command paths or narrow `TEST_RESULTS.md`’s claim that every named path was classified. The automated coverage check passes; neither file is a deliverable.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "MANUAL_EXTERNAL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "d6931145ec3d522e4f360658f7bd738af7ada05027ce9eb314c767107de1b6e3",
+              "verdict": "APPROVE",
+              "at": "2026-11-13T17:04:25Z"
+            }
+          ]
+        },
+        "F-b5269fcfc2fa": {
+          "digest": "b5269fcfc2fa929a358aef77e81be4f6ceeb0403718df895462ff9580880c54b",
+          "text": "Section 1 references `retention-wording-pass-mapping.json` R3 for the corrected exit-code requirement; it is R2. The KEEP decision remains supported.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "MANUAL_EXTERNAL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "d6931145ec3d522e4f360658f7bd738af7ada05027ce9eb314c767107de1b6e3",
+              "verdict": "APPROVE",
+              "at": "2026-11-13T17:04:25Z"
+            }
+          ]
+        }
       }
     }
   }

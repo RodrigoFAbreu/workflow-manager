@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "work_item_id": "retention-pins-and-title",
+  "requirements": {
+    "R1": {
+      "description": "A test pins the literal value of the undo-warning constant (warning: the undo could not remove) once; the fixtures keep deriving from the constant.",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R2": {
+      "description": "The cannot-start case of test_exit_codes pins that the first per-item call (archive item-00) was attempted although the script never started, and that the stub never ran.",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R3": {
+      "description": "The retention-cleanup help test pins the 'even if its script could not be started' qualifier.",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R4": {
+      "description": "The retention-run mapping's old exit-1 wording is classified KEEP (a historical requirement record); docs/retention.md's title and For: line cover the report, the policy, the alert and the cleanup, with no anchor broken; the product code is byte-identical; roadmap row 42 is added.",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    }
+  }
+}
