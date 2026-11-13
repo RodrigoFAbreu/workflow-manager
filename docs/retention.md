@@ -235,4 +235,4 @@ A stop at `archive` or `verify` leaves the review folder where it was, and the r
 
 ## Exit status
 
-`--retention` and the retention alert never change an exit code; `adopt-retention-policy` exits 0 when it previews or adopts and 2 when it refuses; `retention-cleanup` exits 0 when it previews, has nothing to do or finishes the run, 1 when a confirmed run stopped after it started, and 2 when it refuses. See [Exit codes](exit-codes.md).
+`--retention` and the retention alert never change an exit code; `adopt-retention-policy` exits 0 when it previews or adopts and 2 when it refuses; `retention-cleanup` exits 0 when it previews, has nothing to do or finishes the run, 1 when a confirmed run's first per-item call was attempted and the run then stopped, and 2 when it refuses or stops before that first call. See [Exit codes](exit-codes.md).

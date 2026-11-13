@@ -801,12 +801,22 @@ class TestDocsSayExitCodes(unittest.TestCase):
                               "script could not be started", text)
                 self.assertNotIn("after an engine call started", text)
         self.assertIn("or stopped before that first call", self.squashed("retention.md"))
+        self.assertIn("or the run stopped before that first call", self.squashed("exit-codes.md"))
+        self.assertIn("or the policy changed before a later item", self.squashed("exit-codes.md"))
+        self.assertIn("2 when it refuses or stops before that first call",
+                      self.squashed("retention.md"))
 
     def test_the_old_wording_is_nowhere(self):
         for path in (REPO_ROOT / "src" / "workflow_manager" / "retention_run.py",
                      REPO_ROOT / "src" / "workflow_manager" / "cli.py"):
             with self.subTest(path=path.name):
                 self.assertNotIn("after an engine call started", " ".join(path.read_text().split()))
+
+    def test_the_loose_criterion_is_nowhere(self):
+        for path in (REPO_ROOT / "docs" / "retention.md",
+                     REPO_ROOT / "src" / "workflow_manager" / "cli.py"):
+            with self.subTest(path=path.name):
+                self.assertNotIn("stopped after it started", " ".join(path.read_text().split()))
 
 
 if __name__ == "__main__":
