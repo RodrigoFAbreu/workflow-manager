@@ -6,7 +6,7 @@
 
 Every stamped user page the first re-check left alone says only what is true of Workflow Manager 1.18.1 and Workflow 2.29.3, and its stamp says so; `docs/release-history.md` row 1.14.6 describes a null and an empty recorded version separately. A `docs:` change that releases nothing.
 
-**Next action:** self-review, the full verification, then the implementation review bundle.
+**Next action:** the local implementation review of the bundle (implementation revision 1).
 
 ## Per-page record
 
@@ -23,3 +23,9 @@ How each page was checked: the sandbox is a scratch Git repository bootstrapped 
 | `docs/release-metadata.md` | every rule against `release.py`'s reader (`parse_manager_block`, `_boundary`, `_conformance`, `_detector`, `manager_version_ok`, `derive_pin`), the built-in-data path in `cli.py` and `compatibility.py`, the five detectors outside the vocabulary against `compatibility.py`, the cached 2.29.3 manifest, and the `workflow` repository's `tools/release/manager_block.py` (read only) | "ignored with a note" is now "ignored" (nothing prints a note); the section "The Workflow-side follow-up" (written as undone work) is replaced by "Who writes the block", which says what the `workflow` repository does now | moved |
 | `docs/release-history.md` (row 1.14.6 only) | `record_head` in `install.py` and `_directory_step` in `advice.py` | the row describes a null record (`no workflow_version recorded`) and an empty one (shown quoted as `''`) separately | not moved (not in scope) |
 | `docs/ROADMAP.md` | rows 25 and 26 read: both carry a concrete status (Manager 1.14.5 and 1.14.6) and nothing says "follows the merge" | none; row 41 is Current until acceptance | not moved (not in scope) |
+
+## Self-review -- complete
+
+- The full diff `bfd255f..4a64c45` was reviewed. No finding. Each changed statement was re-checked: the `uninstall` entry against `install.uninstall` (it removes `.workflow-manager/`, `INSTALLATION_DIR`, which also holds the retention policy files, `retention_policy.DIRECTORY`); "ignored" against `Release.manager`; "Who writes the block" against the `workflow` repository's `tools/release/manager_block.py` (authored fields in the release source's `manifest.json`, computed `conformance.suites`, the checks (a), (b), (c) and (e)) and the cached manifests (2.3.1 to 2.12.0 carry no block, 2.13.0 to 2.29.3 each carry one; 2.29.3's `min_manager_version` is `1.13.0`); the README's `verify` line against `cmd_verify`; the two new `docs/README.md` links against the headings of `docs/retention.md`.
+- The plan's offline flows 1, 2, 3, 5 and 7 re-run at `4a64c45`: only the eight deliverable pages and `docs/ROADMAP.md` changed, seven stamps read 1.18.1 / 2.29.3, the untouched pages are byte-identical to the base, `docs/DOWNGRADE_POSTURE.md` has no stamp, rows 25 and 26 hold, `tools/check_docs.py` exits 0.
+- Full gate `python3 tests/run_all.py` on `4a64c45`: 2406/2406 units, 16254 tests, selection_digest `0f5c56bd...`, tests_digest `2e4c4796...`, tree_digest `733a8e37...`, `verdict: exit 0`.
