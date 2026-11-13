@@ -1,6 +1,6 @@
 # Release metadata
 
-> For: whoever builds a Workflow release in the `workflow` repository (the contract to implement), and anyone reading a release's `manifest.json`. Last checked with: Workflow Manager 1.12.0, Workflow 2.12.0.
+> For: whoever builds a Workflow release in the `workflow` repository (the contract to implement), and anyone reading a release's `manifest.json`. Last checked with: Workflow Manager 1.18.1, Workflow 2.29.3.
 
 A Workflow release published after the Manager release an operator runs installs without a pin and without a Manager release (see [Releasing](RELEASING.md#a-new-workflow-release)). What the Manager used to hard-code per release is carried by the release itself: an optional `manager` block in `manifest.json`. The manifest is already covered by every digest (`SHA256SUMS`, the manifest asset), so the block is covered too. This page is the normative contract, schema version 1. The design record is `docs/ai-workflow/WORKFLOW_MANAGER_RELEASE_AGNOSTIC_PLAN.md`, 3.4 and 5.
 
@@ -56,18 +56,15 @@ Keys the Manager reads:
 
   `key` is a non-empty string; `value` is a JSON scalar (string, integer, boolean or null) compared by equality after parsing, type-aware (`true` is not `1`, `"1"` is not `1`); `phases` is a non-empty list of strings. An unknown kind is refused. A condition the vocabulary cannot express is stated in `undetectable`, or the release declares a `min_manager_version` of a Manager that adds the detector.
 - **Fail closed.** A block of the wrong shape, an unknown detector kind, another `schema_version` or a malformed version string refuses *that release* (`manifest-shape`) when it is chosen to install or report on. The check runs before a fetched release is stored in the cache, so a refused release never replaces a cache entry.
-- **Releases up to 2.12.0** have their data built into the Manager, which uses it always; a block in such a manifest is ignored with a note.
+- **Releases up to 2.12.0** have their data built into the Manager, which uses it always; a block in such a manifest is ignored.
 - **Without the block (or an item of it)** a later release installs, but the Manager reports `incomplete-inspection` ("a release carries no compatibility data"): its downgrade guarantees and notes cannot be assessed, `doctor` exits 1, and `update` itself is not refused. That finding describes the release's metadata, never the repository's data.
 
 ## What stays in the Manager
 
 Some release knowledge is code, not data: `RETIRED_DEFAULT_FROM`, the `2.6.0` worktree finding and `gate_modes(governing)`, and the five detectors outside the vocabulary (activation, plan-input directories, amendment witnesses, the retirement trailer, the letter-suffixed amendment). A Workflow release that changes any of them, the package format, the schema or the CLI contract needs a Manager release, and says so with `min_manager_version`.
 
-## The Workflow-side follow-up
+## Who writes the block
 
-Not done by this repository, and it does not wait for it. For the `workflow` repository to plan as its own milestone:
+The `workflow` repository implements this contract; this repository does not build or edit a release. Its release source's `manifest.json` carries the authored fields (posture, notes, gate change, exceptions, `min_manager_version`), and its build **computes** `conformance.suites` from the staged conformance fixture, never by hand. Its CI checks the block: the schema against this page, including the detector vocabulary; that the counts equal what the fixture measures; that `min_manager_version` is not newer than a released Manager; and that a manifest of a release up to 2.12.0 never carries a block. Every later release carries one (the manifest of 2.29.3 does, with `min_manager_version` `1.13.0`).
 
-1. **Fields.** The build writes the block above into `manifest.json`.
-2. **Who fills them.** The release author writes `release/MANAGER_METADATA.json` in the milestone's pull request (posture, notes, gate change, exceptions, `min_manager_version`). The build copies it into the manifest and **computes** `conformance.suites` by test discovery (never hand-written), and refuses a hand-written value that disagrees.
-3. **How its CI checks them.** (a) Schema validation against this page, including the detector vocabulary; (b) the counts equal discovery; (c) `min_manager_version` is not newer than the latest released Manager tag; (d) `posture` is non-empty when the release adds a persisted key, phase or status; (e) the manifest of a release up to 2.12.0 is never given a block (immutability); (f) a pre-publish fixture: bootstrap the previous published release, update to the candidate with the released Manager named by `min_manager_version`, and run the candidate's frozen suites in the result.
-4. **Order.** The Manager reads the block when present and falls back otherwise, so the Workflow release may land before or after this milestone's Manager release. Until it lands, a new Workflow release installs with the `incomplete-inspection` warning and the maintainer's `chore:` lock bump supplies the suite counts.
+A release that lacks the block or one of its items still installs here with the `incomplete-inspection` warning, and the maintainer's `chore:` lock (see [Releasing](RELEASING.md#a-new-workflow-release)) supplies the suite counts for the tests.

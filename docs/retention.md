@@ -1,6 +1,6 @@
 # Retention report
 
-> For: someone who wants to know how many finished work items of a managed repository still have review folders on disk, and which of them are archived. Last checked with: Workflow Manager 1.13.2, Workflow 2.22.0.
+> For: someone who wants to know how many finished work items of a managed repository still have review folders on disk, and which of them are archived. Last checked with: Workflow Manager 1.18.1, Workflow 2.29.3.
 
 Goal: see, without changing anything, which finished work items of a repository keep an untracked `.ai-review/` folder, which have an archive, and what to run next.
 
@@ -24,7 +24,7 @@ Goal: see, without changing anything, which finished work items of a repository 
    workflow-manager doctor --retention /path/to/your/repo
    ```
 
-The option goes after the command. Without it, nothing changes: the same output, the same exit code, and the script is never started. It is opt-in because the script makes one GitHub query per finished work item (about 20 to 40 seconds for 25 items), and `status` and `doctor` stay fast without it. Nothing is cached: a stale answer about what can be archived is worse than none.
+The option goes after the command. Without it, the section is not printed and no exit code changes. `status` never starts the script without it. `doctor` does not either, except for a repository whose adopted retention policy has mode `notify` or `both`: there `doctor` (like `verify`) runs the report to evaluate [the retention alert](#the-retention-alert), whether or not you pass the option. The option is opt-in because the script makes one GitHub query per finished work item (about 20 to 40 seconds for 25 items, 300 seconds at most), so `status`, and `doctor` for a repository without such a policy, stay fast without it. Nothing is cached: a stale answer about what can be archived is worse than none.
 
 ## What you should see
 

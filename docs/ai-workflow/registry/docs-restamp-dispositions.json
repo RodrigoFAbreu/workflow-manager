@@ -1,0 +1,50 @@
+{
+  "dispositions": {
+    "F-0708a0c30db8": {
+      "disposition": "dropped",
+      "reason": "Cosmetic typo in the approved plan's test list; the plan is a bound, approved input and editing it only to fix an apostrophe would stale the approval. Nothing reads that line."
+    },
+    "F-217d2128a185": {
+      "disposition": "fixed",
+      "reason": "README.md's uninstall comment now names the .workflow-manager/ folder (commit 3e67b29)."
+    },
+    "F-648bed27fcc7": {
+      "disposition": "dropped",
+      "reason": "Flow 2 was run by the reviewer comparing the text after the line number; all nine flows passed. The Expect cell is archived with the plan and no later run reuses it."
+    },
+    "F-66ab076e5c88": {
+      "disposition": "fixed",
+      "reason": "The plan's section 1.4 rationale was restated (release-metadata.md is re-checked by flow 2 although not in USER_PAGES), accepted in plan review round 2."
+    },
+    "F-85039e8b142d": {
+      "disposition": "dropped",
+      "reason": "The bundle files are generated and frozen at their review; the reviewer reran the checks the fix round affects and recorded them in the verdict, and nothing in the bundle is false."
+    },
+    "F-98ac052c752d": {
+      "disposition": "follow-up",
+      "link": "https://github.com/RodrigoFAbreu/workflow-manager/issues/211"
+    },
+    "F-b1ae25e68655": {
+      "disposition": "fixed",
+      "reason": "docs/retention.md now says doctor runs the report for an adopted notify or both policy under the script's condition (commit 91f8824)."
+    },
+    "F-cdce756073ce": {
+      "disposition": "fixed",
+      "reason": "The plan now states that the per-page record in docs/ACTIVE_MILESTONE.md is not bound by the review (plan line 171)."
+    },
+    "F-cfd5129c860a": {
+      "disposition": "follow-up",
+      "link": "https://github.com/RodrigoFAbreu/workflow-manager/issues/211"
+    },
+    "F-e1ce711f4a30": {
+      "disposition": "fixed",
+      "reason": "The glossary's Uninstall entry was reworded to be exact about the policy file and its adoption record (commit 3e67b29)."
+    },
+    "F-fb1c30513ed8": {
+      "disposition": "fixed",
+      "reason": "Flow 8's Expect cell now says the count is true at BASE too and that the per-page check is flow 9 (plan line 198)."
+    }
+  },
+  "schema_version": 1,
+  "work_item_id": "docs-restamp"
+}

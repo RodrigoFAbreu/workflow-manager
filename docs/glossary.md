@@ -1,6 +1,6 @@
 # Glossary
 
-> For: anyone reading the Manager's pages who meets an unfamiliar word. Last checked with: Workflow Manager 1.5.0, Workflow 2.9.0.
+> For: anyone reading the Manager's pages who meets an unfamiliar word. Last checked with: Workflow Manager 1.18.1, Workflow 2.29.3.
 
 Workflow words (work item, approval gate, milestone, checkpoint and the rest) are defined once, in the shared [Workflow glossary](https://github.com/RodrigoFAbreu/workflow/blob/main/docs/glossary.md). This page covers only the Manager's own words.
 
@@ -22,7 +22,7 @@ A file the release owns: the Workflow's commands in `.claude/commands/`, its scr
 
 ## Manager release and Workflow release
 
-Two different things with two different version numbers. A *Manager release* (1.5.0) is the tool itself. A *Workflow release* (2.9.0) is the process the tool installs. A Manager release carries no Workflow release. It knows the digests of the ones it pins (up to 2.12.0), discovers later ones from the release source, and downloads them when needed.
+Two different things with two different version numbers. A *Manager release* (1.18.1) is the tool itself. A *Workflow release* (2.29.3) is the process the tool installs. A Manager release carries no Workflow release. It knows the digests of the ones it pins (up to 2.12.0), discovers later ones from the release source, and downloads them when needed.
 
 ## Package
 
@@ -58,4 +58,4 @@ The repository's own record of its work: `docs/ai-workflow/WORKFLOW_STATE.json`,
 
 ## Uninstall
 
-`workflow-manager uninstall <repo>` removes the managed files. State files stay.
+`workflow-manager uninstall <repo>` removes the managed files and the `.workflow-manager/` folder, which holds the installation record and any [retention policy](retention.md#retention-policy) file you wrote there, with its adoption record if you adopted it. State files stay.
