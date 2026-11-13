@@ -32735,12 +32735,12 @@
       "registry_path": "docs/ai-workflow/registry/retention-wording-pass-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/retention-wording-pass-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "SELF_REVIEWING_IMPLEMENTATION",
+      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
       "plan_revision": 2,
-      "implementation_revision": null,
+      "implementation_revision": 1,
       "functional_review_round": null,
       "base_commit": "ec2f368b33cb6f5e52c8670b63458d73ea1fc0bf",
-      "reviewed_implementation_head": null,
+      "reviewed_implementation_head": "0e117bcc2a2d6aff1c524869b90a18d68de48f00",
       "current_checkpoint_id": null,
       "last_completed_checkpoint_id": "CP2",
       "checkpoints": {
@@ -32879,8 +32879,8 @@
           "external": 0
         }
       },
-      "state_revision": 13,
-      "last_transition": "2026-11-12T23:39:00Z",
+      "state_revision": 14,
+      "last_transition": "2026-11-13T00:02:44Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
