@@ -855,7 +855,8 @@ class TestDocs(unittest.TestCase):
         for words in ("preview", "2.25.5", "writes nothing", "Prune is never run",
                       "at most 5 per run", "Exit 0", "--confirm", "Run the retention cleanup",
                       "then its verification", "The first failure stops the run", "1: the run",
-                      "after its first per-item call", "or stopped before that first call"):
+                      "after its first per-item call", "or stopped before that first call",
+                      "even if its script could not be started"):
             self.assertIn(words, text)
 
     def test_the_retention_page_names_the_command_the_floor_and_prune(self):

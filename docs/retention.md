@@ -1,6 +1,6 @@
-# Retention report
+# Retention: the report, the policy, the alert and the cleanup
 
-> For: someone who wants to know how many finished work items of a managed repository still have review folders on disk, and which of them are archived. Last checked with: Workflow Manager 1.18.1, Workflow 2.29.3.
+> For: someone who wants to know which finished work items of a managed repository keep review folders and which are archived, or who wants to adopt a retention policy, read its alert, or preview and run the cleanup it allows. Last checked with: Workflow Manager 1.18.1, Workflow 2.29.3.
 
 Goal: see, without changing anything, which finished work items of a repository keep an untracked `.ai-review/` folder, which have an archive, and what to run next.
 
