@@ -32735,7 +32735,7 @@
       "registry_path": "docs/ai-workflow/registry/retention-wording-pass-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/retention-wording-pass-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "AWAITING_FUNCTIONAL_REVIEW",
       "plan_revision": 2,
       "implementation_revision": 3,
       "functional_review_round": null,
@@ -32844,7 +32844,126 @@
           "workflow_release": "2.29.3"
         }
       },
-      "technical_approval": null,
+      "technical_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "b13e462d708d43c08ed7cfd4a543a6cfd2996a27fda90e280bc7617a91a36672",
+        "approved_review_content_id": "b0cc28a5178473cd5d7f9309ba73a4f99ddb1147cfed5be6d2c5f412d024de0c",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/registry/retention-wording-pass-artifacts.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "adbcddba80bc1275b8c00837c692c7741bad784f"
+          },
+          {
+            "path": "docs/exit-codes.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "cd921c0ba0f449a51c31ce115fcbbf03b6581d41"
+          },
+          {
+            "path": "docs/retention.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "0475ce974241b46e60a7d5714709000158fbd40a"
+          },
+          {
+            "path": "src/workflow_manager/cli.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "4ba753a6137158c12b482eb3d37d41860bd2b2b0"
+          },
+          {
+            "path": "src/workflow_manager/retention_cleanup.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "2dae9c786f3450423632c85b20f722248821ee63"
+          },
+          {
+            "path": "src/workflow_manager/retention_run.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "e07b9742751dbfa6681dc4036dfd266f72616303"
+          },
+          {
+            "path": "tests/test_retention_cleanup.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "0612ff46aaef731f01b55241fe23ebf72c3894e3"
+          },
+          {
+            "path": "tests/test_retention_run.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "b28e06dddc5afc087566ca8304eb4087a6b8a741"
+          }
+        ],
+        "reviewed_content_commit": "430f31f1aeced7e3cb000d123ffc1ee1d0149adf",
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-11-13T01:27:39Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "b0cc28a5178473cd5d7f9309ba73a4f99ddb1147cfed5be6d2c5f412d024de0c",
+            "ledger": {
+              "local": {
+                "bundle_id": "b13e462d708d43c08ed7cfd4a543a6cfd2996a27fda90e280bc7617a91a36672",
+                "verdict": "APPROVE",
+                "round": 3,
+                "verdict_sha256": "89a0bb92bc6e197e0b4f24c83d5ee6217294a55eb5ddb50e7a078c38d1550be2",
+                "ledger_entry_sha256": "66058ecf4e7b96a91b1a65f8e4d912f18970c60850e0c0af5c2bc9dca1e6763e",
+                "run_ref": "session:local .ai-review/retention-wording-pass/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "b13e462d708d43c08ed7cfd4a543a6cfd2996a27fda90e280bc7617a91a36672",
+                "verdict": "APPROVE",
+                "round": 3,
+                "verdict_sha256": "6c7b0b448a32603c8315d799388c63e0d3e13284d06be198958e96bad6824e54",
+                "ledger_entry_sha256": "3d5700abd7822e2021c2fd261f9f64632d67b38d8c91affd3e16df5a869511b5",
+                "run_ref": "codex:20261113T012403Z-fb1433a5",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-11-13T01:27:39Z",
+          "workflow_release": "2.29.3"
+        }
+      },
       "technical_review_block_pins": [],
       "plan_review_stages": {
         "review_content_id": "90524a53b76428c78f464fc331176513ef685cfb2b47acd06adbebbd6b388968",
@@ -32875,12 +32994,12 @@
           "external": 1
         },
         "implementation": {
-          "local": 2,
-          "external": 0
+          "local": 3,
+          "external": 1
         }
       },
-      "state_revision": 18,
-      "last_transition": "2026-11-13T01:08:18Z",
+      "state_revision": 21,
+      "last_transition": "2026-11-13T01:27:39Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -33001,6 +33120,55 @@
               "at": "2026-11-13T00:47:10Z"
             }
           ]
+        },
+        "F-675c4a439f2b": {
+          "digest": "675c4a439f2b6e98ec3e4d1ae773bfc85f768f161a3650c9a1a142534299b7ab",
+          "text": "**LIR3-001 (the help's new exit-1 qualifier is not pinned).** `test_the_help_names_the_preview_the_run_the_floor_and_prune` (`tests/test_retention_cleanup.py`) pins `after its first per-item call` and `or stopped before that first call` in the `retention-cleanup` help, but not the `even if its script could not be started` qualifier that `430f31f` (LIR2-002) added. `TestDocsSayExitCodes` pins the qualifier in both pages, but a later edit could drop it from the help alone without any test failing. Consider adding the phrase to that test's word list. This is a follow-up candidate, not a defect: the help text is correct today.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 3,
+              "review_content_id": "b0cc28a5178473cd5d7f9309ba73a4f99ddb1147cfed5be6d2c5f412d024de0c",
+              "verdict": "APPROVE",
+              "at": "2026-11-13T01:23:52Z"
+            }
+          ]
+        },
+        "F-022bbfdf632c": {
+          "digest": "022bbfdf632c6db85ffd5414b05234b1b0e280a8700c22003f1adc284739c09b",
+          "text": "Warning fixtures in `tests/test_retention_run.py:378–410` derive their text from production’s `rr.UNDO_WARNING`. Changing that constant incorrectly would change the fixtures too, leaving the tests green while real engine warnings go unrecognized. Consider using the engine’s literal prefix in one fixture or independently asserting the constant’s value.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW",
+              "round": 3,
+              "review_content_id": "b0cc28a5178473cd5d7f9309ba73a4f99ddb1147cfed5be6d2c5f412d024de0c",
+              "verdict": "APPROVE",
+              "at": "2026-11-13T01:27:17Z"
+            }
+          ]
+        }
+      },
+      "implementation_review_stages": {
+        "review_content_id": "b0cc28a5178473cd5d7f9309ba73a4f99ddb1147cfed5be6d2c5f412d024de0c",
+        "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "b13e462d708d43c08ed7cfd4a543a6cfd2996a27fda90e280bc7617a91a36672",
+          "verdict": "APPROVE",
+          "round": 3,
+          "completed_at": "2026-11-13T01:23:52Z",
+          "verdict_sha256": "89a0bb92bc6e197e0b4f24c83d5ee6217294a55eb5ddb50e7a078c38d1550be2",
+          "run_ref": "session:local .ai-review/retention-wording-pass/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "b13e462d708d43c08ed7cfd4a543a6cfd2996a27fda90e280bc7617a91a36672",
+          "verdict": "APPROVE",
+          "round": 3,
+          "completed_at": "2026-11-13T01:27:17Z",
+          "verdict_sha256": "6c7b0b448a32603c8315d799388c63e0d3e13284d06be198958e96bad6824e54",
+          "run_ref": "codex:20261113T012403Z-fb1433a5",
+          "reviewer_model": "openai/gpt-6.1-sol"
         }
       }
     }
