@@ -26,7 +26,9 @@ from . import compatibility, retention, retention_alert, retention_policy, sourc
 
 CLEANUP_FROM = (2, 25, 5)  # older engines can end in a traceback in the middle of a removal
 CAP = 5                    # items one run plans, at most
-LOWERED = ("finished_items", "finished_folder_mib")  # what archiving and removing can lower
+AGE_KEY = retention_alert.AGE_KEY
+COUNTED = ("finished_items", "finished_folder_mib")  # the count and size rules
+LOWERED = COUNTED + (AGE_KEY,)  # what archiving and removing can lower
 CLEANUP_MODES = ("cleanup", "both")
 GIT_TIMEOUT_SECONDS = 30
 PROBLEM_LIMIT = 5          # interrupted removals named in a refusal
@@ -283,14 +285,17 @@ class Plan:
     items: tuple                # Item, in plan order
     skipped: tuple              # (id as shown, reason)
     outcome: str | None         # SETTLED, CAPPED, EXHAUSTED; None when there is nothing to do
+    unknown_age: int = 0        # age key only: examined items with no usable last transition
 
 
 def _limit(key: str, thresholds: dict) -> int:
+    if key == AGE_KEY:   # a count of old items not yet planned: reached at one; N is a duration
+        return 1
     return thresholds[key] * 2**20 if key == "finished_folder_mib" else thresholds[key]
 
 
-def _reached(numbers: dict, thresholds: dict) -> tuple:
-    return tuple(key for key in LOWERED if key in thresholds and numbers[key] >= _limit(key, thresholds))
+def _reached(numbers: dict, thresholds: dict, keys: tuple = LOWERED) -> tuple:
+    return tuple(key for key in keys if key in thresholds and numbers[key] >= _limit(key, thresholds))
 
 
 def _eligible(entry: dict) -> str | None:
@@ -311,8 +316,14 @@ def select(state, report: dict) -> Plan:
     candidates = [e for e in reversed(report["finished"]) if e["review_folder"]["present"]]
     before = {"finished_items": len(candidates),
               "finished_folder_mib": report["totals"]["finished_folder_bytes"]}
+    old, unknown_age = (), 0
+    if AGE_KEY in thresholds:
+        old_ids, unknown_age = retention_alert.aged(report, thresholds[AGE_KEY])
+        old = frozenset(old_ids)
+        before[AGE_KEY] = len(old_ids)
     base = dict(repository=report["repository"], policy_digest=state.digest, mode=state.mode,
-                thresholds=thresholds, before=before, candidates=len(candidates))
+                thresholds=thresholds, before=before, candidates=len(candidates),
+                unknown_age=unknown_age)
     reached = _reached(before, thresholds)
     if not reached:
         return Plan(**base, after=dict(before), reached=(), items=(), skipped=(), outcome=None)
@@ -327,19 +338,31 @@ def select(state, report: dict) -> Plan:
             skipped.append((shown, reason))
     after = dict(before)
     taken = []
+    old_left = [e for e in eligible if e["work_item_id"] in old]   # old, eligible, not yet planned
     for entry in eligible:
-        if not _reached(after, thresholds) or len(taken) == CAP:
+        if len(taken) == CAP:
             break
+        counted = bool(_reached(after, thresholds, COUNTED))
+        is_old = entry["work_item_id"] in old
+        if not counted and not old_left:
+            break
+        if not counted and not is_old:
+            continue   # a young or unknown-age item is passed over by the age rule alone
         action = REMOVE_ONLY if entry["archive"]["present"] else ARCHIVE_THEN_REMOVE
         taken.append(Item(entry["work_item_id"], action, entry["review_folder"]["bytes"]))
         after["finished_items"] -= 1
         after["finished_folder_mib"] -= entry["review_folder"]["bytes"]
+        if is_old:
+            old_left.remove(entry)
+            after[AGE_KEY] -= 1
     if not _reached(after, thresholds):
         outcome = SETTLED
-    elif len(taken) == CAP and len(eligible) > len(taken):
-        outcome = CAPPED
     else:
-        outcome = EXHAUSTED
+        planned = {item.work_item_id for item in taken}
+        more = [e for e in eligible if e["work_item_id"] not in planned]
+        can_plan = bool(more) and (bool(_reached(after, thresholds, COUNTED))
+                                   or any(e["work_item_id"] in old for e in more))
+        outcome = CAPPED if len(taken) == CAP and can_plan else EXHAUSTED
     return Plan(**base, after=after, reached=reached, items=tuple(taken),
                 skipped=tuple(skipped), outcome=outcome)
 
@@ -361,7 +384,13 @@ def _mib(value: int) -> int:
     return value // 2**20
 
 
+def _age_label(thresholds: dict) -> str:
+    return f"finished older than {thresholds[AGE_KEY]} days"
+
+
 def _measured(key: str, numbers: dict, *, with_limit: dict | None = None) -> str:
+    if key == AGE_KEY:   # the number is a count of items; the limit is the label's own days
+        return f"{_age_label(with_limit)} {numbers[key]}"
     label = retention_policy.THRESHOLDS[key][1]
     if key == "finished_folder_mib":
         text = f"{label} {_mib(numbers[key])} MiB"
@@ -370,8 +399,16 @@ def _measured(key: str, numbers: dict, *, with_limit: dict | None = None) -> str
     return text if with_limit is None else f"{text} (limit {with_limit[key]})"
 
 
-def _names(keys) -> str:
-    return " and ".join(retention_policy.THRESHOLDS[key][1] for key in keys)
+def _names(keys, thresholds: dict) -> str:
+    return " and ".join(_age_label(thresholds) if key == AGE_KEY
+                        else retention_policy.THRESHOLDS[key][1] for key in keys)
+
+
+def _age_note(plan: Plan) -> list[str]:
+    if AGE_KEY not in plan.thresholds or not plan.unknown_age:
+        return []
+    return [f"  age not known: {plan.unknown_age} finished items with no usable last "
+            "transition are never planned by the age rule"]
 
 
 def preview_lines(plan: Plan, target) -> list[str]:
@@ -385,13 +422,15 @@ def preview_lines(plan: Plan, target) -> list[str]:
         for key in LOWERED:
             if key not in plan.thresholds:
                 continue
-            if key == "finished_folder_mib":
+            if key == AGE_KEY:
+                parts.append(_measured(key, plan.before, with_limit=plan.thresholds))
+            elif key == "finished_folder_mib":
                 parts.append(f"{retention_policy.THRESHOLDS[key][1]} "
                              f"{_mib(plan.before[key])} of {plan.thresholds[key]} MiB")
             else:
                 parts.append(f"{retention_policy.THRESHOLDS[key][1]} "
                              f"{plan.before[key]} of {plan.thresholds[key]}")
-        return [f"retention cleanup: nothing to do ({', '.join(parts)})"]
+        return [f"retention cleanup: nothing to do ({', '.join(parts)})", *_age_note(plan)]
     short = plan_digest(plan)[:retention_policy.DIGEST_SHOWN]
     lines = [f"retention cleanup: preview (nothing was written; mode {plan.mode}, policy "
              f"{plan.policy_digest[:retention_policy.DIGEST_SHOWN]}, plan {short})",
@@ -405,21 +444,23 @@ def preview_lines(plan: Plan, target) -> list[str]:
         lines.append(f"    {number}. {item.work_item_id}: {_mib(item.bytes)} MiB, {action}")
     for shown, reason in plan.skipped:
         lines.append(f"  skipped: {shown}: {reason}")
+    lines.extend(_age_note(plan))
     left = tuple(key for key in LOWERED if key in plan.thresholds
                  and plan.after[key] >= _limit(key, plan.thresholds))
-    numbers = [f"{retention_policy.THRESHOLDS[key][1]} "
+    numbers = [_measured(key, plan.after, with_limit=plan.thresholds) if key == AGE_KEY else
+               f"{retention_policy.THRESHOLDS[key][1]} "
                f"{_mib(plan.after[key]) if key == 'finished_folder_mib' else plan.after[key]}"
                f"{' MiB' if key == 'finished_folder_mib' else ''}"
                for key in LOWERED if key in plan.thresholds]
     if plan.outcome == SETTLED:
         verdict = "below every limit"
     elif plan.outcome == CAPPED:
-        verdict = f"{_names(left)} still reached; stopped at the cap of {CAP} per run; run it again"
+        verdict = f"{_names(left, plan.thresholds)} still reached; stopped at the cap of {CAP} per run; run it again"
     else:
         skipped = ""
         if plan.skipped:
             skipped = f" (skipped: {', '.join(shown for shown, _ in plan.skipped)})"
-        verdict = (f"{_names(left)} still reached; no further item is eligible{skipped}; "
+        verdict = (f"{_names(left, plan.thresholds)} still reached; no further item is eligible{skipped}; "
                    "running it again will not help")
     lines.append(f"  after this run: {', '.join(numbers)}: {verdict}")
     lines.append(f"  next: workflow-manager retention-cleanup {shlex.quote(str(target))} "

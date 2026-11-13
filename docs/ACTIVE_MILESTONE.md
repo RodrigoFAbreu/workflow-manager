@@ -11,6 +11,10 @@ One new optional policy key, `thresholds.finished_max_age_days` (integer, 1 to 3
 - `retention_policy.THRESHOLDS` gains the key (maximum 3650, unit ` days`); `schema_version` stays 1. `retention_alert.aged(report, days)` is the one helper; `evaluate`, `_shown` and `render` special-case the key (label `finished older than N days`, reached at one old item).
 - Tests: T1 to T3 (policy), A1 to A6 (alert). Roadmap row 43 added.
 
-### CP2: the cleanup plan and the page -- not started
+### CP2: the cleanup plan and the page -- complete (when committed)
 
-**Next action:** `/milestone-implement retention-max-age` for CP2.
+- `retention_cleanup.select` plans the age rule: `LOWERED` gains the key (reached at one old item not yet planned), the loop takes an item when a count or size threshold is reached or the item is old, `Plan.unknown_age`, the `age not known` line and the age wording in the preview. `docs/retention.md` documents the key, the older-Manager refusal, the alert line and the cleanup rule.
+- Also: `retention_alert._moment` no longer calls `retention_policy._is_timestamp` (a private cross-use `TestNoPrivateCrossUse` forbids); it carries its own pattern.
+- Tests: C1 to C8 (cleanup). The absent-key golden (flow 5) is identical except the `Result` repr's new `unknown_age` field.
+
+**Next action:** all checkpoints complete; `/milestone-implement retention-max-age` enters self-review and the implementation bundle.

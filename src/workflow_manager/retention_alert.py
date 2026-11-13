@@ -15,6 +15,7 @@ release's, and one boundary turns any exception into a `not evaluated` line.
 from __future__ import annotations
 
 import os
+import re
 import shlex
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -56,15 +57,19 @@ def incomplete(report: dict) -> bool:
 
 
 AGE_KEY = "finished_max_age_days"
+_TIMESTAMP = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z")
 DAY = 86400
 
 
 def _moment(value) -> datetime | None:
     """A report timestamp as a UTC moment, or None when it is not of the exact
     form `YYYY-MM-DDTHH:MM:SSZ` naming a date and time that exist."""
-    if not retention_policy._is_timestamp(value):
+    if not isinstance(value, str) or not _TIMESTAMP.fullmatch(value):
         return None
-    return datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+    try:
+        return datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+    except ValueError:
+        return None
 
 
 def aged(report: dict, days: int) -> tuple[list[str], int]:
