@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_work_item_id": null,
+  "active_work_item_id": "retention-max-age",
   "work_items": {
     "plan-amendment-mechanism": {
       "work_item_type": "process",
@@ -34822,6 +34822,319 @@
         },
         "evaluated_at": "2026-11-13T18:17:37Z",
         "workflow_release": "2.29.3"
+      }
+    },
+    "retention-max-age": {
+      "work_item_type": "process",
+      "work_item_kind": "process",
+      "work_item_id": "retention-max-age",
+      "parent_work_item_id": null,
+      "plan_path": "docs/ai-workflow/WORKFLOW_MANAGER_RETENTION_MAX_AGE_PLAN.md",
+      "registry_path": "docs/ai-workflow/registry/retention-max-age-registry.json",
+      "mapping_path": "docs/ai-workflow/requirements/retention-max-age-mapping.json",
+      "governing_workflow_version": "2.2",
+      "phase": "IMPLEMENTING",
+      "plan_revision": 4,
+      "implementation_revision": null,
+      "functional_review_round": null,
+      "base_commit": "8ff4f435d8890d906dd167eac711434eaf751f03",
+      "reviewed_implementation_head": null,
+      "current_checkpoint_id": null,
+      "last_completed_checkpoint_id": null,
+      "checkpoints": {},
+      "current_bundle_id": "f140214ee6b4e564fcaa1985e5d3715647989fb16ad851fc87ef0b63b1754011",
+      "plan_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "f140214ee6b4e564fcaa1985e5d3715647989fb16ad851fc87ef0b63b1754011",
+        "approved_review_content_id": "fba385fd58689b35c40c9685c54c07e5bbf2bcf8466417c61328bdf110c84fea",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/WORKFLOW_MANAGER_RETENTION_MAX_AGE_PLAN.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "8aa40b773a32ca7e21e301e90aa5f6fb8dffe848"
+          },
+          {
+            "path": "docs/ai-workflow/registry/retention-max-age-registry.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "19363ed05b9acd095482a951f88a75dac507118d"
+          },
+          {
+            "path": "docs/ai-workflow/requirements/retention-max-age-mapping.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "f43cb986f7eaf3c1354c200145e5e1a30d5f50f9"
+          }
+        ],
+        "reviewed_content_commit": null,
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-11-13T21:48:45Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "fba385fd58689b35c40c9685c54c07e5bbf2bcf8466417c61328bdf110c84fea",
+            "ledger": {
+              "local": {
+                "bundle_id": "f140214ee6b4e564fcaa1985e5d3715647989fb16ad851fc87ef0b63b1754011",
+                "verdict": "APPROVE",
+                "round": 4,
+                "verdict_sha256": "cd6d26ddfef6a0abb85bf5efac741166902affa9727071e47b8f07b508ac9104",
+                "ledger_entry_sha256": "be9dcc60d7ca0f2d00ba4244b5027995d60c19f72de962ad899c7f9a3e88d58b",
+                "run_ref": "session:local .ai-review/retention-max-age/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "f140214ee6b4e564fcaa1985e5d3715647989fb16ad851fc87ef0b63b1754011",
+                "verdict": "APPROVE",
+                "round": 4,
+                "verdict_sha256": "74c04e3cd0d0549172e14acdc9a509156850f8041bee53f3cd4ae8bcb1a210a4",
+                "ledger_entry_sha256": "63a7d6a97cb35c9693cf1de70308106635f15c8fd0347028f97e01176cdbf90c",
+                "run_ref": "codex:20261113T214528Z-c2d59be4",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-11-13T21:48:45Z",
+          "workflow_release": "2.29.3"
+        }
+      },
+      "technical_approval": null,
+      "technical_review_block_pins": [],
+      "plan_review_stages": {
+        "review_content_id": "fba385fd58689b35c40c9685c54c07e5bbf2bcf8466417c61328bdf110c84fea",
+        "LOCAL_MODEL_PLAN_REVIEW": {
+          "bundle_id": "f140214ee6b4e564fcaa1985e5d3715647989fb16ad851fc87ef0b63b1754011",
+          "verdict": "APPROVE",
+          "round": 4,
+          "completed_at": "2026-11-13T21:44:37Z",
+          "verdict_sha256": "cd6d26ddfef6a0abb85bf5efac741166902affa9727071e47b8f07b508ac9104",
+          "run_ref": "session:local .ai-review/retention-max-age/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_PLAN_REVIEW": {
+          "bundle_id": "f140214ee6b4e564fcaa1985e5d3715647989fb16ad851fc87ef0b63b1754011",
+          "verdict": "APPROVE",
+          "round": 4,
+          "completed_at": "2026-11-13T21:47:23Z",
+          "verdict_sha256": "74c04e3cd0d0549172e14acdc9a509156850f8041bee53f3cd4ae8bcb1a210a4",
+          "run_ref": "codex:20261113T214528Z-c2d59be4",
+          "reviewer_model": "openai/gpt-6.1-sol"
+        }
+      },
+      "functional_acceptance_status": null,
+      "blocking_decisions": [],
+      "review_round_counts": {
+        "plan": {
+          "local": 4,
+          "external": 2
+        },
+        "implementation": {
+          "local": 0,
+          "external": 0
+        }
+      },
+      "state_revision": 16,
+      "last_transition": "2026-11-13T21:48:45Z",
+      "feedback_layout": "scoped",
+      "plan_review_binding": {
+        "status": "BOUND",
+        "at": "2026-11-13T21:42:25Z",
+        "consumed": {
+          "review_content_id": "56b34ce96f9efa30906e13a617d7c6afed929970c03866ff87a9e97b29360e37",
+          "plan_revision": 3,
+          "legacy": false
+        },
+        "published": {
+          "review_content_id": "fba385fd58689b35c40c9685c54c07e5bbf2bcf8466417c61328bdf110c84fea",
+          "plan_revision": 4
+        },
+        "bound": {
+          "review_content_id": "fba385fd58689b35c40c9685c54c07e5bbf2bcf8466417c61328bdf110c84fea",
+          "bundle_id": "f140214ee6b4e564fcaa1985e5d3715647989fb16ad851fc87ef0b63b1754011",
+          "plan_revision": 4
+        }
+      },
+      "consumed_plan_review_content_ids": [
+        "1aa5342ee9aa2b536e8558563c496248f40ab9543d66514c7a44bb5313002c6d",
+        "3f25b8665e807f5211395f6bfb05b5740ce6c6a5e57576f4ae90fed62094cfae",
+        "56b34ce96f9efa30906e13a617d7c6afed929970c03866ff87a9e97b29360e37"
+      ],
+      "optional_findings": {
+        "F-002b06524c37": {
+          "digest": "002b06524c370a49c0011203865ed10793256d558f348defe6f5704a3de837cd",
+          "text": "PLR1-002 Section 2.4 adds the key to `LOWERED`, but `_reached`, `_limit` and the preview's `left` compare `numbers[key] >= thresholds[key]`, which for the age key would be \"old count >= N\", not \">= 1\". Section 2.3 pins \"the limit for the comparison is 1\" for the alert only. State in 2.4 that the cleanup's reached test for the age key is also \"at least one old item not planned\", or a literal reading of \"LOWERED gains the key\" gives a 30-item bar.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "3f25b8665e807f5211395f6bfb05b5740ce6c6a5e57576f4ae90fed62094cfae",
+              "verdict": "REVISE",
+              "at": "2026-11-13T21:24:44Z"
+            }
+          ]
+        },
+        "F-e260653beff8": {
+          "digest": "e260653beff8f31566e3d0a25877ad06d5b0f0858b1b699bd794b22bc46d8e4c",
+          "text": "PLR1-003 The `CAPPED` outcome stays `len(taken) == CAP and len(eligible) > len(taken)`. With the age rule this can say \"run it again\" when the remaining eligible items are all young and the age stays reached only by an old *ineligible* item (5 old eligible, 1 old tracked, 3 young). The next run then plans nothing and reports `exhausted`. Consider counting only the eligible old items (or the count/size-reached case) as \"more to plan\" for `CAPPED`, and pin it in C4/C6.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "3f25b8665e807f5211395f6bfb05b5740ce6c6a5e57576f4ae90fed62094cfae",
+              "verdict": "REVISE",
+              "at": "2026-11-13T21:24:44Z"
+            }
+          ]
+        },
+        "F-a0b6b61e363b": {
+          "digest": "a0b6b61e363b2af78d42cd621478d8f51c3a5a0c3e4e3c167f72507bbc45bc88",
+          "text": "PLR1-004 Section 2.4's \"`kept_recent` ids are excluded before anything else\" can be read as filtering `candidates` for every rule. That would change `before[\"finished_items\"]` and the count rule's plan for a report listing an id in both. No engine report does that, and the golden's fixture does not either, so flow 5 would not notice. Say that the exclusion is the age rule's, inside `aged`, or decide that it applies to all rules and drop \"byte-identical\" for that edge.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "3f25b8665e807f5211395f6bfb05b5740ce6c6a5e57576f4ae90fed62094cfae",
+              "verdict": "REVISE",
+              "at": "2026-11-13T21:24:44Z"
+            }
+          ]
+        },
+        "F-fe37ce2c68f7": {
+          "digest": "fe37ce2c68f7f7a72ddb41c23f6c6af79e236a87dbe8edcb3ac4753cca9b878a",
+          "text": "PLR1-005 `docs/retention.md` line 168 says \"A number at or above its limit is reached\" for every threshold, and line 191 says the cleanup runs \"until every threshold the policy sets is below its limit\". For the age key the limit N is a duration, and the threshold is reached at one old item. Section 2.5 should name these two sentences as ones to amend, not only the table, \"four\" and the cleanup paragraph.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "3f25b8665e807f5211395f6bfb05b5740ce6c6a5e57576f4ae90fed62094cfae",
+              "verdict": "REVISE",
+              "at": "2026-11-13T21:24:44Z"
+            }
+          ]
+        },
+        "F-80911bb4e796": {
+          "digest": "80911bb4e79670f416f8f0d83ff0b5ff99af49c61e38061cd15a30ff0ba77bd9",
+          "text": "PLR1-006 Section 2.3 changes the line shape for one key (`finished older than 30 days: 4 items: reached`), where the existing lines read `{label}: {value}, limit {limit}: reached` and `describe` uses the label `finished age limit`. Fine, but say that `render` and the preview's `_measured`/`_names`/verdict text special-case the key (and what the `after this run` verdict names it, e.g. \"finished older than 30 days still reached\"), so the implementer does not print `finished age limit: 4, limit 30: reached`.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "3f25b8665e807f5211395f6bfb05b5740ce6c6a5e57576f4ae90fed62094cfae",
+              "verdict": "REVISE",
+              "at": "2026-11-13T21:24:44Z"
+            }
+          ]
+        },
+        "F-f21e97bb42ba": {
+          "digest": "f21e97bb42baeb16d42d71b6069c3c96a15f66131d90f9f3cc3921121be37472",
+          "text": "PLR2-002 The design rules say \"no cleanup test lists an entry without a review folder\", which makes A4's set hold on the cleanup side, but no rule keeps the other alert tests (A1 to A3, A5, A6) free of `present: false` entries. Add \"only A4 lists an entry without a review folder\" so A4's set is A4 by construction.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "1aa5342ee9aa2b536e8558563c496248f40ab9543d66514c7a44bb5313002c6d",
+              "verdict": "REVISE",
+              "at": "2026-11-13T21:30:24Z"
+            }
+          ]
+        },
+        "F-73b2e12b7b0a": {
+          "digest": "73b2e12b7b0a8dec2c75dbf1344a0cd4481fe80fa89f8520b7cd5db5f658d0d5",
+          "text": "PLR2-003 `docs/retention.md` line 191 also says \"Only the two thresholds that archiving and removing can lower take part\" and line 158 names \"the four thresholds\". Section 2.5 covers both in prose (\"drops four\", \"joins the two lowered thresholds\"), so this is only to make sure the implementer edits those two sentences, not adds beside them.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "1aa5342ee9aa2b536e8558563c496248f40ab9543d66514c7a44bb5313002c6d",
+              "verdict": "REVISE",
+              "at": "2026-11-13T21:30:24Z"
+            }
+          ]
+        },
+        "F-2448b9796e21": {
+          "digest": "2448b9796e211ec157213e0d46a4258e8b06cdb7d220c4f2882f790357202124",
+          "text": "PLR3-001 The C1 row claims C7 fails when the age test is dropped from the loop, but that holds only if C7's report has a young eligible item for the mutated loop to take. No design rule says so; flow 6 says it of the scratch driver, not of C7. Add \"C7's report holds at least one young eligible item\" to the design rules, or C1's measured set may lack C7.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 3,
+              "review_content_id": "56b34ce96f9efa30906e13a617d7c6afed929970c03866ff87a9e97b29360e37",
+              "verdict": "APPROVE",
+              "at": "2026-11-13T21:36:20Z"
+            }
+          ]
+        },
+        "F-94c18299d267": {
+          "digest": "94c18299d267d5f11151a016dfa93fa76ca2dc24635e16f1c163f3ba49b16255",
+          "text": "PLR3-002 C8's pin reads \"a report whose `generated_at` is one second later and adds an old item\". The A1 row (`>` to `>=`) and the C8 row (floor to midnight) fail C8 only if the second report lists the same entries and one of them crosses the age because of that second. A report that adds a new, already-old entry changes the plan under both mutations, so C8 would pass. Reword to \"the same entries, one of which crosses N days by that second\" (the test name already says \"after an item ages\").",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 3,
+              "review_content_id": "56b34ce96f9efa30906e13a617d7c6afed929970c03866ff87a9e97b29360e37",
+              "verdict": "APPROVE",
+              "at": "2026-11-13T21:36:20Z"
+            }
+          ]
+        },
+        "F-411a2f734ad9": {
+          "digest": "411a2f734ad9ed8da83b913e68aa0fcc0614770fee8d19870fc7330528ad2509",
+          "text": "Section 5’s “every path this plan names” claim exceeds the declaration: `tests/run_all.py` and `tools/release/release.py` are unclassified at both stages. The cited coverage check examines checkpoint `Files` paragraphs only. Classify these evidence paths or narrow the coverage claim.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "MANUAL_EXTERNAL_PLAN_REVIEW",
+              "round": 3,
+              "review_content_id": "56b34ce96f9efa30906e13a617d7c6afed929970c03866ff87a9e97b29360e37",
+              "verdict": "REVISE",
+              "at": "2026-11-13T21:40:30Z"
+            }
+          ]
+        }
       }
     }
   }

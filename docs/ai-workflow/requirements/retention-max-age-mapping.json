@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "work_item_id": "retention-max-age",
+  "requirements": {
+    "R1": {
+      "description": "The optional policy key thresholds.finished_max_age_days (integer 1 to 3650) is accepted by the closed strict loader, schema_version stays 1, the digest of a policy without it is unchanged, and describe prints it.",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R2": {
+      "description": "Old means generated_at minus last_transition strictly greater than N x 86400 seconds against the report's own generated_at; an item with no usable last_transition, and any item when generated_at is unusable, is never old; the 3 newest (kept_recent) are never counted.",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R3": {
+      "description": "The retention alert evaluates the age threshold as a new line (reached at one old item or more, lower bounds for an incomplete report, the unknown-age note); outputs without the key are byte-identical.",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R4": {
+      "description": "retention-cleanup plans old finished items oldest first for cleanup and both modes, within the cap of 5 per run, never the 3 newest and never an item whose age is unknown, and the plan digest changes with the key and with an age change that alters the selected items or their actions (not with the time alone).",
+      "checkpoint_ids": [
+        "CP2"
+      ]
+    },
+    "R5": {
+      "description": "docs/retention.md documents the key, that an older Manager refuses a file carrying it and falls back to off, that schema_version stays 1, and the cleanup and alert behaviour; roadmap row 43 is added; the other product code is byte-identical; every refusal and no-write proof of the existing cleanup stays.",
+      "checkpoint_ids": [
+        "CP1",
+        "CP2"
+      ]
+    }
+  }
+}
