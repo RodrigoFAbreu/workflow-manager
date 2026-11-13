@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_work_item_id": null,
+  "active_work_item_id": "docs-restamp",
   "work_items": {
     "plan-amendment-mechanism": {
       "work_item_type": "process",
@@ -33397,6 +33397,248 @@
         },
         "evaluated_at": "2026-11-13T02:17:52Z",
         "workflow_release": "2.29.3"
+      }
+    },
+    "docs-restamp": {
+      "work_item_type": "process",
+      "work_item_kind": "process",
+      "work_item_id": "docs-restamp",
+      "parent_work_item_id": null,
+      "plan_path": "docs/ai-workflow/WORKFLOW_MANAGER_DOCS_RESTAMP_PLAN.md",
+      "registry_path": "docs/ai-workflow/registry/docs-restamp-registry.json",
+      "mapping_path": "docs/ai-workflow/requirements/docs-restamp-mapping.json",
+      "governing_workflow_version": "2.2",
+      "phase": "IMPLEMENTING",
+      "plan_revision": 3,
+      "implementation_revision": null,
+      "functional_review_round": null,
+      "base_commit": "bfd255fa2aee3e1558ce6e2ffda5ddca24b2c842",
+      "reviewed_implementation_head": null,
+      "current_checkpoint_id": null,
+      "last_completed_checkpoint_id": null,
+      "checkpoints": {},
+      "current_bundle_id": "49eff011d91de32d8036366b2281194e43cd9de64173a92093bd789c59f5b0da",
+      "plan_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "49eff011d91de32d8036366b2281194e43cd9de64173a92093bd789c59f5b0da",
+        "approved_review_content_id": "2187fe1e707d10ccdf47195aa0575c9e5a85556022d9adb3806ca69ad6cead16",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/WORKFLOW_MANAGER_DOCS_RESTAMP_PLAN.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "95475259faa1dc45932f5ae943a64627f9aa5cb0"
+          },
+          {
+            "path": "docs/ai-workflow/registry/docs-restamp-registry.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "cb416c3e57193638bbe763d8c843c925522106cc"
+          },
+          {
+            "path": "docs/ai-workflow/requirements/docs-restamp-mapping.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "5d0532428eb7e160ab69cdc8c2e9736844725f13"
+          }
+        ],
+        "reviewed_content_commit": null,
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-11-13T03:34:24Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "2187fe1e707d10ccdf47195aa0575c9e5a85556022d9adb3806ca69ad6cead16",
+            "ledger": {
+              "local": {
+                "bundle_id": "49eff011d91de32d8036366b2281194e43cd9de64173a92093bd789c59f5b0da",
+                "verdict": "APPROVE",
+                "round": 3,
+                "verdict_sha256": "9f20d97efc177299e1c0c025d9a3443f20df908debf83fec7eb52cae628bbc92",
+                "ledger_entry_sha256": "841aeef0dfd4d89834106a56410df62cd1f5d462b7e737968370a015b924dde3",
+                "run_ref": "session:local .ai-review/docs-restamp/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "49eff011d91de32d8036366b2281194e43cd9de64173a92093bd789c59f5b0da",
+                "verdict": "APPROVE",
+                "round": 3,
+                "verdict_sha256": "7dfe2290f26082f0bf22c56e53f377a6e7110d5c13590f572b31eb8576e17a99",
+                "ledger_entry_sha256": "d96cd36551809f7f79a973423f00253966580223aa71076348200834ae4ea838",
+                "run_ref": "codex:20261113T033147Z-c720bd40",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-11-13T03:34:24Z",
+          "workflow_release": "2.29.3"
+        }
+      },
+      "technical_approval": null,
+      "technical_review_block_pins": [],
+      "plan_review_stages": {
+        "review_content_id": "2187fe1e707d10ccdf47195aa0575c9e5a85556022d9adb3806ca69ad6cead16",
+        "LOCAL_MODEL_PLAN_REVIEW": {
+          "bundle_id": "49eff011d91de32d8036366b2281194e43cd9de64173a92093bd789c59f5b0da",
+          "verdict": "APPROVE",
+          "round": 3,
+          "completed_at": "2026-11-13T03:31:08Z",
+          "verdict_sha256": "9f20d97efc177299e1c0c025d9a3443f20df908debf83fec7eb52cae628bbc92",
+          "run_ref": "session:local .ai-review/docs-restamp/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_PLAN_REVIEW": {
+          "bundle_id": "49eff011d91de32d8036366b2281194e43cd9de64173a92093bd789c59f5b0da",
+          "verdict": "APPROVE",
+          "round": 3,
+          "completed_at": "2026-11-13T03:33:46Z",
+          "verdict_sha256": "7dfe2290f26082f0bf22c56e53f377a6e7110d5c13590f572b31eb8576e17a99",
+          "run_ref": "codex:20261113T033147Z-c720bd40",
+          "reviewer_model": "openai/gpt-6.1-sol"
+        }
+      },
+      "functional_acceptance_status": null,
+      "blocking_decisions": [],
+      "review_round_counts": {
+        "plan": {
+          "local": 3,
+          "external": 2
+        },
+        "implementation": {
+          "local": 0,
+          "external": 0
+        }
+      },
+      "state_revision": 13,
+      "last_transition": "2026-11-13T03:34:24Z",
+      "feedback_layout": "scoped",
+      "plan_review_binding": {
+        "status": "BOUND",
+        "at": "2026-11-13T03:29:10Z",
+        "consumed": {
+          "review_content_id": "624943d969aa27344b1e131933d2bad161f0ff64f20f515221b28f757324aa24",
+          "plan_revision": 2,
+          "legacy": false
+        },
+        "published": {
+          "review_content_id": "2187fe1e707d10ccdf47195aa0575c9e5a85556022d9adb3806ca69ad6cead16",
+          "plan_revision": 3
+        },
+        "bound": {
+          "review_content_id": "2187fe1e707d10ccdf47195aa0575c9e5a85556022d9adb3806ca69ad6cead16",
+          "bundle_id": "49eff011d91de32d8036366b2281194e43cd9de64173a92093bd789c59f5b0da",
+          "plan_revision": 3
+        }
+      },
+      "consumed_plan_review_content_ids": [
+        "624943d969aa27344b1e131933d2bad161f0ff64f20f515221b28f757324aa24",
+        "be5d46568ed8ce2ce087185845f1544bf1a4978caae7f45ede0952dbebdbde32"
+      ],
+      "optional_findings": {
+        "F-66ab076e5c88": {
+          "digest": "66ab076e5c887af1c7cfe1e660099958eff62408001f44ae8775c460a06cbadb",
+          "text": "**LPR1-002 -- `docs/release-metadata.md` is stamped but, like `docs/DOWNGRADE_POSTURE.md`, not in the checker's `USER_PAGES`.** Section 1.4 justifies leaving `DOWNGRADE_POSTURE.md` unstamped with \"a stamp needs a checker rule\", but `docs/release-metadata.md` carries a stamp with no checker rule today (`tools/check_docs.py` `USER_PAGES` lists eleven pages, not it), and flow 7 (`check_docs.py`) therefore says nothing about its header. The decision for `DOWNGRADE_POSTURE.md` still stands on its other reasons (multi-line header, releases up to 2.12.0 only); restate the rationale so it does not contradict the treatment of `release-metadata.md`, and note that flow 2 is the only check of that page's stamp.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "be5d46568ed8ce2ce087185845f1544bf1a4978caae7f45ede0952dbebdbde32",
+              "verdict": "REVISE",
+              "at": "2026-11-13T03:23:30Z"
+            }
+          ]
+        },
+        "F-fb1c30513ed8": {
+          "digest": "fb1c30513ed880443126dac8c4626e5ce25029fc2bf3992ef8b473af83fb39d7",
+          "text": "**LPR1-003 -- Flow 8's count does not discriminate.** At the base, `docs/exit-codes.md` and `docs/retention.md` already name both retention commands (5 and 8 matching lines), so \"a count above 0\" passes before any change and does not show that the stamp moved with the commands described. Either drop the claim in parentheses or tie the flow to the record's per-row check (flow 9).",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "be5d46568ed8ce2ce087185845f1544bf1a4978caae7f45ede0952dbebdbde32",
+              "verdict": "REVISE",
+              "at": "2026-11-13T03:23:30Z"
+            }
+          ]
+        },
+        "F-cdce756073ce": {
+          "digest": "cdce756073ce37fdc000532dd8d83885116048a507ecf9f9dfcf82373f5017e3",
+          "text": "**LPR1-004 -- The record that carries the stamp rule's evidence is not bound.** The per-page table lives in `docs/ACTIVE_MILESTONE.md`, excluded at both stages, so a later edit to it never stales the technical approval, and flows 2, 3 and 9 depend on it (\"a page the record lists as not re-checked\"). Acceptable for a narrative, but say so in section 4 (the review reads the record at the reviewed head) so the reviewer knows the binding does not cover it.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "be5d46568ed8ce2ce087185845f1544bf1a4978caae7f45ede0952dbebdbde32",
+              "verdict": "REVISE",
+              "at": "2026-11-13T03:23:30Z"
+            }
+          ]
+        },
+        "F-648bed27fcc7": {
+          "digest": "648bed27fcc7d967f819106456e89bf9a481374750cb7dd812d667ce65fad426",
+          "text": "**LPR2-001 -- Flow 2's comparison with the base line is not a literal equality.** `grep -n` prints `docs/x.md:3:...` while `git grep -n \"Last checked with\" BASE -- <page>` prints `BASE:docs/x.md:3:...`, so the two lines differ by the revision prefix. A careful reviewer will compare the text after the line number; say so in the Expect cell (or use `git show BASE:<page> | sed -n 3p` against `sed -n 3p <page>`) so the comparison is exact.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "624943d969aa27344b1e131933d2bad161f0ff64f20f515221b28f757324aa24",
+              "verdict": "APPROVE",
+              "at": "2026-11-13T03:25:50Z"
+            }
+          ]
+        },
+        "F-0708a0c30db8": {
+          "digest": "0708a0c30db88d8f9e88f79c0bebbd0ccb1a5841081d2aa5f0f78a6d00089a35",
+          "text": "**LPR3-001 -- Stray apostrophe in section 2's test list.** Line 95 reads `tests/test_retention_run.py`' `TestDocsSayExitCodes`; the apostrophe after the code span is a typo (probably meant \"'s\"). Cosmetic; fix it when the plan is next edited.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 3,
+              "review_content_id": "2187fe1e707d10ccdf47195aa0575c9e5a85556022d9adb3806ca69ad6cead16",
+              "verdict": "APPROVE",
+              "at": "2026-11-13T03:31:08Z"
+            }
+          ]
+        }
       }
     }
   }

@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "work_item_id": "docs-restamp",
+  "requirements": {
+    "R1": {
+      "description": "exit-codes, retention, common-problems and glossary re-checked against Manager 1.18.1 and Workflow 2.29.3; stamps moved only for pages re-checked",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R2": {
+      "description": "README, docs/README, release-metadata re-checked and stamped; release-history row 1.14.6 separates the null and the empty record; row 41 added; rows 25 and 26 verified; DOWNGRADE_POSTURE untouched",
+      "checkpoint_ids": [
+        "CP2"
+      ]
+    }
+  }
+}
