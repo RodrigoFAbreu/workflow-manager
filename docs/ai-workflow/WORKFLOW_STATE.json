@@ -32735,7 +32735,7 @@
       "registry_path": "docs/ai-workflow/registry/retention-wording-pass-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/retention-wording-pass-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "APPLYING_REVIEW_FEEDBACK",
       "plan_revision": 2,
       "implementation_revision": 2,
       "functional_review_round": null,
@@ -32875,12 +32875,12 @@
           "external": 1
         },
         "implementation": {
-          "local": 1,
+          "local": 2,
           "external": 0
         }
       },
-      "state_revision": 16,
-      "last_transition": "2026-11-13T00:29:17Z",
+      "state_revision": 17,
+      "last_transition": "2026-11-13T00:47:10Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -32985,6 +32985,20 @@
               "review_content_id": "701d3359a5d1e228b22f067362d443e79ec815472e848373d176ba174f3f1cad",
               "verdict": "REVISE",
               "at": "2026-11-13T00:06:17Z"
+            }
+          ]
+        },
+        "F-2634af8c7d99": {
+          "digest": "2634af8c7d993868b598532d762fe8f5cbd9bd5c610551693ef8f678e199cc54",
+          "text": "**LIR2-002 (the help's exit-1 clause, `src/workflow_manager/cli.py:1222`).** The help says `1: the run stopped after its first per-item call (archive, the verification or remove) was attempted`. It leaves out the `even if its script could not be started` qualifier that `docs/retention.md`, `docs/exit-codes.md` and the `Result` docstring carry, and the exit-2 clause does not name the two causes before item 1. Shortening is reasonable in a help string, and nothing in it is false. Consider adding the qualifier so all four places state the same criterion.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 2,
+              "review_content_id": "98345799e51da22f6a9d18a2b2468a671ffc3b27d9a25bee446dbf593a13855b",
+              "verdict": "REVISE",
+              "at": "2026-11-13T00:47:10Z"
             }
           ]
         }
