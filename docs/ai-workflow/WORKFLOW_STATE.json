@@ -33408,7 +33408,7 @@
       "registry_path": "docs/ai-workflow/registry/docs-restamp-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/docs-restamp-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "APPLYING_REVIEW_FEEDBACK",
       "plan_revision": 3,
       "implementation_revision": 2,
       "functional_review_round": null,
@@ -33548,12 +33548,12 @@
           "external": 2
         },
         "implementation": {
-          "local": 1,
-          "external": 0
+          "local": 2,
+          "external": 1
         }
       },
-      "state_revision": 20,
-      "last_transition": "2026-11-13T04:17:37Z",
+      "state_revision": 22,
+      "last_transition": "2026-11-13T04:23:03Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -33689,7 +33689,48 @@
               "at": "2026-11-13T04:02:59Z"
             }
           ]
+        },
+        "F-85039e8b142d": {
+          "digest": "85039e8b142d5472ceef49e5bd5a6e9e16a0f955558d3f16d270e1e6ea89fb4d",
+          "text": "**LIR2-001 -- The bundle's summary and test record still describe revision 1.** `IMPLEMENTATION_SUMMARY.md` says `implementation_revision: 2` but still gives \"code head `52596c2`\" and does not mention the fix commit `3e67b29` (LIR1-001, LIR1-002, LIR1-004). `TEST_RESULTS.md` is headed \"implementation revision 1\" and records runs at `4a64c45` only. Nothing in them is false about what was run. The fix touches only `README.md` and `docs/glossary.md`, and I reran the checks it affects (see Verified). A reader of the bundle alone would not see that the fix round was checked. Consider updating both at acceptance, or recording the post-fix checks in `docs/ACTIVE_MILESTONE.md`.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 2,
+              "review_content_id": "af68db469bfabc0f790290755874b8f4d56209b2c47634e0c285098a1f0a04b8",
+              "verdict": "APPROVE",
+              "at": "2026-11-13T04:20:30Z"
+            }
+          ]
+        },
+        "F-cfd5129c860a": {
+          "digest": "cfd5129c860a5c4a9ef1552b22885cdfed55b412ed10a036fbfd7a4088b7279e",
+          "text": "**LIR1-003 (carried, still open) -- `docs/retention.md`'s title and `For:` line cover only the report**, while the page also documents the policy, the alert and the cleanup. Nothing is false. It still needs its recorded disposition at acceptance (fix now or a follow-up issue).",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 2,
+              "review_content_id": "af68db469bfabc0f790290755874b8f4d56209b2c47634e0c285098a1f0a04b8",
+              "verdict": "APPROVE",
+              "at": "2026-11-13T04:20:30Z"
+            }
+          ]
         }
+      },
+      "implementation_review_stages": {
+        "review_content_id": "af68db469bfabc0f790290755874b8f4d56209b2c47634e0c285098a1f0a04b8",
+        "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "3a40f289d926bf9ef00068f36df1c8dc8c5d92c4d1cd47aaa3cd1da1cd394b81",
+          "verdict": "APPROVE",
+          "round": 2,
+          "completed_at": "2026-11-13T04:20:30Z",
+          "verdict_sha256": "2a8589c93e6c2dd699ff630e72a92dd249bbe16215f8b641c921d8cfdeeb18ff",
+          "run_ref": "session:local .ai-review/docs-restamp/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": null
       }
     }
   }
