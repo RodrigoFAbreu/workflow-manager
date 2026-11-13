@@ -192,6 +192,18 @@ class TestSentence(RunBase):
         self.refused(self.go(confirm="anything"), "a tracked file is changed")
 
 
+class TestAgeOnlyConfirmedRun(RunBase):
+    def test_the_confirmed_run_issues_calls_for_the_five_planned_items_only(self):  # C4
+        self.adopt(tc.AGE_POLICY)
+        self.commit(self.repo, "age policy")
+        report = tc.oldest_first(*(tc.aged(f"o{n}", tc.OLD) for n in range(8)))
+        plan = tc.age_plan(report)
+        self.assertEqual((tc.ids(plan), plan.outcome), (["o0", "o1", "o2", "o3", "o4"], rc.CAPPED))
+        out = self.go(rep=report, confirm=rc.sentence(rc.plan_digest(plan)))
+        self.assertEqual((out.code, out.err), (0, ""), out.out)
+        self.assertEqual(self.keys(), full_run("o0", "o1", "o2", "o3", "o4"))
+
+
 class TestOrder(RunBase):
     def test_the_order_of_calls(self):
         self.go()
