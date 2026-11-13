@@ -2,45 +2,11 @@
 
 ## Milestone
 
-`docs-restamp` -- awaiting functional review (`governing_workflow_version: "2.2"`, `process`, plan revision 3, implementation revision 3, base `bfd255f`, branch `milestone/docs-restamp`): roadmap row 41 (#156). Plan: `docs/ai-workflow/WORKFLOW_MANAGER_DOCS_RESTAMP_PLAN.md`.
+`docs-restamp` -- complete, accepted by policy (`governing_workflow_version: "2.2"`, `process`, plan revision 3, implementation revision 3, base `bfd255f`, branch `milestone/docs-restamp`): roadmap row 41 (#156). A `docs:` pull request title; no release follows. Plan: `docs/ai-workflow/WORKFLOW_MANAGER_DOCS_RESTAMP_PLAN.md`.
 
-Every stamped user page the first re-check left alone says only what is true of Workflow Manager 1.18.1 and Workflow 2.29.3, and its stamp says so; `docs/release-history.md` row 1.14.6 describes a null and an empty recorded version separately. A `docs:` change that releases nothing.
+Every stamped user page the first re-check left alone says only what is true of Workflow Manager 1.18.1 and Workflow 2.29.3, and its stamp says so; `docs/release-history.md` row 1.14.6 describes a null and an empty recorded version separately.
 
-**Next action:** the manual functional review below (the user runs flows 1-9 and places any finding in `.ai-review/docs-restamp/feedback/FUNCTIONAL_REVIEW.md`).
-
-## Functional review checklist
-
-Every flow is an offline grep, diff or the `--help` output, run in a checkout of the candidate (`milestone/docs-restamp` at the head that carries this section). It needs no network, no `gh`, no `claude`, `codex` or `ssh`, and no installs. `BASE` is `bfd255fa2aee3e1558ce6e2ffda5ddca24b2c842`.
-
-**Setup.** A clean checkout of the candidate head, and the base commit present in its history (`git cat-file -t bfd255f` prints `commit`). Run from the checkout root, with `PYTHONDONTWRITEBYTECODE=1` set and `python3 -B` for flow 7 and 8, so nothing is written into the tree. No release is installed, no repository is managed, and no Workflow release is needed: the source is `src/workflow_manager/`.
-
-**Test data.** None. The flows read the committed pages, the source and the base commit.
-
-**Flows.** Exit codes are read with `; echo $?`, not through a pipe. Each row says what the command prints when the candidate is right, as checked at the implementation head `91f8824`.
-
-1. `git diff --name-only bfd255f -- . ':!docs/ai-workflow' ':!docs/ACTIVE_MILESTONE.md'`. Expect nine paths: `README.md`, `docs/README.md`, `docs/common-problems.md`, `docs/exit-codes.md`, `docs/glossary.md`, `docs/release-history.md`, `docs/release-metadata.md`, `docs/retention.md` and `docs/ROADMAP.md`. No `src/`, `tests/`, `tools/`, `.github/`, `.claude/`, `scripts/` or `.workflow-manager/` path, and no `docs/DOWNGRADE_POSTURE.md`.
-2. `grep -n "Last checked with" README.md docs/README.md docs/glossary.md docs/common-problems.md docs/exit-codes.md docs/retention.md docs/release-metadata.md; echo $?`. Expect seven lines, each ending `Workflow Manager 1.18.1, Workflow 2.29.3.`, and `0`.
-3. `git diff --exit-code bfd255f -- docs/DOWNGRADE_POSTURE.md docs/install.md docs/update.md docs/verify.md docs/development.md; echo $?` prints `0`, and `grep -c "Last checked with" docs/DOWNGRADE_POSTURE.md` prints `0`.
-4. `grep -n -E '^. 1[.]14[.]6 ' docs/release-history.md`, then `grep -n "no workflow_version recorded" src/workflow_manager/install.py src/workflow_manager/advice.py`. Expect the 1.14.6 row to name `no workflow_version recorded` for a null record and `''` (quoted) for an empty one, in two separate statements, with no "None or a blank" for both. Expect the two source lines (`install.py` line 710, `advice.py` line 445).
-5. `grep -c -E '^. 2[56] .*Manager 1[.]14[.][56]\)' docs/ROADMAP.md` prints `2`, and `grep -c -E '^. 2[56] .*follows the merge' docs/ROADMAP.md` prints `0`.
-6. `grep -n -E '^. 41 ' docs/ROADMAP.md` prints row 41 with its last cell `Current`, and `grep -c -E '^. 42 ' docs/ROADMAP.md` prints `0`.
-7. `python3 -B tools/check_docs.py; echo $?` prints no problem line and `0`.
-8. `PYTHONPATH=src python3 -B -m workflow_manager --help`, then `grep -c -e adopt-retention-policy -e retention-cleanup docs/exit-codes.md docs/retention.md`. Expect the help to list `adopt-retention-policy` and `retention-cleanup`, and the counts `5` and `8`.
-9. `git diff --stat bfd255f -- docs/exit-codes.md docs/retention.md`, then read the per-page record below. Expect every page the record marks as re-checked to have its row, with what was checked, what changed and whether its stamp moved or was kept and why. Expect no page the record calls re-checked to still hold a statement the record lists as unchecked.
-
-**Reading checks (not commands).** Read these four passages against the source the record names, and say so if one is wrong:
-- `docs/retention.md`, the paragraph after the `retention report` command: the option is opt-in, and `doctor` runs the report by itself only for a repository whose adopted retention policy has mode `notify` or `both` (`cli.py` `cmd_doctor`, retention alert).
-- `README.md`, the command list: `doctor` is read-only (`cmd_doctor` reads with `readonly=True`), and `uninstall` also removes `.workflow-manager/`.
-- `docs/glossary.md`, the Uninstall entry: the same folder, and the retention policy file in it.
-- `docs/release-metadata.md`: "Who writes the block" describes what the `workflow` repository does now, not undone work.
-
-**Known limitations, out of scope for this item.** The retention report's GitHub-backed output (its per-item lines and the confirmed run's output) needs GitHub and a Workflow with finished items, so it is not run here; the pinned tests `test_retention_run.py` and `test_retention_cleanup.py` carry it. `docs/release-history.md` row 1.14.6 is checked only at its own wording, not re-stamped. `docs/DOWNGRADE_POSTURE.md` has no stamp by design (a stamp would need a checker rule, out of scope). No source, test, CI or `workflow`-repository change is in scope; a finding about one is a follow-up, not a fix in this item.
-
-**Automated verification.** The full gate `python3 tests/run_all.py` ran at `4a64c45` with `verdict: exit 0` (see the self-review below). Since then the only changes are documentation (`52596c2`, `3e67b29`, `91f8824` and the state commits), and no `src/`, `tests/` or `tools/` path changed (`git diff --stat 4a64c45 HEAD -- . ':!docs/ai-workflow'` names only the four docs files). The gate is therefore current for the code.
-
-**Evidence.** The checklist-evidence commit and its blob are reported by `/prepare-functional-review` when this section is committed; they are not written here, because this file's own blob is part of that evidence.
-
-**Findings.** Place them in `.ai-review/docs-restamp/feedback/FUNCTIONAL_REVIEW.md`. Then `/apply-functional-review` routes each one.
+**Next action:** no incomplete milestone remains in `docs/ROADMAP.md` (row 41 is the last); run `/milestone-plan` once the owner names the next item. Follow-ups of this milestone: RodrigoFAbreu/workflow-manager#211.
 
 ## Per-page record
 
