@@ -164,8 +164,8 @@ For a policy that is adopted with mode `notify` or `both`, `workflow-manager ver
 retention alert: 3 of 5 thresholds reached (mode notify, policy 1a2b3c4d5e6f)
   finished items: 12, limit 10: reached
   finished folders: 612 MiB, limit 500 MiB: reached
-  archives: at least 5, limit 20: not known (the report is incomplete)
   finished older than 30 days: 4 items, 2 more with no usable last transition (not counted): reached
+  archives: at least 5, limit 20: not known (the report is incomplete)
   next: in the repository, run `python3 -I scripts/workflow_retention.py archive ID --apply` (run it without `--apply` first for a dry run); ...
 ```
 
@@ -192,7 +192,7 @@ It checks these, in order, and the first that fails refuses with `error:` and `n
 7. the retention report can be had (this is the one run of the script: one forge query per finished item, `gh` signed in, 300 seconds at most);
 8. the report is complete and no removal was interrupted (finish an interrupted removal yourself, with the user-only `remove ID --apply`).
 
-Only the thresholds that archiving and removing can lower take part, `finished_items`, `finished_folder_mib` and `finished_max_age_days`; `archives` and `prunable_archives` never plan anything. The oldest finished items that still have a review folder are taken first, until every threshold the policy sets is below its limit, at most 5 per run. The age rule joins the other two: it takes only items known to be older than N days (never the 3 most recent, and never one whose last transition is unusable, which the preview counts on an `age not known` line), and the count and size rules still apply as before. An item that crosses the age between the preview and the confirmed run invalidates the sentence only when it changes the selected items or their actions (the plan digest hashes those and the policy, not the time); the preview is then run again. An item with an archive and a folder is planned as `remove only`; an item whose folder holds files Git tracks, or whose id the engine would not accept, is skipped and named. The preview ends with one of three outcomes: below every limit, stopped at the cap (run it again to plan more), or no further item is eligible (running it again will not help).
+Only the thresholds that archiving and removing can lower take part, `finished_items`, `finished_folder_mib` and `finished_max_age_days`; `archives` and `prunable_archives` never plan anything. The oldest finished items that still have a review folder are taken first, until every threshold the policy sets is below its limit (for the age threshold: until no item older than N days is left unplanned), at most 5 per run. The age rule joins the other two: it takes only items known to be older than N days (never the 3 most recent, and never one whose last transition is unusable, which the preview counts on an `age not known` line), and the count and size rules still apply as before. An item that crosses the age between the preview and the confirmed run invalidates the sentence only when it changes the selected items or their actions (the plan digest hashes those and the policy, not the time); the preview is then run again. An item with an archive and a folder is planned as `remove only`; an item whose folder holds files Git tracks, or whose id the engine would not accept, is skipped and named. The preview ends with one of three outcomes: below every limit, stopped at the cap (run it again to plan more), or no further item is eligible (running it again will not help).
 
 ```text
 retention cleanup: preview (nothing was written; mode both, policy 1a2b3c4d5e6f, plan 9f8e7d6c5b4a)

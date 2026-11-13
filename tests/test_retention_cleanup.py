@@ -783,7 +783,7 @@ class TestAgeRule(unittest.TestCase):
         report = oldest_first(aged("k1", OLD), aged("young", YOUNG))
         report["kept_recent"] = [aged(f"k{n}", OLD) for n in (1, 2, 3)]
         plan = age_plan(report)
-        self.assertEqual((plan.items, plan.outcome, plan.before[AGE]), ((), None, 0))
+        self.assertEqual((plan.items, plan.outcome, plan.before.get(AGE, 0)), ((), None, 0))
         # the count rule is the base's: it still sees both listed items
         self.assertEqual(ids(plan_for(report, finished_items=1)), ["k1", "young"])
 
@@ -797,6 +797,12 @@ class TestAgeRule(unittest.TestCase):
         # a count threshold that is also reached may still plan it, as it always did
         both = plan_for(report, "cleanup", finished_items=1, **{AGE: 30})
         self.assertEqual(ids(both), ["u", "o1", "o2"])
+        # with nothing old the note follows the nothing-to-do line
+        plan = age_plan(oldest_first(aged("a", YOUNG), aged("u", None)))
+        self.assertEqual(rc.preview_lines(plan, EXAMPLE_TARGET), [
+            "retention cleanup: nothing to do (finished older than 30 days 0)",
+            "  age not known: 1 finished items with no usable last transition are never "
+            "planned by the age rule"])
 
     def test_the_age_rule_never_exceeds_five_per_run(self):  # C4
         plan = age_plan(oldest_first(*(aged(f"o{n}", OLD) for n in range(8))))
@@ -812,10 +818,11 @@ class TestAgeRule(unittest.TestCase):
         self.assertNotIn("run it again", "\n".join(rc.preview_lines(plan, EXAMPLE_TARGET)))
 
     def test_the_age_value_changes_the_plan(self):  # C5
+        # `d` is walked before `c`: the age rule passes over it, never stops at it
         report = oldest_first(aged("a", "2026-08-28T00:00:00Z"),      # 60 days
                               aged("b", "2026-09-26T12:00:00Z"),      # 30.5 days
-                              aged("c", "2026-10-07T00:00:00Z"),      # 20 days
-                              aged("d", "2026-10-22T00:00:00Z"))      # 5 days
+                              aged("d", "2026-10-22T00:00:00Z"),      # 5 days
+                              aged("c", "2026-10-07T00:00:00Z"))      # 20 days
         plans = {days: age_plan(report, days) for days in (10, 30, 31)}
         self.assertEqual({d: ids(p) for d, p in plans.items()},
                          {10: ["a", "b", "c"], 30: ["a", "b"], 31: ["a"]})
@@ -838,13 +845,6 @@ class TestAgeRule(unittest.TestCase):
         self.assertNotIn("older than", text)
         self.assertNotIn("age not known", text)
 
-    def test_nothing_to_do_names_the_age_key(self):
-        plan = age_plan(oldest_first(aged("a", YOUNG), aged("u", None)))
-        self.assertEqual(rc.preview_lines(plan, EXAMPLE_TARGET), [
-            "retention cleanup: nothing to do (finished older than 30 days 0)",
-            "  age not known: 1 finished items with no usable last transition are never "
-            "planned by the age rule"])
-
 
 class TestAgePreview(Base):
     def put_age_policy(self):
@@ -854,7 +854,7 @@ class TestAgePreview(Base):
     def test_the_preview_with_an_age_only_policy(self):  # C7
         self.put_age_policy()
         report = oldest_first(aged("t", OLD, tracked=1), aged("a", OLD), aged("b", OLD),
-                              aged("u", None), aged("y", YOUNG))
+                              aged("y", YOUNG))
         self.stale_index()
         before = tree_hash(self.repo)
         out = self.call(report)
@@ -867,8 +867,7 @@ class TestAgePreview(Base):
         self.assertIn("    1. a: 0 MiB, archive then remove", lines)
         self.assertIn("    2. b: 0 MiB, archive then remove", lines)
         self.assertNotIn("    3.", out.out)
-        self.assertIn("  age not known: 1 finished items with no usable last transition are "
-                      "never planned by the age rule", lines)
+        self.assertNotIn("age not known", out.out)
         self.assertIn("  after this run: finished older than 30 days 1: finished older than 30 "
                       "days still reached; no further item is eligible (skipped: t); running "
                       "it again will not help", lines)
@@ -889,15 +888,15 @@ class TestAgePreview(Base):
 
     def test_a_sentence_for_an_older_plan_is_refused_after_an_item_ages(self):  # C8
         self.put_age_policy()
-        first = oldest_first(aged("a", OLD), aged("b", "2026-09-27T13:45:10Z"),
-                             aged("y", YOUNG), generated_at="2026-10-27T13:45:10Z")
+        first = oldest_first(aged("a", OLD), aged("y", YOUNG),
+                             aged("b", "2026-09-27T13:45:10Z"), generated_at="2026-10-27T13:45:10Z")
         preview = self.call(first)
         self.assertEqual(preview.code, 0, preview.err)
         text = [line for line in preview.out.splitlines() if "--confirm" in line][0]
         sentence_ = text.split('--confirm "', 1)[1].rstrip('"')
         # one second later `b` is 30 days and one second old: the plan now selects it too
-        second = oldest_first(aged("a", OLD), aged("b", "2026-09-27T13:45:10Z"),
-                              aged("y", YOUNG), generated_at="2026-10-27T13:45:11Z")
+        second = oldest_first(aged("a", OLD), aged("y", YOUNG),
+                              aged("b", "2026-09-27T13:45:10Z"), generated_at="2026-10-27T13:45:11Z")
         self.assertEqual(ids(plan_for(first, "cleanup", **{AGE: 30})), ["a"])
         self.assertEqual(ids(plan_for(second, "cleanup", **{AGE: 30})), ["a", "b"])
         self.stale_index()
