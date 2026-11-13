@@ -23,3 +23,35 @@ The report text of the retention commands says exactly what is known, and a test
 - The full diff `ec2f368..6e75b8d` was reviewed. One finding, fixed in `a1d7639`: a CP2 help-string line in `cli.py` ran to 126 characters; it is rewrapped and the joined help text is byte-identical.
 - The plan's evidence CP2 left unrun: mutations M6 (`changed` subtest fails), M6b (`changed` and `interrupt` fail), M9 (the verify arm's `mode` case fails) and M11 (only `dirty tree` fails, `failures=1`, later cases still run), each against an unmutated scratch clone that passes. Golden before (`ec2f368`) / after (`a1d7639`), ten shared scenarios: `diff -r` shows only the preview's `next:` line (`TARGET` -> the quoted target) plus the two new scenarios (`already_archived`, the undo warning), which have no before.
 - Full gate `python3 tests/run_all.py` on `a1d7639`: 2406/2406 units, 16253 tests, selection_digest `0f5c56bd...`, tests_digest `daa15450...`, `verdict: exit 0`.
+
+### Functional review checklist
+
+Implementation revision 3, code head `28d8c18`. Automated verification re-run on `28d8c18` (the tree changed after `a1d7639`, through `73382e4` and `430f31f`): `python3 tests/run_all.py` `verdict: exit 0`, 2406/2406 units, 16254 tests, selection_digest `0f5c56bd...`, tests_digest `2e4c4796...`, tree_digest `19dd58c6...`.
+
+**Setup.** Work in a scratch clone, never the product clone. Clone it at this branch (the checklist commit's HEAD) and run the Manager from the clone's source:
+
+```
+S="$HOME/.cache/wm-functional/retention-wording-pass"
+git clone -q --branch milestone/retention-wording-pass <product-clone-path> "$S/clone"
+cd "$S/clone"
+export PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$PWD/src"
+```
+
+Flows 4 to 6 use a managed scratch repository, a copy of a repository bootstrapped at Workflow 2.25.5 or later, with an adopted `cleanup` policy committed (`workflow-manager adopt-retention-policy`), with a path that contains a space (for example `"$HOME/scratch repo"`) so the quoting is exercised, and with at least one finished work item that has an untracked review folder. Each run needs `gh` signed in, because the retention report makes one forge query per finished work item.
+
+Flows 1 to 3 run offline, with no `gh`, `claude`, `codex` or `ssh`, and write nothing: they are the sandbox-runnable flows.
+
+| Flow | Do | Expect |
+| --- | --- | --- |
+| 1 | `python3 -m workflow_manager retention-cleanup --help` | Exit 0. The exit paragraph reads: 1 is "the run stopped after its first per-item call (archive, the verification or remove) was attempted, even if its script could not be started", and 2 is "refused, or stopped before that first call (the policy changed or the run was interrupted while item 1's policy was read)". The text says nothing about "an engine call started". |
+| 2 | `grep -rn 'after an engine call started' docs/*.md src tests` | No output (exit 1). The old criterion is gone from the user-facing docs, the source and the tests. (`docs/ai-workflow/requirements/retention-run-mapping.json` still carries it; see limitations.) |
+| 3 | Read `docs/exit-codes.md`, the `retention-cleanup` rows 1 and 2, and `docs/retention.md`: the "Exit status" bullet of the confirmed run and its closing sentence | Each says the same criterion as flow 1: the first per-item call was attempted (exit 1), or the run stopped before it (exit 2). The `docs/retention.md` preview example shows `next: workflow-manager retention-cleanup /srv/repo --confirm ...`: the real target as typed, not `TARGET`. |
+| 4 | Full environment. `python3 -m workflow_manager retention-cleanup "$HOME/scratch repo"` | Exit 0. The `next:` line names the target quoted for a shell, `'…/scratch repo'`, with the sentence `Run the retention cleanup DIGEST12.`; the literal `TARGET` does not appear. Nothing is written: `git status --short` shows the same untracked review folder, and `.ai-review/` is unchanged. |
+| 5 | Full environment. `python3 -m workflow_manager retention-cleanup "$HOME/scratch repo" --confirm "Run the retention cleanup 000000000000."` | Exit 2. stderr: `error: retention cleanup: --confirm does not hold the sentence for the current plan ...` and `next: run workflow-manager retention-cleanup '…/scratch repo' to see the current plan and its sentence` (the target quoted). Nothing is archived or removed: the review folder is still there. |
+| 6 | Full environment. Run flow 4's `next:` sentence exactly: `python3 -m workflow_manager retention-cleanup "$HOME/scratch repo" --confirm "Run the retention cleanup DIGEST12."` | Exit 0. The closing line reads `retention cleanup: done, N of N items archived and removed; Git is unchanged (the review folders were untracked); prune was not run`. `git rev-parse HEAD` is unchanged. The run's behaviour is the same as before this milestone. |
+
+**Limitations and out of scope.**
+
+- The two stop-report texts that CP1 added (`this run did not create an archive for ID (one already exists)` after `already_archived`, and `ID may or may not be archived (the engine's undo could not remove everything it created; ...)` after the undo warning) cannot be produced by hand: they need an engine race or a failing undo. They are pinned by the five new tests in `tests/test_retention_run.py` and were mutation-checked. The functional review does not need to reproduce them.
+- `docs/ai-workflow/requirements/retention-run-mapping.json` still reads "1 stopped after an engine call started". It is the requirement record of the finished item `retention-run`, not user-facing text, and it is not edited here. Record a disposition at acceptance.
+- No behaviour changes; the Manager patch release follows the merge and is not part of this review.
