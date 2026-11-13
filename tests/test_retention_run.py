@@ -373,6 +373,10 @@ class TestStop(RunBase):
         self.assertIn("and its folder is untouched", out.out)
         return out
 
+    def test_the_undo_warning_prefix_is_the_engines_own_text(self):
+        # The fixtures derive from the constant; the target's own script prints this literal.
+        self.assertTrue(rr.UNDO_WARNING == "warning: the undo could not remove", rr.UNDO_WARNING)
+
     def test_an_unsettled_undo_may_or_may_not_be_archived(self):
         spec = refusal("place_failed", "nope")
         spec["stderr"] = f"{rr.UNDO_WARNING}: x.partial\n" + spec["stderr"]
@@ -634,14 +638,20 @@ class TestReport(RunBase):
         out = self.go({"archive --apply:item-00": refusal("x_y", "z")})
         self.assertEqual((out.code, self.keys()), (1, ["archive --apply:item-00"]))
         real = retention.launch_script
+        attempted = []
 
         def cannot_start(root, *args, timeout):
             if args[0] == "report":
                 return real(root, *args, timeout=timeout)
+            attempted.append(tuple(args[:2]))
             raise OSError("no such interpreter")
         out = self.go(patches=[mock.patch.object(retention, "launch_script", cannot_start)])
         self.assertEqual(out.code, 1, out.out + out.err)
         self.assertIn("the script could not be started", out.out)
+        self.assertEqual(attempted, [("archive", "item-00")],
+                         "the first per-item call (archive item-00) was attempted although "
+                         "the script never started, and nothing after it")
+        self.assertEqual(self.keys(), [], "the script never ran")
         # exit 1: a remove-only first item stopped at its verification (the dry run)
         rep = tc.oldest_first(*(tc.entry(f"item-{n:02d}", mib=2, archive=(n == 0))
                                 for n in range(12)))
