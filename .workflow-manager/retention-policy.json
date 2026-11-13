@@ -1,0 +1,2 @@
+{"schema_version": 1, "mode": "notify",
+ "thresholds": {"finished_items": 30, "finished_folder_mib": 200}}
