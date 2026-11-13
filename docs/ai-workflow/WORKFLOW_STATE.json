@@ -33408,12 +33408,12 @@
       "registry_path": "docs/ai-workflow/registry/docs-restamp-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/docs-restamp-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "APPLYING_REVIEW_FEEDBACK",
+      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
       "plan_revision": 3,
-      "implementation_revision": 1,
+      "implementation_revision": 2,
       "functional_review_round": null,
       "base_commit": "bfd255fa2aee3e1558ce6e2ffda5ddca24b2c842",
-      "reviewed_implementation_head": "52596c2c3c88ce77a42b27da67e67893b5e8767a",
+      "reviewed_implementation_head": "3e67b29e88697602b8e9427a4ddd038e3953376d",
       "current_checkpoint_id": null,
       "last_completed_checkpoint_id": "CP2",
       "checkpoints": {
@@ -33552,8 +33552,8 @@
           "external": 0
         }
       },
-      "state_revision": 19,
-      "last_transition": "2026-11-13T04:02:59Z",
+      "state_revision": 20,
+      "last_transition": "2026-11-13T04:17:37Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
