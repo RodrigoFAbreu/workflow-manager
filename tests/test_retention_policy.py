@@ -786,6 +786,42 @@ class TestStepFor(unittest.TestCase):
             rp.step_for(rp.ADOPTED, self.TARGET)
 
 
+AGE = "finished_max_age_days"
+GOOD_DIGEST = "5fa01cefcc02203bca455416b220cca79da62c2b281d36bed3c30b4731574fa7"  # GOOD at 8ff4f43
+
+
+def age_only(days, mode="cleanup"):
+    return {"schema_version": 1, "mode": mode, "thresholds": {AGE: days}}
+
+
+class TestAgeKey(Base):
+    def test_the_age_key_is_valid_from_one_to_3650(self):
+        for days in (1, 30, 3650):
+            with self.subTest(days=days):
+                self.assertEqual(self.errors(age_only(days)), [])
+        for days in (0, 3651, True, 1.5, "30"):
+            with self.subTest(days=days):
+                self.assertTrue(self.errors(age_only(days)))
+        self.assertEqual(self.errors(age_only(3651, mode="off")),
+                         [f"thresholds.{AGE} must be from 1 to 3650, not 3651"])
+        self.assertTrue(self.errors({**age_only(30), "schema_version": 2}))
+
+    def test_the_digest_of_a_policy_without_the_key_is_unchanged(self):
+        self.assertEqual(self.digest(GOOD), GOOD_DIGEST)
+        with_key = threshold(**{AGE: 30})
+        self.assertNotEqual(self.digest(with_key), GOOD_DIGEST)
+        self.assertNotEqual(rp.sentence(self.digest(with_key)), rp.sentence(GOOD_DIGEST))
+        self.assertNotEqual(self.digest(with_key), self.digest(threshold(**{AGE: 31})))
+
+    def test_cleanup_mode_may_set_only_the_age_key(self):
+        self.assertEqual(self.errors(age_only(30)), [])
+        self.assertEqual(rp.describe(age_only(30)), "finished age limit 30 days")
+        self.assertEqual(rp.describe(GOOD),
+                         "finished items 10, finished folders 500 MiB, archives 20, "
+                         "prunable archives 5")
+        self.assertEqual(rp.SCHEMA_VERSION, 1)
+
+
 class TestDocs(unittest.TestCase):
     def test_the_page_has_the_section_and_the_exit_codes_row(self):
         page = (REPO_ROOT / "docs/retention.md").read_text()

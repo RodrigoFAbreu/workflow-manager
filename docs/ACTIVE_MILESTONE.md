@@ -2,13 +2,15 @@
 
 ## Milestone
 
-`retention-pins-and-title` -- complete, accepted by policy (`governing_workflow_version: "2.2"`, `process`, plan revision 1, base `72b8e56`, branch `milestone/retention-pins-and-title`): roadmap row 42 (#208, #211). A `test:` pull request title; no release follows.
+`retention-max-age` -- in progress (`governing_workflow_version: "2.2"`, `process`, plan revision 4, base `8ff4f43`, branch `milestone/retention-max-age`): roadmap row 43 (#215). A `feat:` pull request title (`feat: add an age threshold to the retention policy`, Manager 1.19.0); the release-history row follows in a `docs:` pull request.
 
-Three tests pin wording that could drift (the `UNDO_WARNING` literal, the first per-item call of the cannot-start case, the help's exit-1 qualifier), and `docs/retention.md` has a title and `For:` line that cover the report, the policy, the alert and the cleanup. The #208.4 decision: `retention-run-mapping.json` stays as it is, a historical requirement record (KEEP).
+One new optional policy key, `thresholds.finished_max_age_days` (integer, 1 to 3650): finished work items with a review folder, beyond the 3 most recent, whose last transition is more than N days before the report's own `generated_at` count toward the retention alert and are planned by `retention-cleanup`, oldest first, at most 5 per run. An item with no usable last transition is never old.
 
-### CP1: the three pins, the page header and roadmap row 42 -- complete
+### CP1: the policy key and the alert line -- complete (when committed)
 
-- Evidence: M1 to M3 each fail only their own test in a scratch copy; `tools/check_docs.py` exits 0; `src tools .claude scripts .workflow-manager tests/parallel` byte-identical to the base; the full gate on `f357c7a` ran 2406/2406 units, `verdict: exit 0`.
-- Functional review: flows 1 to 8 passed at the approved content; the recorded Optional findings are dispositioned in `docs/ai-workflow/registry/retention-pins-and-title-dispositions.json` and listed in `docs/milestones/completed/retention-pins-and-title-findings.md`.
+- `retention_policy.THRESHOLDS` gains the key (maximum 3650, unit ` days`); `schema_version` stays 1. `retention_alert.aged(report, days)` is the one helper; `evaluate`, `_shown` and `render` special-case the key (label `finished older than N days`, reached at one old item).
+- Tests: T1 to T3 (policy), A1 to A6 (alert). Roadmap row 43 added.
 
-**Next action:** no incomplete milestone remains in `docs/ROADMAP.md` (row 42 is the last); run `/milestone-plan` once the owner names the next item. Follow-ups of this milestone: RodrigoFAbreu/workflow-manager#216.
+### CP2: the cleanup plan and the page -- not started
+
+**Next action:** `/milestone-implement retention-max-age` for CP2.
