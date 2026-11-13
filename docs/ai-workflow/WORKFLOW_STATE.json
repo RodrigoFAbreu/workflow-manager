@@ -34176,7 +34176,7 @@
       "registry_path": "docs/ai-workflow/registry/retention-pins-and-title-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/retention-pins-and-title-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "AWAITING_FUNCTIONAL_REVIEW",
       "plan_revision": 1,
       "implementation_revision": 1,
       "functional_review_round": null,
@@ -34281,7 +34281,102 @@
           "workflow_release": "2.29.3"
         }
       },
-      "technical_approval": null,
+      "technical_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "010fb1ad6a38c1a476f6712071ca2baea1f32d4140e7c85d0e9d48e8900cf607",
+        "approved_review_content_id": "04c6e38ef34edea119bf1a9c1fe66bac151720cdb9cbcebc0af12e8eff6e15b9",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/registry/retention-pins-and-title-artifacts.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "0b6b02224ffb0bfeebcc5a3c0e084557b8556572"
+          },
+          {
+            "path": "docs/retention.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "a8cee9980de10084d770be66bfeabeb79e95ba4a"
+          },
+          {
+            "path": "tests/test_retention_cleanup.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "ae92602fb4dc0e48a50df199ad5099a1ebd3769e"
+          },
+          {
+            "path": "tests/test_retention_run.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "0f53d1d58fb7eed6bf385031cddd22d4dd8f346a"
+          }
+        ],
+        "reviewed_content_commit": "92d2dd6c22e53e695f8d5403b50f6ee852f57e4c",
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-11-13T17:47:55Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "04c6e38ef34edea119bf1a9c1fe66bac151720cdb9cbcebc0af12e8eff6e15b9",
+            "ledger": {
+              "local": {
+                "bundle_id": "010fb1ad6a38c1a476f6712071ca2baea1f32d4140e7c85d0e9d48e8900cf607",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "90e992626a41b759c5be584b842c48e863e8577a56d44f9989980270968682a4",
+                "ledger_entry_sha256": "5be224efd06dd75f336397bddf235bd8d2a707714f26362fa4b94427296764fb",
+                "run_ref": "session:local .ai-review/retention-pins-and-title/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "010fb1ad6a38c1a476f6712071ca2baea1f32d4140e7c85d0e9d48e8900cf607",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "a2560d4d70be0e716b3940b41be28e83065d0c3458181f527abf451f2101ae9d",
+                "ledger_entry_sha256": "79af84d8a7acb8dd96a3d186a8d93268f972883b4e623d442a4caae059ce43e0",
+                "run_ref": "codex:20261113T174425Z-2a36e911",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-11-13T17:47:55Z",
+          "workflow_release": "2.29.3"
+        }
+      },
       "technical_review_block_pins": [],
       "plan_review_stages": {
         "review_content_id": "d6931145ec3d522e4f360658f7bd738af7ada05027ce9eb314c767107de1b6e3",
@@ -34312,12 +34407,12 @@
           "external": 1
         },
         "implementation": {
-          "local": 0,
-          "external": 0
+          "local": 1,
+          "external": 1
         }
       },
-      "state_revision": 12,
-      "last_transition": "2026-11-13T17:26:03Z",
+      "state_revision": 15,
+      "last_transition": "2026-11-13T17:47:55Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -34424,6 +34519,41 @@
               "at": "2026-11-13T17:04:25Z"
             }
           ]
+        },
+        "F-4c10eea99742": {
+          "digest": "4c10eea99742bfb1829095cb31185cd5aca1078ef279f2a1c71f5d9063174ac6",
+          "text": "Four user pages still use the old title `Retention report` as link text to `docs/retention.md` (`docs/README.md:15`, `docs/update.md:53`, `docs/verify.md:40`, `docs/exit-codes.md:11,28`; the last links `#retention-policy` under that text). The plan keeps those pages byte-identical on purpose (flow 2, their stamps) and the link text still describes the linked content, so nothing is false; a later docs pass could align the link text with the new title.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "04c6e38ef34edea119bf1a9c1fe66bac151720cdb9cbcebc0af12e8eff6e15b9",
+              "verdict": "APPROVE",
+              "at": "2026-11-13T17:43:38Z"
+            }
+          ]
+        }
+      },
+      "implementation_review_stages": {
+        "review_content_id": "04c6e38ef34edea119bf1a9c1fe66bac151720cdb9cbcebc0af12e8eff6e15b9",
+        "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "010fb1ad6a38c1a476f6712071ca2baea1f32d4140e7c85d0e9d48e8900cf607",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-11-13T17:43:38Z",
+          "verdict_sha256": "90e992626a41b759c5be584b842c48e863e8577a56d44f9989980270968682a4",
+          "run_ref": "session:local .ai-review/retention-pins-and-title/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "010fb1ad6a38c1a476f6712071ca2baea1f32d4140e7c85d0e9d48e8900cf607",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-11-13T17:47:05Z",
+          "verdict_sha256": "a2560d4d70be0e716b3940b41be28e83065d0c3458181f527abf451f2101ae9d",
+          "run_ref": "codex:20261113T174425Z-2a36e911",
+          "reviewer_model": "openai/gpt-6.1-sol"
         }
       }
     }
