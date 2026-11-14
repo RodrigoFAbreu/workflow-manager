@@ -266,31 +266,56 @@ def render(state, results: list[Result], report: dict, version, target: Path) ->
     return lines
 
 
-def alert_lines(target: Path, version, script_state, outcome=None) -> list[str]:
-    """The alert's lines (none unless the policy is adopted with mode `notify` or
-    `both`, and then none when every threshold is within). `script_state` is a
-    zero-argument callable, called only for an alerting policy and inside this
-    one exception boundary. `outcome` is a report the caller already fetched."""
+@dataclass(frozen=True)
+class Assessment:
+    """What the alert decided: the policy state, why nothing was evaluated
+    (`(cause, step)`, else `None`), the results and the report they came from.
+    An unalerting policy has neither a cause nor results."""
+    state: retention_policy.PolicyState
+    not_evaluated: tuple[str, str] | None = None
+    results: tuple = ()
+    report: dict | None = None
+
+
+def assess(target: Path, script_state, outcome=None) -> Assessment:
+    """The one assessment the text and the JSON alert both render: the policy
+    gate (read locally; nothing is started unless `alerting`), the script check,
+    the fetch, `evaluate`, and one exception boundary. `script_state` is a
+    zero-argument callable, called only for an alerting policy. `outcome` is a
+    report the caller already fetched."""
     state = retention_policy.load(target)
     if not alerting(state):
-        return []
+        return Assessment(state)
     try:
         flag = script_state()
         if flag == SCRIPT_NO_RELEASE:
-            return _not_evaluated(
+            return Assessment(state, (
                 CAUSE_NO_RELEASE,
                 f"{retention.PROGRAM} --release-version X.Y.Z update {shlex.quote(str(target))} "
-                f"({retention.PROGRAM} releases lists them)")
+                f"({retention.PROGRAM} releases lists them)"))
         if flag == SCRIPT_UNCHECKED:
-            return _not_evaluated(CAUSE_UNCHECKED, STEP_UNCHECKED)
+            return Assessment(state, (CAUSE_UNCHECKED, STEP_UNCHECKED))
         if flag != SCRIPT_OK:
-            return _not_evaluated(
-                CAUSE_MODIFIED, f"{retention.PROGRAM} update {shlex.quote(str(target))} --force")
+            return Assessment(state, (
+                CAUSE_MODIFIED, f"{retention.PROGRAM} update {shlex.quote(str(target))} --force"))
         if outcome is None:
             outcome = retention.fetch(target)
         if outcome.report is None:
-            return _not_evaluated(outcome.refusal.cause, outcome.refusal.step)
-        results = evaluate(state, outcome.report)
-        return render(state, results, outcome.report, version, target)
+            return Assessment(state, (outcome.refusal.cause, outcome.refusal.step))
+        return Assessment(state, None, tuple(evaluate(state, outcome.report)), outcome.report)
     except Exception as exc:  # one boundary: the alert never changes an exit code
+        return Assessment(state, (type(exc).__name__, retention.STEP_RUN_DIRECTLY))
+
+
+def alert_lines(target: Path, version, script_state, outcome=None) -> list[str]:
+    """The alert's lines (none unless the policy is adopted with mode `notify` or
+    `both`, and then none when every threshold is within)."""
+    found = assess(target, script_state, outcome)
+    if not alerting(found.state):
+        return []
+    if found.not_evaluated is not None:
+        return _not_evaluated(*found.not_evaluated)
+    try:
+        return render(found.state, list(found.results), found.report, version, target)
+    except Exception as exc:  # the same boundary: an exception is a `not evaluated` line
         return _not_evaluated(type(exc).__name__, retention.STEP_RUN_DIRECTLY)
