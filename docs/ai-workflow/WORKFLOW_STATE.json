@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_work_item_id": null,
+  "active_work_item_id": "retention-alert-json",
   "work_items": {
     "plan-amendment-mechanism": {
       "work_item_type": "process",
@@ -36474,6 +36474,417 @@
         },
         "evaluated_at": "2026-11-14T03:06:33Z",
         "workflow_release": "2.29.3"
+      }
+    },
+    "retention-alert-json": {
+      "work_item_type": "process",
+      "work_item_kind": "process",
+      "work_item_id": "retention-alert-json",
+      "parent_work_item_id": null,
+      "plan_path": "docs/ai-workflow/WORKFLOW_MANAGER_RETENTION_ALERT_JSON_PLAN.md",
+      "registry_path": "docs/ai-workflow/registry/retention-alert-json-registry.json",
+      "mapping_path": "docs/ai-workflow/requirements/retention-alert-json-mapping.json",
+      "governing_workflow_version": "2.2",
+      "phase": "IMPLEMENTING",
+      "plan_revision": 3,
+      "implementation_revision": null,
+      "functional_review_round": null,
+      "base_commit": "84e6e3fb4edf7b01e0c4cbbb30f4f7b89935fb74",
+      "reviewed_implementation_head": null,
+      "current_checkpoint_id": null,
+      "last_completed_checkpoint_id": null,
+      "checkpoints": {},
+      "current_bundle_id": "edbca370391f2dd16f07ed2d08b235b51af169b8931d78e2c3748a47c1957074",
+      "plan_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "edbca370391f2dd16f07ed2d08b235b51af169b8931d78e2c3748a47c1957074",
+        "approved_review_content_id": "138d725a9f11c9304e4fdf18ac21a0bced2530570ae9bfd896851fba472aa2c8",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/WORKFLOW_MANAGER_RETENTION_ALERT_JSON_PLAN.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "4a789d56824ae30791855c14e0cf96f5de46fa3e"
+          },
+          {
+            "path": "docs/ai-workflow/registry/retention-alert-json-registry.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "206b5fc4b0353bf836139f14f8eb83b898786b66"
+          },
+          {
+            "path": "docs/ai-workflow/requirements/retention-alert-json-mapping.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "12b029088e50a63da43751cec3fa13ff1811c204"
+          }
+        ],
+        "reviewed_content_commit": null,
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-11-14T04:16:00Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "138d725a9f11c9304e4fdf18ac21a0bced2530570ae9bfd896851fba472aa2c8",
+            "ledger": {
+              "local": {
+                "bundle_id": "edbca370391f2dd16f07ed2d08b235b51af169b8931d78e2c3748a47c1957074",
+                "verdict": "APPROVE",
+                "round": 4,
+                "verdict_sha256": "366781ea4292bbd52d3cee2b69d709ae58fdd6554ce16c8318851a8fa42f4fbc",
+                "ledger_entry_sha256": "0a5bbd44523c29e8fe22baa82fcc57f888e2930b4a3f0c1f1eb21d7154a63258",
+                "run_ref": "session:local .ai-review/retention-alert-json/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "edbca370391f2dd16f07ed2d08b235b51af169b8931d78e2c3748a47c1957074",
+                "verdict": "APPROVE",
+                "round": 4,
+                "verdict_sha256": "573e22e977e4eb1dfe5d4f640fe40c149013e171520de0bd88353c68d2665a32",
+                "ledger_entry_sha256": "6f729262ffea320b8ae8df6c8319b45f13155349ab1891a0f92bc6d82a45196c",
+                "run_ref": "codex:20261114T041309Z-c71721b8",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-11-14T04:16:00Z",
+          "workflow_release": "2.29.3"
+        }
+      },
+      "technical_approval": null,
+      "technical_review_block_pins": [],
+      "plan_review_stages": {
+        "review_content_id": "138d725a9f11c9304e4fdf18ac21a0bced2530570ae9bfd896851fba472aa2c8",
+        "LOCAL_MODEL_PLAN_REVIEW": {
+          "bundle_id": "edbca370391f2dd16f07ed2d08b235b51af169b8931d78e2c3748a47c1957074",
+          "verdict": "APPROVE",
+          "round": 4,
+          "completed_at": "2026-11-14T04:12:19Z",
+          "verdict_sha256": "366781ea4292bbd52d3cee2b69d709ae58fdd6554ce16c8318851a8fa42f4fbc",
+          "run_ref": "session:local .ai-review/retention-alert-json/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_PLAN_REVIEW": {
+          "bundle_id": "edbca370391f2dd16f07ed2d08b235b51af169b8931d78e2c3748a47c1957074",
+          "verdict": "APPROVE",
+          "round": 4,
+          "completed_at": "2026-11-14T04:14:45Z",
+          "verdict_sha256": "573e22e977e4eb1dfe5d4f640fe40c149013e171520de0bd88353c68d2665a32",
+          "run_ref": "codex:20261114T041309Z-c71721b8",
+          "reviewer_model": "openai/gpt-6.1-sol"
+        }
+      },
+      "functional_acceptance_status": null,
+      "blocking_decisions": [],
+      "review_round_counts": {
+        "plan": {
+          "local": 4,
+          "external": 2
+        },
+        "implementation": {
+          "local": 0,
+          "external": 0
+        }
+      },
+      "state_revision": 16,
+      "last_transition": "2026-11-14T04:16:00Z",
+      "feedback_layout": "scoped",
+      "plan_review_binding": {
+        "status": "BOUND",
+        "at": "2026-11-14T04:09:32Z",
+        "consumed": {
+          "review_content_id": "26c1a54a95ef3b0b92da72050f28e2f04a4610fca6d8b288c753560f089baec4",
+          "plan_revision": 3,
+          "legacy": false
+        },
+        "published": {
+          "review_content_id": "138d725a9f11c9304e4fdf18ac21a0bced2530570ae9bfd896851fba472aa2c8",
+          "plan_revision": 3
+        },
+        "bound": {
+          "review_content_id": "138d725a9f11c9304e4fdf18ac21a0bced2530570ae9bfd896851fba472aa2c8",
+          "bundle_id": "edbca370391f2dd16f07ed2d08b235b51af169b8931d78e2c3748a47c1957074",
+          "plan_revision": 3
+        }
+      },
+      "consumed_plan_review_content_ids": [
+        "26c1a54a95ef3b0b92da72050f28e2f04a4610fca6d8b288c753560f089baec4",
+        "5c8a4a5eebf9634750ec0c23b3fbf3c83c7b8fbd407ee1227ee5be53248ae120",
+        "b6280436b39e0494adab47e4e2f03f9db90c12a198f5b301256599b9aeb52912"
+      ],
+      "optional_findings": {
+        "F-ed38a37e8faf": {
+          "digest": "ed38a37e8faf7f2b7165b060cd957b69344f4af88fb7ef5769f84c44522ca111",
+          "text": "**LPR1-003:** Section 1 line references are stale. Point 1 cites `retention._validate` at `retention.py:226-250` (it is at 240-279), and point 5 cites `alert_lines` at `:244-270` (`render` starts at 231 and `alert_lines` at 269-296).",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "b6280436b39e0494adab47e4e2f03f9db90c12a198f5b301256599b9aeb52912",
+              "verdict": "REVISE",
+              "at": "2026-11-14T03:55:00Z"
+            }
+          ]
+        },
+        "F-486b7e02f302": {
+          "digest": "486b7e02f30238b5044c9ed6a38729598bdc7b550ba8ebed661140a49f55bf03",
+          "text": "**LPR1-004:** Section 2.4 says \"a new key exactly when a reached value changes\". The key also changes when `lower_bound` flips with the same number (`:12` to `:12+`), and it does not change for a byte change inside the same MiB. \"Exactly when the printed value changes\" is the precise claim, and the page and K1 should say that.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "b6280436b39e0494adab47e4e2f03f9db90c12a198f5b301256599b9aeb52912",
+              "verdict": "REVISE",
+              "at": "2026-11-14T03:55:00Z"
+            }
+          ]
+        },
+        "F-762051a99e41": {
+          "digest": "762051a99e41a691bf23f34949c1fae66373c7dce081e92b655457c4525b5133",
+          "text": "**LPR1-005:** Per rule, `next` is `_step`. On an incomplete report (J3), the text's `next:` line also appends `retention.STEP_INCOMPLETE`, and the document carries that step nowhere. Either give the page a sentence saying a consumer reads `report_complete: false` as \"fix what is named, then run again\", or put the step in a document-level field.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "b6280436b39e0494adab47e4e2f03f9db90c12a198f5b301256599b9aeb52912",
+              "verdict": "REVISE",
+              "at": "2026-11-14T03:55:00Z"
+            }
+          ]
+        },
+        "F-d2b51113004d": {
+          "digest": "d2b51113004d179429039f9069e586f283733f6351635962d0eba9ccd81e4fac",
+          "text": "**LPR1-006:** Section 5 says `tests/parallel/resources.json` \"lists no test file by name\". It does name test files (`host:test_parallel_runner.py::...`). The intended claim is that the new test file needs no entry there.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "b6280436b39e0494adab47e4e2f03f9db90c12a198f5b301256599b9aeb52912",
+              "verdict": "REVISE",
+              "at": "2026-11-14T03:55:00Z"
+            }
+          ]
+        },
+        "F-00a216043be2": {
+          "digest": "00a216043be2e4f5e477502c4537333e0b9b3303f211bf4315b2736804844c12",
+          "text": "**LPR1-007:** CP1's `--select` list names `test_docs.py` and `test_operator_ux_docs.py`, but section 5's run-only list does not. The declaration gate does not read them (bare names in prose), so this is only a consistency point.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "b6280436b39e0494adab47e4e2f03f9db90c12a198f5b301256599b9aeb52912",
+              "verdict": "REVISE",
+              "at": "2026-11-14T03:55:00Z"
+            }
+          ]
+        },
+        "F-5d2398f8feaa": {
+          "digest": "5d2398f8feaa868be1ab979ade7fb2ad6444a9ab7e8c51c99eef28af92bf021d",
+          "text": "**LPR1-008:** `alert_key` embeds a path that may contain `:`. The page should say the key is an opaque identity string and that a consumer never parses it.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "b6280436b39e0494adab47e4e2f03f9db90c12a198f5b301256599b9aeb52912",
+              "verdict": "REVISE",
+              "at": "2026-11-14T03:55:00Z"
+            }
+          ]
+        },
+        "F-17e654fa652d": {
+          "digest": "17e654fa652d9b57cc6bd53a4e93de6bb49555675849d20ff64c10afd59f5252",
+          "text": "**LPR2-001: section 5's new run-only sentence is not in the declaration.** Revision 2 says `tests/test_docs.py` and `tests/test_operator_ux_docs.py` \"are excluded at both stages\". `retention-alert-json-artifacts.json` lists them at neither stage, and no prefix covers them. Nothing fails today: neither file is edited, and an unclassified path fails closed if one ever is. But the reviewed text claims a declaration that does not exist. Add the two `excluded_paths` entries at both stages, or reword the sentence to \"named only to run, not declared\".",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "5c8a4a5eebf9634750ec0c23b3fbf3c83c7b8fbd407ee1227ee5be53248ae120",
+              "verdict": "APPROVE",
+              "at": "2026-11-14T03:58:55Z"
+            }
+          ]
+        },
+        "F-9b7bc12a9a5d": {
+          "digest": "9b7bc12a9a5dc05e67f39bb94fc1d009ea9b437dd4072e3de392471ad2ed1051",
+          "text": "**LPR2-002: the `--manager-root` refusal's stderr, and the order of the refusals.** `main` prints `MANAGER_ROOT_DEPRECATION` (`cli.py:1269-1270`) before dispatch. So `doctor --retention --json --manager-root DIR` writes two stderr lines: the deprecation line and the one `error:` line. X1 should assert exactly that, not \"one line\". The plan also does not say whether the release-option refusal comes before or after the not-managed and unparseable-record refusals when both apply. Name the order, so that the X1 goldens are not decided by the implementation.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "5c8a4a5eebf9634750ec0c23b3fbf3c83c7b8fbd407ee1227ee5be53248ae120",
+              "verdict": "APPROVE",
+              "at": "2026-11-14T03:58:55Z"
+            }
+          ]
+        },
+        "F-a72182bdf601": {
+          "digest": "a72182bdf60173f94fdfe0a109c5c2a84f021c4ef2b98d1ad630c28392fae71a",
+          "text": "**LPR2-003: M5 may not be detectable with the planned fixtures.** M5 takes the exit code from the compatibility report. X1 catches it only if one fixture's text `doctor` exits 1, that is, if the compatibility report has a blocked or warning finding. Add one such fixture to X1 (for example, a drifted managed file), where the text command exits 1 and `--json` still exits 0.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "5c8a4a5eebf9634750ec0c23b3fbf3c83c7b8fbd407ee1227ee5be53248ae120",
+              "verdict": "APPROVE",
+              "at": "2026-11-14T03:58:55Z"
+            }
+          ]
+        },
+        "F-9053eb344919": {
+          "digest": "9053eb3449198806dc4fe6b365ee9f7f8cd390cd443433a68fb4f3312522254c",
+          "text": "**LPR2-004: two not-evaluated causes from section 2.2 have no J6 or S1 case.** The two causes are an exception and a timed-out report. Add these to J6 and S1:\n  - a `script_state` callable or a report that makes `assess` raise, giving `not_evaluated.cause` = the type name and `next` = `retention.STEP_RUN_DIRECTLY`;\n  - a raise inside `document()`'s own rendering boundary (section 2.6).\n\n  Section 2.6 defines both boundaries, and the current J6 list proves neither.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "5c8a4a5eebf9634750ec0c23b3fbf3c83c7b8fbd407ee1227ee5be53248ae120",
+              "verdict": "APPROVE",
+              "at": "2026-11-14T03:58:55Z"
+            }
+          ]
+        },
+        "F-525cd7f54b1e": {
+          "digest": "525cd7f54b1efc074cab0a0ba78f5528efce9279d18ff9827b589b535e04ace1",
+          "text": "**LPR2-005: `next` embeds the target as typed, but `repo` is resolved.** `_step`, `_prune_step` and the no-release step use `shlex.quote(str(target))`. So the document's bytes depend on how the caller spells the target (relative or absolute), while `alert_key` does not. The document still matches the text verbatim, and the goldens are still byte-stable for one spelling. The page should say that `next` names the target as given and that `alert_key`/`repo` are the identity.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "5c8a4a5eebf9634750ec0c23b3fbf3c83c7b8fbd407ee1227ee5be53248ae120",
+              "verdict": "APPROVE",
+              "at": "2026-11-14T03:58:55Z"
+            }
+          ]
+        },
+        "F-76b27af70886": {
+          "digest": "76b27af70886374ff1ca709629673fd5d3d7b14d77944041efd15359a8fa8ec0",
+          "text": "**EPR2-002 — Mutation M1 overstates its fail set.** Renaming an alert-entry key cannot affect J5 or reportless J6 documents, whose `alerts` arrays are empty. Specify a common top-level key for M1, or make its expected failures depend on the mutated field.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "MANUAL_EXTERNAL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "5c8a4a5eebf9634750ec0c23b3fbf3c83c7b8fbd407ee1227ee5be53248ae120",
+              "verdict": "REVISE",
+              "at": "2026-11-14T04:03:23Z"
+            }
+          ]
+        },
+        "F-812c2f79f602": {
+          "digest": "812c2f79f602faad0aeddc0f1401c34dcf6a5b7ac0bcf2ca44e04459bd53205d",
+          "text": "**EPR2-003 — Two run-only exclusions are missing.** Section 5 says `tests/test_docs.py` and `tests/test_operator_ux_docs.py` are excluded at both stages, but the artifact declaration contains neither entry nor a covering prefix. Add the entries or correct the sentence.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "MANUAL_EXTERNAL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "5c8a4a5eebf9634750ec0c23b3fbf3c83c7b8fbd407ee1227ee5be53248ae120",
+              "verdict": "REVISE",
+              "at": "2026-11-14T04:03:23Z"
+            }
+          ]
+        },
+        "F-2d48fca06943": {
+          "digest": "2d48fca06943f1408a5891e69406e96ae12953303951862e2d45912dc1e6a15c",
+          "text": "**LPR3-002 — E1's \"`reached` absent from `alerts`\" is literally false for J4.** Section 2.1 says every key is always present. The incomplete-and-nothing-reached case (J4, `not_evaluated`) carries `alerts` whose entries all have `state: unknown` and, per section 2.1, `reached: false`. The intended assertion is \"no entry has `reached: true`\" (no false all-clear and no false alarm in a not-evaluated document). As written, a literal implementer would either fail J4 or drop the key, which contradicts section 2.1. Reword E1 as \"no alert entry has `reached: true`\".",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 3,
+              "review_content_id": "26c1a54a95ef3b0b92da72050f28e2f04a4610fca6d8b288c753560f089baec4",
+              "verdict": "REVISE",
+              "at": "2026-11-14T04:07:56Z"
+            }
+          ]
+        },
+        "F-3d8acd6663f0": {
+          "digest": "3d8acd6663f0058230f91ad842e3a41c9573f0363cb88438570ba45b0ef5508a",
+          "text": "**LPR4-001 — Section 8's first bullet is garbled after the LPR3-001 edit.** It reads \"`state` has three values and the a Controller observes changes between two complete snapshots\". The owner reads this sentence before deciding whether to veto. Drop \"the\" so it reads \"`state` has three values, and a Controller observes changes ...\".",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 4,
+              "review_content_id": "138d725a9f11c9304e4fdf18ac21a0bced2530570ae9bfd896851fba472aa2c8",
+              "verdict": "APPROVE",
+              "at": "2026-11-14T04:12:19Z"
+            }
+          ]
+        },
+        "F-2c0771dcc2ce": {
+          "digest": "2c0771dcc2ce9e26677bf4e8f23f9feb83f5be5affee3e573ca73c64623630af",
+          "text": "**LPR4-002 — The rule order in section 1 point 7 and the section 2.5 table is not `THRESHOLDS` order.** `retention_policy.THRESHOLDS` (`retention_policy.py:37-43`) is `finished_items`, `finished_folder_mib`, `finished_max_age_days`, `archives`, `prunable_archives`. Both places put the age rule last. Section 2.2 correctly says `alerts` follow `THRESHOLDS` order, and `evaluate` iterates that dict, so J1 will have the age entry third. A table read as the expected order would make the J1 golden wrong. Add one clause to 2.5 saying the table is not the emitted order, or reorder the table.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 4,
+              "review_content_id": "138d725a9f11c9304e4fdf18ac21a0bced2530570ae9bfd896851fba472aa2c8",
+              "verdict": "APPROVE",
+              "at": "2026-11-14T04:12:19Z"
+            }
+          ]
+        },
+        "F-b3d58e10d08c": {
+          "digest": "b3d58e10d08c89b8e39a7c985c722adcbc849554d2155f3a42e058a0faa0f4cf",
+          "text": "**LPR4-003 — R1 says `status` is byte-identical, but the plan never checks it.** R1 says \"the text of doctor, verify and status is byte-identical to the base\". The text golden (section 3) and flow 5 compare only `verify` and `doctor`. `status` imports nothing touched, so the risk is nil. Either drop `status` from R1 at the next amendment, or add it to the flow 5 driver.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 4,
+              "review_content_id": "138d725a9f11c9304e4fdf18ac21a0bced2530570ae9bfd896851fba472aa2c8",
+              "verdict": "APPROVE",
+              "at": "2026-11-14T04:12:19Z"
+            }
+          ]
+        }
       }
     }
   }

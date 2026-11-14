@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "work_item_id": "retention-alert-json",
+  "requirements": {
+    "R1": {
+      "description": "doctor --retention --json prints one documented JSON document (kind retention_alert, schema_version 1, every key always present) and nothing else on stdout; without --json the text of doctor, verify and status is byte-identical to the base.",
+      "checkpoint_ids": [
+        "CP1",
+        "CP2"
+      ]
+    },
+    "R2": {
+      "description": "evaluation is evaluated, not_evaluated or not_applicable and never reads as clear when the report was not had, the policy is absent, off, cleanup, changed or not adopted, or the report is incomplete with nothing reached; the not-evaluated cause and next equal the text alert's.",
+      "checkpoint_ids": [
+        "CP1",
+        "CP2"
+      ]
+    },
+    "R3": {
+      "description": "Every threshold the policy sets is one alert entry with rule, threshold, current_value, units, lower_bound, unknown_age (age rule), reached, state (reached, clear or unknown) and a stable alert_key of repository, rule, state and, for reached only, the printed value bucket; the age rule and its unknown-age and at-least cases are mapped.",
+      "checkpoint_ids": [
+        "CP1",
+        "CP2"
+      ]
+    },
+    "R4": {
+      "description": "The Manager stays stateless: no archived or deleted state is emitted; a snapshot of current facts (archived_and_removed ids, counts, bytes, interrupted removals) is reported as observation, and the pages say that a difference between two complete snapshots is a change of uncertain cause (membership also moves when an item leaves the recent set or its family opens), never a proven archival, removal or deletion; incomplete observations derive nothing.",
+      "checkpoint_ids": [
+        "CP1",
+        "CP2"
+      ]
+    },
+    "R5": {
+      "description": "Exit code is 0 whenever the document is printed; the existing pre-evaluation refusals of doctor keep their exit 2 and messages; nothing is written in the repository; --json without --retention is refused.",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R6": {
+      "description": "docs/retention.md and docs/exit-codes.md pin the shape and the exit rule, roadmap row 45 is added, and the other product code is byte-identical.",
+      "checkpoint_ids": [
+        "CP2"
+      ]
+    }
+  }
+}
