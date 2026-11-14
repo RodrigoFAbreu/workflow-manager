@@ -59,6 +59,8 @@ def incomplete(report: dict) -> bool:
 AGE_KEY = "finished_max_age_days"
 _TIMESTAMP = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z")
 DAY = 86400
+_ID = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")  # the engine's pattern, applied with fullmatch
+RESERVED_IDS = ("runtime", "archive")
 
 
 def _moment(value) -> datetime | None:
@@ -92,6 +94,12 @@ def aged(report: dict, days: int) -> tuple[list[str], int]:
         elif (now - then).total_seconds() > days * DAY:
             old.append(entry["work_item_id"])
     return old, unknown
+
+
+def plannable_id(identifier: str) -> bool:
+    """Whether the engine accepts the id; the alert's step and the cleanup's plan
+    share this one rule, so they cannot disagree on it."""
+    return _ID.fullmatch(identifier) is not None and identifier not in RESERVED_IDS
 
 
 def _measured(key: str, report: dict) -> int:
@@ -178,8 +186,26 @@ def _prune_step(version, target: Path) -> str:
             "--apply` for each")
 
 
+def _age_step(report: dict, days: int, version, target: Path) -> str:
+    """The step for the age threshold: the oldest old item (the 3 newest never
+    count) with a plannable id for which the script has a command, as the cleanup
+    plan's first item would be. An item `retention.next_step` names no command for
+    (tracked, unreadable archive, in `removing`) is passed over; when none is left
+    the answer is `nothing to archive`, never a young item."""
+    old, _ = aged(report, days)
+    candidates = [e for e in reversed(report["finished"])
+                  if e["work_item_id"] in old and plannable_id(e["work_item_id"])]
+    for entry in candidates:
+        step = retention.next_step({**report, "finished": [entry]}, version, target)
+        if not step.startswith("nothing to archive"):
+            return step
+    return retention.next_step({**report, "finished": candidates}, version, target)
+
+
 def _step(result: Result, report: dict, version, target: Path) -> str:
-    if result.key in ("finished_items", "finished_folder_mib", AGE_KEY):
+    if result.key == AGE_KEY:
+        return _age_step(report, result.limit, version, target)
+    if result.key in ("finished_items", "finished_folder_mib"):
         return retention.next_step(report, version, target)
     if result.key == "prunable_archives" or report["totals"]["prunable"] > 0:
         return _prune_step(version, target)

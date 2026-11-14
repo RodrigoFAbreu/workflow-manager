@@ -1,0 +1,50 @@
+{
+ "schema_version": 1,
+ "work_item_id": "age-alert-next-step",
+ "dispositions": {
+  "F-3092203875dc": {
+   "disposition": "follow-up",
+   "link": "https://github.com/RodrigoFAbreu/workflow-manager/issues/222"
+  },
+  "F-7b01368c025d": {
+   "disposition": "follow-up",
+   "link": "https://github.com/RodrigoFAbreu/workflow-manager/issues/222"
+  },
+  "F-99fdd10b2348": {
+   "disposition": "follow-up",
+   "link": "https://github.com/RodrigoFAbreu/workflow-manager/issues/222"
+  },
+  "F-3ffa998ca314": {
+   "disposition": "dropped",
+   "reason": "Plan text only: the accuracy of a grep description in plan section 3; no effect on shipped code, tests or docs."
+  },
+  "F-f2238669b7bc": {
+   "disposition": "dropped",
+   "reason": "Plan text only: the failure set in the table is right and no shipped code, test or doc is affected."
+  },
+  "F-7310ec480b8b": {
+   "disposition": "fixed",
+   "note": "Plan flow 5 now says only the next: line differs, by the age step."
+  },
+  "F-80331575a6d0": {
+   "disposition": "fixed",
+   "note": "Plan section 2.1 states what the cleanup plans for the three skipped kinds."
+  },
+  "F-a7ef00ecee10": {
+   "disposition": "fixed",
+   "note": "Plan N2 states what the release-below-2.21.0 scenario asserts."
+  },
+  "F-dea883f38014": {
+   "disposition": "fixed",
+   "note": "Plan flow 5 describes the scratch driver."
+  },
+  "F-dfbf8e966589": {
+   "disposition": "fixed",
+   "note": "Plan CP1 says row 44 is already added at planning."
+  },
+  "F-ecd8500ed5e3": {
+   "disposition": "fixed",
+   "note": "N9 and M9 pin the plannable_id filter against the cleanup's first item."
+  }
+ }
+}

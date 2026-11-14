@@ -31,7 +31,7 @@ from support import NEWEST_RELEASE, REPO_ROOT, TESTED_VERSIONS, pinned_env
 import test_retention_status as rs
 from frozen_runs import build_bootstrapped_repo
 from test_operator_ux import tree_hash
-from workflow_manager import cli, retention, retention_alert as ra, retention_policy as rp
+from workflow_manager import cli, retention, retention_alert as ra, retention_cleanup as rc, retention_policy as rp
 
 SCRIPT = rs.SCRIPT
 POLICY = {"schema_version": 1, "mode": "notify",
@@ -213,7 +213,8 @@ class TestAge(unittest.TestCase):
             return ra.render(st, ra.evaluate(st, rep), rep, "2.25.0", target)
 
         header = "retention alert: 1 of 1 thresholds reached (mode notify, policy abababababab)"
-        step = "  next: " + retention.next_step(rs.report(*old), "2.25.0", target)
+        # report order is newest first: old-3 is the oldest, so the age step names it
+        step = "  next: " + archive_text("old-3")
         self.assertEqual(block(age_state(), rs.report(*old, young)), [
             header, "  finished older than 30 days: 4 items: reached", step])
         self.assertEqual(block(age_state(), rs.report(*old, *unknown)), [
@@ -244,6 +245,110 @@ class TestAge(unittest.TestCase):
         within = ra.evaluate(age_state(), rs.report(young))[0]
         self.assertEqual((within.status, within.lower_bound), (ra.WITHIN, False))
         self.assertEqual(ra.evaluate(age_state(), None)[0].status, ra.UNKNOWN)
+
+
+def archive_text(item):
+    return (f"in the repository, run `python3 -I scripts/workflow_retention.py archive {item} "
+            "--apply` (run it without `--apply` first for a dry run)")
+
+
+def remove_text(item):
+    return f"in the repository, run `python3 -I scripts/workflow_retention.py remove {item} --apply`"
+
+
+def old_entry(item_id, *, when="2026-01-01T00:00:00Z", archive=False, readable=True, tracked=0,
+              folder=True):
+    entry = aged_entry(item_id, when, folder=folder)
+    entry["review_folder"]["tracked_files"] = tracked
+    entry["archive"].update(present=archive, readable=readable)
+    return entry
+
+
+def next_line(state_, rep, version="2.25.0"):
+    lines = ra.render(state_, ra.evaluate(state_, rep), rep, version, Path("/scratch/repo"))
+    return lines[-1]
+
+
+class TestAgeStep(unittest.TestCase):
+    """The age line's `next:` step names what `retention_cleanup` would plan first."""
+
+    def first_planned(self, rep):
+        return rc.select(age_state(mode="both"), rep).items[0]
+
+    def test_a_young_item_first_in_report_order_is_never_named(self):
+        young = old_entry("young", when="2026-10-26T00:00:00Z")
+        rep = rs.report(young, old_entry("old-a"), old_entry("old-b"))
+        self.assertEqual(next_line(age_state(), rep), "  next: " + archive_text("old-b"))
+        self.assertEqual(self.first_planned(rep).work_item_id, "old-b")
+
+    def test_the_step_is_the_cleanups_first_item_and_action(self):
+        young = old_entry("young", when="2026-10-26T00:00:00Z")
+        scenarios = {
+            "archived": (rs.report(young, old_entry("old-b"), old_entry("old-a", archive=True)),
+                         remove_text("old-a")),
+            "tracked": (rs.report(young, old_entry("old-b"), old_entry("old-a", tracked=1)),
+                        archive_text("old-b")),
+            "kept-recent": (rs.report(young, old_entry("old-a"), old_entry("item-4")),
+                            archive_text("old-a")),
+            "unknown-age": (rs.report(young, old_entry("old-a"), old_entry("odd", when=None)),
+                            archive_text("old-a")),
+            "runtime": (rs.report(young, old_entry("old-a"), old_entry("runtime")),
+                        archive_text("old-a")),
+            "Bad_ID": (rs.report(young, old_entry("old-a"), old_entry("Bad_ID")),
+                       archive_text("old-a")),
+        }
+        for name, (rep, text) in scenarios.items():
+            with self.subTest(name=name):
+                self.assertEqual(next_line(age_state(), rep), "  next: " + text)
+                first = self.first_planned(rep)
+                verb = "remove" if first.action == rc.REMOVE_ONLY else "archive"
+                self.assertIn(f"workflow_retention.py {verb} {first.work_item_id} --apply", text)
+        rep = rs.report(young, old_entry("old-b"), old_entry("old-a"))
+        line = next_line(age_state(), rep, version="2.20.0")
+        self.assertTrue(line.startswith("  next: this Workflow release has no `archive` command; "))
+        self.assertEqual(self.first_planned(rep).action, rc.ARCHIVE_THEN_REMOVE)
+
+    def test_a_tracked_oldest_item_is_passed_over(self):
+        rep = rs.report(old_entry("old-b"), old_entry("old-a", tracked=1))
+        self.assertEqual(next_line(age_state(), rep), "  next: " + archive_text("old-b"))
+
+    def test_both_rules_reached_print_two_steps_unless_they_agree(self):
+        both = age_state(finished_items=1)
+        young = old_entry("young", when="2026-10-26T00:00:00Z")
+        rep = rs.report(young, old_entry("old-a"))
+        self.assertEqual(next_line(both, rep),
+                         f"  next: {archive_text('young')}; {archive_text('old-a')}")
+        rep = rs.report(old_entry("young", when="2026-10-26T00:00:00Z", archive=True),
+                        old_entry("old-a"))
+        self.assertEqual(next_line(both, rep), "  next: " + archive_text("old-a"))
+
+    def test_no_eligible_old_item_says_so_and_never_names_a_young_one(self):
+        young = old_entry("young", when="2026-10-26T00:00:00Z")
+        rep = rs.report(young, old_entry("old-a", tracked=1))
+        self.assertEqual(next_line(age_state(), rep),
+                         "  next: nothing to archive: 1 finished work item has tracked review "
+                         "files; the script archives and removes only untracked folders")
+
+    def test_an_old_item_the_script_cannot_act_on_is_passed_over(self):
+        young = old_entry("young", when="2026-10-26T00:00:00Z")
+        cases = {
+            "(a) no folder": rs.report(old_entry("old-b"), old_entry("old-a", folder=False,
+                                                                     readable=False)),
+            "(b) unreadable archive": rs.report(old_entry("old-b"),
+                                                old_entry("old-a", readable=False)),
+            "(d) interrupted removal": rs.report(old_entry("old-b"),
+                                                 old_entry("old-a", archive=True),
+                                                 removing=["old-a"]),
+        }
+        for name, rep in cases.items():
+            with self.subTest(name=name):
+                self.assertEqual(next_line(age_state(), rep), "  next: " + archive_text("old-b"))
+        pinned = cases["(b) unreadable archive"]
+        self.assertEqual(self.first_planned(pinned).work_item_id, "old-a")
+        pinned = cases["(a) no folder"]
+        self.assertEqual(self.first_planned(pinned).work_item_id, "old-b")
+        only = rs.report(young, old_entry("old-a", readable=False))
+        self.assertEqual(next_line(age_state(), only), "  next: nothing to archive")
 
 
 class Base(rs.Scratch):
@@ -785,6 +890,19 @@ class TestNothingElse(Base):
             self.assertEqual(tree_hash(self.repo), before)
 
 
+class TestAgeStepEndToEnd(Base):
+    def test_verify_prints_the_old_item_and_writes_nothing(self):
+        self.adopt({"schema_version": 1, "mode": "notify",
+                    "thresholds": {AGE: 30}})
+        rep = rs.report(old_entry("young", when="2026-10-26T00:00:00Z"), old_entry("old-a"))
+        before = tree_hash(self.repo)
+        got = self.call("verify", rep)
+        block = self.alert_block(got.out)
+        self.assertEqual(block[1:], ["  finished older than 30 days: 1 items: reached",
+                                     "  next: " + archive_text("old-a")])
+        self.assertEqual(tree_hash(self.repo), before)
+
+
 class TestDocs(unittest.TestCase):
     def read(self, name):
         return (REPO_ROOT / "docs" / name).read_text()
@@ -799,6 +917,14 @@ class TestDocs(unittest.TestCase):
         for name in ("retention.md", "verify.md", "exit-codes.md"):
             # the section's own anchor, `#the-retention-alert`, is not an id
             self.assertNotIn("retention-alert", self.read(name).replace("the-retention-alert", ""))
+
+    def test_the_alert_example_is_a_complete_report_and_the_age_step_is_described(self):
+        text = self.read("retention.md")
+        block = text.split("## The retention alert", 1)[1].split("```text", 1)[1].split("```", 1)[0]
+        self.assertNotIn("not known", block)
+        self.assertIn("finished items: 12, limit 10: reached", block)
+        self.assertIn("the oldest finished work item older than N days that "
+                      "`retention-cleanup` would plan first", text)
 
     def test_the_policy_section_no_longer_claims_it_only_reads_the_policy(self):
         self.assertNotIn("This release only **reads**", self.read("retention.md"))
