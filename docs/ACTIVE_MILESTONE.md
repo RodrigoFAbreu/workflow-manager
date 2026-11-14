@@ -55,7 +55,7 @@ Checklist for implementation revision 2. Run it on a clean checkout of the check
 
 | Flow | Sandbox | Do | Expect |
 | --- | --- | --- | --- |
-| 1 | offline | `git diff --stat BASE -- . ':!docs/ai-workflow' ':!docs/ACTIVE_MILESTONE.md'` | only `retention_policy.py`, `retention_alert.py`, `retention_cleanup.py`, the three test files, `docs/retention.md` and `docs/ROADMAP.md` |
+| 1 | offline | `git diff --stat BASE -- . ':!docs/ai-workflow' ':!docs/ACTIVE_MILESTONE.md'` | only `retention_policy.py`, `retention_alert.py`, `retention_cleanup.py`, the three test files, `tests/test_retention_run.py` (the confirmed age-only run test), `docs/retention.md` and `docs/ROADMAP.md` |
 | 2 | offline | `git diff --exit-code BASE -- tools .claude scripts .workflow-manager tests/parallel src/workflow_manager/cli.py src/workflow_manager/retention.py src/workflow_manager/retention_run.py docs/exit-codes.md docs/verify.md README.md docs/README.md; echo $?` | no output, `0` |
 | 3 | offline | `grep -n 'finished_max_age_days' src/workflow_manager/retention_policy.py` and `grep -n '^SCHEMA_VERSION' src/workflow_manager/retention_policy.py` | the entry with maximum 3650; `SCHEMA_VERSION = 1` |
 | 4 | offline | `grep -n -e 'older Manager' -e 'finished_max_age_days' docs/retention.md` | the table row, and the sentence that an older Manager refuses the file and treats the mode as `off`; `schema_version` stays 1 |
