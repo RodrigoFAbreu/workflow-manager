@@ -35664,7 +35664,7 @@
       "registry_path": "docs/ai-workflow/registry/age-alert-next-step-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/age-alert-next-step-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "AWAITING_FUNCTIONAL_REVIEW",
       "plan_revision": 4,
       "implementation_revision": 1,
       "functional_review_round": null,
@@ -35769,7 +35769,108 @@
           "workflow_release": "2.29.3"
         }
       },
-      "technical_approval": null,
+      "technical_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "33d05e7ac4b0ee70c6c769fb90e51ec51b7ca0764b9ca1ef9ca0bd37ec126e74",
+        "approved_review_content_id": "659af3d54b7ec7dda11bdd2a4db59d39f3db9e1490beb44a52075ca43f762127",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/registry/age-alert-next-step-artifacts.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "c21f4b37fe8b7593d5e549b388bd3f06af963012"
+          },
+          {
+            "path": "docs/retention.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "d9d1d8cd8983f43e422497d5e6810a2847239cf2"
+          },
+          {
+            "path": "src/workflow_manager/retention_alert.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "2f36f19ff5a4c64eb554b06c7403ad3025afb552"
+          },
+          {
+            "path": "src/workflow_manager/retention_cleanup.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "db013f984be5004990054d52d54eb1349c1a64bb"
+          },
+          {
+            "path": "tests/test_retention_alert.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "9d2ebcc6091157c42eb9fd958d83ca5404c86e87"
+          }
+        ],
+        "reviewed_content_commit": "d6e2c5414aacc6d93a8acab2381e5242610291b3",
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-11-14T02:28:20Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "659af3d54b7ec7dda11bdd2a4db59d39f3db9e1490beb44a52075ca43f762127",
+            "ledger": {
+              "local": {
+                "bundle_id": "33d05e7ac4b0ee70c6c769fb90e51ec51b7ca0764b9ca1ef9ca0bd37ec126e74",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "607204a7d17854ef29c40c5b066cd160bece0c12d3cf91c602d0c53a3661d28c",
+                "ledger_entry_sha256": "c01ba044f267bf972dfb343887c05d697ccd405a56b6b165be9facf94a531ed8",
+                "run_ref": "session:local /home/rodrigo/Workspace/workflow-manager/.ai-review/age-alert-next-step/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "33d05e7ac4b0ee70c6c769fb90e51ec51b7ca0764b9ca1ef9ca0bd37ec126e74",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "097f466ac961e2c199e0f307bef3e2a720778fec53cd8b66fe7ce5caa391abdd",
+                "ledger_entry_sha256": "6ba0f953432b32d4d826949ff5ae570e56580f1b290630d0dcb628e0adf4a0c8",
+                "run_ref": "codex:20261114T022531Z-0655fccb",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-11-14T02:28:20Z",
+          "workflow_release": "2.29.3"
+        }
+      },
       "technical_review_block_pins": [],
       "plan_review_stages": {
         "review_content_id": "91a71e2a0a9cab843a453e9ad616250f3333719f80b3f7e3288489804d148c0a",
@@ -35800,12 +35901,12 @@
           "external": 1
         },
         "implementation": {
-          "local": 0,
-          "external": 0
+          "local": 1,
+          "external": 1
         }
       },
-      "state_revision": 18,
-      "last_transition": "2026-11-14T02:19:37Z",
+      "state_revision": 21,
+      "last_transition": "2026-11-14T02:28:20Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -35956,6 +36057,55 @@
               "at": "2026-11-14T01:51:03Z"
             }
           ]
+        },
+        "F-7b01368c025d": {
+          "digest": "7b01368c025d791b1298b04c1528437a5b8a20bede52932f0af7ceedeb4a7963",
+          "text": "LIR1-001: `tests/test_retention_alert.py`, `test_the_step_is_the_cleanups_first_item_and_action`: in the release-below-2.21.0 scenario the test checks only the prefix `this Workflow release has no \\`archive\\` command; `. Plan section 3 (N2) says it \"asserts instead the update step text\". The prefix is enough to catch a step that names the item (for example a regression to an `archive old-a` text), but it does not check the `workflow-manager update TARGET` tail. Suggestion: compare against the full text that `retention.next_step` gives for a one-entry report at 2.20.0, or the literal string.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "659af3d54b7ec7dda11bdd2a4db59d39f3db9e1490beb44a52075ca43f762127",
+              "verdict": "APPROVE",
+              "at": "2026-11-14T02:24:38Z"
+            }
+          ]
+        },
+        "F-99fdd10b2348": {
+          "digest": "99fdd10b2348b43dfd78e524a3025260e5c2b1370f61386acd59d9dc7a98a13c",
+          "text": "LIR1-002 (existing behaviour, outside this item's scope): the age line prints `finished older than 30 days: 1 items: reached` (`retention_alert._shown` always says `items`); the new end-to-end test pins that wording. A singular form for one item would read better; it belongs to a later docs/UX item, not this fix.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "659af3d54b7ec7dda11bdd2a4db59d39f3db9e1490beb44a52075ca43f762127",
+              "verdict": "APPROVE",
+              "at": "2026-11-14T02:24:38Z"
+            }
+          ]
+        }
+      },
+      "implementation_review_stages": {
+        "review_content_id": "659af3d54b7ec7dda11bdd2a4db59d39f3db9e1490beb44a52075ca43f762127",
+        "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "33d05e7ac4b0ee70c6c769fb90e51ec51b7ca0764b9ca1ef9ca0bd37ec126e74",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-11-14T02:24:38Z",
+          "verdict_sha256": "607204a7d17854ef29c40c5b066cd160bece0c12d3cf91c602d0c53a3661d28c",
+          "run_ref": "session:local /home/rodrigo/Workspace/workflow-manager/.ai-review/age-alert-next-step/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "33d05e7ac4b0ee70c6c769fb90e51ec51b7ca0764b9ca1ef9ca0bd37ec126e74",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-11-14T02:27:26Z",
+          "verdict_sha256": "097f466ac961e2c199e0f307bef3e2a720778fec53cd8b66fe7ce5caa391abdd",
+          "run_ref": "codex:20261114T022531Z-0655fccb",
+          "reviewer_model": "openai/gpt-6.1-sol"
         }
       }
     }
