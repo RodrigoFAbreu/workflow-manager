@@ -38,7 +38,7 @@
 
 - A checkout of `milestone/retention-alert-json` at its HEAD, with Python 3 (standard library) and `git`.
 - Flows 1 to 9 need no network, no GitHub and no `claude`, `codex` or `ssh`. They read the clone and write nothing inside it; any copy goes to a scratch directory outside the clone.
-- `docs/ROADMAP.md` row 45 is uncommitted in the working tree on purpose (the planning row, not a deliverable). Run flows 1 and 6 in that working tree: a checkout without the row fails flow 6.
+- `docs/ROADMAP.md` row 45 is uncommitted in the working tree on purpose (the planning row, not a deliverable). Flows 1 and 6 are not sandbox flows: run them in that working tree only. A checkout of the committed head has six changed files in flow 1 and no row 45 in flow 6, which is expected, not a defect.
 - `BASE` is `84e6e3fb4edf7b01e0c4cbbb30f4f7b89935fb74`. Read exit codes with `; echo $?`, not through a pipe.
 
 ### Test data
@@ -50,7 +50,7 @@
 
 Each flow says whether the automated tester can run it in the sandbox (offline, against the clone, with no forge or agent stand-ins).
 
-**Flow 1: scope of the change.** Sandbox: yes.
+**Flow 1: scope of the change.** Sandbox: no. It needs the working tree of the clone with the uncommitted `docs/ROADMAP.md` row 45; a committed-head sandbox shows six files, not seven (round 1: automated tester, no product defect).
 - Do: `git diff --stat 84e6e3fb4edf7b01e0c4cbbb30f4f7b89935fb74 -- . ':!docs/ai-workflow' ':!docs/ACTIVE_MILESTONE.md'`
 - Expect: seven files: `src/workflow_manager/retention_alert.py`, `src/workflow_manager/retention_alert_json.py` (new), `src/workflow_manager/cli.py`, `tests/test_retention_alert_json.py` (new), `docs/retention.md`, `docs/exit-codes.md`, `docs/ROADMAP.md` (one line, row 45).
 
@@ -78,7 +78,7 @@ Each flow says whether the automated tester can run it in the sandbox (offline, 
   ```
 - Expect: both runs exit 0 with 1842 lines each; `diff` empty, `0`.
 
-**Flow 6: the roadmap row.** Sandbox: yes.
+**Flow 6: the roadmap row.** Sandbox: no. Row 45 exists only as an uncommitted edit in the clone's working tree; a committed-head sandbox has no row 45 (round 1: automated tester, no product defect).
 - Do: `grep -n -E '^\| 45 ' docs/ROADMAP.md; grep -c -E '^\| 46 ' docs/ROADMAP.md`
 - Expect: row 45 present, its last cell `Current`; then `0`.
 
