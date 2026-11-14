@@ -176,6 +176,100 @@ retention alert: 3 of 5 thresholds reached (mode notify, policy 1a2b3c4d5e6f)
 - The alert is not a `[warning]` finding and **never changes an exit code**: `verify` and `doctor` exit as they would without the policy.
 - It costs a run of the report: one forge query per finished work item (about 20 to 40 seconds for 25 items, 300 seconds at most), and `gh` signed in for a complete answer. A repository without an adopted `notify` or `both` policy pays nothing and sees no change. With `doctor --retention` the script runs once for both the section and the alert; `doctor` judges the script against the installed release, not the one `--release-version` names.
 
+## The retention alert as JSON
+
+`workflow-manager doctor --retention TARGET --json` prints the retention alert as one JSON document on stdout, for a program (a Controller, a scheduled job) that compares it with the previous one. It is the same assessment the text alert makes, so the two never disagree; it writes nothing, starts the report script only for an adopted `notify` or `both` policy, and prints no other line. `--json` is valid only with `--retention`. The release options (`--release-version`, `--release-dir`, `--manager-root`) are refused with it: nothing here uses a target release, so the document's bytes cannot depend on one.
+
+```json
+{
+  "kind": "retention_alert",
+  "schema_version": 1,
+  "repo": "/home/me/work/app",
+  "policy": {"state": "adopted", "mode": "notify", "digest": "1a2b3c4d5e6f1a2b3c4d5e6f1a2b3c4d5e6f1a2b3c4d5e6f1a2b3c4d5e6f1a2b"},
+  "evaluation": "evaluated",
+  "not_evaluated": null,
+  "report_complete": true,
+  "alerts": [
+    {
+      "rule": "finished_items",
+      "threshold": 10,
+      "threshold_unit": "items",
+      "current_value": 12,
+      "value_unit": "items",
+      "lower_bound": false,
+      "unknown_age": null,
+      "reached": true,
+      "state": "reached",
+      "alert_key": "retention:/home/me/work/app:finished_items:reached:12",
+      "next": "in the repository, run `python3 -I scripts/workflow_retention.py archive old-a --apply` (run it without `--apply` first for a dry run)"
+    },
+    {
+      "rule": "archives",
+      "threshold": 30,
+      "threshold_unit": "archives",
+      "current_value": 3,
+      "value_unit": "archives",
+      "lower_bound": false,
+      "unknown_age": null,
+      "reached": false,
+      "state": "clear",
+      "alert_key": "retention:/home/me/work/app:archives:clear",
+      "next": null
+    }
+  ],
+  "snapshot": {
+    "finished": 14,
+    "with_review_folder": 12,
+    "archived_and_removed": ["old-c", "old-d"],
+    "finished_folder_bytes": 641728512,
+    "archive_store": 3,
+    "prunable_archives": 0,
+    "interrupted_removals": []
+  }
+}
+```
+
+The bytes are fixed: the same inputs give the same document, and every key is always present (`null` where it does not apply), so a consumer never tests for a missing key.
+
+| Key | Meaning |
+|---|---|
+| `kind`, `schema_version` | `retention_alert` and `1`. |
+| `repo` | The resolved absolute path of the target. It is the repository's identity: a moved repository is a new identity. |
+| `policy` | `state` (the policy state's name), `mode` (`off` unless the policy is adopted) and `digest` (the 64 hex characters of an adopted policy, else `null`). |
+| `evaluation` | `evaluated`, `not_evaluated` or `not_applicable`; see below. |
+| `not_evaluated` | `null`, or `{"cause", "next"}`: the text alert's cause and step, verbatim. |
+| `report_complete` | `null` when no report was had, else whether the report is complete. |
+| `alerts` | One entry per threshold the policy sets, always in this order: `finished_items`, `finished_folder_mib`, `finished_max_age_days`, `archives`, `prunable_archives`. A rule the policy does not set is absent. |
+| alert `rule` | The threshold's name: `finished_items`, `finished_folder_mib`, `archives`, `prunable_archives` or `finished_max_age_days`. |
+| alert `threshold`, `threshold_unit` | The policy's number and its unit (`items`, `MiB`, `archives`, `days`). |
+| alert `current_value`, `value_unit` | The printed number: items for the count and age rules, whole MiB (rounded down) for the folders, archives for the two archive rules. |
+| alert `lower_bound` | `true` when the report is incomplete: the value is "at least" (the text's `at least`). |
+| alert `unknown_age` | For the age rule only, the number of examined items with no usable last transition (not counted); `null` for the other rules. |
+| alert `reached`, `state` | `reached` is the boolean; `state` is `reached`, `clear` or `unknown`; see below. |
+| alert `alert_key` | The identity of one event; see below. |
+| alert `next` | For a reached rule, the text's step, naming the target as it was typed (so its bytes follow the spelling of the target; `repo` and `alert_key` are the identity); else `null`. It does not carry the incomplete-report step: a consumer reads `report_complete: false` as "fix what the alerts name, then run again". |
+| `snapshot` | The current facts the report shows (`null` unless a report was had): `finished`, `with_review_folder`, `archived_and_removed` (sorted ids), `finished_folder_bytes`, `archive_store`, `prunable_archives`, `interrupted_removals` (the report's interrupted removals, `null` for a Workflow release that does not report them). |
+
+**`evaluation`.**
+
+| Value | When | `alerts`, `snapshot`, `not_evaluated` |
+|---|---|---|
+| `evaluated` | The report was had and at least one rule is reached, or every rule is clear. With no rule reached it is a true all-clear. | One alert per threshold, the snapshot, `null`. |
+| `not_evaluated` | The text alert's `retention alert: not evaluated` cases: no release in the record, the installed release cannot be checked, the script is modified, missing or refuses, its report is malformed or times out, any exception, or an incomplete report with nothing reached. Never an all-clear. | `[]`, `null` and the cause and step; for the incomplete report, the alerts (every state `unknown`) and the snapshot, whose numbers are lower bounds. |
+| `not_applicable` | The text alert prints nothing: no policy, a file that is missing or invalid, a policy not adopted, changed or whose record is invalid, or mode `off` or `cleanup`. The script is not started. | `[]`, `null`, `null`. |
+
+**`state`.** `reached` is a number at or above its limit (the age rule at one old item). `clear` is within the limit. `unknown` is a lower bound below its limit (the text's `not known`): neither reached nor within. A later Manager may add a `state` value without changing `schema_version`, so a consumer ignores an alert whose `state` it does not know.
+
+**`alert_key`.** It is `retention:` followed by the repository, the rule and the state, and, for `reached` only, the printed value: `retention:/home/me/work/app:finished_items:reached:12`, with a `+` after an incomplete value (`12+`). A key repeats exactly when the printed value does not change, so one event is one key, and a new key means a new value: `12` to `12+` is a new key, and a change of bytes within the same MiB is not. A `clear` or `unknown` key carries no value, so a rule that stays clear never produces a new key. The key is an opaque string: the repository path may contain `:`, and a consumer compares keys whole and never parses one.
+
+**Archived and deleted are not emitted.** The report proves current facts, not transitions: an item archived by hand last year, one archived by `retention-cleanup` yesterday and one archived at the start of the repository read identically, a deleted folder with its archive pruned is indistinguishable from an item that never had one, and `finished` itself changes when a newer completion pushes an item out of the three most recent or an item's family opens. The Manager is stateless, so there is no `archived` and no `deleted` state. A Controller that wants a change keeps the previous document and compares two **complete** ones (`report_complete: true` on both; an incomplete one holds lower bounds, and a missing observation never shows that anything left), and reports each difference as an observed change of uncertain cause:
+
+- an id **entering** `snapshot.archived_and_removed`: observed archived and without a review folder (archived and removed since the last look, or newly eligible with its archive already there);
+- an id **leaving** it, or a fall of `archive_store`: no longer observed (the archive was deleted or moved, or the item is no longer eligible, or its folder is present again); an id leaving while `archive_store` falls is stronger evidence of a pruned archive, still not proof;
+- a fall of `finished_folder_bytes` or `with_review_folder`: folders removed, with the same caveat.
+
+**Exit status.** `doctor --retention --json` exits 0 whenever it prints the document, whatever it says: no `doctor` finding is computed, so the findings exit 1 does not apply. It exits 2, with nothing on stdout, for the refusals that come before any evaluation (not managed, an unreadable record or one with no release, a cache or temporary directory inside the repository, a release option, or `--json` without `--retention`). See [Exit codes](exit-codes.md).
+
 ## Retention cleanup
 
 For a policy adopted with mode `cleanup` or `both`, `workflow-manager retention-cleanup TARGET` shows which finished work items an unattended cleanup would archive and then remove. It is its own command: `verify`, `doctor`, `update` and `status` never run it. **Without `--confirm` it is a preview: it writes nothing, archives nothing and removes nothing, and it runs no script verb but `report`.** With `--confirm` holding the plan's sentence it runs the plan (see [The confirmed run](#the-confirmed-run)). Prune is never part of cleanup: it stays user-only and is never run.
@@ -238,4 +332,4 @@ A stop at `archive` or `verify` leaves the review folder where it was, and the r
 
 ## Exit status
 
-`--retention` and the retention alert never change an exit code; `adopt-retention-policy` exits 0 when it previews or adopts and 2 when it refuses; `retention-cleanup` exits 0 when it previews, has nothing to do or finishes the run, 1 when a confirmed run's first per-item call was attempted and the run then stopped, and 2 when it refuses or stops before that first call. See [Exit codes](exit-codes.md).
+`--retention` and the retention alert never change an exit code, and `doctor --retention --json` exits 0 whenever it prints its document; `adopt-retention-policy` exits 0 when it previews or adopts and 2 when it refuses; `retention-cleanup` exits 0 when it previews, has nothing to do or finishes the run, 1 when a confirmed run's first per-item call was attempted and the run then stopped, and 2 when it refuses or stops before that first call. See [Exit codes](exit-codes.md).

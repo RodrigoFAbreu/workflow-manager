@@ -45,7 +45,8 @@ from contextlib import nullcontext
 from importlib import metadata
 from pathlib import Path
 
-from . import advice, retention, retention_alert, retention_cleanup, retention_policy, retention_run
+from . import advice, retention, retention_alert, retention_alert_json, retention_cleanup
+from . import retention_policy, retention_run
 from . import source as release_source
 from .compatibility import (
     ContainmentError,
@@ -859,9 +860,45 @@ def _installed_script_state(args, installed, destinations) -> str:
         return retention_alert.SCRIPT_UNCHECKED
 
 
+_JSON_REFUSED_OPTIONS = (("release_version", "--release-version"),
+                         ("release_dir", "--release-dir"),
+                         ("manager_root", "--manager-root"))
+
+
+def _doctor_json(args) -> int:
+    """`doctor --retention --json`: exactly the retention alert as one JSON
+    document, exit 0 whenever it is printed. The release options choose a target
+    release and nothing here uses one, so they are refused before anything is
+    read; the compatibility report is not computed."""
+    for attribute, option in _JSON_REFUSED_OPTIONS:
+        if getattr(args, attribute, None) is not None:
+            print(f"error: {option} cannot be used with --json: the alert reads the "
+                  "installed release only", file=sys.stderr)
+            return 2
+    if not is_managed(args.target):
+        raise NotManagedError(not_managed_text(args.target))
+    installed = Installation.read(args.target).workflow_version
+    try:
+        _refuse_unparseable_record(installed)
+        destinations = plan_destinations(args, os.environ, args.target, [installed])
+    except RELEASE_ERRORS as error:
+        print(f"error: could not resolve the target release: {error}", file=sys.stderr)
+        step = advice.next_step(error, _context(args))
+        if step is not None:
+            print(f"next: {step}", file=sys.stderr)
+        return 2
+    print(retention_alert_json.render(retention_alert_json.document(
+        args.target, installed, lambda: _installed_script_state(args, installed, destinations))),
+        end="")
+    return 0
+
+
 def cmd_doctor(args) -> int:
     """Report what an update would meet. Exit 0 with no blocked or warning
-    finding, 1 with one, 2 when it could not check."""
+    finding, 1 with one, 2 when it could not check. With `--json` the retention
+    alert alone, exit 0 whenever it is printed."""
+    if getattr(args, "json", False):
+        return _doctor_json(args)
     if not is_managed(args.target):
         raise NotManagedError(not_managed_text(args.target))
     installed = Installation.read(args.target).workflow_version
@@ -1156,9 +1193,16 @@ def build_parser() -> argparse.ArgumentParser:
                 "finding (notes alone still exit 0); 1: a blocked or warning finding, an "
                 "incomplete inspection included; 2: could not check. For a retention policy adopted "
                 "with mode notify or both it also runs the retention report and prints a "
-                "retention alert when a threshold is reached; that never changes the exit code.")
+                "retention alert when a threshold is reached; that never changes the exit code. "
+                "With --retention --json it prints only the alert as one JSON document and "
+                "exits 0 whenever it is printed (2 for the refusals before it).")
     p.add_argument("target", type=Path, help="the managed repository to inspect")
     p.add_argument("--retention", action="store_true", help=_RETENTION_HELP)
+    p.add_argument("--json", action="store_true",
+                   help="with --retention: print only the retention alert, as one JSON document "
+                        "(docs/retention.md); skips the compatibility report, refuses "
+                        "--release-version, --release-dir and --manager-root, and exits 0 "
+                        "whenever the document is printed")
     p.set_defaults(profile=None, force=False)
 
     p = command("status", "show a repository's installation and whether it is intact",
@@ -1264,7 +1308,10 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    if args.command == "doctor" and args.json and not args.retention:
+        parser.error("--json is only valid with --retention")
     reset_logged_once()
     if args.manager_root is not None:
         print(MANAGER_ROOT_DEPRECATION, file=sys.stderr)

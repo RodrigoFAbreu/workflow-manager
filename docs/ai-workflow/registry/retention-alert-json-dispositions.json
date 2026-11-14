@@ -1,0 +1,86 @@
+{
+ "schema_version": 1,
+ "work_item_id": "retention-alert-json",
+ "dispositions": {
+  "F-10558a68679c": {
+   "disposition": "follow-up",
+   "link": "https://github.com/RodrigoFAbreu/workflow-manager/issues/225"
+  },
+  "F-1e65786714b8": {
+   "disposition": "follow-up",
+   "link": "https://github.com/RodrigoFAbreu/workflow-manager/issues/225"
+  },
+  "F-9b7bc12a9a5d": {
+   "disposition": "follow-up",
+   "link": "https://github.com/RodrigoFAbreu/workflow-manager/issues/225"
+  },
+  "F-f81f9b27eb18": {
+   "disposition": "follow-up",
+   "link": "https://github.com/RodrigoFAbreu/workflow-manager/issues/225"
+  },
+  "F-2c0771dcc2ce": {
+   "disposition": "dropped",
+   "reason": "Plan text only: section 2.5 lists the age rule last; the emitted order is pinned by goldens and a test."
+  },
+  "F-3d8acd6663f0": {
+   "disposition": "dropped",
+   "reason": "Plan text only: a garbled sentence in plan section 8; not shipped code, tests or user docs."
+  },
+  "F-00a216043be2": {
+   "disposition": "fixed",
+   "note": "Addressed in the plan, the declaration, the tests or docs/retention.md and confirmed by the later review rounds."
+  },
+  "F-17e654fa652d": {
+   "disposition": "fixed",
+   "note": "Addressed in the plan, the declaration, the tests or docs/retention.md and confirmed by the later review rounds."
+  },
+  "F-2d48fca06943": {
+   "disposition": "fixed",
+   "note": "Addressed in the plan, the declaration, the tests or docs/retention.md and confirmed by the later review rounds."
+  },
+  "F-486b7e02f302": {
+   "disposition": "fixed",
+   "note": "Addressed in the plan, the declaration, the tests or docs/retention.md and confirmed by the later review rounds."
+  },
+  "F-525cd7f54b1e": {
+   "disposition": "fixed",
+   "note": "Addressed in the plan, the declaration, the tests or docs/retention.md and confirmed by the later review rounds."
+  },
+  "F-5d2398f8feaa": {
+   "disposition": "fixed",
+   "note": "Addressed in the plan, the declaration, the tests or docs/retention.md and confirmed by the later review rounds."
+  },
+  "F-762051a99e41": {
+   "disposition": "fixed",
+   "note": "Addressed in the plan, the declaration, the tests or docs/retention.md and confirmed by the later review rounds."
+  },
+  "F-76b27af70886": {
+   "disposition": "fixed",
+   "note": "Addressed in the plan, the declaration, the tests or docs/retention.md and confirmed by the later review rounds."
+  },
+  "F-812c2f79f602": {
+   "disposition": "fixed",
+   "note": "Addressed in the plan, the declaration, the tests or docs/retention.md and confirmed by the later review rounds."
+  },
+  "F-9053eb344919": {
+   "disposition": "fixed",
+   "note": "Addressed in the plan, the declaration, the tests or docs/retention.md and confirmed by the later review rounds."
+  },
+  "F-a72182bdf601": {
+   "disposition": "fixed",
+   "note": "Addressed in the plan, the declaration, the tests or docs/retention.md and confirmed by the later review rounds."
+  },
+  "F-b3d58e10d08c": {
+   "disposition": "fixed",
+   "note": "Addressed in the plan, the declaration, the tests or docs/retention.md and confirmed by the later review rounds."
+  },
+  "F-d2b51113004d": {
+   "disposition": "fixed",
+   "note": "Addressed in the plan, the declaration, the tests or docs/retention.md and confirmed by the later review rounds."
+  },
+  "F-ed38a37e8faf": {
+   "disposition": "fixed",
+   "note": "Addressed in the plan, the declaration, the tests or docs/retention.md and confirmed by the later review rounds."
+  }
+ }
+}
