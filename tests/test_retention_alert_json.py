@@ -480,6 +480,44 @@ class TestSharedAssessment(Base):
         self.assertEqual(doc["not_evaluated"]["cause"], "RuntimeError")
 
 
+class TestPages(unittest.TestCase):
+    """D1: the pages carry the shape, the key rule, the observed-not-proven reading and the exit rule."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.page = (support.REPO_ROOT / "docs" / "retention.md").read_text()
+        cls.codes = (support.REPO_ROOT / "docs" / "exit-codes.md").read_text()
+        cls.section = cls.page.split("## The retention alert as JSON\n", 1)[1].split("\n## ", 1)[0]
+
+    def test_D1_every_key_and_value_is_named(self):
+        for name in EVALUATED_KEYS + ALERT_KEYS + SNAPSHOT_KEYS:
+            with self.subTest(key=name):
+                self.assertIn(f"`{name}`", self.section)
+        for value in ("evaluated", "not_evaluated", "not_applicable", "reached", "clear", "unknown",
+                      "retention_alert", "report_complete: false", "finished_max_age_days"):
+            with self.subTest(value=value):
+                self.assertIn(value, self.section)
+
+    def test_D1_the_rules_and_the_readings(self):
+        for sentence in ("compares two **complete** ones",
+                         "observed change of uncertain cause",
+                         "no `archived` and no `deleted` state",
+                         "never parses one",
+                         "`12` to `12+` is a new key",
+                         "a moved repository is a new identity",
+                         "`repo` and `alert_key` are the identity",
+                         "are refused with it",
+                         "exits 0 whenever it prints the document"):
+            with self.subTest(sentence=sentence):
+                self.assertIn(sentence, self.section)
+
+    def test_D1_the_exit_rule_is_on_both_pages(self):
+        self.assertIn("exits 0 whenever it prints its document", self.page)
+        rows = [line for line in self.codes.splitlines() if "`doctor --retention --json`" in line]
+        self.assertEqual([line.split("|")[1].strip() for line in rows], ["0", "2"])
+        self.assertIn("retention.md#the-retention-alert-as-json", rows[0])
+
+
 class TestTextUnchanged(Base):
     def test_T1_the_text_alert_is_the_bases_bytes(self):
         reached = self.text_alert(reached_report())

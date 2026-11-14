@@ -36485,18 +36485,22 @@
       "registry_path": "docs/ai-workflow/registry/retention-alert-json-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/retention-alert-json-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "IMPLEMENTING",
+      "phase": "SELF_REVIEWING_IMPLEMENTATION",
       "plan_revision": 3,
       "implementation_revision": null,
       "functional_review_round": null,
       "base_commit": "84e6e3fb4edf7b01e0c4cbbb30f4f7b89935fb74",
       "reviewed_implementation_head": null,
       "current_checkpoint_id": null,
-      "last_completed_checkpoint_id": "CP1",
+      "last_completed_checkpoint_id": "CP2",
       "checkpoints": {
         "CP1": {
           "status": "COMPLETE",
           "start_commit": "3ff9fcf73cdd3afa9ca85a0160bc057ac8954fc9"
+        },
+        "CP2": {
+          "status": "COMPLETE",
+          "start_commit": "7b6a5c1704ff9375083035ad2fe34c28cc677c5e"
         }
       },
       "current_bundle_id": "edbca370391f2dd16f07ed2d08b235b51af169b8931d78e2c3748a47c1957074",
@@ -36625,8 +36629,8 @@
           "external": 0
         }
       },
-      "state_revision": 18,
-      "last_transition": "2026-11-14T04:24:00Z",
+      "state_revision": 20,
+      "last_transition": "2026-11-14T04:27:50Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
