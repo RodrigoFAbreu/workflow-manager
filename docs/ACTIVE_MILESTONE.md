@@ -2,7 +2,7 @@
 
 ## Milestone
 
-`age-alert-next-step` -- awaiting functional review (`governing_workflow_version: "2.2"`, `process`, plan revision 4, implementation revision 1, base `61e5b51`, branch `milestone/age-alert-next-step`): roadmap row 44 (#218). A `fix:` pull request title (`fix: the age alert's next step names an old finished item`, Manager 1.19.1); the release-history row follows in a `docs:` pull request.
+`age-alert-next-step` -- complete (accepted by policy) (`governing_workflow_version: "2.2"`, `process`, plan revision 4, implementation revision 1, base `61e5b51`, branch `milestone/age-alert-next-step`): roadmap row 44 (#218). A `fix:` pull request title (`fix: the age alert's next step names an old finished item`, Manager 1.19.1); the release-history row follows in a `docs:` pull request.
 
 When the age threshold is reached, the retention alert's `next:` step names the finished item `retention-cleanup` would plan first for the age rule (the oldest old item, beyond the 3 most recent, that the script can act on), not the first archivable item in report order. The count and size steps and `retention.next_step` are unchanged.
 
@@ -139,7 +139,4 @@ for pname, thresholds in POLICIES.items():
 - Not in this item: the JSON alert output (#220), any engine-script change, `prune`, the "Last checked" stamp (flow 3), and the singular wording of `finished older than 30 days: 1 items` (LIR1-002).
 - Optional findings from the plan and implementation reviews are dispositioned at acceptance; `/accept-milestone` requires each to have one.
 
-### Findings and next steps
-
-- Place findings at `.ai-review/age-alert-next-step/feedback/FUNCTIONAL_REVIEW.md` (confirm with `python3 scripts/workflow_fingerprint.py --resolve-feedback-path age-alert-next-step`).
-- Once testing is clean, `/accept-milestone` is the only acceptance command. Findings go through `/apply-functional-review`: bounded fixes return to the implementation-review gate; new or wider scope becomes a remediation child.
+**Next action:** `/milestone-plan` for the next incomplete milestone in `docs/ROADMAP.md`; none is listed after row 44 today. `age-alert-next-step` is accepted by policy; its pull request #223 merges as `fix:` and Manager 1.19.1 follows the merge. The release-history row for 1.19.1 is a separate `docs:` pull request after the release.
