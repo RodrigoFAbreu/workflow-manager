@@ -37,13 +37,13 @@ Checklist for implementation revision 2. Run it on a clean checkout of the check
 
 **Setup**
 
-- Tools: `git`, the repository's `python3`, `grep`, `sed`, `tar`, `diff`. No network, `gh`, `claude`, `codex` or `ssh` is needed for any flow here. The `retention-cleanup` preview and the alert in `verify`/`doctor` are not in this checklist: they need the forge report.
+- Tools: `git`, the repository's `python3`, `grep`, `sed`, `tar`, `diff`, and `cp` (flow 9 only). No network, `gh`, `claude`, `codex` or `ssh` is needed for flows 1 to 8 and 10. The `retention-cleanup` preview and the alert in `verify`/`doctor` are not in this checklist: they need the forge report.
 - Confirm `BASE` is in the clone (`git cat-file -e BASE`).
-- Make every copy and driver under a scratch directory (`$TMPDIR`), never inside the product clone. Read exit codes with `; echo $?`, not through a pipe.
+- Make every copy and driver under a scratch directory (`$TMPDIR`), never inside the product clone. Run every Python command with `PYTHONDONTWRITEBYTECODE=1` (or `python3 -B`), so no `__pycache__` is written into the clone. Use only read-only `git` commands in the clone (`diff`, `log`, `cat-file`, `show`, `archive`). Read exit codes with `; echo $?`, not through a pipe.
 
 **Verification state**
 
-- The full gate at `9507c9c` is the current evidence. No file under `src/`, `tests/`, `tools/`, `scripts/` or `docs/retention.md` has changed since it (checked at checklist preparation: the two later commits change `docs/ai-workflow` only).
+- The full gate at `9507c9c` is the current evidence. No file under `src/`, `tests/`, `tools/`, `scripts/` or `docs/retention.md` has changed since it (re-checked for this checklist: every commit since `9507c9c` changes `docs/ai-workflow` or `docs/ACTIVE_MILESTONE.md` only).
 - `.ai-review/retention-max-age/current/TEST_RESULTS.md` is the revision-1 record at `3c2e096` (2410/2410 units, 16273 tests). It is not updated for revision 2; the implementation summary carries the revision-2 gate.
 
 **Test data**
@@ -63,7 +63,7 @@ Checklist for implementation revision 2. Run it on a clean checkout of the check
 | 6 | offline, needs the driver | the driver on the candidate only, with the age-only policy | the alert line `finished older than 30 days: 7 items, 1 more with no usable last transition (not counted): reached`; the plan takes `old0` to `old4`, oldest first, and no young or unknown-age item; the `age not known` line; `after this run: finished older than 30 days 2` and the cap line (`stopped at the cap of 5 per run; run it again`); at most 5 items |
 | 7 | offline | `grep -n -E '^. 43 ' docs/ROADMAP.md` and `grep -c -E '^. 44 ' docs/ROADMAP.md` | row 43 present, last cell `Current`; `0` |
 | 8 | offline | `python3 tools/check_docs.py; echo $?` | no problem line; `0` |
-| 9 | full environment: a primed release cache (a cold cache with no network exits 2, `PrimingError`) | in a scratch copy, apply with `sed` the mutations of T1, A1, A5, C3, C5 and the `LOWERED` one (the key removed) from plan section 3; run `python3 tests/run_all.py --select test_retention_policy.py --select test_retention_alert.py --select test_retention_cleanup.py --select test_retention_status.py` on each | T1 fails only T1; A1 fails A1 and C8; A5 fails only A5; C3 fails only C3; C5 fails only C5; with `LOWERED` changed, exactly C1 and C3 to C8 fail; the unmutated copy exits 0 |
+| 9 | not sandbox-runnable: full environment with a primed release cache (a cold cache with no network exits 2, `PrimingError`, an environment result and not a defect) | in a scratch copy, apply with `sed` the mutations of T1, A1, A5, C3, C5 and the `LOWERED` one (the key removed) from plan section 3; run `python3 tests/run_all.py --select test_retention_policy.py --select test_retention_alert.py --select test_retention_cleanup.py --select test_retention_status.py` on each | T1 fails only T1; A1 fails A1 and C8; A5 fails only A5; C3 fails only C3; C5 fails only C5; with `LOWERED` changed, exactly C1 and C3 to C8 fail; the unmutated copy exits 0 |
 | 10 | offline | `python3 tools/release/release.py check-title "feat: add an age threshold to the retention policy"; echo $?` | `valid title: feat, release impact minor`; `0` |
 
 **Known limitations (out of scope for this item)**
