@@ -37,10 +37,11 @@ MODES = ("off", "notify", "cleanup", "both")
 THRESHOLDS = {  # key: (maximum, label)
     "finished_items": (100000, "finished items"),
     "finished_folder_mib": (1048576, "finished folders"),
+    "finished_max_age_days": (3650, "finished age limit"),
     "archives": (100000, "archives"),
     "prunable_archives": (100000, "prunable archives"),
 }
-_UNITS = {"finished_folder_mib": " MiB"}
+_UNITS = {"finished_folder_mib": " MiB", "finished_max_age_days": " days"}
 PROBLEM_LIMIT = 5
 DIGEST_SHOWN = 12
 

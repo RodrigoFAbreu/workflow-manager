@@ -21,6 +21,7 @@ import sys
 import tempfile
 import unittest
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from pathlib import Path
 from unittest import mock
 
@@ -128,6 +129,121 @@ class TestEvaluate(unittest.TestCase):
                 self.assertEqual(ra.evaluate(state(mode=mode), rep), [])
         self.assertEqual(ra.evaluate(state(adopted=False), rep), [])
         self.assertEqual(ra.evaluate(state(mode="both"), rep)[0].status, ra.REACHED)
+
+
+AGE = "finished_max_age_days"
+GENERATED = "2026-10-27T00:00:00Z"   # the fixture's own time (midnight)
+
+
+def at(seconds_before, generated=GENERATED):
+    """The report-form moment `seconds_before` seconds before `generated`."""
+    now = datetime.strptime(generated, "%Y-%m-%dT%H:%M:%SZ")
+    return (now - timedelta(seconds=seconds_before)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def aged_entry(item_id, last_transition, *, folder=True):
+    entry = rs.finished(item_id, folder=folder)
+    if last_transition is MISSING:
+        del entry["last_transition"]
+    else:
+        entry["last_transition"] = last_transition
+    return entry
+
+
+MISSING = object()
+
+
+def age_state(days=30, mode="notify", **others):
+    return state(mode=mode, thresholds={AGE: days, **others})
+
+
+class TestAge(unittest.TestCase):
+    def aged(self, entries_, days=30, **overrides):
+        return ra.aged(rs.report(*entries_, **overrides), days)
+
+    def test_age_is_strictly_greater_than_n_days_of_the_reports_own_time(self):
+        generated = "2026-10-27T13:45:10Z"   # not midnight: a floored "now" would differ
+        day = 86400
+        for days in (30, 10):
+            with self.subTest(days=days):
+                exact = aged_entry("exact", at(days * day, generated))
+                over = aged_entry("over", at(days * day + 1, generated))
+                young = aged_entry("young", at(days * day - 1, generated))
+                old, unknown = self.aged([exact, over, young], days, generated_at=generated)
+                self.assertEqual((old, unknown), (["over"], 0))
+        result = ra.evaluate(age_state(30), rs.report(
+            aged_entry("over", at(30 * day + 1, generated)), generated_at=generated))[0]
+        self.assertEqual((result.status, result.value, result.limit), (ra.REACHED, 1, 30))
+
+    def test_an_item_with_no_usable_last_transition_is_never_old(self):
+        unusable = (MISSING, None, 5, "2026-10-01", "2026-10-01T00:00:00+00:00",
+                    "2026-13-01T00:00:00Z")
+        items = [aged_entry(f"bad-{i}", value) for i, value in enumerate(unusable)]
+        future = aged_entry("future", "2026-10-28T00:00:00Z")   # a clock that ran ahead
+        old, unknown = self.aged(items + [future, aged_entry("old", "2026-01-01T00:00:00Z")])
+        self.assertEqual((old, unknown), (["old"], len(unusable)))
+        self.assertEqual(self.aged([future]), ([], 0))
+        for generated in (None, "2026-10-27", "not a time", 7):
+            with self.subTest(generated_at=generated):
+                rep = rs.report(aged_entry("old", "2026-01-01T00:00:00Z"), generated_at=generated)
+                self.assertEqual(ra.aged(rep, 30), ([], 1))
+
+    def test_the_three_newest_are_never_counted(self):
+        rep = rs.report(aged_entry("item-4", "2020-01-01T00:00:00Z"),
+                        aged_entry("item-2", "2020-01-01T00:00:00Z"),
+                        aged_entry("older", "2020-01-02T00:00:00Z"),
+                        aged_entry("oldest", "2020-01-03T00:00:00Z"))
+        self.assertEqual([e["work_item_id"] for e in rep["kept_recent"]],
+                         ["item-4", "item-3", "item-2"])
+        self.assertEqual(ra.aged(rep, 30), (["older", "oldest"], 0))
+
+    def test_an_item_without_a_review_folder_is_not_counted(self):
+        rep = rs.report(aged_entry("gone", "2020-01-01T00:00:00Z", folder=False),
+                        aged_entry("gone-too", MISSING, folder=False),
+                        aged_entry("here", "2020-01-01T00:00:00Z"))
+        self.assertEqual(ra.aged(rep, 30), (["here"], 0))
+
+    def test_the_age_line_and_its_variants(self):
+        target = Path("/scratch/repo")
+        old = [aged_entry(f"old-{i}", "2026-01-01T00:00:00Z") for i in range(4)]
+        young = aged_entry("young", "2026-10-26T00:00:00Z")
+        unknown = [aged_entry(f"odd-{i}", None) for i in range(2)]
+
+        def block(st, rep):
+            return ra.render(st, ra.evaluate(st, rep), rep, "2.25.0", target)
+
+        header = "retention alert: 1 of 1 thresholds reached (mode notify, policy abababababab)"
+        step = "  next: " + retention.next_step(rs.report(*old), "2.25.0", target)
+        self.assertEqual(block(age_state(), rs.report(*old, young)), [
+            header, "  finished older than 30 days: 4 items: reached", step])
+        self.assertEqual(block(age_state(), rs.report(*old, *unknown)), [
+            header, "  finished older than 30 days: 4 items, 2 more with no usable last "
+                    "transition (not counted): reached", step])
+        incomplete = rs.report(*old, young, complete=False)
+        self.assertEqual(block(age_state(), incomplete)[:2], [
+            header, "  finished older than 30 days: at least 4 items: reached"])
+        both = age_state(finished_items=1)
+        lines = block(both, rs.report(young, complete=False))
+        self.assertEqual(lines[:3], [
+            "retention alert: 1 of 2 thresholds reached (mode notify, policy abababababab)",
+            "  finished items: at least 1, limit 1: reached",
+            "  finished older than 30 days: not known (the report is incomplete)"])
+        # a within result prints nothing, and the label is never the policy label
+        lines = block(both, rs.report(young))
+        self.assertEqual(lines[1:2], ["  finished items: 1, limit 1: reached"])
+        self.assertNotIn("older", "\n".join(lines))
+        self.assertNotIn("finished age limit", "\n".join(block(age_state(), rs.report(*old))))
+
+    def test_an_incomplete_report_gives_a_lower_bound_for_the_age(self):
+        young = aged_entry("young", "2026-10-26T00:00:00Z")
+        zero = ra.evaluate(age_state(), rs.report(young, complete=False))[0]
+        self.assertEqual((zero.status, zero.value, zero.lower_bound), (ra.UNKNOWN, 0, True))
+        some = ra.evaluate(age_state(), rs.report(
+            young, aged_entry("old", "2026-01-01T00:00:00Z"), complete=False))[0]
+        self.assertEqual((some.status, some.value, some.lower_bound), (ra.REACHED, 1, True))
+        within = ra.evaluate(age_state(), rs.report(young))[0]
+        self.assertEqual((within.status, within.lower_bound), (ra.WITHIN, False))
+        self.assertEqual(ra.evaluate(age_state(), None)[0].status, ra.UNKNOWN)
 
 
 class Base(rs.Scratch):

@@ -1,0 +1,62 @@
+{
+ "schema_version": 1,
+ "work_item_id": "retention-max-age",
+ "dispositions": {
+  "F-002b06524c37": {
+   "disposition": "fixed",
+   "note": "The cleanup's reached test for the age key is at least one old item not planned."
+  },
+  "F-2448b9796e21": {
+   "disposition": "fixed",
+   "note": "C7 lists a young eligible item so dropping the age test from the loop fails it."
+  },
+  "F-37f2b998f38b": {
+   "disposition": "follow-up",
+   "link": "https://github.com/RodrigoFAbreu/workflow-manager/issues/218"
+  },
+  "F-411a2f734ad9": {
+   "disposition": "fixed",
+   "note": "The plan narrows the coverage claim for run_all.py and release.py."
+  },
+  "F-703bce29f67b": {
+   "disposition": "follow-up",
+   "link": "https://github.com/RodrigoFAbreu/workflow-manager/issues/218"
+  },
+  "F-73b2e12b7b0a": {
+   "disposition": "fixed",
+   "note": "docs/retention.md sentences were edited in place."
+  },
+  "F-80911bb4e796": {
+   "disposition": "fixed",
+   "note": "The alert and the preview print the age line as finished older than N days."
+  },
+  "F-8f517bcc571a": {
+   "disposition": "follow-up",
+   "link": "https://github.com/RodrigoFAbreu/workflow-manager/issues/218"
+  },
+  "F-94c18299d267": {
+   "disposition": "fixed",
+   "note": "C8 uses the same entries in both reports and asserts the plan changes and the stale sentence is refused."
+  },
+  "F-a0b6b61e363b": {
+   "disposition": "fixed",
+   "note": "The kept-recent exclusion lives inside aged only; the count rule stays byte-identical."
+  },
+  "F-c47b4c9b3c3b": {
+   "disposition": "dropped",
+   "reason": "TEST_RESULTS.md is a git-ignored review-bundle file, regenerated at the next bundle generation."
+  },
+  "F-e260653beff8": {
+   "disposition": "fixed",
+   "note": "select sets CAPPED only when more eligible items remain and a rule is still reached."
+  },
+  "F-f21e97bb42ba": {
+   "disposition": "dropped",
+   "reason": "A design-rule wording point about the plan; the age alert tests are correct by construction."
+  },
+  "F-fe37ce2c68f7": {
+   "disposition": "fixed",
+   "note": "docs/retention.md states the age threshold is reached at one old item and amends the cleanup sentence."
+  }
+ }
+}

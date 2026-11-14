@@ -103,8 +103,11 @@ The policy is the file `.workflow-manager/retention-policy.json`, committed by t
 | `mode` | `off`, `notify`, `cleanup` or `both` (lower case) | `off`: nothing; `notify`: tell the owner; `cleanup`: clean up silently; `both`: both |
 | `thresholds.finished_items` | integer, 1 to 100000 | finished work items with a review folder, beyond the most recent ones, at or above it |
 | `thresholds.finished_folder_mib` | integer, 1 to 1048576 | MiB in the review folders of those items, at or above it |
+| `thresholds.finished_max_age_days` | integer, 1 to 3650 | finished work items with a review folder, beyond the most recent ones, whose last transition is more than N days before the report's own time; an item with no usable last transition never counts. It is reached at one such item, not at N |
 | `thresholds.archives` | integer, 1 to 100000 | archives in the store, at or above it |
 | `thresholds.prunable_archives` | integer, 1 to 100000 | archives older than the script's time to live, at or above it |
+
+`finished_max_age_days` is optional like the others. The file is closed, so **an older Manager refuses a file carrying it and treats the mode as `off`**: it neither alerts nor cleans until it is updated. `schema_version` stays 1, because a file without the key means what it always meant. Adding the key changes the policy digest, so the policy is adopted again.
 
 `thresholds` and each key in it are optional, and a missing one is not checked. A mode other than `off` needs at least one threshold. The file is closed and strict: an unknown key, a wrong type (a boolean or a decimal where an integer goes), a number out of range, a duplicate key, a link, a file that is not regular or one larger than 4096 bytes is refused.
 
@@ -155,17 +158,18 @@ Any other state reads `retention policy: STATE (WHY); mode off is in force`, the
 
 ## The retention alert
 
-For a policy that is adopted with mode `notify` or `both`, `workflow-manager verify` and `workflow-manager doctor` compare the four thresholds with the retention report and print a block after their own output when one is reached:
+For a policy that is adopted with mode `notify` or `both`, `workflow-manager verify` and `workflow-manager doctor` compare the thresholds it sets with the retention report and print a block after their own output when one is reached:
 
 ```text
-retention alert: 2 of 4 thresholds reached (mode notify, policy 1a2b3c4d5e6f)
+retention alert: 3 of 5 thresholds reached (mode notify, policy 1a2b3c4d5e6f)
   finished items: 12, limit 10: reached
   finished folders: 612 MiB, limit 500 MiB: reached
+  finished older than 30 days: 4 items, 2 more with no usable last transition (not counted): reached
   archives: at least 5, limit 20: not known (the report is incomplete)
   next: in the repository, run `python3 -I scripts/workflow_retention.py archive ID --apply` (run it without `--apply` first for a dry run); ...
 ```
 
-- A number **at or above** its limit is reached. Only thresholds the policy sets are checked. A threshold that is within its limit is not listed; when every threshold is within, nothing is printed.
+- A number **at or above** its limit is reached (the age threshold is reached at one old item, since its N is a duration; its line reads `finished older than N days: K items`, `at least K items` for an incomplete report). Only thresholds the policy sets are checked. A threshold that is within its limit is not listed; when every threshold is within, nothing is printed.
 - **finished items** counts the finished work items that still have a review folder, the number archiving and removing lowers. The folders limit is in MiB; the printed size is rounded down.
 - An incomplete report gives lower bounds: a number at or above its limit is still reached (printed `at least N`), and one below it is `not known`, never within. The `next:` step then ends with the incomplete-report step.
 - The `next:` step names the user-only command for the cause: `archive` or `remove` for the finished items and their folders, `prune` for prunable archives (and for the archive count when some archive is past the time to live; otherwise the line says none can be pruned yet, or, for an incomplete report, that no prunable archive was observed, and that the policy's `thresholds.archives` is yours to raise). A Workflow release without the command gets `workflow-manager update`. The Manager never runs any of them.
@@ -188,7 +192,7 @@ It checks these, in order, and the first that fails refuses with `error:` and `n
 7. the retention report can be had (this is the one run of the script: one forge query per finished item, `gh` signed in, 300 seconds at most);
 8. the report is complete and no removal was interrupted (finish an interrupted removal yourself, with the user-only `remove ID --apply`).
 
-Only the two thresholds that archiving and removing can lower take part, `finished_items` and `finished_folder_mib`; `archives` and `prunable_archives` never plan anything. The oldest finished items that still have a review folder are taken first, until every threshold the policy sets is below its limit, at most 5 per run. An item with an archive and a folder is planned as `remove only`; an item whose folder holds files Git tracks, or whose id the engine would not accept, is skipped and named. The preview ends with one of three outcomes: below every limit, stopped at the cap (run it again to plan more), or no further item is eligible (running it again will not help).
+Only the thresholds that archiving and removing can lower take part, `finished_items`, `finished_folder_mib` and `finished_max_age_days`; `archives` and `prunable_archives` never plan anything. The oldest finished items that still have a review folder are taken first, until every threshold the policy sets is below its limit (for the age threshold: until no item older than N days is left unplanned), at most 5 per run. The age rule joins the other two: it takes only items known to be older than N days (never the 3 most recent, and never one whose last transition is unusable, which the preview counts on an `age not known` line), and the count and size rules still apply as before. An item that crosses the age between the preview and the confirmed run invalidates the sentence only when it changes the selected items or their actions (the plan digest hashes those and the policy, not the time); the preview is then run again. An item with an archive and a folder is planned as `remove only`; an item whose folder holds files Git tracks, or whose id the engine would not accept, is skipped and named. The preview ends with one of three outcomes: below every limit, stopped at the cap (run it again to plan more), or no further item is eligible (running it again will not help).
 
 ```text
 retention cleanup: preview (nothing was written; mode both, policy 1a2b3c4d5e6f, plan 9f8e7d6c5b4a)

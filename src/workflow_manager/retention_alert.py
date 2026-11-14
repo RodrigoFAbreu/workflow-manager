@@ -1,6 +1,6 @@
 """The retention alert of `verify` and `doctor`.
 
-For a policy that is adopted with mode `notify` or `both`, the four thresholds
+For a policy that is adopted with mode `notify` or `both`, the thresholds it sets
 are evaluated against the retention report the Manager already measures
 (`retention.fetch`) and a `retention alert:` block is printed when one is
 reached. Nothing is sent, nothing is cleaned, and no exit code changes: the
@@ -15,8 +15,10 @@ release's, and one boundary turns any exception into a `not evaluated` line.
 from __future__ import annotations
 
 import os
+import re
 import shlex
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 
 from . import install, retention, retention_policy
@@ -42,6 +44,7 @@ class Result:
     value: int | None   # the measured number (bytes for finished_folder_mib); None without a report
     limit: int          # the policy's number (MiB for finished_folder_mib)
     lower_bound: bool   # the report was incomplete
+    unknown_age: int = 0  # finished_max_age_days only: examined items with no usable age
 
 
 def alerting(state) -> bool:
@@ -51,6 +54,44 @@ def alerting(state) -> bool:
 def incomplete(report: dict) -> bool:
     failed = any(e["reason"].startswith("query_failed:") for e in report["not_finished"])
     return (not report["complete"]) or bool(report["read_errors"]) or failed
+
+
+AGE_KEY = "finished_max_age_days"
+_TIMESTAMP = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z")
+DAY = 86400
+
+
+def _moment(value) -> datetime | None:
+    """A report timestamp as a UTC moment, or None when it is not of the exact
+    form `YYYY-MM-DDTHH:MM:SSZ` naming a date and time that exist."""
+    if not isinstance(value, str) or not _TIMESTAMP.fullmatch(value):
+        return None
+    try:
+        return datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+    except ValueError:
+        return None
+
+
+def aged(report: dict, days: int) -> tuple[list[str], int]:
+    """`(old, unknown)` for the age threshold. The entries examined are those of
+    `finished` with a review folder present whose id is not in `kept_recent` (the
+    3 newest are never counted). An entry is old when the report's own
+    `generated_at` minus its `last_transition` is strictly more than `days` days;
+    one whose `last_transition` is not usable is never old and is counted in
+    `unknown`, and when `generated_at` is not usable every examined entry is.
+    `old` holds entry ids in report order."""
+    newest = {e["work_item_id"] for e in report.get("kept_recent", [])}
+    examined = [e for e in report["finished"]
+                if e["review_folder"]["present"] and e["work_item_id"] not in newest]
+    now = _moment(report.get("generated_at"))
+    old, unknown = [], 0
+    for entry in examined:
+        then = _moment(entry.get("last_transition"))
+        if now is None or then is None:
+            unknown += 1
+        elif (now - then).total_seconds() > days * DAY:
+            old.append(entry["work_item_id"])
+    return old, unknown
 
 
 def _measured(key: str, report: dict) -> int:
@@ -80,13 +121,18 @@ def evaluate(state, report) -> list[Result]:
         if report is None:
             results.append(Result(key, UNKNOWN, None, limit, True))
             continue
-        value = _measured(key, report)
-        bound = limit * 2**20 if key == "finished_folder_mib" else limit
+        unknown_age = 0
+        if key == AGE_KEY:  # a count of old items, reached at one; the limit is a duration
+            old, unknown_age = aged(report, limit)
+            value, bound = len(old), 1
+        else:
+            value = _measured(key, report)
+            bound = limit * 2**20 if key == "finished_folder_mib" else limit
         if value >= bound:
             status = REACHED
         else:
             status = UNKNOWN if lower_bound else WITHIN
-        results.append(Result(key, status, value, limit, lower_bound))
+        results.append(Result(key, status, value, limit, lower_bound, unknown_age))
     return results
 
 
@@ -133,7 +179,7 @@ def _prune_step(version, target: Path) -> str:
 
 
 def _step(result: Result, report: dict, version, target: Path) -> str:
-    if result.key in ("finished_items", "finished_folder_mib"):
+    if result.key in ("finished_items", "finished_folder_mib", AGE_KEY):
         return retention.next_step(report, version, target)
     if result.key == "prunable_archives" or report["totals"]["prunable"] > 0:
         return _prune_step(version, target)
@@ -146,6 +192,9 @@ def _step(result: Result, report: dict, version, target: Path) -> str:
 
 def _shown(result: Result) -> tuple[str, str]:
     """The measured number and the limit, as printed."""
+    if result.key == AGE_KEY:
+        prefix = "at least " if result.lower_bound else ""
+        return f"{prefix}{result.value} items", f"{result.limit} days"
     mib = result.key == "finished_folder_mib"
     value = result.value // 2**20 if mib else result.value
     unit = " MiB" if mib else ""
@@ -165,9 +214,20 @@ def render(state, results: list[Result], report: dict, version, target: Path) ->
     for result in results:
         if result.status == WITHIN:
             continue
+        text = "reached" if result.status == REACHED else "not known (the report is incomplete)"
+        if result.key == AGE_KEY:
+            label = f"finished older than {result.limit} days"
+            if result.status != REACHED:
+                lines.append(f"  {label}: {text}")
+                continue
+            value = _shown(result)[0]
+            if result.unknown_age:
+                value += (f", {result.unknown_age} more with no usable last transition "
+                          "(not counted)")
+            lines.append(f"  {label}: {value}: {text}")
+            continue
         label = retention_policy.THRESHOLDS[result.key][1]
         value, limit = _shown(result)
-        text = "reached" if result.status == REACHED else "not known (the report is incomplete)"
         lines.append(f"  {label}: {value}, limit {limit}: {text}")
     steps = []
     for result in reached:

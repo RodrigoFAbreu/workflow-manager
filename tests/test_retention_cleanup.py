@@ -47,9 +47,9 @@ def entry(item_id, *, mib=0, size=None, tracked=0, archive=False):
     return found
 
 
-def oldest_first(*entries):
+def oldest_first(*entries, **overrides):
     """A report lists the newest first; the tests write the oldest first."""
-    return rs.report(*reversed(entries))
+    return rs.report(*reversed(entries), **overrides)
 
 
 def adopted(mode="both", **thresholds):
@@ -745,6 +745,167 @@ class TestPreview(Base):
         self.assertEqual((out.code, out.err), (0, ""))
         self.assertEqual(out.out, "retention cleanup: nothing to do (finished items 3 of 10, "
                                   "finished folders 0 of 500 MiB)\n")
+
+
+AGE = "finished_max_age_days"
+OLD = "2026-08-01T00:00:00Z"       # 87 days before the fixture's `generated_at`
+YOUNG = "2026-10-20T00:00:00Z"     # 7 days before it
+AGE_POLICY = {"schema_version": 1, "mode": "cleanup", "thresholds": {AGE: 30}}
+
+
+def aged(item_id, last_transition, **kw):
+    """An entry like `entry`, with its own `last_transition` (`None` removes the key)."""
+    found = entry(item_id, **kw)
+    if last_transition is None:
+        del found["last_transition"]
+    else:
+        found["last_transition"] = last_transition
+    return found
+
+
+def age_plan(report, days=30, **others):
+    return plan_for(report, "cleanup", **{AGE: days}, **others)
+
+
+class TestAgeRule(unittest.TestCase):
+    def test_the_age_rule_alone_plans_only_old_items_oldest_first(self):  # C1
+        report = oldest_first(aged("a", OLD), aged("b", YOUNG), aged("c", OLD),
+                              aged("d", YOUNG, archive=True), aged("e", OLD, archive=True))
+        plan = age_plan(report)
+        self.assertEqual([(i.work_item_id, i.action) for i in plan.items],
+                         [("a", rc.ARCHIVE_THEN_REMOVE), ("c", rc.ARCHIVE_THEN_REMOVE),
+                          ("e", rc.REMOVE_ONLY)])
+        self.assertEqual((plan.outcome, plan.reached, plan.before[AGE], plan.after[AGE]),
+                         (rc.SETTLED, (AGE,), 3, 0))
+        self.assertEqual(plan.candidates, 5)
+
+    def test_the_age_rule_never_plans_the_three_newest(self):  # C2
+        report = oldest_first(aged("k1", OLD), aged("young", YOUNG))
+        report["kept_recent"] = [aged(f"k{n}", OLD) for n in (1, 2, 3)]
+        plan = age_plan(report)
+        self.assertEqual((plan.items, plan.outcome, plan.before.get(AGE, 0)), ((), None, 0))
+        # the count rule is the base's: it still sees both listed items
+        self.assertEqual(ids(plan_for(report, finished_items=1)), ["k1", "young"])
+
+    def test_the_age_rule_never_plans_an_item_whose_age_is_unknown(self):  # C3
+        report = oldest_first(aged("u", None), aged("o1", OLD), aged("o2", OLD))
+        plan = age_plan(report)
+        self.assertEqual((ids(plan), plan.unknown_age), (["o1", "o2"], 1))
+        lines = rc.preview_lines(plan, EXAMPLE_TARGET)
+        self.assertIn("  age not known: 1 finished items with no usable last transition are "
+                      "never planned by the age rule", lines)
+        # a count threshold that is also reached may still plan it, as it always did
+        both = plan_for(report, "cleanup", finished_items=1, **{AGE: 30})
+        self.assertEqual(ids(both), ["u", "o1", "o2"])
+        # with nothing old the note follows the nothing-to-do line
+        plan = age_plan(oldest_first(aged("a", YOUNG), aged("u", None)))
+        self.assertEqual(rc.preview_lines(plan, EXAMPLE_TARGET), [
+            "retention cleanup: nothing to do (finished older than 30 days 0)",
+            "  age not known: 1 finished items with no usable last transition are never "
+            "planned by the age rule"])
+
+    def test_the_age_rule_never_exceeds_five_per_run(self):  # C4
+        plan = age_plan(oldest_first(*(aged(f"o{n}", OLD) for n in range(8))))
+        self.assertEqual((ids(plan), plan.outcome, plan.after[AGE]),
+                         (["o0", "o1", "o2", "o3", "o4"], rc.CAPPED, 3))
+        self.assertIn("  after this run: finished older than 30 days 3: finished older than "
+                      "30 days still reached; stopped at the cap of 5 per run; run it again",
+                      rc.preview_lines(plan, EXAMPLE_TARGET))
+        report = oldest_first(aged("t", OLD, tracked=1), *(aged(f"o{n}", OLD) for n in range(5)),
+                              *(aged(f"y{n}", YOUNG) for n in range(3)))
+        plan = age_plan(report)
+        self.assertEqual((len(plan.items), plan.outcome), (5, rc.EXHAUSTED))
+        self.assertNotIn("run it again", "\n".join(rc.preview_lines(plan, EXAMPLE_TARGET)))
+
+    def test_the_age_value_changes_the_plan(self):  # C5
+        # `d` is walked before `c`: the age rule passes over it, never stops at it
+        report = oldest_first(aged("a", "2026-08-28T00:00:00Z"),      # 60 days
+                              aged("b", "2026-09-26T12:00:00Z"),      # 30.5 days
+                              aged("d", "2026-10-22T00:00:00Z"),      # 5 days
+                              aged("c", "2026-10-07T00:00:00Z"))      # 20 days
+        plans = {days: age_plan(report, days) for days in (10, 30, 31)}
+        self.assertEqual({d: ids(p) for d, p in plans.items()},
+                         {10: ["a", "b", "c"], 30: ["a", "b"], 31: ["a"]})
+        digests = {rc.plan_digest(p) for p in plans.values()}
+        self.assertEqual(len(digests), 3)
+
+    def test_age_and_count_rules_together(self):  # C6
+        report = oldest_first(aged("t", OLD, tracked=1), aged("y0", YOUNG), aged("o1", OLD),
+                              aged("y1", YOUNG), aged("o2", OLD), aged("y2", YOUNG))
+        plan = plan_for(report, "cleanup", finished_items=6, **{AGE: 30})
+        self.assertEqual(ids(plan), ["y0", "o1", "o2"])
+        self.assertEqual(plan.skipped, (("t", rc.REASON_TRACKED),))
+        self.assertEqual((plan.outcome, plan.after[AGE], plan.after["finished_items"]),
+                         (rc.EXHAUSTED, 1, 3))
+
+    def test_a_policy_without_the_key_has_no_age_in_its_plan(self):
+        plan = plan_for(oldest_first(aged("a", OLD)), finished_items=1)
+        self.assertNotIn(AGE, plan.before)
+        text = "\n".join(rc.preview_lines(plan, EXAMPLE_TARGET))
+        self.assertNotIn("older than", text)
+        self.assertNotIn("age not known", text)
+
+
+class TestAgePreview(Base):
+    def put_age_policy(self):
+        self.adopt(AGE_POLICY)
+        self.commit(self.repo, "age policy")
+
+    def test_the_preview_with_an_age_only_policy(self):  # C7
+        self.put_age_policy()
+        report = oldest_first(aged("t", OLD, tracked=1), aged("a", OLD), aged("b", OLD),
+                              aged("y", YOUNG))
+        self.stale_index()
+        before = tree_hash(self.repo)
+        out = self.call(report)
+        self.assertEqual((out.code, out.err), (0, ""))
+        self.assertEqual(tree_hash(self.repo), before)
+        calls = self.script_calls()
+        self.assertEqual([c["argv"][1] for c in calls], ["report"])
+        lines = out.out.splitlines()
+        self.assertIn("  thresholds reached: finished older than 30 days 3", lines)
+        self.assertIn("    1. a: 0 MiB, archive then remove", lines)
+        self.assertIn("    2. b: 0 MiB, archive then remove", lines)
+        self.assertNotIn("    3.", out.out)
+        self.assertNotIn("age not known", out.out)
+        self.assertIn("  after this run: finished older than 30 days 1: finished older than 30 "
+                      "days still reached; no further item is eligible (skipped: t); running "
+                      "it again will not help", lines)
+
+    def confirm(self, report, text):
+        self.marker.unlink(missing_ok=True)
+        out, err = io.StringIO(), io.StringIO()
+        env = self.env(STUB_REPORT=str(self.put_report(report)))
+        with mock.patch.dict(os.environ, env, clear=True), \
+                mock.patch.object(cli, "_installed_script_state", return_value=ra.SCRIPT_OK), \
+                contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            try:
+                code = cli.main(["--release-version", support.PINNED_NEWEST, COMMAND,
+                                 str(self.repo), "--confirm", text])
+            except SystemExit as exit_:
+                code = exit_.code
+        return Out(code, out.getvalue(), err.getvalue())
+
+    def test_a_sentence_for_an_older_plan_is_refused_after_an_item_ages(self):  # C8
+        self.put_age_policy()
+        first = oldest_first(aged("a", OLD), aged("y", YOUNG),
+                             aged("b", "2026-09-27T13:45:10Z"), generated_at="2026-10-27T13:45:10Z")
+        preview = self.call(first)
+        self.assertEqual(preview.code, 0, preview.err)
+        text = [line for line in preview.out.splitlines() if "--confirm" in line][0]
+        sentence_ = text.split('--confirm "', 1)[1].rstrip('"')
+        # one second later `b` is 30 days and one second old: the plan now selects it too
+        second = oldest_first(aged("a", OLD), aged("y", YOUNG),
+                              aged("b", "2026-09-27T13:45:10Z"), generated_at="2026-10-27T13:45:11Z")
+        self.assertEqual(ids(plan_for(first, "cleanup", **{AGE: 30})), ["a"])
+        self.assertEqual(ids(plan_for(second, "cleanup", **{AGE: 30})), ["a", "b"])
+        self.stale_index()
+        before = tree_hash(self.repo)
+        out = self.confirm(second, sentence_)
+        self.assertEqual((out.code, out.out), (2, ""))
+        self.assertIn("--confirm does not hold the sentence", out.err)
+        self.assertEqual(tree_hash(self.repo), before)
+        self.assertEqual([c["argv"][1] for c in self.script_calls()], ["report"])
 
 
 class TestOtherCommandsUnchanged(Base):

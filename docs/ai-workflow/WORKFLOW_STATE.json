@@ -34823,6 +34823,837 @@
         "evaluated_at": "2026-11-13T18:17:37Z",
         "workflow_release": "2.29.3"
       }
+    },
+    "retention-max-age": {
+      "work_item_type": "process",
+      "work_item_kind": "process",
+      "work_item_id": "retention-max-age",
+      "parent_work_item_id": null,
+      "plan_path": "docs/ai-workflow/WORKFLOW_MANAGER_RETENTION_MAX_AGE_PLAN.md",
+      "registry_path": "docs/ai-workflow/registry/retention-max-age-registry.json",
+      "mapping_path": "docs/ai-workflow/requirements/retention-max-age-mapping.json",
+      "governing_workflow_version": "2.2",
+      "phase": "MILESTONE_COMPLETE",
+      "plan_revision": 4,
+      "implementation_revision": 2,
+      "functional_review_round": null,
+      "base_commit": "8ff4f435d8890d906dd167eac711434eaf751f03",
+      "reviewed_implementation_head": "9507c9c7fc00d2238b5514946271119197d5983b",
+      "current_checkpoint_id": null,
+      "last_completed_checkpoint_id": "CP2",
+      "checkpoints": {
+        "CP1": {
+          "status": "COMPLETE",
+          "start_commit": "6836396662efb6c35af6132cbf194dd43dc4cc66"
+        },
+        "CP2": {
+          "status": "COMPLETE",
+          "start_commit": "66ba841c68810153f31923f34039eed4d60d6019"
+        }
+      },
+      "current_bundle_id": "f140214ee6b4e564fcaa1985e5d3715647989fb16ad851fc87ef0b63b1754011",
+      "plan_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "f140214ee6b4e564fcaa1985e5d3715647989fb16ad851fc87ef0b63b1754011",
+        "approved_review_content_id": "fba385fd58689b35c40c9685c54c07e5bbf2bcf8466417c61328bdf110c84fea",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/WORKFLOW_MANAGER_RETENTION_MAX_AGE_PLAN.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "8aa40b773a32ca7e21e301e90aa5f6fb8dffe848"
+          },
+          {
+            "path": "docs/ai-workflow/registry/retention-max-age-registry.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "19363ed05b9acd095482a951f88a75dac507118d"
+          },
+          {
+            "path": "docs/ai-workflow/requirements/retention-max-age-mapping.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "f43cb986f7eaf3c1354c200145e5e1a30d5f50f9"
+          }
+        ],
+        "reviewed_content_commit": null,
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-11-13T21:48:45Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "fba385fd58689b35c40c9685c54c07e5bbf2bcf8466417c61328bdf110c84fea",
+            "ledger": {
+              "local": {
+                "bundle_id": "f140214ee6b4e564fcaa1985e5d3715647989fb16ad851fc87ef0b63b1754011",
+                "verdict": "APPROVE",
+                "round": 4,
+                "verdict_sha256": "cd6d26ddfef6a0abb85bf5efac741166902affa9727071e47b8f07b508ac9104",
+                "ledger_entry_sha256": "be9dcc60d7ca0f2d00ba4244b5027995d60c19f72de962ad899c7f9a3e88d58b",
+                "run_ref": "session:local .ai-review/retention-max-age/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "f140214ee6b4e564fcaa1985e5d3715647989fb16ad851fc87ef0b63b1754011",
+                "verdict": "APPROVE",
+                "round": 4,
+                "verdict_sha256": "74c04e3cd0d0549172e14acdc9a509156850f8041bee53f3cd4ae8bcb1a210a4",
+                "ledger_entry_sha256": "63a7d6a97cb35c9693cf1de70308106635f15c8fd0347028f97e01176cdbf90c",
+                "run_ref": "codex:20261113T214528Z-c2d59be4",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-11-13T21:48:45Z",
+          "workflow_release": "2.29.3"
+        }
+      },
+      "technical_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "e101bc317569af33333d97aae7a1c75382ff242fe09a5a47da1ecba4d0314cc3",
+        "approved_review_content_id": "eb34c99831e860174531266d61f3b35b2f0631eb017a33fd590113431cfdb281",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/registry/retention-max-age-artifacts.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "322b4d0e45a5c6b9939b283e491be9ef59c360ea"
+          },
+          {
+            "path": "docs/retention.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "0b85c088ec1b63746b948794ce4f4906d21d9992"
+          },
+          {
+            "path": "src/workflow_manager/retention_alert.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "9d6875a6fef995c69318a4cf7b873efc8db7c55d"
+          },
+          {
+            "path": "src/workflow_manager/retention_cleanup.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "2e2ca52b2bf895137121aa2a8581c2ff108b084d"
+          },
+          {
+            "path": "src/workflow_manager/retention_policy.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "4b54c5219c3ab5517b529984980bc2e8f3e97f3a"
+          },
+          {
+            "path": "tests/test_retention_alert.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "7d7c5781e48ba877337725820fad21635766b6ba"
+          },
+          {
+            "path": "tests/test_retention_cleanup.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "6ac4f6acf6a1f6171b4c4821177f0976b54c1515"
+          },
+          {
+            "path": "tests/test_retention_policy.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "bc11aa5cff98195207d778dec61bfb336903d95f"
+          },
+          {
+            "path": "tests/test_retention_run.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "2ad114c5e035908a13aab3d343dd6f60f2fe8b2b"
+          }
+        ],
+        "reviewed_content_commit": "9507c9c7fc00d2238b5514946271119197d5983b",
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-11-14T00:00:15Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "eb34c99831e860174531266d61f3b35b2f0631eb017a33fd590113431cfdb281",
+            "ledger": {
+              "local": {
+                "bundle_id": "e101bc317569af33333d97aae7a1c75382ff242fe09a5a47da1ecba4d0314cc3",
+                "verdict": "APPROVE",
+                "round": 2,
+                "verdict_sha256": "63dece08f4f00c2423bb7f9c39111602be04b9ec1522585328e7acacfb8d45f2",
+                "ledger_entry_sha256": "7e9020de9fbef4d4bf51a4cc6f0585c0a5ea73e6d05f14ec5a474ebc1498bd7b",
+                "run_ref": "session:local .ai-review/retention-max-age/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "e101bc317569af33333d97aae7a1c75382ff242fe09a5a47da1ecba4d0314cc3",
+                "verdict": "APPROVE",
+                "round": 2,
+                "verdict_sha256": "56a346fa36cabac31b70adec4c92f840d370e9679d74f7e94fa29daa0130748a",
+                "ledger_entry_sha256": "a6f355d172c76b7a397016e2a78a891bafbf7221555309fc13d22a49d46ef8d6",
+                "run_ref": "codex:20261113T235406Z-b296856c",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-11-14T00:00:15Z",
+          "workflow_release": "2.29.3"
+        }
+      },
+      "technical_review_block_pins": [],
+      "plan_review_stages": {
+        "review_content_id": "fba385fd58689b35c40c9685c54c07e5bbf2bcf8466417c61328bdf110c84fea",
+        "LOCAL_MODEL_PLAN_REVIEW": {
+          "bundle_id": "f140214ee6b4e564fcaa1985e5d3715647989fb16ad851fc87ef0b63b1754011",
+          "verdict": "APPROVE",
+          "round": 4,
+          "completed_at": "2026-11-13T21:44:37Z",
+          "verdict_sha256": "cd6d26ddfef6a0abb85bf5efac741166902affa9727071e47b8f07b508ac9104",
+          "run_ref": "session:local .ai-review/retention-max-age/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_PLAN_REVIEW": {
+          "bundle_id": "f140214ee6b4e564fcaa1985e5d3715647989fb16ad851fc87ef0b63b1754011",
+          "verdict": "APPROVE",
+          "round": 4,
+          "completed_at": "2026-11-13T21:47:23Z",
+          "verdict_sha256": "74c04e3cd0d0549172e14acdc9a509156850f8041bee53f3cd4ae8bcb1a210a4",
+          "run_ref": "codex:20261113T214528Z-c2d59be4",
+          "reviewer_model": "openai/gpt-6.1-sol"
+        }
+      },
+      "functional_acceptance_status": null,
+      "blocking_decisions": [],
+      "review_round_counts": {
+        "plan": {
+          "local": 4,
+          "external": 2
+        },
+        "implementation": {
+          "local": 2,
+          "external": 1
+        }
+      },
+      "state_revision": 27,
+      "last_transition": "2026-11-14T00:43:27Z",
+      "feedback_layout": "scoped",
+      "plan_review_binding": {
+        "status": "BOUND",
+        "at": "2026-11-13T21:42:25Z",
+        "consumed": {
+          "review_content_id": "56b34ce96f9efa30906e13a617d7c6afed929970c03866ff87a9e97b29360e37",
+          "plan_revision": 3,
+          "legacy": false
+        },
+        "published": {
+          "review_content_id": "fba385fd58689b35c40c9685c54c07e5bbf2bcf8466417c61328bdf110c84fea",
+          "plan_revision": 4
+        },
+        "bound": {
+          "review_content_id": "fba385fd58689b35c40c9685c54c07e5bbf2bcf8466417c61328bdf110c84fea",
+          "bundle_id": "f140214ee6b4e564fcaa1985e5d3715647989fb16ad851fc87ef0b63b1754011",
+          "plan_revision": 4
+        }
+      },
+      "consumed_plan_review_content_ids": [
+        "1aa5342ee9aa2b536e8558563c496248f40ab9543d66514c7a44bb5313002c6d",
+        "3f25b8665e807f5211395f6bfb05b5740ce6c6a5e57576f4ae90fed62094cfae",
+        "56b34ce96f9efa30906e13a617d7c6afed929970c03866ff87a9e97b29360e37"
+      ],
+      "optional_findings": {
+        "F-002b06524c37": {
+          "digest": "002b06524c370a49c0011203865ed10793256d558f348defe6f5704a3de837cd",
+          "text": "PLR1-002 Section 2.4 adds the key to `LOWERED`, but `_reached`, `_limit` and the preview's `left` compare `numbers[key] >= thresholds[key]`, which for the age key would be \"old count >= N\", not \">= 1\". Section 2.3 pins \"the limit for the comparison is 1\" for the alert only. State in 2.4 that the cleanup's reached test for the age key is also \"at least one old item not planned\", or a literal reading of \"LOWERED gains the key\" gives a 30-item bar.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "3f25b8665e807f5211395f6bfb05b5740ce6c6a5e57576f4ae90fed62094cfae",
+              "verdict": "REVISE",
+              "at": "2026-11-13T21:24:44Z"
+            }
+          ]
+        },
+        "F-e260653beff8": {
+          "digest": "e260653beff8f31566e3d0a25877ad06d5b0f0858b1b699bd794b22bc46d8e4c",
+          "text": "PLR1-003 The `CAPPED` outcome stays `len(taken) == CAP and len(eligible) > len(taken)`. With the age rule this can say \"run it again\" when the remaining eligible items are all young and the age stays reached only by an old *ineligible* item (5 old eligible, 1 old tracked, 3 young). The next run then plans nothing and reports `exhausted`. Consider counting only the eligible old items (or the count/size-reached case) as \"more to plan\" for `CAPPED`, and pin it in C4/C6.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "3f25b8665e807f5211395f6bfb05b5740ce6c6a5e57576f4ae90fed62094cfae",
+              "verdict": "REVISE",
+              "at": "2026-11-13T21:24:44Z"
+            }
+          ]
+        },
+        "F-a0b6b61e363b": {
+          "digest": "a0b6b61e363b2af78d42cd621478d8f51c3a5a0c3e4e3c167f72507bbc45bc88",
+          "text": "PLR1-004 Section 2.4's \"`kept_recent` ids are excluded before anything else\" can be read as filtering `candidates` for every rule. That would change `before[\"finished_items\"]` and the count rule's plan for a report listing an id in both. No engine report does that, and the golden's fixture does not either, so flow 5 would not notice. Say that the exclusion is the age rule's, inside `aged`, or decide that it applies to all rules and drop \"byte-identical\" for that edge.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "3f25b8665e807f5211395f6bfb05b5740ce6c6a5e57576f4ae90fed62094cfae",
+              "verdict": "REVISE",
+              "at": "2026-11-13T21:24:44Z"
+            }
+          ]
+        },
+        "F-fe37ce2c68f7": {
+          "digest": "fe37ce2c68f7f7a72ddb41c23f6c6af79e236a87dbe8edcb3ac4753cca9b878a",
+          "text": "PLR1-005 `docs/retention.md` line 168 says \"A number at or above its limit is reached\" for every threshold, and line 191 says the cleanup runs \"until every threshold the policy sets is below its limit\". For the age key the limit N is a duration, and the threshold is reached at one old item. Section 2.5 should name these two sentences as ones to amend, not only the table, \"four\" and the cleanup paragraph.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "3f25b8665e807f5211395f6bfb05b5740ce6c6a5e57576f4ae90fed62094cfae",
+              "verdict": "REVISE",
+              "at": "2026-11-13T21:24:44Z"
+            }
+          ]
+        },
+        "F-80911bb4e796": {
+          "digest": "80911bb4e79670f416f8f0d83ff0b5ff99af49c61e38061cd15a30ff0ba77bd9",
+          "text": "PLR1-006 Section 2.3 changes the line shape for one key (`finished older than 30 days: 4 items: reached`), where the existing lines read `{label}: {value}, limit {limit}: reached` and `describe` uses the label `finished age limit`. Fine, but say that `render` and the preview's `_measured`/`_names`/verdict text special-case the key (and what the `after this run` verdict names it, e.g. \"finished older than 30 days still reached\"), so the implementer does not print `finished age limit: 4, limit 30: reached`.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "3f25b8665e807f5211395f6bfb05b5740ce6c6a5e57576f4ae90fed62094cfae",
+              "verdict": "REVISE",
+              "at": "2026-11-13T21:24:44Z"
+            }
+          ]
+        },
+        "F-f21e97bb42ba": {
+          "digest": "f21e97bb42baeb16d42d71b6069c3c96a15f66131d90f9f3cc3921121be37472",
+          "text": "PLR2-002 The design rules say \"no cleanup test lists an entry without a review folder\", which makes A4's set hold on the cleanup side, but no rule keeps the other alert tests (A1 to A3, A5, A6) free of `present: false` entries. Add \"only A4 lists an entry without a review folder\" so A4's set is A4 by construction.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "1aa5342ee9aa2b536e8558563c496248f40ab9543d66514c7a44bb5313002c6d",
+              "verdict": "REVISE",
+              "at": "2026-11-13T21:30:24Z"
+            }
+          ]
+        },
+        "F-73b2e12b7b0a": {
+          "digest": "73b2e12b7b0a8dec2c75dbf1344a0cd4481fe80fa89f8520b7cd5db5f658d0d5",
+          "text": "PLR2-003 `docs/retention.md` line 191 also says \"Only the two thresholds that archiving and removing can lower take part\" and line 158 names \"the four thresholds\". Section 2.5 covers both in prose (\"drops four\", \"joins the two lowered thresholds\"), so this is only to make sure the implementer edits those two sentences, not adds beside them.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "1aa5342ee9aa2b536e8558563c496248f40ab9543d66514c7a44bb5313002c6d",
+              "verdict": "REVISE",
+              "at": "2026-11-13T21:30:24Z"
+            }
+          ]
+        },
+        "F-2448b9796e21": {
+          "digest": "2448b9796e211ec157213e0d46a4258e8b06cdb7d220c4f2882f790357202124",
+          "text": "PLR3-001 The C1 row claims C7 fails when the age test is dropped from the loop, but that holds only if C7's report has a young eligible item for the mutated loop to take. No design rule says so; flow 6 says it of the scratch driver, not of C7. Add \"C7's report holds at least one young eligible item\" to the design rules, or C1's measured set may lack C7.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 3,
+              "review_content_id": "56b34ce96f9efa30906e13a617d7c6afed929970c03866ff87a9e97b29360e37",
+              "verdict": "APPROVE",
+              "at": "2026-11-13T21:36:20Z"
+            }
+          ]
+        },
+        "F-94c18299d267": {
+          "digest": "94c18299d267d5f11151a016dfa93fa76ca2dc24635e16f1c163f3ba49b16255",
+          "text": "PLR3-002 C8's pin reads \"a report whose `generated_at` is one second later and adds an old item\". The A1 row (`>` to `>=`) and the C8 row (floor to midnight) fail C8 only if the second report lists the same entries and one of them crosses the age because of that second. A report that adds a new, already-old entry changes the plan under both mutations, so C8 would pass. Reword to \"the same entries, one of which crosses N days by that second\" (the test name already says \"after an item ages\").",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 3,
+              "review_content_id": "56b34ce96f9efa30906e13a617d7c6afed929970c03866ff87a9e97b29360e37",
+              "verdict": "APPROVE",
+              "at": "2026-11-13T21:36:20Z"
+            }
+          ]
+        },
+        "F-411a2f734ad9": {
+          "digest": "411a2f734ad9ed8da83b913e68aa0fcc0614770fee8d19870fc7330528ad2509",
+          "text": "Section 5’s “every path this plan names” claim exceeds the declaration: `tests/run_all.py` and `tools/release/release.py` are unclassified at both stages. The cited coverage check examines checkpoint `Files` paragraphs only. Classify these evidence paths or narrow the coverage claim.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "MANUAL_EXTERNAL_PLAN_REVIEW",
+              "round": 3,
+              "review_content_id": "56b34ce96f9efa30906e13a617d7c6afed929970c03866ff87a9e97b29360e37",
+              "verdict": "REVISE",
+              "at": "2026-11-13T21:40:30Z"
+            }
+          ]
+        },
+        "F-37f2b998f38b": {
+          "digest": "37f2b998f38b1dd0a7837a904ec66fbef8f10e6b7c72732bfebdcfbb59e3630d",
+          "text": "**LIR1-002:** the alert example in `docs/retention.md` prints `finished older than 30 days: 4 items, 2 more ...`. Its `archives` line (`at least 5 ... not known (the report is incomplete)`) shows an incomplete report, and `render` would then print `at least 4 items`. The base example's `finished items: 12` has the same inconsistency already (it would be `at least 12`). Consider making the example a complete report (drop the `archives` line or make it reached) or prefixing `at least`, so the page shows output the code can print.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "ecde08d5c9020312d175561927727622b25d3e799ad762fffafa826f7db18cd8",
+              "verdict": "REVISE",
+              "at": "2026-11-13T23:19:38Z"
+            }
+          ]
+        },
+        "F-703bce29f67b": {
+          "digest": "703bce29f67bf52e0c0c950de1fc321dcc3ee07da0b7e9f22882d8d7574cc8b1",
+          "text": "**LIR1-003:** the known limitation in the summary: when only the age threshold is reached, the age line's `next:` step (`retention.next_step`) names the newest archivable item, which may be young. The plan pins this, and `retention.py` must stay byte-identical, so it is not a defect of this item. Record the follow-up issue at acceptance as the summary proposes.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "ecde08d5c9020312d175561927727622b25d3e799ad762fffafa826f7db18cd8",
+              "verdict": "REVISE",
+              "at": "2026-11-13T23:19:38Z"
+            }
+          ]
+        },
+        "F-c47b4c9b3c3b": {
+          "digest": "c47b4c9b3c3bac9e1c192388273bd308865490d6a0b4b116dcd17ea7766c4117",
+          "text": "**LIR2-001:** `TEST_RESULTS.md` is still headed `implementation revision 1` and records the full gate at `3c2e096` only; the round-2 gate (2411/2411 units, 16274 tests) appears only in `IMPLEMENTATION_SUMMARY.md`. Update it at the next bundle generation so the evidence file matches the revision it ships with.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 2,
+              "review_content_id": "eb34c99831e860174531266d61f3b35b2f0631eb017a33fd590113431cfdb281",
+              "verdict": "APPROVE",
+              "at": "2026-11-13T23:52:59Z"
+            }
+          ]
+        },
+        "F-8f517bcc571a": {
+          "digest": "8f517bcc571a3dfd9a18e6303cb42b6a40c5efae9cd5ab368547a713a5be17f9",
+          "text": "`src/workflow_manager/retention_alert.py:181`: The acknowledged age-alert guidance can name a young item because `retention.next_step` chooses the newest archivable item. A follow-up should choose an old item when only the age threshold is reached.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW",
+              "round": 2,
+              "review_content_id": "eb34c99831e860174531266d61f3b35b2f0631eb017a33fd590113431cfdb281",
+              "verdict": "APPROVE",
+              "at": "2026-11-13T23:59:17Z"
+            }
+          ]
+        }
+      },
+      "implementation_review_stages": {
+        "review_content_id": "eb34c99831e860174531266d61f3b35b2f0631eb017a33fd590113431cfdb281",
+        "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "e101bc317569af33333d97aae7a1c75382ff242fe09a5a47da1ecba4d0314cc3",
+          "verdict": "APPROVE",
+          "round": 2,
+          "completed_at": "2026-11-13T23:52:59Z",
+          "verdict_sha256": "63dece08f4f00c2423bb7f9c39111602be04b9ec1522585328e7acacfb8d45f2",
+          "run_ref": "session:local .ai-review/retention-max-age/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "e101bc317569af33333d97aae7a1c75382ff242fe09a5a47da1ecba4d0314cc3",
+          "verdict": "APPROVE",
+          "round": 2,
+          "completed_at": "2026-11-13T23:59:17Z",
+          "verdict_sha256": "56a346fa36cabac31b70adec4c92f840d370e9679d74f7e94fa29daa0130748a",
+          "run_ref": "codex:20261113T235406Z-b296856c",
+          "reviewer_model": "openai/gpt-6.1-sol"
+        }
+      },
+      "gate_evidence": {
+        "functional": {
+          "flow-1": {
+            "flow_id": "flow-1",
+            "status": "passed",
+            "head": "864463bd468e679a8c99a4f8748a282d168a60fc",
+            "ran_at": "2026-11-14T00:20:39Z",
+            "summary": {
+              "checklist_blob": "44885a7a0ce43c8148b2df5b7e6958c1659e0291",
+              "text": "The diff against the base lists exactly the nine files of the checklist row (the tester's defect mark was a miscount)."
+            },
+            "log_digest": "9bb8b9826c5a5a9783ba1da80b2cefb2121898c24a6c73fd80fd53749c22f109",
+            "run_ref": "claude-functional:md39-functional-r1",
+            "reporter": "manager claude-functional.sh (Sonnet 5.5)",
+            "identity": "eb34c99831e860174531266d61f3b35b2f0631eb017a33fd590113431cfdb281",
+            "recorded_at": "2026-11-14T00:20:39Z"
+          },
+          "flow-2": {
+            "flow_id": "flow-2",
+            "status": "passed",
+            "head": "ee302c4ba2386c6053ac63cfed9cd7866139a192",
+            "ran_at": "2026-11-14T00:08:14Z",
+            "summary": {
+              "checklist_blob": "23cc07da3123469b054b4e5a88419cbd7d0e7490",
+              "text": "All protected paths are unchanged against BASE: git diff produced no output and exited 0."
+            },
+            "log_digest": "ca7d38f3b12b1ae7d21fbdcdf92336576bcc3dcba7eb824d7a18cf990947dacf",
+            "run_ref": "controller:20261114T000430Z-bf1d9118",
+            "reporter": "workflow-controller 1.29.0",
+            "identity": "eb34c99831e860174531266d61f3b35b2f0631eb017a33fd590113431cfdb281",
+            "recorded_at": "2026-11-14T00:08:14Z"
+          },
+          "flow-3": {
+            "flow_id": "flow-3",
+            "status": "passed",
+            "head": "ee302c4ba2386c6053ac63cfed9cd7866139a192",
+            "ran_at": "2026-11-14T00:08:14Z",
+            "summary": {
+              "checklist_blob": "23cc07da3123469b054b4e5a88419cbd7d0e7490",
+              "text": "finished_max_age_days has maximum 3650; SCHEMA_VERSION remains 1."
+            },
+            "log_digest": "211ddb45001d17121ad8818b4155e146aa799e71a4634094a48b20a2ded01c04",
+            "run_ref": "controller:20261114T000430Z-bf1d9118",
+            "reporter": "workflow-controller 1.29.0",
+            "identity": "eb34c99831e860174531266d61f3b35b2f0631eb017a33fd590113431cfdb281",
+            "recorded_at": "2026-11-14T00:08:14Z"
+          },
+          "flow-4": {
+            "flow_id": "flow-4",
+            "status": "passed",
+            "head": "ee302c4ba2386c6053ac63cfed9cd7866139a192",
+            "ran_at": "2026-11-14T00:08:14Z",
+            "summary": {
+              "checklist_blob": "23cc07da3123469b054b4e5a88419cbd7d0e7490",
+              "text": "Documentation contains the age-key table row, explicitly states older Managers refuse the file and treat the mode as off, and keeps schema_version at 1."
+            },
+            "log_digest": "4cf0fe6e54055c1d522b225e8230f1e8c2b345ec8e53536f00aa6b8656d8d438",
+            "run_ref": "controller:20261114T000430Z-bf1d9118",
+            "reporter": "workflow-controller 1.29.0",
+            "identity": "eb34c99831e860174531266d61f3b35b2f0631eb017a33fd590113431cfdb281",
+            "recorded_at": "2026-11-14T00:08:15Z"
+          },
+          "flow-5": {
+            "flow_id": "flow-5",
+            "status": "passed",
+            "head": "ee302c4ba2386c6053ac63cfed9cd7866139a192",
+            "ran_at": "2026-11-14T00:08:15Z",
+            "summary": {
+              "checklist_blob": "23cc07da3123469b054b4e5a88419cbd7d0e7490",
+              "text": "Independent scratch driver rendered describe, block, retention_alert.render and retention_cleanup.preview_lines for three absent-key policies over three report variants. Baseline and candidate both exited 0; their 105-line outputs are byte-identical (diff exit 0, matching SHA-256)."
+            },
+            "log_digest": "46cc01465b56a3c665e40361df021660d1013326c66988748e5603b81ce42810",
+            "run_ref": "controller:20261114T000430Z-bf1d9118",
+            "reporter": "workflow-controller 1.29.0",
+            "identity": "eb34c99831e860174531266d61f3b35b2f0631eb017a33fd590113431cfdb281",
+            "recorded_at": "2026-11-14T00:08:15Z"
+          },
+          "flow-6": {
+            "flow_id": "flow-6",
+            "status": "passed",
+            "head": "ee302c4ba2386c6053ac63cfed9cd7866139a192",
+            "ran_at": "2026-11-14T00:08:15Z",
+            "summary": {
+              "checklist_blob": "23cc07da3123469b054b4e5a88419cbd7d0e7490",
+              "text": "Age-only policy produces the exact seven-old/one-unknown alert, selects only old0 through old4 oldest first, prints the age-not-known note, leaves two old items, and reports the cap of five with run-it-again wording. All driver assertions passed."
+            },
+            "log_digest": "ffcaf9ffad372e79d4a75e28173b1ea3d0a4a947a1dd3f47b9e841a9830bdaea",
+            "run_ref": "controller:20261114T000430Z-bf1d9118",
+            "reporter": "workflow-controller 1.29.0",
+            "identity": "eb34c99831e860174531266d61f3b35b2f0631eb017a33fd590113431cfdb281",
+            "recorded_at": "2026-11-14T00:08:15Z"
+          },
+          "flow-7": {
+            "flow_id": "flow-7",
+            "status": "passed",
+            "head": "ee302c4ba2386c6053ac63cfed9cd7866139a192",
+            "ran_at": "2026-11-14T00:08:15Z",
+            "summary": {
+              "checklist_blob": "23cc07da3123469b054b4e5a88419cbd7d0e7490",
+              "text": "Roadmap row 43 is present with final cell Current; row 44 has zero matches."
+            },
+            "log_digest": "0b164fe9a3776af0477f6ba9ff68c2a1640f908523f23b793f4cf886c856fdab",
+            "run_ref": "controller:20261114T000430Z-bf1d9118",
+            "reporter": "workflow-controller 1.29.0",
+            "identity": "eb34c99831e860174531266d61f3b35b2f0631eb017a33fd590113431cfdb281",
+            "recorded_at": "2026-11-14T00:08:15Z"
+          },
+          "flow-8": {
+            "flow_id": "flow-8",
+            "status": "passed",
+            "head": "ee302c4ba2386c6053ac63cfed9cd7866139a192",
+            "ran_at": "2026-11-14T00:08:15Z",
+            "summary": {
+              "checklist_blob": "23cc07da3123469b054b4e5a88419cbd7d0e7490",
+              "text": "python3 tools/check_docs.py produced no problem lines and exited 0."
+            },
+            "log_digest": "ca7d38f3b12b1ae7d21fbdcdf92336576bcc3dcba7eb824d7a18cf990947dacf",
+            "run_ref": "controller:20261114T000430Z-bf1d9118",
+            "reporter": "workflow-controller 1.29.0",
+            "identity": "eb34c99831e860174531266d61f3b35b2f0631eb017a33fd590113431cfdb281",
+            "recorded_at": "2026-11-14T00:08:15Z"
+          },
+          "flow-9": {
+            "flow_id": "flow-9",
+            "status": "passed",
+            "head": "864463bd468e679a8c99a4f8748a282d168a60fc",
+            "ran_at": "2026-11-14T00:20:39Z",
+            "summary": {
+              "checklist_blob": "44885a7a0ce43c8148b2df5b7e6958c1659e0291",
+              "text": "Unmutated selection passes (46/46 units); T1, A1, A5, C3, C5 and LOWERED each fail exactly their named tests."
+            },
+            "log_digest": "2e640dd92ce8c17c1f03109575b1e8c53530b5718de8716c90ecbc6d9ba0825e",
+            "run_ref": "claude-functional:md39-functional-r1",
+            "reporter": "manager claude-functional.sh (Sonnet 5.5)",
+            "identity": "eb34c99831e860174531266d61f3b35b2f0631eb017a33fd590113431cfdb281",
+            "recorded_at": "2026-11-14T00:20:39Z"
+          },
+          "flow-10": {
+            "flow_id": "flow-10",
+            "status": "passed",
+            "head": "ee302c4ba2386c6053ac63cfed9cd7866139a192",
+            "ran_at": "2026-11-14T00:08:15Z",
+            "summary": {
+              "checklist_blob": "23cc07da3123469b054b4e5a88419cbd7d0e7490",
+              "text": "Title validation printed 'valid title: feat, release impact minor' and exited 0."
+            },
+            "log_digest": "a4ba86e10368be51be8dfb6e81492dfbcca9ade23cf8b8d9edec3ec84c7789fe",
+            "run_ref": "controller:20261114T000430Z-bf1d9118",
+            "reporter": "workflow-controller 1.29.0",
+            "identity": "eb34c99831e860174531266d61f3b35b2f0631eb017a33fd590113431cfdb281",
+            "recorded_at": "2026-11-14T00:08:16Z"
+          }
+        },
+        "pr": {
+          "pr": {
+            "number": 219,
+            "url": "https://github.com/RodrigoFAbreu/workflow-manager/pull/219"
+          },
+          "state": "open",
+          "head": "864463bd468e679a8c99a4f8748a282d168a60fc",
+          "review_decision": null,
+          "reviewed_head": null,
+          "checks": {
+            "state": "success",
+            "failing": []
+          },
+          "review_id": null,
+          "findings": null,
+          "identity_at_head": "eb34c99831e860174531266d61f3b35b2f0631eb017a33fd590113431cfdb281",
+          "observed_at": "2026-11-14T00:43:27Z",
+          "ingest_seq": 1,
+          "repository": "RodrigoFAbreu/workflow-manager",
+          "queried_commit": "9507c9c7fc00d2238b5514946271119197d5983b",
+          "provenance": {
+            "source": "workflow_gh",
+            "fetched_by": {
+              "name": "workflow-gh",
+              "version": "pr-list-v1"
+            },
+            "fetched_at": "2026-11-14T00:43:27Z",
+            "raw_sha256": "4221af8bf6742adfbc044644c72cc335405e3c2c8841e2f991b791548042cc6a",
+            "run_ref": null,
+            "gh_path": "/usr/bin/gh",
+            "gh_sha256": "a6b35a153e40cc347601522acdb583da3dccfc06401505a63eacaeab6909ed80"
+          },
+          "fact_id": "2dff0c4319edd6f951965c5f2b2ecb314964402dc9338eb2325337835fa22080"
+        },
+        "pr_reported": null,
+        "pr_keys": {
+          "reopened_for": [],
+          "applied": [],
+          "ingest_seq": 1
+        }
+      },
+      "acceptance_satisfaction": {
+        "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "policy_source": "default",
+        "file_digest": null,
+        "adopted_digest": null,
+        "floor_digest": null,
+        "requirements": [
+          {
+            "id": "checkpoints_complete",
+            "met": true,
+            "detail": "every checkpoint of the item's own registry is COMPLETE"
+          },
+          {
+            "id": "technical_approval_current",
+            "met": true,
+            "detail": "the technical approval is CURRENT for the content now"
+          },
+          {
+            "id": "functional_flows_passed",
+            "met": true,
+            "detail": "flows ['flow-1', 'flow-10', 'flow-2', 'flow-3', 'flow-4', 'flow-5', 'flow-6', 'flow-7', 'flow-8', 'flow-9'] passed at the approved content"
+          },
+          {
+            "id": "pr_fact_current",
+            "met": true,
+            "detail": "workflow_gh fact for PR #219 at 864463bd468e679a8c99a4f8748a282d168a60fc is current"
+          },
+          {
+            "id": "no_standing_pr_objection",
+            "met": true,
+            "detail": "no CHANGES_REQUESTED decision and no failed check"
+          },
+          {
+            "id": "ci_green",
+            "met": true,
+            "detail": "checks are 'success'"
+          }
+        ],
+        "inputs": {
+          "anchor_commit": "9507c9c7fc00d2238b5514946271119197d5983b",
+          "anchor_identity": "eb34c99831e860174531266d61f3b35b2f0631eb017a33fd590113431cfdb281",
+          "technical_approval": {
+            "basis": "POLICY_SATISFIED",
+            "approved_review_content_id": "eb34c99831e860174531266d61f3b35b2f0631eb017a33fd590113431cfdb281",
+            "recorded_at": "2026-11-14T00:00:15Z"
+          },
+          "functional": {
+            "flow-1": {
+              "evidence_id": "f483349b7feffeec830a565237ce29bc63c68919d458d858758f7d7da6ef3263",
+              "log_digest": "9bb8b9826c5a5a9783ba1da80b2cefb2121898c24a6c73fd80fd53749c22f109",
+              "run_ref": "claude-functional:md39-functional-r1"
+            },
+            "flow-10": {
+              "evidence_id": "d120869941c662c504a61913bd79ae688a143860d6d3c547bea16c6658d91259",
+              "log_digest": "a4ba86e10368be51be8dfb6e81492dfbcca9ade23cf8b8d9edec3ec84c7789fe",
+              "run_ref": "controller:20261114T000430Z-bf1d9118"
+            },
+            "flow-2": {
+              "evidence_id": "4876ee04d55fe57165d026f6d135481dad31a78f356909171bc63b82e983df25",
+              "log_digest": "ca7d38f3b12b1ae7d21fbdcdf92336576bcc3dcba7eb824d7a18cf990947dacf",
+              "run_ref": "controller:20261114T000430Z-bf1d9118"
+            },
+            "flow-3": {
+              "evidence_id": "3f0d841979c97e8964786bc157b9ea77e6510b4b349d1d21280bd89f40a556bf",
+              "log_digest": "211ddb45001d17121ad8818b4155e146aa799e71a4634094a48b20a2ded01c04",
+              "run_ref": "controller:20261114T000430Z-bf1d9118"
+            },
+            "flow-4": {
+              "evidence_id": "54b3a3c7b14d2ea290889e50de499f3e822e5131d44f6e91f19f1e05698a9ec5",
+              "log_digest": "4cf0fe6e54055c1d522b225e8230f1e8c2b345ec8e53536f00aa6b8656d8d438",
+              "run_ref": "controller:20261114T000430Z-bf1d9118"
+            },
+            "flow-5": {
+              "evidence_id": "97d9745ad7c7cf018c20c0ced2776a80a285f9f0c707e6bf517dca994b5d4b05",
+              "log_digest": "46cc01465b56a3c665e40361df021660d1013326c66988748e5603b81ce42810",
+              "run_ref": "controller:20261114T000430Z-bf1d9118"
+            },
+            "flow-6": {
+              "evidence_id": "689a0121db8589035873c52b46edb739ebdbd3170c095111adc1781d7ed0ad03",
+              "log_digest": "ffcaf9ffad372e79d4a75e28173b1ea3d0a4a947a1dd3f47b9e841a9830bdaea",
+              "run_ref": "controller:20261114T000430Z-bf1d9118"
+            },
+            "flow-7": {
+              "evidence_id": "9677003cdcf7c13c84c4f275e561c919f01c904a1acf5d3c4a008033c5cd6e53",
+              "log_digest": "0b164fe9a3776af0477f6ba9ff68c2a1640f908523f23b793f4cf886c856fdab",
+              "run_ref": "controller:20261114T000430Z-bf1d9118"
+            },
+            "flow-8": {
+              "evidence_id": "48fe49d46c93f7b150225483e716e86c0723c2bab38bcda2140e50f222c552c1",
+              "log_digest": "ca7d38f3b12b1ae7d21fbdcdf92336576bcc3dcba7eb824d7a18cf990947dacf",
+              "run_ref": "controller:20261114T000430Z-bf1d9118"
+            },
+            "flow-9": {
+              "evidence_id": "27417cb43e63520d5464fd833ebc6529bfaffe30f384e414b91af7ea706814e9",
+              "log_digest": "2e640dd92ce8c17c1f03109575b1e8c53530b5718de8716c90ecbc6d9ba0825e",
+              "run_ref": "claude-functional:md39-functional-r1"
+            }
+          },
+          "pr": {
+            "fact_id": "2dff0c4319edd6f951965c5f2b2ecb314964402dc9338eb2325337835fa22080",
+            "head": "864463bd468e679a8c99a4f8748a282d168a60fc",
+            "provenance": "workflow_gh",
+            "raw_sha256": "4221af8bf6742adfbc044644c72cc335405e3c2c8841e2f991b791548042cc6a"
+          }
+        },
+        "trust": {
+          "review_verdicts": "orchestrator",
+          "functional_evidence": "orchestrator",
+          "pr_fact": "workflow_gh"
+        },
+        "evaluated_at": "2026-11-14T00:43:27Z",
+        "workflow_release": "2.29.3"
+      }
     }
   }
 }
