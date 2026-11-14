@@ -2,7 +2,7 @@
 
 ## Milestone
 
-`retention-alert-json` -- implementing, self-review complete (`governing_workflow_version: "2.2"`, `process`, plan revision 3, base `84e6e3f`, branch `milestone/retention-alert-json`): roadmap row 45 (#220). A `feat:` pull request title (`feat: a machine-readable retention alert, doctor --retention --json`, Manager 1.20.0); the release-history row follows in a `docs:` pull request.
+`retention-alert-json` -- complete (accepted by policy) (`governing_workflow_version: "2.2"`, `process`, plan revision 3, base `84e6e3f`, branch `milestone/retention-alert-json`): roadmap row 45 (#220). A `feat:` pull request title (`feat: a machine-readable retention alert, doctor --retention --json`, Manager 1.20.0); the release-history row follows in a `docs:` pull request.
 
 `workflow-manager doctor --retention TARGET --json` prints the retention alert as one byte-stable JSON document: per threshold the rule, threshold, current value, `reached`, a `state` of `reached`, `clear` or `unknown`, and an opaque `alert_key`; an explicit `evaluation` (`evaluated`, `not_evaluated`, `not_applicable`) that is never a false all-clear; and a `snapshot` of current facts a Controller compares between two complete documents, reading each difference as an observed change of uncertain cause (the Manager emits no `archived` or `deleted` state). It writes nothing, starts the script only after the policy gate, refuses the release options, skips the compatibility report and exits 0 whenever the document is printed.
 
@@ -220,7 +220,4 @@ finally:
 - Out of scope: the notification sender and scheduling (Controller lane), `prune`, the cleanup, any Workflow engine change, and the release-history row (a later `docs:` pull request).
 - Optional findings from plan review and self-review get their recorded disposition at acceptance.
 
-### Findings and next steps
-
-- Write findings to `.ai-review/retention-alert-json/feedback/FUNCTIONAL_REVIEW.md` (`python3 scripts/workflow_fingerprint.py --resolve-feedback-path retention-alert-json` prints the path).
-- Once testing is clean, `/accept-milestone` is the only acceptance command; both checkpoints (CP1, CP2) are COMPLETE. Findings go through `/apply-functional-review`.
+**Next action:** `/milestone-plan` for the next incomplete milestone in `docs/ROADMAP.md`; none is listed after row 45 today. `retention-alert-json` is accepted by policy; its pull request #226 merges as `feat:` and Manager 1.20.0 follows the merge. The release-history row for 1.20.0 is a separate `docs:` pull request after the release.
