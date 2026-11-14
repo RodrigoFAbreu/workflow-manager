@@ -2,7 +2,7 @@
 
 ## Milestone
 
-`retention-max-age` -- in progress (`governing_workflow_version: "2.2"`, `process`, plan revision 4, base `8ff4f43`, branch `milestone/retention-max-age`): roadmap row 43 (#215). A `feat:` pull request title (`feat: add an age threshold to the retention policy`, Manager 1.19.0); the release-history row follows in a `docs:` pull request.
+`retention-max-age` -- complete (accepted by policy) (`governing_workflow_version: "2.2"`, `process`, plan revision 4, base `8ff4f43`, branch `milestone/retention-max-age`): roadmap row 43 (#215). A `feat:` pull request title (`feat: add an age threshold to the retention policy`, Manager 1.19.0); the release-history row follows in a `docs:` pull request.
 
 One new optional policy key, `thresholds.finished_max_age_days` (integer, 1 to 3650): finished work items with a review folder, beyond the 3 most recent, whose last transition is more than N days before the report's own `generated_at` count toward the retention alert and are planned by `retention-cleanup`, oldest first, at most 5 per run. An item with no usable last transition is never old.
 
@@ -74,4 +74,4 @@ Checklist for implementation revision 2. Run it on a clean checkout of the check
 - The Controller-owned JSON alert output is a later item. The release-history row for 1.19.0 is a separate `docs:` pull request after acceptance.
 - Flows 5 and 6 need a driver that is not in the repository.
 
-**Next action:** functional review (`AWAITING_FUNCTIONAL_REVIEW`, implementation revision 2). Findings go to `.ai-review/retention-max-age/feedback/FUNCTIONAL_REVIEW.md`.
+**Next action:** `/milestone-plan` for the next incomplete milestone in `docs/ROADMAP.md`. `retention-max-age` is accepted by policy; its pull request #219 merges as `feat:` and Manager 1.19.0 follows the merge. The release-history row for 1.19.0 is a separate `docs:` pull request.
