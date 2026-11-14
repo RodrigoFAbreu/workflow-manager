@@ -32,8 +32,6 @@ LOWERED = COUNTED + (AGE_KEY,)  # what archiving and removing can lower
 CLEANUP_MODES = ("cleanup", "both")
 GIT_TIMEOUT_SECONDS = 30
 PROBLEM_LIMIT = 5          # interrupted removals named in a refusal
-_ID = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")  # the engine's pattern, applied with fullmatch
-RESERVED_IDS = ("runtime", "archive")
 
 ARCHIVE_THEN_REMOVE = "archive then remove"
 REMOVE_ONLY = "remove only"
@@ -301,7 +299,7 @@ def _reached(numbers: dict, thresholds: dict, keys: tuple = LOWERED) -> tuple:
 def _eligible(entry: dict) -> str | None:
     """`None` when the entry may be planned, else the reason it is skipped."""
     identifier = entry["work_item_id"]
-    if _ID.fullmatch(identifier) is None or identifier in RESERVED_IDS:
+    if not retention_alert.plannable_id(identifier):
         return REASON_ID
     if entry["review_folder"]["tracked_files"] > 0:
         return REASON_TRACKED
