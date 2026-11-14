@@ -34,6 +34,7 @@ GENERATED = tra.GENERATED
 ALL_FIVE = {"schema_version": 1, "mode": "notify",
             "thresholds": {"finished_items": 2, "finished_folder_mib": 1, "archives": 3,
                            "prunable_archives": 2, "finished_max_age_days": 30}}
+ONE_RULE = {"schema_version": 1, "mode": "notify", "thresholds": {"archives": 3}}
 EVALUATED_KEYS = ["kind", "schema_version", "repo", "policy", "evaluation", "not_evaluated",
                   "report_complete", "alerts", "snapshot"]
 ALERT_KEYS = ["rule", "threshold", "threshold_unit", "current_value", "value_unit", "lower_bound",
@@ -221,16 +222,23 @@ class TestObservedChanges(Base):
     """J7: the snapshot states facts of the moment; none of these pairs is proof of a
     transition, and the page says each cause is uncertain."""
 
-    def snap(self, rep):
-        doc = self.doc(self.run_json(rep))
+    def setUp(self):
+        super().setUp()
+        self.adopt(ONE_RULE)    # one rule keeps the whole-document goldens short
+
+    def snap(self, rep, golden=None):
+        ran = self.run_json(rep)
+        if golden is not None:
+            self.check(golden, ran.out)
+        doc = self.doc(ran)
         return doc["report_complete"], doc["snapshot"]
 
     def test_an_id_enters_and_then_leaves_archived_and_removed(self):
         kept = tra.entries(3)
         before = rs.report(rs.finished("gone", folder=True, archive=True), *kept)
         after = rs.report(rs.finished("gone", folder=False, archive=True), *kept)
-        _, first = self.snap(before)
-        _, second = self.snap(after)
+        _, first = self.snap(before, "J7-before")
+        _, second = self.snap(after, "J7-after")
         self.assertEqual((first["archived_and_removed"], second["archived_and_removed"]),
                          ([], ["gone"]))
         self.assertEqual((first["with_review_folder"], second["with_review_folder"]), (4, 3))
@@ -503,6 +511,7 @@ class TestPages(unittest.TestCase):
                          "observed change of uncertain cause",
                          "no `archived` and no `deleted` state",
                          "never parses one",
+                         "ignores an alert whose `state` it does not know",
                          "`12` to `12+` is a new key",
                          "a moved repository is a new identity",
                          "`repo` and `alert_key` are the identity",
@@ -510,6 +519,11 @@ class TestPages(unittest.TestCase):
                          "exits 0 whenever it prints the document"):
             with self.subTest(sentence=sentence):
                 self.assertIn(sentence, self.section)
+
+    def test_D1_the_order_of_the_alerts_is_the_codes(self):
+        row = next(line for line in self.section.splitlines() if line.startswith("| `alerts` |"))
+        named = row.split("always in this order: ", 1)[1].split(".", 1)[0]
+        self.assertEqual(named, ", ".join(f"`{key}`" for key in rp.THRESHOLDS))
 
     def test_D1_the_exit_rule_is_on_both_pages(self):
         self.assertIn("exits 0 whenever it prints its document", self.page)
@@ -1078,6 +1092,86 @@ GOLDENS = {
   "report_complete": null,
   "alerts": [],
   "snapshot": null
+}
+""",
+    "J7-before": """\
+{
+  "kind": "retention_alert",
+  "schema_version": 1,
+  "repo": "<REPO>",
+  "policy": {
+    "state": "adopted",
+    "mode": "notify",
+    "digest": "0eac9d9f2d077028dce3363ec2c39a5e96a5fedb7193f1b3853a13e76056b98f"
+  },
+  "evaluation": "evaluated",
+  "not_evaluated": null,
+  "report_complete": true,
+  "alerts": [
+    {
+      "rule": "archives",
+      "threshold": 3,
+      "threshold_unit": "archives",
+      "current_value": 1,
+      "value_unit": "archives",
+      "lower_bound": false,
+      "unknown_age": null,
+      "reached": false,
+      "state": "clear",
+      "alert_key": "retention:<REPO>:archives:clear",
+      "next": null
+    }
+  ],
+  "snapshot": {
+    "finished": 4,
+    "with_review_folder": 4,
+    "archived_and_removed": [],
+    "finished_folder_bytes": 8192,
+    "archive_store": 1,
+    "prunable_archives": 0,
+    "interrupted_removals": []
+  }
+}
+""",
+    "J7-after": """\
+{
+  "kind": "retention_alert",
+  "schema_version": 1,
+  "repo": "<REPO>",
+  "policy": {
+    "state": "adopted",
+    "mode": "notify",
+    "digest": "0eac9d9f2d077028dce3363ec2c39a5e96a5fedb7193f1b3853a13e76056b98f"
+  },
+  "evaluation": "evaluated",
+  "not_evaluated": null,
+  "report_complete": true,
+  "alerts": [
+    {
+      "rule": "archives",
+      "threshold": 3,
+      "threshold_unit": "archives",
+      "current_value": 1,
+      "value_unit": "archives",
+      "lower_bound": false,
+      "unknown_age": null,
+      "reached": false,
+      "state": "clear",
+      "alert_key": "retention:<REPO>:archives:clear",
+      "next": null
+    }
+  ],
+  "snapshot": {
+    "finished": 4,
+    "with_review_folder": 3,
+    "archived_and_removed": [
+      "gone"
+    ],
+    "finished_folder_bytes": 6144,
+    "archive_store": 1,
+    "prunable_archives": 0,
+    "interrupted_removals": []
+  }
 }
 """,
     "J8-present": """\

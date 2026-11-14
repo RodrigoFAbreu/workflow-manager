@@ -239,7 +239,7 @@ The bytes are fixed: the same inputs give the same document, and every key is al
 | `evaluation` | `evaluated`, `not_evaluated` or `not_applicable`; see below. |
 | `not_evaluated` | `null`, or `{"cause", "next"}`: the text alert's cause and step, verbatim. |
 | `report_complete` | `null` when no report was had, else whether the report is complete. |
-| `alerts` | One entry per threshold the policy sets, in the policy's order of rules: `finished_items`, `finished_folder_mib`, `archives`, `prunable_archives`, `finished_max_age_days`. A rule the policy does not set is absent. |
+| `alerts` | One entry per threshold the policy sets, always in this order: `finished_items`, `finished_folder_mib`, `finished_max_age_days`, `archives`, `prunable_archives`. A rule the policy does not set is absent. |
 | alert `rule` | The threshold's name: `finished_items`, `finished_folder_mib`, `archives`, `prunable_archives` or `finished_max_age_days`. |
 | alert `threshold`, `threshold_unit` | The policy's number and its unit (`items`, `MiB`, `archives`, `days`). |
 | alert `current_value`, `value_unit` | The printed number: items for the count and age rules, whole MiB (rounded down) for the folders, archives for the two archive rules. |
@@ -258,7 +258,7 @@ The bytes are fixed: the same inputs give the same document, and every key is al
 | `not_evaluated` | The text alert's `retention alert: not evaluated` cases: no release in the record, the installed release cannot be checked, the script is modified, missing or refuses, its report is malformed or times out, any exception, or an incomplete report with nothing reached. Never an all-clear. | `[]`, `null` and the cause and step; for the incomplete report, the alerts (every state `unknown`) and the snapshot, whose numbers are lower bounds. |
 | `not_applicable` | The text alert prints nothing: no policy, a file that is missing or invalid, a policy not adopted, changed or whose record is invalid, or mode `off` or `cleanup`. The script is not started. | `[]`, `null`, `null`. |
 
-**`state`.** `reached` is a number at or above its limit (the age rule at one old item). `clear` is within the limit. `unknown` is a lower bound below its limit (the text's `not known`): neither reached nor within.
+**`state`.** `reached` is a number at or above its limit (the age rule at one old item). `clear` is within the limit. `unknown` is a lower bound below its limit (the text's `not known`): neither reached nor within. A later Manager may add a `state` value without changing `schema_version`, so a consumer ignores an alert whose `state` it does not know.
 
 **`alert_key`.** It is `retention:` followed by the repository, the rule and the state, and, for `reached` only, the printed value: `retention:/home/me/work/app:finished_items:reached:12`, with a `+` after an incomplete value (`12+`). A key repeats exactly when the printed value does not change, so one event is one key, and a new key means a new value: `12` to `12+` is a new key, and a change of bytes within the same MiB is not. A `clear` or `unknown` key carries no value, so a rule that stays clear never produces a new key. The key is an opaque string: the repository path may contain `:`, and a consumer compares keys whole and never parses one.
 
