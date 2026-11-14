@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_work_item_id": null,
+  "active_work_item_id": "age-alert-next-step",
   "work_items": {
     "plan-amendment-mechanism": {
       "work_item_type": "process",
@@ -35653,6 +35653,305 @@
         },
         "evaluated_at": "2026-11-14T00:43:27Z",
         "workflow_release": "2.29.3"
+      }
+    },
+    "age-alert-next-step": {
+      "work_item_type": "process",
+      "work_item_kind": "process",
+      "work_item_id": "age-alert-next-step",
+      "parent_work_item_id": null,
+      "plan_path": "docs/ai-workflow/WORKFLOW_MANAGER_AGE_ALERT_NEXT_STEP_PLAN.md",
+      "registry_path": "docs/ai-workflow/registry/age-alert-next-step-registry.json",
+      "mapping_path": "docs/ai-workflow/requirements/age-alert-next-step-mapping.json",
+      "governing_workflow_version": "2.2",
+      "phase": "IMPLEMENTING",
+      "plan_revision": 4,
+      "implementation_revision": null,
+      "functional_review_round": null,
+      "base_commit": "61e5b51051864f3ce242f09ce1105b3b8365c273",
+      "reviewed_implementation_head": null,
+      "current_checkpoint_id": null,
+      "last_completed_checkpoint_id": null,
+      "checkpoints": {},
+      "current_bundle_id": "54fe025ee2ccfb66131e7b6613c188552f74e9d1408684a6f8d1c3282ad17f96",
+      "plan_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "54fe025ee2ccfb66131e7b6613c188552f74e9d1408684a6f8d1c3282ad17f96",
+        "approved_review_content_id": "91a71e2a0a9cab843a453e9ad616250f3333719f80b3f7e3288489804d148c0a",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/WORKFLOW_MANAGER_AGE_ALERT_NEXT_STEP_PLAN.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "2af82efc9e66564aa371862ad0402d2b40d18cd1"
+          },
+          {
+            "path": "docs/ai-workflow/registry/age-alert-next-step-registry.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "8cb1947401e446bbc6f1fd1dae32bb214f7ce754"
+          },
+          {
+            "path": "docs/ai-workflow/requirements/age-alert-next-step-mapping.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "950535d10f24b1d33034977be803061e64746574"
+          }
+        ],
+        "reviewed_content_commit": null,
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-11-14T01:52:16Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "91a71e2a0a9cab843a453e9ad616250f3333719f80b3f7e3288489804d148c0a",
+            "ledger": {
+              "local": {
+                "bundle_id": "54fe025ee2ccfb66131e7b6613c188552f74e9d1408684a6f8d1c3282ad17f96",
+                "verdict": "APPROVE",
+                "round": 4,
+                "verdict_sha256": "db22897564ad11e656837dd21f04ef6a4b3fe3baaf8b6216ed68639ae48a4674",
+                "ledger_entry_sha256": "bc386b16371a558cd113eec62e4452a9a838256d26ef396ac378b36b586a2c34",
+                "run_ref": "session:local .ai-review/age-alert-next-step/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "54fe025ee2ccfb66131e7b6613c188552f74e9d1408684a6f8d1c3282ad17f96",
+                "verdict": "APPROVE",
+                "round": 4,
+                "verdict_sha256": "d6c7ca230f3cc2f0f7ebf439ebb835007897bc74e8f58da768e3eeb07a9f04fd",
+                "ledger_entry_sha256": "69757eaf5cc89188907da28b7aecfdef9ade4623c1b0d3f5424a5f6573526513",
+                "run_ref": "codex:20261114T014738Z-38f74de1",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-11-14T01:52:16Z",
+          "workflow_release": "2.29.3"
+        }
+      },
+      "technical_approval": null,
+      "technical_review_block_pins": [],
+      "plan_review_stages": {
+        "review_content_id": "91a71e2a0a9cab843a453e9ad616250f3333719f80b3f7e3288489804d148c0a",
+        "LOCAL_MODEL_PLAN_REVIEW": {
+          "bundle_id": "54fe025ee2ccfb66131e7b6613c188552f74e9d1408684a6f8d1c3282ad17f96",
+          "verdict": "APPROVE",
+          "round": 4,
+          "completed_at": "2026-11-14T01:46:50Z",
+          "verdict_sha256": "db22897564ad11e656837dd21f04ef6a4b3fe3baaf8b6216ed68639ae48a4674",
+          "run_ref": "session:local .ai-review/age-alert-next-step/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_PLAN_REVIEW": {
+          "bundle_id": "54fe025ee2ccfb66131e7b6613c188552f74e9d1408684a6f8d1c3282ad17f96",
+          "verdict": "APPROVE",
+          "round": 4,
+          "completed_at": "2026-11-14T01:51:03Z",
+          "verdict_sha256": "d6c7ca230f3cc2f0f7ebf439ebb835007897bc74e8f58da768e3eeb07a9f04fd",
+          "run_ref": "codex:20261114T014738Z-38f74de1",
+          "reviewer_model": "openai/gpt-6.1-sol"
+        }
+      },
+      "functional_acceptance_status": null,
+      "blocking_decisions": [],
+      "review_round_counts": {
+        "plan": {
+          "local": 4,
+          "external": 1
+        },
+        "implementation": {
+          "local": 0,
+          "external": 0
+        }
+      },
+      "state_revision": 15,
+      "last_transition": "2026-11-14T01:52:16Z",
+      "feedback_layout": "scoped",
+      "plan_review_binding": {
+        "status": "BOUND",
+        "at": "2026-11-14T01:44:06Z",
+        "consumed": {
+          "review_content_id": "267535d7406b3f97c2e0da85f19559995132fb538fa791b939402c2fd6b1e319",
+          "plan_revision": 3,
+          "legacy": false
+        },
+        "published": {
+          "review_content_id": "91a71e2a0a9cab843a453e9ad616250f3333719f80b3f7e3288489804d148c0a",
+          "plan_revision": 4
+        },
+        "bound": {
+          "review_content_id": "91a71e2a0a9cab843a453e9ad616250f3333719f80b3f7e3288489804d148c0a",
+          "bundle_id": "54fe025ee2ccfb66131e7b6613c188552f74e9d1408684a6f8d1c3282ad17f96",
+          "plan_revision": 4
+        }
+      },
+      "consumed_plan_review_content_ids": [
+        "267535d7406b3f97c2e0da85f19559995132fb538fa791b939402c2fd6b1e319",
+        "a8018be32004f4a01ee00ee7e00ab3989fe76865fc8bc437d394582626111fbe",
+        "e5b0af50d08346b23d8055609e7e2e2654803209ed00eb3d2094237ad3206f9c"
+      ],
+      "optional_findings": {
+        "F-dea883f38014": {
+          "digest": "dea883f380149d6b6beda34a731f2f92ba8f9e644ec40c44c46dd4f783290851",
+          "text": "PLR1-003 (section 3 / flow 5): flow 5 runs \"the scratch driver of section 3\", but section 3 describes only the absent-key golden in prose and defines no driver. Say where it lives (written out in the implementation summary, or a named helper in `tests/test_retention_alert.py`) so the functional reviewer can run it, and say what it prints for the with-age-key run of flow 5.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "a8018be32004f4a01ee00ee7e00ab3989fe76865fc8bc437d394582626111fbe",
+              "verdict": "REVISE",
+              "at": "2026-11-14T01:31:28Z"
+            }
+          ]
+        },
+        "F-3ffa998ca314": {
+          "digest": "3ffa998ca3149f5a86905d82edbbbc991114cc6d766e43ebb4bc15f5e179ac4d",
+          "text": "PLR1-004 (section 3): the grep evidence \"`grep -rn 'finished older' tests docs`: the lines of that test and of `docs/retention.md`\" is not accurate. The grep also matches `tests/test_retention_cleanup.py:803/811/866/871`, `docs/ACTIVE_MILESTONE.md` and `docs/milestones/completed/*`. None of them pins the age line's `next:` step, so the conclusion holds, but state the grep and its result as they are.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "a8018be32004f4a01ee00ee7e00ab3989fe76865fc8bc437d394582626111fbe",
+              "verdict": "REVISE",
+              "at": "2026-11-14T01:31:28Z"
+            }
+          ]
+        },
+        "F-dfbf8e966589": {
+          "digest": "dfbf8e9665891251943ce095aad010902edac6f1a58d4be1dcf79f1e2e4f7c05",
+          "text": "PLR1-005 (CP1): \"First add row 44 after row 43 of docs/ROADMAP.md\" is already done in the working tree (row 44, `Current`). Say \"row 44 (added at planning)\" so the implementer does not add it twice.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "a8018be32004f4a01ee00ee7e00ab3989fe76865fc8bc437d394582626111fbe",
+              "verdict": "REVISE",
+              "at": "2026-11-14T01:31:28Z"
+            }
+          ]
+        },
+        "F-ecd8500ed5e3": {
+          "digest": "ecd8500ed5e3566c9010af91efdf6c1bd585599bb011f84cd5475dc0cfb81a03",
+          "text": "PLR2-003 (section 2.1 / section 3): no test or mutation pins the `plannable_id` filter of `_age_step`. Removing it from the rule fails nothing, because no scenario has an old entry with a rejected id. The plan says the engine does not produce one. But `retention_cleanup` tests that case (`tests/test_retention_cleanup.py:123`, `REASON_ID`), and the shared helper exists so that \"the alert and the cleanup can never disagree\". A sixth N2 scenario would pin it, with a mutation that drops the filter: the oldest old item has id `runtime` or `Bad_ID`, the next old item is clean, and the step and `select(...).items[0]` both name the next one.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "e5b0af50d08346b23d8055609e7e2e2654803209ed00eb3d2094237ad3206f9c",
+              "verdict": "REVISE",
+              "at": "2026-11-14T01:36:02Z"
+            }
+          ]
+        },
+        "F-a7ef00ecee10": {
+          "digest": "a7ef00ecee10f2416890d90da8df6b33bcad82dd85c3707181ee092227309300",
+          "text": "PLR2-004 (N2, the release-below-2.21.0 scenario): the update step names no id or verb, so the \"id and verb named equal `items[0]`'s\" assertion cannot hold there as written. Say that this scenario asserts the update step text and `items[0]`'s action instead.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "e5b0af50d08346b23d8055609e7e2e2654803209ed00eb3d2094237ad3206f9c",
+              "verdict": "REVISE",
+              "at": "2026-11-14T01:36:02Z"
+            }
+          ]
+        },
+        "F-80331575a6d0": {
+          "digest": "80331575a6d0662418cabec738286e6aa9e424cfa81ba8a91c9805e504936e06",
+          "text": "PLR3-002 (section 2.1): \"The cleanup would plan the last two of these\" names the wrong two. Of the three skipped kinds (unreadable archive, review folder not present, an id in `removing` with folder and archive present), the cleanup plans the first and the third. Its candidates require `review_folder.present` (`retention_cleanup.py:315`), and `_eligible` checks neither readability nor `removing`. A folder that is not present is never a candidate of either side, because `aged` examines only present folders (`retention_alert.py:82-83`). The sentence after it (a complete report with no `removing` leaves `readable=False` as the one real divergence) is already right. Change \"the last two\" to \"the first and the last\", and say that a not-present folder is never old.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 3,
+              "review_content_id": "267535d7406b3f97c2e0da85f19559995132fb538fa791b939402c2fd6b1e319",
+              "verdict": "REVISE",
+              "at": "2026-11-14T01:42:10Z"
+            }
+          ]
+        },
+        "F-7310ec480b8b": {
+          "digest": "7310ec480b8be72b38e23e8728e8328b44af4ed7843114bdb64d6b70ec3d0315",
+          "text": "PLR3-003 (section 6, flow 5): \"only the age line's `next:` differs\". `next:` is its own line, shared by every reached rule, not part of the age line. When the count or size rule is also reached in the age-key run, the line can gain a second step joined with `; ` (section 2.1). Say \"only the `next:` line differs, by the age step\" so the functional reviewer does not read the joined step as a regression.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 3,
+              "review_content_id": "267535d7406b3f97c2e0da85f19559995132fb538fa791b939402c2fd6b1e319",
+              "verdict": "REVISE",
+              "at": "2026-11-14T01:42:10Z"
+            }
+          ]
+        },
+        "F-f2238669b7bc": {
+          "digest": "f2238669b7bc341f065731dd06fda8046be93fd43abd010308ce4b4008ea69b8",
+          "text": "PLR4-001 (section 3, design rules): the new sentence says every test with an archivable young (non-old) item ahead of its old items fails M1, \"those are N1, N2, N4, N5, N7, N8 (c) and the adjusted existing test\". The adjusted existing test `test_the_age_line_and_its_variants` has no young item ahead: its reports are `rs.report(*old, young)` and `rs.report(*old, *unknown)`, old items first (`tests/test_retention_alert.py:220-224`). It fails M1 for another reason: it has four old items, and M1's step (the first archivable entry in report order) names the newest, `old-0`, where the rule names the oldest, `old-3`. The failure set in the table is right; only the stated reason for that one member is not. Say that the existing test fails M1 because it has several old items and none ahead of them, so a reader measuring the set does not look for a young item that is not there.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 4,
+              "review_content_id": "91a71e2a0a9cab843a453e9ad616250f3333719f80b3f7e3288489804d148c0a",
+              "verdict": "APPROVE",
+              "at": "2026-11-14T01:46:50Z"
+            }
+          ]
+        },
+        "F-3092203875dc": {
+          "digest": "3092203875dc199078db0a907b068f3a908b6d217500161784271063d1697f7b",
+          "text": "Plan §§2.2 and 7 should qualify “the cleanup’s first item” with §2.1’s actionability exception. An unreadable oldest archive makes cleanup selection and the alert hint differ, as N8 explicitly verifies. Carrying that qualification into the proposed documentation would improve consistency.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "MANUAL_EXTERNAL_PLAN_REVIEW",
+              "round": 4,
+              "review_content_id": "91a71e2a0a9cab843a453e9ad616250f3333719f80b3f7e3288489804d148c0a",
+              "verdict": "APPROVE",
+              "at": "2026-11-14T01:51:03Z"
+            }
+          ]
+        }
       }
     }
   }

@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "work_item_id": "age-alert-next-step",
+  "requirements": {
+    "R1": {
+      "description": "When the age threshold is reached the alert's next: step names the finished item the cleanup's age rule would plan first (oldest item older than N days, beyond the 3 most recent, with no tracked review file and an id the engine accepts), with its archive or remove action and the release gating; never a young or kept-recent item; an old item the script cannot act on (unreadable archive, removal in progress) is skipped for the next one; with no actionable old item it says nothing to archive and names no command.",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R2": {
+      "description": "The alert and the cleanup share one id rule (plannable_id); the count and size rules' steps, retention.next_step, the retention report section and the cleanup preview are byte-identical for every policy without the age key, and every existing refusal and no-write proof stays.",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R3": {
+      "description": "docs/retention.md's alert example is a complete report that matches retention_alert.render, the next: bullet says what the age step names, tests N1 to N8 (N3 a regression test without a mutation of its own) each fail with their mutation M1, M2, M4, M5, M6, M8 or M9 and the failure sets of the plan's table hold, roadmap row 44 is added, and the release is a fix: Manager 1.19.1.",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    }
+  }
+}
