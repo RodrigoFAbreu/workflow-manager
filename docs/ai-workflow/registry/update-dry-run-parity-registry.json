@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "work_item_id": "update-dry-run-parity",
+  "plan_revision": 2,
+  "checkpoints": [
+    {
+      "id": "CP1",
+      "name": "The record shapes, the null-manifest refusal, the recovery step, the dry-run wording, and the tests",
+      "depends_on": [],
+      "complexity": 2,
+      "session_target": 1
+    },
+    {
+      "id": "CP2",
+      "name": "The pages that pin the old behaviour and the wording fixes",
+      "depends_on": [
+        "CP1"
+      ],
+      "complexity": 1,
+      "session_target": 1
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_work_item_id": null,
+  "active_work_item_id": "update-dry-run-parity",
   "work_items": {
     "plan-amendment-mechanism": {
       "work_item_type": "process",
@@ -37378,6 +37378,233 @@
         "evaluated_at": "2026-11-14T06:07:08Z",
         "workflow_release": "2.29.3"
       }
+    },
+    "update-dry-run-parity": {
+      "work_item_type": "process",
+      "work_item_kind": "process",
+      "work_item_id": "update-dry-run-parity",
+      "parent_work_item_id": null,
+      "plan_path": "docs/ai-workflow/WORKFLOW_MANAGER_UPDATE_DRY_RUN_PARITY_PLAN.md",
+      "registry_path": "docs/ai-workflow/registry/update-dry-run-parity-registry.json",
+      "mapping_path": "docs/ai-workflow/requirements/update-dry-run-parity-mapping.json",
+      "governing_workflow_version": "2.2",
+      "phase": "IMPLEMENTING",
+      "plan_revision": 2,
+      "implementation_revision": null,
+      "functional_review_round": null,
+      "base_commit": "da3c7747a65b5788d0f6d9530fcd379b52d7b6d2",
+      "reviewed_implementation_head": null,
+      "current_checkpoint_id": null,
+      "last_completed_checkpoint_id": null,
+      "checkpoints": {},
+      "current_bundle_id": "0dab145059881df233219de523253d906263e4e5ae824faaf22ea07853891918",
+      "plan_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "0dab145059881df233219de523253d906263e4e5ae824faaf22ea07853891918",
+        "approved_review_content_id": "c3b92147e39eba5d5febc172831057e62f04f7d65b4c3b2e7236ca520c17f72c",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/WORKFLOW_MANAGER_UPDATE_DRY_RUN_PARITY_PLAN.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "0296c178903e212651688821d7cf6ea7f08be372"
+          },
+          {
+            "path": "docs/ai-workflow/registry/update-dry-run-parity-registry.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "983b7bc00858cf7c880c499958a86765f4910e94"
+          },
+          {
+            "path": "docs/ai-workflow/requirements/update-dry-run-parity-mapping.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "ca9977ce9e4f7c6bfd2b717d240270f9f3d1adfe"
+          }
+        ],
+        "reviewed_content_commit": null,
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-11-15T09:53:54Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "c3b92147e39eba5d5febc172831057e62f04f7d65b4c3b2e7236ca520c17f72c",
+            "ledger": {
+              "local": {
+                "bundle_id": "0dab145059881df233219de523253d906263e4e5ae824faaf22ea07853891918",
+                "verdict": "APPROVE",
+                "round": 2,
+                "verdict_sha256": "7ea7be5b1c9d4cae4d17ed5530225cf1d8c6c6a8111ce79bbdf65b36588f55cf",
+                "ledger_entry_sha256": "07e19c656f96d2defc95290dff2df921918000c0ce17ad6f0d9803e38ec49f31",
+                "run_ref": "session:local .ai-review/update-dry-run-parity/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "0dab145059881df233219de523253d906263e4e5ae824faaf22ea07853891918",
+                "verdict": "APPROVE",
+                "round": 2,
+                "verdict_sha256": "95521311264830cd2a3c13bffdebb4dd4eff09f4486a1ee3fa4a99a8018bf887",
+                "ledger_entry_sha256": "743805413e1308facb0abfc5dc10e82c7cbe95f6216777e682a9a2322d1f999c",
+                "run_ref": "codex:20261115T095039Z-64657673",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-11-15T09:53:54Z",
+          "workflow_release": "2.29.5"
+        }
+      },
+      "technical_approval": null,
+      "technical_review_block_pins": [],
+      "plan_review_stages": {
+        "review_content_id": "c3b92147e39eba5d5febc172831057e62f04f7d65b4c3b2e7236ca520c17f72c",
+        "LOCAL_MODEL_PLAN_REVIEW": {
+          "bundle_id": "0dab145059881df233219de523253d906263e4e5ae824faaf22ea07853891918",
+          "verdict": "APPROVE",
+          "round": 2,
+          "completed_at": "2026-11-15T09:49:42Z",
+          "verdict_sha256": "7ea7be5b1c9d4cae4d17ed5530225cf1d8c6c6a8111ce79bbdf65b36588f55cf",
+          "run_ref": "session:local .ai-review/update-dry-run-parity/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_PLAN_REVIEW": {
+          "bundle_id": "0dab145059881df233219de523253d906263e4e5ae824faaf22ea07853891918",
+          "verdict": "APPROVE",
+          "round": 2,
+          "completed_at": "2026-11-15T09:52:44Z",
+          "verdict_sha256": "95521311264830cd2a3c13bffdebb4dd4eff09f4486a1ee3fa4a99a8018bf887",
+          "run_ref": "codex:20261115T095039Z-64657673",
+          "reviewer_model": "openai/gpt-6.1-sol"
+        }
+      },
+      "functional_acceptance_status": null,
+      "blocking_decisions": [],
+      "review_round_counts": {
+        "plan": {
+          "local": 2,
+          "external": 2
+        },
+        "implementation": {
+          "local": 0,
+          "external": 0
+        }
+      },
+      "state_revision": 10,
+      "last_transition": "2026-11-15T09:53:54Z",
+      "feedback_layout": "scoped",
+      "plan_review_binding": {
+        "status": "BOUND",
+        "at": "2026-11-15T09:47:36Z",
+        "consumed": {
+          "review_content_id": "e6904889dc327f54af830327824ec845d440c8f000b64b2572535b3eb1062bdd",
+          "plan_revision": 1,
+          "legacy": false
+        },
+        "published": {
+          "review_content_id": "c3b92147e39eba5d5febc172831057e62f04f7d65b4c3b2e7236ca520c17f72c",
+          "plan_revision": 2
+        },
+        "bound": {
+          "review_content_id": "c3b92147e39eba5d5febc172831057e62f04f7d65b4c3b2e7236ca520c17f72c",
+          "bundle_id": "0dab145059881df233219de523253d906263e4e5ae824faaf22ea07853891918",
+          "plan_revision": 2
+        }
+      },
+      "optional_findings": {
+        "F-2669247d411e": {
+          "digest": "2669247d411e6b9881b5e6fd776701d4866a40888274d9009b969719299202fb",
+          "text": "R3 and Point 3 promise that every command a report prints keeps the release version, but one does not. For a null or damaged record, `_installed_resolves` returns False, so the report adds the `not-verified` note (`compatibility.py:1834-1838`). The `verify` command in that note (`compatibility.py:1948-1952`) carries no release version, and a bare `verify` refuses a record that is not `X.Y.Z` (`cli._release_for_target`). The note says the command \"prints why it cannot\", so the output is still honest, but R3's wording (\"every command a report prints\") is wider than what Point 3 changes (`build_report`'s `explicit`, which feeds the recovery steps). To avoid an argument at implementation review, either narrow R3 to the update commands in the recovery steps, or drop or reword the `not-verified` note when `recorded_release(facts)` is None, since \"Installed release unknown\" already says this.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "e6904889dc327f54af830327824ec845d440c8f000b64b2572535b3eb1062bdd",
+              "verdict": "APPROVE",
+              "at": "2026-11-15T07:08:24Z"
+            }
+          ]
+        },
+        "F-1c163cb3febe": {
+          "digest": "1c163cb3febe2af4dadae15f326ceac3b2da1d36128aafa7ec670aba86f8be05",
+          "text": "`tests/test_operator_ux_readonly.py:1004`: after `None` is dropped from the loop of `test_i3_verify_without_release_dir_after_a_scalar_install_asks_for_one`, the `\"the installation record has no workflow_version\" if version is None else ...` branch can never run. Remove it with the edit. Null-record `verify` stays covered by `tests/test_operator_ux.py:1140-1171` and `tests/test_discovery.py:407`.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "e6904889dc327f54af830327824ec845d440c8f000b64b2572535b3eb1062bdd",
+              "verdict": "APPROVE",
+              "at": "2026-11-15T07:08:24Z"
+            }
+          ]
+        },
+        "F-0113cc4cb7c7": {
+          "digest": "0113cc4cb7c70222809c3676fe40c4c18e6a12cb7e2c35dd78849b3d3bfa92c9",
+          "text": "`advice.py:648-652`: once `source.local_release` refuses a null-manifest directory, the comment's stated reason for leaving `--release-dir` out of the null-record step no longer holds. The rewritten comment (point 5a) should give the reason that does hold, or say that the clause is kept for wording stability. Otherwise a later reader will try to \"fix\" the step back to including the directory.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "e6904889dc327f54af830327824ec845d440c8f000b64b2572535b3eb1062bdd",
+              "verdict": "APPROVE",
+              "at": "2026-11-15T07:08:24Z"
+            }
+          ]
+        },
+        "F-83f704c708ae": {
+          "digest": "83f704c708ae82ecc0e0c80ea431d217b8155f35c0316263da58e70969cf6eae",
+          "text": "**O1 — Flow 3 expects an incorrect advice suffix.** At plan line 250, the damaged-record dry run is expected to add ` -- a real update, not a dry run`. In `advice._not_a_version`, non-null damaged records return before that suffix is added; only null records receive it. Expect identical advice for the damaged-record pair.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "MANUAL_EXTERNAL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "e6904889dc327f54af830327824ec845d440c8f000b64b2572535b3eb1062bdd",
+              "verdict": "REVISE",
+              "at": "2026-11-15T09:46:12Z"
+            }
+          ]
+        }
+      },
+      "consumed_plan_review_content_ids": [
+        "e6904889dc327f54af830327824ec845d440c8f000b64b2572535b3eb1062bdd"
+      ]
     }
   }
 }
