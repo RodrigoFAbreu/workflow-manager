@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "work_item_id": "update-dry-run-parity",
+  "requirements": {
+    "R1": {
+      "description": "update --dry-run with a named release (--release-version or --release-dir) accepts a record that is damaged but not null (garbage, ../escaped, 2.12) exactly as the real update does, previews it, writes nothing, and the recorded name never reaches the cache, the source, the destination planner or any report comparison; a run that must choose the release is still refused by both with the same cause and step.",
+      "checkpoint_ids": [
+        "CP1",
+        "CP2"
+      ]
+    },
+    "R2": {
+      "description": "A release directory whose manifest.json has a null workflow_version is refused at the source (local_release), by every command that reads it, with a cause and a step, before any pin, snapshot or write; the record is never left null by it.",
+      "checkpoint_ids": [
+        "CP1",
+        "CP2"
+      ]
+    },
+    "R3": {
+      "description": "The recovery steps and every command a report prints keep --release-version when it names the latest release and the record is not one X.Y.Z (a bare update refuses it).",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R4": {
+      "description": "The dry run says that the installation record would be rewritten when a null or damaged record meets a release with no file change; a valid record still prints (no change), byte for byte.",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R5": {
+      "description": "The advice._not_a_version comment, the docs/update.md sentence on --release-dir and the _dry_and_real no-write assertion for the real bare update are corrected; the mutation-table wording in a completed item's test results is KEEP.",
+      "checkpoint_ids": [
+        "CP1",
+        "CP2"
+      ]
+    },
+    "R6": {
+      "description": "Every test and page that pinned the old text is listed and updated; the happy-path outputs are byte-identical (golden before and after); roadmap row 46 is added; nothing else changes.",
+      "checkpoint_ids": [
+        "CP1",
+        "CP2"
+      ]
+    }
+  }
+}

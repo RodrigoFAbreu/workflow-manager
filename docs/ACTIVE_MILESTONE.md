@@ -2,222 +2,244 @@
 
 ## Milestone
 
-`retention-alert-json` -- complete (accepted by policy) (`governing_workflow_version: "2.2"`, `process`, plan revision 3, base `84e6e3f`, branch `milestone/retention-alert-json`): roadmap row 45 (#220). A `feat:` pull request title (`feat: a machine-readable retention alert, doctor --retention --json`, Manager 1.20.0); the release-history row follows in a `docs:` pull request.
+`update-dry-run-parity` -- complete (accepted by policy) (`governing_workflow_version: "2.2"`, `process`, plan revision 2, implementation revision 1, base `da3c774`, branch `milestone/update-dry-run-parity`): roadmap row 46 (#158, points 1 to 5). The pull request title is `fix: make the update dry run match the real update for every record shape`, a patch release (Manager 1.20.1, checked with `tools/release/release.py check-title`).
 
-`workflow-manager doctor --retention TARGET --json` prints the retention alert as one byte-stable JSON document: per threshold the rule, threshold, current value, `reached`, a `state` of `reached`, `clear` or `unknown`, and an opaque `alert_key`; an explicit `evaluation` (`evaluated`, `not_evaluated`, `not_applicable`) that is never a false all-clear; and a `snapshot` of current facts a Controller compares between two complete documents, reading each difference as an observed change of uncertain cause (the Manager emits no `archived` or `deleted` state). It writes nothing, starts the script only after the policy gate, refuses the release options, skips the compatibility report and exits 0 whenever the document is printed.
+`update --dry-run` predicts what the real `update` does for every record shape: a null record, a damaged record (`garbage`, `../escaped`), a valid record, and a release directory whose manifest has a null `workflow_version`. A refusal names a cause and one step. The dry run still writes nothing. The happy-path output is unchanged; the changed outputs are the rows of plan section 3.
 
-### CP1: the assessment, the JSON document, the flag, and the tests -- complete (`7b6a5c1`)
+Implementation: `0749457` (code and tests), `db6be10` (the pages and the record-shape notes), `b240bf5` (the bundle record). The implementation was approved by policy in `12fbd2f`. The automated gate ran green at `db6be10` (see the checklist).
 
-- `retention_alert.assess` returns one `Assessment` (policy state, not-evaluated cause and step, results, report); `alert_lines` renders it, byte-identical to the base.
-- `retention_alert_json.document`/`render`: the second renderer of the same assessment, with its own exception boundary.
-- `cli.py`: `doctor --json` (only with `--retention`), `_doctor_json` (release options refused first, then not managed, the unparseable record, the cache or temporary directory check; destinations planned for the installed release only).
-- Tests J1 to J8, D0, K1, E1, X1, W1, S1, P1, T1 in `tests/test_retention_alert_json.py`.
-
-### CP2: the pages, the roadmap pin and the page tests -- complete (`6339962`)
-
-- `docs/retention.md`: "The retention alert as JSON" (the document, the key and `evaluation` tables, `state`, the `alert_key` rule, why `archived` and `deleted` are not emitted and how to compare two snapshots, the exit rule); the "Exit status" sentence.
-- `docs/exit-codes.md`: the two `doctor --retention --json` rows (0 and 2).
-- Page tests D1.
-
-### Self-review -- complete (three findings fixed)
-
-- **Fixed (important):** the page documented the order of `alerts` as `finished_items`, `finished_folder_mib`, `archives`, `prunable_archives`, `finished_max_age_days`; the document follows `retention_policy.THRESHOLDS`, which puts `finished_max_age_days` third. The page now states the code's order, and a new page test (`test_D1_the_order_of_the_alerts_is_the_codes`) ties the sentence to `THRESHOLDS`.
-- **Fixed:** plan section 7 says the page tells a consumer to ignore an unknown `state` value; it did not. One sentence added under `state`, pinned by D1.
-- **Fixed:** plan section 3 makes J7 a whole-document golden, so M1 must fail it; the J7 tests asserted only snapshot fields and M1 did not fail them. `TestObservedChanges` now adopts a one-rule policy and its first pair compares the complete documents (`J7-before`, `J7-after`).
-- Mutations M1 to M10 measured in a scratch copy outside the repository (`python3 -B -m unittest test_retention_alert_json test_retention_alert test_doctor_cli`): every claimed failing set of the plan's table fails; the measured sets and their extra failures are in the implementation summary. The unmutated copy passes.
-- Flow 5 text golden: `verify`, `doctor` and `doctor --retention` text in 20 scenarios (J1 to J8) is byte-identical between `84e6e3f` and the candidate (60 runs, adoption times normalized).
-- Narrow check: `python3 tests/run_all.py --select test_retention_alert_json.py --select test_retention_alert.py --select test_retention_status.py --select test_retention_cleanup.py --select test_doctor_cli.py --select test_docs.py --select test_operator_ux_docs.py`, `verdict: exit 0`; `python3 tools/check_docs.py` clean.
+The `docs/ROADMAP.md` row 46 is an uncommitted working-tree edit, deliberately: a planning row, not a deliverable. The checklist commit includes only this file.
 
 ## Functional review checklist
 
-`retention-alert-json`, implementation revision 1, base `84e6e3f`, branch `milestone/retention-alert-json`. This section is committed by the checklist-evidence commit; that commit's SHA and blob are reported with the checklist, since a file cannot name its own commit. It replaces the checklist committed at `9f51064` (blob `5a67b19`): a sandbox run of that one could not run flows 1, 5, 6, 8 and 10 as written.
+`update-dry-run-parity`, implementation revision 1, base `da3c774`, branch `milestone/update-dry-run-parity`. This section is committed by the checklist-evidence commit; that commit's SHA and blob are reported with the checklist, since a file cannot name its own commit.
 
-**Automated verification is current.** The full gate `python3 tests/run_all.py` ran at `ab4eb07` (the code head): full selection, 2421/2421 units, 16315 tests, `verdict: exit 0` (`.ai-review/retention-alert-json/current/TEST_RESULTS.md`). Since `ab4eb07` only documentation and `docs/ai-workflow/WORKFLOW_STATE.json` have changed, so nothing needs a rerun.
+**Automated verification is current.** The full gate `python3 tests/run_all.py` ran at `db6be10` (the code head): full selection, 2425/2425 units, 16426 tests, `verdict: exit 0` (`.ai-review/update-dry-run-parity/current/TEST_RESULTS.md`). `git diff --stat db6be10 HEAD -- src tests tools` is empty, so nothing needs a rerun.
 
 ### Setup
 
-- **Sandbox checkout:** a clone of `milestone/retention-alert-json` at its committed HEAD, with a clean working tree. Flows marked *sandbox* run here, offline. No flow uses `gh`, `claude`, `codex` or `ssh`.
-- **Working tree:** the clone you work in, with the uncommitted `docs/ROADMAP.md` row 45. That row is deliberate (a planning row, not a deliverable). Flows marked *manual* run here or in a full environment.
-- Python 3 (standard library) and `git`. `S` is a scratch directory outside the clone, and a flow writes only there. Run Python with `-B`, so nothing is written into the clone.
-- Flows 5 and 8 import `tests/support.py`, which reads the release cache for every tested Workflow release. A sandbox needs `WORKFLOW_MANAGER_RELEASE_CACHE` set to a primed cache (read only is enough; a full `python3 tests/run_all.py` primes it). Without it the import stops with a named error: an environment result, not a defect.
-- `BASE` is `84e6e3fb4edf7b01e0c4cbbb30f4f7b89935fb74`. Read exit codes with `; echo $?`, not through a pipe.
+- **Sandbox** (flows marked *sandbox*): offline, with no network, no `gh`, no `claude`, `codex` or `ssh`, and no Workflow release cache. The flows read the source from `git archive` of two commits, so the clone itself is read-only. Tools used: Python 3 (standard library), `git`, `tar`, `find`, `xargs`, `sha256sum`, `sed`, `cmp`, `cp`, `grep`.
+- **Working tree** (flow 10's note only): the clone you work in, with the uncommitted `docs/ROADMAP.md` row 46.
+- Run the flows in `bash`. Use a scratch directory `S` outside the clone, never `/tmp`. The flows write only under `S`.
+- Set-up, with `R` set to the clone path:
+
+```bash
+R=<clone>
+S=$(mktemp -d "$HOME/.cache/udp-fr.XXXXXX")
+mkdir -p "$S/base" "$S/cand" "$S/cache"
+git -C "$R" archive da3c7747a65b5788d0f6d9530fcd379b52d7b6d2 src | tar -x -C "$S/base"
+git -C "$R" archive db6be105420f33661f0b3a636ab0ba27893e4c0c src | tar -x -C "$S/cand"
+export WORKFLOW_MANAGER_RELEASE_CACHE="$S/cache"
+wm() { w=$1; shift; python3 -I -c 'import sys;sys.path.insert(0,sys.argv.pop(1));from workflow_manager.cli import main;raise SystemExit(main())' "$S/$w/src" "$@"; }
+tree() { find "$1" -path '*/.git' -prune -o -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum; }
+setrec() { python3 -I -c 'import json,sys;p=sys.argv[1];d=json.load(open(p));d["workflow_version"]=json.loads(sys.argv[2]);open(p,"w").write(json.dumps(d,indent=2,sort_keys=True)+"\n")' "$1/.workflow-manager/installation.json" "$2"; }
+mk() { rm -rf "$S/$1"; cp -a "$S/ok" "$S/$1"; if [ $# -ge 2 ]; then setrec "$S/$1" "$2"; git -C "$S/$1" commit -qam r; fi; }
+rec() { python3 -I -c 'import json,sys;print(json.load(open(sys.argv[1]+"/.workflow-manager/installation.json"))["workflow_version"])' "$1"; }
+```
+
+- The release builder `$S/mk.py DIR VERSION` (`VERSION` may be `null`):
+
+```python
+import hashlib, json, sys
+from pathlib import Path
+root, version = Path(sys.argv[1]), sys.argv[2]
+state = b'{"schema_version": 1, "active_work_item_id": null, "work_items": {}}\n'
+config = b'{"schema_version": 1, "default_workflow_version": "2.2", "supported_versions": ["1", "2.1", "2.2"]}\n'
+art = {"payload/docs/guide.md": b"# guide\n"}
+tpl = {"templates/docs/ai-workflow/WORKFLOW_STATE.json": state,
+       "templates/docs/ai-workflow/WORKFLOW_CONFIG.json": config,
+       "templates/docs/ACTIVE_MILESTONE.md": b"# a\n",
+       "templates/.gitignore.workflow-fragment": b".ai-review/\n",
+       "templates/CLAUDE.md": b"# managed\n<!-- workflow-manager:end -->\n"}
+m = {"workflow_version": None if version == "null" else version,
+     "upstream": {"tag": "workflow-v9.0.0", "commit": "0" * 40}, "artifacts": [], "templates": []}
+for group, files in (("artifacts", art), ("templates", tpl)):
+    for loc, data in files.items():
+        p = root / loc; p.parent.mkdir(parents=True, exist_ok=True); p.write_bytes(data)
+        e = {"target_path": loc.split("/", 1)[1], "location": loc,
+             "sha256": hashlib.sha256(data).hexdigest(), "size": len(data)}
+        if group == "artifacts":
+            e.update(executable=False, category="distribution")
+        m[group].append(e)
+(root / "manifest.json").write_text(json.dumps(m, indent=2, sort_keys=True) + "\n")
+```
+
+  The `CLAUDE.md` template carries the Manager's end marker (`<!-- workflow-manager:end -->`, `install.py`). Without it the merge prepends the managed section on every run, and no "no change" expectation below can hold. The marker is the only change from the builder the match item used.
+
+- Then, once:
+
+```bash
+python3 -I "$S/mk.py" "$S/rel" 9.0.0
+python3 -I "$S/mk.py" "$S/relnull" null
+git init -q "$S/t"; git -C "$S/t" config user.name t; git -C "$S/t" config user.email t@t
+git -C "$S/t" commit -q --allow-empty -m init
+wm base --release-dir "$S/rel" bootstrap "$S/t"
+git -C "$S/t" add -A; git -C "$S/t" commit -qm b
+cp -a "$S/t" "$S/ok"
+```
+
+  `mk NAME` gives a fresh copy of `ok` (record `9.0.0`); `mk NAME VALUE` also sets the record to the JSON `VALUE` (`'"garbage"'`, `null`, `'"../escaped"'`) and commits it. Each run gets its own copy, and `base` is the base source, `cand` the candidate.
 
 ### Test data
 
-- Sandbox flows: nothing to seed. Flow 5 builds its own 20 scenarios in the driver.
-- Manual flows: flows 10a to 10c and 10f need one managed scratch repository with an adopted retention policy.
+Nothing to seed: the fixture is built by the setup above. The fixture's own release has no `manager` block, so `doctor` reports an incomplete inspection in both runs and exits 1 (flow 8).
 
 ### Flows
 
-Each flow is labelled **sandbox** (runs offline in the sandbox checkout) or **manual**. A sandbox run records a manual flow as not run; that is not a defect.
+**Flow 1: A damaged record, a named release (sandbox).**
 
-**Flow 1: scope of the committed change.** Sandbox: yes.
-- Do (sandbox checkout): `git diff --name-status BASE HEAD -- . ':!docs/ai-workflow' ':!docs/ACTIVE_MILESTONE.md'; echo $?`
-- Expect: six paths: `M docs/exit-codes.md`, `M docs/retention.md`, `M src/workflow_manager/cli.py`, `M src/workflow_manager/retention_alert.py`, `A src/workflow_manager/retention_alert_json.py`, `A tests/test_retention_alert_json.py`; then `0`.
-- Manual, working tree: the same with `HEAD` left out (`git diff --name-status BASE -- . ':!docs/ai-workflow' ':!docs/ACTIVE_MILESTONE.md'`). Expect the six paths and one more, `M docs/ROADMAP.md`, one line (row 45).
-
-**Flow 2: frozen paths unchanged.** Sandbox: yes.
-- Do: `git diff --exit-code BASE HEAD -- tools .claude scripts .workflow-manager tests/parallel src/workflow_manager/retention.py src/workflow_manager/retention_policy.py src/workflow_manager/retention_cleanup.py src/workflow_manager/retention_run.py README.md docs/README.md docs/verify.md; echo $?`
-- Expect: no output, `0`.
-
-**Flow 3: the stamps not moved.** Sandbox: yes.
-- Do: `grep -n 'Last checked with' docs/retention.md docs/exit-codes.md`
-- Expect: both read `Workflow Manager 1.18.1, Workflow 2.29.3`.
-
-**Flow 4: the page names the document.** Sandbox: yes.
-- Do: `grep -n -e retention_alert -e schema_version -e alert_key docs/retention.md`
-- Expect: the section "The retention alert as JSON" (line 179) names the `kind` value `retention_alert`, `schema_version`, `alert_key`, and the three `evaluation` values `evaluated`, `not_evaluated` and `not_applicable`.
-
-**Flow 5: the text is unchanged.** Sandbox: yes, with `WORKFLOW_MANAGER_RELEASE_CACHE` set (see Setup).
-- Do: save the driver below as `$S/driver.py`, outside the clone. With `C` the sandbox checkout and `BASE` as above:
-  ```
-  mkdir -p "$S/base" "$S/cand"
-  git -C "$C" archive "$BASE" src tests tools | tar -x -C "$S/base"
-  git -C "$C" archive HEAD src tests tools | tar -x -C "$S/cand"
-  TMPDIR="$S" python3 -I -B "$S/driver.py" "$S/base" > "$S/base.out"; echo $?
-  TMPDIR="$S" python3 -I -B "$S/driver.py" "$S/cand" > "$S/cand.out"; echo $?
-  diff "$S/base.out" "$S/cand.out"; echo $?
-  ```
-- Expect: both runs exit `0` with 1842 lines each; `diff` empty, `0`.
-
-Driver (`$S/driver.py`):
-
-```python
-"""Flow 5 driver: the text of `verify`, `doctor` and `doctor --retention` in every
-J scenario of the plan, on the stub script, for one tree's `src`.
-Usage: python3 -I -B driver.py <tree>   (<tree> holds src/ and tests/ of one revision)."""
-import json
-import re
-import os
-import sys
-import unittest
-from pathlib import Path
-from unittest import mock
-
-root = Path(sys.argv[1]).resolve()
-sys.path.insert(0, str(root / "src"))
-sys.path.insert(0, str(root / "tests"))
-import support  # noqa: E402,F401
-import test_retention_alert as tra  # noqa: E402
-import test_retention_status as rs  # noqa: E402
-from workflow_manager import retention_alert as ra, retention_policy as rp  # noqa: E402
-
-assert Path(ra.__file__).resolve().is_relative_to(root), ra.__file__
-MIB = 2**20
-ALL_FIVE = {"schema_version": 1, "mode": "notify",
-            "thresholds": {"finished_items": 2, "finished_folder_mib": 1, "archives": 3,
-                           "prunable_archives": 2, "finished_max_age_days": 30}}
-TWO = {"schema_version": 1, "mode": "notify", "thresholds": {"finished_items": 2, "archives": 3}}
-FIVE = {"schema_version": 1, "mode": "notify", "thresholds": {"finished_items": 5, "archives": 3}}
-
-
-def aged(*entries):
-    return rs.report(*entries, generated_at=tra.GENERATED, kept_recent=[])
-
-
-def reached():
-    rep = aged(tra.old_entry("old-a"), tra.old_entry("old-b", when="2026-02-01T00:00:00Z"),
-               tra.aged_entry("no-age", tra.MISSING), tra.aged_entry("young", tra.at(86400)))
-    rep["totals"]["finished_folder_bytes"] = 3 * MIB + 5
-    return rep
-
-
-def j8(removing):
-    rep = rs.report(rs.finished("x" * 64, folder=False, archive=True), *tra.entries(2))
-    if removing is None:
-        del rep["removing"]
-    else:
-        rep["removing"] = removing
-    return rep
-
-
-class Driver(tra.Base):
-    def runTest(self):
-        pass
-
-    def shown(self, text):
-        for path in sorted({str(self.repo.resolve()), str(self.repo), str(self.outside)}, key=len,
-                           reverse=True):
-            text = text.replace(path, "<REPO>" if "repo" in path or path.startswith(str(self.repo)) else "<OUT>")
-        return re.sub(r"adopted [0-9]{4}-[0-9-]+T[0-9:]+Z", "adopted <TIME>", text)
-
-    def scenario(self, name, rep, *, policy=ALL_FIVE, prepare=None, seam=ra.SCRIPT_OK, **env):
-        for command, flag in (("verify", False), ("doctor", False), ("doctor", True)):
-            self.install_stub()
-            self.drop_policy()
-            if policy is not None:
-                self.adopt(policy)
-            if prepare:
-                prepare()
-            got = self.call(command, rep, flag=flag, seam=seam, **env)
-            print(f"=== {name} | {command}{' --retention' if flag else ''} | exit {got.code}")
-            print(self.shown(got.out), end="")
-            print("--- stderr")
-            print(self.shown(got.err), end="")
-
-
-d = Driver()
-d.setUp()
-try:
-    d.scenario("J1 reached", reached())
-    d.scenario("J2 clear", aged(tra.aged_entry("young", tra.at(86400))))
-    d.scenario("J3 incomplete, one reached", rs.report(*tra.entries(3), complete=False), policy=TWO)
-    d.scenario("J4 incomplete, nothing reached", rs.report(*tra.entries(1), complete=False), policy=FIVE)
-    d.scenario("J5 absent", reached(), policy=None)
-    d.scenario("J5 off", reached(), policy=dict(ALL_FIVE, mode="off"))
-    d.scenario("J5 cleanup", reached(), policy=dict(ALL_FIVE, mode="cleanup"))
-    d.scenario("J5 changed", reached(), prepare=lambda: rp.policy_path(d.repo).write_text(
-        json.dumps(dict(ALL_FIVE, mode="both"))))
-    d.scenario("J6 no script", reached(), prepare=lambda: (d.repo / rs.SCRIPT).unlink())
-    d.scenario("J6 refusing", reached(), STUB_MODE="exit", STUB_EXIT="2",
-               STUB_STDERR="error: no_origin: no origin\\nnext step: x")
-    d.scenario("J6 malformed", "[1]", STUB_MODE="raw")
-    d.scenario("J6 modified", reached(), seam=ra.SCRIPT_MODIFIED)
-    d.scenario("J6 unchecked", reached(), seam=ra.SCRIPT_UNCHECKED)
-    with mock.patch.object(ra, "evaluate", side_effect=ValueError("x")):
-        d.scenario("J6 evaluate raises", reached())
-    kept = tra.entries(3)
-    d.scenario("J7 before", rs.report(rs.finished("gone", folder=True, archive=True), *kept))
-    d.scenario("J7 after", rs.report(rs.finished("gone", folder=False, archive=True), *kept))
-    d.scenario("J7 incomplete", rs.report(*tra.entries(3), complete=False))
-    for label, removing in (("present", ["half-done", "x" * 64]), ("empty", []), ("null", None)):
-        d.scenario(f"J8 {label}", j8(removing))
-finally:
-    d.tearDown()
+```bash
+mk g1 '"garbage"'; mk g2 '"garbage"'; mk g3 '"garbage"'; mk g4 '"garbage"'
+wm base --release-dir "$S/rel" update --dry-run "$S/g1"; echo $?
+wm base --release-dir "$S/rel" update "$S/g2"; echo $?
+T0=$(tree "$S/g3"); wm cand --release-dir "$S/rel" update --dry-run "$S/g3"; echo $?
+[ "$(tree "$S/g3")" = "$T0" ] && echo "g3 unchanged"
+wm cand --release-dir "$S/rel" update "$S/g4"; echo $?
 ```
 
-**Flow 6: the roadmap row.** Sandbox: no (manual). Row 45 is an uncommitted edit in the working tree, so a sandbox checkout has no row 45. Not a defect there.
-- Do (working tree): `grep -n -E '^\| 45 ' docs/ROADMAP.md; grep -c -E '^\| 46 ' docs/ROADMAP.md`
-- Expect: row 45 present, its last cell `Current`; then the count `0`.
+Expect: base dry run exit 1, `error: the installation record names 'garbage', which is not a version`. Base real run exit 0, `updated .../g2 to workflow 9.0.0`. Candidate dry run exit 0, first line `would update .../g3 from a record whose workflow_version 'garbage' is not a version to workflow 9.0.0     (dry run: nothing written)`, second line `  (no file changes; the installation record would be rewritten to workflow 9.0.0)`, then `g3 unchanged`. Candidate real run exit 0, `updated .../g4 to workflow 9.0.0`.
 
-**Flow 7: the docs check.** Sandbox: yes.
-- Do (sandbox checkout): `python3 -B tools/check_docs.py; echo $?`
-- Expect: no problem line; `0`.
+**Flow 2: A record that names a path (sandbox).**
 
-**Flow 8: the mutations are caught.** Sandbox: no (manual, full environment). It needs the measured sets in `.ai-review/retention-alert-json/current/IMPLEMENTATION_SUMMARY.md`, which is not in git, and it runs the test modules once per mutation, which is slow.
-- Do: in a scratch copy of the candidate, never the clone, apply one mutation at a time from plan section 3 (M1, M2, M4, M6, M9, M10) and run `python3 -B -m unittest test_retention_alert_json test_retention_alert test_doctor_cli` in its `tests/` with `src` on the path, as the implementation summary did. Run the unmutated copy too.
-- Expect: each mutation fails the set recorded in "Mutations (plan section 3), measured" in that summary; the unmutated copy passes all three modules.
+```bash
+mk e1 '"../escaped"'
+wm cand --release-dir "$S/rel" update --dry-run "$S/e1"; echo $?
+test ! -e "$S/escaped" && echo "no escaped entry"; ls -A "$S/cache" | wc -l
+```
 
-**Flow 9: the release title.** Sandbox: yes.
-- Do (sandbox checkout): `python3 -B tools/release/release.py check-title "feat: a machine-readable retention alert, doctor --retention --json"; echo $?`
-- Expect: `valid title: feat, release impact minor`; `0`.
+Expect: exit 0, the header names `'../escaped'`, the dry run writes nothing, `no escaped entry` and `0` (the cache stays empty).
 
-**Flow 10: the command on a managed repository.** Run the candidate's CLI, `PYTHONPATH=<checkout>/src python3 -B -m workflow_manager`, in place of `workflow-manager`: the installed release has no `--json`. Global options such as `--release-version` go before the command.
+**Flow 3: A damaged record, no option (sandbox).**
 
-- **10d, refused release option (sandbox: yes; no target is read).** `PYTHONPATH=<sandbox checkout>/src python3 -B -m workflow_manager --release-version 2.29.3 doctor "$S/none" --retention --json; echo $?`. Expect exit `2`, empty stdout, one `error:` line on stderr naming `--release-version` and `--json`. (Placed after `doctor`, argparse rejects the option with `unrecognized arguments` instead; that is a usage error, not this refusal.)
-- **10e, `--json` alone (sandbox: yes).** `PYTHONPATH=<sandbox checkout>/src python3 -B -m workflow_manager doctor "$S/none" --json; echo $?`. Expect exit `2` and empty stdout; stderr `--json is only valid with --retention`.
-- **10a, absent policy (manual).** A managed target with no `.workflow-manager/retention-policy.json`. Run `... doctor <target> --retention --json; echo $?`. Expect exit `0` and stdout equal to the golden `J5-absent` in `tests/test_retention_alert_json.py`, with `repo` set to the target's absolute path: `kind` `retention_alert`, `schema_version` `1`, `policy` `{"state": "absent", "mode": "off", "digest": null}`, `evaluation` `not_applicable`, `alerts` `[]`, `snapshot` `null`.
-- **10b, adopted policy (manual).** Adopt the policy as `docs/retention.md`'s "Adopting it" says (the adoption writes `.workflow-manager/retention-adoption.json` and commits nothing), then run the same command. Expect exit `0`; `policy.state` `adopted`, `mode` `notify`, `digest` 64 hex characters; `evaluation` `evaluated` with `report_complete` `true` when the report is complete; one `alerts` entry per threshold the policy sets, in the order `finished_items`, `finished_folder_mib`, `finished_max_age_days`, `archives`, `prunable_archives`; each `alert_key` begins `retention:` and the target's absolute path.
-- **10c, byte-stable (manual).** Run 10b's command twice, saving stdout to two files; `cmp` them. Expect no difference.
-- **10f, nothing written (manual).** `git -C <target> status --porcelain` and `git -C <target> rev-parse HEAD` before 10a and after 10e. Expect the same output both times.
+```bash
+mk g5 '"garbage"'; mk g6 '"garbage"'
+wm cand update --dry-run "$S/g5"; echo $?
+wm cand update "$S/g6"; echo $?
+```
+
+Expect: both exit 1 with the same `error:` line, and each `next:` line identical apart from the path (`repair or re-bootstrap the installation record ..., or fix it with workflow-manager --release-version X.Y.Z update <path>`). Advice for a damaged record carries no `-- a real update, not a dry run` suffix on either side (the suffix is for null records only). Both trees unchanged.
+
+**Flow 4: A null record and a null-manifest release (sandbox).**
+
+```bash
+mk n1 null; mk n2 null; mk n3 null; mk n4 null
+wm base --release-dir "$S/relnull" update --dry-run "$S/n1"; echo $?
+wm base --release-dir "$S/relnull" update "$S/n2"; echo $?; rec "$S/n2"
+wm cand --release-dir "$S/relnull" update --dry-run "$S/n3"; echo $?
+wm cand --release-dir "$S/relnull" update "$S/n4"; echo $?; rec "$S/n4"
+```
+
+(`rec DIR`, defined in the setup, prints the record's `workflow_version`.)
+
+Expect: base dry run exit 0, `would update .../n1 from a record with no workflow_version to workflow None     (dry run: nothing written)`. Base real run exit 0, `updated .../n2 to workflow None`; its record `None`. Candidate dry run and real run both exit 1, `error: manifest.json at .../relnull is malformed: workflow_version is null, not text`, one `next:` line (`use an unmodified copy of the release directory, or leave --release-dir out ...`). Candidate's record `None` (unchanged), tree unchanged.
+
+**Flow 5: A valid record and a null-manifest release (sandbox).**
+
+```bash
+mk o1; mk o2
+wm base --release-dir "$S/relnull" update "$S/o1"; echo $?; rec "$S/o1"
+wm cand --release-dir "$S/relnull" update "$S/o2"; echo $?; rec "$S/o2"
+```
+
+Expect: base exit 0 and its record becomes `None` (the divergence this item fixes). Candidate exit 1 with the flow-4 refusal, and its record stays `9.0.0`.
+
+**Flow 6: Bootstrap, verify and status with the null-manifest release (sandbox).**
+
+```bash
+rm -rf "$S/E"; git init -q "$S/E"; git -C "$S/E" config user.name t; git -C "$S/E" config user.email t@t
+git -C "$S/E" commit -q --allow-empty -m i
+wm cand --release-dir "$S/relnull" bootstrap "$S/E"; echo $?
+mk o3; wm cand --release-dir "$S/relnull" verify "$S/o3"; echo $?
+mk o4; wm cand --release-dir "$S/relnull" status "$S/o4"; echo $?
+```
+
+Expect: each exit 1 with the flow-4 refusal and one `next:` line. `status` prints its usual status block after the refusal (unchanged). Tree of `E`, `o3` and `o4` unchanged.
+
+**Flow 7: A null record and files equal to the release (sandbox).**
+
+```bash
+mk n7 null
+wm base --release-dir "$S/rel" update --dry-run "$S/n7"; echo $?
+wm cand --release-dir "$S/rel" update --dry-run "$S/n7"; echo $?
+```
+
+Expect: both exit 0 with the same header `would update .../n7 from a record with no workflow_version to workflow 9.0.0     (dry run: nothing written)`. Base's next line is `  (no change)`; the candidate's is `  (no file changes; the installation record would be rewritten to workflow 9.0.0)`. The other lines (`left alone:` ...) are identical.
+
+**Flow 8: The happy path is byte-identical (sandbox).**
+
+```bash
+for c in "update --dry-run" "update" "doctor" "status" "verify"; do
+  mk b8; mk c8
+  wm base --release-dir "$S/rel" $c "$S/b8" > "$S/fb" 2>&1; eb=$?
+  wm cand --release-dir "$S/rel" $c "$S/c8" > "$S/fc" 2>&1; ec=$?
+  sed -i "s#$S/b8#TARGET#g" "$S/fb"; sed -i "s#$S/c8#TARGET#g" "$S/fc"
+  if cmp -s "$S/fb" "$S/fc" && [ $eb = $ec ]; then echo "$c identical, exit $eb"; else echo "$c DIFFERS ($eb vs $ec)"; fi
+done
+```
+
+Expect: five `identical` lines, with exit codes `update --dry-run` 0, `update` 0, `doctor` 1, `status` 0, `verify` 0 (`doctor`'s 1 is the fixture's missing `manager` block, in both runs).
+
+**Flow 9: A locally edited managed file (sandbox).**
+
+```bash
+mk n9 null
+F=$(python3 -I -c 'import json,sys;d=json.load(open(sys.argv[1]))["managed"];print(next(k for k in d if k != "CLAUDE.md"))' "$S/n9/.workflow-manager/installation.json")
+echo x >> "$S/n9/$F"; T9=$(tree "$S/n9")
+wm cand --release-dir "$S/rel" update --dry-run "$S/n9" > "$S/d9" 2>&1; echo $?
+[ "$(tree "$S/n9")" = "$T9" ] && echo "unchanged after dry run"
+wm cand --release-dir "$S/rel" update "$S/n9" > "$S/r9" 2>&1; echo $?
+[ "$(tree "$S/n9")" = "$T9" ] && echo "unchanged after real run"
+grep -n 'update' "$S/d9" "$S/r9"
+```
+
+Expect: both exit 2 with `refusing to update: these release files were modified locally and would be overwritten:` and `modified: docs/guide.md` (`$F`). Tree unchanged after each. Every printed `update` command, the ordinary and the `--force` one, names `--release-dir`.
+
+Second part of flow 9, the printed `--force` command (sandbox): Run the `--force` command printed by flow 9 exactly, on a fresh copy of the same edit:
+
+```bash
+mk n10 null; echo x >> "$S/n10/$F"
+wm cand --release-dir "$S/rel" update --force "$S/n10"; echo $?
+```
+
+Expect: exit 0, `updated .../n10 to workflow 9.0.0`, the record reads `9.0.0`, and `docs/guide.md` is the release's again.
+
+**Flow 10: The files changed (sandbox; the working-tree list is manual).**
+
+```bash
+git -C "$R" diff --stat da3c7747a65b5788d0f6d9530fcd379b52d7b6d2 -- . ':!docs/ai-workflow' ':!.ai-review'
+```
+
+Expect, in a sandbox checkout: the 11 files of plan section 2 (`docs/ARCHITECTURE.md`, `docs/common-problems.md`, `docs/exit-codes.md`, `docs/update.md`, `src/workflow_manager/advice.py`, `cli.py`, `compatibility.py`, `source.py`, `tests/test_discovery.py`, `tests/test_operator_ux.py`, `tests/test_operator_ux_readonly.py`) and `docs/ACTIVE_MILESTONE.md` (this checklist's commit). In the working tree, also `docs/ROADMAP.md`.
+
+**Flow 11: The pages (sandbox).**
+
+```bash
+git -C "$R" diff --exit-code da3c7747a65b5788d0f6d9530fcd379b52d7b6d2 -- docs/retention.md docs/release-history.md docs/install.md docs/README.md src/workflow_manager/install.py 'src/workflow_manager/retention*.py'; echo $?
+grep -n 'whatever the option' docs/update.md docs/common-problems.md docs/exit-codes.md docs/ARCHITECTURE.md
+grep -n 'bare .--dry-run' docs/update.md
+grep -c 'update-dry-run-parity' docs/update.md docs/common-problems.md docs/exit-codes.md docs/ARCHITECTURE.md
+```
+
+Expect: exit `0` (untouched). `whatever the option` appears only in `docs/common-problems.md` (`doctor refuses the record whatever the option`). `docs/update.md`'s bare `--dry-run` sentence says only `doctor --release-dir` prints the step with a directory. The count is `0` for each of the four pages.
+
+**Flow 12: The suite (full environment only; needs the network or a primed release cache).**
+
+```bash
+python3 tests/run_all.py --select test_operator_ux.py --select test_discovery.py --select test_operator_ux_readonly.py --select test_operator_ux_docs.py --select test_docs.py
+python3 tools/check_docs.py; echo $?
+python3 tests/run_all.py
+```
+
+Expect: all green, `check_docs` exit 0. Each mutation of plan section 4 fails its named tests.
 
 ### Known limitations (by design)
 
-- There is no `archived` or `deleted` state. The `snapshot` values are observed facts: an id entering or leaving `archived_and_removed`, or a fall in `archive_store`, is an observed change of uncertain cause (plan section 2.3). A Controller compares only two complete documents (`report_complete` true on both).
-- `--json` skips the compatibility report. A Controller that also needs findings runs `doctor` without the flag.
-- `alert_key` embeds the resolved repository path, so a moved repository is a new identity.
-- `--release-version`, `--release-dir` and `--manager-root` are refused under `--json` (exit 2).
-- Out of scope: the notification sender and scheduling (Controller lane), `prune`, the cleanup, any Workflow engine change, and the release-history row (a later `docs:` pull request).
-- Optional findings from plan review and self-review get their recorded disposition at acceptance.
+- The null-manifest refusal is at the source, so `bootstrap`, `verify` and `status` now refuse such a directory too; they accepted it before. The old acceptance is what let a real `update` destroy a valid record.
+- A manifest version that is a number, `true` or `""` is still accepted: out of scope.
+- The real `update` still prints `(no change)` for a record-only rewrite; only the dry run says the record would be rewritten.
+- `status` prints its status block after a refusal, as it did before.
+- Completed items' test results (`docs/milestones/completed/`) still show the earlier mutation table; that is history, not edited.
+- Optional findings from plan review and self-review (`optional_findings` in `WORKFLOW_STATE.json`) get a recorded disposition at acceptance. Finding `O1` (flow 3's suffix) is already reflected above.
+- Out of scope: the retention view points (#160), the retention commands, Workflow releases, new options, any new write path.
 
-**Next action:** `/milestone-plan` for the next incomplete milestone in `docs/ROADMAP.md`; none is listed after row 45 today. `retention-alert-json` is accepted by policy; its pull request #226 merges as `feat:` and Manager 1.20.0 follows the merge. The release-history row for 1.20.0 is a separate `docs:` pull request after the release.
+**Next action:** `/milestone-plan` for the next incomplete milestone in `docs/ROADMAP.md`; none is listed after row 46 today. `update-dry-run-parity` is accepted by policy; its pull request #234 merges as `fix:` and Manager 1.20.1 follows the merge.

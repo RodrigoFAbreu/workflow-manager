@@ -141,9 +141,12 @@ A name that is not `X.Y.Z` (`v2.12.0`, `2.12`, a path) is a different refusal,
 discovery question wherever the source or the cache first sees it, so it never
 becomes a path. Its `origin` is `option` (a name the operator typed) or
 `record` (the target's installation record, refused by `cli.py`'s
-`_refuse_unparseable_record` in `status`, `verify`, `doctor`, `update --dry-run`
-and a bare `update`; a bare `update` therefore never installs over a damaged
-record). `advice` reads `origin` and the command for the step.
+`_refuse_unparseable_record` in `status`, `verify`, `doctor` and a bare
+`update`; `update --dry-run` refuses a damaged record only when it must choose
+the release, as `_floor` does for the real `update`; a bare `update` therefore
+never installs over a damaged record). The recorded name reaches no cache,
+source or destination planner: only a strict `X.Y.Z` is passed on, anything
+else is "unknown" (`compatibility.recorded_release`). `advice` reads `origin` and the command for the step.
 
 ### Release metadata
 

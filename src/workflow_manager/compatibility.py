@@ -106,6 +106,20 @@ def _lt(a: str, b: str) -> bool:
     return version_key(a) < version_key(b)
 
 
+_STRICT_RECORDED = re.compile(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)")
+
+
+def recorded_release(facts) -> str | None:
+    """The installation record's release when it is one strict `X.Y.Z`, else
+    `None` ("unknown"): a null or damaged name is never compared, never asked of
+    the cache and never printed as a release."""
+    installation = getattr(facts, "installation", None)
+    name = installation.workflow_version if installation else None
+    if isinstance(name, str) and _STRICT_RECORDED.fullmatch(name):
+        return name
+    return None
+
+
 def _le(a: str, b: str) -> bool:
     return version_key(a) <= version_key(b)
 
@@ -1717,7 +1731,7 @@ def build_findings(facts: RepositoryFacts, plan: UpdatePlan | None, *, target: s
 def _base_findings(facts: RepositoryFacts, plan: UpdatePlan | None, *, target: str | None,
                    installed_resolved: bool = True, refusal: Exception | None = None,
                    metadata: ReleaseMetadata = _BUILTIN_ONLY) -> list[Finding]:
-    installed = facts.installation.workflow_version if facts.installation else None
+    installed = recorded_release(facts)
     findings: list[Finding] = []
 
     if refusal is not None:
@@ -1946,7 +1960,7 @@ def _with_steps(facts: RepositoryFacts, findings: list[Finding], *, refusal, tar
         elif finding.id == _INCOMPLETE and finding.title in RELEASE_COVERAGE_TITLES:
             detail += f"\nWhat to do: {advice.coverage_step(finding.title)}"
         elif finding.id == "not-verified":
-            installed = facts.installation.workflow_version if facts.installation else None
+            installed = recorded_release(facts)
             verify = manager_command("verify", target=repo, withheld=False,
                                      options=facts.options_for(installed)).render()
             detail += f" `{verify}` makes that comparison, or prints why it cannot."
@@ -2128,6 +2142,11 @@ def build_report(facts: RepositoryFacts, plan: UpdatePlan | None, *, target_vers
                  metadata: ReleaseMetadata | None = None,
                  latest_note: str = "") -> Report:
     explicit = target_version if target_version and target_version != latest_version else None
+    if (facts.installation is not None and target_version
+            and recorded_release(facts) is None):
+        # A bare `update` refuses a null or damaged record: every printed command
+        # keeps the release option, even when it names the latest release.
+        explicit = target_version
     findings = build_findings(facts, plan, target=target_version,
                               installed_resolved=installed_resolved, refusal=refusal,
                               target_arg=target_arg, release_version=explicit,
@@ -2144,7 +2163,7 @@ def build_report(facts: RepositoryFacts, plan: UpdatePlan | None, *, target_vers
             source = "local, unpublished"
         else:
             source = "not recorded"
-    installed = installation.workflow_version if installation else None
+    installed = recorded_release(facts)
     notes = tuple(new_work_only(installed, target_version, metadata)) if installed and target_version else ()
     return Report(
         repository=str(target_arg or facts.target),

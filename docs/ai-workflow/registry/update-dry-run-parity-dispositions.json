@@ -1,0 +1,26 @@
+{
+ "schema_version": 1,
+ "work_item_id": "update-dry-run-parity",
+ "dispositions": {
+  "F-0113cc4cb7c7": {
+   "disposition": "follow-up",
+   "link": "https://github.com/RodrigoFAbreu/workflow-manager/issues/233"
+  },
+  "F-1c163cb3febe": {
+   "disposition": "follow-up",
+   "link": "https://github.com/RodrigoFAbreu/workflow-manager/issues/233"
+  },
+  "F-2669247d411e": {
+   "disposition": "follow-up",
+   "link": "https://github.com/RodrigoFAbreu/workflow-manager/issues/233"
+  },
+  "F-464913c38cfe": {
+   "disposition": "follow-up",
+   "link": "https://github.com/RodrigoFAbreu/workflow-manager/issues/233"
+  },
+  "F-83f704c708ae": {
+   "disposition": "fixed",
+   "note": "Plan flow 3 states the identical advice for the damaged-record pair, matching the code."
+  }
+ }
+}

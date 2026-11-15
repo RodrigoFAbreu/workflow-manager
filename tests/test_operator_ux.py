@@ -1115,8 +1115,6 @@ class TestNotAVersionRows(TargetCase):
             ("doctor", ["doctor"], 2, fix),
             ("doctor with a valid option", ["--release-version", "2.12.0", "doctor"], 2, fix),
             ("dry-run", ["update", "--dry-run"], 1, fix),
-            ("dry-run with a valid option",
-             ["--release-version", "2.12.0", "update", "--dry-run"], 1, fix),
             ("bare update", ["update"], 1, fix),
         )
         for name, argv, code, command in cases:
@@ -1245,21 +1243,32 @@ class TestNotAVersionRows(TargetCase):
         needle = f'"workflow_version": "{PINNED_NEWEST}"'
         self.assertIn(needle, text)
         manifest.write_text(text.replace(needle, '"workflow_version": null', 1))
-        by_null = root / "by-null"
-        proc = run("--release-dir", str(null_release), "bootstrap", str(empty_repo(by_null)))
-        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
-        # Matching null versions are no drift: verify and status stay healthy.
-        for command in ("verify", "status"):
-            proc = run("--release-dir", str(null_release), command, str(by_null))
-            with self.subTest(command=command, matching="null"):
-                self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
-                self.assertNotIn("version:", proc.stdout + proc.stderr)
+        # A release directory whose manifest names no version is no release: every
+        # command that reads it refuses with the cause and one step, and writes nothing.
+        cause = "workflow_version is null, not text"
+        by_null = empty_repo(root / "by-null")
+        before_empty = tree_hash(by_null)
+        proc = run("--release-dir", str(null_release), "bootstrap", str(by_null))
+        self.assertEqual(proc.returncode, 1, proc.stdout + proc.stderr)
+        self.assertIn(cause, proc.stderr)
+        self.assertEqual(len(next_lines(proc.stderr)), 1, proc.stderr)
+        self.assertEqual(tree_hash(by_null), before_empty)
+        healthy = shutil.copytree(Pristine.pristine(), root / "healthy", symlinks=True)
+        for command in ("verify", "status", "update"):
+            before = tree_hash(healthy)
+            proc = run("--release-dir", str(null_release), command, str(healthy))
+            with self.subTest(command=command, release="null manifest"):
+                self.assertEqual(proc.returncode, 1, proc.stdout + proc.stderr)
+                self.assertIn(cause, proc.stderr)
+                self.assertEqual(len(next_lines(proc.stderr)), 1, proc.stderr)
+                self.assertEqual(tree_hash(healthy), before)
         by_hand = root / "by-hand"
         shutil.copytree(Pristine.pristine(), by_hand, symlinks=True)
         record = by_hand / RECORD
         record.write_text(record.read_text().replace(
             f'"workflow_version": "{PINNED_NEWEST}"', '"workflow_version": null'))
-        for name, repo, directory in (("null-manifest", by_null, null_release),
+        by_hand_null = shutil.copytree(by_hand, root / "by-hand-null", symlinks=True)
+        for name, repo, directory in (("null-manifest", by_hand_null, null_release),
                                       ("genuine", by_hand, genuine)):
             self.assertIn('"workflow_version": null', (repo / RECORD).read_text(), name)
             before = tree_hash(repo)
@@ -1287,21 +1296,28 @@ class TestNotAVersionRows(TargetCase):
             proc = run(*run_it)
             self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
             self.assertIn(f'"workflow_version": "{PINNED_NEWEST}"', (repo / RECORD).read_text())
-        # A bare `--release-dir REL update` is not refused today; only noted.
+        # A bare `--release-dir REL update` of a null-manifest release is refused
+        # at the source, with the cause, and the null record is left as it is.
         bare = self.damaged(None)
+        before = tree_hash(bare)
         proc = run("--release-dir", str(null_release), "update", str(bare))
-        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        self.assertEqual(proc.returncode, 1, proc.stdout + proc.stderr)
+        self.assertIn(cause, proc.stderr)
         self.assertNotIn("is not a version", proc.stdout + proc.stderr)
+        self.assertEqual(tree_hash(bare), before)
 
-    def _dry_and_real(self, options, root, tag):
-        """The dry run and the real update of one input on two copies of a null
-        record, each reduced to its decision."""
-        dry_repo, real_repo = (shutil.copytree(self.damaged(None), root / f"{tag}-{kind}",
+    def _dry_and_real(self, options, root, tag, value=None):
+        """The dry run and the real update of one input on two copies of a record
+        holding `value`, each reduced to its decision. The dry run never writes; a
+        refused real run does not either."""
+        dry_repo, real_repo = (shutil.copytree(self.damaged(value), root / f"{tag}-{kind}",
                                                symlinks=True) for kind in ("dry", "real"))
         before = tree_hash(dry_repo)
         dry = run(*options, "update", "--dry-run", str(dry_repo))
         real = run(*options, "update", str(real_repo))
         self.assertEqual(tree_hash(dry_repo), before, f"{tag}: the dry run wrote")
+        if real.returncode != 0:
+            self.assertEqual(tree_hash(real_repo), before, f"{tag}: the refused update wrote")
 
         def decision(proc, repo):
             if proc.returncode == 0:
@@ -1312,6 +1328,19 @@ class TestNotAVersionRows(TargetCase):
             return (f"refused {proc.returncode}", [e.replace(str(repo), "TARGET") for e in error],
                     [n.replace(str(repo), "TARGET") for n in step])
         return dry, real, decision(dry, dry_repo), decision(real, real_repo), real_repo
+
+    def _same_changes(self, dry, real, version):
+        """The dry run's change lines are the real update's, each as a "would" line;
+        the real `(no change)` is the dry run's record line (the record is rewritten)."""
+        def block(text, stop):
+            lines = text.splitlines()[1:]
+            return [line.strip() for line in lines[:next(
+                i for i, line in enumerate(lines) if line.startswith(stop))]]
+        record_line = (f"(no file changes; the installation record would be rewritten to "
+                       f"workflow {version})")
+        wanted = [record_line if line == "(no change)" else cli._would(line)
+                  for line in block(real.stdout, "next:")]
+        self.assertEqual(block(dry.stdout, "left alone:"), wanted, (dry.stdout, real.stdout))
 
     def test_update_and_dry_run_decide_the_same_way_on_a_null_record(self):
         work = tempfile.TemporaryDirectory()
@@ -1325,7 +1354,7 @@ class TestNotAVersionRows(TargetCase):
         self.assertIn(needle, manifest.read_text())
         manifest.write_text(manifest.read_text().replace(needle, '"workflow_version": null', 1))
         rows = (("release-dir", ["--release-dir", str(genuine)], "accepted"),
-                ("release-dir null manifest", ["--release-dir", str(null_release)], "accepted"),
+                ("release-dir null manifest", ["--release-dir", str(null_release)], "refused 1"),
                 ("release-version", ["--release-version", PINNED_NEWEST], "accepted"),
                 ("bare", [], "refused 1"))
         for tag, options, expected in rows:
@@ -1335,24 +1364,54 @@ class TestNotAVersionRows(TargetCase):
                 self.assertEqual(real_decision[0], expected, real.stdout + real.stderr)
                 self.assertEqual(dry_decision, real_decision, dry.stdout + dry.stderr)
                 if expected != "accepted":
+                    recorded = json.loads((real_repo / RECORD).read_text())["workflow_version"]
+                    self.assertIsNone(recorded, "a refused run left the null record")
                     continue
                 recorded = json.loads((real_repo / RECORD).read_text())["workflow_version"]
-                version = "None" if "null" in tag else PINNED_NEWEST
-                self.assertEqual(recorded, None if "null" in tag else PINNED_NEWEST)
+                version = PINNED_NEWEST
+                self.assertEqual(recorded, PINNED_NEWEST)
                 self.assertIn(f"updated {real_repo} to workflow {version}", real.stdout)
                 self.assertTrue(
                     dry.stdout.startswith(
                         f"would update {root / (tag.replace(' ', '-') + '-dry')} from a record "
                         f"with no workflow_version to workflow {version}     "
                         f"(dry run: nothing written)\n"), dry.stdout)
-                def block(text, stop):
-                    lines = text.splitlines()[1:]
-                    return [line.strip() for line in lines[:next(
-                        i for i, line in enumerate(lines) if line.startswith(stop))]]
-                real_changes = [line if line == "(no change)" else cli._would(line)
-                                for line in block(real.stdout, "next:")]
-                self.assertEqual(block(dry.stdout, "left alone:"), real_changes,
-                                 (dry.stdout, real.stdout))
+                self._same_changes(dry, real, version)
+
+    def test_update_and_dry_run_decide_the_same_way_on_a_damaged_record(self):
+        work = tempfile.TemporaryDirectory()
+        self.addCleanup(work.cleanup)
+        root = Path(work.name)
+        genuine = root / "genuine"
+        shutil.copytree(support.release(PINNED_NEWEST).root, genuine)
+        rows = (("release-dir", ["--release-dir", str(genuine)], "accepted"),
+                ("release-version", ["--release-version", PINNED_NEWEST], "accepted"),
+                ("bare", [], "refused 1"))
+        for value in ("garbage", "../escaped"):
+            for tag, options, expected in rows:
+                name = f"{tag}-{value.replace('/', '').replace('.', '')}"
+                with self.subTest(record=value, input=tag):
+                    dry, real, dry_decision, real_decision, real_repo = self._dry_and_real(
+                        options, root, name, value)
+                    self.assertEqual(real_decision[0], expected, real.stdout + real.stderr)
+                    self.assertEqual(dry_decision, real_decision, dry.stdout + dry.stderr)
+                    self.assertNotIn("Traceback", dry.stdout + dry.stderr)
+                    if expected != "accepted":
+                        continue
+                    self.assertTrue(
+                        dry.stdout.startswith(
+                            f"would update {root / (name + '-dry')} from a record whose "
+                            f"workflow_version {value!r} is not a version to workflow "
+                            f"{PINNED_NEWEST}     (dry run: nothing written)\n"), dry.stdout)
+                    self.assertIn("Installed release   unknown", dry.stdout)
+                    self._same_changes(dry, real, PINNED_NEWEST)
+                    commands = [line.strip() for line in dry.stdout.splitlines()
+                                if line.strip().startswith("workflow-manager ")
+                                and " update " in line and "--dry-run" not in line]
+                    self.assertTrue(commands, dry.stdout)
+                    for command in commands:
+                        self.assertTrue(
+                            "--release-version" in command or "--release-dir" in command, command)
 
     def test_the_dry_run_header_names_a_null_record_in_words(self):
         null = self.damaged(None)
@@ -1363,6 +1422,10 @@ class TestNotAVersionRows(TargetCase):
             f"would update {null} from a record with no workflow_version to workflow "
             f"{PINNED_NEWEST}     (dry run: nothing written)")
         self.assertNotIn("workflow None", proc.stdout)
+        # No file changes, but the record would be rewritten: the dry run says so.
+        self.assertIn(f"  (no file changes; the installation record would be rewritten to "
+                      f"workflow {PINNED_NEWEST})\n", proc.stdout)
+        self.assertNotIn("(no change)", proc.stdout)
         recorded = self.fresh()
         proc = run("--release-version", PINNED_NEWEST, "update", "--dry-run", str(recorded))
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
@@ -1370,6 +1433,7 @@ class TestNotAVersionRows(TargetCase):
             proc.stdout.splitlines()[0],
             f"would update {recorded} from workflow {PINNED_NEWEST} to workflow "
             f"{PINNED_NEWEST}     (dry run: nothing written)")
+        self.assertIn("\n  (no change)\n", proc.stdout)
 
     def test_an_update_naming_the_release_is_the_repair_and_is_not_refused(self):
         for value in ("garbage", None):
@@ -1892,7 +1956,7 @@ class TestManifestSweep(ReleaseCase):
     TABLE = {
         "version list":         (0, 1, 1, 1, 1, 1, 2),
         "version object":       (0, 1, 1, 1, 1, 1, 2),
-        "version null":         (0, 0, 0, 0, 1, 1, 0),
+        "version null":         (0, 1, 1, 1, 1, 1, 2),
         "version empty":        (0, 0, 0, 0, 1, 1, 0),
         "version number":       (0, 0, 0, 2, 1, 1, 2),
         "version true":         (0, 0, 0, 2, 1, 1, 2),
@@ -1951,9 +2015,17 @@ class TestManifestSweep(ReleaseCase):
                     self.assertEqual(len(next_lines(proc.stderr)), 1, proc.stderr)
                 if expected == 0 and command in ("bootstrap", "update"):
                     record = json.loads((repo / RECORD).read_text())
-                    wanted = {"version null": None, "version empty": "", "version number": 7,
+                    wanted = {"version empty": "", "version number": 7,
                               "version true": True}[name]
                     self.assertEqual(record["workflow_version"], wanted)
+
+    def test_a_null_version_names_the_manifest_and_the_cause(self):
+        for command in ("bootstrap", "update --dry-run"):
+            proc = self.cell("version null", command)[0]
+            with self.subTest(command=command):
+                self.assertIn("manifest.json at", proc.stderr)
+                self.assertIn("is malformed: workflow_version is null, not text", proc.stderr)
+                self.assertIn("use an unmodified copy of the release directory", proc.stderr)
 
     def test_a_shape_error_names_the_manifest_and_the_cause(self):
         proc = self.cell("version list", "bootstrap")[0]

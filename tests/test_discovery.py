@@ -546,8 +546,6 @@ class TestOnlyAStrictVersionBuildsAPath(_Mirror):
             ("doctor, valid option", ["--release-version", "7.0.1", "doctor"], 2, "update",
              "error: could not resolve the target release: " + cause),
             ("dry run", ["update", "--dry-run"], 1, "update", cause),
-            ("dry run, valid option", ["--release-version", "7.0.1", "update", "--dry-run"], 1,
-             "update", cause),
             ("bare update", ["update"], 1, "update", cause),
         )
         for name, argv, exit_code, command, first in rows:
@@ -587,6 +585,69 @@ class TestOnlyAStrictVersionBuildsAPath(_Mirror):
                 self.assertFalse((self.tmp / "escaped").exists())
                 self.assertFalse((self.cache / "escaped").exists())
                 self.assertFalse((self.cache.parent / "escaped").exists())
+
+
+    def test_a_damaged_record_name_reaches_no_cache_source_or_planner_in_a_dry_run(self):
+        # The dry run accepts a damaged record when a release is named (the real
+        # update does): the recorded name is never a path, a cache question, a
+        # source read, a planned destination or a comparison.
+        victim = self.tmp / "escaped"
+        victim.mkdir()
+        (victim / "marker").write_text("untouched")
+        names = ("../escaped", "garbage", "2.12", "7.0.0/../7.0.0")
+        self.bootstrap_at("7.0.0")
+        record = self.target / ".workflow-manager" / "installation.json"
+        for name in names:
+            for option in ("7.0.1", NEWER):
+                with self.subTest(record=name, release=option):
+                    fields = json.loads(record.read_text())
+                    fields["workflow_version"] = name
+                    record.write_text(json.dumps(fields))
+                    seen = []
+                    cache_class, source_class = release_source.ReleaseCache, release_source.ReleaseSource
+                    real_plan = tb.cli_module.plan_destinations
+
+                    def spy(real, argument_index):
+                        def wrapper(*args, **kwargs):
+                            seen.append((real.__qualname__, args[argument_index:], kwargs))
+                            return real(*args, **kwargs)
+                        return wrapper
+                    patches = [mock.patch.object(cache_class, attribute,
+                                                 spy(getattr(cache_class, attribute), 1))
+                               for attribute in ("resolve", "cached", "cached_manifest")]
+                    patches.append(mock.patch.object(source_class, "inspect",
+                                                     spy(source_class.inspect, 1)))
+                    patches.append(mock.patch.object(tb.cli_module, "plan_destinations",
+                                                     spy(real_plan, 3)))
+                    before = {p: p.read_bytes() for p in self.tmp.rglob("*")
+                              if p.is_file() and ".git" not in p.relative_to(self.tmp).parts
+                              and not p.is_relative_to(self.cache)}
+                    with contextlib.ExitStack() as stack:
+                        for patch in patches:
+                            stack.enter_context(patch)
+                        code = self._cli("--release-version", option, "update", "--dry-run",
+                                         str(self.target), source_dir=self.mirror)
+                    self.assertEqual(code, 0, self.cli_output)
+                    self.assertNotIn("Traceback", self.cli_output)
+                    self.assertTrue(seen, "the spies saw no call")
+
+                    def flat(value):
+                        if isinstance(value, (list, tuple, set)):
+                            for item in value:
+                                yield from flat(item)
+                        elif isinstance(value, dict):
+                            for item in value.values():
+                                yield from flat(item)
+                        else:
+                            yield value
+                    given = [x for call in seen for x in flat((call[1], call[2]))]
+                    self.assertNotIn(name, given, seen)
+                    self.assertEqual(json.loads(record.read_text())["workflow_version"], name)
+                    after = {p: p.read_bytes() for p in self.tmp.rglob("*")
+                             if p.is_file() and ".git" not in p.relative_to(self.tmp).parts
+                             and not p.is_relative_to(self.cache)}
+                    self.assertEqual(after, before)
+                    self.assertEqual((victim / "marker").read_text(), "untouched")
 
 
 class TestOffline(_Mirror):

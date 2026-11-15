@@ -965,7 +965,7 @@ class TestPrintedCommandsParse(ux.TargetCase):
         return directory
 
     def test_i3_repair_advice_for_a_scalar_release_version_is_executable(self):
-        for version in (123, True, "", None):
+        for version in (123, True, ""):
             with self.subTest(version=version):
                 directory = self.release_dir(version)
                 repo = self.empty()
@@ -990,7 +990,7 @@ class TestPrintedCommandsParse(ux.TargetCase):
                 self.assertEqual(forced.returncode, 0, forced.stdout + forced.stderr)
 
     def test_i3_verify_without_release_dir_after_a_scalar_install_asks_for_one(self):
-        for version in (123, "", None):
+        for version in (123, ""):
             with self.subTest(version=version):
                 directory = self.release_dir(version)
                 repo = self.empty()

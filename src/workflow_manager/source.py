@@ -1286,6 +1286,10 @@ def local_release(directory: Path, requested_version: str | None, pins: Pins,
     except (OSError, ValueError, KeyError, TypeError) as exc:
         raise ReleaseIntegrityError(f"{directory} is not a release: {exc}",
                                     kind="local-release") from exc
+    if version is None:
+        raise ReleaseIntegrityError(
+            f"manifest.json at {directory} is malformed: workflow_version is null, not text",
+            kind="manifest-shape")
     if requested_version is not None and version != requested_version:
         raise ReleaseIntegrityError(
             f"{directory} holds release {version}, not the requested {requested_version}",
