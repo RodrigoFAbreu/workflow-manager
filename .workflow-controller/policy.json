@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "trunk": {
+    "branch": "main",
+    "remote": "origin"
+  },
+  "forge": {
+    "kind": "github",
+    "repository": "RodrigoFAbreu/workflow-manager"
+  },
+  "milestone_branches": {
+    "enabled": true,
+    "branch_format": "milestone/{work_item_id}",
+    "pull_request": {
+      "draft": true,
+      "ready_requires_green_checks": true,
+      "merge_method": "squash",
+      "auto_merge": true,
+      "release_workflow": "ci.yml"
+    }
+  },
+  "release": {
+    "enabled": false,
+    "trigger": "conventional_commit",
+    "version_scheme": "semver",
+    "tag_format": "v{version}",
+    "change_types": {
+      "feat": "minor",
+      "fix": "patch",
+      "perf": "patch",
+      "refactor": "patch",
+      "revert": "patch",
+      "build": "patch",
+      "style": "patch",
+      "docs": "none",
+      "chore": "none",
+      "ci": "none",
+      "test": "none"
+    },
+    "build": {
+      "kind": "command",
+      "argv": [
+        "true"
+      ]
+    },
+    "verify": {
+      "kind": "command",
+      "argv": [
+        "true"
+      ]
+    },
+    "artifacts": {
+      "paths": [
+        "dist/placeholder-{version}.txt"
+      ],
+      "checksums": "SHA256SUMS"
+    },
+    "publication": {
+      "kind": "github_release",
+      "title": "{tag}",
+      "notes": "{tag}"
+    }
+  }
+}
