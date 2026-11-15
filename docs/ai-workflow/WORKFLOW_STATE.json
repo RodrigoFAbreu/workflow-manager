@@ -37388,18 +37388,22 @@
       "registry_path": "docs/ai-workflow/registry/update-dry-run-parity-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/update-dry-run-parity-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "IMPLEMENTING",
+      "phase": "SELF_REVIEWING_IMPLEMENTATION",
       "plan_revision": 2,
       "implementation_revision": null,
       "functional_review_round": null,
       "base_commit": "da3c7747a65b5788d0f6d9530fcd379b52d7b6d2",
       "reviewed_implementation_head": null,
       "current_checkpoint_id": null,
-      "last_completed_checkpoint_id": "CP1",
+      "last_completed_checkpoint_id": "CP2",
       "checkpoints": {
         "CP1": {
           "status": "COMPLETE",
           "start_commit": "4ee8296543fc75e81c88f0ae00fecca7db8c166f"
+        },
+        "CP2": {
+          "status": "COMPLETE",
+          "start_commit": "074945737ae8bdf848c8a17a08869e345b8adf40"
         }
       },
       "current_bundle_id": "0dab145059881df233219de523253d906263e4e5ae824faaf22ea07853891918",
@@ -37528,8 +37532,8 @@
           "external": 0
         }
       },
-      "state_revision": 12,
-      "last_transition": "2026-11-15T10:01:59Z",
+      "state_revision": 14,
+      "last_transition": "2026-11-15T10:03:26Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
