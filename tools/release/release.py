@@ -13,7 +13,8 @@ Subcommands:
     check-title TITLE          validate a pull-request title, print its impact
     next-version               print the next release version, or nothing
     assert-not-superseded      refuse when a strict tag is not an ancestor of HEAD
-    resolve-target ...         pick the newest green push run on main's first parent
+    resolve-target ...         pick the newest green push run of ci.yml on main's first
+                               parent (--trigger-validated: the trigger counts as one)
     assert-full-plan PLAN      refuse a verification plan that is not the full selection
     set-version DIR VERSION    rewrite DIR/pyproject.toml's single placeholder
 
@@ -84,7 +85,9 @@ BASELINE_COMMIT = "b856a97346849fdf48bcdba2d6a5a9644699ab4b"
 
 PLACEHOLDER_LINE = 'version = "0.0.0.dev0"'
 
-VERIFY_WORKFLOW = "workflow-manager-verify.yml"
+#: The workflow whose push runs validate a release target: CI, which runs
+#: validate.yml and then, on a push to main, publish.yml in the same run.
+VERIFY_WORKFLOW = "ci.yml"
 GIT_TIMEOUT = 60
 GH_TIMEOUT = 60
 
@@ -327,15 +330,30 @@ def resolve_target(
     *,
     ref: str = "origin/main",
     warn: Callable[[str], None] = _warn,
+    trigger_validated: bool = False,
 ) -> tuple[str, int]:
     """The commit and run a release job publishes (plan 5.2, 5.4).
 
     The pick must be the trigger or its descendant, else the release refuses.
-    An API, parse or git failure falls back to the trigger itself -- a green
-    push run by construction -- with a warning.
+    An API, parse or git failure falls back to the trigger itself, with a
+    warning; so does a run list with no green push run on `ref`'s first
+    parent.
+
+    `trigger_validated` is set when the release runs inside the trigger's own
+    CI run, after that run's `aggregate` succeeded (ci.yml's `publish` job):
+    the trigger, still in progress and so absent from the completed-run list,
+    is added as a completed, successful push run before the selection. It is
+    then always eligible, a newer green descendant still wins, and an earlier
+    CI run of the same commit whose publish job failed never blocks it.
+    Without it (a dispatched release, where nothing validated the trigger),
+    only the fetched runs count, and a fallback to the trigger is refused by
+    the workflow's dispatch guard.
     """
     try:
         runs = fetch_runs()
+        if trigger_validated:
+            runs = [*runs, {"head_sha": trigger_sha, "id": trigger_run, "event": "push",
+                            "status": "completed", "conclusion": "success"}]
         first_parent = _git(repo, "rev-list", "--first-parent", ref).stdout.split()
         picked = select_target(runs, first_parent)
     except (ReleaseError, ValueError, KeyError, TypeError) as exc:
@@ -476,6 +494,9 @@ def _build_parser() -> argparse.ArgumentParser:
     target.add_argument("--trigger-sha", required=True)
     target.add_argument("--trigger-run", required=True, type=int)
     target.add_argument("--ref", default="origin/main")
+    target.add_argument("--trigger-validated", action="store_true",
+                        help="the trigger run already validated this commit (called from CI): "
+                             "count it as a green push run")
 
     full_plan = sub.add_parser("assert-full-plan")
     full_plan.add_argument("--repo-dir", type=Path, default=Path.cwd())
@@ -515,6 +536,7 @@ def main(argv: list[str] | None = None) -> int:
             sha, run_id = resolve_target(
                 args.repo_dir, args.trigger_sha, args.trigger_run,
                 lambda: fetch_verify_runs(args.repo), ref=args.ref,
+                trigger_validated=args.trigger_validated,
             )
             print(f"target_sha={sha}")
             print(f"target_run={run_id}")

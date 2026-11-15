@@ -1,7 +1,10 @@
 # workflow-manager's own verification: the full test selection
 # (`python3 tests/run_all.py`), split across a matrix of shards that the
-# planner computes -- there is no shard list in this file. Pull requests,
-# `main` pushes, the nightly run and dispatches all run the same selection.
+# planner computes -- there is no shard list in this file. A reusable
+# workflow: ci.yml calls it for every pull request, `main` push and nightly
+# run, and it can be dispatched by hand; every run tests the same selection.
+# A called run is part of the caller's run, so `github.event_name` below is
+# the caller's event (`schedule` for the nightly).
 #
 #   plan       discovers the inventory and writes plan.json; its shard list
 #              becomes the matrix.
@@ -17,10 +20,16 @@
 #   aggregate  verifies every shard's results against the plan, runs phase B
 #              (the frozen-matrix merge) and reports. It also fails when the
 #              plan or package job did not succeed. Its exit code is the
-#              verdict: it is the one required test check.
+#              verdict. Called from ci.yml it reports as `validate / aggregate`;
+#              ci.yml's own `aggregate` job, the required check, fails unless
+#              this workflow succeeded.
 #
-# release.yml publishes a Manager release from a green `main` push run of
-# this workflow, and requires that run's plan to be the full selection.
+# ci.yml's `publish` job publishes a Manager release (publish.yml) after its
+# own `aggregate` succeeded in the same `main` push run, and requires that
+# run's plan to be the full selection.
+#
+# No concurrency group here: ci.yml holds the run's group, and a called
+# workflow whose group equals its caller's would deadlock.
 #
 # Every file the tooling writes lives under $RUNNER_TEMP, never in the
 # checkout, so each job's tree digest equals the plan job's. Every job that
@@ -34,29 +43,24 @@
 # committed one, so a nightly saves an entry only when a release is new) and
 # restores the pinned releases by prefix. This workflow is
 # not managed by workflow-manager; workflow-conformance.yml is, and stays as
-# installed. See docs/ARCHITECTURE.md, "Verification execution".
-name: Workflow manager verification
+# installed. See docs/ARCHITECTURE.md, "Verification execution" and
+# "GitHub Actions layout".
+name: Validate
 
 on:
-  pull_request:
-  push:
-    branches: [main]
-  # The nightly full run of the default branch.
-  schedule:
-    - cron: "17 3 * * *"
+  workflow_call:
+    inputs:
+      shards:
+        description: "Shard count, 1-256 (empty: the planner's own count; 1: the serial CI reference)"
+        required: false
+        type: string
+        default: ""
   workflow_dispatch:
     inputs:
       shards:
         description: "Shard count, 1-256 (empty: the planner's own count; 1: the serial CI reference)"
         required: false
         default: ""
-
-# A pull request keeps its per-ref group, and a new push cancels its stale
-# run. Every other run (push, nightly, dispatch) gets its own per-event,
-# per-commit group and is never cancelled, so no `main` commit loses its run.
-concurrency:
-  group: workflow-manager-verify-${{ github.event_name }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
