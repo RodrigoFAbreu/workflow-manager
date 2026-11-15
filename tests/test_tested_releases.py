@@ -35,8 +35,10 @@ from workflow_manager import package as package_module
 from workflow_manager import source as release_source
 
 TESTS = REPO_ROOT / "tests"
-VERIFY_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "workflow-manager-verify.yml"
-RELEASE_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "release.yml"
+#: The CI entry point, the reusable verification it calls and the reusable release.
+CI_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "ci.yml"
+VERIFY_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "validate.yml"
+RELEASE_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "publish.yml"
 LOCK_TOOL = REPO_ROOT / "tools" / "release_lock.py"
 SYNTHETIC = "7.0.2"
 NEWER = "7.0.3"
@@ -576,9 +578,9 @@ class TestThePackageProofIsDeterministic(_LockedRelease):
         self.assertNotIn(NEWER, proc.stdout)
 
     def test_the_wheels_entry_point_is_only_called_through_package_py(self):
-        """The verify workflow and the release workflow run no `workflow-manager`
-        command of their own: they go through `package.py`."""
-        for path in (VERIFY_WORKFLOW, RELEASE_WORKFLOW):
+        """The CI entry point, the verify workflow and the release workflow run
+        no `workflow-manager` command of their own: they go through `package.py`."""
+        for path in (CI_WORKFLOW, VERIFY_WORKFLOW, RELEASE_WORKFLOW):
             text = path.read_text()
             lines = [line for line in text.splitlines() if not line.lstrip().startswith("#")]
             for line in lines:
@@ -790,6 +792,17 @@ class TestTheVerifyWorkflow(unittest.TestCase):
                         "WORKFLOW_MANAGER_TESTED_RELEASES" in json.dumps(step.get("env", {})):
                     self.assertIn("schedule", step.get("if", ""), (job, step.get("name")))
         self.assertNotIn("WORKFLOW_MANAGER_TESTED_RELEASES", json.dumps(self.doc.get("env", {})))
+
+    def test_the_nightly_reaches_the_verify_workflow_as_the_callers_event(self):
+        """The schedule lives on ci.yml; validate.yml's `schedule` guards see the
+        caller's event, so the nightly's lock wiring needs the call, and ci.yml
+        sets no override of its own."""
+        ci = load_workflow_yaml(CI_WORKFLOW.read_text(encoding="utf-8"))
+        self.assertEqual(ci["on"]["schedule"], [{"cron": "17 3 * * *"}])
+        self.assertEqual(ci["jobs"]["validate"]["uses"], "./.github/workflows/validate.yml")
+        self.assertNotIn("schedule", self.doc["on"])
+        self.assertEqual(sorted(self.doc["on"]), ["workflow_call", "workflow_dispatch"])
+        self.assertNotIn("WORKFLOW_MANAGER_TESTED_RELEASES", CI_WORKFLOW.read_text(encoding="utf-8"))
 
 
 class TestTheScratchCheckoutsCarryTheLock(unittest.TestCase):

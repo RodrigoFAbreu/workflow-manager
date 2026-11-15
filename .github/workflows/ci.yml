@@ -1,0 +1,80 @@
+# workflow-manager's CI entry point: every pull request, `main` push, nightly
+# run and dispatch starts here, and this file only orchestrates. The work
+# lives in two reusable workflows, each also runnable by hand:
+#
+#   validate   calls validate.yml: the full test selection, sharded by the
+#              planner (plan, shard, package, aggregate), plus the release's
+#              build-and-verify path. Its jobs report as `validate / <job>`.
+#   aggregate  the one required test check. A job of this file, not of
+#              validate.yml, and with no `name:`, so its check context stays
+#              exactly `aggregate` (a called job would report as
+#              `validate / aggregate`). It runs always and fails unless the
+#              validate call succeeded; the real aggregation (the shards'
+#              results against the plan, phase B) is validate.yml's own
+#              `aggregate` job.
+#   publish    calls publish.yml on a push to `main` only, after `aggregate`
+#              succeeded in this same run: the revision is validated once and
+#              published from that validation. It is the one job granted
+#              `contents: write` (and `actions: read`, to download the run's
+#              plan), because a called workflow cannot exceed its caller
+#              job's permissions; publish.yml grants them to its release job
+#              alone.
+#
+# See docs/ARCHITECTURE.md, "GitHub Actions layout", and docs/RELEASING.md.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  # The nightly full run of the default branch.
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+    inputs:
+      shards:
+        description: "Shard count, 1-256 (empty: the planner's own count; 1: the serial CI reference)"
+        required: false
+        default: ""
+
+# A pull request keeps its per-ref group, and a new push cancels its stale
+# run. Every other run (push, nightly, dispatch) gets its own per-event,
+# per-commit group and is never cancelled, so no `main` commit loses its run.
+# Only here: a called workflow whose group equals its caller's deadlocks.
+concurrency:
+  group: ci-${{ github.event_name }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    uses: ./.github/workflows/validate.yml
+    with:
+      shards: ${{ inputs.shards }}
+
+  aggregate:
+    needs: [validate]
+    # Always, so a failed, skipped or cancelled validation fails this
+    # required check rather than skipping it.
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require the validation
+        env:
+          VALIDATE_RESULT: ${{ needs.validate.result }}
+        run: |
+          if [ "$VALIDATE_RESULT" != success ]; then
+            echo "::error::the validate workflow concluded $VALIDATE_RESULT"
+            exit 1
+          fi
+
+  publish:
+    needs: [aggregate]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
+      actions: read
+    uses: ./.github/workflows/publish.yml

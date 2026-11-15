@@ -120,7 +120,7 @@ Newest first.
 
 Not scheduled. Each is small unless noted.
 
-- **Controller repository policy for this repository.** What: a Controller policy file with milestone branches enabled and the release section disabled (this repository releases through `.github/workflows/release.yml`). Why: lets the Controller drive this repository, and it must reach `main` before the milestone that first uses it starts. Direction: validate it with the Controller's `inspect`. Belongs with M3.
+- **Controller repository policy for this repository.** What: a Controller policy file with milestone branches enabled and the release section disabled (this repository releases through `.github/workflows/publish.yml`, called by `ci.yml`). Why: lets the Controller drive this repository, and it must reach `main` before the milestone that first uses it starts. Direction: validate it with the Controller's `inspect`. Belongs with M3.
 - **Retire the `--manager-root` alias.** It is kept as a deprecated alias of the old layout (`src/workflow_manager/cli.py`). Removing it is a breaking `feat!:` and a Manager major release, for no operator benefit; keep it until a breaking release has another reason, then remove it in that one.
 
 ### Review follow-ups: release-agnostic Manager (item 8)

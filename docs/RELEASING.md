@@ -18,12 +18,17 @@ build time.
 1. A pull request is merged into `main` by squash. Its title, a Conventional
    Commit checked by the required `Conventional Commit title` check, becomes
    the squash commit's subject, with a blank body.
-2. `main`'s push run of `workflow-manager-verify.yml` runs the **full**
-   selection.
-3. When that run completes green, `.github/workflows/release.yml` starts
-   (`workflow_run`). It:
-   - picks the newest commit on `main`'s first parent whose own push run is
-     green (`release.py resolve-target`), and checks it out;
+2. `main`'s push run of `.github/workflows/ci.yml` (the `CI` workflow)
+   runs the **full** selection: its `validate` job calls `validate.yml`,
+   and its `aggregate` job, the required check, fails unless that
+   validation succeeded.
+3. In the same run, once `aggregate` is green, the `publish` job calls
+   `.github/workflows/publish.yml`. The revision is validated once, and the
+   release comes from that validation. It:
+   - picks the newest commit on `main`'s first parent whose own push run of
+     `ci.yml` is green, counting this run as green
+     (`release.py resolve-target --trigger-validated`: the run is still in
+     progress, so the completed-run list cannot hold it), and checks it out;
    - restores the release cache under the test jobs' key (the pins and the
      lock), and requires that run's plan to be the full selection of exactly
      that tree (`release.py assert-full-plan`, against an inventory
@@ -53,6 +58,24 @@ build time.
      pinned Workflow versions.
 
 Release jobs are serialized by one concurrency group and never cancelled.
+Pull-request and nightly runs never publish: `publish` runs only on a push
+to `main`.
+
+### Publishing by hand, and a dry run
+
+`publish.yml` can also be dispatched on `main` (Actions tab, or
+`gh workflow run publish.yml --ref main`). A dispatched run validates
+nothing itself, so it must find a completed, successful push run of
+`ci.yml` for the commit it publishes: `resolve-target` runs without
+`--trigger-validated`, and when it finds no such run it falls back to the
+dispatch's own run, which the next step refuses (`::error::no green ci.yml
+push run for this commit`). Every other gate is the called run's.
+
+With the `dry-run` input set (`gh workflow run publish.yml --ref main -f
+dry-run=true`), the run resolves the target, downloads its plan, runs
+`assert-full-plan`, `next-version`, `assert-not-superseded` and the package
+build, and then logs a notice instead of `gh release create`: no tag and no
+release. Use it to prove the release path without publishing.
 
 ### Release impact of a title
 
@@ -95,21 +118,27 @@ strict tags and are ignored.
   unreleased commit with it, so a skipped or superseded release is never
   lost as long as `main` moves.
 - **A failed release run.** A failure before `gh release create` leaves no
-  tag. Re-run the failed `Release` run from the Actions UI, or:
+  tag. The `CI` run of that push then concludes red on its `publish` job
+  (`publish / release`) with `aggregate` green. Re-run its failed jobs from
+  the Actions UI, or:
 
   ```bash
-  gh run list --workflow release.yml --limit 10
-  gh run rerun <run-id>
+  gh run list --workflow ci.yml --branch main --event push --limit 10
+  gh run rerun <run-id> --failed
   ```
 
-  A `workflow_run` re-run uses the same payload, and resolves its target
-  afresh.
-- **A stranded release on a quiet `main`.** Only one case can leave a green
-  commit unreleased: the one release job that replaced a newer commit's
-  pending job fell back to its own trigger (an API or git failure in
+  The re-run keeps the run's id, so it is still the validated trigger, and
+  resolves its target afresh. Validation is not repeated.
+- **A stranded release on a quiet `main`.** A green commit can stay
+  unreleased when its `publish` job was replaced while pending in the
+  release concurrency group by an older commit's (its `CI` run then
+  concludes cancelled, so it no longer counts as a green push run), or when
+  a release job fell back to its own trigger (an API or git failure in
   `resolve-target`, which warns). The next green `main` push releases it.
-  If `main` stays quiet, re-run the `Release` run of the latest green
-  `main` push run, as above; it picks the newest green commit.
+  If `main` stays quiet, re-run the cancelled or failed jobs of the latest
+  `main` push run of `ci.yml`, as above; when that run is already green,
+  dispatch `publish.yml` on `main` instead (see "Publishing by hand"),
+  which picks the newest green commit.
 
 ## Installing a release, without a checkout
 
@@ -247,8 +276,9 @@ an open pull request.
 
 ## The nightly run
 
-`workflow-manager-verify.yml` runs the full selection of `main` at 03:17
-UTC, on the pins, the lock and the newest published Workflow release (the
+`ci.yml` runs the full selection of `main` at 03:17
+UTC (its `schedule` trigger; the `validate` call sees the caller's
+`schedule` event, which turns the nightly wiring on), on the pins, the lock and the newest published Workflow release (the
 plan job adds it from the GitHub listing without a commit, so a release
 published after the last Manager release is tested the night it appears). The
 README's nightly badge shows the latest result; a red nightly opens
@@ -256,8 +286,8 @@ no issue, so check the badge or the Actions tab.
 
 GitHub disables scheduled workflows in a public repository after 60 days
 without activity. The nightly then silently stops: re-enable it from the
-Actions tab or with `gh workflow enable workflow-manager-verify.yml --repo
-RodrigoFAbreu/workflow-manager`.
+Actions tab or with `gh workflow enable ci.yml --repo
+RodrigoFAbreu/workflow-manager`. A nightly run never publishes.
 
 ## The Workflow Controller (C1)
 

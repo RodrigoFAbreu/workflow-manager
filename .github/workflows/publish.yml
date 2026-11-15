@@ -1,8 +1,21 @@
-# The Workflow Manager's package release (docs/RELEASING.md). It starts only
-# from a completed, successful verification run of a push to `main`, and
-# publishes the newest such commit on main's first-parent history
-# (`release.py resolve-target`), never merely its own trigger: a pending
-# release job replaced by an older commit's still releases the newer one.
+# The Workflow Manager's package release (docs/RELEASING.md). A reusable
+# workflow: ci.yml's `publish` job calls it on a push to `main`, after that
+# run's own `aggregate` check succeeded, so the revision is validated once and
+# published from that validation. It can also be dispatched by hand on
+# `main`; with `dry-run` it runs every gate and the build and skips only the
+# tag and the upload.
+#
+# Called mode (`github.event_name` is the caller's `push`): the trigger is
+# this run, green by `needs`, and `resolve-target --trigger-validated` counts
+# it as a green push run. Dispatch mode (`workflow_dispatch`): nothing
+# validated this run, so the target must be a completed, successful push run
+# of ci.yml for the commit; when resolve-target finds none it falls back to
+# this run, and the guard refuses (never publish untested code).
+#
+# It publishes the newest green push run's commit on main's first-parent
+# history (`release.py resolve-target`), never merely its own trigger: a
+# pending release job replaced by an older commit's still releases the newer
+# one.
 #
 # Before publishing, the target's own verification plan must be the full
 # selection of exactly that tree, against the inventory rediscovered here
@@ -14,20 +27,32 @@
 # the release in one call, so a failure before it leaves no tag. Releases are
 # serialized by the job's own concurrency group. The release contains no
 # Workflow release.
-name: Release
+name: Publish
 
 on:
-  workflow_run:
-    workflows: ["Workflow manager verification"]
-    types: [completed]
-    branches: [main]
+  workflow_call:
+    inputs:
+      dry-run:
+        description: "Run every gate and the build, but create no tag or release"
+        required: false
+        type: boolean
+        default: false
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: "Run every gate and the build, but create no tag or release"
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
 jobs:
   release:
-    if: github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success'
+    # Main only: a call from ci.yml is a push to main by construction, and a
+    # dispatch from another branch publishes nothing.
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     # On the job, not the workflow, so a skipped run never takes a slot.
@@ -42,14 +67,32 @@ jobs:
         with:
           ref: main
           fetch-depth: 0
+      # Called from ci.yml, this run's own `aggregate` validated the trigger
+      # (`--trigger-validated`); dispatched, the trigger is this unvalidated run.
       - name: Resolve the release target
         id: target
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
-          TRIGGER_SHA: ${{ github.event.workflow_run.head_sha }}
-          TRIGGER_RUN: ${{ github.event.workflow_run.id }}
-        run: python3 tools/release/release.py resolve-target --repo "$REPO" --trigger-sha "$TRIGGER_SHA" --trigger-run "$TRIGGER_RUN" >> "$GITHUB_OUTPUT"
+          TRIGGER_SHA: ${{ github.sha }}
+          TRIGGER_RUN: ${{ github.run_id }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          validated=""
+          if [ "$EVENT" != workflow_dispatch ]; then validated=--trigger-validated; fi
+          python3 tools/release/release.py resolve-target --repo "$REPO" --trigger-sha "$TRIGGER_SHA" --trigger-run "$TRIGGER_RUN" $validated >> "$GITHUB_OUTPUT"
+      # A dispatched release falls back to its own run only when no green
+      # push run of ci.yml exists for the commit: it never publishes that.
+      - name: Require a green CI push run (dispatch)
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          TARGET_RUN: ${{ steps.target.outputs.target_run }}
+          THIS_RUN: ${{ github.run_id }}
+        run: |
+          if [ -z "$TARGET_RUN" ] || [ "$TARGET_RUN" = "$THIS_RUN" ]; then
+            echo "::error::no green ci.yml push run for this commit: a dispatched release never publishes an unvalidated commit"
+            exit 1
+          fi
       - uses: actions/checkout@v4
         with:
           ref: ${{ steps.target.outputs.target_sha }}
@@ -104,8 +147,15 @@ jobs:
         run: |
           python3 -m pip install -r .github/tools/requirements.txt
           python3 tools/release/package.py --version "$VERSION" --out "$RUNNER_TEMP/assets"
+      - name: Skip the publication (dry run)
+        if: steps.version.outputs.version != '' && steps.superseded.outputs.superseded != 'true' && inputs.dry-run
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          TARGET_SHA: ${{ steps.target.outputs.target_sha }}
+        run: |
+          echo "::notice::dry run: every gate passed and the package built; v$VERSION at $TARGET_SHA was not tagged or published"
       - name: Publish the release
-        if: steps.version.outputs.version != '' && steps.superseded.outputs.superseded != 'true'
+        if: steps.version.outputs.version != '' && steps.superseded.outputs.superseded != 'true' && !inputs.dry-run
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.version.outputs.version }}

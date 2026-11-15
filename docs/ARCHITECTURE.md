@@ -189,7 +189,7 @@ docs/
   defects/                     upstream defects found, documented, not repaired
   RELEASING.md                 how the Manager is released, and how a new Workflow release is tested (the lock)
 .github/
-  workflows/                   verification, PR title, release, and the managed conformance check
+  workflows/                   CI (ci.yml) calling validation (validate.yml) and release (publish.yml), PR title, and the managed conformance check
   repository/                  merge settings and the `main` ruleset, as reviewed data
 ```
 
@@ -601,9 +601,11 @@ but a *timing key* does not, see below). Discovery is
   run has both, `2` wins, and every observed failure is still listed. Each
   failure in the report carries a one-line reproduction command.
 
-**CI.** `.github/workflows/workflow-manager-verify.yml` runs on every pull
-request, every push to `main`, a nightly `schedule` (`17 3 * * *`, the
-default branch) and on dispatch. Its `plan` job writes the plan, and the
+**CI.** `.github/workflows/ci.yml` runs on every pull request, every push
+to `main`, a nightly `schedule` (`17 3 * * *`, the default branch) and on
+dispatch, and calls the reusable `.github/workflows/validate.yml` (see
+"GitHub Actions layout" below), which holds the test jobs. Its `plan` job
+writes the plan, and the
 plan's shard list becomes the `shard` matrix; nothing in the file names a
 shard. Each shard job runs one shard (`--run-shard`) and uploads its
 results. A shard runs its exclusive chunks first and alone (A0), then its
@@ -636,18 +638,21 @@ update` owns it and may rename its job.
 - **One selection.** Every event plans the full selection; the `plan` job's
   only output is the shard list.
 - **One required test check.** `aggregate` keeps its name whatever the shard
-  count. It needs `plan`, every `shard` and the
+  count. validate.yml's `aggregate` job needs `plan`, every `shard` and the
   `package` job, runs `if: always()`, and its first step fails, naming the
   job, when `plan` or `package` did not succeed. Its exit code is the
-  verdict. The repository's required checks are `aggregate` and `PR title`'s
+  verdict; called from ci.yml it reports as `validate / aggregate`. The
+  required check is ci.yml's own `aggregate` job: no `name:`, `needs:
+  [validate]`, `if: always()`, and one step that fails unless the
+  `validate` call succeeded. The repository's required checks are `aggregate` and `PR title`'s
   `Conventional Commit title`, both from the GitHub Actions app
   (`.github/repository/ruleset-main.json`).
 - **Packaging on every run.** The `package` job builds and verifies the
   wheel and sdist exactly as a release does (`tools/release/package.py
   --version 0.0.0+ci`), so a packaging break fails the pull request, not the
   release.
-- **Concurrency.** The group is
-  `workflow-manager-verify-<event>-<ref for a pull request, else sha>`, and
+- **Concurrency.** The group, on ci.yml only, is
+  `ci-<event>-<ref for a pull request, else sha>`, and
   only pull requests cancel in progress. A newer push to a pull request
   cancels its stale run; a `main` push, a nightly or a dispatch run gets its
   own per-commit group and is never cancelled.
@@ -661,8 +666,55 @@ update` owns it and may rename its job.
   is new, so that night saves one entry and later nights hit it. `plan`,
   `shard` and `aggregate` compute the suffix; `package` primes only the
   committed set and keeps the unsuffixed key.
-- **Release.** `.github/workflows/release.yml` publishes the Manager package
-  from `main` after `main`'s full run is green; see `docs/RELEASING.md`.
+- **Release.** ci.yml's `publish` job calls `.github/workflows/publish.yml`
+  on a push to `main`, after `aggregate` succeeded in the same run, so the
+  revision is validated once and released from that validation; see
+  "GitHub Actions layout" below and `docs/RELEASING.md`.
+
+**GitHub Actions layout.** `.github/workflows/` holds three workflows of
+this repository's own, plus the managed one:
+
+| file | `name` | role |
+| --- | --- | --- |
+| `ci.yml` | `CI` | The entry point: `pull_request`, `push` to `main`, the nightly `schedule` and `workflow_dispatch` (`shards`). It holds the run's concurrency group and three jobs: `validate` (calls `validate.yml`), `aggregate` (the required check) and `publish` (calls `publish.yml`, only on a push to `main`, `needs: [aggregate]`). |
+| `validate.yml` | `Validate` | Reusable (`workflow_call`) and dispatchable (`workflow_dispatch`), both with the `shards` input: the `plan`, `shard`, `package` and `aggregate` jobs described above. Its `schedule` guards see the caller's event, so a nightly call runs the nightly wiring. It has no concurrency group: a called workflow whose group equals its caller's deadlocks. |
+| `publish.yml` | `Publish` | Reusable and dispatchable, with a boolean `dry-run` input: the one `release` job and every release gate. |
+| `pr-title.yml` | `PR title` | The `Conventional Commit title` check. |
+| `workflow-conformance.yml` | | Managed: installed by `workflow-manager` from the Workflow release, never edited here. |
+
+- **Why `aggregate` is a job of ci.yml.** A job reached through `uses:`
+  reports as `<caller job> / <called job>`, so validate.yml's own
+  aggregation reports as `validate / aggregate`. The ruleset requires the
+  exact context `aggregate` (`.github/repository/ruleset-main.json`), so
+  ci.yml keeps a job with that id and no `name:` that fails unless the
+  `validate` call succeeded. Moving it into a called workflow would change
+  the context and lock every pull request out.
+- **Permissions.** Every workflow's own permissions are `contents: read`.
+  Only publish.yml's `release` job holds `contents: write` (and `actions:
+  read`, to download the target run's plan), and ci.yml's `publish` job
+  grants the same two, because a called workflow cannot exceed its caller
+  job's permissions.
+- **Called and dispatched releases.** publish.yml tells them apart by
+  `github.event_name`: a call from ci.yml carries the caller's `push`, a
+  manual run `workflow_dispatch`. Called, the trigger is the CI run itself,
+  validated by `needs`, and `resolve-target --trigger-validated` counts it
+  as a green push run (the run is still in progress, so the completed-run
+  list cannot hold it). Dispatched, nothing validated the run: the target
+  must be a completed, successful push run of `ci.yml` (`release.py`'s
+  `VERIFY_WORKFLOW`), and a guard step fails the job when `resolve-target`
+  fell back to the dispatch's own run. Both run only on `refs/heads/main`.
+  `dry-run` runs every gate and the build and skips only `gh release
+  create`.
+- **Shared workflows considered.** `RodrigoFAbreu/action-workflows`
+  publishes reusable workflows. Its `python-tests.yml` runs `python -m
+  unittest discover`; this repository's suite runs through its own sharded
+  runner (`tests/run_all.py`: the plan, the shard matrix, the frozen-matrix
+  merge and the release cache), so it does not fit and is not used. Its
+  `pr-title.yml` checks the title's form only, and its job would report as
+  `<caller job> / Validate PR title`, not the required `Conventional Commit
+  title`; this repository's `pr-title.yml` runs
+  `tools/release/release.py check-title`, the grammar and release-impact
+  table the release computes versions from, so it stays repository-owned.
 
 **Measured before M2 (the sharding milestone's CP7, and at its post-review
 head `2b4c0fd`, 2026-09-27),** when the full selection re-ran the frozen
@@ -732,8 +784,8 @@ minutes), against 112 for the single-shard reference.
 
 **Serial and single-shard runs are exceptional evidence.** Normal
 full-suite verification, every gate included, uses the default sharded path:
-`python3 tests/run_all.py` locally, and the `workflow-manager-verify.yml`
-pipeline at its configured shard count in CI. Forcing one worker or one
+`python3 tests/run_all.py` locally, and the `ci.yml` pipeline (its
+`validate.yml` call) at its configured shard count in CI. Forcing one worker or one
 shard for the full suite, with `--jobs 1`, `--plan-only --shards 1`, the CI
 dispatch input `shards=1` or anything equivalent, adds no coverage. It runs
 the same selection under the same exit contract, only slower (about 40 min
@@ -764,7 +816,7 @@ run. The two are equivalent when all of these hold:
   their data (`tests/portability_exceptions.json`), and the
   runner itself (`tests/run_all.py`, `tests/parallel/`, `tests/support.py`,
   `tests/frozen_runs.py`), plus, for CI evidence,
-  `.github/workflows/workflow-manager-verify.yml`. Check with
+  `.github/workflows/ci.yml` and `.github/workflows/validate.yml`. Check with
   `git diff --stat <evidence head>..HEAD`. One narrow exception: a change
   confined to `tests/parallel/timings.json` still counts as no change when
   the evidence run's plan is unchanged by it -- the same profile and worker

@@ -5,19 +5,24 @@ Checkpoint CP1 of `workflow-manager-trunk-model`: the title grammar and its
 release impact (`D-Title-Grammar`), strict tags, `next-version` from the
 latest tag or the recorded baseline, `assert-not-superseded`,
 `resolve-target`'s pick from injected run lists (`D-Version-Authority`),
+with and without `--trigger-validated` (the release inside its trigger's
+own CI run),
 `set-version`, and the `pyproject.toml` placeholder pin (INV-6). Every
 history is a real temporary git repository under `$TMPDIR`.
 """
 
 from __future__ import annotations
 
+import contextlib
 import importlib.util
+import io
 import json
 import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
+import unittest.mock
 from pathlib import Path
 
 from support import REPO_ROOT
@@ -444,6 +449,77 @@ class TestResolveTarget(_Repo):
     def test_no_candidate_falls_back_to_the_trigger(self):
         self.assertEqual(self.resolve([], self.a, 20), (self.a, 20))
         self.assertEqual(len(self.warnings), 1)
+
+    # -- --trigger-validated: the release runs inside its trigger's own CI run --
+
+    def test_a_validated_trigger_is_eligible_without_a_green_run(self):
+        """Called from ci.yml, the trigger run is still in progress, so the
+        completed-run list never holds it; an earlier CI run of the same
+        commit whose publish job failed is red. The trigger still releases."""
+        for runs in ([], [_run(34, self.b, conclusion="failure")],
+                     [_run(40, self.b, status="in_progress", conclusion=None)]):
+            with self.subTest(runs=runs):
+                self.warnings.clear()
+                self.assertEqual(self.resolve(runs, self.b, 40, trigger_validated=True),
+                                 (self.b, 40))
+                self.assertEqual(self.warnings, [])
+
+    def test_a_validated_trigger_beats_an_older_green_ancestor(self):
+        """Without the flag the older green run is picked and refused as not
+        descending from the trigger; with it the trigger itself is newer."""
+        runs = [_run(34, self.b, conclusion="failure"), _run(20, self.a)]
+        self.assertEqual(self.resolve(runs, self.b, 40, trigger_validated=True), (self.b, 40))
+        with self.assertRaisesRegex(release.ReleaseError, "neither the triggering commit"):
+            self.resolve(runs, self.b, 40)
+
+    def test_a_newer_green_descendant_still_beats_a_validated_trigger(self):
+        runs = [_run(30, self.b), _run(10, self.r0)]
+        self.assertEqual(self.resolve(runs, self.a, 25, trigger_validated=True), (self.b, 30))
+        self.assertEqual(self.warnings, [])
+
+    def test_a_validated_trigger_does_not_change_the_fallbacks(self):
+        result = self.resolve(release.ReleaseError("gh api: HTTP 502"), self.a, 20,
+                              trigger_validated=True)
+        self.assertEqual(result, (self.a, 20))
+        self.assertEqual(len(self.warnings), 1)
+        self.assertIn("HTTP 502", self.warnings[0])
+
+    def test_without_the_flag_the_trigger_is_not_a_candidate(self):
+        """Unchanged behaviour: only fetched runs count, and an empty list is
+        the warned fallback (the dispatch guard refuses it)."""
+        self.assertEqual(self.resolve([], self.b, 40), (self.b, 40))
+        self.assertEqual(len(self.warnings), 1)
+        self.assertIn("no green push run", self.warnings[0])
+
+    def test_the_cli_passes_the_flag_and_defaults_it_off(self):
+        argv = ["resolve-target", "--repo-dir", str(self.repo), "--repo", "o/r",
+                "--trigger-sha", self.b, "--trigger-run", "40"]
+        for extra, expected in (([], False), (["--trigger-validated"], True)):
+            with self.subTest(flag=extra):
+                seen = {}
+
+                def fake(*args, **kwargs):
+                    seen.update(kwargs)
+                    return self.b, 40
+                with unittest.mock.patch.object(release, "resolve_target", fake), \
+                        contextlib.redirect_stdout(io.StringIO()) as out:
+                    self.assertEqual(release.main(argv + extra), 0)
+                self.assertIs(seen.get("trigger_validated"), expected)
+                self.assertEqual(out.getvalue(), f"target_sha={self.b}\ntarget_run=40\n")
+
+    def test_the_cli_with_the_flag_releases_the_trigger_from_an_empty_run_list(self):
+        with unittest.mock.patch.object(release, "fetch_verify_runs", return_value=[]), \
+                contextlib.redirect_stdout(io.StringIO()) as out, \
+                contextlib.redirect_stderr(io.StringIO()) as err:
+            code = release.main(["resolve-target", "--repo-dir", str(self.repo), "--repo", "o/r",
+                                 "--trigger-sha", self.b, "--trigger-run", "40",
+                                 "--trigger-validated"])
+        self.assertEqual(code, 0, err.getvalue())
+        self.assertEqual(out.getvalue(), f"target_sha={self.b}\ntarget_run=40\n")
+        self.assertEqual(err.getvalue(), "")
+
+    def test_the_verify_workflow_is_ci(self):
+        self.assertEqual(release.VERIFY_WORKFLOW, "ci.yml")
 
     def test_select_target_is_pure(self):
         chain = [self.b, self.a, self.r0]
