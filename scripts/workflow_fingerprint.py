@@ -244,11 +244,16 @@ class UnclassifiedPathError(Exception):
         self.stage = stage
 
 
+#: The one template of an item's artifact declaration; `artifacts_path_for_work_item` and
+#: `unclassified_path_message` both read it, so the message cannot name another file than the helper.
+ARTIFACTS_PATH_TEMPLATE = "docs/ai-workflow/registry/{work_item_id}-artifacts.json"
+
 _UNCLASSIFIED_PROTOCOL_SEE = 'See REVIEW_PROTOCOL.md, "Repairing an artifact declaration after an approval".'
 
 
 def unclassified_path_message(
     path: str, work_item_id: str | None = None, stage: str = "plan", interval: bool = False,
+    declaration: str | None = None,
 ) -> str:
     """The text of an `UnclassifiedPathError` (W39): names the path, the
     artifact-declaration file that must list it and the sanctioned route that
@@ -256,10 +261,13 @@ def unclassified_path_message(
     is named by the placeholder `<work_item_id>` and the text says the item is
     not known where the path was classified. `interval=True` (only the
     provenance-interval catch, `stage="implementation"`) replaces the route by
-    the interval form: that check accepts only excluded paths."""
+    the interval form: that check accepts only excluded paths. `declaration`
+    (a repository-relative path, known form only) names the file that was really
+    read in place of the templated one."""
     known = work_item_id is not None
     item = work_item_id if known else "<work_item_id>"
-    declaration = f"docs/ai-workflow/registry/{item}-artifacts.json"
+    if declaration is None or not known:
+        declaration = ARTIFACTS_PATH_TEMPLATE.format(work_item_id=item)
     if known:
         head = (
             f"{path} is not classified by the {stage} stage of the artifact declaration of "
@@ -288,34 +296,36 @@ def unclassified_path_message(
             "and a post-fix round. " + _UNCLASSIFIED_PROTOCOL_SEE
         )
     arg = f" {item}" if known else ""
-    return head + (
+    return head.rstrip() + "\n" + (
         "Add the path to plan_stage of that file as excluded, an exact path in excluded_paths or a "
         "directory prefix in excluded_prefixes (it is protected only if it is one of the plan's own "
-        "documents; a deliverable is excluded here and protected at the implementation stage). "
+        "documents; a deliverable is excluded here and protected at the implementation stage).\n"
         "At PLANNING, REVISING_PLAN, AMENDING_PLAN, AWAITING_LOCAL_PLAN_REVIEW, "
         "AWAITING_MANUAL_EXTERNAL_PLAN_REVIEW or AWAITING_PLAN_APPROVAL, whether or not an "
-        f"amendment is open: edit the file and run /milestone-plan{arg} again. "
+        f"amendment is open: edit the file and run /milestone-plan{arg} again.\n"
         "At IMPLEMENTING or SELF_REVIEWING_IMPLEMENTATION the plan is approved and the edit needs a "
         f"new plan revision: the user runs /request-plan-amendment{arg}, then /milestone-plan{arg}, "
         "plan review and the plan approval (/approve-review plan, or /satisfy-gate when the plan "
-        "gate is automatic); at any other phase neither command is admitted, so tell the user. "
+        "gate is automatic); at any other phase of a two-stage item neither command is admitted, "
+        "so tell the user.\n"
         + _UNCLASSIFIED_PROTOCOL_SEE
     )
 
 
 @contextlib.contextmanager
-def naming_work_item(work_item_id: str):
+def naming_work_item(work_item_id: str, declaration: str | None = None):
     """Re-raise an `UnclassifiedPathError` that carries a path with the
     known-item text for `work_item_id` (same class, `from None`); every other
     exception, and an `UnclassifiedPathError` without a path, passes through
-    unchanged. Wraps only the calls that classify paths for a known item."""
+    unchanged. Wraps only the calls that classify paths for a known item.
+    `declaration` names the file that was really read (see `unclassified_path_message`)."""
     try:
         yield
     except UnclassifiedPathError as exc:
         if exc.path is None:
             raise
         raise UnclassifiedPathError(
-            unclassified_path_message(exc.path, work_item_id, stage=exc.stage or "plan"),
+            unclassified_path_message(exc.path, work_item_id, stage=exc.stage or "plan", declaration=declaration),
             exc.path, exc.stage,
         ) from None
 
@@ -996,7 +1006,7 @@ def artifacts_path_for_work_item(work_item_id: str) -> Path:
     `work_item_id`s is structurally impossible since `work_items` map keys
     are already unique."""
     validate_work_item_id(work_item_id)
-    return Path(f"docs/ai-workflow/registry/{work_item_id}-artifacts.json")
+    return Path(ARTIFACTS_PATH_TEMPLATE.format(work_item_id=work_item_id))
 
 
 def load_plan_stage_classification(

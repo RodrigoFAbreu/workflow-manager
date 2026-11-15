@@ -3575,32 +3575,34 @@ def _upm_plan_route(item: str = "") -> str:
     return (
         "Add the path to plan_stage of that file as excluded, an exact path in excluded_paths or "
         "a directory prefix in excluded_prefixes (it is protected only if it is one of the plan's "
-        "own documents; a deliverable is excluded here and protected at the implementation stage). "
+        "own documents; a deliverable is excluded here and protected at the implementation stage).\n"
         "At PLANNING, REVISING_PLAN, AMENDING_PLAN, AWAITING_LOCAL_PLAN_REVIEW, "
         "AWAITING_MANUAL_EXTERNAL_PLAN_REVIEW or AWAITING_PLAN_APPROVAL, whether or not an "
-        f"amendment is open: edit the file and run /milestone-plan{item} again. "
+        f"amendment is open: edit the file and run /milestone-plan{item} again.\n"
         "At IMPLEMENTING or SELF_REVIEWING_IMPLEMENTATION the plan is approved and the edit needs "
         f"a new plan revision: the user runs /request-plan-amendment{item}, then "
         f"/milestone-plan{item}, plan review and the plan approval (/approve-review plan, or "
-        "/satisfy-gate when the plan gate is automatic); at any other phase neither command is "
-        "admitted, so tell the user. " + _UPM_REVIEW_PROTOCOL
+        "/satisfy-gate when the plan gate is automatic); at any other phase of a two-stage item "
+        "neither command is admitted, so tell the user.\n" + _UPM_REVIEW_PROTOCOL
     )
 
 
 def _upm_known(path: str, item: str, stage: str) -> str:
     route = _upm_plan_route(f" {item}") if stage == "plan" else _UPM_IMPL_ROUTE
+    sep = "\n" if stage == "plan" else " "
     return (
         f"{path} is not classified by the {stage} stage of the artifact declaration of work item "
-        f"{item}, docs/ai-workflow/registry/{item}-artifacts.json. {route}"
+        f"{item}, docs/ai-workflow/registry/{item}-artifacts.json.{sep}{route}"
     )
 
 
 def _upm_unknown(path: str, stage: str) -> str:
     route = _upm_plan_route() if stage == "plan" else _UPM_IMPL_ROUTE
+    sep = "\n" if stage == "plan" else " "
     return (
         f"{path} is not classified by the {stage} stage of the artifact declaration of the work "
         "item being worked, docs/ai-workflow/registry/<work_item_id>-artifacts.json (the work "
-        "item is not known where this path was classified, so <work_item_id> stands for its id). "
+        f"item is not known where this path was classified, so <work_item_id> stands for its id).{sep}"
         f"{route}"
     )
 
@@ -3677,6 +3679,43 @@ class TestUnclassifiedPathMessage(unittest.TestCase):
                 with self.assertRaises(fingerprint.UnclassifiedPathError) as ctx:
                     call()
                 self.assertEqual(str(ctx.exception), expected)
+
+    def test_t6_the_message_and_the_helper_share_one_template(self):
+        self.assertEqual(fingerprint.ARTIFACTS_PATH_TEMPLATE, "docs/ai-workflow/registry/{work_item_id}-artifacts.json")
+        for item in ("demo-item", "acceptance-gate-robustness", "a1"):
+            with self.subTest(item=item):
+                named = fingerprint.artifacts_path_for_work_item(item).as_posix()
+                self.assertIn(f"work item {item}, {named}.", fingerprint.unclassified_path_message("p", item))
+        self.assertIn("work item being worked, docs/ai-workflow/registry/<work_item_id>-artifacts.json (",
+                      fingerprint.unclassified_path_message("p"))
+
+    def test_t7_declaration_replaces_the_named_file_in_the_known_form_only(self):
+        default = fingerprint.unclassified_path_message("p", "demo-item", stage="implementation")
+        named = fingerprint.unclassified_path_message(
+            "p", "demo-item", stage="implementation", declaration="docs/other/legacy.json")
+        self.assertEqual(named, default.replace("docs/ai-workflow/registry/demo-item-artifacts.json",
+                                                "docs/other/legacy.json"))
+        self.assertEqual(fingerprint.unclassified_path_message("p", "demo-item", declaration=None),
+                         fingerprint.unclassified_path_message("p", "demo-item"))
+        self.assertEqual(fingerprint.unclassified_path_message("p", None, declaration="docs/other/legacy.json"),
+                         fingerprint.unclassified_path_message("p"))
+        with self.assertRaises(fingerprint.UnclassifiedPathError) as ctx:
+            with fingerprint.naming_work_item("demo-item", declaration="docs/other/legacy.json"):
+                raise fingerprint.UnclassifiedPathError("raw", "p", "plan")
+        self.assertIn("docs/other/legacy.json", str(ctx.exception))
+
+    def test_t8_the_plan_stage_text_is_five_lines_and_the_same_words(self):
+        text = fingerprint.unclassified_path_message(_UPM_PATH, "demo-item", stage="plan")
+        lines = text.split("\n")
+        self.assertEqual(len(lines), 5)
+        self.assertTrue(all(len(line) < 400 for line in lines), [len(line) for line in lines])
+        self.assertEqual(text, _upm_known(_UPM_PATH, "demo-item", "plan"))
+        old = " ".join(lines).replace("of a two-stage item ", "")
+        self.assertNotIn("\n", old)
+        self.assertIn("at any other phase neither command is admitted, so tell the user. See REVIEW_PROTOCOL.md", old)
+        for stage in ("implementation",):
+            self.assertNotIn("\n", fingerprint.unclassified_path_message(_UPM_PATH, "demo-item", stage=stage))
+        self.assertNotIn("\n", fingerprint.unclassified_path_message(_UPM_PATH, "demo-item", stage="implementation", interval=True))
 
     def test_t5_nothing_changes_where_nothing_is_refused(self):
         self.assertEqual(fingerprint.classify_path("src/a.txt", *_UPM_PLAN_SETS), "protected")

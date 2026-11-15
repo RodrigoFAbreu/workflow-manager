@@ -18887,7 +18887,7 @@ def promote_legacy_work_item(
     protected_paths, protected_prefixes, excluded_paths, excluded_prefixes = (
         fingerprint.load_implementation_stage_classification(repo_root, artifacts_path)
     )
-    with fingerprint.naming_work_item(work_item_id):
+    with fingerprint.naming_work_item(work_item_id, declaration=Path(artifacts_path).as_posix()):
         changed_since_review = any_protected_path_changed_since(
             repo_root, technical_approval["reviewed_content_commit"], "HEAD",
             protected_paths, protected_prefixes, excluded_paths, excluded_prefixes,
@@ -20298,11 +20298,27 @@ def _acceptance_reachability_blocker(repo_root: Path, work_item_id: str, work_it
         return {"code": "registry_unresolvable",
                 "detail": f"the item's own registry cannot be resolved: {type(exc).__name__}: {exc}"}
     if not milestone_complete_gate_reachable(phase=phase, is_terminal=is_terminal):
-        detail = f"the phase is {phase}; the acceptance stage needs AWAITING_FUNCTIONAL_REVIEW"
-        if not is_terminal:
-            detail += f" and every checkpoint complete (outstanding: {outstanding})"
+        if not is_terminal and phase in ("AWAITING_FUNCTIONAL_REVIEW", "AWAITING_USER_ACCEPTANCE"):
+            detail = (f"the phase is {phase}, which the acceptance stage accepts, "
+                      f"but not every checkpoint is complete (outstanding: {outstanding})")
+        else:
+            detail = f"the phase is {phase}; the acceptance stage needs AWAITING_FUNCTIONAL_REVIEW"
+            if not is_terminal:
+                detail += f" and every checkpoint complete (outstanding: {outstanding})"
         return {"code": "phase_not_reachable", "detail": detail}
     return None
+
+
+def _absent_stored_pr_head(repo_root: Path, work_item: dict) -> str | None:
+    """The stored pull-request fact's head when the repository lacks that commit, else `None`
+    (so an ambiguity from another commit is never reported as an absent head)."""
+    fact = gate_policy.gate_evidence_of(work_item).get("pr")
+    head = fact.get("head") if isinstance(fact, dict) else None
+    if not isinstance(head, str) or not head:
+        return None
+    probe = subprocess.run(["git", "cat-file", "-e", f"{head}^{{commit}}"], cwd=repo_root,
+                           capture_output=True, text=True, check=False)
+    return head if probe.returncode != 0 else None
 
 
 def acceptance_gate_report(repo_root: Path, state: dict, work_item_id: str) -> dict:
@@ -20312,8 +20328,26 @@ def acceptance_gate_report(repo_root: Path, state: dict, work_item_id: str) -> d
     see refuses the stage; `not_checked` names what it does not claim."""
     work_item = state["work_items"][work_item_id]
     phase = work_item.get("phase")
-    gate = gate_policy.evaluate_gate(repo_root, state, work_item_id, "acceptance")
+    unresolvable_head = None
+    try:
+        gate = gate_policy.evaluate_gate(repo_root, state, work_item_id, "acceptance")
+    except fingerprint.AmbiguousBaseError:
+        # A stored pull-request fact whose head this repository lacks: report it, never an error object.
+        # The library keeps raising; the three blocking requirements are evaluated on a copy with no stored fact.
+        unresolvable_head = _absent_stored_pr_head(repo_root, work_item)
+        if unresolvable_head is None:
+            raise
+        hidden = copy.deepcopy(state)
+        hidden["work_items"][work_item_id].setdefault("gate_evidence", {})["pr"] = None
+        gate = gate_policy.evaluate_gate(repo_root, hidden, work_item_id, "acceptance")
     requirements = gate.get("requirements") or []
+    unresolvable_detail = None
+    if unresolvable_head is not None:
+        unresolvable_detail = (f"the stored pull-request fact is for head {unresolvable_head}, which this repository "
+                               f"does not have; fetch it (git fetch) and run this report again")
+        requirements = [dict(r, detail=unresolvable_detail) if r["id"] in _ACCEPTANCE_REPORT_PR_REQUIREMENTS else r
+                        for r in requirements]
+        gate = dict(gate, requirements=requirements)
     blockers: list[dict] = []
     reachability = _acceptance_reachability_blocker(repo_root, work_item_id, work_item)
     if reachability is not None:
@@ -20324,6 +20358,8 @@ def acceptance_gate_report(repo_root: Path, state: dict, work_item_id: str) -> d
         blockers += [{"code": "requirement_unmet", "detail": f"{r['id']}: {r['detail']}"}
                      for r in requirements
                      if r["id"] in _ACCEPTANCE_REPORT_BLOCKING_REQUIREMENTS and not r["met"]]
+    if unresolvable_detail is not None:
+        blockers.append({"code": "stored_pr_fact_unresolvable", "detail": unresolvable_detail})
     invalid = None
     missing: list[dict] = []
     skeleton = None
@@ -20338,15 +20374,22 @@ def acceptance_gate_report(repo_root: Path, state: dict, work_item_id: str) -> d
         if pending:
             skeleton = finding_dispositions_skeleton(report, work_item_id)
         blockers += [{"code": "disposition_missing", "detail": item["key"]} for item in pending]
+    if unresolvable_detail is None:
+        stored_pr_fact = {
+            "unmet": [{"id": r["id"], "detail": r["detail"]} for r in requirements
+                      if r["id"] in _ACCEPTANCE_REPORT_PR_REQUIREMENTS and not r["met"]],
+            "note": "information only: the stage's own query replaces the stored fact before it decides",
+        }
+    else:
+        stored_pr_fact = {
+            "unmet": [{"id": "pr_fact_current", "detail": unresolvable_detail}],
+            "note": "the stored fact cannot be read here, so this report cannot say what the stage's query would decide",
+        }
     return {
         "work_item_id": work_item_id,
         "phase": phase,
         "gate": gate,
-        "stored_pr_fact": {
-            "unmet": [{"id": r["id"], "detail": r["detail"]} for r in requirements
-                      if r["id"] in _ACCEPTANCE_REPORT_PR_REQUIREMENTS and not r["met"]],
-            "note": "information only: the stage's own query replaces the stored fact before it decides",
-        },
+        "stored_pr_fact": stored_pr_fact,
         "dispositions": {"missing": missing, "invalid": invalid, "skeleton": skeleton},
         "blockers": blockers,
         "query_pending": bool(gate.get("pending_query")) and not gate.get("satisfiable"),
