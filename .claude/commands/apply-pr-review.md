@@ -110,7 +110,15 @@ and the bounded fix, in this order:
    `IMPLEMENTATION_SUMMARY.md`'s `implementation_revision:` line and
    `REVIEW_REQUEST.md`'s `review_content_id:` line, and publish the bundle with
    the `post-fix` generator run, exactly as `/apply-functional-review`'s bounded
-   branch step 4 does. Assert
+   branch step 4 does. Before that generator run, write the record in the
+   form `docs/ai-workflow/REVIEW_PROTOCOL.md` states once: append a section
+   headed `## Implementation revision <N>` to `TEST_RESULTS.md` (`- commit:`,
+   `- commands:`, `- result:`, written fresh at this round's commit with the
+   full suite re-run) and an entry headed `## Round <N>` to
+   `IMPLEMENTATION_SUMMARY.md`, carry every earlier section and entry forward
+   unchanged, read "for this round" as section and entry `N` only, and after a
+   withdrawal restore the earlier ones byte for byte from the newest
+   `current.rejected-*` sibling. Assert
    `workflow_fingerprint.assert_bundle_not_rejected(repo_root, work_item_id)`
    immediately before `record_bundle_generation`.
 

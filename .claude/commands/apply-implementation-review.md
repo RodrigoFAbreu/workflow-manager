@@ -164,7 +164,8 @@ rule for an item without the field.
    findings and Missing Tests findings; apply them if cheap and low-risk,
    otherwise note why not.
 4. For any rejected finding, record the rejection with concrete evidence
-   (file/line/test/doc reference) in `<bundle_dir>/IMPLEMENTATION_SUMMARY.md`.
+   (file/line/test/doc reference) in `<bundle_dir>/IMPLEMENTATION_SUMMARY.md`'s
+   `## Round <N>` entry for this round (step 7 writes it).
 5. Rerun the relevant narrow tests for each fix, then the full suite used in
    `/milestone-implement` step 3 before closing this pass.
 6. Commit coherent fixes (one commit per coherent fix, not one giant
@@ -237,7 +238,22 @@ rule for an item without the field.
    state, work_item_id, "implementation")["requires_distinct"]`), also ask the reviewer, in
    that file, to state `Reviewer model: <vendor>/<model>` in the verdict's header
    block, because an `APPROVE` without it is refused at ingest (workflow-2.8.0,
-   `LPR-R16-003`); under a human gate ask for nothing new. Then
+   `LPR-R16-003`); under a human gate ask for nothing new. Write the record in the form
+   `docs/ai-workflow/REVIEW_PROTOCOL.md` states once: append a section headed
+   `## Implementation revision <N>` to `<bundle_dir>/TEST_RESULTS.md`
+   (`- commit:`, `- commands:`, `- result:`, written fresh at this round's
+   commit, the full suite re-run for it) and an entry headed `## Round <N>` to
+   `<bundle_dir>/IMPLEMENTATION_SUMMARY.md` (every finding applied with file,
+   line and test, every finding rejected with its evidence, and the commit
+   that holds the fix; a `"same_content"` round adds to the entry of round
+   `N` and opens none), and carry every earlier section and entry forward
+   unchanged, never edited or relabelled as this round's run. An instruction
+   to write or refresh either file "for this round" means section `N` and entry
+   `N` only. When the generator stubbed both files empty after a withdrawal,
+   restore sections 1 to `N-1` and entries 1 to `N-1` byte for byte from the
+   newest `current.rejected-*` sibling (by modification time) whose files hold
+   them, checking they run from 1 to `N-1`; never rewrite them from memory, and
+   with no quarantine say so in the entry. Then
    run `./scripts/prepare-ai-review.sh <base-sha> post-fix [work_item_id]`
    — required before `AWAITING_TECHNICAL_APPROVAL` can be reachable again.
 8. If any Blocking finding remains unresolved, or the fix was structurally

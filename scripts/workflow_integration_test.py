@@ -946,7 +946,8 @@ _GOLDEN_COMMAND_FILE_SHA256 = {
     # checkpoint (1f) and self-review (2) commits call
     # assert_gate_policy_fields_unchanged_or_tightened after landing --
     # intentional content change.
-    "milestone-implement.md": "b5d6e1a13f02b432c1a7bc885155410f3c19322af11ee41bdcf7ac072cffd79f",
+    # W54 (bundle-revision-sections): step 4 writes the summary as a `## Round 1` entry and the test record as a `## Implementation revision 1` section -- intentional content change.
+    "milestone-implement.md": "2e5f544af529737685d23466dbc58ba811059e00e96c4f43e59cc705bf77f816",
     # approve-review.md (WF8c item (c), same-content bundle-generation
     # republication idempotency; further updated WF8c item (b): the
     # trailing caveat naming the dedicated /recover-implementation-provenance
@@ -1201,7 +1202,8 @@ _GOLDEN_COMMAND_FILE_SHA256 = {
     # functional-fix-commit-order implementation review: step 8 is
     # version-aware (a "2.2" post-fix round re-enters local review) --
     # intentional content change.
-    "apply-implementation-review.md": "ad935a29c220eb789db8eb162197b43894223fc869c6713ec4ab656bd3785bbe",
+    # W54 (bundle-revision-sections): a later round appends its test-record section and round entry and carries the earlier ones forward -- intentional content change.
+    "apply-implementation-review.md": "698b8d867e4b6db107d3d58865da1eed1a1bdda13ac354824a4f97d301aeac6a",
     # review-plan.md/record-manual-plan-review.md further updated,
     # workflow-v2-3-followups CP3 (REQ-8/-9): the `Reviewer role:` template
     # literal, the round-computation prose, the exact-match-expectation
@@ -1449,11 +1451,13 @@ _GOLDEN_COMMAND_FILE_SHA256 = {
     # by state_revision -- intentional content change.
     # workflow-2.10.0 (retire-21-for-new-work, CP3): the retired-default check at the
     # branch decision, before the first bounded sub-step -- intentional content change.
-    "apply-functional-review.md": "fb014dca648d03a1593005f85b06185a6ae7974773f1310eb9850cf5ecabdf28",
+    # W54 (bundle-revision-sections): the bounded branch appends its test-record section and round entry, earlier ones unchanged -- intentional content change.
+    "apply-functional-review.md": "88e8bf5e19aa2f9202cac2d37cdd4bae7bbdbe9c4dcec2a38042dea05396a43f",
     # workflow-2.10.0 (retire-21-for-new-work, CP3): first recorded hash; the broad
     # fix's refusal under a "2.1" default and the re-run from `already_reopened`.
     # workflow-2.29.3 (wording-pass-plain-commands, CP1): wording only -- intentional content change.
-    "apply-pr-review.md": "030135d2162246142b31c97270c8cd446b9068a52dc8e00cc79b1a04e62c1c23",
+    # W54 (bundle-revision-sections): the post-fix refresh appends its test-record section and round entry, earlier ones unchanged -- intentional content change.
+    "apply-pr-review.md": "526514e2ad828a6ee0373dba946cedba2cbaf2e4534dfda9c5b3fbd14543e7e0",
     # workflow-2.18.0 (harness-neutral-commands, CP2): the command bodies name the model "the agent"
     # and restate the six user-only guards (D-Guard); `apply-pr-review.md` and `prepare-review.md` gain
     # `$ARGUMENTS` (D-Args); the five rows below are first recorded hashes -- intentional content changes.
@@ -9264,6 +9268,169 @@ class TestReviewProtocolBaselineClauses(unittest.TestCase):
     def test_union_diff_shows_earlier_excluded_edits(self):
         self.assertIn("for a newly protected path that union diff also shows the edits made while "
                       "the path was excluded", self._doc())
+
+
+# ---------------------------------------------------------------------------
+# W54 (`bundle-revision-sections`): an implementation bundle shows the test
+# record and the fixes of every revision up to its own. A worker writes both
+# files, so the change is command text and the protocol contract; no script
+# changes, and these tests pin the form and prove the identifiers stay put.
+# ---------------------------------------------------------------------------
+
+_REVISION_SECTION_COMMANDS = (
+    "milestone-implement.md", "apply-implementation-review.md",
+    "apply-functional-review.md", "apply-pr-review.md",
+)
+_SECTION_HEADING_RE = re.compile(r"^## Implementation revision (\d+)$", re.MULTILINE)
+_ROUND_HEADING_RE = re.compile(r"^## Round (\d+)$", re.MULTILINE)
+
+
+def _protocol_text() -> str:
+    return (_repo_root() / "docs" / "ai-workflow" / "REVIEW_PROTOCOL.md").read_text()
+
+
+def _flat(text: str) -> str:
+    return " ".join(text.split())
+
+
+def _documented_summary(revisions: int, label_lines: int = 1) -> str:
+    lines = ["implementation_revision: %d" % revisions] * label_lines
+    for n in range(1, revisions + 1):
+        lines += ["", "## Round %d" % n, "- built or fixed in round %d" % n]
+    return "\n".join(lines) + "\n"
+
+
+def _documented_record(revisions: int) -> str:
+    out = []
+    for n in range(1, revisions + 1):
+        out += [
+            "## Implementation revision %d" % n,
+            "- commit: " + ("%x" % n) * 40,
+            "- commands: python3 -I scripts/workflow_state_test.py",
+            "- result: OK",
+            "",
+        ]
+    return "\n".join(out)
+
+
+def _write_bundle(root: Path, summary: str, record: str) -> Path:
+    bundle = root / "current"
+    bundle.mkdir()
+    files = {
+        "MANIFEST.md": "# Manifest\n",
+        "IMPLEMENTATION_SUMMARY.md": summary,
+        "TEST_RESULTS.md": record,
+        "CONTEXT_FILES.txt": "",
+    }
+    for name, content in files.items():
+        path = bundle / name
+        path.write_text(content)
+        os.chmod(path, 0o644)
+    os.chmod(bundle, 0o755)
+    return bundle
+
+
+class TestBundleRevisionSectionsContract(unittest.TestCase):
+    """T1, T2: the four commands and the protocol state the form."""
+
+    def test_each_command_names_the_form_and_its_two_rules(self):  # T1
+        for filename in _REVISION_SECTION_COMMANDS:
+            with self.subTest(filename=filename):
+                text = _flat(_command_text(filename))
+                self.assertIn("## Implementation revision", text)
+                self.assertIn("## Round", text)
+                self.assertRegex(text, r"carr(y|ied) (every |the )?earlier .{0,60}forward")
+                self.assertIn("current.rejected-*", text)
+                self.assertRegex(text, r"for this round.{0,80}section")
+
+    def test_the_protocol_states_the_form_once_with_both_rules(self):  # T2
+        text = _protocol_text()
+        flat = _flat(text)
+        self.assertEqual(text.count("^## Implementation revision (\\d+)$"), 1)
+        self.assertEqual(text.count("^## Round (\\d+)$"), 1)
+        self.assertIn("Entries below `N` are carried forward unchanged.", flat)
+        self.assertIn("Sections below `N` are carried forward unchanged: never edited, never "
+                      "relabelled as a run of this round.", flat)
+        self.assertIn("means section `N` and round entry `N` only", flat)
+        self.assertIn("`current.rejected-*`", flat)
+        self.assertIn("byte for byte", flat)
+        self.assertIn("Section `N` states only checks that actually ran in this session, at its "
+                      "stated commit", flat)
+        self.assertIn("**At the `plan` stage**, state only checks that actually ran in this session, "
+                      "and open with a `stage: plan (revision N)` line", flat)
+        self.assertNotIn("Never state a check passed unless it actually ran in this session.", flat)
+
+
+class TestBundleRevisionSectionsDocumentedForm(unittest.TestCase):
+    """T3, T4: the documented form passes the unchanged generator check."""
+
+    def test_a_three_round_summary_passes_at_three_and_fails_at_two(self):  # T3
+        with tempfile.TemporaryDirectory() as tmp:
+            bundle = _write_bundle(Path(tmp), _documented_summary(3), _documented_record(3))
+            before = fingerprint.compute_bundle_id(bundle)[0]
+            fingerprint.assert_stage_completeness(bundle, "implementation", implementation_revision=3)
+            fingerprint.assert_stage_completeness(bundle, "post-fix", implementation_revision=3)
+            with self.assertRaises(fingerprint.StageCompletenessError):
+                fingerprint.assert_stage_completeness(bundle, "implementation", implementation_revision=2)
+            self.assertEqual(fingerprint.compute_bundle_id(bundle)[0], before)
+
+    def test_no_heading_matches_the_label_line_and_the_summary_has_one(self):  # T4
+        summary = _documented_summary(3)
+        label = re.compile(r"^implementation_revision: (\d+)$", re.MULTILINE)
+        self.assertEqual(len(label.findall(summary)), 1)
+        for heading in ("## Implementation revision 3", "## Round 3"):
+            self.assertIsNone(label.search(heading))
+        self.assertEqual(len(_ROUND_HEADING_RE.findall(summary)), 3)
+        self.assertEqual(len(_SECTION_HEADING_RE.findall(_documented_record(3))), 3)
+        # the mutation m2 would put here: a second label line is exactly what the sample must not carry
+        self.assertEqual(len(label.findall(_documented_summary(3, label_lines=2))), 2)
+
+
+class TestBundleIdentifiersDoNotMoveWithTheRecord(unittest.TestCase):
+    """T5, T6: the generator, the bundle id and the review content id are untouched."""
+
+    # `compute_bundle_id` of the old-form bundle built by `_write_bundle` below
+    # (every mode set explicitly: the digest hashes modes and must not inherit the umask).
+    _OLD_FORM_BUNDLE_ID = "2cc79f2d03c2e36f775ad0d662f11c1c7d9689c33d1dc86293af311516306307"
+
+    def test_the_old_form_bundle_id_equals_the_recorded_literal(self):  # T5
+        with tempfile.TemporaryDirectory() as tmp:
+            bundle = _write_bundle(Path(tmp), "implementation_revision: 1\n\nbuilt it\n", "ran the tests: ok\n")
+            self.assertEqual(fingerprint.compute_bundle_id(bundle)[0], self._OLD_FORM_BUNDLE_ID)
+        with tempfile.TemporaryDirectory() as tmp:
+            bundle = _write_bundle(Path(tmp), _documented_summary(3), _documented_record(3))
+            self.assertNotEqual(fingerprint.compute_bundle_id(bundle)[0], self._OLD_FORM_BUNDLE_ID)
+
+    def test_the_review_content_id_is_the_same_for_every_record(self):  # T6
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+
+            def git(*args: str) -> str:
+                return subprocess.run(
+                    ["git", "-c", "user.name=t", "-c", "user.email=t@example.invalid", *args],
+                    cwd=repo, check=True, capture_output=True, text=True,
+                ).stdout.strip()
+
+            git("init", "-q")
+            (repo / ".gitignore").write_text(".ai-review/\n")
+            (repo / "src").mkdir()
+            (repo / "src" / "a.txt").write_text("one\n")
+            git("add", "-A")
+            git("commit", "-q", "-m", "base")
+            base = git("rev-parse", "HEAD")
+            (repo / "src" / "a.txt").write_text("two\n")
+            git("add", "-A")
+            git("commit", "-q", "-m", "change")
+            record = repo / ".ai-review" / "x" / "current" / "TEST_RESULTS.md"
+            record.parent.mkdir(parents=True)
+            digests = set()
+            for content in ("", "ran it: ok\n", _documented_record(3)):
+                record.write_text(content)
+                digest, _ = fingerprint.compute_review_content_id_implementation_stage(
+                    repo, base, "process", "x", {}, {"src/": "source"}, {}, {},
+                )
+                digests.add(digest)
+            self.assertEqual(len(digests), 1)
 
 
 if __name__ == "__main__":
