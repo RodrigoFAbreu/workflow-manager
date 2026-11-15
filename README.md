@@ -2,8 +2,8 @@
 
 > For: anyone who wants to put the Workflow into a repository. Last checked with: Workflow Manager 1.18.1, Workflow 2.29.3.
 
-[![Verification](https://github.com/RodrigoFAbreu/workflow-manager/actions/workflows/workflow-manager-verify.yml/badge.svg?branch=main&event=push)](https://github.com/RodrigoFAbreu/workflow-manager/actions/workflows/workflow-manager-verify.yml?query=branch%3Amain+event%3Apush)
-[![Nightly](https://github.com/RodrigoFAbreu/workflow-manager/actions/workflows/workflow-manager-verify.yml/badge.svg?event=schedule)](https://github.com/RodrigoFAbreu/workflow-manager/actions/workflows/workflow-manager-verify.yml?query=event%3Aschedule)
+[![Verification](https://github.com/RodrigoFAbreu/workflow-manager/actions/workflows/ci.yml/badge.svg?branch=main&event=push)](https://github.com/RodrigoFAbreu/workflow-manager/actions/workflows/ci.yml?query=branch%3Amain+event%3Apush)
+[![Nightly](https://github.com/RodrigoFAbreu/workflow-manager/actions/workflows/ci.yml/badge.svg?event=schedule)](https://github.com/RodrigoFAbreu/workflow-manager/actions/workflows/ci.yml?query=event%3Aschedule)
 [![Release](https://img.shields.io/github/v/release/RodrigoFAbreu/workflow-manager?sort=semver)](https://github.com/RodrigoFAbreu/workflow-manager/releases)
 
 Workflow Manager is a small command-line tool. It installs a published
