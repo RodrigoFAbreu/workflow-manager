@@ -2108,6 +2108,29 @@ class TestLegacyPromotion(unittest.TestCase):
         kwargs.update(overrides)
         return ws.promote_legacy_work_item(state, repo.root, **kwargs)
 
+    def test_t9_the_refusal_names_the_declaration_file_that_was_read(self):
+        """W52: an explicit `artifacts_path` is named; the templated path gives the 2.29.4 text."""
+        state = {"work_items": {"demo-item": {"phase": "LEGACY_READY",
+                                              "technical_approval": {"reviewed_content_commit": "c" * 40}}}}
+
+        def promote(artifacts_path):
+            with mock.patch.object(ws, "verify_legacy_branch_reconciliation"), \
+                    mock.patch.object(fingerprint, "load_implementation_stage_classification",
+                                      return_value=(frozenset(), {}, {}, {})), \
+                    mock.patch.object(ws, "any_protected_path_changed_since",
+                                      side_effect=fingerprint.UnclassifiedPathError("raw", "other/x.txt", "implementation")):
+                with self.assertRaises(fingerprint.UnclassifiedPathError) as ctx:
+                    ws.promote_legacy_work_item(
+                        state, Path("."), work_item_id="demo-item", required_active_milestone_substring="s",
+                        artifacts_path=artifacts_path, now="t")
+            return str(ctx.exception)
+
+        explicit = promote(Path("docs/ai-workflow/registry/legacy-core-artifacts.json"))
+        self.assertIn("work item demo-item, docs/ai-workflow/registry/legacy-core-artifacts.json. ", explicit)
+        self.assertNotIn("demo-item-artifacts.json", explicit)
+        templated = promote(Path("docs/ai-workflow/registry/demo-item-artifacts.json"))
+        self.assertEqual(templated, fingerprint.unclassified_path_message("other/x.txt", "demo-item", stage="implementation"))
+
     def test_promotion_activates_and_transitions_version_and_phase(self):
         with ScratchRepo() as repo:
             state, _ = self._import(repo)
@@ -23200,7 +23223,7 @@ class TestUnclassifiedPathMessageCallers(unittest.TestCase):
                           r"revision: the user runs /request-plan-amendment demo-item, then "
                           r"/milestone-plan demo-item, plan review and the plan approval "
                           r"\(/approve-review plan, or /satisfy-gate when the plan gate is automatic\); "
-                          r"at any other phase neither command is admitted, so tell the user\.", text)
+                          r"at any other phase of a two-stage item neither command is admitted, so tell the user\.", text)
         self.assertIsNotNone(match)
         self.assertEqual(set(match.group(1).split(" or ")), set(ws._AMENDMENT_REQUEST_ALLOWED_PHASES))
         # the user runs it; it is never offered bare, and /apply-plan-review is never named
@@ -23251,7 +23274,10 @@ class TestUnclassifiedPathMessageCallers(unittest.TestCase):
     def test_t8_legacy_promotion_names_the_item(self):
         with self.assertRaises(fingerprint.UnclassifiedPathError) as ctx:
             gate_case(ws, "promote_legacy_work_item")
-        self.assertEqual(str(ctx.exception), _upm_impl_text("other/mystery.txt", "milestone-8") + _UPM_IMPL_ROUTE)
+        # W52: the promotion names the declaration file it really read (the scratch `artifacts.json`)
+        expected = _upm_impl_text("other/mystery.txt", "milestone-8").replace(
+            "docs/ai-workflow/registry/milestone-8-artifacts.json", "artifacts.json")
+        self.assertEqual(str(ctx.exception), expected + _UPM_IMPL_ROUTE)
 
 
 if __name__ == "__main__":

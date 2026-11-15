@@ -5372,6 +5372,130 @@ class TestAcceptanceGateReport(unittest.TestCase):
             self.assertIn("registry_unresolvable", self.codes(out))
             self.assertFalse(out["ready"])
 
+    # -- W52 (`acceptance-gate-robustness`): an absent stored head, the partition, the detail ---------
+
+    ABSENT = "0123456789abcdef0123456789abcdef01234567"
+
+    def absent_head(self, ev) -> None:
+        """Edit the stored workflow_gh fact's head to a commit this repository lacks."""
+        state = ev.state()
+        state["work_items"][WI]["gate_evidence"]["pr"]["head"] = self.ABSENT
+        h.write_state(ev.repo, state)
+        g.clear_caches()
+
+    def check_absent(self, out, phase_codes):
+        detail = (f"the stored pull-request fact is for head {self.ABSENT}, which this repository does not have; "
+                  f"fetch it (git fetch) and run this report again")
+        self.assertEqual(self.codes(out), phase_codes + ["stored_pr_fact_unresolvable"])
+        self.assertEqual(out["blockers"][-1]["detail"], detail)
+        self.assertFalse(out["ready"])
+        emitted = [r for r in out["gate"]["requirements"] if r["id"] in self.PR_IDS]
+        self.assertTrue(2 <= len(emitted) <= 4)
+        for r in emitted:
+            self.assertEqual(r["detail"], detail)
+        self.assertEqual(out["stored_pr_fact"]["unmet"], [{"id": "pr_fact_current", "detail": detail}])
+        self.assertIn("cannot be read here", out["stored_pr_fact"]["note"])
+        self.assertTrue(out["query_pending"])
+        self.assertTrue(out["gate"]["pending_query"])
+
+    def test_t1_an_absent_stored_head_is_a_blocked_report_not_an_error(self):
+        with AcceptanceRepo() as ev:
+            self.fixture(ev, "ready")
+            self.absent_head(ev)
+            out = self.report(ev)  # exit 0, nothing written, no gh
+            self.check_absent(out, [])
+            for r in out["gate"]["requirements"]:
+                if r["id"] in self.BLOCKING_IDS:
+                    self.assertTrue(r["met"], r)
+
+    def test_t2_an_absent_stored_head_before_the_acceptance_phase(self):
+        with AcceptanceRepo() as ev:
+            self.fixture(ev, "early")
+            self.absent_head(ev)
+            out = self.report(ev)
+            self.check_absent(out, ["phase_not_reachable"])
+
+    def test_t3_the_library_still_raises_and_a_present_head_and_the_confirmation(self):
+        import workflow_fingerprint as fingerprint
+        with AcceptanceRepo() as ev:
+            self.fixture(ev, "ready")
+            present = self.report(ev)
+            self.assertNotIn("stored_pr_fact_unresolvable", self.codes(present))
+            self.assertTrue(present["ready"])
+            self.absent_head(ev)
+            with self.assertRaises(fingerprint.AmbiguousBaseError):
+                g.evaluate_gate(ev.root, ev.state(), WI, "acceptance")
+        with AcceptanceRepo() as ev:
+            self.fixture(ev, "ready")  # the stored head is present: an ambiguity is not an absent head
+            real = g.evaluate_gate
+            calls = []
+
+            def once(*args, **kw):
+                calls.append(1)
+                if len(calls) == 1:
+                    raise fingerprint.AmbiguousBaseError("base 'x' does not resolve to exactly one commit")
+                return real(*args, **kw)
+
+            import io
+            out = io.StringIO()
+            with contextlib.chdir(ev.root), mock.patch.object(g, "evaluate_gate", side_effect=once), \
+                    contextlib.redirect_stdout(out):
+                code = ws._acceptance_gate_cli(WI)
+            self.assertEqual(code, 1)
+            self.assertEqual(json.loads(out.getvalue())["error"], "AmbiguousBaseError")
+            self.assertEqual(len(calls), 1)
+
+    def test_t4_every_requirement_is_in_exactly_one_of_the_two_report_lists(self):
+        pr, blocking = ws._ACCEPTANCE_REPORT_PR_REQUIREMENTS, ws._ACCEPTANCE_REPORT_BLOCKING_REQUIREMENTS
+        self.assertEqual(len(set(pr)), len(pr))
+        self.assertEqual(len(set(blocking)), len(blocking))
+        self.assertFalse(set(pr) & set(blocking))
+        self.assertEqual(set(pr) | set(blocking), set(g.ACCEPTANCE_REQUIREMENT_IDS))
+        for case in ("ready", "stale", "stalenone", "early", "terminal", "after_query"):
+            with self.subTest(case), AcceptanceRepo() as ev:
+                self.fixture(ev, case)
+                for r in ev.evaluate()["requirements"]:
+                    self.assertEqual((r["id"] in pr) + (r["id"] in blocking), 1, r["id"])
+        with AcceptanceRepo() as ev:  # a human gate returns the single requirement before the partition
+            self.fixture(ev, "human")
+            self.assertEqual([r["id"] for r in ev.evaluate()["requirements"]], ["human_gate"])
+            self.assertNotIn("human_gate", g.ACCEPTANCE_REQUIREMENT_IDS)
+
+    def test_t5_the_phase_not_reachable_detail_does_not_contradict_itself(self):
+        def outstanding(ev):
+            registry = ev.root / ev.item()["registry_path"]
+            body = json.loads(registry.read_text())
+            body["checkpoints"] = [{"id": "CP1", "name": "x", "depends_on": [], "complexity": 1, "session_target": "1"}]
+            registry.write_text(json.dumps(body))
+            ev.approve_plan()
+            g.clear_caches()
+
+        for phase in ("AWAITING_FUNCTIONAL_REVIEW", "AWAITING_USER_ACCEPTANCE"):
+            with self.subTest(phase), AcceptanceRepo() as ev:
+                self.fixture(ev, "ready")
+                ev.set_state(phase=phase)
+                outstanding(ev)
+                out = self.report(ev)
+                self.assertEqual(
+                    out["blockers"][0],
+                    {"code": "phase_not_reachable",
+                     "detail": f"the phase is {phase}, which the acceptance stage accepts, "
+                               f"but not every checkpoint is complete (outstanding: CP1)"})
+        with AcceptanceRepo() as ev:
+            self.fixture(ev, "ready")
+            ev.set_state(phase="IMPLEMENTING")
+            outstanding(ev)
+            out = self.report(ev)
+            self.assertEqual(
+                out["blockers"][0]["detail"],
+                "the phase is IMPLEMENTING; the acceptance stage needs AWAITING_FUNCTIONAL_REVIEW "
+                "and every checkpoint complete (outstanding: CP1)")
+        with AcceptanceRepo() as ev:  # `--satisfy-acceptance` uses the same function
+            self.fixture(ev, "ready")
+            outstanding(ev)
+            blocker = ws._acceptance_reachability_blocker(ev.root, WI, ev.item())
+            self.assertIn("which the acceptance stage accepts, but not every checkpoint is complete", blocker["detail"])
+
     # -- T7: errors ------------------------------------------------------------
 
     def test_every_error_is_one_json_object_with_exit_1_and_writes_nothing(self):
