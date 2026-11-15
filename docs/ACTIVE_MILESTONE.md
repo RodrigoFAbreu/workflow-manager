@@ -86,7 +86,7 @@ Nothing to seed: the fixture is built by the setup above. The fixture's own rele
 
 ### Flows
 
-**Flow 1 (sandbox: yes), a damaged record, a named release.**
+**Flow 1: A damaged record, a named release (sandbox).**
 
 ```bash
 mk g1 '"garbage"'; mk g2 '"garbage"'; mk g3 '"garbage"'; mk g4 '"garbage"'
@@ -99,7 +99,7 @@ wm cand --release-dir "$S/rel" update "$S/g4"; echo $?
 
 Expect: base dry run exit 1, `error: the installation record names 'garbage', which is not a version`. Base real run exit 0, `updated .../g2 to workflow 9.0.0`. Candidate dry run exit 0, first line `would update .../g3 from a record whose workflow_version 'garbage' is not a version to workflow 9.0.0     (dry run: nothing written)`, second line `  (no file changes; the installation record would be rewritten to workflow 9.0.0)`, then `g3 unchanged`. Candidate real run exit 0, `updated .../g4 to workflow 9.0.0`.
 
-**Flow 2 (sandbox: yes), a record that names a path.**
+**Flow 2: A record that names a path (sandbox).**
 
 ```bash
 mk e1 '"../escaped"'
@@ -109,7 +109,7 @@ test ! -e "$S/escaped" && echo "no escaped entry"; ls -A "$S/cache" | wc -l
 
 Expect: exit 0, the header names `'../escaped'`, the dry run writes nothing, `no escaped entry` and `0` (the cache stays empty).
 
-**Flow 3 (sandbox: yes), a damaged record, no option.**
+**Flow 3: A damaged record, no option (sandbox).**
 
 ```bash
 mk g5 '"garbage"'; mk g6 '"garbage"'
@@ -119,7 +119,7 @@ wm cand update "$S/g6"; echo $?
 
 Expect: both exit 1 with the same `error:` line, and each `next:` line identical apart from the path (`repair or re-bootstrap the installation record ..., or fix it with workflow-manager --release-version X.Y.Z update <path>`). Advice for a damaged record carries no `-- a real update, not a dry run` suffix on either side (the suffix is for null records only). Both trees unchanged.
 
-**Flow 4 (sandbox: yes), a null record and a null-manifest release.**
+**Flow 4: A null record and a null-manifest release (sandbox).**
 
 ```bash
 mk n1 null; mk n2 null; mk n3 null; mk n4 null
@@ -133,7 +133,7 @@ wm cand --release-dir "$S/relnull" update "$S/n4"; echo $?; rec "$S/n4"
 
 Expect: base dry run exit 0, `would update .../n1 from a record with no workflow_version to workflow None     (dry run: nothing written)`. Base real run exit 0, `updated .../n2 to workflow None`; its record `None`. Candidate dry run and real run both exit 1, `error: manifest.json at .../relnull is malformed: workflow_version is null, not text`, one `next:` line (`use an unmodified copy of the release directory, or leave --release-dir out ...`). Candidate's record `None` (unchanged), tree unchanged.
 
-**Flow 5 (sandbox: yes), a valid record and a null-manifest release.**
+**Flow 5: A valid record and a null-manifest release (sandbox).**
 
 ```bash
 mk o1; mk o2
@@ -143,7 +143,7 @@ wm cand --release-dir "$S/relnull" update "$S/o2"; echo $?; rec "$S/o2"
 
 Expect: base exit 0 and its record becomes `None` (the divergence this item fixes). Candidate exit 1 with the flow-4 refusal, and its record stays `9.0.0`.
 
-**Flow 6 (sandbox: yes), bootstrap, verify and status with the null-manifest release.**
+**Flow 6: Bootstrap, verify and status with the null-manifest release (sandbox).**
 
 ```bash
 rm -rf "$S/E"; git init -q "$S/E"; git -C "$S/E" config user.name t; git -C "$S/E" config user.email t@t
@@ -155,7 +155,7 @@ mk o4; wm cand --release-dir "$S/relnull" status "$S/o4"; echo $?
 
 Expect: each exit 1 with the flow-4 refusal and one `next:` line. `status` prints its usual status block after the refusal (unchanged). Tree of `E`, `o3` and `o4` unchanged.
 
-**Flow 7 (sandbox: yes), a null record and files equal to the release.**
+**Flow 7: A null record and files equal to the release (sandbox).**
 
 ```bash
 mk n7 null
@@ -165,7 +165,7 @@ wm cand --release-dir "$S/rel" update --dry-run "$S/n7"; echo $?
 
 Expect: both exit 0 with the same header `would update .../n7 from a record with no workflow_version to workflow 9.0.0     (dry run: nothing written)`. Base's next line is `  (no change)`; the candidate's is `  (no file changes; the installation record would be rewritten to workflow 9.0.0)`. The other lines (`left alone:` ...) are identical.
 
-**Flow 8 (sandbox: yes), the happy path is byte-identical.**
+**Flow 8: The happy path is byte-identical (sandbox).**
 
 ```bash
 for c in "update --dry-run" "update" "doctor" "status" "verify"; do
@@ -179,7 +179,7 @@ done
 
 Expect: five `identical` lines, with exit codes `update --dry-run` 0, `update` 0, `doctor` 1, `status` 0, `verify` 0 (`doctor`'s 1 is the fixture's missing `manager` block, in both runs).
 
-**Flow 9 (sandbox: yes), a locally edited managed file.**
+**Flow 9: A locally edited managed file (sandbox).**
 
 ```bash
 mk n9 null
@@ -194,7 +194,7 @@ grep -n 'update' "$S/d9" "$S/r9"
 
 Expect: both exit 2 with `refusing to update: these release files were modified locally and would be overwritten:` and `modified: docs/guide.md` (`$F`). Tree unchanged after each. Every printed `update` command, the ordinary and the `--force` one, names `--release-dir`.
 
-**Flow 9b (sandbox: yes), the printed `--force` command.** Run the `--force` command printed by flow 9 exactly, on a fresh copy of the same edit:
+Second part of flow 9, the printed `--force` command (sandbox): Run the `--force` command printed by flow 9 exactly, on a fresh copy of the same edit:
 
 ```bash
 mk n10 null; echo x >> "$S/n10/$F"
@@ -203,7 +203,7 @@ wm cand --release-dir "$S/rel" update --force "$S/n10"; echo $?
 
 Expect: exit 0, `updated .../n10 to workflow 9.0.0`, the record reads `9.0.0`, and `docs/guide.md` is the release's again.
 
-**Flow 10 (sandbox: yes; the working-tree list is manual), the files changed.**
+**Flow 10: The files changed (sandbox; the working-tree list is manual).**
 
 ```bash
 git -C "$R" diff --stat da3c7747a65b5788d0f6d9530fcd379b52d7b6d2 -- . ':!docs/ai-workflow' ':!.ai-review'
@@ -211,7 +211,7 @@ git -C "$R" diff --stat da3c7747a65b5788d0f6d9530fcd379b52d7b6d2 -- . ':!docs/ai
 
 Expect, in a sandbox checkout: the 11 files of plan section 2 (`docs/ARCHITECTURE.md`, `docs/common-problems.md`, `docs/exit-codes.md`, `docs/update.md`, `src/workflow_manager/advice.py`, `cli.py`, `compatibility.py`, `source.py`, `tests/test_discovery.py`, `tests/test_operator_ux.py`, `tests/test_operator_ux_readonly.py`) and `docs/ACTIVE_MILESTONE.md` (this checklist's commit). In the working tree, also `docs/ROADMAP.md`.
 
-**Flow 11 (sandbox: yes), the pages.**
+**Flow 11: The pages (sandbox).**
 
 ```bash
 git -C "$R" diff --exit-code da3c7747a65b5788d0f6d9530fcd379b52d7b6d2 -- docs/retention.md docs/release-history.md docs/install.md docs/README.md src/workflow_manager/install.py 'src/workflow_manager/retention*.py'; echo $?
@@ -222,7 +222,7 @@ grep -c 'update-dry-run-parity' docs/update.md docs/common-problems.md docs/exit
 
 Expect: exit `0` (untouched). `whatever the option` appears only in `docs/common-problems.md` (`doctor refuses the record whatever the option`). `docs/update.md`'s bare `--dry-run` sentence says only `doctor --release-dir` prints the step with a directory. The count is `0` for each of the four pages.
 
-**Flow 12 (full environment only; needs the network or a primed release cache), the suite.**
+**Flow 12: The suite (full environment only; needs the network or a primed release cache).**
 
 ```bash
 python3 tests/run_all.py --select test_operator_ux.py --select test_discovery.py --select test_operator_ux_readonly.py --select test_operator_ux_docs.py --select test_docs.py
