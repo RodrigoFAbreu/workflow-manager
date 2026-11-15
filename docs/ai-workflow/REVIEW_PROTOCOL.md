@@ -498,10 +498,53 @@ This is **portability vs. local staleness, split by consumer**:
   stages: what was built, checkpoint by checkpoint, and why. Must state
   `implementation_revision: <N>` matching the work item's current counter
   (`WORKFLOW_STATE.json`'s `implementation_revision`) — same
-  stage-completeness discipline as `PLAN.md`'s revision marker.
-- **TEST_RESULTS.md** — exact commands run and their real outcome. Never
-  state a check passed unless it actually ran in this session. **At the
-  `plan` stage**, must additionally open with a `stage: plan (revision N)`
+  stage-completeness discipline as `PLAN.md`'s revision marker. **The form
+  at the `implementation`/`post-fix` stages** (a worker writes it; no script
+  does): that one label line first, and no other line of that shape (the
+  check takes the first match), then one entry per review round, ascending,
+  each headed `^## Round (\d+)$`, where the round number **is** the
+  implementation revision. Round 1 is what was built, checkpoint by
+  checkpoint; each later round lists every finding applied (file, line, test)
+  and every finding rejected with its evidence, and the commit that holds the
+  fix. A `same_content` round keeps `N`: it adds its lines to the entry of
+  round `N` and opens none. Entries below `N` are carried forward unchanged.
+- **TEST_RESULTS.md** — exact commands run and their real outcome. **At the
+  `implementation`/`post-fix` stages** it is a list of sections, ascending,
+  one for **every** implementation revision from 1 to `N` (`N` is the counter
+  `record_bundle_generation` just wrote), each headed
+  `^## Implementation revision (\d+)$` and of the same shape:
+
+  ```
+  ## Implementation revision 2
+  - commit: <40-hex sha the commands ran at>
+  - commands: <each exact command, one per line>
+  - result: <the real outcome of each; a command not run says so and why>
+  ```
+
+  Sections below `N` are carried forward unchanged: never edited, never
+  relabelled as a run of this round. Section `N` is written fresh at this
+  round, against this round's commit; a `same_content` round keeps `N` and
+  rewrites section `N` with its new commit and results. Section `N` states
+  only checks that actually ran in this session, at its stated commit;
+  sections below `N` are the record of their own commit and are never
+  restated as this round's runs. A reviewer reruns section `N` only; the
+  earlier sections are history tied to their own `commit:` line. No script
+  checks the sections: the generator only creates an empty stub when a file is
+  missing, so a bundle written in an older form still passes. Two rules for a
+  worker who finds either file short: (1) any instruction to write or refresh
+  `TEST_RESULTS.md` or `IMPLEMENTATION_SUMMARY.md` "for this round", including
+  a Controller's recovery text, means section `N` and round entry `N` only,
+  never the earlier ones; (2) when `<bundle_dir>` was withdrawn and
+  regenerated, the generator has stubbed both files empty, so sections 1 to
+  `N-1` and round entries 1 to `N-1` are restored **byte for byte** from the
+  newest (by modification time, since the token is a `uuid4` hex)
+  `current.rejected-*` sibling whose files hold those sections ("Bundle
+  location"), checking that the restored sections run from 1 to `N-1` (two
+  withdrawals in a row leave the generator's empty stubs in the newest one and
+  the history in an older one), never rewritten from memory; with no
+  quarantine, the worker says so in the entry and states no earlier result it
+  cannot show. **At the `plan` stage**, state only checks that actually ran in this
+  session, and open with a `stage: plan (revision N)`
   line (`N` matching the plan document's current revision) and a
   `head: <sha>` line (matching this generation's own HEAD) — a bundle
   whose `TEST_RESULTS.md` is missing, empty, names a different round, a

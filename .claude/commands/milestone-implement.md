@@ -399,13 +399,29 @@ dirty-resume rule, `WF2`):
      (nothing to track);
    - write `<bundle_dir>/IMPLEMENTATION_SUMMARY.md` (what was built,
      per checkpoint, and why). It must state
-     `implementation_revision: <N>` as a plain labelled line, `N` equal
+     `implementation_revision: <N>` as a plain labelled line, first and
+     alone (no other line of that shape), `N` equal
      to the counter `record_bundle_generation` just wrote -- this is a
      hard generator precondition (`assert_stage_completeness`, run from
      `finalize_bundle_generation`), and a missing or stale line does not
      warn: it *withdraws* the bundle, quarantining `current/` and
-     deleting the archive;
-   - write `<bundle_dir>/TEST_RESULTS.md` (exact commands + results);
+     deleting the archive. After that line, write one entry headed
+     `## Round 1` (the round number is the implementation revision): what
+     was built per checkpoint. The form, once, is in
+     `docs/ai-workflow/REVIEW_PROTOCOL.md`'s `IMPLEMENTATION_SUMMARY.md`
+     paragraph;
+   - write `<bundle_dir>/TEST_RESULTS.md` (exact commands + results) as one
+     section headed `## Implementation revision 1`, with the lines
+     `- commit:` (the 40-hex sha the commands ran at), `- commands:` (each
+     exact command) and `- result:` (the real outcome of each; a command
+     not run says so and why). Later review rounds append `## Implementation
+     revision <N>` sections and carry the earlier ones forward unchanged
+     (`docs/ai-workflow/REVIEW_PROTOCOL.md`'s `TEST_RESULTS.md` paragraph).
+     If `implementation_revision` is already above 1 here (a plan
+     re-approved after review rounds), write section and entry `N` only,
+     carry the earlier ones forward, read "for this round" as section `N`
+     only, and after a withdrawal restore the earlier ones byte for byte from
+     the newest `current.rejected-*` sibling, never from memory;
    - write `<bundle_dir>/CONTEXT_FILES.txt` with only the unchanged
      docs a reviewer needs;
    - write `<bundle_dir>/REVIEW_REQUEST.md` per

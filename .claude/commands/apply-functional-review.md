@@ -231,7 +231,22 @@ from the same point.
      Neither input is ever silently fixed up on the author's behalf: a
      bounded fix regenerated without refreshing either one stops at
      `ReviewContentIdMismatchError` first and, once only that is
-     corrected, at the `assert_stage_completeness` withdrawal above. Then
+     corrected, at the `assert_stage_completeness` withdrawal above. Write the record in the form
+     `docs/ai-workflow/REVIEW_PROTOCOL.md` states once: append a section headed
+     `## Implementation revision <N>` to `<bundle_dir>/TEST_RESULTS.md`
+     (`- commit:`, `- commands:`, `- result:`, written fresh at this round's
+     commit, the full suite re-run for it) and an entry headed `## Round <N>` to
+     `<bundle_dir>/IMPLEMENTATION_SUMMARY.md` (every finding applied with file,
+     line and test, every finding rejected with its evidence, and the commit
+     that holds the fix; a `"same_content"` round adds to the entry of round
+     `N` and opens none), and carry every earlier section and entry forward
+     unchanged, never edited or relabelled as this round's run. An instruction
+     to write or refresh either file "for this round" means section `N` and entry
+     `N` only. When the generator stubbed both files empty after a withdrawal,
+     restore sections 1 to `N-1` and entries 1 to `N-1` byte for byte from the
+     newest `current.rejected-*` sibling (by modification time) whose files hold
+     them, checking they run from 1 to `N-1`; never rewrite them from memory, and
+     with no quarantine say so in the entry. Then
      run `./scripts/prepare-ai-review.sh <base-sha> post-fix
      [work_item_id]`.
 
