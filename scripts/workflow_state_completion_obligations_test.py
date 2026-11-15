@@ -4527,14 +4527,14 @@ class _Inject:
 
         def open_(path, flags, *a, **k):
             fd = k.get("dir_fd")
-            for name, kind, first in me.opens:
+            for name, kind, first, *rest in me.opens:
                 if path != name or fd is None:
                     continue
                 linked = stat.S_ISLNK(real["lstat"](path, dir_fd=fd).st_mode)
                 if (kind == "link") != linked:
                     continue
                 me.count[name] = me.count.get(name, 0) + 1
-                if me.count[name] >= first:
+                if first <= me.count[name] <= (rest[0] if rest else me.count[name]):
                     raise PermissionError(errno.EACCES, "denied", name)
             return real["open"](path, flags, *a, **k)
 
@@ -4687,8 +4687,8 @@ class RetentionReportUnreadable(unittest.TestCase):
             ("empty + zz", {"empty": "dir", "zz": "dir"}, [("zz", "dir", 1)], [("zz",)]),
             ("a/b/c + zz", {"a/b/c": "dir", "zz": "dir"}, [("zz", "dir", 1)], [("zz",)]),
             ("a/zz and zz", {"a/zz": "dir", "zz": "dir"}, [("zz", "dir", 1)], [("a", "zz"), ("zz",)]),
-            ("link opens, zz fails", {"a/zz": "link", "zz": "dir"}, [("zz", "dir", 1)], [("zz",)]),
-            ("link fails, zz readable", {"a/zz": "link", "zz": "dir"}, [("zz", "link", 1)], [("a", "zz")]),
+            ("link opens, zz fails", {"a/zz": "link", "zz": "dir"}, [("zz", "dir", 1)], [()]),
+            ("link fails, zz readable", {"a/zz": "link", "zz": "dir"}, [("zz", "link", 1)], [()]),
             ("link fails before zz", {"a/lnk": "link", "zz": "dir"}, [("lnk", "link", 1), ("zz", "dir", 1)],
              [("a", "lnk"), ("zz",)]),
             ("link fails, later subtree", {"a/lnk": "link", "m/deep": "dir"},
@@ -7737,6 +7737,446 @@ class RetentionPrune(unittest.TestCase):
         with self.assertRaises(wr.RetentionError) as caught:
             wr._check_id("runtime", "archive")
         self.assertEqual(caught.exception.code, "invalid_id")
+
+
+# -- W51 (retention-engine-error-paths-2): the remaining error paths -----------
+
+@contextlib.contextmanager
+def _fwalk_fails(site, err, skip=0):
+    """Makes the first step of the `os.fwalk` that the *driving* function `site`
+    starts raise `OSError(err)` (the real first open fails outside `onerror`),
+    after `skip` such walks passed. `_walk_folder` is looked through: its caller
+    is the driving function. Yields the list of the walks counted."""
+    real = os.fwalk
+    counted = []
+
+    def wrapper(*args, **kwargs):
+        frame = sys._getframe(1)
+        while frame.f_code.co_name == "_walk_folder" and frame.f_back is not None:
+            frame = frame.f_back
+        if frame.f_code.co_name == site:
+            counted.append(args[0])
+            if len(counted) > skip:
+                def boom():
+                    raise OSError(err, os.strerror(err))
+                    yield  # pragma: no cover
+                return boom()
+        return real(*args, **kwargs)
+    with unittest.mock.patch.object(os, "fwalk", wrapper):
+        yield counted
+
+
+@contextlib.contextmanager
+def _call_fails(function, site, err, skip=0, only=None):
+    """Fails `os.<function>` (`fstat`, `close`, `open`) when called by the
+    function `site`, after `skip` earlier calls passed; `only` narrows by the
+    first argument. Yields the list of the calls counted."""
+    real = getattr(os, function)
+    counted = []
+
+    def fails(first, *args, **kwargs):
+        if sys._getframe(1).f_code.co_name == site and (only is None or first == only):
+            counted.append(first)
+            if len(counted) > skip:
+                raise OSError(err, os.strerror(err))
+        return real(first, *args, **kwargs)
+    with unittest.mock.patch.object(os, function, fails):
+        yield counted
+
+
+@contextlib.contextmanager
+def _hook_after_flock(effect):
+    """Runs `effect` once, right after the first real exclusive `flock`."""
+    real = wr.fcntl.flock
+    done = []
+
+    def flock(fd, how):
+        real(fd, how)
+        if how & wr.fcntl.LOCK_EX and not done:
+            done.append(True)
+            effect()
+    with unittest.mock.patch.object(wr.fcntl, "flock", flock):
+        yield done
+
+
+@unittest.skipUnless(_HAVE_ZSTD, "the error-path tests need the zstd program on PATH")
+class RetentionErrorPathsTwo(unittest.TestCase):
+    layout = RetentionReportUnreadable.layout
+    case = RetentionReportUnreadable.case
+
+    def rr(self, count=4, folder=True):
+        rr = _RR(_rr_many(count))
+        self.addCleanup(rr.__exit__, None, None, None)
+        rr.__enter__()
+        if folder:
+            _write(rr.repo, ".ai-review/w00/a.txt", "12345")
+        return rr
+
+    def rm_env(self):
+        rr = _RM()
+        self.addCleanup(rr.__exit__, None, None, None)
+        rr.__enter__()
+        rr.prepared()
+        return rr
+
+    def ra_env(self):
+        rr = _RA()
+        self.addCleanup(rr.__exit__, None, None, None)
+        rr.__enter__()
+        rr.folder()
+        return rr
+
+    def refused(self, result, code, *, text=()):
+        self.assertEqual((result.code, result.err_code), (2, code), getattr(result.error, "message", result.result))
+        self.assertTrue(result.error.next_step)
+        for part in text:
+            self.assertIn(part, result.error.message)
+
+    # -- T1: the report ------------------------------------------------------
+
+    def test_t1_the_report_reads_a_folder_that_cannot_be_opened_as_unreadable(self):
+        rr = self.rr()
+        before = _rr_snapshot(rr.root, rr.archive_root)
+        with _fwalk_fails("_review_folder", errno.EACCES) as counted:
+            code, out, err = rr.cli()
+            json_code, printed, _ = rr.cli("--json")
+        self.assertEqual(len(counted), 2)
+        self.assertEqual((code, json_code), (0, 0))
+        self.assertIn("  w00: at least 0 B in 0 files (partly unreadable); no archive", out)
+        data = json.loads(printed)
+        self.assertFalse(data["complete"])
+        self.assertEqual([e["path"] for e in data["read_errors"]], [str(rr.root / ".ai-review" / "w00")])
+        record = {r["work_item_id"]: r for r in data["finished"]}["w00"]
+        self.assertEqual(record["review_folder"], {"present": True, "complete": False, "files": 0, "bytes": 0,
+                                                   "tracked_files": 0})
+        self.assertIn("incomplete", err)
+        self.assertEqual(_rr_snapshot(rr.root, rr.archive_root), before)
+        # a vanished folder reads as no folder, complete
+        for err_no in (errno.ENOENT, errno.ENOTDIR):
+            with _fwalk_fails("_review_folder", err_no):
+                code, printed, _ = rr.cli("--json")
+            data = json.loads(printed)
+            self.assertEqual((code, data["complete"], data["read_errors"]), (0, True, []))
+            record = {r["work_item_id"]: r for r in data["finished"]}["w00"]
+            self.assertEqual(record["review_folder"]["present"], False)
+
+    @unittest.skipIf(os.geteuid() == 0, "mode 000 does not stop root")
+    def test_t1b_a_real_mode_000_folder_is_partly_unreadable(self):
+        rr = self.rr()
+        os.chmod(rr.root / ".ai-review" / "w00", 0)
+        self.addCleanup(os.chmod, rr.root / ".ai-review" / "w00", 0o755)
+        code, printed, _ = rr.cli("--json")
+        data = json.loads(printed)
+        self.assertEqual(code, 0)
+        self.assertFalse(data["complete"])
+        self.assertEqual([e["path"] for e in data["read_errors"]], [str(rr.root / ".ai-review" / "w00")])
+
+    # -- T2: archive and remove with a mode 000 folder -----------------------
+
+    @unittest.skipIf(os.geteuid() == 0, "mode 000 does not stop root")
+    def test_t2_archive_and_remove_refuse_a_mode_000_folder_and_write_nothing(self):
+        ra = self.ra_env()
+        folder = ra.root / ".ai-review" / "w00"
+        before = ra.snap(times=False)
+        os.chmod(folder, 0)
+        self.addCleanup(lambda: os.path.exists(folder) and os.chmod(folder, 0o755))
+        for label, run in (("archive dry", lambda: ra.call("w00")), ("archive", lambda: ra.call("w00", apply=True))):
+            with self.subTest(label):
+                # through the report's `read_errors` rule, never the backstop
+                self.refused(run(), "unreadable", text=(f"{folder} cannot be read (",))
+        os.chmod(folder, 0o755)
+        self.assertEqual(ra.snap(times=False), before)
+        self.assertEqual(ra.call("w00", apply=True).code, 0)
+        rr = self.rm_env()
+        folder = rr.root / ".ai-review" / "w00"
+        before = rr.snap(times=False)
+        os.chmod(folder, 0)
+        self.addCleanup(lambda: os.path.exists(folder) and os.chmod(folder, 0o755))
+        for label, run in (("remove dry", lambda: rr.rm("w00")), ("remove", lambda: rr.rm("w00", apply=True))):
+            with self.subTest(label):
+                self.refused(run(), "unreadable", text=(f"{folder} cannot be read (",))
+        self.assertEqual(rr.renames, [])
+        os.chmod(folder, 0o755)
+        self.assertEqual(rr.snap(times=False), before)
+        self.assertEqual(rr.rm("w00", apply=True).code, 0)
+
+    @unittest.skipIf(os.geteuid() == 0, "mode 000 does not stop root")
+    def test_t2b_a_mode_000_leftover_is_unreadable_and_stays_put(self):
+        rr = self.rm_env()
+        leftover = rr.park()
+        os.chmod(leftover, 0)
+        self.addCleanup(lambda: os.path.exists(leftover) and os.chmod(leftover, 0o755))
+        result = rr.rm("w00", apply=True)
+        self.refused(result, "unreadable", text=("cannot be read",))
+        self.assertEqual(rr.renames, [])
+        os.chmod(leftover, 0o755)
+        self.assertEqual(rr.rm("w00", apply=True).code, 0)
+
+    # -- T3: _walk_folder through its callers --------------------------------
+
+    def test_t3_the_walkers_refuse_a_first_open_that_fails(self):
+        for err, code in ((errno.EACCES, "unreadable"), (errno.EIO, "unreadable"), (errno.ENOENT, "folder_changed")):
+            with self.subTest(archive=errno.errorcode[err]):
+                rr = self.ra_env()
+                before = rr.snap(times=False)
+                for site, skip in (("_scan", 0), ("_scan", 1), ("_pack", 0)):
+                    with self.subTest(site=site, skip=skip):
+                        with _fwalk_fails(site, err, skip=skip) as counted:
+                            result = rr.call("w00", apply=True)
+                        self.assertEqual(len(counted), skip + 1)
+                        self.refused(result, code)
+                        self.assertEqual(rr.snap(times=False), before)
+                self.assertEqual(rr.call("w00", apply=True).code, 0)  # the lock was released
+        for err, code in ((errno.EACCES, "unreadable"), (errno.ENOENT, "folder_changed")):
+            with self.subTest(remove=errno.errorcode[err]):
+                rr = self.rm_env()
+                before = rr.snap(times=False)
+                for site, apply, skip in (("_scan", False, 0), ("_scan", True, 0), ("_scan", True, 1)):
+                    with _fwalk_fails(site, err, skip=skip) as counted:
+                        result = rr.rm(apply=apply)
+                    self.assertEqual(len(counted), skip + 1)
+                    self.refused(result, code)
+                    self.assertEqual(rr.snap(times=False), before)
+                    self.assertEqual(rr.renames, [])
+                self.assertEqual(rr.rm(apply=True).code, 0)
+
+    def test_t3b_a_failed_hash_walk_after_the_rename_puts_the_folder_back(self):
+        rr = self.rm_env()
+        before = rr.snap(times=False)
+        with _fwalk_fails("_hash_folder", errno.EACCES) as counted:
+            result = rr.rm(apply=True)
+        self.assertEqual(len(counted), 1)
+        self.refused(result, "unreadable", text=(f"; the folder is back in {rr.root / '.ai-review' / 'w00'}",))
+        self.assertEqual(len(rr.renames), 2)
+        self.assertFalse((rr.removing / "w00").exists())
+        self.assertEqual(rr.snap(times=False), before)
+        self.assertEqual(rr.rm(apply=True).code, 0)
+
+    def test_t3c_a_failed_hash_walk_in_a_leftover_keeps_it_in_place(self):
+        rr = self.rm_env()
+        rr.park()
+        with _fwalk_fails("_hash_folder", errno.EACCES):
+            result = rr.rm(apply=True)
+        self.refused(result, "unreadable", text=(f"; the folder is in {rr.removing / 'w00'}",))
+        self.assertEqual(rr.renames, [])
+        self.assertTrue((rr.removing / "w00").exists())
+        self.assertEqual(rr.rm(apply=True).code, 0)
+
+    # -- T4: _remove_tree ----------------------------------------------------
+
+    def test_t4_a_remove_tree_that_cannot_open_the_folder_stops_with_nothing_deleted(self):
+        for err, code in ((errno.EACCES, "remove_failed"), (errno.EIO, "remove_failed"),
+                          (errno.ENOENT, "folder_changed")):
+            with self.subTest(err=errno.errorcode[err]):
+                rr = self.rm_env()
+                whole = rr.files(rr.root / ".ai-review" / "w00")
+                with _fwalk_fails("_remove_tree", err) as counted:
+                    result = rr.rm(apply=True)
+                self.assertEqual(len(counted), 1)
+                self.refused(result, code, text=("stopped after deleting 0 entries, each proven archived; the rest "
+                                                 "is in ",))
+                if code == "remove_failed":
+                    self.assertIn("check the permissions of `.removing/w00`", result.error.next_step)
+                self.assertEqual(rr.files(rr.removing / "w00"), whole)
+                self.assertEqual(rr.rm(apply=True).code, 0)
+                self.assertFalse((rr.removing / "w00").exists())
+
+    def test_t4b_an_error_raised_mid_walk_reports_the_live_count(self):
+        rr = self.rm_env()
+        real = os.unlink
+        calls = []
+
+        def unlink(path, *a, **k):
+            calls.append(path)
+            if len(calls) == 3:
+                raise OSError(errno.EIO, "boom")
+            return real(path, *a, **k)
+        with unittest.mock.patch.object(os, "unlink", unlink):
+            result = rr.rm(apply=True, guard=False)
+        self.refused(result, "remove_failed", text=("stopped after deleting 3 entries",))
+        self.assertEqual(rr.rm(apply=True).code, 0)
+
+    # -- T5: step 1 ----------------------------------------------------------
+
+    def test_t5_the_lock_recheck_says_folder_changed_and_moves_nothing(self):
+        def swap(rr):
+            def effect():
+                new, old = rr.adir.with_name("widgets.new"), rr.adir.with_name("widgets.old")
+                shutil.copytree(rr.adir, new)
+                os.rename(rr.adir, old)
+                os.rename(new, rr.adir)
+            return effect
+
+        def appear(rr):
+            return lambda: rr.park()
+
+        def vanish(rr):
+            def effect():
+                _REAL["rename"](rr.removing / "w00", rr.root / ".ai-review" / "w00")
+            return effect
+
+        for label, make, parked, text in (
+                ("swap", swap, False, "the archive directory was replaced while the lock was taken"),
+                ("appear", appear, False, "appeared while the lock was taken"),
+                ("vanish", vanish, True, "is gone while the lock was taken, the folder is in ")):
+            with self.subTest(label):
+                rr = self.rm_env()
+                if parked:
+                    rr.park()
+                with _hook_after_flock(make(rr)) as done:
+                    result = rr.rm(apply=True, guard=False)
+                self.assertTrue(done)
+                self.refused(result, "folder_changed", text=(text,))
+                self.assertTrue(result.error.next_step.startswith("nothing was moved or deleted; run it again"))
+                self.assertEqual(rr.renames, [])
+                self.assertEqual(rr.rm(apply=True, guard=False).code, 0)
+
+    # -- T6: the collision ---------------------------------------------------
+
+    def collision(self, spec, opens, expected):
+        rr = self.rr()
+        self.layout(rr, spec)
+        record, data, out = self.case(rr, "at least 5 B in 1 files (partly unreadable); no archive", opens=opens)
+        base = rr.root / ".ai-review" / "w00"
+        self.assertEqual(sorted(e["path"] for e in data["read_errors"]),
+                         sorted(str(base.joinpath(*p)) for p in expected))
+
+    def test_t6_a_same_name_collision_never_names_a_directory_that_did_not_fail(self):
+        zz = {"a/zz": "link", "zz": "dir"}
+        # (a) the link's walk open fails once, the sibling is readable: a retry would open it
+        self.collision(zz, [("zz", "link", 2)], [()])
+        # (b) the link and the sibling both fail; (d) the sibling's later failure meets the kept, flagged entry
+        self.collision(zz, [("zz", "link", 2), ("zz", "dir", 1)], [()])
+        # (c) the link opens and the sibling fails (the amended layout of the T4 table)
+        self.collision(zz, [("zz", "dir", 1)], [()])
+        # (f) the reverse race: the link's probe fails, its walk open succeeds, the sibling
+        # fails; the link is no proof of the failure, so the review folder is named
+        self.collision(zz, [("zz", "link", 1, 1), ("zz", "dir", 1)], [()])
+        # nothing changed for a collision-free layout
+        self.collision({"a/b/c": "dir", "zz": "dir"}, [("zz", "dir", 1)], [("zz",)])
+
+    @unittest.skipIf(os.geteuid() == 0, "mode 000 does not stop root")
+    def test_t6e_a_lower_failure_never_names_a_readable_top_level_sibling(self):
+        # (e) `x/a/zz` a link whose walk open fails once, `x/zz` a directory that
+        # cannot be opened, `zz` readable: the kept, flagged `x/zz` takes the
+        # second failure, so the top-level `zz` is never named.
+        rr = self.rr()
+        self.layout(rr, {"x/a/zz": "link", "x/zz": "dir", "zz": "dir"})
+        base = rr.root / ".ai-review" / "w00"
+        before = _rr_snapshot(rr.root, rr.archive_root)
+        os.chmod(base / "x" / "zz", 0)
+        self.addCleanup(os.chmod, base / "x" / "zz", 0o755)
+        with _Inject(opens=[("zz", "link", 2)]) as injected:
+            code, printed, _ = rr.cli("--json")
+        self.assertEqual(injected.count.get("zz"), 2)
+        os.chmod(base / "x" / "zz", 0o755)
+        self.assertEqual(_rr_snapshot(rr.root, rr.archive_root), before)
+        data = json.loads(printed)
+        self.assertEqual(code, 0)
+        self.assertFalse(data["complete"])
+        self.assertEqual([e["path"] for e in data["read_errors"]], [str(base)])
+
+    # -- T7: the backstop ----------------------------------------------------
+
+    def test_t7a_archive_turns_a_stray_oserror_into_unreadable(self):
+        rr = self.ra_env()
+        before = rr.snap(times=False)
+        with _call_fails("fstat", "_open_index", errno.EIO) as counted:
+            code, out, err = rr.main("w00", "--apply")
+        self.assertTrue(counted)
+        self.assertEqual(code, 2)
+        self.assertIn("error: unreadable", err)
+        self.assertIn("archive stopped on an unexpected I/O error: EIO", err)
+        self.assertIn("next step: the review folder was not touched", err)
+        after = rr.snap(times=False)
+        # only the empty index the apply opened: no partial, no archive, no index line
+        added = {Path(k).name: v for k, v in after.items() if k not in before}
+        self.assertEqual(set(added), {"index.jsonl"})
+        self.assertEqual(added["index.jsonl"][2], 0)
+        self.assertEqual({k: v for k, v in after.items() if k in before}, before)
+        self.assertEqual(rr.call("w00", apply=True).code, 0)
+
+    def test_t7b_remove_turns_a_stray_oserror_into_unreadable(self):
+        for site in ("_same_device", "_flow", "_judge_removal_archive"):
+            with self.subTest(site=site):
+                rr = self.rm_env()
+                before = rr.snap(times=False)
+                with _call_fails("fstat", site, errno.EIO) as counted:
+                    code, out, err = rr.main_rm("w00", "--apply")
+                self.assertTrue(counted)
+                self.assertEqual(code, 2)
+                self.assertIn("error: unreadable", err)
+                self.assertIn("remove stopped on an unexpected I/O error: EIO", err)
+                self.assertEqual(rr.snap(times=False), before)
+                self.assertEqual(rr.rm(apply=True).code, 0)
+        rr = self.rm_env()
+        with _call_fails("close", "_judge_removal_archive", errno.EIO) as counted:
+            code, _, err = rr.main_rm("w00", "--apply")
+        self.assertTrue(counted)
+        self.assertEqual((code, "unexpected I/O error: EIO" in err), (2, True))
+        self.assertEqual(rr.rm(apply=True).code, 0)
+
+    def test_t7b2_a_stray_error_after_the_rename_keeps_the_folder_whole_in_removing(self):
+        rr = self.rm_env()
+        whole = rr.files(rr.root / ".ai-review" / "w00")
+        with _call_fails("fstat", "_hash_folder", errno.EIO) as counted:
+            code, _, err = rr.main_rm("w00", "--apply")
+        self.assertTrue(counted)
+        self.assertEqual(code, 2)
+        self.assertIn("may be in the archive directory's `.removing/w00`", err)
+        self.assertIn("never delete it as clutter", err)
+        self.assertEqual(rr.files(rr.removing / "w00"), whole)
+        self.assertEqual(rr.rm(apply=True).code, 0)  # the next run finishes the removal
+        self.assertFalse((rr.removing / "w00").exists())
+
+    def test_t7c_prune_turns_a_stray_oserror_into_unreadable(self):
+        rr = _RP()
+        self.addCleanup(rr.__exit__, None, None, None)
+        rr.__enter__()
+        rr.made()
+        before = rr.snap(times=False)
+        with _call_fails("open", "_walk_chain", errno.EIO, only=os.sep) as counted:
+            code, out, err = rr.main_pr("w00", "w01")
+        self.assertTrue(counted)
+        self.assertEqual(code, 2)
+        self.assertIn("error: unreadable", err)
+        self.assertIn("prune stopped on an unexpected I/O error: EIO", err)
+        self.assertIn("run `prune` again for a fresh preview", err)
+        self.assertEqual(rr.snap(times=False), before)
+
+    # -- T9: the stray error never claims the archive holds every entry ------
+
+    def test_t9_the_stray_message_after_the_rename_does_not_claim_the_archive_matches(self):
+        for extra in ("add", "change"):
+            with self.subTest(extra):
+                rr = self.rm_env()
+                folder = rr.root / ".ai-review" / "w00"
+                if extra == "add":
+                    (folder / "extra.txt").write_text("not archived")
+                else:
+                    (folder / "a.txt").write_text("changed contents")
+                with _call_fails("fstat", "_hash_folder", errno.EIO):
+                    code, _, err = rr.main_rm("w00", "--apply")
+                self.assertEqual(code, 2)
+                for word in ("archived", "holds every", "proven"):
+                    self.assertNotIn(word, err)
+                self.assertIn("not yet compared with the archive", err)
+                self.assertTrue((rr.removing / "w00").exists())
+                result = rr.rm(apply=True)
+                self.refused(result, "archive_mismatch")
+                self.assertTrue((rr.root / ".ai-review" / "w00").exists())
+
+    # -- T8: the report's best-effort close ----------------------------------
+
+    def test_t8_a_failing_close_of_the_report_descriptor_does_not_fail_the_report(self):
+        rr = self.rr()
+        before = _rr_snapshot(rr.root, rr.archive_root)
+        with _call_fails("close", "build_report", errno.EIO) as counted:
+            code, out, _ = rr.cli()
+        self.assertTrue(counted)
+        self.assertEqual(code, 0)
+        self.assertIn("  w00: 5 B in 1 files; no archive", out)
+        self.assertEqual(_rr_snapshot(rr.root, rr.archive_root), before)
 
 
 if __name__ == "__main__":

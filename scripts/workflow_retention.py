@@ -73,6 +73,7 @@ import argparse  # noqa: E402
 import datetime  # noqa: E402
 import errno  # noqa: E402
 import fcntl  # noqa: E402
+import functools  # noqa: E402
 import hashlib  # noqa: E402
 import json  # noqa: E402
 import os  # noqa: E402
@@ -213,11 +214,13 @@ def _open_review_root(repo_root: Path, errors: dict[str, str]) -> int | None:
         return None
 
 
-def _can_fail_walk(name: str, dirfd: int) -> bool:
+def _can_fail_walk(name: str, dirfd: int) -> bool | None:
     """Whether `os.fwalk` can still report `name` (a sub-directory it listed)
     to `onerror`: a real directory, an entry that cannot be examined, or a
-    symlink whose open fails the way the walk opens it. A symlink that opens
-    is dropped silently by the walk."""
+    symlink whose open fails the way the walk opens it (False when it cannot).
+    A symlink that opens is dropped silently by the walk: None, which the
+    caller keeps as a `silent` entry (it can still be named by a failure of a
+    same-name sibling, so it must stay on the stack)."""
     try:
         info = os.stat(name, dir_fd=dirfd, follow_symlinks=False)
     except OSError:
@@ -230,7 +233,26 @@ def _can_fail_walk(name: str, dirfd: int) -> bool:
         os.close(os.open(name, os.O_RDONLY | os.O_NONBLOCK, dir_fd=dirfd))
     except OSError:
         return True
-    return False
+    return None
+
+
+def _is_link(name: str, dirfd: int) -> bool:
+    try:
+        return stat.S_ISLNK(os.stat(name, dir_fd=dirfd, follow_symlinks=False).st_mode)
+    except OSError:
+        return False
+
+
+def _guard_walk(walk, handle):
+    """`yield from walk`, where an `OSError` from the walk itself (the first
+    open of `os.fwalk` happens outside its `onerror`) goes to `handle(exc)`:
+    it raises what that returns, or ends the walk when it returns None."""
+    try:
+        yield from walk
+    except OSError as exc:
+        error = handle(exc)
+        if error is not None:
+            raise error from None
 
 
 def _review_folder(ai_fd: int | None, repo_root: Path, item_id: str, tracked: dict[str, int],
@@ -250,9 +272,13 @@ def _review_folder(ai_fd: int | None, repo_root: Path, item_id: str, tracked: di
                 complete = False
     if present:
         # The walk reports a failed sub-directory by its base name only, so
-        # `pending` mirrors its pre-order, as (path, name) pairs, to find the
-        # parent of the one that failed.
-        pending: list[tuple[str, str]] = []
+        # `pending` mirrors its pre-order, as [path, name, silent, ambiguous, link]
+        # entries, to find the parent of the one that failed. `silent` marks a
+        # link whose probe opened: the walk drops such a link without a word,
+        # so a failure for its name may be the link's or a same-name sibling's
+        # below it (nothing the report can see afterwards tells them apart).
+        pending: list[list] = []
+        yielded = False
 
         def walk_failed(exc: OSError) -> None:
             nonlocal complete
@@ -260,22 +286,50 @@ def _review_folder(ai_fd: int | None, repo_root: Path, item_id: str, tracked: di
             where = folder
             if name is not None:
                 for index in range(len(pending) - 1, -1, -1):
-                    if pending[index][1] == name:
-                        where = repo_root / ".ai-review" / pending[index][0]
+                    path, _, silent, ambiguous, link = pending[index]
+                    if pending[index][1] != name:
+                        continue
+                    lower = next((low for low in range(index - 1, -1, -1)
+                                  if pending[low][1] == name and not pending[low][2]),
+                                 None) if (link or silent) else None
+                    if silent or (link and lower is not None):
+                        # A link is only possibly the failed one while a
+                        # same-name sibling lies below it (the probe of a link
+                        # is no proof of what the walk's own open will do):
+                        # only the link is passed, the nearest real sibling
+                        # stays, flagged, so the stack keeps mirroring the walk.
+                        del pending[index]
+                        if lower is not None:
+                            pending[lower][3] = True
+                    else:
+                        if not ambiguous:
+                            where = repo_root / ".ai-review" / path
                         del pending[index:]
-                        break
+                    break
             _unreadable(errors, where, exc)
             complete = False
 
-        for directory, dirs, names, dirfd in os.fwalk(item_id, dir_fd=ai_fd, follow_symlinks=False,
-                                                       onerror=walk_failed):
-            for index, (path, _) in enumerate(pending):
-                if path == directory:
+        def top_failed(exc: OSError) -> OSError | None:
+            nonlocal present, complete
+            if not yielded and exc.errno in (errno.ENOENT, errno.ENOTDIR):
+                present = False
+                return None
+            _unreadable(errors, folder, exc)
+            complete = False
+            return None
+
+        for directory, dirs, names, dirfd in _guard_walk(
+                os.fwalk(item_id, dir_fd=ai_fd, follow_symlinks=False, onerror=walk_failed), top_failed):
+            yielded = True
+            for index, entry in enumerate(pending):
+                if entry[0] == directory:
                     del pending[index:]
                     break
             for sub in reversed(dirs):
-                if _can_fail_walk(sub, dirfd):
-                    pending.append((os.path.join(directory, sub), sub))
+                can_fail = _can_fail_walk(sub, dirfd)
+                if can_fail is not False:
+                    pending.append([os.path.join(directory, sub), sub, can_fail is None, False,
+                                    can_fail is None or _is_link(sub, dirfd)])
             for name in names:
                 try:
                     info = os.stat(name, dir_fd=dirfd, follow_symlinks=False)
@@ -411,7 +465,10 @@ def build_report(repo_root, *, archive_root, ttl_days: int = DEFAULT_TTL_DAYS, n
                          ttl_days, now)
     finally:
         if own_fd is not None:
-            os.close(own_fd)
+            try:
+                os.close(own_fd)
+            except OSError:
+                pass
 
 
 def _removing_ids(archive_dir: Path, errors: dict[str, str]) -> list[str]:
@@ -510,6 +567,27 @@ def _refuse(code: str, message: str, next_step: str) -> RetentionError:
     return RetentionError(code, message, next_step)
 
 
+def _stray_io(command: str, next_step: str):
+    """The backstop of `archive_item`, `remove_item` and `prune_archives`: an
+    `OSError` that no site maps (a bare descriptor call failing on `EIO`,
+    `EMFILE` and the like) becomes the refusal `unreadable`, never a traceback.
+    It is the outermost layer, so the descriptors are closed, the lock is
+    released and `archive`'s undo has run before it speaks."""
+    def decorate(function):
+        @functools.wraps(function)
+        def wrapper(*args, **kwargs):
+            try:
+                return function(*args, **kwargs)
+            except OSError as exc:
+                name = errno.errorcode.get(exc.errno, "OSError") if exc.errno else "OSError"
+                detail = f"{name} {exc.strerror or exc}" + (f" ({exc.filename})" if exc.filename else "")
+                item = args[1] if len(args) > 1 else kwargs.get("item_id")
+                raise _refuse("unreadable", f"{command} stopped on an unexpected I/O error: {detail}",
+                              next_step.replace("<id>", item) if isinstance(item, str) else next_step) from None
+        return wrapper
+    return decorate
+
+
 def _entry_error(path: str, kind: str) -> RetentionError:
     return _refuse("unsupported_entry", f"{path} is {kind}, which the archive does not store",
                    "move it out of the review folder by hand, or leave the item unarchived")
@@ -540,9 +618,16 @@ def _walk_folder(ai_fd: int, item_id: str):
         raise _refuse("folder_changed", f"the review folder vanished: {exc}", "run it again") from None
     if not stat.S_ISDIR(top.st_mode):
         raise _refuse("folder_changed", "the review folder is no longer a directory", "run it again")
+    def top_failed(exc: OSError) -> RetentionError:
+        if exc.errno in (errno.ENOENT, errno.ENOTDIR):
+            return _refuse("folder_changed", f"{item_id} vanished while the folder was read",
+                           "run it again when nothing writes to the review folder")
+        return _refuse("unreadable", f"{exc.filename or item_id} cannot be read: {exc.strerror or exc}",
+                       "grant read access to the review folder, or leave the item unarchived")
+
     seen = False
-    for dirpath, dirnames, filenames, dirfd in os.fwalk(item_id, dir_fd=ai_fd, follow_symlinks=False,
-                                                         onerror=failed):
+    for dirpath, dirnames, filenames, dirfd in _guard_walk(
+            os.fwalk(item_id, dir_fd=ai_fd, follow_symlinks=False, onerror=failed), top_failed):
         seen = True
         rel = dirpath[len(item_id) + 1:]
         others, real_dirs = [], []
@@ -1090,6 +1175,8 @@ def _select_finished(repo_root, item_id: str, archive_root, now, run, resolve, f
     return root, ai_fd, report, record, resolved, adir_fd
 
 
+@_stray_io("archive", "the review folder was not touched; `report` shows whether the archive was placed; repair the "
+                      "cause, then run it again")
 def archive_item(repo_root, item_id: str, *, apply: bool = False, archive_root=DEFAULT_ARCHIVE_ROOT,
                  now: datetime.datetime, run=None, resolve=None, zstd: str | None = None) -> dict:
     """Packs the untracked review folder of a finished item into a verified
@@ -1473,8 +1560,13 @@ def _remove_tree(removing_fd: int, item_id: str, records: list[dict], *, place: 
     def fail(code: str, message: str, _step: str) -> RetentionError:
         return _stopped(code, message, deleted, place, item_id)
 
-    for dirpath, dirnames, filenames, dirfd in os.fwalk(item_id, topdown=False, dir_fd=removing_fd,
-                                                         follow_symlinks=False):
+    def top_failed(exc: OSError) -> RetentionError:
+        if exc.errno in (errno.ENOENT, errno.ENOTDIR):
+            return fail("folder_changed", f"{item_id} vanished", "")
+        return fail("remove_failed", f"{item_id} cannot be read ({exc.strerror or exc})", "")
+
+    for dirpath, dirnames, filenames, dirfd in _guard_walk(
+            os.fwalk(item_id, topdown=False, dir_fd=removing_fd, follow_symlinks=False), top_failed):
         rel = dirpath[len(item_id) + 1:]
         for name in sorted(set(dirnames) | set(filenames)):
             shown = f"{rel}/{name}" if rel else name
@@ -1672,6 +1764,10 @@ def _select_removal(repo_root, item_id, archive_root, now, run, resolve, zstd, f
             "folder_path": folder_path, "entries": entries, "program": program, "archive_bytes": archive_bytes}
 
 
+@_stray_io("remove", "the review folder may be in the archive directory's `.removing/<id>`, renamed aside and not yet "
+                     "compared with the archive, so it may hold files the archive does not: keep it, never delete "
+                     "it as clutter; repair the cause, then run `remove <id> --apply` again, which compares it "
+                     "before deleting anything")
 def remove_item(repo_root, item_id: str, *, apply: bool = False, archive_root=DEFAULT_ARCHIVE_ROOT,
                 now: datetime.datetime, run=None, resolve=None, zstd: str | None = None) -> dict:
     """Removes the untracked review folder of a finished, archived item: one
@@ -1742,9 +1838,14 @@ def _flow(sel, item_id, name, archive, removing_place, ai_place, note, fds, repo
         again = _select_removal(repo_root, item_id, archive_root, now, run, resolve, zstd, fds)
         held = os.fstat(adir_fd)
         now_adir = os.fstat(again["adir_fd"])
-        if (held.st_dev, held.st_ino) != (now_adir.st_dev, now_adir.st_ino) or again["state"] != sel["state"]:
-            raise _refuse("place_failed", "the archive directory or the leftover changed while the lock was taken",
-                          "run it again")
+        changed = None
+        if (held.st_dev, held.st_ino) != (now_adir.st_dev, now_adir.st_ino):
+            changed = "the archive directory was replaced while the lock was taken"
+        elif again["state"] != sel["state"]:
+            changed = (f"{removing_place} appeared while the lock was taken" if again["state"] == "L1" else
+                       f"{removing_place} is gone while the lock was taken, the folder is in {ai_place} again")
+        if changed is not None:
+            raise _refuse("folder_changed", changed, "nothing was moved or deleted; run it again")
         sel = again
         removing_fd = sel["removing_fd"]                                               # 2
         if removing_fd is None:
@@ -1961,6 +2062,7 @@ def _prune_delete(entries: list[dict], seen: dict, adir_fd: int, resolved: str, 
     return removed
 
 
+@_stray_io("prune", "run `prune` again for a fresh preview")
 def prune_archives(repo_root, ids, *, apply: bool = False, archive_root=DEFAULT_ARCHIVE_ROOT,
                    ttl_days: int = DEFAULT_TTL_DAYS, now: datetime.datetime, run=None, resolve=None) -> dict:
     """Removes the named archives `<id>.tar.zst` that the report lists as past
