@@ -37388,7 +37388,7 @@
       "registry_path": "docs/ai-workflow/registry/update-dry-run-parity-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/update-dry-run-parity-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "AWAITING_FUNCTIONAL_REVIEW",
       "plan_revision": 2,
       "implementation_revision": 1,
       "functional_review_round": null,
@@ -37497,7 +37497,150 @@
           "workflow_release": "2.29.5"
         }
       },
-      "technical_approval": null,
+      "technical_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "5bfee69b22e22e43712f2867328063193e6367338816ef4b2dad916e2bdee688",
+        "approved_review_content_id": "a6ae995ca9341ea0dc69df2cb3f1710264f98d18ed7d5491422fd77d27f41f86",
+        "review_content_manifest": [
+          {
+            "path": "docs/ARCHITECTURE.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "d0e6fd4464dd45179df57c1ad89afa1f6e15eba3"
+          },
+          {
+            "path": "docs/ai-workflow/registry/update-dry-run-parity-artifacts.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "a6b8ff011dd7a50066060145e38c6235bc908969"
+          },
+          {
+            "path": "docs/common-problems.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "0a50a9335cfd31bfd2ab1650dfd43071f6be941f"
+          },
+          {
+            "path": "docs/exit-codes.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "2c30a2e0c8aca2f685c8b544c109be101603dd77"
+          },
+          {
+            "path": "docs/update.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "059972b719161d5772fc93923b0d3929115608eb"
+          },
+          {
+            "path": "src/workflow_manager/advice.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "b2154802792ac19cc2a76a5b7139a8b4daf8a676"
+          },
+          {
+            "path": "src/workflow_manager/cli.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "b4792575231abb5d3635b450e0b6e0a5988c6099"
+          },
+          {
+            "path": "src/workflow_manager/compatibility.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "b69f3344f151b317bad323248b91e8f663b64959"
+          },
+          {
+            "path": "src/workflow_manager/source.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "b4f151a9626584f3cd5991c5fcea9cb1d748597f"
+          },
+          {
+            "path": "tests/test_discovery.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "893ddaf93d94c7307b8f3cf0a2facd0af5f6bd8b"
+          },
+          {
+            "path": "tests/test_operator_ux.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "1f658b5d24d13e34ee120c6fe164aab4c9202c4e"
+          },
+          {
+            "path": "tests/test_operator_ux_readonly.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "5628402cf1b9d19eed54d5a139f30023b7bc51a5"
+          }
+        ],
+        "reviewed_content_commit": "db6be105420f33661f0b3a636ab0ba27893e4c0c",
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-11-15T10:31:47Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "a6ae995ca9341ea0dc69df2cb3f1710264f98d18ed7d5491422fd77d27f41f86",
+            "ledger": {
+              "local": {
+                "bundle_id": "5bfee69b22e22e43712f2867328063193e6367338816ef4b2dad916e2bdee688",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "b31426ed6fa8bfe4271311e2759677b916f2144eeee9c8c6fafcf00bed181b53",
+                "ledger_entry_sha256": "24c8a9b6259d76e189c40784a63d104c6d6ee31101a720a52aa3d1a3048b63eb",
+                "run_ref": "session:local .ai-review/update-dry-run-parity/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "5bfee69b22e22e43712f2867328063193e6367338816ef4b2dad916e2bdee688",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "22be3837783c5647bd62fb18b4bb2e3bc618213ef0495f83d6dc6d886ee6b890",
+                "ledger_entry_sha256": "4864a694f9573f6ffe7f51c5840d19b972b9cbe9b35e67b3f5357127ed2e8b2f",
+                "run_ref": "codex:20261115T102823Z-58b184a6",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-11-15T10:31:47Z",
+          "workflow_release": "2.29.5"
+        }
+      },
       "technical_review_block_pins": [],
       "plan_review_stages": {
         "review_content_id": "c3b92147e39eba5d5febc172831057e62f04f7d65b4c3b2e7236ca520c17f72c",
@@ -37528,12 +37671,12 @@
           "external": 2
         },
         "implementation": {
-          "local": 0,
-          "external": 0
+          "local": 1,
+          "external": 1
         }
       },
-      "state_revision": 15,
-      "last_transition": "2026-11-15T10:22:04Z",
+      "state_revision": 18,
+      "last_transition": "2026-11-15T10:31:47Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -37609,11 +37752,46 @@
               "at": "2026-11-15T09:46:12Z"
             }
           ]
+        },
+        "F-464913c38cfe": {
+          "digest": "464913c38cfef6f47c402587b0fc693efd1c53b4ef43d597cbd6ebe973e256f5",
+          "text": "`compatibility._STRICT_RECORDED` (`src/workflow_manager/compatibility.py:109`) is a second copy of `source._STRICT_VERSION` (`src/workflow_manager/source.py:96`). Today they are byte-identical, so `recorded_release` and `cli.cmd_dry_run`'s `is_strict_version` filter accept the same names. Nothing ties the two together, though. If a later change widens or narrows one, the dry run's lookups and the report could disagree on whether a record is \"unknown\", for example a header that says `workflow X` over a report that says `Installed release   unknown`. Either share one pattern (`compatibility` already imports from `install`/`installation`/`release`, so a neutral home is possible), or add a one-line comment plus a test that asserts the two patterns are equal.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "a6ae995ca9341ea0dc69df2cb3f1710264f98d18ed7d5491422fd77d27f41f86",
+              "verdict": "APPROVE",
+              "at": "2026-11-15T10:26:51Z"
+            }
+          ]
         }
       },
       "consumed_plan_review_content_ids": [
         "e6904889dc327f54af830327824ec845d440c8f000b64b2572535b3eb1062bdd"
-      ]
+      ],
+      "implementation_review_stages": {
+        "review_content_id": "a6ae995ca9341ea0dc69df2cb3f1710264f98d18ed7d5491422fd77d27f41f86",
+        "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "5bfee69b22e22e43712f2867328063193e6367338816ef4b2dad916e2bdee688",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-11-15T10:26:51Z",
+          "verdict_sha256": "b31426ed6fa8bfe4271311e2759677b916f2144eeee9c8c6fafcf00bed181b53",
+          "run_ref": "session:local .ai-review/update-dry-run-parity/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "5bfee69b22e22e43712f2867328063193e6367338816ef4b2dad916e2bdee688",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-11-15T10:30:41Z",
+          "verdict_sha256": "22be3837783c5647bd62fb18b4bb2e3bc618213ef0495f83d6dc6d886ee6b890",
+          "run_ref": "codex:20261115T102823Z-58b184a6",
+          "reviewer_model": "openai/gpt-6.1-sol"
+        }
+      }
     }
   }
 }
