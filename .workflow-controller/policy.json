@@ -20,7 +20,7 @@
     }
   },
   "release": {
-    "enabled": false,
+    "enabled": true,
     "trigger": "conventional_commit",
     "version_scheme": "semver",
     "tag_format": "v{version}",
@@ -40,25 +40,36 @@
     "build": {
       "kind": "command",
       "argv": [
-        "true"
+        "python3",
+        "tools/release/package.py",
+        "--version",
+        "{version}",
+        "--out",
+        "dist"
       ]
     },
     "verify": {
       "kind": "command",
       "argv": [
-        "true"
+        "python3",
+        "tools/release/package.py",
+        "--version",
+        "{version}",
+        "--out",
+        "dist"
       ]
     },
     "artifacts": {
       "paths": [
-        "dist/placeholder-{version}.txt"
+        "dist/workflow_manager-{version}-py3-none-any.whl",
+        "dist/workflow_manager-{version}.tar.gz"
       ],
       "checksums": "SHA256SUMS"
     },
     "publication": {
       "kind": "github_release",
       "title": "{tag}",
-      "notes": "{tag}"
+      "notes": "The Workflow Manager's own package: a wheel, an sdist and SHA256SUMS."
     }
   }
 }
