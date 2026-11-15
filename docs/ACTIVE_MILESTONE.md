@@ -2,7 +2,7 @@
 
 ## Milestone
 
-`update-dry-run-parity` -- awaiting functional review (`governing_workflow_version: "2.2"`, `process`, plan revision 2, implementation revision 1, base `da3c774`, branch `milestone/update-dry-run-parity`): roadmap row 46 (#158, points 1 to 5). The pull request title is `fix: make the update dry run match the real update for every record shape`, a patch release (Manager 1.20.1, checked with `tools/release/release.py check-title`).
+`update-dry-run-parity` -- complete (accepted by policy) (`governing_workflow_version: "2.2"`, `process`, plan revision 2, implementation revision 1, base `da3c774`, branch `milestone/update-dry-run-parity`): roadmap row 46 (#158, points 1 to 5). The pull request title is `fix: make the update dry run match the real update for every record shape`, a patch release (Manager 1.20.1, checked with `tools/release/release.py check-title`).
 
 `update --dry-run` predicts what the real `update` does for every record shape: a null record, a damaged record (`garbage`, `../escaped`), a valid record, and a release directory whose manifest has a null `workflow_version`. A refusal names a cause and one step. The dry run still writes nothing. The happy-path output is unchanged; the changed outputs are the rows of plan section 3.
 
@@ -241,3 +241,5 @@ Expect: all green, `check_docs` exit 0. Each mutation of plan section 4 fails it
 - Completed items' test results (`docs/milestones/completed/`) still show the earlier mutation table; that is history, not edited.
 - Optional findings from plan review and self-review (`optional_findings` in `WORKFLOW_STATE.json`) get a recorded disposition at acceptance. Finding `O1` (flow 3's suffix) is already reflected above.
 - Out of scope: the retention view points (#160), the retention commands, Workflow releases, new options, any new write path.
+
+**Next action:** `/milestone-plan` for the next incomplete milestone in `docs/ROADMAP.md`; none is listed after row 46 today. `update-dry-run-parity` is accepted by policy; its pull request #234 merges as `fix:` and Manager 1.20.1 follows the merge.
