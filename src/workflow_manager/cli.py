@@ -63,6 +63,7 @@ from .compatibility import (
     missing_templates,
     plan_destinations,
     read_repository,
+    recorded_release,
     read_work_items,
     render_report,
     render_work_in_flight,
@@ -722,7 +723,12 @@ def _would(change: str) -> str:
 
 def _print_dry_run(args, plan, release) -> None:
     recorded = plan.current.workflow_version
-    current = "a record with no workflow_version" if recorded is None else f"workflow {recorded}"
+    if recorded is None:
+        current = "a record with no workflow_version"
+    elif is_strict_version(recorded):
+        current = f"workflow {recorded}"
+    else:
+        current = f"a record whose workflow_version {recorded!r} is not a version"
     print(f"would update {args.target} from {current} to "
           f"workflow {release.version}     (dry run: nothing written)")
     overwrites = set(plan.overwrites)
@@ -732,7 +738,11 @@ def _print_dry_run(args, plan, release) -> None:
             note = "     (discards your local edit; --force)"
         print(f"  {_would(change)}{note}")
     if not plan.changes:
-        print("  (no change)")
+        if is_strict_version(recorded):
+            print("  (no change)")
+        else:
+            print("  (no file changes; the installation record would be rewritten to "
+                  f"workflow {release.version})")
     print("left alone:")
     for kept in plan.left_alone:
         print(f"  {kept.path}   {kept.reason}")
@@ -775,7 +785,7 @@ def _compatibility_report(args, plan, refusal, release, installed_resolved: bool
     facts = read_repository(args.target)
     context = _context(args)
     facts.options_for = lambda version: advice._options(context, version)[0]
-    installed = facts.installation.workflow_version if facts.installation else None
+    installed = recorded_release(facts)
     cache = _cache(args, pins)
     metadata = gather_metadata(cache, installed, release)
     latest_note = ""
@@ -803,11 +813,12 @@ def cmd_dry_run(args) -> int:
     refusals (exit 2) as the real update, with the report printed first."""
     if not is_managed(args.target):
         raise NotManagedError(not_managed_text(args.target))
-    installed = Installation.read(args.target).workflow_version
-    if installed is not None:
-        # A null record is the repair the real update accepts with a named release,
-        # and refuses when it must choose (`_floor`, below): the dry run decides alike.
-        _refuse_unparseable_record(installed)
+    recorded = Installation.read(args.target).workflow_version
+    # A named release is the repair the real update accepts for a null or damaged
+    # record, and a run that must choose refuses it (`_floor`, below): the dry run
+    # decides alike. The recorded name reaches no path, cache or source: only a
+    # strict `X.Y.Z` is passed on, anything else is "unknown".
+    installed = recorded if is_strict_version(recorded) else None
     if _chooses(args):
         release, destinations = _choose_and_resolve(
             args, floor=_floor(args), installed=installed, readonly=True)

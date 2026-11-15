@@ -647,9 +647,9 @@ def _not_a_version(error, context):
     if not null:
         return f"{record}, or fix it with `{fix}`"
     # A null record: the one step is the explicit update that rewrites it. A
-    # --release-dir is left out (it may hold a null-manifest release, which the
-    # real update accepts and `doctor`, whose record check runs first, refuses),
-    # and the step says only that, not what the directory holds.
+    # --release-dir is left out: `doctor`, whose record check runs first, refuses
+    # the null record before it reads any directory, and the step says only that,
+    # not what the directory holds.
     step = (f"run `{fix}` (X.Y.Z is the release to install): it updates the installation "
             f"record to that release")
     if getattr(context.args, "dry_run", False):
