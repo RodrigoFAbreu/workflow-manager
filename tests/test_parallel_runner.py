@@ -19,9 +19,12 @@ Checkpoint CP4: isolation and the repository-integrity guard, function-level
 barrier does it in a `scratch_checkout` (or a `scratch_worktree` of one),
 never in the real checkout (plan 5.9, "Tests and the lock").
 
-Checkpoint CP6: the CI pipeline `.github/workflows/workflow-manager-verify.yml`
-(T-CI-1..5). Its steps' own scripts run against a `scratch_clone` of a scratch
-checkout -- a fresh CI-like checkout -- with a stand-in `RUNNER_TEMP`.
+Checkpoint CP6: the CI pipeline (T-CI-1..5): `.github/workflows/ci.yml`, the
+entry point (triggers, concurrency, the required `aggregate` check, the
+publish call), and the reusable `.github/workflows/validate.yml` it calls
+(plan, shard, package, aggregate). Their steps' own scripts run against a
+`scratch_clone` of a scratch checkout -- a fresh CI-like checkout -- with a
+stand-in `RUNNER_TEMP`.
 
 `workflow-manager-trunk-model`'s CP5 updates T-CI-1 (the nightly trigger and
 the per-commit concurrency group of `main`) and adds T-CI-7 (the one required
@@ -5371,7 +5374,20 @@ class TestMultiWorkerShard(_CliCase):
 
 # == CP6: the CI pipeline (T-CI-1..5) =====================================================
 
-CI_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "workflow-manager-verify.yml"
+#: The entry point: triggers, concurrency, and the jobs validate (a call of
+#: VALIDATE_WORKFLOW), aggregate (the required check) and publish.
+CI_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "ci.yml"
+#: The reusable workflow that holds the test jobs.
+VALIDATE_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "validate.yml"
+#: ci.yml's jobs, and what its validate and publish jobs call.
+CI_ENTRY_JOBS = ("aggregate", "publish", "validate")
+CI_VALIDATE_USES = "./.github/workflows/validate.yml"
+CI_PUBLISH_USES = "./.github/workflows/publish.yml"
+CI_PUBLISH_IF = "github.event_name == 'push' && github.ref == 'refs/heads/main'"
+#: The shard-count input ci.yml forwards to validate.yml, as both declare it.
+CI_SHARDS_INPUT = {
+    "description": "Shard count, 1-256 (empty: the planner's own count; 1: the serial CI reference)",
+    "required": False, "default": ""}
 MANAGED_WORKFLOW = ".github/workflows/workflow-conformance.yml"
 CI_JOBS = ("plan", "shard", "aggregate")
 #: The job every run holds besides `CI_JOBS`: the release's build-and-verify path.
@@ -5380,7 +5396,7 @@ CI_PACKAGE_JOB = "package"
 CI_SCHEDULE = [{"cron": "17 3 * * *"}]
 #: The concurrency group: per ref for a pull request, per event and commit for
 #: every other run, so no `main` commit's run is ever cancelled (plan 6.4).
-CI_CONCURRENCY_GROUP = ("workflow-manager-verify-${{ github.event_name }}-${{ github.event_name "
+CI_CONCURRENCY_GROUP = ("ci-${{ github.event_name }}-${{ github.event_name "
                         "== 'pull_request' && github.ref || github.sha }}")
 #: The aggregate's first step, which fails it when `plan` or `package` did not succeed.
 CI_NEEDS_STEP = "needs"
@@ -5535,7 +5551,13 @@ CI_SERIAL_SHARD_MINUTES = 150
 
 
 def ci_workflow() -> dict:
+    """ci.yml, the entry point."""
     return load_workflow_yaml(CI_WORKFLOW.read_text(encoding="utf-8"))
+
+
+def validate_workflow() -> dict:
+    """validate.yml, the reusable workflow with the test jobs."""
+    return load_workflow_yaml(VALIDATE_WORKFLOW.read_text(encoding="utf-8"))
 
 
 def ci_run_all_step(doc: dict, job: str) -> dict:
@@ -5552,8 +5574,12 @@ def ci_job_steps(job: dict) -> list[dict]:
     return steps[1:] if steps and steps[0].get("id") == CI_NEEDS_STEP else steps
 
 
-def ci_workflow_problems(doc: dict) -> list[str]:
-    """T-CI-1's structural checks over the parsed workflow; `[]` when it holds."""
+def ci_entry_problems(doc: dict) -> list[str]:
+    """T-CI-1's structural checks over the parsed entry point, ci.yml; `[]`
+    when it holds. Its triggers and concurrency are every run's; its
+    `aggregate` is the required check, a job of this file with no `name:` so
+    its context is exactly `aggregate`; `publish` runs only on a push to main
+    after `aggregate` succeeded in the same run."""
     problems = []
 
     def need(condition, message):
@@ -5567,11 +5593,79 @@ def ci_workflow_problems(doc: dict) -> list[str]:
     need((triggers.get("push") or {}).get("branches") == ["main"], "push is not limited to main")
     need(triggers.get("schedule") == CI_SCHEDULE,
          f"the schedule is {triggers.get('schedule')!r}, not {CI_SCHEDULE}")
+    need(((triggers.get("workflow_dispatch") or {}).get("inputs") or {}).get("shards")
+         == CI_SHARDS_INPUT, "the dispatch has no shards input")
     concurrency = doc.get("concurrency") or {}
     need(concurrency.get("group") == CI_CONCURRENCY_GROUP,
          f"the concurrency group is {concurrency.get('group')!r}, not the per-commit one of main")
     need(concurrency.get("cancel-in-progress") == "${{ github.event_name == 'pull_request' }}",
          "cancel-in-progress is not limited to pull requests")
+    need("env" not in doc, "the workflow has a global env (M2 removed the upstream fetch's)")
+    need(doc.get("permissions") == {"contents": "read"},
+         "the workflow's own permissions are not contents: read")
+
+    jobs = doc.get("jobs") or {}
+    need(sorted(jobs) == list(CI_ENTRY_JOBS), f"jobs are {sorted(jobs)}, not {list(CI_ENTRY_JOBS)}")
+    validate, aggregate, publish = ((jobs.get(name) or {}) for name in
+                                    ("validate", "aggregate", "publish"))
+    need(validate.get("uses") == CI_VALIDATE_USES, f"validate does not call {CI_VALIDATE_USES}")
+    need(validate.get("with") == {"shards": "${{ inputs.shards }}"},
+         "validate does not forward the shards input, and only it")
+    need(not ({"needs", "if", "permissions"} & set(validate)),
+         "validate is conditioned or has its own permissions")
+    need("name" not in aggregate,
+         "aggregate has a name: the required check's context would no longer be `aggregate`")
+    need("uses" not in aggregate, "aggregate is a called workflow: it would report as "
+                                  "`<job> / aggregate`")
+    need(aggregate.get("needs") == ["validate"], "aggregate does not need [validate]")
+    need(aggregate.get("if") == "always()", "aggregate does not run if: always()")
+    minutes = aggregate.get("timeout-minutes")
+    need(isinstance(minutes, int) and 0 < minutes < 360,
+         f"aggregate: timeout-minutes is {minutes!r}, not below GitHub's 360-minute default")
+    steps = aggregate.get("steps") or []
+    need(len(steps) == 1 and (steps[0].get("env") or {}) == {
+        "VALIDATE_RESULT": "${{ needs.validate.result }}"}
+        and "::error::" in (steps[0].get("run") or "")
+        and "!= success" in (steps[0].get("run") or ""),
+         "aggregate is not the one step that fails unless validate succeeded")
+    need(publish.get("uses") == CI_PUBLISH_USES, f"publish does not call {CI_PUBLISH_USES}")
+    need(publish.get("needs") == ["aggregate"],
+         "publish does not need [aggregate]: it would publish an unvalidated revision")
+    need(publish.get("if") == CI_PUBLISH_IF,
+         f"publish's if is {publish.get('if')!r}, not a push to main ({CI_PUBLISH_IF!r})")
+    need(publish.get("permissions") == {"contents": "write", "actions": "read"},
+         f"publish's permissions are {publish.get('permissions')!r}, not contents: write and "
+         f"actions: read (a called workflow cannot exceed its caller job's)")
+    need("with" not in publish and "secrets" not in publish,
+         "publish passes inputs or secrets (a dry run or a token from CI)")
+    for name in ("validate", "aggregate"):
+        need("permissions" not in (jobs.get(name) or {}),
+             f"{name}: has its own permissions (only publish writes)")
+    return problems
+
+
+def validate_workflow_problems(doc: dict) -> list[str]:
+    """T-CI-1's structural checks over the parsed reusable workflow,
+    validate.yml; `[]` when it holds."""
+    problems = []
+
+    def need(condition, message):
+        if not condition:
+            problems.append(message)
+
+    triggers = doc.get("on") or {}
+    need(sorted(triggers) == ["workflow_call", "workflow_dispatch"],
+         f"triggers are {sorted(triggers)}, not workflow_call and workflow_dispatch "
+         f"(ci.yml owns pull_request, push and the schedule)")
+    need(((triggers.get("workflow_call") or {}).get("inputs") or {}).get("shards")
+         == {**CI_SHARDS_INPUT, "type": "string"},
+         "the call does not take the shards input")
+    need(((triggers.get("workflow_dispatch") or {}).get("inputs") or {}).get("shards")
+         == CI_SHARDS_INPUT, "the dispatch does not take the shards input")
+    need("concurrency" not in doc,
+         "a called workflow with a concurrency group: one equal to its caller's deadlocks")
+    need(doc.get("permissions") == {"contents": "read"},
+         "the workflow's own permissions are not contents: read")
     need("env" not in doc, "the workflow has a global env (M2 removed the upstream fetch's)")
 
     jobs = doc.get("jobs") or {}
@@ -5687,7 +5781,7 @@ def run_ci_step(scratch_root, job: str, *, runner_temp: Path, env: dict, step_en
     scratch_root = Path(scratch_root)
     if _same_checkout_as_real(scratch_root):
         raise ValueError(f"run_ci_step refuses the real checkout: {scratch_root}")
-    step = ci_run_all_step(ci_workflow(), job)
+    step = ci_run_all_step(validate_workflow(), job)
     if set(step_env) != set(step.get("env") or {}) - {release_source.CACHE_ENV}:
         raise AssertionError(f"{job}: the step's env is {sorted(step.get('env') or {})}, "
                              f"the test supplies {sorted(step_env)}")
@@ -5715,13 +5809,57 @@ def ci_artifact_dir(doc: dict, shard: int) -> str:
 
 # -- T-CI-1: the workflow's structure -----------------------------------------------------
 
+def _mutate_workflow(old, new, text: str) -> str:
+    return old.sub(new, text, count=1) if isinstance(old, re.Pattern) else text.replace(old, new, 1)
+
+
 class TestCiWorkflowStructure(unittest.TestCase):
 
-    def test_the_workflow_file_holds_every_structural_rule(self):
-        self.assertEqual(ci_workflow_problems(ci_workflow()), [])
+    def test_the_workflow_files_hold_every_structural_rule(self):
+        self.assertEqual(ci_entry_problems(ci_workflow()), [])
+        self.assertEqual(validate_workflow_problems(validate_workflow()), [])
+
+    def test_each_entry_point_mutation_is_caught(self):
+        text = CI_WORKFLOW.read_text(encoding="utf-8")
+        mutants = {
+            "no nightly run": (re.compile(r"^  schedule:\n    - cron: .*\n", re.M), ""),
+            "a per-ref group for main": ("&& github.ref || github.sha }}", "}}-${{ github.ref }}"),
+            "the old group prefix": ("group: ci-", "group: workflow-manager-verify-"),
+            "main's runs cancelled": ("cancel-in-progress: ${{ github.event_name == 'pull_request' }}",
+                                      "cancel-in-progress: true"),
+            "a push to any branch": ("    branches: [main]\n", ""),
+            "no pull_request trigger": ("  pull_request:\n", ""),
+            "aggregate skipped on failure": (re.compile(r"^    if: always\(\)$", re.M),
+                                             "    if: success()"),
+            "a named aggregate": ("  aggregate:\n    needs: [validate]\n",
+                                  "  aggregate:\n    name: aggregate check\n    needs: [validate]\n"),
+            "aggregate without validate": ("    needs: [validate]\n", "    needs: []\n"),
+            "aggregate that ignores validate": ('!= success ]', '= skipped ]'),
+            "publish before aggregate": ("    needs: [aggregate]\n", "    needs: [validate]\n"),
+            "publish on every event": (
+                "    if: github.event_name == 'push' && github.ref == 'refs/heads/main'\n",
+                "    if: github.ref == 'refs/heads/main'\n"),
+            "publish without write": ("      contents: write\n", "      contents: read\n"),
+            "publish without actions: read": ("      actions: read\n", ""),
+            "a dry run from CI": ("    uses: ./.github/workflows/publish.yml\n",
+                                  "    uses: ./.github/workflows/publish.yml\n    with:\n"
+                                  "      dry-run: true\n"),
+            "contents: write for the workflow": ("permissions:\n  contents: read",
+                                                 "permissions:\n  contents: write"),
+            "validate unforwarded": ("      shards: ${{ inputs.shards }}\n", "      shards: \"\"\n"),
+            "another validation": ("uses: ./.github/workflows/validate.yml",
+                                   "uses: RodrigoFAbreu/action-workflows/.github/workflows/"
+                                   "python-tests.yml@main"),
+            "an upstream again": ("\njobs:\n", "\nenv:\n  UPSTREAM_URL: x\n\njobs:\n"),
+        }
+        for label, (old, new) in mutants.items():
+            with self.subTest(mutation=label):
+                mutated = _mutate_workflow(old, new, text)
+                self.assertNotEqual(mutated, text, "the mutation did not apply")
+                self.assertNotEqual(ci_entry_problems(load_workflow_yaml(mutated)), [])
 
     def test_each_mutation_is_caught(self):
-        text = CI_WORKFLOW.read_text(encoding="utf-8")
+        text = VALIDATE_WORKFLOW.read_text(encoding="utf-8")
         mutants = {
             "a literal shard list": (CI_MATRIX, "[0, 1, 2]"),
             "fail-fast": ("fail-fast: false", "fail-fast: true"),
@@ -5732,10 +5870,12 @@ class TestCiWorkflowStructure(unittest.TestCase):
                 "!cancelled() && needs.plan.result == 'success'", "success()"),
             "aggregate skips the package": ("needs: [plan, shard, package]",
                                             "needs: [plan, shard]"),
-            "no nightly run": (re.compile(r"^  schedule:\n    - cron: .*\n", re.M), ""),
-            "a per-ref group for main": ("&& github.ref || github.sha }}", "}}-${{ github.ref }}"),
-            "main's runs cancelled": ("cancel-in-progress: ${{ github.event_name == 'pull_request' }}",
-                                      "cancel-in-progress: true"),
+            "a pull-request trigger again": ("on:\n", "on:\n  pull_request:\n"),
+            "a nightly schedule again": ("on:\n", "on:\n  schedule:\n    - cron: \"17 3 * * *\"\n"),
+            "a concurrency group again": ("\npermissions:\n", "\nconcurrency:\n  group: x\n"
+                                          "\npermissions:\n"),
+            "no workflow_call": ("  workflow_call:\n", "  workflow_run:\n"),
+            "an untyped call input": ("        type: string\n", ""),
             "aggregate skipped on failure": (re.compile(r"^    if: always\(\)$", re.M),
                                              "    if: success()"),
             "a results dir in the checkout": ('--results "$RUNNER_TEMP/out/"', "--results out/"),
@@ -5760,7 +5900,6 @@ class TestCiWorkflowStructure(unittest.TestCase):
             "a profile output again": ("      shards: ${{ steps.plan.outputs.shards }}\n",
                                        "      shards: ${{ steps.plan.outputs.shards }}\n"
                                        "      profile: x\n"),
-            "a push to any branch": ("    branches: [main]\n", ""),
             "a full-history checkout": ("      - uses: actions/checkout@v4\n      - uses",
                                         "      - uses: actions/checkout@v4\n        with:\n"
                                         "          fetch-depth: 0\n      - uses"),
@@ -5773,10 +5912,9 @@ class TestCiWorkflowStructure(unittest.TestCase):
         }
         for label, (old, new) in mutants.items():
             with self.subTest(mutation=label):
-                mutated = old.sub(new, text, count=1) if isinstance(old, re.Pattern) \
-                    else text.replace(old, new, 1)
+                mutated = _mutate_workflow(old, new, text)
                 self.assertNotEqual(mutated, text, "the mutation did not apply")
-                self.assertNotEqual(ci_workflow_problems(load_workflow_yaml(mutated)), [])
+                self.assertNotEqual(validate_workflow_problems(load_workflow_yaml(mutated)), [])
 
     def test_a_shard_count_beyond_the_matrix_limit_is_refused(self):
         """Review O9: the `shards` dispatch input is otherwise unbounded, and a
@@ -5810,7 +5948,7 @@ class TestCiWorkflowStructure(unittest.TestCase):
 
 def run_needs_step(plan_result: str, package_result: str) -> subprocess.CompletedProcess:
     """The aggregate's `needs` step, verbatim, as GitHub runs a `run:` step."""
-    step = ci_workflow()["jobs"]["aggregate"]["steps"][0]
+    step = validate_workflow()["jobs"]["aggregate"]["steps"][0]
     env = dict(os.environ, PLAN_RESULT=plan_result, PACKAGE_RESULT=package_result)
     return subprocess.run(["bash", "--noprofile", "--norc", "-eo", "pipefail", "-c", step["run"]],
                           capture_output=True, text=True, env=env, timeout=60)
@@ -5819,7 +5957,7 @@ def run_needs_step(plan_result: str, package_result: str) -> subprocess.Complete
 class TestOneRequiredCheck(unittest.TestCase):
 
     def test_aggregate_needs_plan_shard_and_package_always(self):
-        jobs = ci_workflow()["jobs"]
+        jobs = validate_workflow()["jobs"]
         aggregate = jobs["aggregate"]
         self.assertEqual(aggregate["needs"], ["plan", "shard", CI_PACKAGE_JOB])
         self.assertEqual(aggregate["if"], "always()")
@@ -5843,7 +5981,7 @@ class TestOneRequiredCheck(unittest.TestCase):
                 self.assertIn(f"::error::{named}", proc.stdout)
 
     def test_the_package_job_is_the_releases_own_build_and_verify_path(self):
-        package = ci_workflow()["jobs"][CI_PACKAGE_JOB]
+        package = validate_workflow()["jobs"][CI_PACKAGE_JOB]
         self.assertIsInstance(package.get("timeout-minutes"), int)
         self.assertLess(package["timeout-minutes"], 360)
         self.assertNotIn("needs", package)
@@ -5875,6 +6013,42 @@ class TestOneRequiredCheck(unittest.TestCase):
         self.assertEqual(concurrency["group"], CI_CONCURRENCY_GROUP)
         self.assertEqual(concurrency["cancel-in-progress"],
                          "${{ github.event_name == 'pull_request' }}")
+        # The group is the entry point's alone: a called workflow with the
+        # caller's group would wait on its own caller.
+        self.assertNotIn("concurrency", validate_workflow())
+
+    def test_the_required_aggregate_is_the_entry_points_own_job(self):
+        """The ruleset requires the context `aggregate`: a job of ci.yml with
+        no `name:`. validate.yml's aggregate reports as `validate / aggregate`."""
+        jobs = ci_workflow()["jobs"]
+        self.assertNotIn("name", jobs["aggregate"])
+        self.assertNotIn("uses", jobs["aggregate"])
+        self.assertEqual(jobs["aggregate"]["needs"], ["validate"])
+        self.assertEqual(jobs["aggregate"]["if"], "always()")
+        self.assertEqual(jobs["validate"]["uses"], CI_VALIDATE_USES)
+        self.assertIn("aggregate", validate_workflow()["jobs"])
+
+    def test_the_required_aggregate_fails_unless_validate_succeeded(self):
+        """The entry point's aggregate step, verbatim, as GitHub runs a `run:` step."""
+        [step] = ci_workflow()["jobs"]["aggregate"]["steps"]
+        for result, code in (("success", 0), ("failure", 1), ("cancelled", 1),
+                             ("skipped", 1), ("", 1)):
+            with self.subTest(result=result):
+                proc = subprocess.run(
+                    ["bash", "--noprofile", "--norc", "-eo", "pipefail", "-c", step["run"]],
+                    capture_output=True, text=True, timeout=60,
+                    env=dict(os.environ, VALIDATE_RESULT=result))
+                self.assertEqual(proc.returncode, code, proc.stdout + proc.stderr)
+                if code:
+                    self.assertIn(f"::error::the validate workflow concluded {result}",
+                                  proc.stdout)
+
+    def test_publish_runs_only_on_a_push_to_main_after_aggregate(self):
+        publish = ci_workflow()["jobs"]["publish"]
+        self.assertEqual(publish["needs"], ["aggregate"])
+        self.assertEqual(publish["if"], CI_PUBLISH_IF)
+        self.assertEqual(publish["uses"], CI_PUBLISH_USES)
+        self.assertEqual(publish["permissions"], {"contents": "write", "actions": "read"})
 
 
 # -- T-CI-2: the plan and shard jobs agree on the tree ---------------------------------------
@@ -5882,7 +6056,7 @@ class TestOneRequiredCheck(unittest.TestCase):
 class TestCiTreeIdentity(_CliCase):
 
     def test_the_workflow_steps_run_end_to_end_with_one_tree_digest(self):
-        doc = ci_workflow()
+        doc = validate_workflow()
         scratch = scratch_checkout(self.tmp / "scratch")
         plan_job = scratch_clone(scratch)
         temp = self.tmp / "rt-plan"
@@ -5961,7 +6135,7 @@ def _record_files(root: Path) -> dict[tuple[str, ...], Path]:
 def _ci_shards(case, scratch_root, plan: Path, out: Path) -> None:
     """Every shard of `plan`, each into its artifact's directory under `out`
     (the aggregate job's download layout)."""
-    doc = ci_workflow()
+    doc = validate_workflow()
     for index in range(json.loads(plan.read_text())["n"]):
         proc = run_cli(scratch_root, "--run-shard", index, "--plan", plan,
                        "--results", out / ci_artifact_dir(doc, index), env=case.env)
@@ -5979,18 +6153,18 @@ class TestCiAggregateRefusals(_CliCase):
         self.assertEqual(honest.returncode, 0, honest.stdout + honest.stderr)
 
         held_back = self.tmp / "held-back"
-        shutil.move(str(out / ci_artifact_dir(ci_workflow(), 1)), str(held_back))
+        shutil.move(str(out / ci_artifact_dir(validate_workflow(), 1)), str(held_back))
         missing = run_cli(scratch, "--aggregate", out, "--plan", plan, env=self.env)
         assert_refusal(self, missing.returncode, missing.stderr, "IncompleteResultsError")
         self.assertIn("missing for [1]", missing.stderr)
-        shutil.move(str(held_back), str(out / ci_artifact_dir(ci_workflow(), 1)))
+        shutil.move(str(held_back), str(out / ci_artifact_dir(validate_workflow(), 1)))
 
         other = _plan_only(self, scratch, "--profile", "ci", "--shards", "1")
         foreign_out = self.tmp / "foreign"
         _ci_shards(self, scratch, other, foreign_out)
         mixed = self.tmp / "mixed"
-        shutil.copytree(out / ci_artifact_dir(ci_workflow(), 1), mixed / "results-shard-1")
-        shutil.copytree(foreign_out / ci_artifact_dir(ci_workflow(), 0), mixed / "results-shard-0")
+        shutil.copytree(out / ci_artifact_dir(validate_workflow(), 1), mixed / "results-shard-1")
+        shutil.copytree(foreign_out / ci_artifact_dir(validate_workflow(), 0), mixed / "results-shard-0")
         foreign = run_cli(scratch, "--aggregate", mixed, "--plan", plan, env=self.env)
         assert_refusal(self, foreign.returncode, foreign.stderr, "ForeignResultsError")
 
@@ -6036,7 +6210,11 @@ class TestManagedWorkflowUntouched(unittest.TestCase):
                              .read_text())["managed"]
         self.assertEqual(_sha256((REPO_ROOT / MANAGED_WORKFLOW).read_bytes()),
                          managed[MANAGED_WORKFLOW]["sha256"])
-        self.assertNotIn(str(CI_WORKFLOW.relative_to(REPO_ROOT)), managed)
+        for path in (CI_WORKFLOW, VALIDATE_WORKFLOW,
+                     REPO_ROOT / ".github" / "workflows" / "publish.yml"):
+            with self.subTest(workflow=path.name):
+                self.assertTrue(path.is_file())
+                self.assertNotIn(str(path.relative_to(REPO_ROOT)), managed)
 
     def test_workflow_manager_verify_reports_no_drift(self):
         proc = self_verify(REPO_ROOT, self)

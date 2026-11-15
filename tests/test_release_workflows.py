@@ -4,7 +4,10 @@ and `release.py assert-full-plan`'s permanent cases.
 
 Checkpoint CP5 of `workflow-manager-trunk-model`:
 
-- T-REL-1: `.github/workflows/release.yml` (`D-Release-Workflow`, plan 5.4);
+- T-REL-1: `.github/workflows/publish.yml` (`D-Release-Workflow`, plan 5.4),
+  the reusable release workflow ci.yml's `publish` job calls after its
+  `aggregate`, also dispatchable by hand (its guard and `dry-run`), and the
+  rule that only that job and its caller hold `contents: write`;
 - T-PRT-1: `.github/workflows/pr-title.yml` (`D-PR-Title-Check`, 5.5);
 - T-SET-1: `.github/repository/ruleset-main.json` and `merge-settings.json`
   (`D-Required-Check`, 6.3 and 6.5);
@@ -41,9 +44,12 @@ from workflow_manager import package as package_module
 from workflow_manager import source as release_source
 
 WORKFLOWS = REPO_ROOT / ".github" / "workflows"
-RELEASE_WORKFLOW = WORKFLOWS / "release.yml"
+RELEASE_WORKFLOW = WORKFLOWS / "publish.yml"
 TITLE_WORKFLOW = WORKFLOWS / "pr-title.yml"
-VERIFY_WORKFLOW = WORKFLOWS / "workflow-manager-verify.yml"
+#: The entry point that calls the verification and the release.
+CI_WORKFLOW = WORKFLOWS / "ci.yml"
+#: The reusable verification workflow (plan, shard, package, aggregate).
+VERIFY_WORKFLOW = WORKFLOWS / "validate.yml"
 SETTINGS = REPO_ROOT / ".github" / "repository"
 RELEASE_PY = REPO_ROOT / "tools" / "release" / "release.py"
 
@@ -87,38 +93,45 @@ def _uses(step: dict, action: str) -> bool:
 #: The verification workflow's release-cache key, without the nightly's suffix (#58).
 RELEASE_CACHE_KEY = ("workflow-releases-${{ hashFiles('src/workflow_manager/published_releases.json', "
                      "'tests/tested_releases.json') }}")
+#: The `dry-run` input both of publish.yml's triggers declare.
+DRY_RUN_INPUT = {"description": "Run every gate and the build, but create no tag or release",
+                 "required": False, "type": "boolean", "default": False}
+#: The release job's condition: main only (a call from ci.yml is a push to main).
+RELEASE_IF = "github.ref == 'refs/heads/main'"
+#: The dispatch guard's condition: only a dispatched run is unvalidated.
+DISPATCH_IF = "github.event_name == 'workflow_dispatch'"
+#: The steps a dry run gates; the publish step adds `&& !inputs.dry-run`.
+RELEASE_STEP_IF = "steps.version.outputs.version != '' && steps.superseded.outputs.superseded != 'true'"
 
 
-def release_workflow_problems(doc: dict, verify_name: str) -> list[str]:
+def release_workflow_problems(doc: dict) -> list[str]:
     """T-REL-1's structural checks over the parsed release workflow; `[]`
-    when it holds. `verify_name` is the verification workflow's own `name:`."""
+    when it holds."""
     problems = []
 
     def need(condition, message):
         if not condition:
             problems.append(message)
 
-    trigger = (doc.get("on") or {}).get("workflow_run") or {}
-    need(sorted(doc.get("on") or {}) == ["workflow_run"], "the release is not only workflow_run")
-    need(trigger.get("workflows") == [verify_name],
-         f"the trigger is {trigger.get('workflows')!r}, not [{verify_name!r}]")
-    need(trigger.get("types") == ["completed"], "the trigger is not `completed`")
-    need(trigger.get("branches") == ["main"], "the trigger is not limited to main")
+    triggers = doc.get("on") or {}
+    need(sorted(triggers) == ["workflow_call", "workflow_dispatch"],
+         f"the release's triggers are {sorted(triggers)}, not workflow_call and workflow_dispatch")
+    for name in ("workflow_call", "workflow_dispatch"):
+        inputs = (triggers.get(name) or {}).get("inputs") or {}
+        need(inputs == {"dry-run": DRY_RUN_INPUT},
+             f"{name}: the inputs are {inputs!r}, not a dry-run boolean defaulting false")
+    need("concurrency" not in doc, "the concurrency group is on the workflow, not the job")
     need(doc.get("permissions") == {"contents": "read"},
          "the workflow's own permissions are not contents: read")
 
     jobs = doc.get("jobs") or {}
     need(sorted(jobs) == ["release"], f"jobs are {sorted(jobs)}, not [release]")
     job = jobs.get("release") or {}
-    condition = job.get("if") or ""
-    need("github.event.workflow_run.event == 'push'" in condition,
-         "the job does not require a push run")
-    need("github.event.workflow_run.conclusion == 'success'" in condition,
-         "the job does not require a successful run")
+    need(job.get("if") == RELEASE_IF, f"the job's if is {job.get('if')!r}, not main only")
     need(job.get("concurrency") == {"group": "workflow-manager-release",
                                     "cancel-in-progress": False},
          f"the job's concurrency is {job.get('concurrency')!r}, not a serialized release group")
-    need("concurrency" not in doc, "the concurrency group is on the workflow, not the job")
+    need(job.get("timeout-minutes") == 60, "the release job's timeout is not 60 minutes")
     need(job.get("permissions") == {"contents": "write", "actions": "read"},
          f"the job's permissions are {job.get('permissions')!r}")
     for name, other in jobs.items():
@@ -148,8 +161,45 @@ def release_workflow_problems(doc: dict, verify_name: str) -> list[str]:
         cache = _step_index(steps, lambda s: _uses(s, "actions/cache"),
                             "restore the release cache")
         publish = _step_index(steps, lambda s: _runs(s, "gh release create"), "publish")
+        guard = _step_index(steps, lambda s: s.get("if") == DISPATCH_IF, "guard a dispatch")
+        dry = _step_index(steps, lambda s: "inputs.dry-run" in (s.get("if") or "")
+                          and "!inputs.dry-run" not in (s.get("if") or ""), "note a dry run")
     except AssertionError as exc:
         return problems + [str(exc)]
+
+    # The trigger is this run: the CI run that called it (a `main` push whose
+    # `aggregate` succeeded), or the dispatch. Only the call is validated.
+    env = steps[resolve].get("env") or {}
+    need(env.get("TRIGGER_SHA") == "${{ github.sha }}", "the trigger commit is not github.sha")
+    need(env.get("TRIGGER_RUN") == "${{ github.run_id }}", "the trigger run is not this run")
+    need(env.get("EVENT") == "${{ github.event_name }}", "the resolve step does not see the event")
+    need("--trigger-validated" in steps[resolve]["run"]
+         and '[ "$EVENT" != workflow_dispatch ]' in steps[resolve]["run"],
+         "the call's trigger is not passed as validated, or a dispatch's is")
+    need(not any("workflow_run" in json.dumps(step) for step in steps),
+         "a step still reads the workflow_run payload")
+    # A dispatch whose target fell back to its own run found no green CI push
+    # run for the commit: it never publishes that.
+    guard_env = steps[guard].get("env") or {}
+    need(resolve < guard and (not target_checkout or guard < target_checkout[0]),
+         "the dispatch guard does not follow resolve-target before the target checkout")
+    need(guard_env == {"TARGET_RUN": "${{ steps.target.outputs.target_run }}",
+                       "THIS_RUN": "${{ github.run_id }}"},
+         "the dispatch guard does not compare the target run with this run")
+    need('[ "$TARGET_RUN" = "$THIS_RUN" ]' in (steps[guard].get("run") or "")
+         and "::error::" in (steps[guard].get("run") or "")
+         and "exit 1" in (steps[guard].get("run") or ""),
+         "the dispatch guard does not fail on its own run")
+    # A dry run runs every gate and the build, and skips only the publication.
+    for index in (resolve, guard, full_plan, version, superseded, package):
+        need("dry-run" not in json.dumps(steps[index]), f"step {index} depends on the dry run")
+    need(steps[publish].get("if") == f"{RELEASE_STEP_IF} && !inputs.dry-run",
+         "the publication is not skipped on a dry run")
+    need(steps[dry].get("if") == f"{RELEASE_STEP_IF} && inputs.dry-run"
+         and "::notice::" in (steps[dry].get("run") or "")
+         and "gh " not in (steps[dry].get("run") or ""),
+         "a dry run does not log a notice instead of publishing")
+    need(package < dry < publish, "the dry-run notice is not between the build and the publication")
 
     need(checkouts and checkouts[0] < resolve, "no checkout of main before resolve-target")
     need(checkouts and (steps[checkouts[0]].get("with") or {}).get("fetch-depth") == 0,
@@ -202,7 +252,7 @@ def release_workflow_problems(doc: dict, verify_name: str) -> list[str]:
          "the release is not created at the resolved target")
     need((steps[publish].get("env") or {}).get("TARGET_SHA")
          == "${{ steps.target.outputs.target_sha }}", "TARGET_SHA is not the resolved target")
-    for index in (package, publish):
+    for index in (package, dry, publish):
         need("steps.superseded.outputs.superseded != 'true'" in (steps[index].get("if") or "")
              and "steps.version.outputs.version != ''" in (steps[index].get("if") or ""),
              f"step {index} runs with nothing to release or when superseded")
@@ -210,28 +260,76 @@ def release_workflow_problems(doc: dict, verify_name: str) -> list[str]:
     return problems
 
 
+def _all_workflows() -> dict[str, dict]:
+    return {path.name: _workflow(path) for path in sorted(WORKFLOWS.glob("*.yml"))}
+
+
+def contents_write_grants(docs: dict[str, dict]) -> set[tuple[str, str]]:
+    """`(workflow file, job id)` for every job of `docs` (file name to parsed
+    workflow) that can write contents, with `"*"` for a workflow-level grant.
+    `write-all` counts as a grant."""
+    def writes(permissions) -> bool:
+        if isinstance(permissions, str):
+            return permissions == "write-all"
+        return (permissions or {}).get("contents") == "write"
+
+    found = set()
+    for name, doc in docs.items():
+        if writes(doc.get("permissions")):
+            found.add((name, "*"))
+        for job_id, job in (doc.get("jobs") or {}).items():
+            if writes(job.get("permissions")):
+                found.add((name, job_id))
+    return found
+
+
+#: The release job, and ci.yml's job that calls it (a called workflow cannot
+#: exceed its caller job's permissions). Nothing else writes.
+CONTENTS_WRITERS = {("publish.yml", "release"), ("ci.yml", "publish")}
+
+
 class TestReleaseWorkflow(unittest.TestCase):
 
-    def setUp(self):
-        self.verify_name = _workflow(VERIFY_WORKFLOW)["name"]
-
     def test_the_release_workflow_holds_every_structural_rule(self):
-        self.assertEqual(self.verify_name, "Workflow manager verification")
-        self.assertEqual(release_workflow_problems(_workflow(RELEASE_WORKFLOW), self.verify_name),
-                         [])
+        doc = _workflow(RELEASE_WORKFLOW)
+        self.assertEqual(doc["name"], "Publish")
+        self.assertEqual(release_workflow_problems(doc), [])
+
+    def test_only_the_release_job_and_its_caller_write_contents(self):
+        self.assertEqual(contents_write_grants(_all_workflows()), CONTENTS_WRITERS)
+        publish = _workflow(CI_WORKFLOW)["jobs"]["publish"]
+        self.assertEqual(publish["uses"], "./.github/workflows/publish.yml")
+        self.assertEqual(publish["permissions"], {"contents": "write", "actions": "read"})
+        self.assertEqual(_workflow(VERIFY_WORKFLOW)["permissions"], {"contents": "read"})
 
     def test_each_mutation_is_caught(self):
         text = RELEASE_WORKFLOW.read_text(encoding="utf-8")
         mutants = {
             "the trigger's own run": ("run-id: ${{ steps.target.outputs.target_run }}",
-                                      "run-id: ${{ github.event.workflow_run.id }}"),
-            "a pull-request run": ("github.event.workflow_run.event == 'push'",
-                                   "github.event.workflow_run.event != ''"),
-            "a red run": ("github.event.workflow_run.conclusion == 'success'",
-                          "github.event.workflow_run.conclusion != ''"),
-            "another workflow": ('workflows: ["Workflow manager verification"]',
-                                 'workflows: ["Workflow manager verify"]'),
-            "any branch": ("    branches: [main]\n", ""),
+                                      "run-id: ${{ github.run_id }}"),
+            "any branch": ("    if: github.ref == 'refs/heads/main'\n", ""),
+            "another branch": ("refs/heads/main'\n", "refs/heads/release'\n"),
+            "the old workflow_run trigger": ("  workflow_call:\n", "  workflow_run:\n"),
+            "no manual run": ("  workflow_dispatch:\n", "  repository_dispatch:\n"),
+            "a dry run by default": ("        default: false\n", "        default: true\n"),
+            "an unvalidated call": ("validated=--trigger-validated", "validated="),
+            "a validated dispatch": ('[ "$EVENT" != workflow_dispatch ]', '[ -n "$EVENT" ]'),
+            "the workflow_run payload": ("TRIGGER_SHA: ${{ github.sha }}",
+                                         "TRIGGER_SHA: ${{ github.event.workflow_run.head_sha }}"),
+            "another trigger run": ("TRIGGER_RUN: ${{ github.run_id }}",
+                                    "TRIGGER_RUN: ${{ github.run_number }}"),
+            "no dispatch guard": ("        if: github.event_name == 'workflow_dispatch'\n",
+                                  "        if: false\n"),
+            "a guard that passes its own run": ('[ "$TARGET_RUN" = "$THIS_RUN" ]',
+                                                '[ "$TARGET_RUN" = "" ]'),
+            "a dry run that publishes": ("&& !inputs.dry-run\n", "\n"),
+            "a dry run that skips the build": (
+                "      - name: Build and verify the package\n"
+                "        if: steps.version.outputs.version != '' && "
+                "steps.superseded.outputs.superseded != 'true'\n",
+                "      - name: Build and verify the package\n"
+                "        if: steps.version.outputs.version != '' && "
+                "steps.superseded.outputs.superseded != 'true' && !inputs.dry-run\n"),
             "a cancelled release": ("cancel-in-progress: false", "cancel-in-progress: true"),
             "contents: write for the workflow": ("permissions:\n  contents: read",
                                                  "permissions:\n  contents: write"),
@@ -240,9 +338,10 @@ class TestReleaseWorkflow(unittest.TestCase):
             "the trigger's own commit": ('--target "$TARGET_SHA"', '--target "$GITHUB_SHA"'),
             "exit 3 fails the release": ('"$status" -eq 3', '"$status" -eq 4'),
             "no superseded guard": ("        if: steps.version.outputs.version != '' && "
-                                    "steps.superseded.outputs.superseded != 'true'\n        env:\n"
-                                    "          GH_TOKEN",
-                                    "        env:\n          GH_TOKEN"),
+                                    "steps.superseded.outputs.superseded != 'true' && "
+                                    "!inputs.dry-run\n        env:\n          GH_TOKEN",
+                                    "        if: ${{ !inputs.dry-run }}\n        env:\n"
+                                    "          GH_TOKEN"),
             "python 3.11": ('python-version: "3.12"', 'python-version: "3.11"'),
             "no release cache": ("          WORKFLOW_MANAGER_RELEASE_CACHE: "
                                  "${{ runner.temp }}/workflow-manager-releases\n", ""),
@@ -265,7 +364,21 @@ class TestReleaseWorkflow(unittest.TestCase):
                 mutated = text.replace(old, new, 1)
                 self.assertNotEqual(mutated, text, "the mutation did not apply")
                 self.assertNotEqual(release_workflow_problems(
-                    runner_tests.load_workflow_yaml(mutated), self.verify_name), [])
+                    runner_tests.load_workflow_yaml(mutated)), [])
+
+    def test_a_write_grant_anywhere_else_is_caught(self):
+        for path, old, new in (
+                (VERIFY_WORKFLOW, "permissions:\n  contents: read", "permissions:\n  contents: write"),
+                (CI_WORKFLOW, "  aggregate:\n    needs: [validate]\n",
+                 "  aggregate:\n    needs: [validate]\n    permissions:\n      contents: write\n"),
+                (CI_WORKFLOW, "permissions:\n  contents: read", "permissions: write-all")):
+            with self.subTest(workflow=path.name, mutation=new):
+                text = path.read_text(encoding="utf-8")
+                mutated = text.replace(old, new, 1)
+                self.assertNotEqual(mutated, text)
+                docs = _all_workflows()
+                docs[path.name] = runner_tests.load_workflow_yaml(mutated)
+                self.assertNotEqual(contents_write_grants(docs), CONTENTS_WRITERS)
 
     def test_the_cache_restored_after_assert_full_plan_is_caught(self):
         """#58: the inventory reads a lock-only release's counts from the cache."""
@@ -274,7 +387,7 @@ class TestReleaseWorkflow(unittest.TestCase):
         cache = _step_index(steps, lambda s: _uses(s, "actions/cache"), "restore the cache")
         steps.insert(cache + 1, steps.pop(cache))
         self.assertIn("the release cache is not restored before assert-full-plan",
-                      release_workflow_problems(doc, self.verify_name))
+                      release_workflow_problems(doc))
 
     def test_the_cache_key_is_the_verification_workflows(self):
         """The release restores what a green `main` run of the verification
@@ -322,13 +435,75 @@ class TestReleaseWorkflow(unittest.TestCase):
         resolve = next(s for s in steps if _runs(s, "resolve-target"))
         self.assertEqual(resolve["id"], "target")
         self.assertIn('>> "$GITHUB_OUTPUT"', resolve["run"])
-        self.assertEqual(resolve["env"]["TRIGGER_SHA"], "${{ github.event.workflow_run.head_sha }}")
-        self.assertEqual(resolve["env"]["TRIGGER_RUN"], "${{ github.event.workflow_run.id }}")
+        self.assertEqual(resolve["env"]["TRIGGER_SHA"], "${{ github.sha }}")
+        self.assertEqual(resolve["env"]["TRIGGER_RUN"], "${{ github.run_id }}")
         with unittest.mock.patch.object(release, "resolve_target",
                                         return_value=("a" * 40, 12)):
             out = _capture(release.main, ["resolve-target", "--repo", "o/r", "--trigger-sha",
                                           "a" * 40, "--trigger-run", "12"])
         self.assertEqual(out, (0, f"target_sha={'a' * 40}\ntarget_run=12\n"))
+
+
+def _run_step(step: dict, env: dict, path: str | None = None) -> subprocess.CompletedProcess:
+    """A step's `run:` script, verbatim, as GitHub runs it (`bash -e` with
+    pipefail), with only `env` (and `PATH`) set."""
+    return subprocess.run(["bash", "--noprofile", "--norc", "-eo", "pipefail", "-c", step["run"]],
+                          capture_output=True, text=True, timeout=60, cwd=str(REPO_ROOT),
+                          env={"PATH": path or os.environ.get("PATH", ""), **env})
+
+
+class TestCalledAndDispatchedModes(unittest.TestCase):
+    """The resolve step passes `--trigger-validated` in called mode only, and
+    the dispatch guard refuses a dispatched release that found no green CI
+    push run (its target fell back to its own run); both scripts run verbatim."""
+
+    def setUp(self):
+        self.steps = _workflow(RELEASE_WORKFLOW)["jobs"]["release"]["steps"]
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.tmp = Path(tmp.name)
+
+    def test_only_a_call_passes_the_trigger_as_validated(self):
+        """A stub `python3` records the argv the step gives resolve-target."""
+        resolve = next(s for s in self.steps if _runs(s, "resolve-target"))
+        bin_dir = self.tmp / "bin"
+        bin_dir.mkdir()
+        stub = bin_dir / "python3"
+        stub.write_text('#!/bin/sh\nprintf \'%s\\n\' "$@" > "$ARGV_OUT"\n'
+                        'echo target_sha=x\necho target_run=1\n')
+        stub.chmod(0o755)
+        for event, validated in (("push", True), ("schedule", True),
+                                 ("workflow_dispatch", False)):
+            with self.subTest(event=event):
+                argv_out = self.tmp / f"argv-{event}"
+                output = self.tmp / f"output-{event}"
+                proc = _run_step(resolve, {
+                    "EVENT": event, "REPO": "o/r", "TRIGGER_SHA": "a" * 40, "TRIGGER_RUN": "7",
+                    "GITHUB_OUTPUT": str(output), "ARGV_OUT": str(argv_out)},
+                    path=f"{bin_dir}{os.pathsep}/usr/bin{os.pathsep}/bin")
+                self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+                argv = argv_out.read_text().split()
+                self.assertEqual(argv[:2], ["tools/release/release.py", "resolve-target"])
+                self.assertEqual(argv[2:8], ["--repo", "o/r", "--trigger-sha", "a" * 40,
+                                             "--trigger-run", "7"])
+                self.assertEqual("--trigger-validated" in argv, validated)
+                self.assertEqual(len(argv), 9 if validated else 8)
+                self.assertEqual(output.read_text(), "target_sha=x\ntarget_run=1\n")
+
+    def test_the_dispatch_guard_refuses_its_own_run(self):
+        guard = next(s for s in self.steps if s.get("if") == DISPATCH_IF)
+        for target, code in (("41", 0), ("42", 1), ("", 1)):
+            with self.subTest(target_run=target):
+                proc = _run_step(guard, {"TARGET_RUN": target, "THIS_RUN": "42"})
+                self.assertEqual(proc.returncode, code, proc.stdout + proc.stderr)
+                self.assertEqual("::error::no green ci.yml push run" in proc.stdout, bool(code))
+
+    def test_a_dry_run_notes_and_does_not_publish(self):
+        dry = next(s for s in self.steps if s.get("if") == f"{RELEASE_STEP_IF} && inputs.dry-run")
+        proc = _run_step(dry, {"VERSION": "1.2.3", "TARGET_SHA": "a" * 40})
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertTrue(proc.stdout.startswith("::notice::dry run:"), proc.stdout)
+        self.assertIn(f"v1.2.3 at {'a' * 40}", proc.stdout)
 
 
 def _capture(main, argv) -> tuple[int, str]:
@@ -542,16 +717,31 @@ class TestTitleWorkflow(unittest.TestCase):
 
 # -- T-SET-1: repository settings as reviewed data ------------------------------------------
 
+def _job_check_names(doc: dict) -> set[str]:
+    """The status-check contexts `doc`'s jobs report: a job's `name`, else its
+    id; a job that calls a local reusable workflow (`uses: ./...`) reports
+    none of its own, only `<its name or id> / <each called job's context>`."""
+    names = set()
+    for job_id, job in (doc.get("jobs") or {}).items():
+        own = job.get("name") or job_id
+        uses = job.get("uses") or ""
+        if uses.startswith("./"):
+            names.update(f"{own} / {called}"
+                         for called in _job_check_names(_workflow(REPO_ROOT / uses)))
+        else:
+            names.add(own)
+    return names
+
+
 def _pull_request_check_names() -> set[str]:
     """The status-check context of every job in a workflow triggered on
-    `pull_request`: the job's `name`, else its id."""
+    `pull_request`, called workflows' jobs included."""
     names = set()
     for path in sorted(WORKFLOWS.glob("*.yml")):
         doc = _workflow(path)
         if "pull_request" not in (doc.get("on") or {}):
             continue
-        for job_id, job in (doc.get("jobs") or {}).items():
-            names.add(job.get("name") or job_id)
+        names |= _job_check_names(doc)
     return names
 
 
@@ -569,6 +759,20 @@ class TestRepositorySettings(unittest.TestCase):
         missing = REQUIRED_CHECKS - _pull_request_check_names()
         self.assertEqual(missing, set(), "a required check no pull_request job reports would "
                                          "lock every pull request out")
+
+    def test_the_required_aggregate_is_the_entry_points_own_job(self):
+        """ci.yml's `aggregate`, with no `name:`, reports exactly `aggregate`;
+        the validation's own aggregate reports as `validate / aggregate`, and a
+        called job never reports its bare id."""
+        names = _pull_request_check_names()
+        self.assertIn("aggregate", names)
+        self.assertIn("validate / aggregate", names)
+        self.assertIn("validate / package", names)
+        self.assertNotIn("validate", names)
+        self.assertNotIn("publish / release", _job_check_names(_workflow(VERIFY_WORKFLOW)))
+        jobs = _workflow(CI_WORKFLOW)["jobs"]
+        self.assertNotIn("name", jobs["aggregate"])
+        self.assertNotIn("uses", jobs["aggregate"])
 
     def test_a_typo_in_a_required_check_is_caught(self):
         names = _pull_request_check_names()
