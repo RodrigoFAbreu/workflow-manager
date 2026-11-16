@@ -876,6 +876,15 @@ _JSON_REFUSED_OPTIONS = (("release_version", "--release-version"),
                          ("manager_root", "--manager-root"))
 
 
+def _refuse_release_resolution(args, error) -> int:
+    """Print the release-resolution refusal and its next step; exit 2."""
+    print(f"error: could not resolve the target release: {error}", file=sys.stderr)
+    step = advice.next_step(error, _context(args))
+    if step is not None:
+        print(f"next: {step}", file=sys.stderr)
+    return 2
+
+
 def _doctor_json(args) -> int:
     """`doctor --retention --json`: exactly the retention alert as one JSON
     document, exit 0 whenever it is printed. The release options choose a target
@@ -893,11 +902,7 @@ def _doctor_json(args) -> int:
         _refuse_unparseable_record(installed)
         destinations = plan_destinations(args, os.environ, args.target, [installed])
     except RELEASE_ERRORS as error:
-        print(f"error: could not resolve the target release: {error}", file=sys.stderr)
-        step = advice.next_step(error, _context(args))
-        if step is not None:
-            print(f"next: {step}", file=sys.stderr)
-        return 2
+        return _refuse_release_resolution(args, error)
     print(retention_alert_json.render(retention_alert_json.document(
         args.target, installed, lambda: _installed_script_state(args, installed, destinations))),
         end="")
@@ -922,11 +927,7 @@ def cmd_doctor(args) -> int:
             destinations = _readonly_destinations(args, installed)
             release = _resolve_compatible(args, args.release_version, destinations)
     except RELEASE_ERRORS as error:
-        print(f"error: could not resolve the target release: {error}", file=sys.stderr)
-        step = advice.next_step(error, _context(args))
-        if step is not None:
-            print(f"next: {step}", file=sys.stderr)
-        return 2
+        return _refuse_release_resolution(args, error)
     with release:
         plan, refusal = _plan_or_refusal(args, release)
         installed_resolved = _installed_resolves(args, installed, destinations)

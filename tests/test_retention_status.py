@@ -528,6 +528,48 @@ class TestIncomplete(Scratch):
         step = self.one_note(got, "the forge could not be queried (gh_missing, 2 items)")
         self.assertEqual(step, retention.STEP_FORGE)
 
+    def every_query_failed(self, *extra, complete):
+        rep = report()
+        rep["kept_recent"] = []
+        rep["complete"] = complete
+        if not complete:
+            rep["read_errors"] = [{"path": "/p/0", "error": "denied"}]
+        rep["not_finished"] = list(extra) + [
+            {"work_item_id": f"f{n}", "phase": "MILESTONE_COMPLETE", "reason": f"query_failed:{code}"}
+            for n, code in enumerate(("gh_missing", "forge_timeout"))]
+        return rep
+
+    def test_an_incomplete_report_whose_queries_all_failed_is_the_report(self):
+        for command in ("status", "doctor"):
+            with self.subTest(command=command):
+                out = self.section(command, self.every_query_failed(complete=False)).stdout
+                self.assertIn("retention: INCOMPLETE", out)
+                self.assertIn("/p/0 (denied)", out)
+                self.assertIn("f0 (gh_missing)", out)
+                self.assertIn("f1 (forge_timeout)", out)
+                self.assertNotIn("the forge could not be queried", out)
+
+    def test_an_incomplete_mixed_report_lists_no_open_phase_entry(self):
+        open_phase = {"work_item_id": "open-one", "phase": "IMPLEMENTING", "reason": "open_phase"}
+        out = self.section("status", self.every_query_failed(open_phase, complete=False)).stdout
+        self.assertIn("retention: INCOMPLETE", out)
+        self.assertIn("f0 (gh_missing)", out)
+        self.assertNotIn("open-one", out)
+
+    def test_the_complete_counterparts_keep_the_forge_note(self):
+        open_phase = {"work_item_id": "open-one", "phase": "IMPLEMENTING", "reason": "open_phase"}
+        for extra in ((), (open_phase,)):
+            with self.subTest(extra=len(extra)):
+                got = self.section("status", self.every_query_failed(*extra, complete=True))
+                self.one_note(got, "the forge could not be queried (gh_missing, 2 items)")
+        rep = report()
+        rep["kept_recent"] = []
+        rep["not_finished"] = [{"work_item_id": "r", "phase": "MILESTONE_COMPLETE",
+                                "reason": "query_failed:rate_limited"}]
+        got = self.section("status", rep)
+        self.assertEqual(self.one_note(got, "the forge could not be queried (rate_limited, 1 items)"),
+                         retention.STEP_RATE_LIMITED)
+
     def test_no_item_queried_is_a_complete_report_with_nothing_finished(self):
         rep = report()
         rep["kept_recent"] = []
@@ -1202,7 +1244,7 @@ class TestDocs(unittest.TestCase):
             return outcome.refusal
 
         failed = {"not_finished": [{"work_item_id": "w", "reason": "query_failed:VAR"}],
-                  "finished": [], "kept_recent": []}
+                  "finished": [], "kept_recent": [], "complete": True}
         return [
             (retention.not_managed_note(target), []),
             (retention.no_script_note(target), []),
@@ -1297,7 +1339,7 @@ class TestDocs(unittest.TestCase):
                                      ("gh_missing", "any other code", "every CODE `rate_limited`")):
             note = retention._query_failed_note(
                 {"not_finished": [{"work_item_id": "w", "reason": f"query_failed:{code}"}],
-                 "finished": [], "kept_recent": []})
+                 "finished": [], "kept_recent": [], "complete": True})
             head = "the forge could not be queried (CODE, N items), "
             own = [r for r in rows if r[0] == head + wording]
             self.assertEqual(len(own), 1, code)
