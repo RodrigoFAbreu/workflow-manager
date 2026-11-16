@@ -495,9 +495,10 @@ the tested releases, one selection) in
   refuses with the path and the numbers (`TmpSpaceError`, exit `2`); a runner
   started inside a unit of an enclosing run does not repeat the check.
   `--results` moves the run directory only: frozen discovery still creates its
-  release snapshot (`support.release()`) under the ambient `TMPDIR`, a
-  filesystem the check does not then measure. After
-  priming, a run needs no network, and no test fetches a release at test time: a
+  release snapshot (`support.release()`) under the effective `TMPDIR`, a
+  filesystem the check does not cover when `--results` is on another
+  filesystem. After
+  priming, a run needs no network, and no test fetches a release from a remote host: a
   test that runs the CLI against a release the cache does not hold gives it a
   `--release-source` mirror or a `--release-dir`. `support.cli_env()` carries
   the cache (and `WORKFLOW_MANAGER_RELEASE_SOURCE`, when set) into every from-scratch
