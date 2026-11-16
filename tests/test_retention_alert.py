@@ -51,6 +51,12 @@ def entries(count, folder=True):
     return [rs.finished(f"item-{i}", folder=folder) for i in range(count)]
 
 
+def queries_failed():
+    """Two finished-looking candidates whose forge query failed, nothing else."""
+    return [{"work_item_id": f"f{n}", "phase": "MILESTONE_COMPLETE", "reason": f"query_failed:{code}"}
+            for n, code in enumerate(("gh_missing", "forge_timeout"))]
+
+
 def sized(rep, **totals):
     rep["totals"].update(totals)
     return rep
@@ -653,6 +659,22 @@ class TestUnavailable(Base):
         block = self.one_line(got.out)
         self.assertIn(ra.CAUSE_INCOMPLETE, block[0])
         self.assertEqual(block[1], f"  next: {retention.STEP_INCOMPLETE}")
+
+    def test_an_incomplete_report_whose_queries_all_failed_is_not_evaluated(self):
+        reports = {
+            "complete false": rs.report(complete=False, not_finished=queries_failed()),
+            "only the queries failed": rs.report(complete=True, read_errors=[],
+                                                 not_finished=queries_failed()),
+        }
+        for name, rep in reports.items():
+            for command in ("verify", "doctor"):
+                with self.subTest(report=name, command=command):
+                    expected = self.baseline_code(command, rep=rep)
+                    got = self.call(command, rep)
+                    block = self.one_line(got.out)
+                    self.assertIn(ra.CAUSE_INCOMPLETE, block[0])
+                    self.assertEqual(block[1], f"  next: {retention.STEP_INCOMPLETE}")
+                    self.assertEqual(got.code, expected)
 
     def test_an_evaluation_that_raises_prints_the_class_and_keeps_the_exit_code(self):
         expected = self.baseline_code("doctor", rep=REACHED_TWO())

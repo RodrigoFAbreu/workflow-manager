@@ -145,6 +145,21 @@ class TestGoldens(Base):
         self.assertEqual((doc["evaluation"], doc["report_complete"]), ("not_evaluated", False))
         self.assertTrue(all(a["state"] == "unknown" for a in doc["alerts"]))
 
+    def test_J4_an_incomplete_report_whose_queries_all_failed_is_not_evaluated(self):
+        self.adopt({"schema_version": 1, "mode": "notify",
+                    "thresholds": {"finished_items": 5, "archives": 3}})
+        failed = tra.queries_failed()
+        doc = self.golden("J4-queries-failed",
+                          self.run_json(rs.report(complete=False, not_finished=failed)))
+        self.assertEqual((doc["evaluation"], doc["report_complete"]), ("not_evaluated", False))
+        self.assertEqual(doc["not_evaluated"]["cause"], ra.CAUSE_INCOMPLETE)
+        self.assertTrue(all(a["state"] == "unknown" for a in doc["alerts"]))
+        # the shape the engine produces when only the forge queries fail
+        doc = self.doc(self.run_json(rs.report(complete=True, read_errors=[], not_finished=failed)))
+        self.assertEqual((doc["evaluation"], doc["report_complete"]), ("not_evaluated", False))
+        self.assertEqual(doc["not_evaluated"]["cause"], ra.CAUSE_INCOMPLETE)
+        self.assertTrue(all(a["state"] == "unknown" for a in doc["alerts"]))
+
     def test_J5_not_applicable_never_starts_the_script(self):
         cases = {"absent": lambda: self.drop_policy(),
                  "off": lambda: self.adopt(dict(ALL_FIVE, mode="off")),
@@ -849,6 +864,60 @@ GOLDENS = {
     "with_review_folder": 1,
     "archived_and_removed": [],
     "finished_folder_bytes": 2048,
+    "archive_store": 0,
+    "prunable_archives": 0,
+    "interrupted_removals": []
+  }
+}
+""",    "J4-queries-failed": """\
+{
+  "kind": "retention_alert",
+  "schema_version": 1,
+  "repo": "<REPO>",
+  "policy": {
+    "state": "adopted",
+    "mode": "notify",
+    "digest": "5a880862f2ee85bacbc3f59ef726679b18e3d202f7552982ca7bf5f8078c6340"
+  },
+  "evaluation": "not_evaluated",
+  "not_evaluated": {
+    "cause": "the retention report is incomplete (the numbers are lower bounds)",
+    "next": "fix what is named, then run the command again"
+  },
+  "report_complete": false,
+  "alerts": [
+    {
+      "rule": "finished_items",
+      "threshold": 5,
+      "threshold_unit": "items",
+      "current_value": 0,
+      "value_unit": "items",
+      "lower_bound": true,
+      "unknown_age": null,
+      "reached": false,
+      "state": "unknown",
+      "alert_key": "retention:<REPO>:finished_items:unknown",
+      "next": null
+    },
+    {
+      "rule": "archives",
+      "threshold": 3,
+      "threshold_unit": "archives",
+      "current_value": 0,
+      "value_unit": "archives",
+      "lower_bound": true,
+      "unknown_age": null,
+      "reached": false,
+      "state": "unknown",
+      "alert_key": "retention:<REPO>:archives:unknown",
+      "next": null
+    }
+  ],
+  "snapshot": {
+    "finished": 0,
+    "with_review_folder": 0,
+    "archived_and_removed": [],
+    "finished_folder_bytes": 0,
     "archive_store": 0,
     "prunable_archives": 0,
     "interrupted_removals": []
