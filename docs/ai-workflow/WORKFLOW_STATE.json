@@ -38982,7 +38982,7 @@
       "registry_path": "docs/ai-workflow/registry/retention-pins-and-wording-2-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/retention-pins-and-wording-2-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "AWAITING_FUNCTIONAL_REVIEW",
       "plan_revision": 4,
       "implementation_revision": 1,
       "functional_review_round": null,
@@ -39091,7 +39091,150 @@
           "workflow_release": "2.29.6"
         }
       },
-      "technical_approval": null,
+      "technical_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "22b04a02e47c864f728117dbc4e8bb72bfb8aa2ce74c86ca2a9dcbd4aebe570e",
+        "approved_review_content_id": "7275da107ac8e5bf9fa54126be519171c412930c078ea52874b9497ffdd96200",
+        "review_content_manifest": [
+          {
+            "path": "docs/README.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "959436deb7b6f5a659270abe9b35230a71c05b5a"
+          },
+          {
+            "path": "docs/ai-workflow/registry/retention-pins-and-wording-2-artifacts.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "766361b4d7eafe73d2d683d6736b4336aaafa54c"
+          },
+          {
+            "path": "docs/exit-codes.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "aa31df970f64840860be38853ef183f981ea2f04"
+          },
+          {
+            "path": "docs/retention.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "fd3df2de7bb41ccf17909069338c1609781d37f8"
+          },
+          {
+            "path": "docs/update.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "dbcf8b83aa649de6611a78d8dd01852700598b51"
+          },
+          {
+            "path": "docs/verify.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "39a00aa4cd3e7c18205a47012dabf30fdb6f6503"
+          },
+          {
+            "path": "src/workflow_manager/cli.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "d002a0c607640abc6b2054c992e534986452018a"
+          },
+          {
+            "path": "src/workflow_manager/retention.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "594dbd47a5d386d470818a81e8e6acea57b030f3"
+          },
+          {
+            "path": "tests/test_retention_alert.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "840b03d4e067c886e0acb5b411dbbdbaf25a75a5"
+          },
+          {
+            "path": "tests/test_retention_alert_json.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "13c0c1ff1a954eee9ea4bae48b80a197a097deba"
+          },
+          {
+            "path": "tests/test_retention_cleanup.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "ecc561b27adf45cf151f88388f441eae3078d3cd"
+          },
+          {
+            "path": "tests/test_retention_status.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "0d703380a34ed63aef093a7e2ff62f105c32129e"
+          }
+        ],
+        "reviewed_content_commit": "904807103a1b9e473fe764eace3747f0a09b1e49",
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-11-16T09:13:57Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "7275da107ac8e5bf9fa54126be519171c412930c078ea52874b9497ffdd96200",
+            "ledger": {
+              "local": {
+                "bundle_id": "22b04a02e47c864f728117dbc4e8bb72bfb8aa2ce74c86ca2a9dcbd4aebe570e",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "66b7c00742f3025561f12eec5193570a744d412e46235c39ff1fe89d0df06996",
+                "ledger_entry_sha256": "3285484618a7ee09ccc182191bc0b115c7e4bc3556951fce35ff47bfa664910b",
+                "run_ref": "session:local .ai-review/retention-pins-and-wording-2/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "22b04a02e47c864f728117dbc4e8bb72bfb8aa2ce74c86ca2a9dcbd4aebe570e",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "caecbc4d321e58d42f8fc42aaea026c751ba0e347a68bbce82d677307a5df782",
+                "ledger_entry_sha256": "009a948471bd888e6e7d63d674d5099ec7259e4daae07c940a3b042203a02356",
+                "run_ref": "codex:20261116T090830Z-e24b6717",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-11-16T09:13:57Z",
+          "workflow_release": "2.29.6"
+        }
+      },
       "technical_review_block_pins": [],
       "plan_review_stages": {
         "review_content_id": "fc09d4e0d20955692d31c7701b7e16f20e4f6ba86924ef0a2e592372e00033b5",
@@ -39122,12 +39265,12 @@
           "external": 2
         },
         "implementation": {
-          "local": 0,
-          "external": 0
+          "local": 1,
+          "external": 1
         }
       },
-      "state_revision": 21,
-      "last_transition": "2026-11-16T09:01:56Z",
+      "state_revision": 24,
+      "last_transition": "2026-11-16T09:13:57Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -39264,6 +39407,69 @@
               "at": "2026-11-16T08:09:40Z"
             }
           ]
+        },
+        "F-9ce362e7df6c": {
+          "digest": "9ce362e7df6ce4f126bd2f1f59ea087c008607217863c6056eb82bb16ff0679c",
+          "text": "**LIR1-001 (`docs/retention.md:52`, the new sentence): \"incomplete\" has two\n  meanings in one paragraph.** The paragraph's first sentence counts a report\n  where \"some work items could not be checked against GitHub\" as incomplete\n  (as `retention.render` does, `retention.py:443`). The new sentence uses\n  \"incomplete\" and \"complete\" in the script's `complete` sense (read errors).\n  A complete report whose every query failed is \"incomplete\" by the first\n  sentence, yet it gets the forge note, not `retention: INCOMPLETE`. The second\n  half of the new sentence resolves this only for a reader who knows `complete`\n  means no read errors. Possible rewording: \"A report with read errors is shown\n  as incomplete even when every forge query failed; the forge cause in the\n  table below is for a report without read errors, where it is the only fact.\"\n  The plan fixed this sentence's text, so this is wording only and needs no\n  code change.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "7275da107ac8e5bf9fa54126be519171c412930c078ea52874b9497ffdd96200",
+              "verdict": "APPROVE",
+              "at": "2026-11-16T09:06:55Z"
+            }
+          ]
+        },
+        "F-251d63e18788": {
+          "digest": "251d63e1878818b667764a04bd22583bd9925386c10492370f499797047112ce",
+          "text": "**LIR1-002 (tests): the alert outputs for the affected report are pinned only\n  by the scratch golden, not by a gate test.** The guard itself is pinned\n  through `fetch` (M1 fails the `status`/`doctor` and cleanup tests). No gate test\n  asserts the `verify`/`doctor` alert text or the `doctor --retention --json`\n  document (`report_complete: false`, the incomplete `not_evaluated` cause) for\n  an incomplete all-`query_failed` report. A later change in\n  `retention_alert` or `retention_alert_json` that special-cases forge failures\n  would go unnoticed. The plan did not require these tests (CP1 lists the\n  status, doctor and cleanup tests), so this is a possible follow-up.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "7275da107ac8e5bf9fa54126be519171c412930c078ea52874b9497ffdd96200",
+              "verdict": "APPROVE",
+              "at": "2026-11-16T09:06:55Z"
+            }
+          ]
+        },
+        "F-ea2f60f06c44": {
+          "digest": "ea2f60f06c4450e729695e82ba352223f467643d899925844611a159437c6947",
+          "text": "`docs/retention.md:52`: Prefer “report with read errors” over “incomplete report” in the added sentence. The paragraph also uses “incomplete” for failed forge queries, whereas the new guard specifically checks the script’s `complete` field.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "7275da107ac8e5bf9fa54126be519171c412930c078ea52874b9497ffdd96200",
+              "verdict": "APPROVE",
+              "at": "2026-11-16T09:12:51Z"
+            }
+          ]
+        }
+      },
+      "implementation_review_stages": {
+        "review_content_id": "7275da107ac8e5bf9fa54126be519171c412930c078ea52874b9497ffdd96200",
+        "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "22b04a02e47c864f728117dbc4e8bb72bfb8aa2ce74c86ca2a9dcbd4aebe570e",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-11-16T09:06:55Z",
+          "verdict_sha256": "66b7c00742f3025561f12eec5193570a744d412e46235c39ff1fe89d0df06996",
+          "run_ref": "session:local .ai-review/retention-pins-and-wording-2/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "22b04a02e47c864f728117dbc4e8bb72bfb8aa2ce74c86ca2a9dcbd4aebe570e",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-11-16T09:12:51Z",
+          "verdict_sha256": "caecbc4d321e58d42f8fc42aaea026c751ba0e347a68bbce82d677307a5df782",
+          "run_ref": "codex:20261116T090830Z-e24b6717",
+          "reviewer_model": "openai/gpt-6.1-sol"
         }
       }
     }
