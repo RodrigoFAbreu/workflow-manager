@@ -1265,6 +1265,57 @@ class TestMiscFindings(Case):
         self.assertIn("`workflow-manager verify`", found.detail)
         self.assertNotIn("was not checked", found.detail)
 
+    UNKNOWN_RECORDS = (None, "", "garbage", "../escaped", 123, True, "01.2.3", "1.2",
+                       "1.2.3.4", "1.2.3 ", "1.2.3\n")
+    VALID_RECORDS = ("1.2.3", "2.12.0", "0.0.0")
+
+    def test_recorded_release_has_one_pattern_and_decides_as_the_old_one_did(self):
+        import re as _re
+        from workflow_manager.source import is_strict_version
+        old = _re.compile(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)")
+        self.assertFalse(hasattr(comp, "_STRICT_RECORDED"))
+        facts = self.facts()
+        for name in self.UNKNOWN_RECORDS + self.VALID_RECORDS:
+            with self.subTest(name=name):
+                facts.installation = Installation(name, "full", {})
+                expected = name if isinstance(name, str) and old.fullmatch(name) else None
+                self.assertEqual(comp.recorded_release(facts), expected)
+                self.assertEqual(expected is not None, is_strict_version(name))
+        facts.installation = None
+        self.assertIsNone(comp.recorded_release(facts))
+
+    def test_an_unknown_record_gets_a_note_with_no_verify_command(self):
+        self.commit()
+        for name in self.UNKNOWN_RECORDS + (None,):
+            with self.subTest(name=name):
+                facts = self.facts()
+                facts.installation = Installation(name, "full", {})
+                report = self.report(facts=facts, installed_resolved=False)
+                found = next(f for f in report.findings if f.id == "not-verified")
+                self.assertEqual(found.severity, NOTE)
+                self.assertIn("names no usable release", found.detail)
+                self.assertIn("--release-version", found.detail)
+                self.assertNotIn("makes that comparison, or prints why", found.detail)
+                self.assertNotIn("offline, the release is not pinned", found.detail)
+                self.assertNotIn(" verify ", found.detail.replace("`workflow-manager verify`", ""))
+        facts = self.facts()
+        facts.installation = None
+        found = next(f for f in self.report(facts=facts, installed_resolved=False).findings
+                     if f.id == "not-verified")
+        self.assertIn("names no usable release", found.detail)
+
+    def test_a_valid_record_keeps_the_verify_command_in_the_note(self):
+        self.commit()
+        for name in self.VALID_RECORDS:
+            with self.subTest(name=name):
+                facts = self.facts()
+                facts.installation = Installation(name, "full", {})
+                report = self.report(facts=facts, installed_resolved=False)
+                found = next(f for f in report.findings if f.id == "not-verified")
+                self.assertIn("makes that comparison, or prints why it cannot.", found.detail)
+                self.assertIn("verify", found.detail)
+                self.assertIn("(offline, the release is not pinned, or its package failed", found.detail)
+
     def test_a_refused_drift_and_an_unresolved_release_report_both_truthfully(self):
         self.commit()
         report = self.report(refusal=DriftError("refusing to update: edited", []),
