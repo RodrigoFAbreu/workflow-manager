@@ -40851,6 +40851,152 @@
           "run_ref": "codex:20261116T150544Z-ee8cc6c6",
           "reviewer_model": "openai/gpt-6.1-sol"
         }
+      },
+      "gate_evidence": {
+        "functional": {
+          "flow-1": {
+            "flow_id": "flow-1",
+            "status": "passed",
+            "head": "af0ce09a2fc074b202ace7170f0f9a5fd2478add",
+            "ran_at": "2026-11-16T15:15:19Z",
+            "summary": {
+              "checklist_blob": "aa93f4d6ebde625602d69f46fd574b9c14ef29aa",
+              "text": "Both diff lists match the expected files."
+            },
+            "log_digest": "5c0ae6f6124420d313679f4a886d1bd91fb1ee829bcaa42a96039e76255ec4bc",
+            "run_ref": "controller:20261116T151414Z-ab6d8988",
+            "reporter": "workflow-controller 1.31.1",
+            "identity": "793b15181d9f3a385ac3cfdb3a0e473c4c728521d98830e7b68e4cacf0bab7d2",
+            "recorded_at": "2026-11-16T15:15:19Z"
+          },
+          "flow-2": {
+            "flow_id": "flow-2",
+            "status": "passed",
+            "head": "af0ce09a2fc074b202ace7170f0f9a5fd2478add",
+            "ran_at": "2026-11-16T15:15:19Z",
+            "summary": {
+              "checklist_blob": "aa93f4d6ebde625602d69f46fd574b9c14ef29aa",
+              "text": "Both updated architecture phrases appear as expected."
+            },
+            "log_digest": "6ef2b4eac43cba34cb7e83ad070e758dec10c81ac93d163a1d14dead234c306c",
+            "run_ref": "controller:20261116T151414Z-ab6d8988",
+            "reporter": "workflow-controller 1.31.1",
+            "identity": "793b15181d9f3a385ac3cfdb3a0e473c4c728521d98830e7b68e4cacf0bab7d2",
+            "recorded_at": "2026-11-16T15:15:19Z"
+          },
+          "flow-3": {
+            "flow_id": "flow-3",
+            "status": "passed",
+            "head": "af0ce09a2fc074b202ace7170f0f9a5fd2478add",
+            "ran_at": "2026-11-16T15:15:19Z",
+            "summary": {
+              "checklist_blob": "aa93f4d6ebde625602d69f46fd574b9c14ef29aa",
+              "text": "All three old phrases and the stamp have zero matches."
+            },
+            "log_digest": "6a33a504c8d16194914401f4f46532de96e1b63119fc5981341c6b65c6c27096",
+            "run_ref": "controller:20261116T151414Z-ab6d8988",
+            "reporter": "workflow-controller 1.31.1",
+            "identity": "793b15181d9f3a385ac3cfdb3a0e473c4c728521d98830e7b68e4cacf0bab7d2",
+            "recorded_at": "2026-11-16T15:15:19Z"
+          },
+          "flow-4": {
+            "flow_id": "flow-4",
+            "status": "passed",
+            "head": "af0ce09a2fc074b202ace7170f0f9a5fd2478add",
+            "ran_at": "2026-11-16T15:15:19Z",
+            "summary": {
+              "checklist_blob": "aa93f4d6ebde625602d69f46fd574b9c14ef29aa",
+              "text": "The protected pages, tests, tools and source have no diff from the base."
+            },
+            "log_digest": "ca7d38f3b12b1ae7d21fbdcdf92336576bcc3dcba7eb824d7a18cf990947dacf",
+            "run_ref": "controller:20261116T151414Z-ab6d8988",
+            "reporter": "workflow-controller 1.31.1",
+            "identity": "793b15181d9f3a385ac3cfdb3a0e473c4c728521d98830e7b68e4cacf0bab7d2",
+            "recorded_at": "2026-11-16T15:15:20Z"
+          },
+          "flow-5": {
+            "flow_id": "flow-5",
+            "status": "passed",
+            "head": "af0ce09a2fc074b202ace7170f0f9a5fd2478add",
+            "ran_at": "2026-11-16T15:19:43Z",
+            "summary": {
+              "checklist_blob": "aa93f4d6ebde625602d69f46fd574b9c14ef29aa",
+              "text": "110 tests OK; the new text test, the new J4 test and the J4-queries-failed golden are where the checklist says."
+            },
+            "log_digest": "2858ddf9553e604ebda9fcf664ec14aa4c3a2044c5d2ed5c196f4e4790032dbe",
+            "run_ref": "claude-functional:md47-functional-r1",
+            "reporter": "manager claude-functional.sh (Sonnet 5.5)",
+            "identity": "793b15181d9f3a385ac3cfdb3a0e473c4c728521d98830e7b68e4cacf0bab7d2",
+            "recorded_at": "2026-11-16T15:19:43Z"
+          },
+          "flow-6": {
+            "flow_id": "flow-6",
+            "status": "passed",
+            "head": "af0ce09a2fc074b202ace7170f0f9a5fd2478add",
+            "ran_at": "2026-11-16T15:15:20Z",
+            "summary": {
+              "checklist_blob": "aa93f4d6ebde625602d69f46fd574b9c14ef29aa",
+              "text": "The documentation checker exited 0 without reporting problems."
+            },
+            "log_digest": "ca7d38f3b12b1ae7d21fbdcdf92336576bcc3dcba7eb824d7a18cf990947dacf",
+            "run_ref": "controller:20261116T151414Z-ab6d8988",
+            "reporter": "workflow-controller 1.31.1",
+            "identity": "793b15181d9f3a385ac3cfdb3a0e473c4c728521d98830e7b68e4cacf0bab7d2",
+            "recorded_at": "2026-11-16T15:15:20Z"
+          },
+          "flow-7": {
+            "flow_id": "flow-7",
+            "status": "passed",
+            "head": "af0ce09a2fc074b202ace7170f0f9a5fd2478add",
+            "ran_at": "2026-11-16T15:19:43Z",
+            "summary": {
+              "checklist_blob": "aa93f4d6ebde625602d69f46fd574b9c14ef29aa",
+              "text": "run_all.py with the three selections: verdict exit 0, 154 tests, no orphan."
+            },
+            "log_digest": "3d65492349c8042d65ff56c50155723ab686432158a19a7d5fa93e501e0b523f",
+            "run_ref": "claude-functional:md47-functional-r1",
+            "reporter": "manager claude-functional.sh (Sonnet 5.5)",
+            "identity": "793b15181d9f3a385ac3cfdb3a0e473c4c728521d98830e7b68e4cacf0bab7d2",
+            "recorded_at": "2026-11-16T15:19:43Z"
+          },
+          "flow-8": {
+            "flow_id": "flow-8",
+            "status": "passed",
+            "head": "af0ce09a2fc074b202ace7170f0f9a5fd2478add",
+            "ran_at": "2026-11-16T15:19:43Z",
+            "summary": {
+              "checklist_blob": "aa93f4d6ebde625602d69f46fd574b9c14ef29aa",
+              "text": "Unmutated copy passes; M2, M3 and M4 fail the named tests; M1 is caught by 4 sibling tests (the complete=True and query_failed cases), but the new all-failed tests use a complete=False report with read errors and so do not fail under M1: the checklist/plan text naming them for M1 is imprecise, the product pin works."
+            },
+            "log_digest": "220c0de26cacfde1ef5b77e8713aaaae83ec9f26cb8b642152052c666ec17abc",
+            "run_ref": "claude-functional:md47-functional-r1",
+            "reporter": "manager claude-functional.sh (Sonnet 5.5)",
+            "identity": "793b15181d9f3a385ac3cfdb3a0e473c4c728521d98830e7b68e4cacf0bab7d2",
+            "recorded_at": "2026-11-16T15:19:43Z"
+          },
+          "flow-9": {
+            "flow_id": "flow-9",
+            "status": "passed",
+            "head": "af0ce09a2fc074b202ace7170f0f9a5fd2478add",
+            "ran_at": "2026-11-16T15:15:20Z",
+            "summary": {
+              "checklist_blob": "aa93f4d6ebde625602d69f46fd574b9c14ef29aa",
+              "text": "The title was accepted as test with release impact none."
+            },
+            "log_digest": "8c83abb1e0252db7962d41b0e5aa3b0cf0190e429f4c0344f396c7a0f3c564a9",
+            "run_ref": "controller:20261116T151414Z-ab6d8988",
+            "reporter": "workflow-controller 1.31.1",
+            "identity": "793b15181d9f3a385ac3cfdb3a0e473c4c728521d98830e7b68e4cacf0bab7d2",
+            "recorded_at": "2026-11-16T15:15:21Z"
+          }
+        },
+        "pr": null,
+        "pr_reported": null,
+        "pr_keys": {
+          "reopened_for": [],
+          "applied": [],
+          "ingest_seq": 0
+        }
       }
     }
   }
