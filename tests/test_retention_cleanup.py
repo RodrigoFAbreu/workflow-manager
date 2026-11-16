@@ -32,7 +32,7 @@ from support import NEWEST_RELEASE, REPO_ROOT
 import test_retention_status as rs
 from frozen_runs import build_bootstrapped_repo
 from test_operator_ux import git, help_of, tree_hash
-from workflow_manager import fixture, cli, retention_alert as ra, retention_cleanup as rc, retention_policy as rp
+from workflow_manager import fixture, cli, retention, retention_alert as ra, retention_cleanup as rc, retention_policy as rp
 
 COMMAND = "retention-cleanup"
 SCRIPT = rs.SCRIPT
@@ -688,6 +688,21 @@ class TestPreflight(Base):
                 rep.update(override)
                 self.refused(self.refusal_writes_nothing(rep), ra.CAUSE_INCOMPLETE,
                              "fix what is named", started=True)
+
+    def test_an_incomplete_report_whose_queries_all_failed(self):
+        # nothing finished or kept, every candidate `query_failed`: the report can be had
+        # (step 7 passes) and step 8 refuses it as incomplete, not as a forge failure
+        failed = [{"work_item_id": f"q{n}", "phase": "MILESTONE_COMPLETE",
+                   "reason": "query_failed:gh_missing"} for n in range(2)]
+        open_phase = {"work_item_id": "o", "phase": "IMPLEMENTING", "reason": "open_phase"}
+        for extra in ((), (open_phase,)):
+            with self.subTest(open_phase=bool(extra)):
+                rep = oldest_first(complete=False, kept_recent=[],
+                                   read_errors=[{"path": "/x", "error": "no"}],
+                                   not_finished=list(extra) + failed)
+                out = self.refusal_writes_nothing(rep)
+                self.refused(out, ra.CAUSE_INCOMPLETE, retention.STEP_INCOMPLETE, started=True)
+                self.assertNotIn("forge", out.err)
 
     def test_an_interrupted_removal(self):
         rep = many()

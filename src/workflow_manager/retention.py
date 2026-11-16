@@ -291,7 +291,11 @@ def _other_failure(cause: str) -> Outcome:
 
 
 def _query_failed_note(report: dict) -> NotAvailable | None:
-    """Case 7: the report is valid but the forge answered for no candidate."""
+    """Case 7: the report is valid, complete, and the forge answered for no
+    candidate. An incomplete report is shown as incomplete: its read errors
+    are the first fact, the forge note would hide them."""
+    if not report["complete"]:
+        return None
     failed = [e for e in report["not_finished"] if e["reason"].startswith("query_failed:")]
     answered = [e for e in report["not_finished"]
                 if e["reason"] == "no_pull_request" or e["reason"].startswith("pr_not_merged:")]

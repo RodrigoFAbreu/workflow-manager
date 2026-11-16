@@ -2,31 +2,37 @@
 
 ## Milestone
 
-`update-record-followups` -- complete (accepted by policy) (`governing_workflow_version: "2.2"`, `process`, plan revision 2, base `6fe15b4`, branch `milestone/update-record-followups`): roadmap row 47 (#233). The pull request title is `fix: the update report names no verify command it refuses for a null or damaged record`, a patch release (Manager 1.20.2, checked with `tools/release/release.py check-title`: `valid title: fix, release impact patch`).
+**Complete.** `retention-pins-and-wording-2` (`governing_workflow_version: "2.2"`, `process`, plan revision 4, implementation revision 1, base `a243144`, branch `milestone/retention-pins-and-wording-2`): roadmap row 48
 
-The update and doctor report never advises a command its own rules refuse. For a null or damaged installation record the `not-verified` note says that the record names no usable release and prints no `verify` command; the note of a valid record is byte-identical. The report's reading of the recorded release uses the one strict pattern (`source.is_strict_version`). One code comment states the reason that holds, and one dead test branch is gone.
+The retention report, alert and docs say exactly what the code does (#160, #222, #225, #216). An incomplete report whose forge queries all failed is shown as incomplete, one refusal helper replaces the duplicated block of `doctor`, and the retention wording and tests are pinned. A `fix:` change, Manager patch release 1.20.3.
 
-Accepted by policy: functional flows 1 to 11 passed, and pull request #240 was current and green. `docs/ROADMAP.md` row 47 is marked Done; the Manager 1.20.2 release follows the merge.
+### CP1: the note reads `complete`, one refusal helper -- complete
 
-### CP1: the note, the shared pattern, the comment, the dead branch and the tests -- complete (`25ac9be`)
+- `retention.py`: `_query_failed_note` returns `None` for an incomplete report, so `status`, `doctor`, `verify` and `retention-cleanup` show the incomplete report (cleanup refuses at step 8) instead of the forge note.
+- `cli.py`: `_refuse_release_resolution(args, error)` replaces the two identical refusal blocks of `_doctor_json` and `cmd_doctor`; output unchanged.
+- Tests: two fixtures get `"complete": True`; new incomplete, mixed-incomplete and complete-counterpart cases in `tests/test_retention_status.py`; a `TestPreflight` case in `tests/test_retention_cleanup.py` (refused at step 8, nothing written).
+- Mutations M1 to M3 measured in scratch clones outside the repository: each fails the named tests. The golden of plan section 2.1 was not run as a separate script; the new tests cover the incomplete, mixed and complete reports. Narrow selection (`test_retention_status`, `_alert`, `_alert_json`, `_cleanup`, `test_doctor_cli`, `test_operator_ux`): verdict exit 0.
+- `docs/ROADMAP.md`: row 48 added, Current.
 
-- `compatibility.py`: `_STRICT_RECORDED` deleted; `recorded_release` calls `source.is_strict_version` (module-level import, no cycle). In the next-step pass the `not-verified` detail of an unknown record is the plan's sentence (section 2.1), with no command built; a valid record keeps the old detail and its `verify` command.
-- `advice.py`: the null-record step's comment gives the reason that holds (the release is not known, and a directory is usable only if it holds exactly that release); the printed text is unchanged.
-- `docs/update.md`: one sentence on the note of a null or damaged record (stamp not moved).
-- Tests: T1 and T2 in `tests/test_compatibility.py`, T3 in `tests/test_operator_ux_report.py`; the dead `version is None` arm removed from `tests/test_operator_ux_readonly.py`.
+### CP2: the tests and the docs -- complete
 
-### Self-review -- complete (one finding fixed)
+- `docs/retention.md`: one sentence in "If the report is incomplete" (an incomplete report is shown as incomplete even when every forge query failed; the forge cause is for a complete report), and the age-step bullet names the unreadable-archive exception (#160.1, #222.1).
+- Links: the five `[Retention report](retention.md...)` links in `docs/README.md`, `update.md`, `verify.md` and `exit-codes.md` (two) read the page's title (#216.1).
+- Tests: `TestDocs` pins the limits sentences (`2**63 - 1`, `INT_MAX`, the `invalid_id` clause and its code behaviour), the incomplete-report sentences and the link text; `TestAgeStep` pins the unreadable-archive clause; the release-below-2.21.0 scenario compares the whole line (#222.2); the release-option test's last case runs against `self.repo` with the corrupt record, and the `--manager-root` case asserts the deprecation line and the error line (#225.1, #225.3); the first report of the pushed-out test holds the archive (#225.4).
+- KEEP: #222.3 (`1 items`) and the archived plan and declaration points of #216.
+- Mutations M4 to M8 measured in a scratch copy outside the repository: each fails the named test. `python3 tools/check_docs.py` clean; `git diff` of `tools .claude scripts .workflow-manager tests/parallel` against the base is empty. Narrow selection (`test_retention_status`, `_alert`, `_alert_json`, `_cleanup`, `test_doctor_cli`, `test_operator_ux`, `test_docs`): verdict exit 0.
 
-- **Fixed (important):** functional-review flow 4 expects `grep -rn '_STRICT_RECORDED' src tests` to find nothing, but T1 asserted `hasattr(comp, "_STRICT_RECORDED")` and so named the deleted constant. T1 now asserts that `comp.is_strict_version` is `source.is_strict_version` and that `compatibility` holds no module-level compiled pattern equal to the old one under any name (stronger: a renamed copy fails too). Measured: M3 and a mutation that re-adds the copy (`_STRICT_RECORDED = re.compile(...)` beside `recorded_release`) both fail T1; the unmutated tree passes. A duplicated `None` in T2's loop was removed (no change in coverage).
-- Mutations of plan section 3, measured in a scratch clone of `25ac9be` outside the repository (`python3 tests/run_all.py --select test_compatibility.py --select test_operator_ux_report.py --select test_operator_ux_readonly.py --select test_doctor_cli.py`): unmutated `verdict: exit 0`. M1 fails T2 (`test_an_unknown_record_gets_a_note_with_no_verify_command`) and T3 (`test_the_not_verified_note_of_a_null_or_damaged_record_names_no_verify_command`). M2 fails T2's valid arm (`test_a_valid_record_keeps_the_verify_command_in_the_note`) and the three report tests that assert the command (`test_the_not_verified_note_names_the_integrity_cause_and_verify`, `test_the_not_verified_verify_step_is_true_when_verify_finds_nothing_wrong`, `test_i1_the_verify_step_drops_a_release_dir_holding_another_release`), not `test_doctor_cli.py`. M3 fails T1 and T2 for `01.2.3`, `1.2` and `1.2.3.4`. Every set equals the plan's table.
-- Golden (flow 6): `update --dry-run --release-dir D`, the same with `--release-version 2.12.0`, and `doctor --release-dir D`, for a valid, `null`, `garbage`, `../escaped`, `''` and `123` record, base `src` (`git archive 6fe15b4`) against the candidate. The valid record's three outputs are byte-identical; `doctor` is identical for every shape (it refuses the unknown record before the note); for each unknown shape the two `update` outputs differ in exactly one line, the `not-verified` detail, and the new detail names no `verify` command.
-- Decision table (point 3): `recorded_release` over the fifteen rows of T1 (including no installation) gives identical results with the base and the candidate `src`.
-- Flows 1, 2, 4, 5, 9 and 11 of plan section 6 run as stated and give the expected result.
+### Self-review and the full gate
 
-### Full gate -- green
+- The full milestone diff matches the plan's file list and sections; no blocking or important finding, no code change.
+- The plan's section 2.1 golden, not run at CP1, ran in a scratch directory outside the repository: base `src` (`a243144`) against the candidate (`9aa1513`) for the retention section, the alert text, the alert JSON and the cleanup preflight over 41 reports, the three refusal shapes and two adopted policies. 28 of 313 outputs differ, all for the four incomplete reports with no finished or kept item and only `query_failed` items (with or without `open_phase`, with or without read errors), each as the plan's table says; every other output is identical.
+- Plan section 6 flows 1 to 7 and 9 give the expected results; the title check reads `valid title: fix, release impact patch`.
+- Full gate: `evidence: full selection, local, 8 worker(s), head 9aa1513587073556fd8c27432fd022cd35219810, 2438/2438 units, 16481 tests, selection_digest 9957d343edee4613b59b75a4d916afa09d860b8240978644a6c90b09637c9ef4, tests_digest f7d7202276056f763121f95f0268abf00b36174f3aaae9a496a27706be5e40b0, tree_digest 984aa66960ddfc45c12976d89490168dab155b9617ef7408d3b488a8cc8fd3a9`, `verdict: exit 0`; the only orphans are the declared `orphan_sources`.
 
-`python3 tests/run_all.py` at `e49f7b9`: full selection, 8 workers, 2438/2438 units, 16473 tests, `selection_digest 9957d343edee4613b59b75a4d916afa09d860b8240978644a6c90b09637c9ef4`, `tests_digest cce730f4ab75d8ab1e35f775411018cbf16552b55e8b53cf740720d70edc0d2b`, `verdict: exit 0`. The orphan check was on; the only orphans reported are the declared `orphan_sources`.
+## Acceptance
+
+Accepted by policy (`/satisfy-gate acceptance`, policy digest `bae758b4f4ce`): all ten functional flows passed at the approved content, and PR #243's checks are green at its head `516e6b2`. Roadmap row 48 is Done; the Optional findings are dispositioned in `docs/milestones/completed/retention-pins-and-wording-2-findings.md`.
 
 ## Next action
 
-`/milestone-plan` for the next incomplete milestone in `docs/ROADMAP.md`.
+No milestone is ready in `docs/ROADMAP.md` (row 48 was the last). Merge PR #243: a `fix:` change, Manager patch release 1.20.3 follows. Then `/milestone-plan` for the next item.

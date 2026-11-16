@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "work_item_id": "retention-pins-and-wording-2",
+  "requirements": {
+    "R1": {
+      "description": "_query_failed_note reads complete: an incomplete report is shown as incomplete, never as a forge failure; a complete report keeps the forge note byte for byte. The change reaches status, doctor, the alert (verify) and retention-cleanup for that one report, each measured by the golden; retention-cleanup refuses it at step 8 with a test.",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R2": {
+      "description": "cmd_doctor and _doctor_json share one refusal helper with unchanged output; roadmap row 48 is added.",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R3": {
+      "description": "The limit sentences, the incomplete-report sentence, the age-step exception and the full release-below-2.21.0 step text are pinned by tests; the age-step page sentence is qualified.",
+      "checkpoint_ids": [
+        "CP2"
+      ]
+    },
+    "R4": {
+      "description": "The retention alert JSON tests: no dead setup, the manager-root deprecation line asserted, the archive count kept at one in both reports.",
+      "checkpoint_ids": [
+        "CP2"
+      ]
+    },
+    "R5": {
+      "description": "The five links to docs/retention.md carry the page title as text, pinned by a test; the 1 items wording and the archived-plan points are KEEP.",
+      "checkpoint_ids": [
+        "CP2"
+      ]
+    }
+  }
+}

@@ -305,8 +305,15 @@ class TestAgeStep(unittest.TestCase):
                 self.assertIn(f"workflow_retention.py {verb} {first.work_item_id} --apply", text)
         rep = rs.report(young, old_entry("old-b"), old_entry("old-a"))
         line = next_line(age_state(), rep, version="2.20.0")
-        self.assertTrue(line.startswith("  next: this Workflow release has no `archive` command; "))
+        self.assertEqual(line, "  next: this Workflow release has no `archive` command; "
+                               "workflow-manager update /scratch/repo")
         self.assertEqual(self.first_planned(rep).action, rc.ARCHIVE_THEN_REMOVE)
+
+    def test_the_page_names_the_unreadable_archive_exception(self):
+        page = (Path(__file__).resolve().parent.parent / "docs" / "retention.md").read_text()
+        self.assertIn("except that an old item whose archive cannot be read is planned first by "
+                      "the cleanup and passed over by the step, which names the next old item, "
+                      "or `nothing to archive`", page)
 
     def test_a_tracked_oldest_item_is_passed_over(self):
         rep = rs.report(old_entry("old-b"), old_entry("old-a", tracked=1))

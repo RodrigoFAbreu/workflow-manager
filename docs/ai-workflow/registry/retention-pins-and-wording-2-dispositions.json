@@ -1,0 +1,50 @@
+{
+ "schema_version": 1,
+ "work_item_id": "retention-pins-and-wording-2",
+ "dispositions": {
+  "F-251d63e18788": {
+   "disposition": "follow-up",
+   "link": "https://github.com/RodrigoFAbreu/workflow-manager/issues/242"
+  },
+  "F-9ce362e7df6c": {
+   "disposition": "follow-up",
+   "link": "https://github.com/RodrigoFAbreu/workflow-manager/issues/242"
+  },
+  "F-ea2f60f06c44": {
+   "disposition": "follow-up",
+   "link": "https://github.com/RodrigoFAbreu/workflow-manager/issues/242"
+  },
+  "F-079ed021921b": {
+   "disposition": "dropped",
+   "reason": "Plan or checklist text only; no shipped code, test or doc is affected."
+  },
+  "F-8f0a756e25f8": {
+   "disposition": "dropped",
+   "reason": "Plan or checklist text only; no shipped code, test or doc is affected."
+  },
+  "F-4a820d03a483": {
+   "disposition": "fixed",
+   "note": "Addressed in the plan text and confirmed by the later review rounds."
+  },
+  "F-a852a1c52e8b": {
+   "disposition": "fixed",
+   "note": "Addressed in the plan text and confirmed by the later review rounds."
+  },
+  "F-b5c174961a64": {
+   "disposition": "fixed",
+   "note": "Addressed in the plan text and confirmed by the later review rounds."
+  },
+  "F-c5ea4ece2a9b": {
+   "disposition": "fixed",
+   "note": "Addressed in the plan text and confirmed by the later review rounds."
+  },
+  "F-f147d0816ecb": {
+   "disposition": "fixed",
+   "note": "Addressed in the plan text and confirmed by the later review rounds."
+  },
+  "F-f7ece7f5d7f7": {
+   "disposition": "fixed",
+   "note": "Addressed in the plan text and confirmed by the later review rounds."
+  }
+ }
+}
