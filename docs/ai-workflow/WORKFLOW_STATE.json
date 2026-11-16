@@ -39789,12 +39789,12 @@
       "registry_path": "docs/ai-workflow/registry/test-hygiene-3-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/test-hygiene-3-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "SELF_REVIEWING_IMPLEMENTATION",
+      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
       "plan_revision": 1,
-      "implementation_revision": null,
+      "implementation_revision": 1,
       "functional_review_round": null,
       "base_commit": "26d6850bb050a6d66b3afc7d9c22de7e06b12525",
-      "reviewed_implementation_head": null,
+      "reviewed_implementation_head": "ee27758b06537322cccf6927940af76b10a9d74b",
       "current_checkpoint_id": null,
       "last_completed_checkpoint_id": "CP2",
       "checkpoints": {
@@ -39933,8 +39933,8 @@
           "external": 0
         }
       },
-      "state_revision": 13,
-      "last_transition": "2026-11-16T11:29:33Z",
+      "state_revision": 14,
+      "last_transition": "2026-11-16T11:51:17Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
