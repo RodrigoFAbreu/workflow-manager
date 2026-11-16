@@ -37,6 +37,7 @@ from .installation import (
     is_managed,
 )
 from .release import STATE_TEMPLATES, DetectorSpec, ManagerBlock
+from .source import is_strict_version
 
 # ---------------------------------------------------------------------------
 # Versions, phases and the Workflow facts this module mirrors
@@ -106,18 +107,13 @@ def _lt(a: str, b: str) -> bool:
     return version_key(a) < version_key(b)
 
 
-_STRICT_RECORDED = re.compile(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)")
-
-
 def recorded_release(facts) -> str | None:
     """The installation record's release when it is one strict `X.Y.Z`, else
     `None` ("unknown"): a null or damaged name is never compared, never asked of
     the cache and never printed as a release."""
     installation = getattr(facts, "installation", None)
     name = installation.workflow_version if installation else None
-    if isinstance(name, str) and _STRICT_RECORDED.fullmatch(name):
-        return name
-    return None
+    return name if is_strict_version(name) else None
 
 
 def _le(a: str, b: str) -> bool:
@@ -1961,9 +1957,20 @@ def _with_steps(facts: RepositoryFacts, findings: list[Finding], *, refusal, tar
             detail += f"\nWhat to do: {advice.coverage_step(finding.title)}"
         elif finding.id == "not-verified":
             installed = recorded_release(facts)
-            verify = manager_command("verify", target=repo, withheld=False,
-                                     options=facts.options_for(installed)).render()
-            detail += f" `{verify}` makes that comparison, or prints why it cannot."
+            if installed is None:
+                # No release is named, so `verify` would refuse any command built
+                # here: say why instead of printing one, and keep the first sentence.
+                detail = (
+                    "Local edits to release files are still detected from the install "
+                    "record. This Manager cannot compare the installation with the "
+                    "installed release's published package, the comparison "
+                    "`workflow-manager verify` makes, because the installation record "
+                    "names no usable release (it is null, or not one X.Y.Z); the update "
+                    "with an explicit --release-version records one.")
+            else:
+                verify = manager_command("verify", target=repo, withheld=False,
+                                         options=facts.options_for(installed)).render()
+                detail += f" `{verify}` makes that comparison, or prints why it cannot."
         out.append(Finding(finding.severity, finding.id, finding.title, detail, commands))
     named = {m for f in out if f.id == _INCOMPLETE
              for m in _DATA_PATH_RE.findall(f.title + "\n" + f.detail)}

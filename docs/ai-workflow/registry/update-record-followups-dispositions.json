@@ -1,0 +1,62 @@
+{
+ "schema_version": 1,
+ "work_item_id": "update-record-followups",
+ "dispositions": {
+  "F-35dac6aa5d19": {
+   "disposition": "follow-up",
+   "link": "https://github.com/RodrigoFAbreu/workflow-manager/issues/239"
+  },
+  "F-5b074afd7740": {
+   "disposition": "follow-up",
+   "link": "https://github.com/RodrigoFAbreu/workflow-manager/issues/239"
+  },
+  "F-c3796978fa4f": {
+   "disposition": "follow-up",
+   "link": "https://github.com/RodrigoFAbreu/workflow-manager/issues/239"
+  },
+  "F-f3245f5871af": {
+   "disposition": "follow-up",
+   "link": "https://github.com/RodrigoFAbreu/workflow-manager/issues/239"
+  },
+  "F-108572114660": {
+   "disposition": "fixed",
+   "note": "Addressed in the plan text and confirmed by the later review rounds."
+  },
+  "F-3ad54939d0ac": {
+   "disposition": "fixed",
+   "note": "Addressed in the plan text and confirmed by the later review rounds."
+  },
+  "F-68d436d3ed16": {
+   "disposition": "fixed",
+   "note": "Addressed in the plan text and confirmed by the later review rounds."
+  },
+  "F-937fd0ac02e0": {
+   "disposition": "fixed",
+   "note": "Addressed in the plan text and confirmed by the later review rounds."
+  },
+  "F-b46bbe639199": {
+   "disposition": "fixed",
+   "note": "Addressed in the plan text and confirmed by the later review rounds."
+  },
+  "F-245d1ffbeaf5": {
+   "disposition": "dropped",
+   "reason": "Plan text or a citation in the item's own history only; no shipped code, test or doc is affected."
+  },
+  "F-a69723183a66": {
+   "disposition": "dropped",
+   "reason": "Plan text or a citation in the item's own history only; no shipped code, test or doc is affected."
+  },
+  "F-c2ef328b7ebe": {
+   "disposition": "dropped",
+   "reason": "Plan text or a citation in the item's own history only; no shipped code, test or doc is affected."
+  },
+  "F-d4e0021429e9": {
+   "disposition": "dropped",
+   "reason": "Plan text or a citation in the item's own history only; no shipped code, test or doc is affected."
+  },
+  "F-f9651e3172b6": {
+   "disposition": "dropped",
+   "reason": "Plan text or a citation in the item's own history only; no shipped code, test or doc is affected."
+  }
+ }
+}

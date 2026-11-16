@@ -326,6 +326,24 @@ class TestReportSteps(ux.ReleaseCase):
         self.assertIn(f"`workflow-manager {options} verify {repo}` makes that comparison, or prints why it cannot.",
                       proc.stdout)
 
+    def test_the_not_verified_note_of_a_null_or_damaged_record_names_no_verify_command(self):
+        for value in (None, "garbage", "../escaped"):
+            with self.subTest(value=value):
+                repo = self.fresh()
+                record = repo / ".workflow-manager/installation.json"
+                data = json.loads(record.read_text())
+                data["workflow_version"] = value
+                record.write_text(json.dumps(data, indent=2) + "\n")
+                directory = self.release_dir()
+                before = tree_hash(repo)
+                proc = run("--release-dir", str(directory), "update", str(repo), "--dry-run")
+                self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+                self.assertIn("[note] not-verified", proc.stdout)
+                self.assertIn("names no usable release", proc.stdout)
+                self.assertNotIn("makes that comparison", proc.stdout)
+                self.assertNotIn(" verify ", proc.stdout.replace("`workflow-manager verify`", ""))
+                self.assertEqual(tree_hash(repo), before)
+
     def test_the_not_verified_verify_step_is_true_when_verify_finds_nothing_wrong(self):
         # Functional review round 2, 1: doctor resolves the installed release
         # through the cache only, verify also through --release-dir, so the

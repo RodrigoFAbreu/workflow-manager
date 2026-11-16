@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "work_item_id": "update-record-followups",
+  "plan_revision": 2,
+  "checkpoints": [
+    {
+      "id": "CP1",
+      "name": "The note, the shared pattern, the comment, the dead branch and the tests",
+      "depends_on": [],
+      "complexity": 2,
+      "session_target": 1
+    }
+  ]
+}
