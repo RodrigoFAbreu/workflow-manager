@@ -869,7 +869,8 @@ GOLDENS = {
     "interrupted_removals": []
   }
 }
-""",    "J4-queries-failed": """\
+""",
+    "J4-queries-failed": """\
 {
   "kind": "retention_alert",
   "schema_version": 1,
