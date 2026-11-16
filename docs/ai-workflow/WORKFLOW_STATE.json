@@ -40550,12 +40550,12 @@
       "registry_path": "docs/ai-workflow/registry/priming-wording-and-alert-pins-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/priming-wording-and-alert-pins-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "SELF_REVIEWING_IMPLEMENTATION",
+      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
       "plan_revision": 4,
-      "implementation_revision": null,
+      "implementation_revision": 1,
       "functional_review_round": null,
       "base_commit": "59beeea99ac8e976b835dc9ab6d8544ba207feb2",
-      "reviewed_implementation_head": null,
+      "reviewed_implementation_head": "e5052bfea7fe883c2917a7e40226118565ff7a0c",
       "current_checkpoint_id": null,
       "last_completed_checkpoint_id": "CP2",
       "checkpoints": {
@@ -40694,8 +40694,8 @@
           "external": 0
         }
       },
-      "state_revision": 19,
-      "last_transition": "2026-11-16T14:14:00Z",
+      "state_revision": 20,
+      "last_transition": "2026-11-16T14:35:05Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
