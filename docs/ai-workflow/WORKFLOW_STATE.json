@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_work_item_id": null,
+  "active_work_item_id": "update-record-followups",
   "work_items": {
     "plan-amendment-mechanism": {
       "work_item_type": "process",
@@ -38139,6 +38139,317 @@
         "evaluated_at": "2026-11-15T11:40:48Z",
         "workflow_release": "2.29.5"
       }
+    },
+    "update-record-followups": {
+      "work_item_type": "process",
+      "work_item_kind": "process",
+      "work_item_id": "update-record-followups",
+      "parent_work_item_id": null,
+      "plan_path": "docs/ai-workflow/WORKFLOW_MANAGER_UPDATE_RECORD_FOLLOWUPS_PLAN.md",
+      "registry_path": "docs/ai-workflow/registry/update-record-followups-registry.json",
+      "mapping_path": "docs/ai-workflow/requirements/update-record-followups-mapping.json",
+      "governing_workflow_version": "2.2",
+      "phase": "IMPLEMENTING",
+      "plan_revision": 2,
+      "implementation_revision": null,
+      "functional_review_round": null,
+      "base_commit": "6fe15b4ad17953a5b90b948cd2c73e42d82928f7",
+      "reviewed_implementation_head": null,
+      "current_checkpoint_id": null,
+      "last_completed_checkpoint_id": null,
+      "checkpoints": {},
+      "current_bundle_id": "7842739b545b3f3004913db446662ff7a264ae9af521221cbd40d456aabeb00c",
+      "plan_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "7842739b545b3f3004913db446662ff7a264ae9af521221cbd40d456aabeb00c",
+        "approved_review_content_id": "118ec25e95e674a0d81b7e7c73c71f0bb5e190f6d37db9dff7bc40ab3a8d6988",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/WORKFLOW_MANAGER_UPDATE_RECORD_FOLLOWUPS_PLAN.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "3c8e1233ecc40fd69cc142cf97c7673c6a5824ac"
+          },
+          {
+            "path": "docs/ai-workflow/registry/update-record-followups-registry.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "4c3123123b6598bb851e6851e95b3500934d6a10"
+          },
+          {
+            "path": "docs/ai-workflow/requirements/update-record-followups-mapping.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "1d3aff7604ae5091edfcdb11311a1e8d6dd7ca5c"
+          }
+        ],
+        "reviewed_content_commit": null,
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-11-16T00:33:03Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "118ec25e95e674a0d81b7e7c73c71f0bb5e190f6d37db9dff7bc40ab3a8d6988",
+            "ledger": {
+              "local": {
+                "bundle_id": "7842739b545b3f3004913db446662ff7a264ae9af521221cbd40d456aabeb00c",
+                "verdict": "APPROVE",
+                "round": 2,
+                "verdict_sha256": "dece7203ac518e3959a77fbfd85bf9414d795e5f3bfb0097daa92ee75c11efd0",
+                "ledger_entry_sha256": "aa130dd2dfbe7fd6afd95c83c77ef94f98de9e2c062c2d2d24e1a9e61362cc27",
+                "run_ref": "session:local .ai-review/update-record-followups/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "7842739b545b3f3004913db446662ff7a264ae9af521221cbd40d456aabeb00c",
+                "verdict": "APPROVE",
+                "round": 2,
+                "verdict_sha256": "9cf9231c661bd5046ae0bfce5c9e00cd426cbf7f92b0adea355cba1f0530736a",
+                "ledger_entry_sha256": "5cc2ae0840431c9556b6020e8a46b03cc947be4ae9aeaba7e7c630241714fe0c",
+                "run_ref": "codex:20261116T002903Z-d0c247e6",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-11-16T00:33:03Z",
+          "workflow_release": "2.29.6"
+        }
+      },
+      "technical_approval": null,
+      "technical_review_block_pins": [],
+      "plan_review_stages": {
+        "review_content_id": "118ec25e95e674a0d81b7e7c73c71f0bb5e190f6d37db9dff7bc40ab3a8d6988",
+        "LOCAL_MODEL_PLAN_REVIEW": {
+          "bundle_id": "7842739b545b3f3004913db446662ff7a264ae9af521221cbd40d456aabeb00c",
+          "verdict": "APPROVE",
+          "round": 2,
+          "completed_at": "2026-11-15T22:31:45Z",
+          "verdict_sha256": "dece7203ac518e3959a77fbfd85bf9414d795e5f3bfb0097daa92ee75c11efd0",
+          "run_ref": "session:local .ai-review/update-record-followups/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_PLAN_REVIEW": {
+          "bundle_id": "7842739b545b3f3004913db446662ff7a264ae9af521221cbd40d456aabeb00c",
+          "verdict": "APPROVE",
+          "round": 2,
+          "completed_at": "2026-11-16T00:31:21Z",
+          "verdict_sha256": "9cf9231c661bd5046ae0bfce5c9e00cd426cbf7f92b0adea355cba1f0530736a",
+          "run_ref": "codex:20261116T002903Z-d0c247e6",
+          "reviewer_model": "openai/gpt-6.1-sol"
+        }
+      },
+      "functional_acceptance_status": null,
+      "blocking_decisions": [],
+      "review_round_counts": {
+        "plan": {
+          "local": 2,
+          "external": 2
+        },
+        "implementation": {
+          "local": 0,
+          "external": 0
+        }
+      },
+      "state_revision": 10,
+      "last_transition": "2026-11-16T00:33:03Z",
+      "feedback_layout": "scoped",
+      "plan_review_binding": {
+        "status": "BOUND",
+        "at": "2026-11-15T22:29:23Z",
+        "consumed": {
+          "review_content_id": "008a897f17a6ec62c7edf170c22b760fdeb73bfdddea5ca33a3bf2dddaf6ddb8",
+          "plan_revision": 1,
+          "legacy": false
+        },
+        "published": {
+          "review_content_id": "118ec25e95e674a0d81b7e7c73c71f0bb5e190f6d37db9dff7bc40ab3a8d6988",
+          "plan_revision": 2
+        },
+        "bound": {
+          "review_content_id": "118ec25e95e674a0d81b7e7c73c71f0bb5e190f6d37db9dff7bc40ab3a8d6988",
+          "bundle_id": "7842739b545b3f3004913db446662ff7a264ae9af521221cbd40d456aabeb00c",
+          "plan_revision": 2
+        }
+      },
+      "optional_findings": {
+        "F-937fd0ac02e0": {
+          "digest": "937fd0ac02e05577c7954a043fb5fd60affe5c65f87156b62eccf7a9da0692ec",
+          "text": "LPR-R1-001: Section 5 says the declaration \"must classify every path the plan names, at both stages\" and that SELF_REVIEWING_PLAN checked every path, but several paths the plan names are unclassified at both stages: docs/exit-codes.md (section 3 and flow 2), docs/verify.md, docs/retention.md, docs/README.md (flow 2), docs/RELEASING.md, docs/ARCHITECTURE.md (header), tools/release/release.py (flow 11) and tests/run_all.py (CP1). None is a deliverable and each is expected byte-identical (flow 2 checks the docs by git diff, and a changed unclassified path fails closed), so nothing is unprotected in practice; either classify them as \"named in the plan, not a deliverable\" (excluded at the plan stage; protected at the implementation stage, as update-dry-run-parity did for docs/exit-codes.md and docs/ARCHITECTURE.md) or narrow the section 5 sentence to the paths it actually covers. A follow-up disposition at acceptance is enough.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "008a897f17a6ec62c7edf170c22b760fdeb73bfdddea5ca33a3bf2dddaf6ddb8",
+              "verdict": "APPROVE",
+              "at": "2026-11-15T22:23:04Z"
+            }
+          ]
+        },
+        "F-b46bbe639199": {
+          "digest": "b46bbe639199188131c67942f7f522b54e92741c97af092c6fe7fd9a20c54334",
+          "text": "LPR-R1-002: The header says \"Workflow 2.29.3 installed\", but the base commit 6fe15b4 is \"chore: install Workflow 2.29.6 (#237)\" and its .workflow-manager/installation.json records 2.29.6. Context only; nothing in the design depends on it.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "008a897f17a6ec62c7edf170c22b760fdeb73bfdddea5ca33a3bf2dddaf6ddb8",
+              "verdict": "APPROVE",
+              "at": "2026-11-15T22:23:04Z"
+            }
+          ]
+        },
+        "F-68d436d3ed16": {
+          "digest": "68d436d3ed16b875ab864d6b344fd365570f1d2383455f108632aa4d0e33e325",
+          "text": "**O1 — Declaration coverage is overstated.** Section 5 promises classification of every named path, but both classifiers reject several evidence paths, including `tests/run_all.py`, `tools/release/release.py`, `docs/RELEASING.md`, `docs/ARCHITECTURE.md` and the documentation paths in flow 2. All six implementation deliverables are protected, so this does not expose a deliverable. Classify the evidence paths or narrow the claim.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "MANUAL_EXTERNAL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "008a897f17a6ec62c7edf170c22b760fdeb73bfdddea5ca33a3bf2dddaf6ddb8",
+              "verdict": "REVISE",
+              "at": "2026-11-15T22:27:49Z"
+            }
+          ]
+        },
+        "F-3ad54939d0ac": {
+          "digest": "3ad54939d0acd9c97560ca7f496aaec72f67e120806765db0b5413d46efc6210",
+          "text": "**O2 — The baseline fixture description is incorrect.** Section 3 says the three compatibility tests have no installation. Their shared `Case.setUp` bootstraps a pinned installation, and `report()` reads it. They therefore retain the valid-record branch after the proposed change.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "MANUAL_EXTERNAL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "008a897f17a6ec62c7edf170c22b760fdeb73bfdddea5ca33a3bf2dddaf6ddb8",
+              "verdict": "REVISE",
+              "at": "2026-11-15T22:27:49Z"
+            }
+          ]
+        },
+        "F-108572114660": {
+          "digest": "10857211466062178daad44e53a5b00a5ecdb59b5fd81f1d10b82a571bb1839c",
+          "text": "**O3 — Specify M2’s exact edit.** If “drop the sentence” means removing the appended executable `verify` sentence, the two existing doctor tests do not fail: they assert the note and its first sentence, not that command. Record the measured failure set for a precisely defined mutation.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "MANUAL_EXTERNAL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "008a897f17a6ec62c7edf170c22b760fdeb73bfdddea5ca33a3bf2dddaf6ddb8",
+              "verdict": "REVISE",
+              "at": "2026-11-15T22:27:49Z"
+            }
+          ]
+        },
+        "F-a69723183a66": {
+          "digest": "a69723183a66e202237ba9aa9ad5fcf212b7bf1158911c1a0747d5df853c8ff9",
+          "text": "LPR-R2-001: Section 1 point 4 says null-record `verify` stays covered by `tests/test_operator_ux.py:1169` and `tests/test_discovery.py:407`, but `test_discovery.py:400-410` (`test_a_null_record_is_refused_as_having_no_workflow_version`) runs `update`, not `verify`. The coverage claim still holds through `test_operator_ux.py:1165-1170` (both `verify` and `status`), so removing the dead branch loses nothing; correct the citation in the implementation summary.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "118ec25e95e674a0d81b7e7c73c71f0bb5e190f6d37db9dff7bc40ab3a8d6988",
+              "verdict": "APPROVE",
+              "at": "2026-11-15T22:31:45Z"
+            }
+          ]
+        },
+        "F-d4e0021429e9": {
+          "digest": "d4e0021429e95786ec247c39acfb2d9b2b7fd2caa8fefd7aa87f82ab012b86f9",
+          "text": "LPR-R2-002: Section 5 lists `README.md` among the paths that \"stay unclassified\" and whose change \"fails closed\", but the declaration's generated template excludes `README.md` at both stages, so a change to it would not fail closed. Flow 2 still diffs it byte-for-byte, so nothing is unprotected in practice; the sentence is slightly inaccurate.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "118ec25e95e674a0d81b7e7c73c71f0bb5e190f6d37db9dff7bc40ab3a8d6988",
+              "verdict": "APPROVE",
+              "at": "2026-11-15T22:31:45Z"
+            }
+          ]
+        },
+        "F-c3796978fa4f": {
+          "digest": "c3796978fa4f230ac2350a0e346bf87e73f0bcae92ccc8c5283318248022b154",
+          "text": "LPR-R2-003: T2's \"no installation\" arm will assert the new sentence, which says \"the installation record names no usable release (it is null, or not one X.Y.Z)\"; with no record at all that wording is not literally true. The case is unreachable from the CLI (an unmanaged target is refused before any report), so it is acceptable as a unit-level guard, but the implementer may prefer to assert only \"no `verify` command\" for that arm rather than pin the sentence to a case it does not describe.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "118ec25e95e674a0d81b7e7c73c71f0bb5e190f6d37db9dff7bc40ab3a8d6988",
+              "verdict": "APPROVE",
+              "at": "2026-11-15T22:31:45Z"
+            }
+          ]
+        },
+        "F-245d1ffbeaf5": {
+          "digest": "245d1ffbeaf50754031d5d478e2389c8b53a676cec09bc4637d6fa60946fd95c",
+          "text": "LPR-R2-004: The line range `advice.py:656-660` for the appended `--release-dir ... is left out` clause is off by one (`657-661` at `6fe15b4`). Cosmetic.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "118ec25e95e674a0d81b7e7c73c71f0bb5e190f6d37db9dff7bc40ab3a8d6988",
+              "verdict": "APPROVE",
+              "at": "2026-11-15T22:31:45Z"
+            }
+          ]
+        },
+        "F-c2ef328b7ebe": {
+          "digest": "c2ef328b7ebec28ea73907f6a8ebf51761fed3e67483bd47c305b460abf1a5ba",
+          "text": "**O1 — Minor inaccuracies remain in the narrowed declaration description.** Section 5 lists `README.md` as unclassified, but the declaration excludes it at both stages. It also says flow 2 diffs every listed evidence path, although that command omits `docs/RELEASING.md`, `docs/ARCHITECTURE.md` and `tests/run_all.py`. Adjust those descriptions. All six deliverables remain protected; the previous coverage overstatement is otherwise addressed.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "MANUAL_EXTERNAL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "118ec25e95e674a0d81b7e7c73c71f0bb5e190f6d37db9dff7bc40ab3a8d6988",
+              "verdict": "APPROVE",
+              "at": "2026-11-16T00:31:21Z"
+            }
+          ]
+        }
+      },
+      "consumed_plan_review_content_ids": [
+        "008a897f17a6ec62c7edf170c22b760fdeb73bfdddea5ca33a3bf2dddaf6ddb8"
+      ]
     }
   }
 }

@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "work_item_id": "update-record-followups",
+  "requirements": {
+    "R1": {
+      "description": "For an unknown recorded release (null or not one X.Y.Z) the not-verified note keeps its first sentence, says the record names no usable release and prints no verify command; the note of a valid record, the happy-path outputs, exit codes and headlines stay byte-identical (golden over valid, null, damaged and odd-shaped records); the dry run writes nothing.",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R2": {
+      "description": "The strict X.Y.Z pattern has one home: compatibility.recorded_release uses source.is_strict_version, the copy is gone, and a table test proves the old and new predicates agree for valid, null, damaged and odd-shaped records.",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R3": {
+      "description": "The advice.py comment states the reason that holds; the dead None branch of the scalar-install verify test is removed (null-record verify stays covered elsewhere); the retention commands, Workflow releases, options and what update writes are untouched.",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R4": {
+      "description": "docs/update.md says what the note says for an unknown record, roadmap row 47 is added (Current, Done at acceptance), every test and doc pinning the old text is listed, the failure-only mutations M1 to M3 fail the sets the plan states, and the release is a fix: Manager 1.20.2.",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    }
+  }
+}
