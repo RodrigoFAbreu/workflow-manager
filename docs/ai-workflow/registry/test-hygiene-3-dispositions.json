@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "work_item_id": "test-hygiene-3",
+  "dispositions": {
+    "F-125019ccaefb": {
+      "disposition": "fixed",
+      "note": "Both assertions sit inside the try, pgid=None follows them (tests/test_parallel_runner.py sigterm test)."
+    },
+    "F-6c4eb178cd62": {
+      "disposition": "fixed",
+      "note": "Same fix: assertions moved inside the try before pgid is cleared."
+    },
+    "F-ed8bb302a1e4": {
+      "disposition": "fixed",
+      "note": "pgid is cleared after the dead check, so _end_group never signals a reaped group on the success path."
+    },
+    "F-96ced0fec2ec": {
+      "disposition": "fixed",
+      "note": "Plan section 3 M7 now states the observation and the by-inspection fallback."
+    },
+    "F-598108748cb7": {
+      "disposition": "fixed",
+      "note": "Checklist Setup states the primed-cache precondition and flow 10 lists each mutation exactly; verified by the independent executor run."
+    },
+    "F-485f3119a752": {
+      "disposition": "fixed",
+      "note": "Artifact declaration reasons reworded: a change here is reviewed content."
+    },
+    "F-df9c4d963614": {
+      "disposition": "fixed",
+      "note": "Plan line anchors corrected."
+    },
+    "F-feed8c63f462": {
+      "disposition": "follow-up",
+      "link": "https://github.com/RodrigoFAbreu/workflow-manager/issues/245"
+    },
+    "F-408b7a117a7a": {
+      "disposition": "dropped",
+      "reason": "Plan section 7 accepts that the control agrees by construction; the pipe stand-in shows the old disagreement (M4 fails)."
+    }
+  }
+}
