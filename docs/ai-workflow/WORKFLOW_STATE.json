@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_work_item_id": null,
+  "active_work_item_id": "priming-wording-and-alert-pins",
   "work_items": {
     "plan-amendment-mechanism": {
       "work_item_type": "process",
@@ -40539,6 +40539,193 @@
         },
         "evaluated_at": "2026-11-16T12:36:34Z",
         "workflow_release": "2.29.6"
+      }
+    },
+    "priming-wording-and-alert-pins": {
+      "work_item_type": "process",
+      "work_item_kind": "process",
+      "work_item_id": "priming-wording-and-alert-pins",
+      "parent_work_item_id": null,
+      "plan_path": "docs/ai-workflow/WORKFLOW_MANAGER_PRIMING_WORDING_AND_ALERT_PINS_PLAN.md",
+      "registry_path": "docs/ai-workflow/registry/priming-wording-and-alert-pins-registry.json",
+      "mapping_path": "docs/ai-workflow/requirements/priming-wording-and-alert-pins-mapping.json",
+      "governing_workflow_version": "2.2",
+      "phase": "IMPLEMENTING",
+      "plan_revision": 4,
+      "implementation_revision": null,
+      "functional_review_round": null,
+      "base_commit": "59beeea99ac8e976b835dc9ab6d8544ba207feb2",
+      "reviewed_implementation_head": null,
+      "current_checkpoint_id": null,
+      "last_completed_checkpoint_id": null,
+      "checkpoints": {},
+      "current_bundle_id": "05aa760285294eae52d1f1f43938ee4179850488ec27a56e63a663d74f380643",
+      "plan_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "05aa760285294eae52d1f1f43938ee4179850488ec27a56e63a663d74f380643",
+        "approved_review_content_id": "00dc92e00b6338248c5b5259fec027058913fbe3152ef719428f7a1dd69d430e",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/WORKFLOW_MANAGER_PRIMING_WORDING_AND_ALERT_PINS_PLAN.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "66fb9f7d1a22e0bb82fc476c0e613d58c3ae3d4f"
+          },
+          {
+            "path": "docs/ai-workflow/registry/priming-wording-and-alert-pins-registry.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "60cb361f3b81979da1ed27d75a83997262ef9e9e"
+          },
+          {
+            "path": "docs/ai-workflow/requirements/priming-wording-and-alert-pins-mapping.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "902ea82b6b91d4607677d13da52e36bcdbe81bf8"
+          }
+        ],
+        "reviewed_content_commit": null,
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-11-16T14:10:25Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "00dc92e00b6338248c5b5259fec027058913fbe3152ef719428f7a1dd69d430e",
+            "ledger": {
+              "local": {
+                "bundle_id": "05aa760285294eae52d1f1f43938ee4179850488ec27a56e63a663d74f380643",
+                "verdict": "APPROVE",
+                "round": 4,
+                "verdict_sha256": "e5e40ffffbbf2624fb057bb8b1dd3a142e144f259c7aeed5b04be43e0af7c095",
+                "ledger_entry_sha256": "8d9c8482ddbffec5bb89cff4a2f3947682e1cf2fb6ac3fd67125865dc063f723",
+                "run_ref": "session:local .ai-review/priming-wording-and-alert-pins/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "05aa760285294eae52d1f1f43938ee4179850488ec27a56e63a663d74f380643",
+                "verdict": "APPROVE",
+                "round": 4,
+                "verdict_sha256": "d435ee2158bb6dc08bc9c8bacabed1dfee2a6563332966bc1d1eb6804249f36f",
+                "ledger_entry_sha256": "0ad72bb8a6ce15354d81945979ae5438b67d42b808f203a8c99d81895a47c160",
+                "run_ref": "codex:20261116T140623Z-78fc9d82",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-11-16T14:10:25Z",
+          "workflow_release": "2.29.6"
+        }
+      },
+      "technical_approval": null,
+      "technical_review_block_pins": [],
+      "plan_review_stages": {
+        "review_content_id": "00dc92e00b6338248c5b5259fec027058913fbe3152ef719428f7a1dd69d430e",
+        "LOCAL_MODEL_PLAN_REVIEW": {
+          "bundle_id": "05aa760285294eae52d1f1f43938ee4179850488ec27a56e63a663d74f380643",
+          "verdict": "APPROVE",
+          "round": 4,
+          "completed_at": "2026-11-16T14:05:21Z",
+          "verdict_sha256": "e5e40ffffbbf2624fb057bb8b1dd3a142e144f259c7aeed5b04be43e0af7c095",
+          "run_ref": "session:local .ai-review/priming-wording-and-alert-pins/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_PLAN_REVIEW": {
+          "bundle_id": "05aa760285294eae52d1f1f43938ee4179850488ec27a56e63a663d74f380643",
+          "verdict": "APPROVE",
+          "round": 4,
+          "completed_at": "2026-11-16T14:09:03Z",
+          "verdict_sha256": "d435ee2158bb6dc08bc9c8bacabed1dfee2a6563332966bc1d1eb6804249f36f",
+          "run_ref": "codex:20261116T140623Z-78fc9d82",
+          "reviewer_model": "openai/gpt-6.1-sol"
+        }
+      },
+      "functional_acceptance_status": null,
+      "blocking_decisions": [],
+      "review_round_counts": {
+        "plan": {
+          "local": 4,
+          "external": 1
+        },
+        "implementation": {
+          "local": 0,
+          "external": 0
+        }
+      },
+      "state_revision": 15,
+      "last_transition": "2026-11-16T14:10:25Z",
+      "feedback_layout": "scoped",
+      "plan_review_binding": {
+        "status": "BOUND",
+        "at": "2026-11-16T14:03:02Z",
+        "consumed": {
+          "review_content_id": "4f9a822f47a3728756e33b2d9fb582fba3433fd2869a53c45d420abe15590803",
+          "plan_revision": 3,
+          "legacy": false
+        },
+        "published": {
+          "review_content_id": "00dc92e00b6338248c5b5259fec027058913fbe3152ef719428f7a1dd69d430e",
+          "plan_revision": 4
+        },
+        "bound": {
+          "review_content_id": "00dc92e00b6338248c5b5259fec027058913fbe3152ef719428f7a1dd69d430e",
+          "bundle_id": "05aa760285294eae52d1f1f43938ee4179850488ec27a56e63a663d74f380643",
+          "plan_revision": 4
+        }
+      },
+      "consumed_plan_review_content_ids": [
+        "08b6b0c3fe636ebf255a47f634e01e586b76f633d788305a9ad13fbece6454b4",
+        "4f9a822f47a3728756e33b2d9fb582fba3433fd2869a53c45d420abe15590803",
+        "8c84d734fa2f93efd2c8a6adf19d2d0825d78689284237c1f8347f1a2fdc13bc"
+      ],
+      "optional_findings": {
+        "F-f33796f5796f": {
+          "digest": "f33796f5796faccf218cf13309138e303b824805a8eb472df17074bfe504b383",
+          "text": "**PWA-L1-003 -- M4 is in section 3 but not in Flow 6.** Flow 6 runs \"M1 to M3\", while\n  section 3 lists M4 with a \"must fail\" (the new J test). Either add M4 to the flow or\n  mark it in section 3 as recorded but not run.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "8c84d734fa2f93efd2c8a6adf19d2d0825d78689284237c1f8347f1a2fdc13bc",
+              "verdict": "REVISE",
+              "at": "2026-11-16T13:47:59Z"
+            }
+          ]
+        }
       }
     }
   }
