@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "work_item_id": "priming-wording-and-alert-pins",
+  "dispositions": {
+    "F-f33796f5796f": {
+      "disposition": "fixed",
+      "note": "The checklist's flow 8 now runs M1 to M4 (M4 recorded), matching section 3."
+    }
+  }
+}

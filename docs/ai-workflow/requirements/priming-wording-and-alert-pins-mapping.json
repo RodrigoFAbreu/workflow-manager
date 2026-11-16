@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "work_item_id": "priming-wording-and-alert-pins",
+  "requirements": {
+    "R1": {
+      "description": "The Priming bullet says no test fetches a release from a remote host (loopback servers and --release-source mirrors are intentional) (#190)",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R2": {
+      "description": "The Priming bullet says the snapshot follows the effective TMPDIR and that the free-space check does not cover it when --results is on another filesystem (#168)",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R3": {
+      "description": "A J-test pins the doctor --retention --json document for an incomplete report whose not_finished items are all query_failed (report_complete false, evaluation not_evaluated, the incomplete cause) with one new golden (#242 point 2 i)",
+      "checkpoint_ids": [
+        "CP2"
+      ]
+    },
+    "R4": {
+      "description": "A text test pins the verify and doctor alert for the same report: one not-evaluated line with the incomplete cause and next step, exit code unchanged (#242 point 2 ii); no src change",
+      "checkpoint_ids": [
+        "CP2"
+      ]
+    }
+  }
+}

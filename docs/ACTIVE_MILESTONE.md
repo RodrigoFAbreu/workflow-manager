@@ -2,37 +2,33 @@
 
 ## Milestone
 
-**Complete.** `test-hygiene-3` (`governing_workflow_version: "2.2"`, `process`, plan revision 1, base `26d6850`, branch `milestone/test-hygiene-3`): roadmap row 49 (added at CP2, Done at acceptance).
+**Complete.** `priming-wording-and-alert-pins` (`governing_workflow_version: "2.2"`, `process`, plan revision 4, implementation revision 2, base `59beeea`, branch `milestone/priming-wording-and-alert-pins`): it has no roadmap row.
 
-The existing discovery, release-metadata, parallel-runner and update-report tests assert what they claim: ten points of #162, #164, #166 and #239. A `test:` change, no release.
+Two small follow-ups from reviewed issues: the Priming bullet of `docs/ARCHITECTURE.md` says what is true about test-time fetches and about the filesystem the free-space check does not cover (#190, #168), and two gate tests pin what an incomplete retention report whose unfinished items are all `query_failed` shows, in the `doctor --retention --json` document and in the verify/doctor alert text (point 2 of #242). A `test:` change, no release.
 
-### CP1: the descriptor probe and the runner test cleanup -- complete
+### CP1: the Priming bullet wording -- complete
 
-- `tests/test_discovery.py`: `_lists_links()` takes no parameter and asks what the probe asks (the first existing directory of `_FD_DIRECTORIES` lists the pair's own links); the control test gains a 256 `pipe:[1]` links stand-in; new `test_the_first_existing_directory_decides_what_is_listed`; the second `socketpair()` of the helper test moves inside the `try`.
-- `tests/test_parallel_runner.py`: the sigterm/sigint test's `finally` ends the chunk groups through `_end_group` before the stop file, kills a still-running executor, and asserts every group ended; `pgid` is `None` after the success-path death check.
-- Verified: `--select test_discovery.py --select test_parallel_runner.py` verdict exit 0 (379 tests); M4 and M5 each fail `TestTheDescriptorProbe` in a scratch copy outside the repository; `src tools .claude scripts .workflow-manager tests/parallel` byte-identical to the checkpoint start.
+- `docs/ARCHITECTURE.md`: "the ambient `TMPDIR`, a filesystem the check does not then measure" becomes "the effective `TMPDIR`, a filesystem the check does not cover when `--results` is on another filesystem"; "no test fetches a release at test time" becomes "no test fetches a release from a remote host". Nothing else on the page changes; the page has no stamp.
 
-### CP2: the latest filter, the update report note, the docs line and the roadmap row -- complete
+### CP2: the two gate tests -- complete
 
-- `tests/test_release_metadata.py`: the default case gains `7.0.6` with a `schema_version: 2` block (`NEWER_BLOCK`); new `test_a_pin_that_is_not_built_in_is_judged_like_any_other_release_when_its_block_is_read` (six pins, none built in); `TestTheDocs` pins the new `docs/update.md` sentence and that the old words are gone.
-- `docs/update.md` line 45: "a pin or the default version with no trusted cached manifest is kept (one whose block was read is judged like any other release)"; the "Last checked with" stamp does not move.
-- `tests/test_compatibility.py`: the no-installation arm asserts only that no ` verify ` command is printed; the redundant `assertIn("verify", ...)` is gone.
-- `docs/ROADMAP.md`: row 49 (Current).
-- Verified: `--select test_release_metadata.py --select test_compatibility.py --select test_docs.py` verdict exit 0 (237 tests); `python3 tools/check_docs.py` exit 0; M1 fails the default case `7.0.6` and M2 fails the pin cases `7.0.1` to `7.0.4` in a scratch copy outside the repository (M3 and M8b are flow 10 of the functional review); `src tools .claude scripts .workflow-manager tests/parallel` byte-identical to the base.
+- `tests/test_retention_alert_json.py`: new `test_J4_an_incomplete_report_whose_queries_all_failed_is_not_evaluated` in `TestGoldens`, with the new whole-document golden `J4-queries-failed` (the `J4` document with `current_value` 0 for both alerts and an all-zero snapshot), and a `complete=True` subcase checked by its fields (`evaluation` not evaluated, `report_complete` false, cause incomplete, every alert `unknown`).
+- `tests/test_retention_alert.py`: new `test_an_incomplete_report_whose_queries_all_failed_is_not_evaluated` in `TestUnavailable`, for `verify` and `doctor`: one not-evaluated line with the incomplete cause, the `next:` line with `retention.STEP_INCOMPLETE`, and the baseline exit code.
+- No `src/`, `tools/` or managed-file change.
+- Verified at implementation revision 2 (`8342e14`): full gate `evidence: full selection, local, 8 worker(s), head 8342e14f010bf03e1e2a25e4bb97f9dec3da13f2, 2438/2438 units, 16487 tests`, `verdict: exit 0`; the narrow selection of the two files `verdict: exit 0` (110 tests); the mutation of `retention.py`'s `_query_failed_note` guard makes three tests fail, including `J4-queries-failed`.
 
-### Self-review and the full gate
+### Review and approval
 
-- The full milestone diff matches the plan's file list and sections; no blocking or important finding, no change. The sigterm test's new `finally` reads `_lock_holder` as `_interrupt` does; on the success path the chunk's own `finally` has already removed its pgid under the held lock, so no reused group is signalled.
-- Plan section 6 flows 1 to 9 and 11 give the expected results; the title check reads `valid title: test, release impact none`.
-- Mutations in a scratch clone of `61262c4` outside the repository, each run with `python3 tests/run_all.py --select` of the file: M1 (`src/workflow_manager/cli.py:768`) fails the default case `7.0.6`; M2 (`cli.py:758`) the pin cases `7.0.1` to `7.0.4`; M2b (`cli.py:768`) `7.0.2` and `7.0.3`; M3 (`docs/update.md:45`) `TestTheDocs::test_the_latest_available_bullet_qualifies_the_kept_pins`; M4 (`tests/test_discovery.py:954`) the control, case "links to something other than a socket"; M5 (`test_discovery.py:954`) the first-directory test, case "a blind directory first hides a listing one"; M8b (`src/workflow_manager/compatibility.py:1969`) `test_an_unknown_record_gets_a_note_with_no_verify_command`. Without `makes that comparison` (`compatibility.py:1973`) `test_a_valid_record_keeps_the_verify_command_in_the_note` fails (#239.2).
-- M6 (the bystander `socketpair()` raises, references held so refcounting cannot close them): the base order leaves the test's pair (descriptors 3 and 4) open, the new order closes both.
-- M7 (`self.fail("injected")` in place of the signal, both subtests): the base `finally` ends with the chunk group alive and the runner reports one tolerated orphan chunk; the new `finally` ends with it dead (also before the stop file is written) and the declared `orphan_sources` entry is unused.
-- Full gate: `evidence: full selection, local, 8 worker(s), head 61262c4e86931a27b07dcd9b3238f2b21f75662a, 2438/2438 units, 16483 tests, selection_digest 9957d343edee4613b59b75a4d916afa09d860b8240978644a6c90b09637c9ef4, tests_digest b27d2bb04042d0cd687849db2df7f132f0385bee75ed1f721beda46a2f5a98be, tree_digest 9b39dc9d271b26a45f6de53412f16a05579fb5db2e0483a46487b8e6d4f18412`, `verdict: exit 0`; the only orphans are the declared `orphan_sources`.
+- Local implementation review: round 2 `APPROVE` (`anthropic/claude-opus-5-5`), round 1 `REVISE` (I1: the new tests missed the all-queries-failed scenario; fixed in `8342e14`).
+- Manual external implementation review: round 2 `APPROVE` (`openai/gpt-6.1-sol`).
+- Technical approval: `CURRENT`, `POLICY_SATISFIED`, bound to the round-2 bundle.
+- Plan approval: `CURRENT`, `POLICY_SATISFIED`, at plan revision 4, bound to the `APPROVE` verdicts of `anthropic/claude-opus-5-5` (local) and `openai/gpt-6.1-sol` (manual) for that bundle. The optional plan-review finding PWA-L1-003 (M4 missing from Flow 6) is in the state's `optional_findings`; plan revision 4 puts M1 to M4 in flow 8 of this checklist. Optional findings are dispositioned at acceptance.
 
-## Acceptance
+### Functional review and acceptance
 
-Accepted by policy (`/satisfy-gate acceptance`, policy digest `bae758b4f4ce`): all eleven functional flows passed at the approved content, and PR #246's checks are green at its head `6e8b5ae`. Roadmap row 49 is Done; the Optional findings are dispositioned in `docs/milestones/completed/test-hygiene-3-findings.md`.
+- Functional evidence: flows 1 to 9 passed at the approved content (flows 1 to 4, 6 and 9 by the Controller's automated tester, flows 5, 7 and 8 by an independent headless executor run). The one optional plan-review finding (PWA-L1-003) is dispositioned `fixed` in `docs/ai-workflow/registry/priming-wording-and-alert-pins-dispositions.json`.
+- Accepted by policy (not by a person) on 2026-11-16: `/satisfy-gate acceptance`, pull request #247 at `645aa6e`, checks green. A `test:` change, no release.
 
 ## Next action
 
-No milestone is ready in `docs/ROADMAP.md` (row 49 was the last). Merge PR #246: a `test:` change, no release. Then `/milestone-plan` for the next item.
+No active work item. Run `/milestone-plan` for the next incomplete milestone in `docs/ROADMAP.md`.
