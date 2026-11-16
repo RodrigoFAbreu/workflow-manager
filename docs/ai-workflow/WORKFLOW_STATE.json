@@ -38982,12 +38982,12 @@
       "registry_path": "docs/ai-workflow/registry/retention-pins-and-wording-2-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/retention-pins-and-wording-2-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "SELF_REVIEWING_IMPLEMENTATION",
+      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
       "plan_revision": 4,
-      "implementation_revision": null,
+      "implementation_revision": 1,
       "functional_review_round": null,
       "base_commit": "a2431446dac2d2741f89da08a001e52b91083f3a",
-      "reviewed_implementation_head": null,
+      "reviewed_implementation_head": "904807103a1b9e473fe764eace3747f0a09b1e49",
       "current_checkpoint_id": null,
       "last_completed_checkpoint_id": "CP2",
       "checkpoints": {
@@ -39126,8 +39126,8 @@
           "external": 0
         }
       },
-      "state_revision": 20,
-      "last_transition": "2026-11-16T08:44:46Z",
+      "state_revision": 21,
+      "last_transition": "2026-11-16T09:01:56Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
