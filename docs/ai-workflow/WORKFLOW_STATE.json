@@ -39789,7 +39789,7 @@
       "registry_path": "docs/ai-workflow/registry/test-hygiene-3-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/test-hygiene-3-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "AWAITING_FUNCTIONAL_REVIEW",
       "plan_revision": 1,
       "implementation_revision": 1,
       "functional_review_round": null,
@@ -39898,7 +39898,114 @@
           "workflow_release": "2.29.6"
         }
       },
-      "technical_approval": null,
+      "technical_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "a41aa5b4c0f9e8f245b45aec42f5da2163817fa1340e36c2d1a509a3ffd3bc54",
+        "approved_review_content_id": "1b8dbc8f95dccd058adbda853fa8503b328439a03c09c892ac765fcd9294d7e8",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/registry/test-hygiene-3-artifacts.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "f47d3b6f5bdca71b09c7c20a02694ca88435f2d1"
+          },
+          {
+            "path": "docs/update.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "eeeb200520eac1394cac184716e1dd4297e3cb92"
+          },
+          {
+            "path": "tests/test_compatibility.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "a2418863f4fee9ce073eb2a6ddb5d6a155124a2c"
+          },
+          {
+            "path": "tests/test_discovery.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "29e3f340ee0c0c3a14cf500fa206c60813182fcf"
+          },
+          {
+            "path": "tests/test_parallel_runner.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "c13ddef08082fdd336e785550226c12b89189418"
+          },
+          {
+            "path": "tests/test_release_metadata.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "a2ca6a6aa95b597409f7679225693a0366a26edb"
+          }
+        ],
+        "reviewed_content_commit": "ee27758b06537322cccf6927940af76b10a9d74b",
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-11-16T12:06:32Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "1b8dbc8f95dccd058adbda853fa8503b328439a03c09c892ac765fcd9294d7e8",
+            "ledger": {
+              "local": {
+                "bundle_id": "a41aa5b4c0f9e8f245b45aec42f5da2163817fa1340e36c2d1a509a3ffd3bc54",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "dd998646efd10c75fcc21f443c9f71e93a66bd184a0e2406403abcf88001b938",
+                "ledger_entry_sha256": "d16af0456f162d9a78c9f54712df92721ad137e1abb2248d1428cf4f62dccf90",
+                "run_ref": "session:local .ai-review/test-hygiene-3/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "a41aa5b4c0f9e8f245b45aec42f5da2163817fa1340e36c2d1a509a3ffd3bc54",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "6e4148e25c62f0b8991db2b61d4550e0cade3f78b16117eeb7b472ca695d607c",
+                "ledger_entry_sha256": "527cedeff1eb7af1403bbaf6fff5b5401ff349ea408418217fbaaa4259b0e81d",
+                "run_ref": "codex:20261116T120101Z-598b6a81",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-11-16T12:06:32Z",
+          "workflow_release": "2.29.6"
+        }
+      },
       "technical_review_block_pins": [],
       "plan_review_stages": {
         "review_content_id": "fa911145046f14693e4ae619683e5b4b56efc9d3db4f45cf9e12a55c8c9f948d",
@@ -39929,12 +40036,12 @@
           "external": 1
         },
         "implementation": {
-          "local": 0,
-          "external": 0
+          "local": 1,
+          "external": 1
         }
       },
-      "state_revision": 14,
-      "last_transition": "2026-11-16T11:51:17Z",
+      "state_revision": 17,
+      "last_transition": "2026-11-16T12:06:32Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -40055,6 +40162,55 @@
               "at": "2026-11-16T11:17:04Z"
             }
           ]
+        },
+        "F-feed8c63f462": {
+          "digest": "feed8c63f462912483ddfaef7e04de443e596d31d487583afe70b459722879c0",
+          "text": "LIR1-O01: `tests/test_compatibility.py` `test_a_valid_record_keeps_the_verify_command_in_the_note` still does not assert the verify command its name claims. The `assertIn(\"verify\", ...)` this item removed was vacuous, since the base note already contains `workflow-manager verify`. The two assertions left check only the text around the command. Measured in a scratch copy: with `compatibility.py:1973` changed to `detail += f\" makes that comparison, or prints why it cannot.\"` (the `{verify}` command dropped), `TestMiscFindings` passes. The suite still catches it: `test_operator_ux_report.py::TestReportSteps` fails 3 tests. A follow-up could assert the rendered command itself, for example an `assertIn` of the backticked `workflow-manager verify <repo>` command rendered for the record. The plan said the neighbours \"carry the check\", and they carry only the sentence. This does not weaken anything, so it is not a regression.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "1b8dbc8f95dccd058adbda853fa8503b328439a03c09c892ac765fcd9294d7e8",
+              "verdict": "APPROVE",
+              "at": "2026-11-16T11:59:42Z"
+            }
+          ]
+        },
+        "F-408b7a117a7a": {
+          "digest": "408b7a117a7af920f1a55a0d134aeae098bbb2cb255ff9ca7f3724a11bc5cc77",
+          "text": "LIR1-O02: `tests/test_discovery.py` `test_the_control_skips_exactly_where_the_probe_does` now compares two functions that apply the same criterion (`_own_links(pair) <= _socket_links(...)`), so it agrees largely by construction. Plan section 7 accepts this as a guard against later divergence. The new `pipe:[1]` stand-in does show the old disagreement (M4). No action needed. Recorded so the acceptance disposition can note it.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "1b8dbc8f95dccd058adbda853fa8503b328439a03c09c892ac765fcd9294d7e8",
+              "verdict": "APPROVE",
+              "at": "2026-11-16T11:59:42Z"
+            }
+          ]
+        }
+      },
+      "implementation_review_stages": {
+        "review_content_id": "1b8dbc8f95dccd058adbda853fa8503b328439a03c09c892ac765fcd9294d7e8",
+        "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "a41aa5b4c0f9e8f245b45aec42f5da2163817fa1340e36c2d1a509a3ffd3bc54",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-11-16T11:59:42Z",
+          "verdict_sha256": "dd998646efd10c75fcc21f443c9f71e93a66bd184a0e2406403abcf88001b938",
+          "run_ref": "session:local .ai-review/test-hygiene-3/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "a41aa5b4c0f9e8f245b45aec42f5da2163817fa1340e36c2d1a509a3ffd3bc54",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-11-16T12:05:29Z",
+          "verdict_sha256": "6e4148e25c62f0b8991db2b61d4550e0cade3f78b16117eeb7b472ca695d607c",
+          "run_ref": "codex:20261116T120101Z-598b6a81",
+          "reviewer_model": "openai/gpt-6.1-sol"
         }
       }
     }
