@@ -40550,7 +40550,7 @@
       "registry_path": "docs/ai-workflow/registry/priming-wording-and-alert-pins-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/priming-wording-and-alert-pins-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "AWAITING_FUNCTIONAL_REVIEW",
       "plan_revision": 4,
       "implementation_revision": 2,
       "functional_review_round": null,
@@ -40659,7 +40659,102 @@
           "workflow_release": "2.29.6"
         }
       },
-      "technical_approval": null,
+      "technical_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "1bf0a53138402c7b29ba5fcd7dc0c7ecfa1cbfdfcf9150b976aee8b1f042808d",
+        "approved_review_content_id": "793b15181d9f3a385ac3cfdb3a0e473c4c728521d98830e7b68e4cacf0bab7d2",
+        "review_content_manifest": [
+          {
+            "path": "docs/ARCHITECTURE.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "12065bb1927457255b95ee7bc3cc7a7960a826ca"
+          },
+          {
+            "path": "docs/ai-workflow/registry/priming-wording-and-alert-pins-artifacts.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "ea8f762d76d1e2d4d9f900194ff53f49b1a4c6ca"
+          },
+          {
+            "path": "tests/test_retention_alert.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "6f723cfdcf9297956008cdf22a98cf4525cc3ec2"
+          },
+          {
+            "path": "tests/test_retention_alert_json.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "f8326c3ff9e96c1345d3a5f01e63fcf43e75f398"
+          }
+        ],
+        "reviewed_content_commit": "8342e14f010bf03e1e2a25e4bb97f9dec3da13f2",
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-11-16T15:09:35Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "793b15181d9f3a385ac3cfdb3a0e473c4c728521d98830e7b68e4cacf0bab7d2",
+            "ledger": {
+              "local": {
+                "bundle_id": "1bf0a53138402c7b29ba5fcd7dc0c7ecfa1cbfdfcf9150b976aee8b1f042808d",
+                "verdict": "APPROVE",
+                "round": 2,
+                "verdict_sha256": "cbaea132a030035b51e2615bfbb412a437cbe4c1203e3b5336d55c824b6642b3",
+                "ledger_entry_sha256": "3d12761dac767dd1ecb7a25c676623aed6cfb49302314366b51e5e28ed165b2e",
+                "run_ref": "session:local .ai-review/priming-wording-and-alert-pins/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "1bf0a53138402c7b29ba5fcd7dc0c7ecfa1cbfdfcf9150b976aee8b1f042808d",
+                "verdict": "APPROVE",
+                "round": 2,
+                "verdict_sha256": "3a9598bf2ae9e3446ebec06732cd6587091feddd16c3d1e837844488313ac6f7",
+                "ledger_entry_sha256": "5ecbf5c4cbf87607bc02ab5cf15bff716972cd62dadbc414adbe870cbb5e415b",
+                "run_ref": "codex:20261116T150544Z-ee8cc6c6",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-11-16T15:09:35Z",
+          "workflow_release": "2.29.6"
+        }
+      },
       "technical_review_block_pins": [],
       "plan_review_stages": {
         "review_content_id": "00dc92e00b6338248c5b5259fec027058913fbe3152ef719428f7a1dd69d430e",
@@ -40690,12 +40785,12 @@
           "external": 1
         },
         "implementation": {
-          "local": 1,
-          "external": 1
+          "local": 2,
+          "external": 2
         }
       },
-      "state_revision": 23,
-      "last_transition": "2026-11-16T15:01:40Z",
+      "state_revision": 26,
+      "last_transition": "2026-11-16T15:09:35Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -40737,17 +40832,25 @@
         }
       },
       "implementation_review_stages": {
-        "review_content_id": "f34accc223179661983b1b7afd1916c35505b915d1ae58a23150e0e4c04a9dac",
+        "review_content_id": "793b15181d9f3a385ac3cfdb3a0e473c4c728521d98830e7b68e4cacf0bab7d2",
         "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {
-          "bundle_id": "5878993d183d9efbd9fa43a4c629f78a1876c2f038c2f1de480445d5103e0436",
+          "bundle_id": "1bf0a53138402c7b29ba5fcd7dc0c7ecfa1cbfdfcf9150b976aee8b1f042808d",
           "verdict": "APPROVE",
-          "round": 1,
-          "completed_at": "2026-11-16T14:38:35Z",
-          "verdict_sha256": "9d14cfe72725f3a540167b5e6ad2f538314e63bc116824c0100e6e03c4ea9a8c",
+          "round": 2,
+          "completed_at": "2026-11-16T15:04:42Z",
+          "verdict_sha256": "cbaea132a030035b51e2615bfbb412a437cbe4c1203e3b5336d55c824b6642b3",
           "run_ref": "session:local .ai-review/priming-wording-and-alert-pins/feedback/REVIEW_FEEDBACK.md",
           "reviewer_model": "anthropic/claude-opus-5-5"
         },
-        "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": null
+        "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "1bf0a53138402c7b29ba5fcd7dc0c7ecfa1cbfdfcf9150b976aee8b1f042808d",
+          "verdict": "APPROVE",
+          "round": 2,
+          "completed_at": "2026-11-16T15:08:28Z",
+          "verdict_sha256": "3a9598bf2ae9e3446ebec06732cd6587091feddd16c3d1e837844488313ac6f7",
+          "run_ref": "codex:20261116T150544Z-ee8cc6c6",
+          "reviewer_model": "openai/gpt-6.1-sol"
+        }
       }
     }
   }
