@@ -22,3 +22,7 @@ The `docs/ROADMAP.md` row 47 is an uncommitted working-tree edit, deliberately: 
 - Golden (flow 6): `update --dry-run --release-dir D`, the same with `--release-version 2.12.0`, and `doctor --release-dir D`, for a valid, `null`, `garbage`, `../escaped`, `''` and `123` record, base `src` (`git archive 6fe15b4`) against the candidate. The valid record's three outputs are byte-identical; `doctor` is identical for every shape (it refuses the unknown record before the note); for each unknown shape the two `update` outputs differ in exactly one line, the `not-verified` detail, and the new detail names no `verify` command.
 - Decision table (point 3): `recorded_release` over the fifteen rows of T1 (including no installation) gives identical results with the base and the candidate `src`.
 - Flows 1, 2, 4, 5, 9 and 11 of plan section 6 run as stated and give the expected result.
+
+### Full gate -- green
+
+`python3 tests/run_all.py` at `e49f7b9`: full selection, 8 workers, 2438/2438 units, 16473 tests, `selection_digest 9957d343edee4613b59b75a4d916afa09d860b8240978644a6c90b09637c9ef4`, `tests_digest cce730f4ab75d8ab1e35f775411018cbf16552b55e8b53cf740720d70edc0d2b`, `verdict: exit 0`. The orphan check was on; the only orphans reported are the declared `orphan_sources`.
