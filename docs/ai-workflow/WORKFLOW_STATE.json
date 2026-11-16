@@ -38149,12 +38149,12 @@
       "registry_path": "docs/ai-workflow/registry/update-record-followups-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/update-record-followups-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "SELF_REVIEWING_IMPLEMENTATION",
+      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
       "plan_revision": 2,
-      "implementation_revision": null,
+      "implementation_revision": 1,
       "functional_review_round": null,
       "base_commit": "6fe15b4ad17953a5b90b948cd2c73e42d82928f7",
-      "reviewed_implementation_head": null,
+      "reviewed_implementation_head": "fb81ec2f3ee972d169af73182aecb6596388a0e0",
       "current_checkpoint_id": null,
       "last_completed_checkpoint_id": "CP1",
       "checkpoints": {
@@ -38289,8 +38289,8 @@
           "external": 0
         }
       },
-      "state_revision": 12,
-      "last_transition": "2026-11-16T00:39:34Z",
+      "state_revision": 13,
+      "last_transition": "2026-11-16T01:09:57Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
