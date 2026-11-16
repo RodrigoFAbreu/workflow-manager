@@ -38149,7 +38149,7 @@
       "registry_path": "docs/ai-workflow/registry/update-record-followups-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/update-record-followups-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "AWAITING_FUNCTIONAL_REVIEW",
       "plan_revision": 2,
       "implementation_revision": 1,
       "functional_review_round": null,
@@ -38254,7 +38254,120 @@
           "workflow_release": "2.29.6"
         }
       },
-      "technical_approval": null,
+      "technical_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "92cf04e5239446be461e2eb3a38dfdb395f3bc9eda3dff598aee5890c0c41d51",
+        "approved_review_content_id": "ffb61c20de8619a430a95bc2c0f68e08d949dd1770b4858c27871add4b43cb76",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/registry/update-record-followups-artifacts.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "c454f82b2c8fa80b4610f684648ce9b6b21c7e7e"
+          },
+          {
+            "path": "docs/update.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "f1132ea2838c1d8b1dbeba8da4f9a8ecdedd7fe2"
+          },
+          {
+            "path": "src/workflow_manager/advice.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "2d8e22aeb066af1ab2485253438b1b60d2d6efa4"
+          },
+          {
+            "path": "src/workflow_manager/compatibility.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "c77cc4315d39f94e87c1c4eb0f847f9643c12212"
+          },
+          {
+            "path": "tests/test_compatibility.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "06ff9ff86e60262ecc19582f324ed46688d337ed"
+          },
+          {
+            "path": "tests/test_operator_ux_readonly.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "5e79cc283e180b67a20c89b51886a33f9ce94333"
+          },
+          {
+            "path": "tests/test_operator_ux_report.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "ad699eefeb98e2d089435bde41519050ddcf69f8"
+          }
+        ],
+        "reviewed_content_commit": "fb81ec2f3ee972d169af73182aecb6596388a0e0",
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-11-16T01:19:44Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "ffb61c20de8619a430a95bc2c0f68e08d949dd1770b4858c27871add4b43cb76",
+            "ledger": {
+              "local": {
+                "bundle_id": "92cf04e5239446be461e2eb3a38dfdb395f3bc9eda3dff598aee5890c0c41d51",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "aaef0673e7e5d63208ba20fdaa85083fc8e6ed9c20667e0da02f17d005fd0195",
+                "ledger_entry_sha256": "038a60e59b4068f79c9d9a998f3b223d15a6338c559e799d8d41bca1e60743fb",
+                "run_ref": "session:local .ai-review/update-record-followups/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "92cf04e5239446be461e2eb3a38dfdb395f3bc9eda3dff598aee5890c0c41d51",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "c21ac8e3285958218af5fa7e839f7f1b7b82ec88344074e5366371993148a04a",
+                "ledger_entry_sha256": "a58495699e4b6e2b5dc82a11c0a996536e5fcbacf50cd5608b402d6fc6dea15b",
+                "run_ref": "codex:20261116T011505Z-af82d0ea",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-11-16T01:19:44Z",
+          "workflow_release": "2.29.6"
+        }
+      },
       "technical_review_block_pins": [],
       "plan_review_stages": {
         "review_content_id": "118ec25e95e674a0d81b7e7c73c71f0bb5e190f6d37db9dff7bc40ab3a8d6988",
@@ -38285,12 +38398,12 @@
           "external": 2
         },
         "implementation": {
-          "local": 0,
-          "external": 0
+          "local": 1,
+          "external": 1
         }
       },
-      "state_revision": 13,
-      "last_transition": "2026-11-16T01:09:57Z",
+      "state_revision": 16,
+      "last_transition": "2026-11-16T01:19:44Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -38450,11 +38563,88 @@
               "at": "2026-11-16T00:31:21Z"
             }
           ]
+        },
+        "F-5b074afd7740": {
+          "digest": "5b074afd77403f2290ed175037fefb5181535c977dc7aa4721ab7389b958f00a",
+          "text": "LIR1-001: T2's no-installation arm (`test_an_unknown_record_gets_a_note_with_no_verify_command`, last block) asserts `names no usable release`, i.e. it pins a sentence saying \"(it is null, or not one X.Y.Z)\" to a case with no record at all. The case cannot be reached from the CLI (an unmanaged target is refused before any report), so this guard is acceptable. LPR-R2-003 already raised this and the implementer kept the assertion. Asserting only that no `verify` command is printed would keep the guard without describing the case wrongly.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "ffb61c20de8619a430a95bc2c0f68e08d949dd1770b4858c27871add4b43cb76",
+              "verdict": "APPROVE",
+              "at": "2026-11-16T01:13:45Z"
+            }
+          ]
+        },
+        "F-f9651e3172b6": {
+          "digest": "f9651e3172b61657153772d1b2f332a10c8d20c24863506c4ebd55f754c54089",
+          "text": "LIR1-002: LPR-R2-001 asked for a citation fix in the implementation summary: `tests/test_discovery.py:407` runs `update`, not `verify`. `IMPLEMENTATION_SUMMARY.md` repeats no citation and does not correct it. Null-record `verify` is still covered by `tests/test_operator_ux.py:1165-1170`, so removing the dead branch loses nothing. Record the correction in the disposition at acceptance.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "ffb61c20de8619a430a95bc2c0f68e08d949dd1770b4858c27871add4b43cb76",
+              "verdict": "APPROVE",
+              "at": "2026-11-16T01:13:45Z"
+            }
+          ]
+        },
+        "F-f3245f5871af": {
+          "digest": "f3245f5871af27fa53c5a350a257d7b37330f9422e01839f9be14e68ab302833",
+          "text": "LIR1-003: T2's valid-record arm also asserts `assertIn(\"verify\", found.detail)`. The note's first sentence already names `workflow-manager verify`, so this check proves nothing. The `makes that comparison, or prints why it cannot.` assertion beside it does the real work. The check is redundant, not wrong.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "ffb61c20de8619a430a95bc2c0f68e08d949dd1770b4858c27871add4b43cb76",
+              "verdict": "APPROVE",
+              "at": "2026-11-16T01:13:45Z"
+            }
+          ]
+        },
+        "F-35dac6aa5d19": {
+          "digest": "35dac6aa5d19b89ed6bf963e78e978f357aa50d6726a7331d8ac53ffc388f9b2",
+          "text": "`tests/test_compatibility.py:1305–1309`: the no-installation arm pins wording describing an existing null or damaged record. Consider asserting absence of an executable `verify` command instead. This case is unreachable through the CLI, so there is no operator impact.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "ffb61c20de8619a430a95bc2c0f68e08d949dd1770b4858c27871add4b43cb76",
+              "verdict": "APPROVE",
+              "at": "2026-11-16T01:18:48Z"
+            }
+          ]
         }
       },
       "consumed_plan_review_content_ids": [
         "008a897f17a6ec62c7edf170c22b760fdeb73bfdddea5ca33a3bf2dddaf6ddb8"
-      ]
+      ],
+      "implementation_review_stages": {
+        "review_content_id": "ffb61c20de8619a430a95bc2c0f68e08d949dd1770b4858c27871add4b43cb76",
+        "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "92cf04e5239446be461e2eb3a38dfdb395f3bc9eda3dff598aee5890c0c41d51",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-11-16T01:13:45Z",
+          "verdict_sha256": "aaef0673e7e5d63208ba20fdaa85083fc8e6ed9c20667e0da02f17d005fd0195",
+          "run_ref": "session:local .ai-review/update-record-followups/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "92cf04e5239446be461e2eb3a38dfdb395f3bc9eda3dff598aee5890c0c41d51",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-11-16T01:18:48Z",
+          "verdict_sha256": "c21ac8e3285958218af5fa7e839f7f1b7b82ec88344074e5366371993148a04a",
+          "run_ref": "codex:20261116T011505Z-af82d0ea",
+          "reviewer_model": "openai/gpt-6.1-sol"
+        }
+      }
     }
   }
 }
