@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_work_item_id": "test-hygiene-3",
+  "active_work_item_id": null,
   "work_items": {
     "plan-amendment-mechanism": {
       "work_item_type": "process",
@@ -39789,7 +39789,7 @@
       "registry_path": "docs/ai-workflow/registry/test-hygiene-3-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/test-hygiene-3-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_FUNCTIONAL_REVIEW",
+      "phase": "MILESTONE_COMPLETE",
       "plan_revision": 1,
       "implementation_revision": 1,
       "functional_review_round": null,
@@ -40040,8 +40040,8 @@
           "external": 1
         }
       },
-      "state_revision": 17,
-      "last_transition": "2026-11-16T12:06:32Z",
+      "state_revision": 18,
+      "last_transition": "2026-11-16T12:36:34Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -40381,13 +40381,164 @@
             "recorded_at": "2026-11-16T12:11:26Z"
           }
         },
-        "pr": null,
+        "pr": {
+          "pr": {
+            "number": 246,
+            "url": "https://github.com/RodrigoFAbreu/workflow-manager/pull/246"
+          },
+          "state": "open",
+          "head": "6e8b5aef2c4b1c0a762993dac91c6b0ad9717e57",
+          "review_decision": null,
+          "reviewed_head": null,
+          "checks": {
+            "state": "success",
+            "failing": []
+          },
+          "review_id": null,
+          "findings": null,
+          "identity_at_head": "1b8dbc8f95dccd058adbda853fa8503b328439a03c09c892ac765fcd9294d7e8",
+          "observed_at": "2026-11-16T12:36:34Z",
+          "ingest_seq": 1,
+          "repository": "RodrigoFAbreu/workflow-manager",
+          "queried_commit": "ee27758b06537322cccf6927940af76b10a9d74b",
+          "provenance": {
+            "source": "workflow_gh",
+            "fetched_by": {
+              "name": "workflow-gh",
+              "version": "pr-list-v1"
+            },
+            "fetched_at": "2026-11-16T12:36:34Z",
+            "raw_sha256": "03d25fbb91108c6070b0e94e401776aea4cbb34b27291b71ac823b3ee5570560",
+            "run_ref": null,
+            "gh_path": "/usr/bin/gh",
+            "gh_sha256": "ce3200ab0615ae60ee68dd4833719cd3a3856e8b22ae1a3641998b39be8d3dbf"
+          },
+          "fact_id": "542661814bd9e5e538a830049daff0bb81b987da0ae8fc518b9118fab6c19a21"
+        },
         "pr_reported": null,
         "pr_keys": {
           "reopened_for": [],
           "applied": [],
-          "ingest_seq": 0
+          "ingest_seq": 1
         }
+      },
+      "acceptance_satisfaction": {
+        "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "policy_source": "default",
+        "file_digest": null,
+        "adopted_digest": null,
+        "floor_digest": null,
+        "requirements": [
+          {
+            "id": "checkpoints_complete",
+            "met": true,
+            "detail": "every checkpoint of the item's own registry is COMPLETE"
+          },
+          {
+            "id": "technical_approval_current",
+            "met": true,
+            "detail": "the technical approval is CURRENT for the content now"
+          },
+          {
+            "id": "functional_flows_passed",
+            "met": true,
+            "detail": "flows ['flow-1', 'flow-10', 'flow-11', 'flow-2', 'flow-3', 'flow-4', 'flow-5', 'flow-6', 'flow-7', 'flow-8', 'flow-9'] passed at the approved content"
+          },
+          {
+            "id": "pr_fact_current",
+            "met": true,
+            "detail": "workflow_gh fact for PR #246 at 6e8b5aef2c4b1c0a762993dac91c6b0ad9717e57 is current"
+          },
+          {
+            "id": "no_standing_pr_objection",
+            "met": true,
+            "detail": "no CHANGES_REQUESTED decision and no failed check"
+          },
+          {
+            "id": "ci_green",
+            "met": true,
+            "detail": "checks are 'success'"
+          }
+        ],
+        "inputs": {
+          "anchor_commit": "ee27758b06537322cccf6927940af76b10a9d74b",
+          "anchor_identity": "1b8dbc8f95dccd058adbda853fa8503b328439a03c09c892ac765fcd9294d7e8",
+          "technical_approval": {
+            "basis": "POLICY_SATISFIED",
+            "approved_review_content_id": "1b8dbc8f95dccd058adbda853fa8503b328439a03c09c892ac765fcd9294d7e8",
+            "recorded_at": "2026-11-16T12:06:32Z"
+          },
+          "functional": {
+            "flow-1": {
+              "evidence_id": "1e8ecbbccbdb44002420f170062c933c02b4574b98dc7f40afe731469e0807b6",
+              "log_digest": "77fdef367c8a501ce6ae5954999fa9c1620d29241bf88e2349a5832d7e8d761b",
+              "run_ref": "controller:20261116T120955Z-95d071b1"
+            },
+            "flow-10": {
+              "evidence_id": "ef83480f47a4e1ae1b0c5416b1ac8ac7711fe8bc97da63cc6aaa4bcf0cbbdba2",
+              "log_digest": "e1232b5a401986086adbd34854c27e50aaaac4ec51d164b680bfe33dd7658abc",
+              "run_ref": "claude-functional:md45-functional-r1"
+            },
+            "flow-11": {
+              "evidence_id": "56dc5ffbfa38cea30ba8c25e7be4376f36b8cacd4d7bef65762bf9ab284fc4e3",
+              "log_digest": "af451fd469dccc81e178593dc522b6e3df35008cfa60a8349549a2a522f5e6d0",
+              "run_ref": "controller:20261116T120955Z-95d071b1"
+            },
+            "flow-2": {
+              "evidence_id": "ce3031f67e8b8673e97fa95ed89f3cee9dbdc2e6c8160e2c30b5130c4e09ba56",
+              "log_digest": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+              "run_ref": "controller:20261116T120955Z-95d071b1"
+            },
+            "flow-3": {
+              "evidence_id": "468a48ded080fec2c4e4bfaf3e4ad848e51df50177cdd1b7ae9333ac2fd1853d",
+              "log_digest": "257507016b35ff9c2251cd1af5ca3f5ed964823e1bc3473845f102c7e3c69bb9",
+              "run_ref": "controller:20261116T120955Z-95d071b1"
+            },
+            "flow-4": {
+              "evidence_id": "893f455067c062070d6dc3dd0611180fcc0ca3c58d809d15ff02141f3696d88d",
+              "log_digest": "b4dad25c3f62db8116ef7aa35236769fbfc0451f712b0eaed04957fa19bd1165",
+              "run_ref": "controller:20261116T120955Z-95d071b1"
+            },
+            "flow-5": {
+              "evidence_id": "b7a65aa839329de9752c73ae4933bd0ddab2ebe41b0c8a18b5a8f93e95777b9e",
+              "log_digest": "6ef4e318d87995884ac24d3fc3e19d110c65bf91e07c72e712718d83cb7fae9b",
+              "run_ref": "controller:20261116T120955Z-95d071b1"
+            },
+            "flow-6": {
+              "evidence_id": "f5bb4724fb0e12c391a50a86c4583386f6bad3ff8c9b3eeefb17c6b695a5b32c",
+              "log_digest": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+              "run_ref": "controller:20261116T120955Z-95d071b1"
+            },
+            "flow-7": {
+              "evidence_id": "33f94b3461e39c7f3e68004c3b61f75d8ab9a3d8dd37fa60cb39b2cbb12bfcea",
+              "log_digest": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+              "run_ref": "controller:20261116T120955Z-95d071b1"
+            },
+            "flow-8": {
+              "evidence_id": "b2ea0645d279d11ae1fd386d8a9d9f7dc3046f916e07ca19b744875f11e84ef7",
+              "log_digest": "26c085121f25cf97ccc5147ca855b3f7d075280231d16e97425dbd1f2bdecac7",
+              "run_ref": "controller:20261116T120955Z-95d071b1"
+            },
+            "flow-9": {
+              "evidence_id": "d80ff6752b96295870094af9eda8887a42200959a7a70040c8351b7fd2bce78b",
+              "log_digest": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+              "run_ref": "controller:20261116T120955Z-95d071b1"
+            }
+          },
+          "pr": {
+            "fact_id": "542661814bd9e5e538a830049daff0bb81b987da0ae8fc518b9118fab6c19a21",
+            "head": "6e8b5aef2c4b1c0a762993dac91c6b0ad9717e57",
+            "provenance": "workflow_gh",
+            "raw_sha256": "03d25fbb91108c6070b0e94e401776aea4cbb34b27291b71ac823b3ee5570560"
+          }
+        },
+        "trust": {
+          "review_verdicts": "orchestrator",
+          "functional_evidence": "orchestrator",
+          "pr_fact": "workflow_gh"
+        },
+        "evaluated_at": "2026-11-16T12:36:34Z",
+        "workflow_release": "2.29.6"
       }
     }
   }
