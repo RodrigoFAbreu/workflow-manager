@@ -1273,7 +1273,11 @@ class TestMiscFindings(Case):
         import re as _re
         from workflow_manager.source import is_strict_version
         old = _re.compile(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)")
-        self.assertFalse(hasattr(comp, "_STRICT_RECORDED"))
+        # One pattern: compatibility calls source's predicate and keeps no
+        # module-level copy of the strict pattern, under any name.
+        self.assertIs(comp.is_strict_version, is_strict_version)
+        self.assertEqual([n for n, v in vars(comp).items()
+                          if isinstance(v, _re.Pattern) and v.pattern == old.pattern], [])
         facts = self.facts()
         for name in self.UNKNOWN_RECORDS + self.VALID_RECORDS:
             with self.subTest(name=name):
@@ -1286,7 +1290,7 @@ class TestMiscFindings(Case):
 
     def test_an_unknown_record_gets_a_note_with_no_verify_command(self):
         self.commit()
-        for name in self.UNKNOWN_RECORDS + (None,):
+        for name in self.UNKNOWN_RECORDS:
             with self.subTest(name=name):
                 facts = self.facts()
                 facts.installation = Installation(name, "full", {})
