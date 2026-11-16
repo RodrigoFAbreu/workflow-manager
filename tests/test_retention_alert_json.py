@@ -247,9 +247,11 @@ class TestObservedChanges(Base):
 
     def test_an_item_pushed_out_of_the_newest_three_enters_with_its_archive_unchanged(self):
         item = rs.finished("moved", folder=False, archive=True)
-        _, first = self.snap(rs.report(*tra.entries(2)))
+        before = rs.report(*tra.entries(2))
+        before["totals"]["archives"] = 1    # the archive is in both reports
+        _, first = self.snap(before)
         _, second = self.snap(rs.report(item, *tra.entries(2)))
-        self.assertEqual((first["archived_and_removed"], first["archive_store"]), ([], 0))
+        self.assertEqual((first["archived_and_removed"], first["archive_store"]), ([], 1))
         self.assertEqual((second["archived_and_removed"], second["archive_store"]), (["moved"], 1))
 
     def test_an_item_that_stops_being_eligible_leaves_with_its_archive_intact(self):
@@ -397,16 +399,23 @@ class TestCommand(Base):
                 ran = self.run_json(argv=[*argv, "doctor", "--retention", "--json",
                                           str(self.repo)])
                 self.assertEqual((ran.code, ran.out), (2, ""))
-                lines = [l for l in ran.err.splitlines() if not l.startswith("workflow-manager:")]
+                lines = ran.err.splitlines()
+                if option == "--manager-root":
+                    self.assertEqual(lines[0], cli.MANAGER_ROOT_DEPRECATION, ran.err)
+                    lines = lines[1:]
                 self.assertEqual(len(lines), 1, ran.err)
                 self.assertIn(f"error: {option}", lines[0])
                 self.assertIn("--json", lines[0])
                 cache.assert_not_called()
                 pins.assert_not_called()
-        record.write_text("{")
         ran = self.run_json(argv=["--release-version", "2.22.0", "doctor", "--retention", "--json",
                                   str(self.outside)])
         self.assertIn("error: --release-version", ran.err)   # the refusal wins over not managed
+        record.write_text("{")
+        ran = self.run_json(argv=["--release-version", "2.22.0", "doctor", "--retention", "--json",
+                                  str(self.repo)])
+        self.assertEqual((ran.code, ran.out), (2, ""))
+        self.assertIn("error: --release-version", ran.err)   # refused first: the record is not read
 
     def test_X1_json_needs_retention(self):
         ran = self.run_json(argv=["doctor", "--json", str(self.repo)])

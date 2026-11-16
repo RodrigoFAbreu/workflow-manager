@@ -37,7 +37,7 @@ Goal: confirm that every installed Workflow file is exactly the one its release 
    workflow-manager releases
    ```
 
-To also see which finished work items keep review folders and which are archived, add `--retention` after the command (it makes a GitHub query per finished work item, so it takes longer): see [Retention report](retention.md).
+To also see which finished work items keep review folders and which are archived, add `--retention` after the command (it makes a GitHub query per finished work item, so it takes longer): see [Retention: the report, the policy, the alert and the cleanup](retention.md).
 
 For a retention policy adopted with mode `notify` or `both`, `verify` also runs the retention report and prints a `retention alert:` block when a threshold is reached, or one `not evaluated` line when the report cannot be had. That costs one forge query per finished work item (up to 300 seconds) and never changes the exit code; a repository without such a policy pays nothing. See [The retention alert](retention.md#the-retention-alert).
 

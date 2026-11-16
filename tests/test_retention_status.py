@@ -1216,6 +1216,43 @@ class TestDocs(unittest.TestCase):
         self.assertIn("(retention.md)", (REPO_ROOT / "docs" / "verify.md").read_text())
         self.assertIn("(retention.md)", (REPO_ROOT / "docs" / "update.md").read_text())
 
+    def test_the_limits_sentences_state_what_the_code_enforces(self):
+        page = self.PAGE.read_text()
+        self.assertIn("A number lies from 0 to 2**63 - 1.", page)
+        self.assertEqual(retention.INT_MAX, 2**63 - 1)
+        self.assertIn("(an id the script files as `invalid_id` is never printed and is only "
+                      "checked for valid text)", page)
+        rep = report(finished())
+        rep["not_finished"] = [{"work_item_id": "a" * 300, "reason": "invalid_id"}]
+        self.assertIsNone(_invalid(rep))               # the clause: no length limit
+        rep["not_finished"] = [{"work_item_id": "a" * 300, "reason": "no_pull_request"}]
+        self.assertIn("not_finished[].work_item_id", _invalid(rep))
+
+    def test_an_incomplete_report_is_shown_as_incomplete_on_the_page(self):
+        page = self.PAGE.read_text()
+        self.assertIn("an incomplete report keeps the `retention: INCOMPLETE` first line "
+                      "whatever the count.", page)
+        self.assertIn("An incomplete report is shown as incomplete even when every forge query "
+                      "failed; the forge cause in the table below is for a complete report, "
+                      "where it is the only fact.", page)
+
+    def test_every_link_that_names_the_page_reads_as_its_title(self):
+        """No link to the page still reads `Retention report`, a link without an anchor
+        reads as the page's title, and the five links of the old text read so now (a
+        link to a section by its own name is not a link that names the page)."""
+        title = self.PAGE.read_text().splitlines()[0].lstrip("# ")
+        self.assertEqual(title, "Retention: the report, the policy, the alert and the cleanup")
+        titled = 0
+        for name in ("README.md", "update.md", "verify.md", "exit-codes.md"):
+            text = (REPO_ROOT / "docs" / name).read_text()
+            for match in re.finditer(r"\[([^\]]*)\]\((retention\.md)(#[^)]*)?\)", text):
+                label, _, anchor = match.groups()
+                self.assertNotEqual(label, "Retention report", name)
+                if not anchor:
+                    self.assertEqual(label, title, name)
+                titled += label == title
+        self.assertEqual(titled, 5)
+
     def _built_causes(self):
         """Every cause the view can return, built by running the code: `(cause,
         sentinels)`. The sentinels mark the variable part of each text. Nothing

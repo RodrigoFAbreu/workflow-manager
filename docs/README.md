@@ -12,7 +12,7 @@ Start with the [project README](../README.md) for what the Manager is and a five
 | Move a repository to a newer Workflow release | [Update](update.md) |
 | See what an update would do before running it | [Update: check before you update](update.md#check-before-you-update) |
 | Check that a repository's installation is intact | [Verify](verify.md) |
-| See which finished work items still keep review folders, and which are archived | [Retention report](retention.md) |
+| See which finished work items still keep review folders, and which are archived | [Retention: the report, the policy, the alert and the cleanup](retention.md) |
 | Adopt a retention policy, or preview and run the cleanup it allows | [Retention policy](retention.md#retention-policy) and [Retention cleanup](retention.md#retention-cleanup) |
 | Fix an error message | [Common problems](common-problems.md) |
 | Look up what an exit code means | [Exit codes](exit-codes.md) |
