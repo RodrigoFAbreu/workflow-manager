@@ -4885,15 +4885,26 @@ class TestLockAndRecoveryThroughTheCli(_CliCase):
                 stop = self.tmp / f"stop-{signum.name}"   # only the signal ends the chunk
                 proc = start_cli(scratch, "--select", "test_scratch_wait.py",
                                  env=dict(self.env, WM_SCRATCH_STOP=str(stop)))
+                pgid = None
                 try:
                     pgid = self._wait_for_chunk(scratch, proc)[0]
                     self.assertFalse(any(_writable(m) for m in _guarded_modes(scratch).values()))
                     os.kill(proc.pid, signum)
                     out, err = proc.communicate(timeout=60)
+                    assert_refusal(self, proc.returncode, err, "InterruptedRunError")
+                    self.assertTrue(_dead(pgid))
+                    pgid = None   # dead and reaped: never signal a reused pgid
                 finally:
+                    # Failure cleanup, as `_interrupt`: end the known chunk
+                    # group(s) first (the stop file would let the chunk exit by
+                    # itself), then release and reap.
+                    pgids = {pgid, *_lock_holder(scratch).get("chunk_pgids", ())}
+                    gone = [_end_group(group) for group in pgids]
                     stop.write_text("")
-                assert_refusal(self, proc.returncode, err, "InterruptedRunError")
-                self.assertTrue(_dead(pgid))
+                    if proc.poll() is None:
+                        proc.kill()
+                        proc.communicate()
+                    self.assertTrue(all(gone), "the chunk's process group outlived the cleanup")
                 self.assertEqual(_guarded_modes(scratch), pre_modes)
                 self.assertFalse((isolation.state_dir(scratch) / "barrier.json").exists())
                 again = run_cli(scratch, "--restore-barrier", env=self.env)
