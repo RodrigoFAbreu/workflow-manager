@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "work_item_id": "test-hygiene-3",
+  "requirements": {
+    "R1": {
+      "description": "The latest filter tests cover a default and a pin that is not built in whose cached or read block is newer, malformed or has a minimum, and docs/update.md says no trusted cached manifest (#162 points 1 to 3).",
+      "checkpoint_ids": [
+        "CP2"
+      ]
+    },
+    "R2": {
+      "description": "The descriptor probe control follows the probe on non-socket links, the first existing directory is tested, the second socketpair is inside the first pair try block and _lists_links takes no parameter (#164 points 1 to 4).",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R3": {
+      "description": "The sigterm and sigint runner test ends the chunk process groups through _end_group in its failure path and leaks nothing (#166 point 1).",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R4": {
+      "description": "The unknown-record no-installation arm asserts only that no executable verify command is printed and the redundant verify assertion is gone (#239 points 1 and 2); roadmap row 49 is added (Current, Done at acceptance).",
+      "checkpoint_ids": [
+        "CP2"
+      ]
+    },
+    "R5": {
+      "description": "Tests, one docs line and the roadmap row only: src, tools, .claude, scripts, .workflow-manager and tests/parallel are byte-identical to the base, there is no release (a test: title), and a failure-only mutation is measured in a scratch copy for each changed or added assertion that can fail (M1 to M5, M8b); M6 (#164.3) and M7 (#166.1) give measured evidence instead of a test failure; #239.2 has no mutation because removing a redundant assertion changes nothing a mutation could reach.",
+      "checkpoint_ids": [
+        "CP1",
+        "CP2"
+      ]
+    }
+  }
+}
