@@ -148,17 +148,20 @@ class TestGoldens(Base):
     def test_J4_an_incomplete_report_whose_queries_all_failed_is_not_evaluated(self):
         self.adopt({"schema_version": 1, "mode": "notify",
                     "thresholds": {"finished_items": 5, "archives": 3}})
-        failed = tra.queries_failed()
-        doc = self.golden("J4-queries-failed",
-                          self.run_json(rs.report(complete=False, not_finished=failed)))
+        doc = self.golden("J4-queries-failed", self.run_json(tra.queries_failed_report()))
         self.assertEqual((doc["evaluation"], doc["report_complete"]), ("not_evaluated", False))
         self.assertEqual(doc["not_evaluated"]["cause"], ra.CAUSE_INCOMPLETE)
         self.assertTrue(all(a["state"] == "unknown" for a in doc["alerts"]))
-        # the shape the engine produces when only the forge queries fail
-        doc = self.doc(self.run_json(rs.report(complete=True, read_errors=[], not_finished=failed)))
-        self.assertEqual((doc["evaluation"], doc["report_complete"]), ("not_evaluated", False))
-        self.assertEqual(doc["not_evaluated"]["cause"], ra.CAUSE_INCOMPLETE)
-        self.assertTrue(all(a["state"] == "unknown" for a in doc["alerts"]))
+
+    def test_a_complete_report_with_recent_candidates_and_failed_queries_is_incomplete(self):
+        """The `or failed` clause: complete, successful `kept_recent`, queries failed."""
+        self.adopt({"schema_version": 1, "mode": "notify",
+                    "thresholds": {"finished_items": 5, "archives": 3}})
+        rep = rs.report(complete=True, read_errors=[], not_finished=tra.queries_failed())
+        self.assertTrue(rep["kept_recent"])
+        doc = self.doc(self.run_json(rep))
+        self.assertEqual(doc["report_complete"], False)
+        self.assertEqual(doc["evaluation"], "not_evaluated")
 
     def test_J5_not_applicable_never_starts_the_script(self):
         cases = {"absent": lambda: self.drop_policy(),

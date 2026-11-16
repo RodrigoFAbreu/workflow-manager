@@ -57,6 +57,14 @@ def queries_failed():
             for n, code in enumerate(("gh_missing", "forge_timeout"))]
 
 
+def queries_failed_report():
+    """Incomplete, no candidate reached, every forge query failed: no successful
+    `kept_recent` entry, so `_query_failed_note`'s incomplete guard is what
+    keeps the forge note from hiding the incomplete report."""
+    return rs.report(complete=False, kept_recent=[], not_finished=queries_failed(),
+                     read_errors=[{"path": "/p/0", "error": "denied"}])
+
+
 def sized(rep, **totals):
     rep["totals"].update(totals)
     return rep
@@ -661,20 +669,28 @@ class TestUnavailable(Base):
         self.assertEqual(block[1], f"  next: {retention.STEP_INCOMPLETE}")
 
     def test_an_incomplete_report_whose_queries_all_failed_is_not_evaluated(self):
-        reports = {
-            "complete false": rs.report(complete=False, not_finished=queries_failed()),
-            "only the queries failed": rs.report(complete=True, read_errors=[],
-                                                 not_finished=queries_failed()),
-        }
-        for name, rep in reports.items():
-            for command in ("verify", "doctor"):
-                with self.subTest(report=name, command=command):
-                    expected = self.baseline_code(command, rep=rep)
-                    got = self.call(command, rep)
-                    block = self.one_line(got.out)
-                    self.assertIn(ra.CAUSE_INCOMPLETE, block[0])
-                    self.assertEqual(block[1], f"  next: {retention.STEP_INCOMPLETE}")
-                    self.assertEqual(got.code, expected)
+        for command in ("verify", "doctor"):
+            with self.subTest(command=command):
+                rep = queries_failed_report()
+                expected = self.baseline_code(command, rep=rep)
+                got = self.call(command, rep)
+                block = self.one_line(got.out)
+                self.assertIn(ra.CAUSE_INCOMPLETE, block[0])
+                self.assertEqual(block[1], f"  next: {retention.STEP_INCOMPLETE}")
+                self.assertEqual(got.code, expected)
+
+    def test_a_complete_report_with_recent_candidates_and_failed_queries_is_incomplete(self):
+        """The `or failed` clause of `incomplete`: complete, no read error, a
+        successful `kept_recent` candidate, and the forge queries failed."""
+        for command in ("verify", "doctor"):
+            with self.subTest(command=command):
+                rep = rs.report(complete=True, read_errors=[], not_finished=queries_failed())
+                self.assertTrue(rep["kept_recent"])
+                expected = self.baseline_code(command, rep=rep)
+                got = self.call(command, rep)
+                block = self.one_line(got.out)
+                self.assertIn(ra.CAUSE_INCOMPLETE, block[0])
+                self.assertEqual(got.code, expected)
 
     def test_an_evaluation_that_raises_prints_the_class_and_keeps_the_exit_code(self):
         expected = self.baseline_code("doctor", rep=REACHED_TWO())
