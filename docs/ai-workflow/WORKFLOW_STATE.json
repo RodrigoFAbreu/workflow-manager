@@ -40550,7 +40550,7 @@
       "registry_path": "docs/ai-workflow/registry/priming-wording-and-alert-pins-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/priming-wording-and-alert-pins-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "APPLYING_REVIEW_FEEDBACK",
       "plan_revision": 4,
       "implementation_revision": 1,
       "functional_review_round": null,
@@ -40690,12 +40690,12 @@
           "external": 1
         },
         "implementation": {
-          "local": 0,
-          "external": 0
+          "local": 1,
+          "external": 1
         }
       },
-      "state_revision": 20,
-      "last_transition": "2026-11-16T14:35:05Z",
+      "state_revision": 22,
+      "last_transition": "2026-11-16T14:42:41Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -40735,6 +40735,19 @@
             }
           ]
         }
+      },
+      "implementation_review_stages": {
+        "review_content_id": "f34accc223179661983b1b7afd1916c35505b915d1ae58a23150e0e4c04a9dac",
+        "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "5878993d183d9efbd9fa43a4c629f78a1876c2f038c2f1de480445d5103e0436",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-11-16T14:38:35Z",
+          "verdict_sha256": "9d14cfe72725f3a540167b5e6ad2f538314e63bc116824c0100e6e03c4ea9a8c",
+          "run_ref": "session:local .ai-review/priming-wording-and-alert-pins/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": null
       }
     }
   }
