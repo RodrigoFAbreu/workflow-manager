@@ -944,17 +944,17 @@ def _own_links(pair) -> set[str]:
     return {f"socket:[{os.fstat(end.fileno()).st_ino}]" for end in pair}
 
 
-def _lists_links(directories=None) -> bool:
-    """Whether the first existing descriptor directory shows an open socket's
-    descriptor as a symbolic link (not merely exists)."""
-    for directory in directories or _FD_DIRECTORIES:
+def _lists_links() -> bool:
+    """Whether the first existing descriptor directory lists the open socket
+    pair's own links, the criterion the probe applies."""
+    for directory in _FD_DIRECTORIES:
         if os.path.isdir(directory):
-            end, other = socket.socketpair()
+            pair = socket.socketpair()
             try:
-                return os.path.islink(os.path.join(directory, str(end.fileno())))
+                return _own_links(pair) <= _socket_links((directory,))
             finally:
-                end.close()
-                other.close()
+                for end in pair:
+                    end.close()
     return False
 
 
@@ -1337,9 +1337,9 @@ class TestTheDescriptorProbe(unittest.TestCase):
             self.skipTest(_blind_reason())
         before = _socket_links()
         pair = socket.socketpair()
-        bystander = socket.socketpair()
-        self.addCleanup(lambda: [end.close() for end in bystander])
         try:
+            bystander = socket.socketpair()
+            self.addCleanup(lambda: [end.close() for end in bystander])
             own = _own_links(pair)
             self.assertEqual(len(own), 2)
             self.assertTrue(before.isdisjoint(own))
@@ -1366,8 +1366,13 @@ class TestTheDescriptorProbe(unittest.TestCase):
 
     def test_the_control_skips_exactly_where_the_probe_does(self):
         module = sys.modules[__name__]
+        def pipes(directory):
+            for k in range(256):
+                os.symlink("pipe:[1]", directory / str(k))
+
         for label, build in (("a missing path", lambda directory: None),
-                             ("regular files", lambda directory: (directory / "3").write_text("x"))):
+                             ("regular files", lambda directory: (directory / "3").write_text("x")),
+                             ("links to something other than a socket", pipes)):
             with self.subTest(label):
                 path = self.standin(build)
                 if label == "a missing path":
@@ -1381,6 +1386,21 @@ class TestTheDescriptorProbe(unittest.TestCase):
                 self.assertEqual((result.failures, result.errors), ([], []))
                 self.assertEqual(result.skipped[0][1], str(probe.exception))
                 self.assertIn(path, str(probe.exception))
+
+    def test_the_first_existing_directory_decides_what_is_listed(self):
+        module = sys.modules[__name__]
+        real = next((d for d in _FD_DIRECTORIES if os.path.isdir(d)), None)
+        if real is None or not _lists_links():
+            self.skipTest(_blind_reason())
+        blind = self.standin(lambda directory: (directory / "3").write_text("x"))
+        absent = os.path.join(blind, "absent")
+        for label, directories, expected in (
+                ("a blind directory first hides a listing one", (blind, real), False),
+                ("a missing directory is passed over", (absent, real), True),
+                ("a listing directory first hides a blind one", (real, blind), True)):
+            with self.subTest(label):
+                with mock.patch.object(module, "_FD_DIRECTORIES", directories):
+                    self.assertIs(_lists_links(), expected)
 
     def test_both_leak_checking_classes_skip_when_sockets_cannot_be_listed(self):
         module = sys.modules[__name__]

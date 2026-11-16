@@ -871,12 +871,32 @@ class TestTheLatestFilterKeepsTheDefault(unittest.TestCase):
             "7.0.9": b'{"manager": {"schema_version": 1, "min_manager_version": "99.0.0"}}',
             "7.0.8": b'{"manager": 5}',
             "7.0.7": b'{}',
+            "7.0.6": b'{"manager": {"schema_version": 2}}',
         }
         with mock.patch.object(cli_module, "_installed_version", return_value="1.14.8"):
             for default, expected in (("7.0.9", "99.0.0"), ("7.0.8", comp.MALFORMED_BLOCK),
-                                      ("7.0.7", None)):
+                                      ("7.0.7", None), ("7.0.6", comp.NEWER_BLOCK)):
                 with self.subTest(default=default):
                     self.assertEqual(self.needs((), default, cached=cached)(default), expected)
+
+    def test_a_pin_that_is_not_built_in_is_judged_like_any_other_release_when_its_block_is_read(self):
+        pins = tuple(f"7.0.{n}" for n in range(1, 7))
+        for pin in pins:
+            self.assertFalse(comp.has_builtin_data(pin), pin)
+        cached = {
+            "7.0.1": b'{"manager": {"schema_version": 1, "min_manager_version": "99.0.0"}}',
+            "7.0.2": b'{"manager": {"schema_version": 2}}',
+            "7.0.3": b'{"manager": 5}',
+            "7.0.5": b'{}',
+        }
+        blocks = {"7.0.4": ManagerBlock(min_manager_version="99.0.0")}
+        expected = (("7.0.1", "99.0.0"), ("7.0.2", comp.NEWER_BLOCK), ("7.0.3", comp.MALFORMED_BLOCK),
+                    ("7.0.4", "99.0.0"), ("7.0.5", None), ("7.0.6", None))
+        with mock.patch.object(cli_module, "_installed_version", return_value="1.14.8"):
+            needs = self.needs(pins, "7.0.9", blocks, cached)
+            for pin, answer in expected:
+                with self.subTest(pin=pin):
+                    self.assertEqual(needs(pin), answer)
 
 
 class TestTheDocs(unittest.TestCase):
@@ -893,9 +913,9 @@ class TestTheDocs(unittest.TestCase):
     def test_the_latest_available_bullet_qualifies_the_kept_pins(self):
         page = (Path(__file__).resolve().parent.parent / "docs" / "update.md").read_text()
         text = " ".join(page.split())
-        self.assertIn("while a pin or the default version whose `manager` block neither this "
-                      "run nor the cache could read is kept (one whose block was read is judged "
-                      "like any other release)", text)
+        self.assertIn("while a pin or the default version with no trusted cached manifest is "
+                      "kept (one whose block was read is judged like any other release)", text)
+        self.assertNotIn("neither this run nor the cache could read", text)
         self.assertNotIn("is always named", text)
 
 

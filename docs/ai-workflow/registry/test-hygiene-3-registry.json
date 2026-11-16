@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "work_item_id": "test-hygiene-3",
+  "plan_revision": 1,
+  "checkpoints": [
+    {
+      "id": "CP1",
+      "name": "The descriptor probe and the runner test cleanup",
+      "depends_on": [],
+      "complexity": 2,
+      "session_target": 1
+    },
+    {
+      "id": "CP2",
+      "name": "The latest filter, the update report note, the docs line and the roadmap row",
+      "depends_on": [
+        "CP1"
+      ],
+      "complexity": 2,
+      "session_target": 1
+    }
+  ]
+}
