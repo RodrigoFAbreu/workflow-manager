@@ -21,8 +21,8 @@ never in the real checkout (plan 5.9, "Tests and the lock").
 
 Checkpoint CP6: the CI pipeline (T-CI-1..5): `.github/workflows/ci.yml`, the
 entry point (triggers, concurrency, the required `aggregate` check, the
-publish call), and the reusable `.github/workflows/validate.yml` it calls
-(plan, shard, package, aggregate). Their steps' own scripts run against a
+build-and-publish call), and the reusable `.github/workflows/tests.yml` it
+calls (plan, shard, package, aggregate). Their steps' own scripts run against a
 `scratch_clone` of a scratch checkout -- a fresh CI-like checkout -- with a
 stand-in `RUNNER_TEMP`.
 
@@ -5385,20 +5385,33 @@ class TestMultiWorkerShard(_CliCase):
 
 # == CP6: the CI pipeline (T-CI-1..5) =====================================================
 
-#: The entry point: triggers, concurrency, and the jobs validate (a call of
-#: VALIDATE_WORKFLOW), aggregate (the required check) and publish.
+#: The entry point: triggers, concurrency, and the jobs tests (a call of
+#: TESTS_WORKFLOW), aggregate (the required check) and build-and-publish.
 CI_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "ci.yml"
-#: The reusable workflow that holds the test jobs.
-VALIDATE_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "validate.yml"
-#: ci.yml's jobs, and what its validate and publish jobs call.
-CI_ENTRY_JOBS = ("aggregate", "publish", "validate")
-CI_VALIDATE_USES = "./.github/workflows/validate.yml"
-CI_PUBLISH_USES = "./.github/workflows/publish.yml"
-CI_PUBLISH_IF = "github.event_name == 'push' && github.ref == 'refs/heads/main'"
-#: The shard-count input ci.yml forwards to validate.yml, as both declare it.
+#: The reusable workflow that holds the test jobs (`Tests`).
+TESTS_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "tests.yml"
+#: ci.yml's jobs, and what its tests and build-and-publish jobs call.
+CI_ENTRY_JOBS = ("aggregate", "build-and-publish", "tests")
+CI_TESTS_USES = "./.github/workflows/tests.yml"
+CI_BUILD_AND_PUBLISH_USES = "./.github/workflows/build-and-publish.yml"
+#: ci.yml publishes on a push to main or a dispatch of CI on main, never on a
+#: pull request or the nightly (and only after `aggregate`, by `needs`).
+CI_PUBLISH_IF = ("github.ref == 'refs/heads/main' && (github.event_name == 'push' "
+                 "|| github.event_name == 'workflow_dispatch')")
+#: What ci.yml passes the release: its own run validated the commit, and the
+#: dispatch's dry run (false on a push, which has no inputs).
+CI_PUBLISH_WITH = {"validated": True, "dry-run": "${{ inputs.dry-run == true }}"}
+#: The shard-count input ci.yml forwards to tests.yml, as both declare it.
 CI_SHARDS_INPUT = {
     "description": "Shard count, 1-256 (empty: the planner's own count; 1: the serial CI reference)",
     "required": False, "default": ""}
+#: CI's own dispatch input for a dry run of the release path after the tests.
+CI_DRY_RUN_INPUT = {
+    "description": "On main: after the tests, run every release gate and the build, but create "
+                   "no tag or release",
+    "required": False, "type": "boolean", "default": False}
+#: The most jobs one CI run may have in flight at once (owner, 2026-11-17).
+CI_MAX_CONCURRENT_JOBS = 6
 MANAGED_WORKFLOW = ".github/workflows/workflow-conformance.yml"
 CI_JOBS = ("plan", "shard", "aggregate")
 #: The job every run holds besides `CI_JOBS`: the release's build-and-verify path.
@@ -5566,9 +5579,9 @@ def ci_workflow() -> dict:
     return load_workflow_yaml(CI_WORKFLOW.read_text(encoding="utf-8"))
 
 
-def validate_workflow() -> dict:
-    """validate.yml, the reusable workflow with the test jobs."""
-    return load_workflow_yaml(VALIDATE_WORKFLOW.read_text(encoding="utf-8"))
+def tests_workflow() -> dict:
+    """tests.yml, the reusable workflow with the test jobs."""
+    return load_workflow_yaml(TESTS_WORKFLOW.read_text(encoding="utf-8"))
 
 
 def ci_run_all_step(doc: dict, job: str) -> dict:
@@ -5589,8 +5602,9 @@ def ci_entry_problems(doc: dict) -> list[str]:
     """T-CI-1's structural checks over the parsed entry point, ci.yml; `[]`
     when it holds. Its triggers and concurrency are every run's; its
     `aggregate` is the required check, a job of this file with no `name:` so
-    its context is exactly `aggregate`; `publish` runs only on a push to main
-    after `aggregate` succeeded in the same run."""
+    its context is exactly `aggregate`; `build-and-publish` runs only on a
+    push to main or a dispatch of CI on main, after `aggregate` succeeded in
+    the same run, which it passes as `validated`."""
     problems = []
 
     def need(condition, message):
@@ -5604,8 +5618,9 @@ def ci_entry_problems(doc: dict) -> list[str]:
     need((triggers.get("push") or {}).get("branches") == ["main"], "push is not limited to main")
     need(triggers.get("schedule") == CI_SCHEDULE,
          f"the schedule is {triggers.get('schedule')!r}, not {CI_SCHEDULE}")
-    need(((triggers.get("workflow_dispatch") or {}).get("inputs") or {}).get("shards")
-         == CI_SHARDS_INPUT, "the dispatch has no shards input")
+    need(((triggers.get("workflow_dispatch") or {}).get("inputs") or {})
+         == {"shards": CI_SHARDS_INPUT, "dry-run": CI_DRY_RUN_INPUT},
+         "the dispatch's inputs are not exactly shards and a dry-run boolean defaulting false")
     concurrency = doc.get("concurrency") or {}
     need(concurrency.get("group") == CI_CONCURRENCY_GROUP,
          f"the concurrency group is {concurrency.get('group')!r}, not the per-commit one of main")
@@ -5617,47 +5632,51 @@ def ci_entry_problems(doc: dict) -> list[str]:
 
     jobs = doc.get("jobs") or {}
     need(sorted(jobs) == list(CI_ENTRY_JOBS), f"jobs are {sorted(jobs)}, not {list(CI_ENTRY_JOBS)}")
-    validate, aggregate, publish = ((jobs.get(name) or {}) for name in
-                                    ("validate", "aggregate", "publish"))
-    need(validate.get("uses") == CI_VALIDATE_USES, f"validate does not call {CI_VALIDATE_USES}")
-    need(validate.get("with") == {"shards": "${{ inputs.shards }}"},
-         "validate does not forward the shards input, and only it")
-    need(not ({"needs", "if", "permissions"} & set(validate)),
-         "validate is conditioned or has its own permissions")
+    tests, aggregate, publish = ((jobs.get(name) or {}) for name in
+                                 ("tests", "aggregate", "build-and-publish"))
+    need(tests.get("uses") == CI_TESTS_USES, f"tests does not call {CI_TESTS_USES}")
+    need(tests.get("with") == {"shards": "${{ inputs.shards }}"},
+         "tests does not forward the shards input, and only it")
+    need(not ({"needs", "if", "permissions"} & set(tests)),
+         "tests is conditioned or has its own permissions")
     need("name" not in aggregate,
          "aggregate has a name: the required check's context would no longer be `aggregate`")
     need("uses" not in aggregate, "aggregate is a called workflow: it would report as "
                                   "`<job> / aggregate`")
-    need(aggregate.get("needs") == ["validate"], "aggregate does not need [validate]")
+    need(aggregate.get("needs") == ["tests"], "aggregate does not need [tests]")
     need(aggregate.get("if") == "always()", "aggregate does not run if: always()")
     minutes = aggregate.get("timeout-minutes")
     need(isinstance(minutes, int) and 0 < minutes < 360,
          f"aggregate: timeout-minutes is {minutes!r}, not below GitHub's 360-minute default")
     steps = aggregate.get("steps") or []
     need(len(steps) == 1 and (steps[0].get("env") or {}) == {
-        "VALIDATE_RESULT": "${{ needs.validate.result }}"}
+        "TESTS_RESULT": "${{ needs.tests.result }}"}
         and "::error::" in (steps[0].get("run") or "")
         and "!= success" in (steps[0].get("run") or ""),
-         "aggregate is not the one step that fails unless validate succeeded")
-    need(publish.get("uses") == CI_PUBLISH_USES, f"publish does not call {CI_PUBLISH_USES}")
+         "aggregate is not the one step that fails unless tests succeeded")
+    need(publish.get("uses") == CI_BUILD_AND_PUBLISH_USES,
+         f"build-and-publish does not call {CI_BUILD_AND_PUBLISH_USES}")
     need(publish.get("needs") == ["aggregate"],
-         "publish does not need [aggregate]: it would publish an unvalidated revision")
+         "build-and-publish does not need [aggregate]: it would publish an unvalidated revision")
     need(publish.get("if") == CI_PUBLISH_IF,
-         f"publish's if is {publish.get('if')!r}, not a push to main ({CI_PUBLISH_IF!r})")
+         f"build-and-publish's if is {publish.get('if')!r}, not a push or dispatch on main "
+         f"({CI_PUBLISH_IF!r})")
     need(publish.get("permissions") == {"contents": "write", "actions": "read"},
-         f"publish's permissions are {publish.get('permissions')!r}, not contents: write and "
-         f"actions: read (a called workflow cannot exceed its caller job's)")
-    need("with" not in publish and "secrets" not in publish,
-         "publish passes inputs or secrets (a dry run or a token from CI)")
-    for name in ("validate", "aggregate"):
+         f"build-and-publish's permissions are {publish.get('permissions')!r}, not contents: "
+         f"write and actions: read (a called workflow cannot exceed its caller job's)")
+    need(publish.get("with") == CI_PUBLISH_WITH,
+         f"build-and-publish passes {publish.get('with')!r}, not {CI_PUBLISH_WITH!r} (validated "
+         f"by this run's aggregate, and the dispatch's dry run, false on a push)")
+    need("secrets" not in publish, "build-and-publish passes secrets (a token from CI)")
+    for name in ("tests", "aggregate"):
         need("permissions" not in (jobs.get(name) or {}),
-             f"{name}: has its own permissions (only publish writes)")
+             f"{name}: has its own permissions (only build-and-publish writes)")
     return problems
 
 
-def validate_workflow_problems(doc: dict) -> list[str]:
+def tests_workflow_problems(doc: dict) -> list[str]:
     """T-CI-1's structural checks over the parsed reusable workflow,
-    validate.yml; `[]` when it holds."""
+    tests.yml; `[]` when it holds."""
     problems = []
 
     def need(condition, message):
@@ -5696,6 +5715,9 @@ def validate_workflow_problems(doc: dict) -> list[str]:
     need(strategy.get("matrix") == {"shard": CI_MATRIX},
          f"the shard matrix is {strategy.get('matrix')!r}, not exactly {CI_MATRIX}")
     need(strategy.get("fail-fast") is False, "the shard matrix is not fail-fast: false")
+    need(strategy.get("max-parallel") == CI_MAX_CONCURRENT_JOBS,
+         f"the shard matrix's max-parallel is {strategy.get('max-parallel')!r}, not "
+         f"{CI_MAX_CONCURRENT_JOBS}: a larger `shards` dispatch would exceed six runners at once")
     need(shard.get("needs") == ["plan", CI_PACKAGE_JOB],
          "the shard job does not need [plan, package] (shards start after packaging, so the "
          "peak is the shard count)")
@@ -5792,7 +5814,7 @@ def run_ci_step(scratch_root, job: str, *, runner_temp: Path, env: dict, step_en
     scratch_root = Path(scratch_root)
     if _same_checkout_as_real(scratch_root):
         raise ValueError(f"run_ci_step refuses the real checkout: {scratch_root}")
-    step = ci_run_all_step(validate_workflow(), job)
+    step = ci_run_all_step(tests_workflow(), job)
     if set(step_env) != set(step.get("env") or {}) - {release_source.CACHE_ENV}:
         raise AssertionError(f"{job}: the step's env is {sorted(step.get('env') or {})}, "
                              f"the test supplies {sorted(step_env)}")
@@ -5828,7 +5850,7 @@ class TestCiWorkflowStructure(unittest.TestCase):
 
     def test_the_workflow_files_hold_every_structural_rule(self):
         self.assertEqual(ci_entry_problems(ci_workflow()), [])
-        self.assertEqual(validate_workflow_problems(validate_workflow()), [])
+        self.assertEqual(tests_workflow_problems(tests_workflow()), [])
 
     def test_each_entry_point_mutation_is_caught(self):
         text = CI_WORKFLOW.read_text(encoding="utf-8")
@@ -5842,23 +5864,34 @@ class TestCiWorkflowStructure(unittest.TestCase):
             "no pull_request trigger": ("  pull_request:\n", ""),
             "aggregate skipped on failure": (re.compile(r"^    if: always\(\)$", re.M),
                                              "    if: success()"),
-            "a named aggregate": ("  aggregate:\n    needs: [validate]\n",
-                                  "  aggregate:\n    name: aggregate check\n    needs: [validate]\n"),
-            "aggregate without validate": ("    needs: [validate]\n", "    needs: []\n"),
-            "aggregate that ignores validate": ('!= success ]', '= skipped ]'),
-            "publish before aggregate": ("    needs: [aggregate]\n", "    needs: [validate]\n"),
+            "a named aggregate": ("  aggregate:\n    needs: [tests]\n",
+                                  "  aggregate:\n    name: aggregate check\n    needs: [tests]\n"),
+            "aggregate without tests": ("    needs: [tests]\n", "    needs: []\n"),
+            "aggregate that ignores tests": ('!= success ]', '= skipped ]'),
+            "publish before aggregate": ("    needs: [aggregate]\n", "    needs: [tests]\n"),
             "publish on every event": (
-                "    if: github.event_name == 'push' && github.ref == 'refs/heads/main'\n",
+                "    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || "
+                "github.event_name == 'workflow_dispatch')\n",
                 "    if: github.ref == 'refs/heads/main'\n"),
+            "publish from any branch": ("    if: github.ref == 'refs/heads/main' && (",
+                                        "    if: ("),
+            "publish on a pull request": ("|| github.event_name == 'workflow_dispatch')",
+                                          "|| github.event_name == 'pull_request')"),
+            "publish only on a push": (" || github.event_name == 'workflow_dispatch')", ")"),
             "publish without write": ("      contents: write\n", "      contents: read\n"),
             "publish without actions: read": ("      actions: read\n", ""),
-            "a dry run from CI": ("    uses: ./.github/workflows/publish.yml\n",
-                                  "    uses: ./.github/workflows/publish.yml\n    with:\n"
+            "a dry run from CI": ("      dry-run: ${{ inputs.dry-run == true }}\n",
                                   "      dry-run: true\n"),
+            "the dispatch's dry run dropped": ("      dry-run: ${{ inputs.dry-run == true }}\n", ""),
+            "an unvalidated call": ("      validated: true\n", "      validated: false\n"),
+            "no dry-run dispatch input": (re.compile(r"^      dry-run:\n(?:        .*\n)+", re.M), ""),
+            "a dry run by default": ("        default: false\n", "        default: true\n"),
+            "a token from CI": ("    with:\n      validated: true\n",
+                                "    secrets: inherit\n    with:\n      validated: true\n"),
             "contents: write for the workflow": ("permissions:\n  contents: read",
                                                  "permissions:\n  contents: write"),
-            "validate unforwarded": ("      shards: ${{ inputs.shards }}\n", "      shards: \"\"\n"),
-            "another validation": ("uses: ./.github/workflows/validate.yml",
+            "tests unforwarded": ("      shards: ${{ inputs.shards }}\n", "      shards: \"\"\n"),
+            "another validation": ("uses: ./.github/workflows/tests.yml",
                                    "uses: RodrigoFAbreu/action-workflows/.github/workflows/"
                                    "python-tests.yml@main"),
             "an upstream again": ("\njobs:\n", "\nenv:\n  UPSTREAM_URL: x\n\njobs:\n"),
@@ -5870,10 +5903,12 @@ class TestCiWorkflowStructure(unittest.TestCase):
                 self.assertNotEqual(ci_entry_problems(load_workflow_yaml(mutated)), [])
 
     def test_each_mutation_is_caught(self):
-        text = VALIDATE_WORKFLOW.read_text(encoding="utf-8")
+        text = TESTS_WORKFLOW.read_text(encoding="utf-8")
         mutants = {
             "a literal shard list": (CI_MATRIX, "[0, 1, 2]"),
             "fail-fast": ("fail-fast: false", "fail-fast: true"),
+            "no cap on the shards in flight": ("      max-parallel: 6\n", ""),
+            "more than six shards in flight": ("      max-parallel: 6\n", "      max-parallel: 7\n"),
             "aggregate needs only the shards": ("needs: [plan, shard, package]", "needs: [shard]"),
             "shards that do not wait for the package": ("    needs: [plan, package]\n",
                                                         "    needs: plan\n"),
@@ -5925,7 +5960,7 @@ class TestCiWorkflowStructure(unittest.TestCase):
             with self.subTest(mutation=label):
                 mutated = _mutate_workflow(old, new, text)
                 self.assertNotEqual(mutated, text, "the mutation did not apply")
-                self.assertNotEqual(validate_workflow_problems(load_workflow_yaml(mutated)), [])
+                self.assertNotEqual(tests_workflow_problems(load_workflow_yaml(mutated)), [])
 
     def test_a_shard_count_beyond_the_matrix_limit_is_refused(self):
         """Review O9: the `shards` dispatch input is otherwise unbounded, and a
@@ -5959,7 +5994,7 @@ class TestCiWorkflowStructure(unittest.TestCase):
 
 def run_needs_step(plan_result: str, package_result: str) -> subprocess.CompletedProcess:
     """The aggregate's `needs` step, verbatim, as GitHub runs a `run:` step."""
-    step = validate_workflow()["jobs"]["aggregate"]["steps"][0]
+    step = tests_workflow()["jobs"]["aggregate"]["steps"][0]
     env = dict(os.environ, PLAN_RESULT=plan_result, PACKAGE_RESULT=package_result)
     return subprocess.run(["bash", "--noprofile", "--norc", "-eo", "pipefail", "-c", step["run"]],
                           capture_output=True, text=True, env=env, timeout=60)
@@ -5968,7 +6003,7 @@ def run_needs_step(plan_result: str, package_result: str) -> subprocess.Complete
 class TestOneRequiredCheck(unittest.TestCase):
 
     def test_aggregate_needs_plan_shard_and_package_always(self):
-        jobs = validate_workflow()["jobs"]
+        jobs = tests_workflow()["jobs"]
         aggregate = jobs["aggregate"]
         self.assertEqual(aggregate["needs"], ["plan", "shard", CI_PACKAGE_JOB])
         self.assertEqual(aggregate["if"], "always()")
@@ -5992,7 +6027,7 @@ class TestOneRequiredCheck(unittest.TestCase):
                 self.assertIn(f"::error::{named}", proc.stdout)
 
     def test_the_package_job_is_the_releases_own_build_and_verify_path(self):
-        package = validate_workflow()["jobs"][CI_PACKAGE_JOB]
+        package = tests_workflow()["jobs"][CI_PACKAGE_JOB]
         self.assertIsInstance(package.get("timeout-minutes"), int)
         self.assertLess(package["timeout-minutes"], 360)
         self.assertNotIn("needs", package)
@@ -6026,20 +6061,20 @@ class TestOneRequiredCheck(unittest.TestCase):
                          "${{ github.event_name == 'pull_request' }}")
         # The group is the entry point's alone: a called workflow with the
         # caller's group would wait on its own caller.
-        self.assertNotIn("concurrency", validate_workflow())
+        self.assertNotIn("concurrency", tests_workflow())
 
     def test_the_required_aggregate_is_the_entry_points_own_job(self):
         """The ruleset requires the context `aggregate`: a job of ci.yml with
-        no `name:`. validate.yml's aggregate reports as `validate / aggregate`."""
+        no `name:`. tests.yml's aggregate reports as `tests / aggregate`."""
         jobs = ci_workflow()["jobs"]
         self.assertNotIn("name", jobs["aggregate"])
         self.assertNotIn("uses", jobs["aggregate"])
-        self.assertEqual(jobs["aggregate"]["needs"], ["validate"])
+        self.assertEqual(jobs["aggregate"]["needs"], ["tests"])
         self.assertEqual(jobs["aggregate"]["if"], "always()")
-        self.assertEqual(jobs["validate"]["uses"], CI_VALIDATE_USES)
-        self.assertIn("aggregate", validate_workflow()["jobs"])
+        self.assertEqual(jobs["tests"]["uses"], CI_TESTS_USES)
+        self.assertIn("aggregate", tests_workflow()["jobs"])
 
-    def test_the_required_aggregate_fails_unless_validate_succeeded(self):
+    def test_the_required_aggregate_fails_unless_tests_succeeded(self):
         """The entry point's aggregate step, verbatim, as GitHub runs a `run:` step."""
         [step] = ci_workflow()["jobs"]["aggregate"]["steps"]
         for result, code in (("success", 0), ("failure", 1), ("cancelled", 1),
@@ -6048,18 +6083,120 @@ class TestOneRequiredCheck(unittest.TestCase):
                 proc = subprocess.run(
                     ["bash", "--noprofile", "--norc", "-eo", "pipefail", "-c", step["run"]],
                     capture_output=True, text=True, timeout=60,
-                    env=dict(os.environ, VALIDATE_RESULT=result))
+                    env=dict(os.environ, TESTS_RESULT=result))
                 self.assertEqual(proc.returncode, code, proc.stdout + proc.stderr)
                 if code:
-                    self.assertIn(f"::error::the validate workflow concluded {result}",
+                    self.assertIn(f"::error::the tests workflow concluded {result}",
                                   proc.stdout)
 
-    def test_publish_runs_only_on_a_push_to_main_after_aggregate(self):
-        publish = ci_workflow()["jobs"]["publish"]
+    def test_publish_runs_only_on_a_push_or_dispatch_on_main_after_aggregate(self):
+        publish = ci_workflow()["jobs"]["build-and-publish"]
         self.assertEqual(publish["needs"], ["aggregate"])
         self.assertEqual(publish["if"], CI_PUBLISH_IF)
-        self.assertEqual(publish["uses"], CI_PUBLISH_USES)
+        self.assertEqual(publish["uses"], CI_BUILD_AND_PUBLISH_USES)
         self.assertEqual(publish["permissions"], {"contents": "write", "actions": "read"})
+        self.assertEqual(publish["with"], CI_PUBLISH_WITH)
+        # `needs` without `always()`: the release never runs past a red aggregate.
+        self.assertNotIn("always()", publish["if"])
+        self.assertNotIn("pull_request", publish["if"])
+        self.assertNotIn("schedule", publish["if"])
+
+
+# -- At most six jobs of one CI run in flight -------------------------------------------------
+
+def _called_workflow(uses: str) -> dict:
+    """The local reusable workflow a `uses: ./...` job calls."""
+    return load_workflow_yaml((REPO_ROOT / uses).read_text(encoding="utf-8"))
+
+
+def ci_job_graph(doc: dict, called_workflow=_called_workflow
+                 ) -> tuple[dict[str, set[str]], dict[str, int | None]]:
+    """CI's own jobs with each local called workflow expanded: `{job: every
+    job it waits for}` (transitively) and `{job: runners it can hold at
+    once}`: 1, a matrix's `max-parallel`, or None when a matrix has none (its
+    width is the plan's, unbounded here). A called job is `<caller> /
+    <called>`; it waits for its caller's `needs`, and a job that needs the
+    caller waits for every called job."""
+    direct: dict[str, set[str]] = {}
+    width: dict[str, int | None] = {}
+    members: dict[str, list[str]] = {}
+    for job_id, job in (doc.get("jobs") or {}).items():
+        uses = job.get("uses") or ""
+        if uses.startswith("./"):
+            called = called_workflow(uses)
+            members[job_id] = []
+            for called_id, called_job in (called.get("jobs") or {}).items():
+                name = f"{job_id} / {called_id}"
+                members[job_id].append(name)
+                direct[name] = ({f"{job_id} / {n}" for n in called_job.get("needs") or []}
+                                | {f"@{n}" for n in job.get("needs") or []})
+                strategy = called_job.get("strategy") or {}
+                width[name] = strategy.get("max-parallel") if "matrix" in strategy else 1
+        else:
+            members[job_id] = [job_id]
+            direct[job_id] = {f"@{n}" for n in job.get("needs") or []}
+            strategy = job.get("strategy") or {}
+            width[job_id] = strategy.get("max-parallel") if "matrix" in strategy else 1
+    for name, needs in direct.items():
+        direct[name] = {m for n in needs for m in (members[n[1:]] if n.startswith("@") else [n])}
+    closure: dict[str, set[str]] = {}
+
+    def ancestors(name):
+        if name not in closure:
+            closure[name] = set()
+            closure[name] = set().union(*({n} | ancestors(n) for n in direct[name])) \
+                if direct[name] else set()
+        return closure[name]
+
+    return {name: ancestors(name) for name in direct}, width
+
+
+def ci_peak_jobs(doc: dict, called_workflow=_called_workflow) -> int | None:
+    """The most runners one run of `doc` can hold at once: the heaviest set of
+    jobs none of which waits for another (None when one is unbounded)."""
+    waits, width = ci_job_graph(doc, called_workflow)
+    names = sorted(waits)
+    best = 0
+    for mask in range(1, 1 << len(names)):
+        chosen = [n for i, n in enumerate(names) if mask >> i & 1]
+        if any(a in waits[b] for a in chosen for b in chosen if a != b):
+            continue
+        if any(width[n] is None for n in chosen):
+            return None
+        best = max(best, sum(width[n] for n in chosen))
+    return best
+
+
+class TestCiConcurrentJobs(unittest.TestCase):
+    """Owner, 2026-11-17: one CI run holds at most six runners at once."""
+
+    def test_one_run_never_holds_more_than_six_runners(self):
+        waits, width = ci_job_graph(ci_workflow())
+        self.assertEqual(sorted(waits), [
+            "aggregate", "build-and-publish / release", "tests / aggregate",
+            "tests / package", "tests / plan", "tests / shard"])
+        self.assertEqual(width["tests / shard"], CI_MAX_CONCURRENT_JOBS)
+        # plan and package (two), then the shards (six), then one at a time.
+        self.assertEqual(waits["tests / shard"], {"tests / plan", "tests / package"})
+        self.assertEqual(ci_peak_jobs(ci_workflow()), CI_MAX_CONCURRENT_JOBS)
+
+    def test_the_planners_ci_shard_count_fits_the_cap(self):
+        config = planner.load_config(REPO_ROOT)
+        self.assertLessEqual(planner.max_shards(config, "ci", 4), CI_MAX_CONCURRENT_JOBS)
+
+    def test_a_wider_fan_out_is_caught(self):
+        text = TESTS_WORKFLOW.read_text(encoding="utf-8")
+        for label, old, new in (
+                ("no max-parallel", "      max-parallel: 6\n", ""),
+                ("shards beside the package", "    needs: [plan, package]\n", "    needs: [plan]\n"),
+                ("seven shards", "      max-parallel: 6\n", "      max-parallel: 7\n")):
+            with self.subTest(mutation=label):
+                mutated = text.replace(old, new, 1)
+                self.assertNotEqual(mutated, text)
+                peak = ci_peak_jobs(ci_workflow(), lambda uses, mutated=mutated: load_workflow_yaml(
+                    mutated if uses == CI_TESTS_USES else
+                    (REPO_ROOT / uses).read_text(encoding="utf-8")))
+                self.assertTrue(peak is None or peak > CI_MAX_CONCURRENT_JOBS, peak)
 
 
 # -- T-CI-2: the plan and shard jobs agree on the tree ---------------------------------------
@@ -6067,7 +6204,7 @@ class TestOneRequiredCheck(unittest.TestCase):
 class TestCiTreeIdentity(_CliCase):
 
     def test_the_workflow_steps_run_end_to_end_with_one_tree_digest(self):
-        doc = validate_workflow()
+        doc = tests_workflow()
         scratch = scratch_checkout(self.tmp / "scratch")
         plan_job = scratch_clone(scratch)
         temp = self.tmp / "rt-plan"
@@ -6146,7 +6283,7 @@ def _record_files(root: Path) -> dict[tuple[str, ...], Path]:
 def _ci_shards(case, scratch_root, plan: Path, out: Path) -> None:
     """Every shard of `plan`, each into its artifact's directory under `out`
     (the aggregate job's download layout)."""
-    doc = validate_workflow()
+    doc = tests_workflow()
     for index in range(json.loads(plan.read_text())["n"]):
         proc = run_cli(scratch_root, "--run-shard", index, "--plan", plan,
                        "--results", out / ci_artifact_dir(doc, index), env=case.env)
@@ -6164,18 +6301,18 @@ class TestCiAggregateRefusals(_CliCase):
         self.assertEqual(honest.returncode, 0, honest.stdout + honest.stderr)
 
         held_back = self.tmp / "held-back"
-        shutil.move(str(out / ci_artifact_dir(validate_workflow(), 1)), str(held_back))
+        shutil.move(str(out / ci_artifact_dir(tests_workflow(), 1)), str(held_back))
         missing = run_cli(scratch, "--aggregate", out, "--plan", plan, env=self.env)
         assert_refusal(self, missing.returncode, missing.stderr, "IncompleteResultsError")
         self.assertIn("missing for [1]", missing.stderr)
-        shutil.move(str(held_back), str(out / ci_artifact_dir(validate_workflow(), 1)))
+        shutil.move(str(held_back), str(out / ci_artifact_dir(tests_workflow(), 1)))
 
         other = _plan_only(self, scratch, "--profile", "ci", "--shards", "1")
         foreign_out = self.tmp / "foreign"
         _ci_shards(self, scratch, other, foreign_out)
         mixed = self.tmp / "mixed"
-        shutil.copytree(out / ci_artifact_dir(validate_workflow(), 1), mixed / "results-shard-1")
-        shutil.copytree(foreign_out / ci_artifact_dir(validate_workflow(), 0), mixed / "results-shard-0")
+        shutil.copytree(out / ci_artifact_dir(tests_workflow(), 1), mixed / "results-shard-1")
+        shutil.copytree(foreign_out / ci_artifact_dir(tests_workflow(), 0), mixed / "results-shard-0")
         foreign = run_cli(scratch, "--aggregate", mixed, "--plan", plan, env=self.env)
         assert_refusal(self, foreign.returncode, foreign.stderr, "ForeignResultsError")
 
@@ -6221,8 +6358,8 @@ class TestManagedWorkflowUntouched(unittest.TestCase):
                              .read_text())["managed"]
         self.assertEqual(_sha256((REPO_ROOT / MANAGED_WORKFLOW).read_bytes()),
                          managed[MANAGED_WORKFLOW]["sha256"])
-        for path in (CI_WORKFLOW, VALIDATE_WORKFLOW,
-                     REPO_ROOT / ".github" / "workflows" / "publish.yml"):
+        for path in (CI_WORKFLOW, TESTS_WORKFLOW,
+                     REPO_ROOT / ".github" / "workflows" / "build-and-publish.yml"):
             with self.subTest(workflow=path.name):
                 self.assertTrue(path.is_file())
                 self.assertNotIn(str(path.relative_to(REPO_ROOT)), managed)

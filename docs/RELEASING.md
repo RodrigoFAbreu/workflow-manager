@@ -19,12 +19,13 @@ build time.
    Commit checked by the required `Conventional Commit title` check, becomes
    the squash commit's subject, with a blank body.
 2. `main`'s push run of `.github/workflows/ci.yml` (the `CI` workflow)
-   runs the **full** selection: its `validate` job calls `validate.yml`,
-   and its `aggregate` job, the required check, fails unless that
-   validation succeeded.
-3. In the same run, once `aggregate` is green, the `publish` job calls
-   `.github/workflows/publish.yml`. The revision is validated once, and the
-   release comes from that validation. It:
+   runs the **full** selection: its `tests` job calls `tests.yml`
+   (`Tests`), and its `aggregate` job, the required check, fails unless
+   those tests succeeded.
+3. In the same run, once `aggregate` is green, the `build-and-publish` job
+   calls `.github/workflows/build-and-publish.yml` (`Build and publish`)
+   with `validated: true`. The revision is validated once, and the release
+   comes from that validation. It:
    - picks the newest commit on `main`'s first parent whose own push run of
      `ci.yml` is green, counting this run as green
      (`release.py resolve-target --trigger-validated`: the run is still in
@@ -58,24 +59,35 @@ build time.
      pinned Workflow versions.
 
 Release jobs are serialized by one concurrency group and never cancelled.
-Pull-request and nightly runs never publish: `publish` runs only on a push
-to `main`.
+Pull-request and nightly runs never publish: `build-and-publish` runs only
+on a push to `main` or a dispatch of `CI` on `main`.
 
 ### Publishing by hand, and a dry run
 
-`publish.yml` can also be dispatched on `main` (Actions tab, or
-`gh workflow run publish.yml --ref main`). A dispatched run validates
-nothing itself, so it must find a completed, successful push run of
-`ci.yml` for the commit it publishes: `resolve-target` runs without
+**Dispatch `CI` on `main`** (Actions tab, or `gh workflow run ci.yml --ref
+main`) to re-run a release from the entry point. The run tests the commit
+first, exactly as a push run does, and, once its `aggregate` is green,
+calls `Build and publish` with `validated: true`: the same gates, with the
+dispatch run itself counted as the validated trigger. A dispatch from any
+other branch tests and publishes nothing.
+
+**Dispatch `Build and publish` on `main`** (`gh workflow run
+build-and-publish.yml --ref main`) to publish without re-running the tests.
+It validates nothing itself, so it must find a completed, successful push
+run of `ci.yml` for the commit it publishes: `resolve-target` runs without
 `--trigger-validated`, and when it finds no such run it falls back to the
 dispatch's own run, which the next step refuses (`::error::no green ci.yml
-push run for this commit`). Every other gate is the called run's.
+push run for this commit`). A green dispatched `CI` run does not count here:
+only push runs do. Leave its `validated` input unset; only ci.yml sets it,
+and a direct dispatch that sets it is refused. Every other gate is the
+called run's.
 
-With the `dry-run` input set (`gh workflow run publish.yml --ref main -f
-dry-run=true`), the run resolves the target, downloads its plan, runs
-`assert-full-plan`, `next-version`, `assert-not-superseded` and the package
-build, and then logs a notice instead of `gh release create`: no tag and no
-release. Use it to prove the release path without publishing.
+Either dispatch takes a `dry-run` input (`gh workflow run ci.yml --ref main
+-f dry-run=true`, or the same on `build-and-publish.yml`): the release
+resolves the target, downloads its plan, runs `assert-full-plan`,
+`next-version`, `assert-not-superseded` and the package build, and then
+logs a notice instead of `gh release create`: no tag and no release. Use it
+to prove the release path without publishing.
 
 ### Release impact of a title
 
@@ -118,9 +130,9 @@ strict tags and are ignored.
   unreleased commit with it, so a skipped or superseded release is never
   lost as long as `main` moves.
 - **A failed release run.** A failure before `gh release create` leaves no
-  tag. The `CI` run of that push then concludes red on its `publish` job
-  (`publish / release`) with `aggregate` green. Re-run its failed jobs from
-  the Actions UI, or:
+  tag. The `CI` run of that push then concludes red on its
+  `build-and-publish` job (`build-and-publish / release`) with `aggregate`
+  green. Re-run its failed jobs from the Actions UI, or:
 
   ```bash
   gh run list --workflow ci.yml --branch main --event push --limit 10
@@ -128,17 +140,19 @@ strict tags and are ignored.
   ```
 
   The re-run keeps the run's id, so it is still the validated trigger, and
-  resolves its target afresh. Validation is not repeated.
+  resolves its target afresh. Validation is not repeated. Or dispatch `CI`
+  on `main` (see "Publishing by hand"): a new run that tests `main`'s head
+  again and then publishes.
 - **A stranded release on a quiet `main`.** A green commit can stay
-  unreleased when its `publish` job was replaced while pending in the
+  unreleased when its `build-and-publish` job was replaced while pending in the
   release concurrency group by an older commit's (its `CI` run then
   concludes cancelled, so it no longer counts as a green push run), or when
   a release job fell back to its own trigger (an API or git failure in
   `resolve-target`, which warns). The next green `main` push releases it.
   If `main` stays quiet, re-run the cancelled or failed jobs of the latest
   `main` push run of `ci.yml`, as above; when that run is already green,
-  dispatch `publish.yml` on `main` instead (see "Publishing by hand"),
-  which picks the newest green commit.
+  dispatch `build-and-publish.yml` on `main` instead (see "Publishing by
+  hand"), which picks the newest green commit, or dispatch `CI` on `main`.
 
 ## Installing a release, without a checkout
 
@@ -277,7 +291,7 @@ an open pull request.
 ## The nightly run
 
 `ci.yml` runs the full selection of `main` at 03:17
-UTC (its `schedule` trigger; the `validate` call sees the caller's
+UTC (its `schedule` trigger; the `tests` call sees the caller's
 `schedule` event, which turns the nightly wiring on), on the pins, the lock and the newest published Workflow release (the
 plan job adds it from the GitHub listing without a commit, so a release
 published after the last Manager release is tested the night it appears). The
