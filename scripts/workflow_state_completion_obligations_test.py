@@ -8367,5 +8367,53 @@ class RetentionTestPins(unittest.TestCase):
                          {k: v for k, v in before.items() if "w00.tar.zst" not in k})
 
 
+@unittest.skipUnless(_HAVE_ZSTD, "the cross_device wording pins need the zstd program on PATH")
+class RetentionCrossDeviceWording(unittest.TestCase):
+    """W57 (command-wording-pins): the next step of both `cross_device` refusals says what the Manager-run
+    command cannot do (it never passes `--archive-root`): run the engine by hand with one, or leave the folder."""
+
+    NEXT_STEP = ("run the engine by hand with an --archive-root on the repository's file system (archive there, "
+                 "then remove), or leave the folder; nothing was moved")
+
+    def env(self):
+        rr = _RM()
+        self.addCleanup(rr.__exit__, None, None, None)
+        rr.__enter__()
+        return rr
+
+    def patch(self, target, name, replacement):
+        patcher = unittest.mock.patch.object(target, name, replacement)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def check(self, rr, result):
+        self.assertEqual(result.code, 2, result.result)
+        self.assertEqual(result.err_code, "cross_device", getattr(result.error, "message", None))
+        self.assertEqual(result.error.next_step, self.NEXT_STEP)
+        self.assertNotIn("keep the archive store", result.error.next_step)
+
+    def test_cross_device_at_the_selection_says_to_run_the_engine_by_hand(self):  # e1
+        rr = self.env()
+        folder = rr.prepared()
+        before, files = rr.snap(times=False), rr.files(folder)
+        self.patch(wr, "_same_device", lambda a, b: False)
+        for apply in (False, True):
+            with self.subTest(apply=apply):
+                self.check(rr, rr.rm(apply=apply))
+        self.assertEqual(rr.snap(times=False), before)
+        self.assertEqual(rr.renames, [])
+        self.assertEqual(rr.files(folder), files)
+
+    def test_cross_device_of_the_rename_says_to_run_the_engine_by_hand(self):  # e2
+        rr = self.env()
+        folder = rr.prepared()
+        before, files = rr.snap(times=False), rr.files(folder)
+        self.patch(wr, "_rename", lambda *a, **k: (_ for _ in ()).throw(OSError(errno.EXDEV, "cross-device")))
+        self.check(rr, rr.rm(apply=True, guard=False))
+        self.assertEqual(rr.files(folder), files)
+        self.assertEqual(rr.snap(times=False), before)
+        self.assertFalse(rr.removing.exists())          # created by this run, removed again
+
+
 if __name__ == "__main__":
     unittest.main()

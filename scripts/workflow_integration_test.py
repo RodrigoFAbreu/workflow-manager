@@ -1203,7 +1203,8 @@ _GOLDEN_COMMAND_FILE_SHA256 = {
     # version-aware (a "2.2" post-fix round re-enters local review) --
     # intentional content change.
     # W54 (bundle-revision-sections): a later round appends its test-record section and round entry and carries the earlier ones forward -- intentional content change.
-    "apply-implementation-review.md": "698b8d867e4b6db107d3d58865da1eed1a1bdda13ac354824a4f97d301aeac6a",
+    # W57 (command-wording-pins): the test-record parenthesis states the `same_content` rewrite of section `N` -- intentional content change.
+    "apply-implementation-review.md": "c1201166cb96c6295f0bac0bad1d5b0789afc10a8ef2b26a7ddbb5577952c008",
     # review-plan.md/record-manual-plan-review.md further updated,
     # workflow-v2-3-followups CP3 (REQ-8/-9): the `Reviewer role:` template
     # literal, the round-computation prose, the exact-match-expectation
@@ -1452,12 +1453,14 @@ _GOLDEN_COMMAND_FILE_SHA256 = {
     # workflow-2.10.0 (retire-21-for-new-work, CP3): the retired-default check at the
     # branch decision, before the first bounded sub-step -- intentional content change.
     # W54 (bundle-revision-sections): the bounded branch appends its test-record section and round entry, earlier ones unchanged -- intentional content change.
-    "apply-functional-review.md": "88e8bf5e19aa2f9202cac2d37cdd4bae7bbdbe9c4dcec2a38042dea05396a43f",
+    # W57 (command-wording-pins): the test-record parenthesis states the `same_content` rewrite of section `N` -- intentional content change.
+    "apply-functional-review.md": "5da01306de40dc2502da6c3a3f5ab2a5381c0e245aa02ed6462fb5b1dd466d1b",
     # workflow-2.10.0 (retire-21-for-new-work, CP3): first recorded hash; the broad
     # fix's refusal under a "2.1" default and the re-run from `already_reopened`.
     # workflow-2.29.3 (wording-pass-plain-commands, CP1): wording only -- intentional content change.
     # W54 (bundle-revision-sections): the post-fix refresh appends its test-record section and round entry, earlier ones unchanged -- intentional content change.
-    "apply-pr-review.md": "526514e2ad828a6ee0373dba946cedba2cbaf2e4534dfda9c5b3fbd14543e7e0",
+    # W57 (command-wording-pins): the later-round record sentence states the ordinary outcome, the 1 to `N-1` check and the no-quarantine say-so -- intentional content change.
+    "apply-pr-review.md": "afe7ddbfb0d6e9414de29224529bd3150bd3d45840f5b6d4644e02fb2ec1abe6",
     # workflow-2.18.0 (harness-neutral-commands, CP2): the command bodies name the model "the agent"
     # and restate the six user-only guards (D-Guard); `apply-pr-review.md` and `prepare-review.md` gain
     # `$ARGUMENTS` (D-Args); the five rows below are first recorded hashes -- intentional content changes.
@@ -9431,6 +9434,30 @@ class TestBundleIdentifiersDoNotMoveWithTheRecord(unittest.TestCase):
                 )
                 digests.add(digest)
             self.assertEqual(len(digests), 1)
+
+
+class TestCommandWordingPins(unittest.TestCase):
+    """W57 (command-wording-pins): the bundle-record wording of the apply commands says what the code does."""
+
+    def test_apply_pr_review_states_the_restore_checks_and_the_ordinary_outcome(self):  # c1
+        text = _flat(_command_text("apply-pr-review.md"))
+        for fragment in (
+            "checking they run from 1 to `N-1`",
+            "with no quarantine say so in the entry",
+            "records every round with the ordinary outcome",
+            "no round here adds to an earlier entry or rewrites an earlier section",
+        ):
+            with self.subTest(fragment=fragment):
+                self.assertIn(fragment, text)
+
+    def test_the_two_apply_commands_say_a_same_content_round_rewrites_section_n(self):  # c2
+        clause = ("the full suite re-run for it; a `\"same_content\"` round keeps `N` and rewrites section `N` "
+                  "with its new commit and results, appending none) and an entry headed")
+        for filename in ("apply-implementation-review.md", "apply-functional-review.md"):
+            with self.subTest(filename=filename):
+                text = _flat(_command_text(filename))
+                self.assertIn(clause, text)
+                self.assertNotIn("the full suite re-run for it) and an entry headed", text)
 
 
 if __name__ == "__main__":
