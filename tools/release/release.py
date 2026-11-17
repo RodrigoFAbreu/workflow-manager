@@ -86,7 +86,8 @@ BASELINE_COMMIT = "b856a97346849fdf48bcdba2d6a5a9644699ab4b"
 PLACEHOLDER_LINE = 'version = "0.0.0.dev0"'
 
 #: The workflow whose push runs validate a release target: CI, which runs
-#: validate.yml and then, on a push to main, publish.yml in the same run.
+#: tests.yml and then, on a push to main (or a dispatch of CI on main),
+#: build-and-publish.yml in the same run.
 VERIFY_WORKFLOW = "ci.yml"
 GIT_TIMEOUT = 60
 GH_TIMEOUT = 60
@@ -340,14 +341,15 @@ def resolve_target(
     parent.
 
     `trigger_validated` is set when the release runs inside the trigger's own
-    CI run, after that run's `aggregate` succeeded (ci.yml's `publish` job):
+    CI run, after that run's `aggregate` succeeded (ci.yml's
+    `build-and-publish` job, on a `main` push or a dispatch of CI on `main`):
     the trigger, still in progress and so absent from the completed-run list,
     is added as a completed, successful push run before the selection. It is
     then always eligible, a newer green descendant still wins, and an earlier
     CI run of the same commit whose publish job failed never blocks it.
-    Without it (a dispatched release, where nothing validated the trigger),
-    only the fetched runs count, and a fallback to the trigger is refused by
-    the workflow's dispatch guard.
+    Without it (a direct dispatch of build-and-publish.yml, where nothing
+    validated the trigger), only the fetched runs count, and a fallback to the
+    trigger is refused by the workflow's dispatch guard.
     """
     try:
         runs = fetch_runs()

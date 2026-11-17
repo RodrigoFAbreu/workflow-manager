@@ -2,23 +2,35 @@
 # run and dispatch starts here, and this file only orchestrates. The work
 # lives in two reusable workflows, each also runnable by hand:
 #
-#   validate   calls validate.yml: the full test selection, sharded by the
-#              planner (plan, shard, package, aggregate), plus the release's
-#              build-and-verify path. Its jobs report as `validate / <job>`.
-#   aggregate  the one required test check. A job of this file, not of
-#              validate.yml, and with no `name:`, so its check context stays
-#              exactly `aggregate` (a called job would report as
-#              `validate / aggregate`). It runs always and fails unless the
-#              validate call succeeded; the real aggregation (the shards'
-#              results against the plan, phase B) is validate.yml's own
-#              `aggregate` job.
-#   publish    calls publish.yml on a push to `main` only, after `aggregate`
-#              succeeded in this same run: the revision is validated once and
-#              published from that validation. It is the one job granted
-#              `contents: write` (and `actions: read`, to download the run's
-#              plan), because a called workflow cannot exceed its caller
-#              job's permissions; publish.yml grants them to its release job
-#              alone.
+#   tests              calls tests.yml (`Tests`): the full test selection,
+#                      sharded by the planner (plan, shard, package,
+#                      aggregate), plus the release's build-and-verify path.
+#                      Its jobs report as `tests / <job>`.
+#   aggregate          the one required test check. A job of this file, not
+#                      of tests.yml, and with no `name:`, so its check context
+#                      stays exactly `aggregate` (a called job would report as
+#                      `tests / aggregate`). It runs always and fails unless
+#                      the tests call succeeded; the real aggregation (the
+#                      shards' results against the plan, phase B) is
+#                      tests.yml's own `aggregate` job.
+#   build-and-publish  calls build-and-publish.yml (`Build and publish`) on a
+#                      push to `main`, or a dispatch of this workflow on
+#                      `main`, only after `aggregate` succeeded in this same
+#                      run: the revision is validated once and published from
+#                      that validation (`validated: true`), so a failed
+#                      release can be re-run by dispatching `CI` on `main`.
+#                      Pull requests and the nightly never publish. The
+#                      dispatch's `dry-run` runs every release gate and the
+#                      build and skips the tag. It is the one job granted
+#                      `contents: write` (and `actions: read`, to download
+#                      the run's plan), because a called workflow cannot
+#                      exceed its caller job's permissions;
+#                      build-and-publish.yml grants them to its release job
+#                      alone.
+#
+# At most six jobs of one run are in flight at once: `plan` and `package`
+# (two), then the shards (the planner's count, at most 6, and `max-parallel:
+# 6` in tests.yml for a larger `shards` dispatch), then one job at a time.
 #
 # See docs/ARCHITECTURE.md, "GitHub Actions layout", and docs/RELEASING.md.
 name: CI
@@ -36,6 +48,11 @@ on:
         description: "Shard count, 1-256 (empty: the planner's own count; 1: the serial CI reference)"
         required: false
         default: ""
+      dry-run:
+        description: "On main: after the tests, run every release gate and the build, but create no tag or release"
+        required: false
+        type: boolean
+        default: false
 
 # A pull request keeps its per-ref group, and a new push cancels its stale
 # run. Every other run (push, nightly, dispatch) gets its own per-event,
@@ -49,32 +66,35 @@ permissions:
   contents: read
 
 jobs:
-  validate:
-    uses: ./.github/workflows/validate.yml
+  tests:
+    uses: ./.github/workflows/tests.yml
     with:
       shards: ${{ inputs.shards }}
 
   aggregate:
-    needs: [validate]
-    # Always, so a failed, skipped or cancelled validation fails this
+    needs: [tests]
+    # Always, so a failed, skipped or cancelled tests call fails this
     # required check rather than skipping it.
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Require the validation
+      - name: Require the tests
         env:
-          VALIDATE_RESULT: ${{ needs.validate.result }}
+          TESTS_RESULT: ${{ needs.tests.result }}
         run: |
-          if [ "$VALIDATE_RESULT" != success ]; then
-            echo "::error::the validate workflow concluded $VALIDATE_RESULT"
+          if [ "$TESTS_RESULT" != success ]; then
+            echo "::error::the tests workflow concluded $TESTS_RESULT"
             exit 1
           fi
 
-  publish:
+  build-and-publish:
     needs: [aggregate]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     permissions:
       contents: write
       actions: read
-    uses: ./.github/workflows/publish.yml
+    uses: ./.github/workflows/build-and-publish.yml
+    with:
+      validated: true
+      dry-run: ${{ inputs.dry-run == true }}

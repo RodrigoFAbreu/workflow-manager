@@ -37,8 +37,8 @@ from workflow_manager import source as release_source
 TESTS = REPO_ROOT / "tests"
 #: The CI entry point, the reusable verification it calls and the reusable release.
 CI_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "ci.yml"
-VERIFY_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "validate.yml"
-RELEASE_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "publish.yml"
+VERIFY_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "tests.yml"
+RELEASE_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "build-and-publish.yml"
 LOCK_TOOL = REPO_ROOT / "tools" / "release_lock.py"
 SYNTHETIC = "7.0.2"
 NEWER = "7.0.3"
@@ -794,12 +794,12 @@ class TestTheVerifyWorkflow(unittest.TestCase):
         self.assertNotIn("WORKFLOW_MANAGER_TESTED_RELEASES", json.dumps(self.doc.get("env", {})))
 
     def test_the_nightly_reaches_the_verify_workflow_as_the_callers_event(self):
-        """The schedule lives on ci.yml; validate.yml's `schedule` guards see the
+        """The schedule lives on ci.yml; tests.yml's `schedule` guards see the
         caller's event, so the nightly's lock wiring needs the call, and ci.yml
         sets no override of its own."""
         ci = load_workflow_yaml(CI_WORKFLOW.read_text(encoding="utf-8"))
         self.assertEqual(ci["on"]["schedule"], [{"cron": "17 3 * * *"}])
-        self.assertEqual(ci["jobs"]["validate"]["uses"], "./.github/workflows/validate.yml")
+        self.assertEqual(ci["jobs"]["tests"]["uses"], "./.github/workflows/tests.yml")
         self.assertNotIn("schedule", self.doc["on"])
         self.assertEqual(sorted(self.doc["on"]), ["workflow_call", "workflow_dispatch"])
         self.assertNotIn("WORKFLOW_MANAGER_TESTED_RELEASES", CI_WORKFLOW.read_text(encoding="utf-8"))

@@ -1,16 +1,20 @@
-# The Workflow Manager's package release (docs/RELEASING.md). A reusable
-# workflow: ci.yml's `publish` job calls it on a push to `main`, after that
-# run's own `aggregate` check succeeded, so the revision is validated once and
-# published from that validation. It can also be dispatched by hand on
-# `main`; with `dry-run` it runs every gate and the build and skips only the
-# tag and the upload.
+# The Workflow Manager's package release (docs/RELEASING.md): building and
+# publishing only; the tests that validate the revision are orchestrated by
+# ci.yml. A reusable workflow: ci.yml's `build-and-publish` job calls it on a
+# push to `main`, or a dispatch of `CI` on `main`, after that run's own
+# `aggregate` check succeeded, with `validated: true`, so the revision is
+# validated once and published from that validation. It can also be
+# dispatched by hand on `main`; with `dry-run` it runs every gate and the
+# build and skips only the tag and the upload.
 #
-# Called mode (`github.event_name` is the caller's `push`): the trigger is
-# this run, green by `needs`, and `resolve-target --trigger-validated` counts
-# it as a green push run. Dispatch mode (`workflow_dispatch`): nothing
-# validated this run, so the target must be a completed, successful push run
-# of ci.yml for the commit; when resolve-target finds none it falls back to
-# this run, and the guard refuses (never publish untested code).
+# Validated (a call from ci.yml: `github.event_name` is the caller's `push`,
+# or its `workflow_dispatch` with `validated`): the trigger is this run, green
+# by `needs`, and `resolve-target --trigger-validated` counts it as a green
+# push run. A direct dispatch (`workflow_dispatch`, `validated` false):
+# nothing validated this run, so the target must be a completed, successful
+# push run of ci.yml for the commit; when resolve-target finds none it falls
+# back to this run, and the guard refuses (never publish untested code). Only
+# ci.yml may set `validated`: a direct dispatch that sets it is refused.
 #
 # It publishes the newest green push run's commit on main's first-parent
 # history (`release.py resolve-target`), never merely its own trigger: a
@@ -27,13 +31,18 @@
 # the release in one call, so a failure before it leaves no tag. Releases are
 # serialized by the job's own concurrency group. The release contains no
 # Workflow release.
-name: Publish
+name: Build and publish
 
 on:
   workflow_call:
     inputs:
       dry-run:
         description: "Run every gate and the build, but create no tag or release"
+        required: false
+        type: boolean
+        default: false
+      validated:
+        description: "Set by ci.yml only: its own aggregate validated this commit in the same run"
         required: false
         type: boolean
         default: false
@@ -44,14 +53,19 @@ on:
         required: false
         type: boolean
         default: false
+      validated:
+        description: "Set by ci.yml only: its own aggregate validated this commit in the same run"
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
 jobs:
   release:
-    # Main only: a call from ci.yml is a push to main by construction, and a
-    # dispatch from another branch publishes nothing.
+    # Main only: ci.yml calls it only on main, and a dispatch from another
+    # branch publishes nothing.
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -67,8 +81,25 @@ jobs:
         with:
           ref: main
           fetch-depth: 0
+      # `validated` is ci.yml's alone: a direct dispatch that sets it is
+      # refused. The `github` context of a called workflow is its caller's, so
+      # a call from ci.yml carries ci.yml's workflow ref.
+      - name: Refuse a hand-set validated input (dispatch)
+        if: github.event_name == 'workflow_dispatch' && inputs.validated == true
+        env:
+          WORKFLOW_REF: ${{ github.workflow_ref }}
+          REPO: ${{ github.repository }}
+        run: |
+          case "$WORKFLOW_REF" in
+            "$REPO/.github/workflows/ci.yml@"*) ;;
+            *)
+              echo "::error::validated is set by ci.yml only, not by a dispatch of $WORKFLOW_REF"
+              exit 1
+              ;;
+          esac
       # Called from ci.yml, this run's own `aggregate` validated the trigger
-      # (`--trigger-validated`); dispatched, the trigger is this unvalidated run.
+      # (`--trigger-validated`); dispatched directly, the trigger is this
+      # unvalidated run.
       - name: Resolve the release target
         id: target
         env:
@@ -76,15 +107,16 @@ jobs:
           REPO: ${{ github.repository }}
           TRIGGER_SHA: ${{ github.sha }}
           TRIGGER_RUN: ${{ github.run_id }}
-          EVENT: ${{ github.event_name }}
+          TRIGGER_VALIDATED: ${{ github.event_name != 'workflow_dispatch' || inputs.validated == true }}
         run: |
           validated=""
-          if [ "$EVENT" != workflow_dispatch ]; then validated=--trigger-validated; fi
+          if [ "$TRIGGER_VALIDATED" = true ]; then validated=--trigger-validated; fi
           python3 tools/release/release.py resolve-target --repo "$REPO" --trigger-sha "$TRIGGER_SHA" --trigger-run "$TRIGGER_RUN" $validated >> "$GITHUB_OUTPUT"
-      # A dispatched release falls back to its own run only when no green
-      # push run of ci.yml exists for the commit: it never publishes that.
+      # An unvalidated (directly dispatched) release falls back to its own run
+      # only when no green push run of ci.yml exists for the commit: it never
+      # publishes that.
       - name: Require a green CI push run (dispatch)
-        if: github.event_name == 'workflow_dispatch'
+        if: ${{ !(github.event_name != 'workflow_dispatch' || inputs.validated == true) }}
         env:
           TARGET_RUN: ${{ steps.target.outputs.target_run }}
           THIS_RUN: ${{ github.run_id }}
