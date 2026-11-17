@@ -116,9 +116,15 @@ and the bounded fix, in this order:
    `- commands:`, `- result:`, written fresh at this round's commit with the
    full suite re-run) and an entry headed `## Round <N>` to
    `IMPLEMENTATION_SUMMARY.md`, carry every earlier section and entry forward
-   unchanged, read "for this round" as section and entry `N` only, and after a
-   withdrawal restore the earlier ones byte for byte from the newest
-   `current.rejected-*` sibling. Assert
+   unchanged, and read "for this round" as section and entry `N` only. This
+   command records every round with the ordinary outcome
+   (`record_bundle_generation` is called without an outcome), so `N` advances
+   and section and entry `N` are new: no round here adds to an earlier entry
+   or rewrites an earlier section. When the generator stubbed both files empty
+   after a withdrawal, restore sections 1 to `N-1` and entries 1 to `N-1` byte
+   for byte from the newest `current.rejected-*` sibling (by modification time)
+   whose files hold them, checking they run from 1 to `N-1`; never rewrite
+   them from memory, and with no quarantine say so in the entry. Assert
    `workflow_fingerprint.assert_bundle_not_rejected(repo_root, work_item_id)`
    immediately before `record_bundle_generation`.
 

@@ -1749,8 +1749,8 @@ def _select_removal(repo_root, item_id, archive_root, now, run, resolve, zstd, f
         entries = _scan(folder_fd, item_id)
         if state == "L0" and not _same_device(ai_fd, adir_fd):                         # 10
             raise _refuse("cross_device", ".ai-review and the archive directory are on different file systems",
-                          "keep the archive store on the repository's file system (--archive-root), or leave the "
-                          "folder; nothing was moved")
+                          "run the engine by hand with an --archive-root on the repository's file system (archive "
+                          "there, then remove), or leave the folder; nothing was moved")
         program = zstd or shutil.which("zstd")                                         # 11
         if not program:
             raise _refuse("zstd_missing", "the zstd program was not found on PATH",
@@ -1884,8 +1884,9 @@ def _flow(sel, item_id, name, archive, removing_place, ai_place, note, fds, repo
         except OSError as exc:
             if exc.errno == errno.EXDEV:
                 raise leave_in_place(_refuse("cross_device", ".ai-review and the archive directory are on different "
-                                             "file systems", "keep the archive store on the repository's file system "
-                                             "(--archive-root); nothing was moved")) from None
+                                             "file systems", "run the engine by hand with an --archive-root on the "
+                                             "repository's file system (archive there, then remove), or leave the "
+                                             "folder; nothing was moved")) from None
             raise leave_in_place(_refuse("place_failed", f"the folder could not be moved: {exc.strerror or exc}",
                                          "nothing was moved")) from None
         where = (f"the rename is done: the folder is whole in {removing_place}, not confirmed durable, nothing was "

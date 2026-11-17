@@ -242,7 +242,8 @@ rule for an item without the field.
    `docs/ai-workflow/REVIEW_PROTOCOL.md` states once: append a section headed
    `## Implementation revision <N>` to `<bundle_dir>/TEST_RESULTS.md`
    (`- commit:`, `- commands:`, `- result:`, written fresh at this round's
-   commit, the full suite re-run for it) and an entry headed `## Round <N>` to
+   commit, the full suite re-run for it; a `"same_content"` round keeps `N`
+   and rewrites section `N` with its new commit and results, appending none) and an entry headed `## Round <N>` to
    `<bundle_dir>/IMPLEMENTATION_SUMMARY.md` (every finding applied with file,
    line and test, every finding rejected with its evidence, and the commit
    that holds the fix; a `"same_content"` round adds to the entry of round
