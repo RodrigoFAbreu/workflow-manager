@@ -5415,6 +5415,98 @@ class TestAcceptanceGateReport(unittest.TestCase):
             out = self.report(ev)
             self.check_absent(out, ["phase_not_reachable"])
 
+    PRESENT_HEAD_REPORT = """{
+ "blockers": [],
+ "dispositions": {
+  "invalid": null,
+  "missing": [],
+  "skeleton": null
+ },
+ "gate": {
+  "digests": {
+   "adopted": null,
+   "file": null,
+   "floor": null
+  },
+  "evidence": {
+   "anchor_commit": "<hex>",
+   "anchor_identity": "<hex>",
+   "functional": {
+    "migration-suite": {
+     "evidence_id": "<hex>",
+     "log_digest": "<hex>",
+     "run_ref": "run-3"
+    }
+   },
+   "pr": {
+    "fact_id": "<hex>",
+    "head": "<hex>",
+    "provenance": "workflow_gh",
+    "raw_sha256": "<hex>"
+   },
+   "technical_approval": {
+    "approved_review_content_id": "<hex>",
+    "basis": "EXTERNAL_APPROVE",
+    "recorded_at": "<stamp>"
+   }
+  },
+  "gate": "acceptance",
+  "mode": "automatic",
+  "obtainable": [],
+  "pending_query": false,
+  "policy_digest": "<hex>",
+  "requirements": [
+   {
+    "detail": "every checkpoint of the item's own registry is COMPLETE",
+    "id": "checkpoints_complete",
+    "met": true
+   },
+   {
+    "detail": "the technical approval is CURRENT for the content now",
+    "id": "technical_approval_current",
+    "met": true
+   },
+   {
+    "detail": "flows ['migration-suite'] passed at the approved content",
+    "id": "functional_flows_passed",
+    "met": true
+   },
+   {
+    "detail": "workflow_gh fact for PR #7 at <hex> is current",
+    "id": "pr_fact_current",
+    "met": true
+   },
+   {
+    "detail": "no CHANGES_REQUESTED decision and no failed check",
+    "id": "no_standing_pr_objection",
+    "met": true
+   },
+   {
+    "detail": "checks are 'success'",
+    "id": "ci_green",
+    "met": true
+   }
+  ],
+  "satisfiable": true,
+  "satisfiable_after_query": false,
+  "source": "default"
+ },
+ "not_checked": [
+  "complete_work_item refusals: incomplete child work items, completion obligations",
+  "the backlog pre-flight (scripts/workflow_backlog.py preflight-accept)",
+  "the GitHub query and the pull-request requirements it replaces (the stage runs it first and it decides)",
+  "the requires_pr_approved pre-flight (a query)"
+ ],
+ "phase": "AWAITING_FUNCTIONAL_REVIEW",
+ "query_pending": false,
+ "ready": true,
+ "stored_pr_fact": {
+  "note": "information only: the stage's own query replaces the stored fact before it decides",
+  "unmet": []
+ },
+ "work_item_id": "wi"
+}"""
+
     def test_t3_the_library_still_raises_and_a_present_head_and_the_confirmation(self):
         import workflow_fingerprint as fingerprint
         with AcceptanceRepo() as ev:
@@ -5422,6 +5514,12 @@ class TestAcceptanceGateReport(unittest.TestCase):
             present = self.report(ev)
             self.assertNotIn("stored_pr_fact_unresolvable", self.codes(present))
             self.assertTrue(present["ready"])
+            # the whole ready, present-head report is pinned (#185 point 4); the digests and the
+            # `_CLOCK`-driven `recorded_at` (which advances with every `AcceptanceRepo`) are normalized
+            normalized = re.sub(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ", "<stamp>",
+                                re.sub(r"[0-9a-f]{64}|[0-9a-f]{40}", "<hex>",
+                                       json.dumps(present, sort_keys=True, indent=1)))
+            self.assertEqual(normalized, self.PRESENT_HEAD_REPORT)
             self.absent_head(ev)
             with self.assertRaises(fingerprint.AmbiguousBaseError):
                 g.evaluate_gate(ev.root, ev.state(), WI, "acceptance")
@@ -5451,7 +5549,10 @@ class TestAcceptanceGateReport(unittest.TestCase):
         self.assertEqual(len(set(blocking)), len(blocking))
         self.assertFalse(set(pr) & set(blocking))
         self.assertEqual(set(pr) | set(blocking), set(g.ACCEPTANCE_REQUIREMENT_IDS))
-        for case in ("ready", "stale", "stalenone", "early", "terminal", "after_query"):
+        # every non-human fixture case: the objection path (`stale_changes`, `stale_failed`) emits
+        # its own requirement ids, so their partition membership is pinned here too
+        for case in ("ready", "stale", "stalenone", "early", "terminal", "after_query",
+                     "stale_changes", "stale_failed", "stale_head", "missing", "partial", "invalid"):
             with self.subTest(case), AcceptanceRepo() as ev:
                 self.fixture(ev, case)
                 for r in ev.evaluate()["requirements"]:
@@ -5493,8 +5594,29 @@ class TestAcceptanceGateReport(unittest.TestCase):
         with AcceptanceRepo() as ev:  # `--satisfy-acceptance` uses the same function
             self.fixture(ev, "ready")
             outstanding(ev)
-            blocker = ws._acceptance_reachability_blocker(ev.root, WI, ev.item())
-            self.assertIn("which the acceptance stage accepts, but not every checkpoint is complete", blocker["detail"])
+            detail = self.report(ev)["blockers"][0]["detail"]
+            digest = ws._state_file_digest(ev.root)
+            queries = []
+
+            def run(argv, timeout):
+                queries.append(argv)
+                return "[]"
+
+            import io
+            out = io.StringIO()
+            with contextlib.chdir(ev.root), contextlib.redirect_stdout(out):
+                code = ws._satisfy_acceptance_cli(WI, now=lambda: "2026-11-06T10:00:00Z", run=run,
+                                                  resolve=lambda r: dict(FAKE_GH))
+            body = json.loads(out.getvalue())
+            self.assertEqual(code, 1)
+            self.assertEqual(body["error"], "AcceptancePreflightError")
+            self.assertEqual(body["code"], "phase_not_reachable")
+            self.assertIs(body["state_changed"], False)
+            self.assertEqual(body["message"], detail)
+            self.assertIn("which the acceptance stage accepts, but not every checkpoint is complete",
+                          body["message"])
+            self.assertEqual(queries, [], "the forge was queried")
+            self.assertEqual(ws._state_file_digest(ev.root), digest)
 
     # -- T7: errors ------------------------------------------------------------
 
