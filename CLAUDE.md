@@ -95,7 +95,7 @@ when the approved plan or an acceptance criterion requires it, or to debug
 a serial/sharded discrepancy. If an equivalent run already exists, reuse and
 cite it: same `selection_digest`/`tests_digest`, its own `verdict:` the one
 the gate needs, and no change since its `head` to code, tests or the runner
-(for CI evidence, `ci.yml` and `validate.yml` too). Docs and workflow-state commits
+(for CI evidence, `ci.yml` and `tests.yml` too). Docs and workflow-state commits
 don't count as changes. See `docs/ARCHITECTURE.md`'s "Verification execution"
 for the equivalence and staleness rules and what to record.
 A run makes `src/` and `tools/` read-only until it ends; see

@@ -189,7 +189,7 @@ docs/
   defects/                     upstream defects found, documented, not repaired
   RELEASING.md                 how the Manager is released, and how a new Workflow release is tested (the lock)
 .github/
-  workflows/                   CI (ci.yml) calling validation (validate.yml) and release (publish.yml), PR title, and the managed conformance check
+  workflows/                   CI (ci.yml) calling Tests (tests.yml) and Build and publish (build-and-publish.yml), PR title, and the managed conformance check
   repository/                  merge settings and the `main` ruleset, as reviewed data
 ```
 
@@ -604,7 +604,7 @@ but a *timing key* does not, see below). Discovery is
 
 **CI.** `.github/workflows/ci.yml` runs on every pull request, every push
 to `main`, a nightly `schedule` (`17 3 * * *`, the default branch) and on
-dispatch, and calls the reusable `.github/workflows/validate.yml` (see
+dispatch, and calls the reusable `.github/workflows/tests.yml` (`Tests`; see
 "GitHub Actions layout" below), which holds the test jobs. Its `plan` job
 writes the plan, and the
 plan's shard list becomes the `shard` matrix; nothing in the file names a
@@ -620,7 +620,8 @@ shard's summary (`workers`) and report. The planner caps CI at 6 shards
 (`ci_max_shards`; the account's free plan allows 20 concurrent jobs across all
 repositories), and the `shard` job `needs: [plan, package]` with
 `if: !cancelled() && needs.plan.result == 'success'`, so shards start after
-the 20-second `package` job and at most 6 jobs run at once; a failed
+the 20-second `package` job and at most 6 jobs run at once (the matrix's
+`max-parallel: 6` holds a larger `shards` dispatch to six at a time); a failed
 `package` does not stop the shards, and `aggregate` still fails on it. The
 `aggregate` job verifies every result against the plan, runs
 phase B and reports. Every file the tooling writes lives under
@@ -639,13 +640,13 @@ update` owns it and may rename its job.
 - **One selection.** Every event plans the full selection; the `plan` job's
   only output is the shard list.
 - **One required test check.** `aggregate` keeps its name whatever the shard
-  count. validate.yml's `aggregate` job needs `plan`, every `shard` and the
+  count. tests.yml's `aggregate` job needs `plan`, every `shard` and the
   `package` job, runs `if: always()`, and its first step fails, naming the
   job, when `plan` or `package` did not succeed. Its exit code is the
-  verdict; called from ci.yml it reports as `validate / aggregate`. The
+  verdict; called from ci.yml it reports as `tests / aggregate`. The
   required check is ci.yml's own `aggregate` job: no `name:`, `needs:
-  [validate]`, `if: always()`, and one step that fails unless the
-  `validate` call succeeded. The repository's required checks are `aggregate` and `PR title`'s
+  [tests]`, `if: always()`, and one step that fails unless the
+  `tests` call succeeded. The repository's required checks are `aggregate` and `PR title`'s
   `Conventional Commit title`, both from the GitHub Actions app
   (`.github/repository/ruleset-main.json`).
 - **Packaging on every run.** The `package` job builds and verifies the
@@ -667,55 +668,81 @@ update` owns it and may rename its job.
   is new, so that night saves one entry and later nights hit it. `plan`,
   `shard` and `aggregate` compute the suffix; `package` primes only the
   committed set and keeps the unsuffixed key.
-- **Release.** ci.yml's `publish` job calls `.github/workflows/publish.yml`
-  on a push to `main`, after `aggregate` succeeded in the same run, so the
+- **Release.** ci.yml's `build-and-publish` job calls
+  `.github/workflows/build-and-publish.yml` on a push to `main` or a dispatch
+  of `CI` on `main`, after `aggregate` succeeded in the same run, so the
   revision is validated once and released from that validation; see
   "GitHub Actions layout" below and `docs/RELEASING.md`.
 
 **GitHub Actions layout.** `.github/workflows/` holds three workflows of
-this repository's own, plus the managed one:
+this repository's own, each runnable by hand, plus the managed one:
 
 | file | `name` | role |
 | --- | --- | --- |
-| `ci.yml` | `CI` | The entry point: `pull_request`, `push` to `main`, the nightly `schedule` and `workflow_dispatch` (`shards`). It holds the run's concurrency group and three jobs: `validate` (calls `validate.yml`), `aggregate` (the required check) and `publish` (calls `publish.yml`, only on a push to `main`, `needs: [aggregate]`). |
-| `validate.yml` | `Validate` | Reusable (`workflow_call`) and dispatchable (`workflow_dispatch`), both with the `shards` input: the `plan`, `shard`, `package` and `aggregate` jobs described above. Its `schedule` guards see the caller's event, so a nightly call runs the nightly wiring. It has no concurrency group: a called workflow whose group equals its caller's deadlocks. |
-| `publish.yml` | `Publish` | Reusable and dispatchable, with a boolean `dry-run` input: the one `release` job and every release gate. |
+| `ci.yml` | `CI` | The entry point: `pull_request`, `push` to `main`, the nightly `schedule` and `workflow_dispatch` (`shards`, `dry-run`). It holds the run's concurrency group and three jobs: `tests` (calls `tests.yml`), `aggregate` (the required check) and `build-and-publish` (calls `build-and-publish.yml` with `validated: true` and the dispatch's `dry-run`, only on a push to `main` or a dispatch on `main`, `needs: [aggregate]`). Tests run first; the release only after them. |
+| `tests.yml` | `Tests` | Tests and checks only. Reusable (`workflow_call`) and dispatchable (`workflow_dispatch`), both with the `shards` input: the `plan`, `shard`, `package` and `aggregate` jobs described above. Its `schedule` guards see the caller's event, so a nightly call runs the nightly wiring. It has no concurrency group: a called workflow whose group equals its caller's deadlocks. |
+| `build-and-publish.yml` | `Build and publish` | Building and publishing only. Reusable and dispatchable, with the boolean inputs `dry-run` and `validated`: the one `release` job and every release gate. |
 | `pr-title.yml` | `PR title` | The `Conventional Commit title` check. |
 | `workflow-conformance.yml` | | Managed: installed by `workflow-manager` from the Workflow release, never edited here. |
 
 - **Why `aggregate` is a job of ci.yml.** A job reached through `uses:`
-  reports as `<caller job> / <called job>`, so validate.yml's own
-  aggregation reports as `validate / aggregate`. The ruleset requires the
-  exact context `aggregate` (`.github/repository/ruleset-main.json`), so
-  ci.yml keeps a job with that id and no `name:` that fails unless the
-  `validate` call succeeded. Moving it into a called workflow would change
-  the context and lock every pull request out.
+  reports as `<caller job> / <called job>`, so tests.yml's own
+  aggregation reports as `tests / aggregate` (and the release job as
+  `build-and-publish / release`). The ruleset requires the exact context
+  `aggregate` (`.github/repository/ruleset-main.json`), so ci.yml keeps a
+  job with that id and no `name:` that fails unless the `tests` call
+  succeeded. Moving it into a called workflow would change the context and
+  lock every pull request out. No required check names a called job, so
+  renaming the caller jobs (`validate` to `tests`, `publish` to
+  `build-and-publish`) changes no required context.
 - **Permissions.** Every workflow's own permissions are `contents: read`.
-  Only publish.yml's `release` job holds `contents: write` (and `actions:
-  read`, to download the target run's plan), and ci.yml's `publish` job
-  grants the same two, because a called workflow cannot exceed its caller
-  job's permissions.
-- **Called and dispatched releases.** publish.yml tells them apart by
-  `github.event_name`: a call from ci.yml carries the caller's `push`, a
-  manual run `workflow_dispatch`. Called, the trigger is the CI run itself,
-  validated by `needs`, and `resolve-target --trigger-validated` counts it
-  as a green push run (the run is still in progress, so the completed-run
-  list cannot hold it). Dispatched, nothing validated the run: the target
-  must be a completed, successful push run of `ci.yml` (`release.py`'s
-  `VERIFY_WORKFLOW`), and a guard step fails the job when `resolve-target`
-  fell back to the dispatch's own run. Both run only on `refs/heads/main`.
-  `dry-run` runs every gate and the build and skips only `gh release
-  create`.
+  Only build-and-publish.yml's `release` job holds `contents: write` (and
+  `actions: read`, to download the target run's plan), and ci.yml's
+  `build-and-publish` job grants the same two, because a called workflow
+  cannot exceed its caller job's permissions.
+- **Validated and unvalidated releases.** A called workflow's `github`
+  context is its caller's, so `github.event_name` alone cannot tell a
+  dispatch of `CI` (which ran the tests) from a dispatch of `Build and
+  publish` by hand (which did not). The `validated` input does: the release
+  counts its trigger as validated when `github.event_name !=
+  'workflow_dispatch' || inputs.validated == true`. ci.yml always passes
+  `validated: true`, because its `aggregate` succeeded in the same run. Then
+  the trigger is the CI run itself, validated by `needs`, and
+  `resolve-target --trigger-validated` counts it as a green push run (the
+  run is still in progress, so the completed-run list cannot hold it). A
+  direct dispatch keeps `validated` false: nothing validated the run, the
+  target must be a completed, successful push run of `ci.yml`
+  (`release.py`'s `VERIFY_WORKFLOW`), and a guard step, run exactly when
+  the trigger is not validated, fails the job when `resolve-target` fell
+  back to the dispatch's own run. `validated` is ci.yml's alone: a direct
+  dispatch that sets it fails its first step, which admits it only when
+  `github.workflow_ref` (the caller's) is this repository's `ci.yml`. Every
+  release runs only on `refs/heads/main`. `dry-run` runs every gate and the
+  build and skips only `gh release create`; `CI`'s own `dry-run` input
+  passes through, so a dispatch of `CI` can prove the whole path after the
+  tests.
+- **Six runners at most per run.** One `CI` run holds at most six jobs at
+  once: `plan` and `package` (two), then the shards, which need both (the
+  planner's `ci_max_shards` is 6, and the matrix's `max-parallel: 6` caps
+  a larger `shards` dispatch), then tests.yml's `aggregate`, ci.yml's
+  `aggregate` and the release, one at a time. The cap counts CI's own jobs;
+  a pull request's `PR title` and `Workflow conformance` runs are separate
+  workflows. `tests/test_parallel_runner.py`'s `TestCiConcurrentJobs`
+  computes the peak from the `needs` graph.
 - **Shared workflows considered.** `RodrigoFAbreu/action-workflows`
-  publishes reusable workflows. Its `python-tests.yml` runs `python -m
-  unittest discover`; this repository's suite runs through its own sharded
-  runner (`tests/run_all.py`: the plan, the shard matrix, the frozen-matrix
-  merge and the release cache), so it does not fit and is not used. Its
-  `pr-title.yml` checks the title's form only, and its job would report as
-  `<caller job> / Validate PR title`, not the required `Conventional Commit
-  title`; this repository's `pr-title.yml` runs
-  `tools/release/release.py check-title`, the grammar and release-impact
-  table the release computes versions from, so it stays repository-owned.
+  publishes reusable workflows; none does exactly what this repository's
+  do, so none is used. Its `python-tests.yml` runs `python -m unittest
+  discover` in one job; this repository's suite runs through its own
+  sharded runner (`tests/run_all.py`: the plan, the shard matrix, the
+  frozen-matrix merge and the release cache). Its `pr-title.yml` checks the
+  title's form only, and its job would report as `<caller job> / Validate PR
+  title`, not the required `Conventional Commit title`; this repository's
+  `pr-title.yml` runs `tools/release/release.py check-title`, the grammar
+  and release-impact table the release computes versions from, so it stays
+  repository-owned. Its own `pr-check.yml` and `validate.yml` are that
+  repository's callers (a title check of its pull requests, an
+  `actionlint` of its own workflows), not reusable. The rest build or test
+  Java, JavaScript, npm packages, GitOps resources or container images.
 
 **Measured before M2 (the sharding milestone's CP7, and at its post-review
 head `2b4c0fd`, 2026-09-27),** when the full selection re-ran the frozen
@@ -786,7 +813,7 @@ minutes), against 112 for the single-shard reference.
 **Serial and single-shard runs are exceptional evidence.** Normal
 full-suite verification, every gate included, uses the default sharded path:
 `python3 tests/run_all.py` locally, and the `ci.yml` pipeline (its
-`validate.yml` call) at its configured shard count in CI. Forcing one worker or one
+`tests.yml` call) at its configured shard count in CI. Forcing one worker or one
 shard for the full suite, with `--jobs 1`, `--plan-only --shards 1`, the CI
 dispatch input `shards=1` or anything equivalent, adds no coverage. It runs
 the same selection under the same exit contract, only slower (about 40 min
@@ -817,7 +844,7 @@ run. The two are equivalent when all of these hold:
   their data (`tests/portability_exceptions.json`), and the
   runner itself (`tests/run_all.py`, `tests/parallel/`, `tests/support.py`,
   `tests/frozen_runs.py`), plus, for CI evidence,
-  `.github/workflows/ci.yml` and `.github/workflows/validate.yml`. Check with
+  `.github/workflows/ci.yml` and `.github/workflows/tests.yml`. Check with
   `git diff --stat <evidence head>..HEAD`. One narrow exception: a change
   confined to `tests/parallel/timings.json` still counts as no change when
   the evidence run's plan is unchanged by it -- the same profile and worker
