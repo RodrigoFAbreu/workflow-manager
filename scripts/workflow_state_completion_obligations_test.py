@@ -4714,6 +4714,17 @@ class RetentionReportUnreadable(unittest.TestCase):
         self.assertEqual(data["read_errors"], [])
         self.assertEqual(record["review_folder"], {**_RRU_PARTIAL, "complete": True})
 
+    def test_t7_a_sub_directory_that_cannot_be_examined_is_still_named_by_its_own_path(self):
+        # `_can_fail_walk`'s failed-`stat` arm (#149 point 3): `stat` of the listed sub-directory `zz` fails
+        # (the walk's own stat and the probes alike; the walk never reaches an `open`)
+        rr = self.rr()
+        self.layout(rr, {"a/zz": "dir"})
+        base = rr.root / ".ai-review" / "w00"
+        record, data, _ = self.case(rr, "at least 5 B in 1 files (partly unreadable); no archive", folder="zz")
+        self.assertEqual([e["path"] for e in data["read_errors"]], [str(base / "a" / "zz")])
+        self.assertEqual(record["review_folder"], _RRU_PARTIAL)
+        self.assertFalse(record["review_folder"]["complete"])
+
     @unittest.skipUnless(_HAVE_ZSTD, "remove needs a verified archive")
     def test_t6_the_refusals_name_the_corrected_path_and_write_nothing(self):
         ra = _RA(_rr_many(7))
@@ -6153,13 +6164,33 @@ class RetentionRemove(unittest.TestCase):
                 rr.prepared()
                 archive_before = (rr.adir / "w00.tar.zst").read_bytes()
                 everything = rr.files(rr.root / ".ai-review" / "w00")
-                with _readlink_fails("_remove_tree", "ln", err) as counted:
+                # the stopped run's own calls are observed, not inferred (#143 point 3): the successful
+                # `unlink` and `rmdir` calls made beneath `.removing` (with a `dir_fd`)
+                unlinks, rmdirs = [], []
+                real_unlink, real_rmdir = os.unlink, os.rmdir
+
+                def recording_unlink(path, *a, **k):
+                    real_unlink(path, *a, **k)
+                    if k.get("dir_fd") is not None:
+                        unlinks.append(path)
+
+                def recording_rmdir(path, *a, **k):
+                    real_rmdir(path, *a, **k)
+                    if k.get("dir_fd") is not None:
+                        rmdirs.append(path)
+
+                with _readlink_fails("_remove_tree", "ln", err) as counted, \
+                        unittest.mock.patch.object(os, "unlink", recording_unlink), \
+                        unittest.mock.patch.object(os, "rmdir", recording_rmdir):
                     result = rr.rm(apply=True)
                 self.assertEqual(len(counted), 1)
                 self.link_refused(result, code, err)
                 rest = rr.files(rr.removing / "w00")
-                deleted = len(everything) - len(rest)
+                deleted = len(unlinks) + len(rmdirs)
                 self.assertGreater(deleted, 0)
+                self.assertEqual(deleted, len(everything) - len(rest))  # the observed count is the disk's
+                self.assertEqual(sorted(unlinks + rmdirs),
+                                 sorted(os.path.basename(rel) for rel in set(everything) - set(rest)))
                 self.assertIn("ln", rest)
                 self.assertIn(f"; stopped after deleting {deleted} entries, each proven archived; the rest is in ",
                               result.error.message)

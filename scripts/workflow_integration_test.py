@@ -9296,8 +9296,8 @@ def _flat(text: str) -> str:
     return " ".join(text.split())
 
 
-def _documented_summary(revisions: int, label_lines: int = 1) -> str:
-    lines = ["implementation_revision: %d" % revisions] * label_lines
+def _documented_summary(revisions: int) -> str:
+    lines = ["implementation_revision: %d" % revisions]
     for n in range(1, revisions + 1):
         lines += ["", "## Round %d" % n, "- built or fixed in round %d" % n]
     return "\n".join(lines) + "\n"
@@ -9385,8 +9385,6 @@ class TestBundleRevisionSectionsDocumentedForm(unittest.TestCase):
             self.assertIsNone(label.search(heading))
         self.assertEqual(len(_ROUND_HEADING_RE.findall(summary)), 3)
         self.assertEqual(len(_SECTION_HEADING_RE.findall(_documented_record(3))), 3)
-        # the mutation m2 would put here: a second label line is exactly what the sample must not carry
-        self.assertEqual(len(label.findall(_documented_summary(3, label_lines=2))), 2)
 
 
 class TestBundleIdentifiersDoNotMoveWithTheRecord(unittest.TestCase):
