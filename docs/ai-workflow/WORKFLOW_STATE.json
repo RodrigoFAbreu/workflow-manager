@@ -41149,7 +41149,7 @@
       "registry_path": "docs/ai-workflow/registry/verify-command-note-pin-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/verify-command-note-pin-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "AWAITING_FUNCTIONAL_REVIEW",
       "plan_revision": 3,
       "implementation_revision": 1,
       "functional_review_round": null,
@@ -41254,7 +41254,90 @@
           "workflow_release": "2.29.9"
         }
       },
-      "technical_approval": null,
+      "technical_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "15d666eca87d27ca9e394d475208a96879da902c475c61ef0f6970db6373758e",
+        "approved_review_content_id": "d953a2cac9d9750e539d41821ca7c1d11471f176cffd3aa546012494cde2146a",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/registry/verify-command-note-pin-artifacts.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "2b4d0b663db5adae7a4849a8dfdaa6afb2df3f1c"
+          },
+          {
+            "path": "tests/test_compatibility.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "80e1813d467ececabdb5241d54bdddddad58dd69"
+          }
+        ],
+        "reviewed_content_commit": "0f68fd511cc536c5656a788e57a8fabdd1ad87e7",
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-11-18T01:18:43Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "d953a2cac9d9750e539d41821ca7c1d11471f176cffd3aa546012494cde2146a",
+            "ledger": {
+              "local": {
+                "bundle_id": "15d666eca87d27ca9e394d475208a96879da902c475c61ef0f6970db6373758e",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "fa1a53c7ce1b9a350066d6a869e3772ca215eec4cb564c38776f28c9da2d7133",
+                "ledger_entry_sha256": "8e395a7d40eaaa1105457ee5b713a14ca1e3c0854eafb5fa976628288e188196",
+                "run_ref": "session:local .ai-review/verify-command-note-pin/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "15d666eca87d27ca9e394d475208a96879da902c475c61ef0f6970db6373758e",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "90711e24911bc80c3dadec40df0d5489eadff3ea057d2f7c9020e200d3e4dfa3",
+                "ledger_entry_sha256": "a15b71a397889b54c0ad92e045c9f05acc012f4f8f5a86592cadf2936d00d7b3",
+                "run_ref": "codex:20261118T011518Z-127d3f55",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-11-18T01:18:43Z",
+          "workflow_release": "2.29.9"
+        }
+      },
       "technical_review_block_pins": [],
       "plan_review_stages": {
         "review_content_id": "5d71bbde8cbcf64647ba586aab8a309982cc86f385722a1b2d14437799e9ae19",
@@ -41285,12 +41368,12 @@
           "external": 2
         },
         "implementation": {
-          "local": 0,
-          "external": 0
+          "local": 1,
+          "external": 1
         }
       },
-      "state_revision": 16,
-      "last_transition": "2026-11-18T01:11:16Z",
+      "state_revision": 19,
+      "last_transition": "2026-11-18T01:18:43Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -41366,12 +41449,47 @@
               "at": "2026-11-18T00:48:27Z"
             }
           ]
+        },
+        "F-9d161ea9871d": {
+          "digest": "9d161ea9871de0bea1c3b4f4457719a56fb3e9da8e23c0f7492ffff7c30bf4fb",
+          "text": "In `tests/test_compatibility.py:1319`, consider using `shlex.quote(str(self.target))` in the expected command. A `TMPDIR` containing spaces makes the renderer quote the path, causing this assertion to fail despite correct output. Plan section 6 already acknowledges this limitation.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "d953a2cac9d9750e539d41821ca7c1d11471f176cffd3aa546012494cde2146a",
+              "verdict": "APPROVE",
+              "at": "2026-11-18T01:17:36Z"
+            }
+          ]
         }
       },
       "consumed_plan_review_content_ids": [
         "b2316c9e7bc50df47ee1be36b5a967ce0eb4c3c990f6574b050cf63ab38b7e3d",
         "ec4ff299ab7b01a929f023d554e0bb2ac2a1840e9a6b435ea78d0e29415f6855"
-      ]
+      ],
+      "implementation_review_stages": {
+        "review_content_id": "d953a2cac9d9750e539d41821ca7c1d11471f176cffd3aa546012494cde2146a",
+        "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "15d666eca87d27ca9e394d475208a96879da902c475c61ef0f6970db6373758e",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-11-18T01:14:19Z",
+          "verdict_sha256": "fa1a53c7ce1b9a350066d6a869e3772ca215eec4cb564c38776f28c9da2d7133",
+          "run_ref": "session:local .ai-review/verify-command-note-pin/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "15d666eca87d27ca9e394d475208a96879da902c475c61ef0f6970db6373758e",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-11-18T01:17:36Z",
+          "verdict_sha256": "90711e24911bc80c3dadec40df0d5489eadff3ea057d2f7c9020e200d3e4dfa3",
+          "run_ref": "codex:20261118T011518Z-127d3f55",
+          "reviewer_model": "openai/gpt-6.1-sol"
+        }
+      }
     }
   }
 }
