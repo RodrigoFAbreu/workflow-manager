@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "work_item_id": "verify-command-note-pin",
+  "requirements": {
+    "R1": {
+      "description": "The not-verified note's rendered backticked `workflow-manager verify <repo>` command is pinned by test_a_valid_record_keeps_the_verify_command_in_the_note (#245); no src change",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    }
+  }
+}

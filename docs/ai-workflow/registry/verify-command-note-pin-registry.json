@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "work_item_id": "verify-command-note-pin",
+  "plan_revision": 3,
+  "checkpoints": [
+    {
+      "id": "CP1",
+      "name": "The verify-command assertion",
+      "depends_on": [],
+      "complexity": 1,
+      "session_target": 1
+    }
+  ]
+}
