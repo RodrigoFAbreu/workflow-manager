@@ -349,8 +349,7 @@ def check_record(record) -> list[str]:
     unattended = _found(_UNATTENDED_SENTENCE, record["confirmation"])
     if "unattended" in record["policy"]:
         # Either kind, every match naming the digest.
-        if not _names(ordinary + unattended, digest) \
-                or not all(p == digest[:DIGEST_SHOWN] for p in ordinary + unattended):
+        if not _names(ordinary + unattended, digest):
             problems.append("record confirmation does not name its policy")
     elif unattended:
         problems.append("record confirmation is the unattended sentence, but the policy "

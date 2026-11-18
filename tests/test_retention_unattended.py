@@ -98,6 +98,9 @@ class TestKey(Base):
 
     def test_a_boolean_is_not_the_integer_three(self):
         self.assertTrue(self.errors(with_unattended(unattended(keep_recent=True))))
+        # True is 1, inside prune_max_per_run's range: only the type rule refuses it.
+        self.assertEqual(self.errors(with_unattended(unattended(prune_max_per_run=True))),
+                         ["unattended.prune_max_per_run must be an integer, not True"])
 
     def test_floors_and_ceilings_at_both_sides(self):
         for key, (low, high) in rp.UNATTENDED_INTEGERS.items():
@@ -258,7 +261,9 @@ class TestSentences(Base):
     def test_the_unattended_sentence_is_refused_for_a_file_without_the_key(self):
         self.put()
         proc = self.refused("--confirm", rp.unattended_sentence(self.digest()))
-        self.assertIn("has no unattended key", proc.stderr)
+        # The command's own wrong-kind refusal, not the record check behind it.
+        self.assertIn("error: --confirm holds the unattended sentence, but the policy file has "
+                      "no unattended key\n", proc.stderr)
         self.assertFalse(self.record_file().exists())
 
     def test_a_mixed_confirmation_is_refused(self):
