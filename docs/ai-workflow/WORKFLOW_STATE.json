@@ -41778,7 +41778,7 @@
       "registry_path": "docs/ai-workflow/registry/unattended-retention-policy-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/unattended-retention-policy-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "APPLYING_REVIEW_FEEDBACK",
       "plan_revision": 3,
       "implementation_revision": 1,
       "functional_review_round": null,
@@ -41922,12 +41922,12 @@
           "external": 1
         },
         "implementation": {
-          "local": 0,
+          "local": 1,
           "external": 0
         }
       },
-      "state_revision": 19,
-      "last_transition": "2026-11-18T22:05:11Z",
+      "state_revision": 20,
+      "last_transition": "2026-11-18T22:10:50Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -42061,6 +42061,48 @@
               "review_content_id": "762a5a8cca81008f68f15bca9aea37448bf8b21770d109bde70671dd24cbca2f",
               "verdict": "APPROVE",
               "at": "2026-11-18T21:19:12Z"
+            }
+          ]
+        },
+        "F-b7be30c5b595": {
+          "digest": "b7be30c5b595df7fa42f99e947e3573b743da461e6ae5a71b655b3c99abd7be4",
+          "text": "LIR1-002: Plan section 6's first risk says the module docstring and the docs name `state.unattended` as the one question a later reader asks. The `PolicyState.unattended` field comment says it (`retention_policy.py:88-93`), but the module docstring (`retention_policy.py:13-17`) does not. A one-line pointer in the docstring would match the plan's stated mitigation for A2/A3.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "1d6a170d094b46126b5c31799e4f2c340b331d079ef0b99698e4152ffd28cafc",
+              "verdict": "REVISE",
+              "at": "2026-11-18T22:10:50Z"
+            }
+          ]
+        },
+        "F-59bb3b8546f1": {
+          "digest": "59bb3b8546f17ec5a2984a1c6d897039af09ad82e8f32dd021b3c741c97054d4",
+          "text": "LIR1-003: For a file adopted only with the ordinary sentence, the `adopt-retention-policy` preview prints the shared helper's line \"... only the unattended sentence authorises it: run workflow-manager adopt-retention-policy <target>\", which tells the operator to run the command they are already running. The sentence lines that follow make the output usable anyway. It is correct in `status`/`doctor`, and only reads oddly in the adopt preview.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "1d6a170d094b46126b5c31799e4f2c340b331d079ef0b99698e4152ffd28cafc",
+              "verdict": "REVISE",
+              "at": "2026-11-18T22:10:50Z"
+            }
+          ]
+        },
+        "F-ec7dc0b08faa": {
+          "digest": "ec7dc0b08faa3ebd29116f99c1d78fd05fe8c4c586838430411f423b0d217c04",
+          "text": "LIR1-004: `test_a_mixed_confirmation_is_refused` asserts only the substring \"mixes\". Its sibling wrong-kind tests pin the full `error:` cause and check the `next:` line, and this one could too (CP2 names \"`error:`/`next:`\" for the wrong-kind refusals).",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "1d6a170d094b46126b5c31799e4f2c340b331d079ef0b99698e4152ffd28cafc",
+              "verdict": "REVISE",
+              "at": "2026-11-18T22:10:50Z"
             }
           ]
         }
