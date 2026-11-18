@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "work_item_id": "unattended-retention-policy",
+  "dispositions": {
+    "F-4106e294569b": {
+      "disposition": "fixed",
+      "note": "The fail-safe test loads a vendored copy of the previous retention_policy module (no dependency on the base commit)."
+    },
+    "F-51141d37e653": {
+      "disposition": "fixed",
+      "note": "Plan section 2.3 places extra after the age note and the cleanup-preview golden includes the age-threshold case."
+    },
+    "F-5991d40407a1": {
+      "disposition": "fixed",
+      "note": "The mutation list was extended to M16 (required-key and object-type checks and the numeric boundaries)."
+    },
+    "F-78f4edd1c22c": {
+      "disposition": "fixed",
+      "note": "The stray sentence join in plan section 2.2 is gone."
+    },
+    "F-c76f4df5930c": {
+      "disposition": "fixed",
+      "note": "describe_unattended is named once in section 2.3 and CP1 and M13/M14 refer to it."
+    },
+    "F-d2c2caaef8a3": {
+      "disposition": "fixed",
+      "note": "The vendored module is built with spec_from_loader plus exec(compile(...)), so no bytecode is written into the repository."
+    },
+    "F-b7be30c5b595": {
+      "disposition": "fixed",
+      "note": "The module docstring now says what an unattended run is authorised to do is asked of PolicyState.unattended."
+    },
+    "F-b70df26179ae": {
+      "disposition": "dropped",
+      "reason": "Documented decision: a hand-written record holding both sentences for the digest of a file with the key is the owner's own record and reads adopted with the unattended authority (docs/retention.md, plan section 2.2); the CLI refuses to write such a mix."
+    },
+    "F-9a4fad30276e": {
+      "disposition": "dropped",
+      "reason": "Documented and accepted: a record that an earlier release wrote from a free-form --confirm holding both sentences turns record-invalid after the update and the owner adopts again (plan section 2.2, docs/retention.md); fail-safe direction, no automatic authority."
+    },
+    "F-59bb3b8546f1": {
+      "disposition": "follow-up",
+      "link": "https://github.com/RodrigoFAbreu/workflow-manager/issues/259"
+    },
+    "F-c8daad4d296d": {
+      "disposition": "follow-up",
+      "link": "https://github.com/RodrigoFAbreu/workflow-manager/issues/259"
+    },
+    "F-6cd8cd09f839": {
+      "disposition": "follow-up",
+      "link": "https://github.com/RodrigoFAbreu/workflow-manager/issues/259"
+    },
+    "F-ec7dc0b08faa": {
+      "disposition": "follow-up",
+      "link": "https://github.com/RodrigoFAbreu/workflow-manager/issues/259"
+    },
+    "F-d4dfc79d28e6": {
+      "disposition": "follow-up",
+      "link": "https://github.com/RodrigoFAbreu/workflow-manager/issues/259"
+    }
+  }
+}
