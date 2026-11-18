@@ -41149,12 +41149,12 @@
       "registry_path": "docs/ai-workflow/registry/verify-command-note-pin-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/verify-command-note-pin-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "SELF_REVIEWING_IMPLEMENTATION",
+      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
       "plan_revision": 3,
-      "implementation_revision": null,
+      "implementation_revision": 1,
       "functional_review_round": null,
       "base_commit": "a9365817f792972e9a6f932e30d694fea8df6a96",
-      "reviewed_implementation_head": null,
+      "reviewed_implementation_head": "0f68fd511cc536c5656a788e57a8fabdd1ad87e7",
       "current_checkpoint_id": null,
       "last_completed_checkpoint_id": "CP1",
       "checkpoints": {
@@ -41289,8 +41289,8 @@
           "external": 0
         }
       },
-      "state_revision": 15,
-      "last_transition": "2026-11-18T00:54:46Z",
+      "state_revision": 16,
+      "last_transition": "2026-11-18T01:11:16Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
