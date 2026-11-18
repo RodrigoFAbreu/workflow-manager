@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "work_item_id": "unattended-retention-policy",
+  "requirements": {
+    "R1": {
+      "description": "A closed policy key unattended (cleanup, prune, keep_recent min 3, ttl_days 14-3650, prune_max_per_run 1-100) validated strictly: unknown key, wrong type, boolean-as-integer, out of range, duplicate, missing key and the two cross rules refused; an older Manager refuses the file and treats the mode as off",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R2": {
+      "description": "The unattended adoption has its own sentence (Adopt the unattended retention policy plus 12 digest characters and a full stop); the record says which kind adopted the digest; an ordinary-only adoption of a file with the key authorises nothing unattended; adopt-retention-policy prints the right sentence and refuses a wrong-kind one, writing nothing",
+      "checkpoint_ids": [
+        "CP2"
+      ]
+    },
+    "R3": {
+      "description": "status, doctor, adopt preview and retention-cleanup preview print what an unattended adoption authorises and that this release does not enforce it; docs/retention.md documents keys, sentences, fail-safe and status; ROADMAP row 50 added and marked Done; nothing executes unattended",
+      "checkpoint_ids": [
+        "CP3"
+      ]
+    }
+  }
+}

@@ -9,6 +9,15 @@ names the file's exact digest. Every failure falls back to `off`.
 This module reads and (for the adoption only) writes those two files. It never
 raises from `load`, never runs the retention script, and sends and cleans
 nothing: a later release evaluates the thresholds.
+
+The optional `unattended` key declares what an unattended run may do (archive,
+then prune). In this release it is only validated and printed: nothing runs
+unattended, and `retention-cleanup` still needs its per-plan `--confirm`. An
+older Manager refuses a file carrying the key (the file is closed), so it reads
+the mode as `off` until it is updated.
+
+What an unattended run is authorised to do is asked of `PolicyState.unattended`,
+never of `policy["unattended"]`: an ordinary-only adoption authorises nothing.
 """
 
 from __future__ import annotations
@@ -41,6 +50,13 @@ THRESHOLDS = {  # key: (maximum, label)
     "archives": (100000, "archives"),
     "prunable_archives": (100000, "prunable archives"),
 }
+UNATTENDED_BOOLEANS = ("cleanup", "prune")
+UNATTENDED_INTEGERS = {  # key: (minimum, maximum)
+    "keep_recent": (3, 100000),
+    "ttl_days": (14, 3650),
+    "prune_max_per_run": (1, 100),
+}
+UNATTENDED_KEYS = UNATTENDED_BOOLEANS + tuple(UNATTENDED_INTEGERS)
 _UNITS = {"finished_folder_mib": " MiB", "finished_max_age_days": " days"}
 PROBLEM_LIMIT = 5
 DIGEST_SHOWN = 12
@@ -55,6 +71,10 @@ ADOPTED = "adopted"
 
 _RECORD_KEYS = ("schema_version", "sha256", "adopted_at", "confirmation", "policy")
 _SENTENCE = re.compile(r"adopt the retention policy ([0-9a-f]{%d})\." % DIGEST_SHOWN)
+# The word "unattended" sits between "the" and "retention", so neither pattern
+# matches the other's sentence.
+_UNATTENDED_SENTENCE = re.compile(
+    r"adopt the unattended retention policy ([0-9a-f]{%d})\." % DIGEST_SHOWN)
 _TIMESTAMP = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z")  # fullmatch
 
 
@@ -68,6 +88,12 @@ class PolicyState:
     policy: dict | None = None
     digest: str | None = None
     adopted_at: str | None = None
+    # The unattended settings the adoption authorises: set only in the `adopted`
+    # state, when the file has the `unattended` key and the record's confirmation
+    # holds the unattended sentence for the digest. Every later reader asks this
+    # field, never `policy["unattended"]`: an ordinary-only adoption of a file
+    # with the key authorises nothing unattended.
+    unattended: dict | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -134,7 +160,7 @@ def policy_errors(policy) -> list[str]:
         return [f"the policy is not an object: {shown(policy)}"]
     errors = []
     for key in policy:
-        if key not in ("schema_version", "mode", "thresholds"):
+        if key not in ("schema_version", "mode", "thresholds", "unattended"):
             errors.append(f"unknown key {shown(key)}")
     if "schema_version" not in policy:
         errors.append("schema_version is missing")
@@ -164,7 +190,72 @@ def policy_errors(policy) -> list[str]:
     if isinstance(mode, str) and mode in MODES and mode != "off" and count == 0 \
             and isinstance(thresholds, dict):
         errors.append(f"mode {mode} needs at least one valid threshold")
+    if "unattended" in policy:
+        errors.extend(_unattended_errors(policy["unattended"], mode))
     return errors
+
+
+def _unattended_errors(value, mode) -> list[str]:
+    """Every way the `unattended` object breaks its schema: a closed object, all
+    five keys required (no hidden defaults), and two cross rules."""
+    if not isinstance(value, dict):
+        return [f"unattended must be an object, not {shown(value)}"]
+    errors = []
+    for key in value:
+        if key not in UNATTENDED_KEYS:
+            errors.append(f"unknown key unattended.{shown(key)}")
+    for key in UNATTENDED_KEYS:
+        if key not in value:
+            errors.append(f"unattended.{key} is missing")
+        elif key in UNATTENDED_BOOLEANS:
+            if not isinstance(value[key], bool):
+                errors.append(f"unattended.{key} must be true or false, not {shown(value[key])}")
+        else:
+            low, high = UNATTENDED_INTEGERS[key]
+            if not _is_int(value[key]):
+                errors.append(f"unattended.{key} must be an integer, not {shown(value[key])}")
+            elif not low <= value[key] <= high:
+                errors.append(f"unattended.{key} must be from {low} to {high}, "
+                              f"not {shown(value[key])}")
+    if all(isinstance(value.get(key), bool) for key in UNATTENDED_BOOLEANS) \
+            and not (value["cleanup"] or value["prune"]):
+        errors.append("unattended needs cleanup or prune to be true")
+    if isinstance(mode, str) and mode in MODES and mode not in ("cleanup", "both"):
+        errors.append(f"unattended needs mode cleanup or both, not {mode}")
+    return errors
+
+
+def describe_unattended(unattended: dict) -> str:
+    """The settings of a valid `unattended` object, as one line."""
+    def word(flag):
+        return "on" if flag else "off"
+    return (f"cleanup {word(unattended['cleanup'])}, prune {word(unattended['prune'])}, "
+            f"keep {unattended['keep_recent']} recent, ttl {unattended['ttl_days']} days, "
+            f"at most {unattended['prune_max_per_run']} prunes per run")
+
+
+NOT_ENFORCED = ("  not enforced by this release: nothing runs unattended, and retention-cleanup "
+                "still needs its per-plan --confirm")
+
+
+def unattended_lines(state: "PolicyState", target: Path) -> list[str]:
+    """The unattended lines every output prints, so they agree: none for a state
+    without a valid file or a file without the `unattended` key (those outputs stay
+    byte-identical), else what the key says in this state and that nothing enforces it."""
+    if not state.policy or "unattended" not in state.policy:
+        return []
+    if state.unattended is not None:
+        head = ("  unattended retention: adopted with the unattended sentence: "
+                + describe_unattended(state.unattended))
+    elif state.state == ADOPTED:
+        head = ("  unattended retention: the file declares it, but the adoption authorises "
+                "nothing unattended; only the unattended sentence authorises it: run "
+                f"{adopt_command(target)}")
+    else:
+        head = ("  unattended retention: the file declares "
+                + describe_unattended(state.policy["unattended"])
+                + "; adopting it with the unattended sentence would authorise that")
+    return [head, NOT_ENFORCED]
 
 
 def canonical(policy: dict) -> bytes:
@@ -184,14 +275,30 @@ def sentence(digest: str) -> str:
     return f"Adopt the retention policy {digest[:DIGEST_SHOWN]}."
 
 
-def confirmation_holds(text, digest: str) -> bool:
-    """Whether `text` names `digest`: after whitespace collapse and ignoring
-    case, every match of the sentence carries the digest's first 12 characters,
-    and there is at least one."""
+def unattended_sentence(digest: str) -> str:
+    return f"Adopt the unattended retention policy {digest[:DIGEST_SHOWN]}."
+
+
+def _found(pattern, text) -> list[str]:
     if not isinstance(text, str):
-        return False
-    found = _SENTENCE.findall(" ".join(text.split()).lower())
+        return []
+    return pattern.findall(" ".join(text.split()).lower())
+
+
+def _names(found: list[str], digest: str) -> bool:
     return bool(found) and all(prefix == digest[:DIGEST_SHOWN] for prefix in found)
+
+
+def confirmation_holds(text, digest: str) -> bool:
+    """Whether `text` names `digest` with the ordinary sentence: after whitespace
+    collapse and ignoring case, every match of the sentence carries the digest's
+    first 12 characters, and there is at least one."""
+    return _names(_found(_SENTENCE, text), digest)
+
+
+def unattended_confirmation_holds(text, digest: str) -> bool:
+    """The same for the unattended sentence."""
+    return _names(_found(_UNATTENDED_SENTENCE, text), digest)
 
 
 # ---------------------------------------------------------------------------
@@ -241,7 +348,16 @@ def check_record(record) -> list[str]:
     digest = digest_of(record["policy"])
     if record["sha256"] != digest:
         problems.append("record sha256 is not the digest of its policy")
-    if not confirmation_holds(record["confirmation"], digest):
+    ordinary = _found(_SENTENCE, record["confirmation"])
+    unattended = _found(_UNATTENDED_SENTENCE, record["confirmation"])
+    if "unattended" in record["policy"]:
+        # Either kind, every match naming the digest.
+        if not _names(ordinary + unattended, digest):
+            problems.append("record confirmation does not name its policy")
+    elif unattended:
+        problems.append("record confirmation is the unattended sentence, but the policy "
+                        "has no unattended key")
+    elif not _names(ordinary, digest):
         problems.append("record confirmation does not name its policy")
     if not problems and len(serialize_record(record)) > RECORD_LIMIT:
         problems.append(f"the record is larger than {RECORD_LIMIT} bytes")
@@ -330,7 +446,11 @@ def _load(target: Path) -> PolicyState:
         return PolicyState(RECORD_INVALID, problems=tuple(problems), **shown)
     if record["sha256"] != digest:
         return PolicyState(CHANGED, adopted_at=record["adopted_at"], **shown)
-    return PolicyState(ADOPTED, mode=policy["mode"], adopted_at=record["adopted_at"], **shown)
+    authorised = None
+    if "unattended" in policy and unattended_confirmation_holds(record["confirmation"], digest):
+        authorised = policy["unattended"]
+    return PolicyState(ADOPTED, mode=policy["mode"], adopted_at=record["adopted_at"],
+                       unattended=authorised, **shown)
 
 
 # ---------------------------------------------------------------------------
@@ -423,7 +543,25 @@ def apply(target: Path, state: PolicyState, confirmation: str) -> dict:
     if mode is not None and not stat.S_ISREG(mode):
         raise Refusal(f"{DIRECTORY}/{RECORD_FILE} exists and is not a regular file",
                       f"remove {DIRECTORY}/{RECORD_FILE}, then run {again} again")
-    if not confirmation_holds(confirmation, state.digest):
+    has_key = "unattended" in state.policy
+    ordinary = _found(_SENTENCE, confirmation)
+    unattended = _found(_UNATTENDED_SENTENCE, confirmation)
+    if ordinary and unattended:
+        raise Refusal("--confirm mixes the ordinary and the unattended adoption sentence",
+                      f"run {again} to see the one sentence for this policy, then run it again "
+                      "with --confirm holding only that sentence")
+    if has_key and ordinary:
+        raise Refusal("the policy file has an unattended key, and only the unattended sentence "
+                      "adopts it",
+                      f"run {again} to see the sentence "
+                      f"'{unattended_sentence(state.digest)}', then run it again with --confirm")
+    if unattended and not has_key:
+        raise Refusal("--confirm holds the unattended sentence, but the policy file has no "
+                      "unattended key",
+                      f"run {again} to see the sentence for this policy, then run it again "
+                      "with --confirm")
+    holds = unattended_confirmation_holds if has_key else confirmation_holds
+    if not holds(confirmation, state.digest):
         raise Refusal("--confirm does not contain the sentence for this policy's digest",
                       f"run {again} to see the digest and the sentence, then run it again "
                       "with --confirm")
@@ -478,6 +616,7 @@ def block(state: PolicyState, target: Path) -> list[str]:
             f"retention policy: adopted, mode {state.mode} (digest {state.digest[:DIGEST_SHOWN]}, "
             f"adopted {state.adopted_at})",
             f"  thresholds: {describe(state.policy)}",
+            *unattended_lines(state, target),
             "  this Manager release reads the policy and, for notify and both, evaluates its "
             "thresholds in verify and doctor; it sends nothing, and cleans up only when "
             "retention-cleanup runs with --confirm",
@@ -486,6 +625,7 @@ def block(state: PolicyState, target: Path) -> list[str]:
     lines.extend(f"  problem: {problem}" for problem in state.problems[:PROBLEM_LIMIT])
     if len(state.problems) > PROBLEM_LIMIT:
         lines.append(f"  and {len(state.problems) - PROBLEM_LIMIT} more")
+    lines.extend(unattended_lines(state, target))
     step = step_for(state.state, target)
     lines.append(f"  next: {step}")
     return lines

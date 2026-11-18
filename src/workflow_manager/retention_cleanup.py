@@ -409,13 +409,14 @@ def _age_note(plan: Plan) -> list[str]:
             "transition are never planned by the age rule"]
 
 
-def preview_lines(plan: Plan, target) -> list[str]:
+def preview_lines(plan: Plan, target, extra=()) -> list[str]:
     """What `retention-cleanup` prints (stdout, exit 0). `target` is the repository as
-    the operator typed it; the `next:` line names it, quoted for a shell."""
+    the operator typed it; the `next:` line names it, quoted for a shell. `extra` lines
+    go before the `next:` line, or after the whole output when there is nothing to do."""
     if plan.outcome is None:
         if not plan.thresholds:
             return ["retention cleanup: nothing to do (the policy sets no threshold that "
-                    "cleanup can lower)"]
+                    "cleanup can lower)", *extra]
         parts = []
         for key in LOWERED:
             if key not in plan.thresholds:
@@ -428,7 +429,7 @@ def preview_lines(plan: Plan, target) -> list[str]:
             else:
                 parts.append(f"{retention_policy.THRESHOLDS[key][1]} "
                              f"{plan.before[key]} of {plan.thresholds[key]}")
-        return [f"retention cleanup: nothing to do ({', '.join(parts)})", *_age_note(plan)]
+        return [f"retention cleanup: nothing to do ({', '.join(parts)})", *_age_note(plan), *extra]
     short = plan_digest(plan)[:retention_policy.DIGEST_SHOWN]
     lines = [f"retention cleanup: preview (nothing was written; mode {plan.mode}, policy "
              f"{plan.policy_digest[:retention_policy.DIGEST_SHOWN]}, plan {short})",
@@ -461,6 +462,7 @@ def preview_lines(plan: Plan, target) -> list[str]:
         verdict = (f"{_names(left, plan.thresholds)} still reached; no further item is eligible{skipped}; "
                    "running it again will not help")
     lines.append(f"  after this run: {', '.join(numbers)}: {verdict}")
+    lines.extend(extra)
     lines.append(f"  next: workflow-manager retention-cleanup {shlex.quote(str(target))} "
                  f"--confirm \"{sentence(plan_digest(plan))}\"")
     lines.append(f"  {BY_HAND}")

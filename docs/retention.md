@@ -106,6 +106,7 @@ The policy is the file `.workflow-manager/retention-policy.json`, committed by t
 | `thresholds.finished_max_age_days` | integer, 1 to 3650 | finished work items with a review folder, beyond the most recent ones, whose last transition is more than N days before the report's own time; an item with no usable last transition never counts. It is reached at one such item, not at N |
 | `thresholds.archives` | integer, 1 to 100000 | archives in the store, at or above it |
 | `thresholds.prunable_archives` | integer, 1 to 100000 | archives older than the script's time to live, at or above it |
+| `unattended` | an object with five keys, all required (see [The unattended key](#the-unattended-key)) | what the owner would allow an unattended run to do; **not enforced yet** |
 
 `finished_max_age_days` is optional like the others. The file is closed, so **an older Manager refuses a file carrying it and treats the mode as `off`**: it neither alerts nor cleans until it is updated. `schema_version` stays 1, because a file without the key means what it always meant. Adding the key changes the policy digest, so the policy is adopted again.
 
@@ -121,7 +122,7 @@ The file is only a proposal. Adopting it records its digest, so a later edit is 
    workflow-manager adopt-retention-policy /path/to/your/repo
    ```
 
-   It prints the file's digest, its mode and thresholds, the state, and the sentence that adopts it: `Adopt the retention policy`, then the first 12 characters of the digest and a full stop.
+   It prints the file's digest, its mode and thresholds, the state, and the sentence that adopts it: `Adopt the retention policy`, then the first 12 characters of the digest and a full stop (for a file with the `unattended` key, `Adopt the unattended retention policy` and the same digest and full stop instead).
 
 2. Adopt. Only the repository's owner runs this, with that sentence in `--confirm` (an agent must not: the sentence is the owner's decision, bound to this digest). Other words around it are allowed; the sentence for another digest, or without the full stop, is refused and nothing is written.
 
@@ -132,6 +133,33 @@ The file is only a proposal. Adopting it records its digest, so a later edit is 
    It writes `.workflow-manager/retention-adoption.json`. Commit it with the policy file. The command commits nothing.
 
 The mode in force is `off` unless the file is valid and the record names exactly the file's digest. Editing the file after adopting it returns the mode to `off` (state `changed`) until you adopt it again.
+
+### The unattended key
+
+`unattended` is optional. When present it is a closed object with exactly these five keys, all required (there are no hidden defaults: the numbers are the owner's, written in the file):
+
+| Key | Value | Meaning |
+|---|---|---|
+| `cleanup` | `true` or `false` | archive and then remove finished work items beyond `keep_recent` |
+| `prune` | `true` or `false` | delete archives older than `ttl_days` |
+| `keep_recent` | integer, 3 to 100000 | the most recent finished items the Manager keeps, on top of the engine's own 3 |
+| `ttl_days` | integer, 14 to 3650 | the time to live of an archive |
+| `prune_max_per_run` | integer, 1 to 100 | the most archives one run may delete |
+
+Two rules keep the key from contradicting the file: at least one of `cleanup` and `prune` is `true`, and `mode` is `cleanup` or `both` (`off` keeps its meaning, "nothing runs", and `notify` is alerts only). Every problem is listed, and a boolean is not an integer. `schema_version` stays 1: a file without the key means what it always meant, and its digest is unchanged. Adding the key changes the digest, so the policy is adopted again.
+
+```json
+{"schema_version": 1, "mode": "both",
+ "thresholds": {"finished_items": 10},
+ "unattended": {"cleanup": true, "prune": true, "keep_recent": 5,
+                "ttl_days": 30, "prune_max_per_run": 3}}
+```
+
+**A file with the key has its own adoption sentence**: `Adopt the unattended retention policy`, then the first 12 characters of the digest and a full stop. The ordinary sentence, `Adopt the retention policy`, is refused for such a file, the unattended one is refused for a file without the key, and a confirmation holding both is refused. The record keeps its fields: the sentence it holds says which kind of adoption it is. A file with the key adopted only by the ordinary sentence (a hand-written record) reads `adopted` but authorises nothing unattended. The reader applies the same rules to a record that already exists: a record whose confirmation holds the unattended sentence, for a file without the key (for example one an earlier release wrote from a free-form `--confirm` holding both sentences), reads `record-invalid` and the mode in force is `off`, so such a record changes from `adopted` to `record-invalid` when the Manager is updated, and the policy is adopted again; a hand-written record holding both sentences for the digest of a file with the key reads `adopted` and authorises unattended.
+
+**An older Manager refuses a file carrying `unattended`** (state `invalid`) and treats the mode as `off`: it neither alerts nor cleans until it is updated.
+
+**This release does not enforce the key.** Nothing runs unattended, and `retention-cleanup` still needs its per-plan `--confirm`. Every output that shows the policy says so: `status --retention` and `doctor --retention` print, in the block below, an `unattended retention:` line (adopted with the unattended sentence, the file declares it but the adoption authorises nothing unattended, or what an unattended adoption would authorise) and `not enforced by this release: nothing runs unattended, and retention-cleanup still needs its per-plan --confirm`. The adopt preview and the `retention-cleanup` preview print the same two lines; a file without the key prints none of this.
 
 ### What `status --retention` and `doctor --retention` print
 
