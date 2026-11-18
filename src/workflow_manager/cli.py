@@ -997,6 +997,7 @@ def cmd_adopt_retention_policy(args) -> int:
             print(f"mode: {state.policy['mode']}")
             print(f"thresholds: {retention_policy.describe(state.policy)}")
             print(f"state: {state.state}; mode {state.mode} is in force")
+            _print_lines(retention_policy.unattended_lines(state, args.target))
             print("nothing was written. Only the repository's owner adopts a policy: to adopt "
                   "this file, --confirm must contain the sentence")
             if "unattended" in state.policy:
@@ -1043,7 +1044,8 @@ def cmd_retention_cleanup(args) -> int:
         return 2
     plan = retention_cleanup.select(cleared.state, cleared.report)
     if args.confirm is None or not plan.items:
-        _print_lines(retention_cleanup.preview_lines(plan, args.target))
+        _print_lines(retention_cleanup.preview_lines(
+            plan, args.target, retention_policy.unattended_lines(cleared.state, args.target)))
         return 0
     if not retention_cleanup.confirmation_holds(args.confirm, retention_cleanup.plan_digest(plan)):
         print("error: retention cleanup: --confirm does not hold the sentence for the current "

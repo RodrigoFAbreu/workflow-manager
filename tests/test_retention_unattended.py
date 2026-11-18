@@ -336,5 +336,229 @@ class TestSentences(Base):
         self.assertIsNone(changed.unattended)
 
 
+import test_retention_cleanup as trc  # noqa: E402
+import test_retention_status as rs  # noqa: E402
+
+TARGET = Path("/t")
+DECLARES = ("  unattended retention: the file declares cleanup on, prune on, keep 5 recent, "
+            "ttl 30 days, at most 3 prunes per run; adopting it with the unattended sentence "
+            "would authorise that")
+ADOPTED_UNATTENDED = ("  unattended retention: adopted with the unattended sentence: cleanup on, "
+                      "prune on, keep 5 recent, ttl 30 days, at most 3 prunes per run")
+ADOPTED_ORDINARY = ("  unattended retention: the file declares it, but the adoption authorises "
+                    "nothing unattended; only the unattended sentence authorises it: run "
+                    "workflow-manager adopt-retention-policy /t")
+NOT_ENFORCED = ("  not enforced by this release: nothing runs unattended, and retention-cleanup "
+                "still needs its per-plan --confirm")
+
+
+class TestText(Base):
+    """The unattended lines of every output, each state."""
+
+    keyed = TestSentences.keyed
+    write_record = TestSentences.write_record
+
+    def load_for(self, how):
+        policy = with_unattended()
+        digest = self.digest(policy)
+        self.record_file().unlink(missing_ok=True)
+        if how == "unattended":
+            return self.write_record(policy, rp.unattended_sentence(digest))
+        if how == "ordinary":
+            return self.write_record(policy, rp.sentence(digest))
+        if how == "not-adopted":
+            self.put(policy)
+        elif how == "changed":
+            self.write_record(policy, rp.unattended_sentence(digest))
+            self.put(with_unattended(unattended(ttl_days=31)))
+        elif how == "record-invalid":
+            self.write_record(policy, "no sentence")
+        return self.state()
+
+    def test_the_helper_per_state(self):
+        want = {"unattended": ADOPTED_UNATTENDED, "ordinary": ADOPTED_ORDINARY,
+                "not-adopted": DECLARES, "record-invalid": DECLARES}
+        for how, head in want.items():
+            with self.subTest(how=how):
+                self.assertEqual(rp.unattended_lines(self.load_for(how), TARGET),
+                                 [head, NOT_ENFORCED])
+
+    def test_a_changed_file_describes_the_file_not_the_record(self):
+        state = self.load_for("changed")
+        self.assertEqual(state.state, rp.CHANGED)
+        self.assertEqual(rp.unattended_lines(state, TARGET),
+                         [DECLARES.replace("ttl 30", "ttl 31"), NOT_ENFORCED])
+
+    def test_no_line_without_the_key_or_without_a_valid_file(self):
+        self.put()
+        self.assertEqual(rp.unattended_lines(self.state(), TARGET), [])
+        self.adopt()
+        self.assertEqual(rp.unattended_lines(self.state(), TARGET), [])
+        self.assertEqual(rp.unattended_lines(rp.PolicyState(rp.ABSENT), TARGET), [])
+        self.assertEqual(rp.unattended_lines(
+            rp.PolicyState(rp.INVALID, problems=("x",)), TARGET), [])
+
+    def test_the_status_block_before_the_next_line(self):
+        for how in ("not-adopted", "record-invalid", "changed"):
+            with self.subTest(how=how):
+                lines = rp.block(self.load_for(how), TARGET)
+                self.assertEqual(lines[-3][:len("  unattended retention:")],
+                                 "  unattended retention:")
+                self.assertEqual(lines[-2], NOT_ENFORCED)
+                self.assertTrue(lines[-1].startswith("  next: "))
+        adopted = rp.block(self.load_for("unattended"), TARGET)
+        self.assertTrue(adopted[1].startswith("  thresholds: "))
+        self.assertEqual(adopted[2:4], [ADOPTED_UNATTENDED, NOT_ENFORCED])
+        self.assertEqual(rp.block(self.load_for("ordinary"), TARGET)[2], ADOPTED_ORDINARY)
+
+    def test_a_block_without_the_key_is_byte_identical_to_the_old_one(self):
+        self.adopt()
+        lines = rp.block(self.state(), TARGET)
+        self.assertEqual(len(lines), 3)
+        self.assertNotIn("unattended", "\n".join(lines))
+
+    def test_the_adopt_preview_prints_the_lines_after_the_state(self):
+        self.keyed()
+        proc = run(ADOPT, str(self.repo))
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        lines = proc.stdout.splitlines()
+        at = [n for n, line in enumerate(lines) if line.startswith("state: ")][0]
+        self.assertEqual(lines[at + 1][:len("  unattended retention:")], "  unattended retention:")
+        self.assertEqual(lines[at + 2], NOT_ENFORCED)
+        self.assertTrue(lines[at + 3].startswith("nothing was written."))
+
+    def test_the_status_command_prints_the_block(self):
+        policy = with_unattended()
+        self.write_record(policy, rp.unattended_sentence(self.digest(policy)))
+        out = self.section("status", rs.report()).stdout
+        self.assertIn(ADOPTED_UNATTENDED, out)
+        self.assertEqual(out.count(NOT_ENFORCED), 1)
+
+    def test_the_cleanup_preview_puts_the_extra_before_next_and_after_nothing_to_do(self):
+        extra = rp.unattended_lines(self.load_for("unattended"), TARGET)
+        report = trc.oldest_first(*(trc.entry(f"i{n}") for n in range(3)))
+        plan = trc.plan_for(report, finished_items=1)
+        plain = trc.rc.preview_lines(plan, trc.EXAMPLE_TARGET)
+        with_extra = trc.rc.preview_lines(plan, trc.EXAMPLE_TARGET, extra)
+        at = [n for n, line in enumerate(plain) if line.startswith("  next: ")][0]
+        self.assertEqual(with_extra, plain[:at] + extra + plain[at:])
+        self.assertEqual(with_extra[-2][:8], "  next: ")
+        nothing = trc.plan_for(trc.oldest_first(trc.entry("a")), finished_items=10)
+        self.assertEqual(trc.rc.preview_lines(nothing, trc.EXAMPLE_TARGET, extra),
+                         trc.rc.preview_lines(nothing, trc.EXAMPLE_TARGET) + extra)
+        unset = trc.plan_for(report, archives=1)
+        self.assertEqual(trc.rc.preview_lines(unset, trc.EXAMPLE_TARGET, extra)[1:], extra)
+        self.assertEqual(trc.rc.preview_lines(plan, trc.EXAMPLE_TARGET, []), plain)
+
+    def test_the_age_note_comes_before_the_extra_in_the_nothing_to_do_output(self):
+        extra = ["  X", "  Y"]
+        plan = trc.age_plan(trc.oldest_first(trc.aged("a", trc.YOUNG), trc.aged("u", None)))
+        lines = trc.rc.preview_lines(plan, trc.EXAMPLE_TARGET, extra)
+        self.assertEqual(lines[-2:], extra)
+        self.assertIn("  age not known:", lines[-3])
+
+    def test_the_extra_changes_neither_the_plan_nor_its_digest(self):
+        report = trc.oldest_first(*(trc.entry(f"i{n}") for n in range(3)))
+        plan = trc.plan_for(report, finished_items=1)
+        digest = trc.rc.plan_digest(plan)
+        trc.rc.preview_lines(plan, trc.EXAMPLE_TARGET, ["  X"])
+        self.assertEqual(trc.rc.plan_digest(plan), digest)
+        self.assertEqual(trc.rc.plan_digest(trc.plan_for(report, finished_items=1)), digest)
+
+
+class TestCleanupPreview(trc.Base):
+    """`retention-cleanup`'s own preview, through the command: the unattended lines sit
+    before its `next:` line, and a file without the key prints none."""
+
+    def keyed(self, sentence=rp.unattended_sentence):
+        policy = {**trc.POLICY, "unattended": UNATTENDED}
+        path = rp.policy_path(self.repo)
+        path.write_text(json.dumps(policy))
+        record = rp.record_path(self.repo)
+        if sentence is rp.unattended_sentence:
+            rp.apply(self.repo, rp.usable_policy(self.repo), sentence(rp.digest_of(policy)))
+        else:
+            record.write_bytes(rp.serialize_record({
+                "schema_version": 1, "sha256": rp.digest_of(policy),
+                "adopted_at": "2026-11-18T10:00:00Z",
+                "confirmation": sentence(rp.digest_of(policy)), "policy": policy}))
+        self.commit(self.repo, "adopt the keyed policy")
+        return policy
+
+    def test_the_preview_carries_the_lines_before_next_and_the_digest_is_the_plans(self):
+        self.keyed()
+        out = self.call(trc.many())
+        self.assertEqual(out.code, 0, out.err)
+        lines = out.out.splitlines()
+        at = [n for n, line in enumerate(lines) if line.startswith("  next: ")][0]
+        self.assertEqual(lines[at - 2:at], [ADOPTED_UNATTENDED, NOT_ENFORCED])
+        self.assertEqual(lines[at + 1].strip(), trc.rc.BY_HAND)
+        sentence_ = lines[at].split('--confirm "', 1)[1].rstrip('"')
+        # the printed sentence is the plan's own: the confirmed run still holds it
+        self.assertRegex(sentence_, r"^.+ [0-9a-f]{12}\.$")
+
+    def test_an_ordinary_only_record_says_so_in_the_preview(self):
+        self.keyed(rp.sentence)
+        out = self.call(trc.many())
+        self.assertEqual(out.code, 0, out.err)
+        self.assertIn(f"  unattended retention: the file declares it, but the adoption "
+                      f"authorises nothing unattended; only the unattended sentence authorises "
+                      f"it: run workflow-manager adopt-retention-policy {self.repo}", out.out)
+        self.assertEqual(out.out.count(NOT_ENFORCED), 1)
+
+    def test_a_file_without_the_key_prints_neither_line(self):
+        out = self.call(trc.many())
+        self.assertEqual(out.code, 0, out.err)
+        self.assertNotIn("unattended retention", out.out)
+        self.assertNotIn("not enforced", out.out)
+
+    def test_the_nothing_to_do_preview_ends_with_the_lines(self):
+        self.keyed()
+        out = self.call(trc.oldest_first(trc.entry("a")))
+        self.assertEqual(out.code, 0, out.err)
+        self.assertEqual(out.out.splitlines()[-2:], [ADOPTED_UNATTENDED, NOT_ENFORCED])
+        self.assertTrue(out.out.startswith("retention cleanup: nothing to do"))
+
+
+class TestPage(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.page = " ".join((REPO_ROOT / "docs" / "retention.md").read_text().split())
+
+    def test_the_page_documents_the_key_the_sentences_and_the_status(self):
+        for needle in (
+                "### The unattended key",
+                "`cleanup`", "`prune`", "`keep_recent`", "`ttl_days`", "`prune_max_per_run`",
+                "3 to 100000", "14 to 3650", "1 to 100",
+                "at least one of `cleanup` and `prune` is `true`",
+                "`mode` is `cleanup` or `both`",
+                "Adopt the unattended retention policy",
+                "The ordinary sentence, `Adopt the retention policy`, is refused",
+                "An older Manager refuses a file carrying `unattended`",
+                "This release does not enforce the key",
+                "not enforced by this release: nothing runs unattended, and retention-cleanup "
+                "still needs its per-plan --confirm",
+                "an `unattended retention:` line"):
+            with self.subTest(needle=needle):
+                self.assertIn(needle, self.page)
+
+    def test_the_page_names_no_internal_id(self):
+        for needle in ("unattended-retention-policy", "#254", "A1", "CP3", "WORKFLOW_STATE"):
+            with self.subTest(needle=needle):
+                self.assertNotIn(needle, self.page)
+
+    def test_the_sentence_of_the_page_is_the_codes(self):
+        self.assertIn(rp.unattended_sentence("0" * 64).split(" 0")[0], self.page)
+        self.assertIn(NOT_ENFORCED.strip(), self.page)
+
+    def test_the_roadmap_row_names_the_issue_and_the_step_and_is_done(self):
+        rows = [line for line in (REPO_ROOT / "docs" / "ROADMAP.md").read_text().splitlines()
+                if line.startswith("| 50 |")]
+        self.assertEqual(len(rows), 1)
+        self.assertIn("#254", rows[0])
+        self.assertIn("A1", rows[0])
+        self.assertTrue(rows[0].rstrip().endswith("| Done (accepted by policy; a `feat:` change) |"))
+
+
 if __name__ == "__main__":
     unittest.main()

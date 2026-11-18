@@ -231,6 +231,30 @@ def describe_unattended(unattended: dict) -> str:
             f"at most {unattended['prune_max_per_run']} prunes per run")
 
 
+NOT_ENFORCED = ("  not enforced by this release: nothing runs unattended, and retention-cleanup "
+                "still needs its per-plan --confirm")
+
+
+def unattended_lines(state: "PolicyState", target: Path) -> list[str]:
+    """The unattended lines every output prints, so they agree: none for a state
+    without a valid file or a file without the `unattended` key (those outputs stay
+    byte-identical), else what the key says in this state and that nothing enforces it."""
+    if not state.policy or "unattended" not in state.policy:
+        return []
+    if state.unattended is not None:
+        head = ("  unattended retention: adopted with the unattended sentence: "
+                + describe_unattended(state.unattended))
+    elif state.state == ADOPTED:
+        head = ("  unattended retention: the file declares it, but the adoption authorises "
+                "nothing unattended; only the unattended sentence authorises it: run "
+                f"{adopt_command(target)}")
+    else:
+        head = ("  unattended retention: the file declares "
+                + describe_unattended(state.policy["unattended"])
+                + "; adopting it with the unattended sentence would authorise that")
+    return [head, NOT_ENFORCED]
+
+
 def canonical(policy: dict) -> bytes:
     return json.dumps(policy, sort_keys=True, separators=(",", ":"),
                       ensure_ascii=False).encode("utf-8")
@@ -590,6 +614,7 @@ def block(state: PolicyState, target: Path) -> list[str]:
             f"retention policy: adopted, mode {state.mode} (digest {state.digest[:DIGEST_SHOWN]}, "
             f"adopted {state.adopted_at})",
             f"  thresholds: {describe(state.policy)}",
+            *unattended_lines(state, target),
             "  this Manager release reads the policy and, for notify and both, evaluates its "
             "thresholds in verify and doctor; it sends nothing, and cleans up only when "
             "retention-cleanup runs with --confirm",
@@ -598,6 +623,7 @@ def block(state: PolicyState, target: Path) -> list[str]:
     lines.extend(f"  problem: {problem}" for problem in state.problems[:PROBLEM_LIMIT])
     if len(state.problems) > PROBLEM_LIMIT:
         lines.append(f"  and {len(state.problems) - PROBLEM_LIMIT} more")
+    lines.extend(unattended_lines(state, target))
     step = step_for(state.state, target)
     lines.append(f"  next: {step}")
     return lines
