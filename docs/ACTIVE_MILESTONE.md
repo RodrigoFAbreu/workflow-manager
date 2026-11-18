@@ -18,6 +18,9 @@ Pull request title: `feat: add the unattended retention policy key and its own a
 - CP2: the same four selections (one `--select` each), each `verdict: exit 0`. Mutation checks M9-M12 are run with the final verification.
 - CP3: `--select` of `test_retention_unattended.py`, `test_retention_policy.py`, `test_retention_cleanup.py`, `test_retention_status.py`, `test_retention_alert.py`, `test_retention_alert_json.py`, `test_retention_run.py`, each `verdict: exit 0`. Mutations M13 (block without the lines), M14 (no not-enforced line) and M15 (cleanup preview without the extra) each fail the named tests in a scratch copy.
 
+- Self-review (`d04164c`): no blocking finding in the milestone diff. Mutations M1-M16 of plan section 3 run in a scratch clone with `--select test_retention_unattended.py`: M10 and M2 did not fail their named tests (the record check masked the dropped `apply` refusal; `True` is refused by `keep_recent`'s floor anyway), so the wrong-kind refusal test now pins the command's own cause and the boolean-as-integer test adds `prune_max_per_run=True`; after that every mutation fails its named tests and the unmutated tree exits 0. `check_record` drops a condition `_names` already holds.
+- Full gate at `d04164c`: `python3 tests/run_all.py`, 2459/2459 units, 16588 tests, selection_digest `3e1b9fab...`, tests_digest `0523c302...`, `verdict: exit 0`.
+
 ## Next action
 
-Run `/milestone-implement unattended-retention-policy` again: every checkpoint is complete, so it enters self-review and runs the full verification.
+Implementation review bundle (local implementation review, round 1).
