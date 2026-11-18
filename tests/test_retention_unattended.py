@@ -190,5 +190,151 @@ class TestDescribe(unittest.TestCase):
                          "at most 3 prunes per run")
 
 
+from test_retention_policy import ADOPT, run, tree_hash  # noqa: E402
+
+
+class TestSentences(Base):
+    def keyed(self):
+        policy = with_unattended()
+        self.put(policy)
+        return policy, self.digest(policy)
+
+    def adopt_with(self, policy, text):
+        self.put(policy)
+        return run(ADOPT, str(self.repo), "--confirm", text)
+
+    def test_the_sentence_strings_and_that_neither_matches_the_other(self):
+        digest = "ab" * 32
+        self.assertEqual(rp.sentence(digest), "Adopt the retention policy abababababab.")
+        self.assertEqual(rp.unattended_sentence(digest),
+                         "Adopt the unattended retention policy abababababab.")
+        self.assertFalse(rp.confirmation_holds(rp.unattended_sentence(digest), digest))
+        self.assertFalse(rp.unattended_confirmation_holds(rp.sentence(digest), digest))
+        self.assertTrue(rp.confirmation_holds(rp.sentence(digest), digest))
+        self.assertTrue(rp.unattended_confirmation_holds(rp.unattended_sentence(digest), digest))
+
+    def test_the_unattended_sentence_adopts_a_file_with_the_key(self):
+        policy, digest = self.keyed()
+        proc = run(ADOPT, str(self.repo), "--confirm", rp.unattended_sentence(digest))
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        record = json.loads(self.record_file().read_text())
+        self.assertEqual(sorted(record), sorted(rp._RECORD_KEYS))
+        self.assertEqual(record["confirmation"], rp.unattended_sentence(digest))
+        self.assertEqual(record["policy"], policy)
+        state = self.state()
+        self.assertEqual(state.state, rp.ADOPTED)
+        self.assertEqual(state.mode, "both")
+        self.assertEqual(state.unattended, policy["unattended"])
+
+    def test_the_preview_of_a_file_with_the_key_prints_the_unattended_sentence(self):
+        _, digest = self.keyed()
+        before = tree_hash(self.repo)
+        proc = run(ADOPT, str(self.repo))
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertEqual(tree_hash(self.repo), before)
+        self.assertIn(f"  {rp.unattended_sentence(digest)}", proc.stdout)
+        self.assertIn("only the unattended sentence adopts it", proc.stdout)
+        self.assertNotIn(f"  {rp.sentence(digest)}", proc.stdout)
+
+    def test_the_preview_of_a_file_without_the_key_is_unchanged(self):
+        self.put()
+        digest = self.digest()
+        proc = run(ADOPT, str(self.repo))
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertTrue(proc.stdout.endswith(
+            "nothing was written. Only the repository's owner adopts a policy: to adopt "
+            f"this file, --confirm must contain the sentence\n  {rp.sentence(digest)}\n"),
+            proc.stdout)
+        self.assertNotIn("unattended key", proc.stdout)
+        self.assertNotIn("unattended retention", proc.stdout)
+
+    def test_the_ordinary_sentence_is_refused_for_a_file_with_the_key(self):
+        _, digest = self.keyed()
+        proc = self.refused("--confirm", rp.sentence(digest))
+        self.assertIn("only the unattended sentence adopts it", proc.stderr)
+        self.assertIn(rp.unattended_sentence(digest), proc.stderr)
+        self.assertFalse(self.record_file().exists())
+
+    def test_the_unattended_sentence_is_refused_for_a_file_without_the_key(self):
+        self.put()
+        proc = self.refused("--confirm", rp.unattended_sentence(self.digest()))
+        self.assertIn("has no unattended key", proc.stderr)
+        self.assertFalse(self.record_file().exists())
+
+    def test_a_mixed_confirmation_is_refused(self):
+        for policy in (with_unattended(), GOOD):
+            self.put(policy)
+            digest = self.digest(policy)
+            text = f"{rp.sentence(digest)} {rp.unattended_sentence(digest)}"
+            proc = self.refused("--confirm", text)
+            self.assertIn("mixes", proc.stderr)
+
+    def test_a_wrong_digest_unattended_sentence_is_refused(self):
+        self.keyed()
+        proc = self.refused("--confirm", rp.unattended_sentence("0" * 64))
+        self.assertIn("does not contain the sentence for this policy's digest", proc.stderr)
+
+    def test_a_confirmation_without_a_sentence_keeps_the_old_cause(self):
+        for policy in (with_unattended(), GOOD):
+            self.put(policy)
+            proc = self.refused("--confirm", "yes please")
+            self.assertIn("error: --confirm does not contain the sentence for this policy's "
+                          "digest\n", proc.stderr)
+
+    def test_schema_refusals_through_the_command_write_nothing(self):
+        self.put(with_unattended(unattended(keep_recent=2)))
+        proc = self.refused()
+        self.assertIn("unattended.keep_recent", proc.stderr)
+        self.assertFalse(self.record_file().exists())
+
+    def write_record(self, policy, confirmation):
+        self.put(policy)
+        record = {"schema_version": 1, "sha256": self.digest(policy),
+                  "adopted_at": "2026-11-18T10:00:00Z", "confirmation": confirmation,
+                  "policy": policy}
+        self.record_file().write_bytes(rp.serialize_record(record))
+        return self.state()
+
+    def test_a_hand_written_mixed_record_reads_adopted_with_unattended_set(self):
+        policy = with_unattended()
+        digest = self.digest(policy)
+        state = self.write_record(policy, f"{rp.sentence(digest)} {rp.unattended_sentence(digest)}")
+        self.assertEqual(state.state, rp.ADOPTED)
+        self.assertEqual(state.unattended, policy["unattended"])
+
+    def test_an_ordinary_only_record_authorises_nothing_unattended(self):
+        policy = with_unattended()
+        state = self.write_record(policy, rp.sentence(self.digest(policy)))
+        self.assertEqual(state.state, rp.ADOPTED)
+        self.assertEqual(state.mode, "both")
+        self.assertIsNone(state.unattended)
+
+    def test_an_unattended_record_for_a_file_without_the_key_is_invalid(self):
+        state = self.write_record(GOOD, rp.unattended_sentence(self.digest()))
+        self.assertEqual(state.state, rp.RECORD_INVALID)
+        self.assertEqual(state.mode, "off")
+        self.assertIsNone(state.unattended)
+        self.assertIn("record confirmation is the unattended sentence, but the policy has no "
+                      "unattended key", state.problems)
+
+    def test_a_record_with_a_wrong_digest_in_either_sentence_is_invalid(self):
+        policy = with_unattended()
+        digest = self.digest(policy)
+        state = self.write_record(
+            policy, f"{rp.unattended_sentence(digest)} {rp.sentence('0' * 64)}")
+        self.assertEqual(state.state, rp.RECORD_INVALID)
+
+    def test_every_other_state_has_no_unattended(self):
+        policy = with_unattended()
+        self.assertIsNone(self.state().unattended)
+        self.put(policy)
+        self.assertIsNone(self.state().unattended)
+        self.write_record(policy, rp.unattended_sentence(self.digest(policy)))
+        self.put(with_unattended(unattended(ttl_days=31)))
+        changed = self.state()
+        self.assertEqual(changed.state, rp.CHANGED)
+        self.assertIsNone(changed.unattended)
+
+
 if __name__ == "__main__":
     unittest.main()

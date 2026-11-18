@@ -68,6 +68,10 @@ ADOPTED = "adopted"
 
 _RECORD_KEYS = ("schema_version", "sha256", "adopted_at", "confirmation", "policy")
 _SENTENCE = re.compile(r"adopt the retention policy ([0-9a-f]{%d})\." % DIGEST_SHOWN)
+# The word "unattended" sits between "the" and "retention", so neither pattern
+# matches the other's sentence.
+_UNATTENDED_SENTENCE = re.compile(
+    r"adopt the unattended retention policy ([0-9a-f]{%d})\." % DIGEST_SHOWN)
 _TIMESTAMP = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z")  # fullmatch
 
 
@@ -81,6 +85,12 @@ class PolicyState:
     policy: dict | None = None
     digest: str | None = None
     adopted_at: str | None = None
+    # The unattended settings the adoption authorises: set only in the `adopted`
+    # state, when the file has the `unattended` key and the record's confirmation
+    # holds the unattended sentence for the digest. Every later reader asks this
+    # field, never `policy["unattended"]`: an ordinary-only adoption of a file
+    # with the key authorises nothing unattended.
+    unattended: dict | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -238,14 +248,30 @@ def sentence(digest: str) -> str:
     return f"Adopt the retention policy {digest[:DIGEST_SHOWN]}."
 
 
-def confirmation_holds(text, digest: str) -> bool:
-    """Whether `text` names `digest`: after whitespace collapse and ignoring
-    case, every match of the sentence carries the digest's first 12 characters,
-    and there is at least one."""
+def unattended_sentence(digest: str) -> str:
+    return f"Adopt the unattended retention policy {digest[:DIGEST_SHOWN]}."
+
+
+def _found(pattern, text) -> list[str]:
     if not isinstance(text, str):
-        return False
-    found = _SENTENCE.findall(" ".join(text.split()).lower())
+        return []
+    return pattern.findall(" ".join(text.split()).lower())
+
+
+def _names(found: list[str], digest: str) -> bool:
     return bool(found) and all(prefix == digest[:DIGEST_SHOWN] for prefix in found)
+
+
+def confirmation_holds(text, digest: str) -> bool:
+    """Whether `text` names `digest` with the ordinary sentence: after whitespace
+    collapse and ignoring case, every match of the sentence carries the digest's
+    first 12 characters, and there is at least one."""
+    return _names(_found(_SENTENCE, text), digest)
+
+
+def unattended_confirmation_holds(text, digest: str) -> bool:
+    """The same for the unattended sentence."""
+    return _names(_found(_UNATTENDED_SENTENCE, text), digest)
 
 
 # ---------------------------------------------------------------------------
@@ -295,7 +321,17 @@ def check_record(record) -> list[str]:
     digest = digest_of(record["policy"])
     if record["sha256"] != digest:
         problems.append("record sha256 is not the digest of its policy")
-    if not confirmation_holds(record["confirmation"], digest):
+    ordinary = _found(_SENTENCE, record["confirmation"])
+    unattended = _found(_UNATTENDED_SENTENCE, record["confirmation"])
+    if "unattended" in record["policy"]:
+        # Either kind, every match naming the digest.
+        if not _names(ordinary + unattended, digest) \
+                or not all(p == digest[:DIGEST_SHOWN] for p in ordinary + unattended):
+            problems.append("record confirmation does not name its policy")
+    elif unattended:
+        problems.append("record confirmation is the unattended sentence, but the policy "
+                        "has no unattended key")
+    elif not _names(ordinary, digest):
         problems.append("record confirmation does not name its policy")
     if not problems and len(serialize_record(record)) > RECORD_LIMIT:
         problems.append(f"the record is larger than {RECORD_LIMIT} bytes")
@@ -384,7 +420,11 @@ def _load(target: Path) -> PolicyState:
         return PolicyState(RECORD_INVALID, problems=tuple(problems), **shown)
     if record["sha256"] != digest:
         return PolicyState(CHANGED, adopted_at=record["adopted_at"], **shown)
-    return PolicyState(ADOPTED, mode=policy["mode"], adopted_at=record["adopted_at"], **shown)
+    authorised = None
+    if "unattended" in policy and unattended_confirmation_holds(record["confirmation"], digest):
+        authorised = policy["unattended"]
+    return PolicyState(ADOPTED, mode=policy["mode"], adopted_at=record["adopted_at"],
+                       unattended=authorised, **shown)
 
 
 # ---------------------------------------------------------------------------
@@ -477,7 +517,25 @@ def apply(target: Path, state: PolicyState, confirmation: str) -> dict:
     if mode is not None and not stat.S_ISREG(mode):
         raise Refusal(f"{DIRECTORY}/{RECORD_FILE} exists and is not a regular file",
                       f"remove {DIRECTORY}/{RECORD_FILE}, then run {again} again")
-    if not confirmation_holds(confirmation, state.digest):
+    has_key = "unattended" in state.policy
+    ordinary = _found(_SENTENCE, confirmation)
+    unattended = _found(_UNATTENDED_SENTENCE, confirmation)
+    if ordinary and unattended:
+        raise Refusal("--confirm mixes the ordinary and the unattended adoption sentence",
+                      f"run {again} to see the one sentence for this policy, then run it again "
+                      "with --confirm holding only that sentence")
+    if has_key and ordinary:
+        raise Refusal("the policy file has an unattended key, and only the unattended sentence "
+                      "adopts it",
+                      f"run {again} to see the sentence "
+                      f"'{unattended_sentence(state.digest)}', then run it again with --confirm")
+    if unattended and not has_key:
+        raise Refusal("--confirm holds the unattended sentence, but the policy file has no "
+                      "unattended key",
+                      f"run {again} to see the sentence for this policy, then run it again "
+                      "with --confirm")
+    holds = unattended_confirmation_holds if has_key else confirmation_holds
+    if not holds(confirmation, state.digest):
         raise Refusal("--confirm does not contain the sentence for this policy's digest",
                       f"run {again} to see the digest and the sentence, then run it again "
                       "with --confirm")

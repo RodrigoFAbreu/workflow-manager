@@ -999,7 +999,12 @@ def cmd_adopt_retention_policy(args) -> int:
             print(f"state: {state.state}; mode {state.mode} is in force")
             print("nothing was written. Only the repository's owner adopts a policy: to adopt "
                   "this file, --confirm must contain the sentence")
-            print(f"  {retention_policy.sentence(state.digest)}")
+            if "unattended" in state.policy:
+                print(f"  {retention_policy.unattended_sentence(state.digest)}")
+                print("this file has an unattended key: only the unattended sentence adopts it, "
+                      "and the ordinary sentence is refused")
+            else:
+                print(f"  {retention_policy.sentence(state.digest)}")
             return 0
         record = retention_policy.apply(args.target, state, args.confirm)
     except retention_policy.Refusal as refusal:
@@ -1245,6 +1250,9 @@ def build_parser() -> argparse.ArgumentParser:
                 "Read .workflow-manager/retention-policy.json and print its digest, mode, "
                 "thresholds and the sentence that adopts it; writes nothing. With --confirm "
                 "holding that sentence it writes .workflow-manager/retention-adoption.json, "
+                "where a file with the unattended key is adopted only by 'Adopt the "
+                "unattended retention policy DIGEST12.' and any other file only by 'Adopt "
+                "the retention policy DIGEST12.'; "
                 "which you then commit. The mode in force stays off unless the file is "
                 "adopted unchanged. This release reads the policy and, for notify and both, "
                 "evaluates its thresholds in verify and doctor; adopting archives, removes, "
@@ -1256,7 +1264,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("target", type=Path, help="the managed repository whose policy to adopt")
     p.add_argument("--confirm", default=None, metavar="TEXT",
                    help="adopt the file: text containing 'Adopt the retention policy "
-                        "DIGEST12.' for the digest the preview prints")
+                        "DIGEST12.' (or, for a file with the unattended key, 'Adopt the "
+                        "unattended retention policy DIGEST12.') for the digest the "
+                        "preview prints")
 
     p = command("retention-cleanup", "preview or run the cleanup an adopted retention policy allows",
                 "For a retention policy adopted with mode cleanup or both, check that every "
