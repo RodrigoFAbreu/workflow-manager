@@ -1316,6 +1316,8 @@ class TestMiscFindings(Case):
                 facts.installation = Installation(name, "full", {})
                 report = self.report(facts=facts, installed_resolved=False)
                 found = next(f for f in report.findings if f.id == "not-verified")
+                self.assertIn(f"`workflow-manager verify {self.target}` makes that comparison",
+                              found.detail)
                 self.assertIn("makes that comparison, or prints why it cannot.", found.detail)
                 self.assertIn("(offline, the release is not pinned, or its package failed", found.detail)
 
