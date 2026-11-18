@@ -9,6 +9,12 @@ names the file's exact digest. Every failure falls back to `off`.
 This module reads and (for the adoption only) writes those two files. It never
 raises from `load`, never runs the retention script, and sends and cleans
 nothing: a later release evaluates the thresholds.
+
+The optional `unattended` key declares what an unattended run may do (archive,
+then prune). In this release it is only validated and printed: nothing runs
+unattended, and `retention-cleanup` still needs its per-plan `--confirm`. An
+older Manager refuses a file carrying the key (the file is closed), so it reads
+the mode as `off` until it is updated.
 """
 
 from __future__ import annotations
@@ -41,6 +47,13 @@ THRESHOLDS = {  # key: (maximum, label)
     "archives": (100000, "archives"),
     "prunable_archives": (100000, "prunable archives"),
 }
+UNATTENDED_BOOLEANS = ("cleanup", "prune")
+UNATTENDED_INTEGERS = {  # key: (minimum, maximum)
+    "keep_recent": (3, 100000),
+    "ttl_days": (14, 3650),
+    "prune_max_per_run": (1, 100),
+}
+UNATTENDED_KEYS = UNATTENDED_BOOLEANS + tuple(UNATTENDED_INTEGERS)
 _UNITS = {"finished_folder_mib": " MiB", "finished_max_age_days": " days"}
 PROBLEM_LIMIT = 5
 DIGEST_SHOWN = 12
@@ -134,7 +147,7 @@ def policy_errors(policy) -> list[str]:
         return [f"the policy is not an object: {shown(policy)}"]
     errors = []
     for key in policy:
-        if key not in ("schema_version", "mode", "thresholds"):
+        if key not in ("schema_version", "mode", "thresholds", "unattended"):
             errors.append(f"unknown key {shown(key)}")
     if "schema_version" not in policy:
         errors.append("schema_version is missing")
@@ -164,7 +177,48 @@ def policy_errors(policy) -> list[str]:
     if isinstance(mode, str) and mode in MODES and mode != "off" and count == 0 \
             and isinstance(thresholds, dict):
         errors.append(f"mode {mode} needs at least one valid threshold")
+    if "unattended" in policy:
+        errors.extend(_unattended_errors(policy["unattended"], mode))
     return errors
+
+
+def _unattended_errors(value, mode) -> list[str]:
+    """Every way the `unattended` object breaks its schema: a closed object, all
+    five keys required (no hidden defaults), and two cross rules."""
+    if not isinstance(value, dict):
+        return [f"unattended must be an object, not {shown(value)}"]
+    errors = []
+    for key in value:
+        if key not in UNATTENDED_KEYS:
+            errors.append(f"unknown key unattended.{shown(key)}")
+    for key in UNATTENDED_KEYS:
+        if key not in value:
+            errors.append(f"unattended.{key} is missing")
+        elif key in UNATTENDED_BOOLEANS:
+            if not isinstance(value[key], bool):
+                errors.append(f"unattended.{key} must be true or false, not {shown(value[key])}")
+        else:
+            low, high = UNATTENDED_INTEGERS[key]
+            if not _is_int(value[key]):
+                errors.append(f"unattended.{key} must be an integer, not {shown(value[key])}")
+            elif not low <= value[key] <= high:
+                errors.append(f"unattended.{key} must be from {low} to {high}, "
+                              f"not {shown(value[key])}")
+    if all(isinstance(value.get(key), bool) for key in UNATTENDED_BOOLEANS) \
+            and not (value["cleanup"] or value["prune"]):
+        errors.append("unattended needs cleanup or prune to be true")
+    if isinstance(mode, str) and mode in MODES and mode not in ("cleanup", "both"):
+        errors.append(f"unattended needs mode cleanup or both, not {mode}")
+    return errors
+
+
+def describe_unattended(unattended: dict) -> str:
+    """The settings of a valid `unattended` object, as one line."""
+    def word(flag):
+        return "on" if flag else "off"
+    return (f"cleanup {word(unattended['cleanup'])}, prune {word(unattended['prune'])}, "
+            f"keep {unattended['keep_recent']} recent, ttl {unattended['ttl_days']} days, "
+            f"at most {unattended['prune_max_per_run']} prunes per run")
 
 
 def canonical(policy: dict) -> bytes:
