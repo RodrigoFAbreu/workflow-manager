@@ -543,7 +543,9 @@ class TestPage(unittest.TestCase):
                 "This release does not enforce the key",
                 "not enforced by this release: nothing runs unattended, and retention-cleanup "
                 "still needs its per-plan --confirm",
-                "an `unattended retention:` line"):
+                "an `unattended retention:` line",
+                "reads `record-invalid` and the mode in force is `off`",
+                "reads `adopted` and authorises unattended"):
             with self.subTest(needle=needle):
                 self.assertIn(needle, self.page)
 

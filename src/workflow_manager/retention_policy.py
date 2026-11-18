@@ -15,6 +15,9 @@ then prune). In this release it is only validated and printed: nothing runs
 unattended, and `retention-cleanup` still needs its per-plan `--confirm`. An
 older Manager refuses a file carrying the key (the file is closed), so it reads
 the mode as `off` until it is updated.
+
+What an unattended run is authorised to do is asked of `PolicyState.unattended`,
+never of `policy["unattended"]`: an ordinary-only adoption authorises nothing.
 """
 
 from __future__ import annotations
