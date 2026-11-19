@@ -368,7 +368,7 @@ A stop at `archive` or `verify` leaves the review folder where it was, and the r
 
 ### The unattended run
 
-`workflow-manager retention-cleanup TARGET --unattended` is the confirmed run with the per-plan sentence replaced by the recorded adoption, and with a durable record of what it did. It plans, executes and stops exactly as [The confirmed run](#the-confirmed-run) does (the same plan, the same digest, the same three calls per item, the same stop at the first failure); it adds authority and evidence, never new actions. It is for a scheduled job. `--confirm` is not needed, and `--confirm` together with `--unattended` is refused (the per-plan sentence and the adopted policy are two authorities).
+`workflow-manager retention-cleanup TARGET --unattended` is the confirmed run with the per-plan sentence replaced by the recorded adoption, and with a durable record of what it did. It plans, executes and stops exactly as [The confirmed run](#the-confirmed-run) does (the same plan, the same digest, the same three calls per item, the same stop at the first failure); its cleanup phase adds authority and evidence, never new actions, and the only action it adds is the prune phase, under an adopted `unattended.prune` (see [The unattended prune](#the-unattended-prune)). It is for a scheduled job. `--confirm` is not needed, and `--confirm` together with `--unattended` is refused (the per-plan sentence and the adopted policy are two authorities).
 
 **Authority.** The run is refused (exit 2, one `error:` and one `next:` line, nothing written in the repository, no script verb issued) unless the policy is adopted unchanged with mode `cleanup` or `both` **and** the adopted file carries the `unattended` key **and** the adoption holds the unattended sentence **and** `unattended.cleanup` is `true`. Each of those has its own cause:
 
@@ -406,7 +406,7 @@ If the audit file cannot be opened or the first line cannot be written, the run 
 
 **`--json`.** `--json` (only with `--unattended`) prints one document on stdout and nothing else there; the run's progress lines go to stderr. Its fields: `kind` (`retention_cleanup_run`), `schema_version` (1), `repository`, `run_id`, `policy_digest`, `plan_digest`, `outcome` (`done`, `stopped`, `nothing-to-do` or `nothing-eligible`), `items` (each with its id, action, `result` `done`, `stopped` or `not-attempted`, and its `steps`, each with `step`, `result`, `engine_code` and `error`), `done`, `total`, `stopped` (`null`, or `step`, `item_id`, `engine_code`, `error` and `next_step`), `thresholds_reached` (empty unless `nothing-eligible`), `exit_code` and `audit` (`path`, `lines_written`, `error`). A refusal before a plan exists prints nothing on stdout (stderr has `error:` and `next:`, and the audit file has its `preflight` line); a stop prints the document.
 
-**Exit status.** The same as the confirmed run: 0 done or nothing to do, 1 stopped after a per-item call was attempted, 2 refused or stopped before the first call.
+**Exit status.** The same as the confirmed run: 0 done or nothing to do, 1 stopped after a per-item call was attempted, 2 refused or stopped before the first call (the prune phase, below, adds its own).
 
 ### The unattended prune
 

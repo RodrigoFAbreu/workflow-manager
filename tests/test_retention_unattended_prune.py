@@ -1084,6 +1084,13 @@ class TestHelpAndWording(unittest.TestCase):
         self.assertNotIn("prune is never run.", page)
         self.assertIn("prune is run only by `--unattended`, under an adopted `unattended.prune`", page)
 
+    def test_the_unattended_run_section_names_the_prune_phase_as_its_added_action(self):
+        page = " ".join((REPO_ROOT / "docs" / "retention.md").read_text().split())
+        self.assertNotIn("it adds authority and evidence, never new actions", page)
+        self.assertIn("the only action it adds is the prune phase, under an adopted `unattended.prune` "
+                      "(see [The unattended prune](#the-unattended-prune))", page)
+        self.assertIn("(the prune phase, below, adds its own)", page)
+
 
 if __name__ == "__main__":
     unittest.main()
