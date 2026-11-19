@@ -1297,10 +1297,14 @@ def build_parser() -> argparse.ArgumentParser:
                 "verification (the dry run of `remove`), then `remove ID --apply`, each as the "
                 "target's own scripts/workflow_retention.py. The first failure stops the run and "
                 "the report says what was done and what was not. Nothing is committed (the "
-                "review folders are untracked). Prune is never run. Exit 0: the preview was "
-                "printed, there is nothing to do, or every item was archived and removed; 1: "
+                "review folders are untracked). Prune is never run by the confirmed run; with "
+                "--unattended it runs only when the adopted policy's unattended.prune is true "
+                "(see --unattended). Exit 0: the preview was "
+                "printed, there is nothing to do, or every item was archived and removed (and, "
+                "with --unattended, pruned); 1: "
                 "the run stopped after its first per-item call (archive, the verification or "
-                "remove) was attempted, even if its script could not be started (the closing "
+                "remove) or a prune --apply was attempted, even if its script could not be "
+                "started (the closing "
                 "'retention cleanup: stopped' line says where); 2: refused, or stopped before "
                 "that first call (the policy changed or the run was interrupted while item 1's "
                 "policy was read), nothing written "
@@ -1320,7 +1324,13 @@ def build_parser() -> argparse.ArgumentParser:
                         "run applies, the policy's keep_recent newest finished items stay, and "
                         "one audit line per action or refusal is appended to "
                         "$XDG_STATE_HOME/workflow-manager/retention-audit.jsonl (default "
-                        "~/.local/state). Prune is never run")
+                        "~/.local/state). After the archive-and-remove phase, a policy with "
+                        "unattended.prune true also prunes: archives of finished items whose "
+                        "review folder is already gone, older than unattended.ttl_days, never one "
+                        "under an interrupted removal, at most unattended.prune_max_per_run per "
+                        "run, oldest first, only after the engine's own dry run lists exactly "
+                        "that set. Deleting an archive cannot be undone, and the archive store "
+                        "(~/.local/share/workflow-archive) is not backed up by the Manager")
     p.add_argument("--json", action="store_true",
                    help="with --unattended, print the result as one JSON document on stdout "
                         "(progress goes to stderr; a refusal prints nothing on stdout)")

@@ -21,11 +21,12 @@ from unittest import mock
 
 import support
 from support import REPO_ROOT
+from test_operator_ux import help_of
 
 import test_retention_cleanup as tc
 import test_retention_status as rs
 import test_retention_unattended_run as tur
-from workflow_manager import retention_policy as rp, retention_prune as rpr, retention_run as rr
+from workflow_manager import retention_cleanup as rc, retention_policy as rp, retention_prune as rpr, retention_run as rr
 
 TTL, CAP = 30, 3
 
@@ -764,6 +765,319 @@ class TestRunHelpers(unittest.TestCase):
         with mock.patch.object(rp, "load", side_effect=KeyboardInterrupt):
             with self.assertRaises(KeyboardInterrupt):
                 rr.policy_holds("/x", "d")
+
+
+# ---------------------------------------------------------------------------
+# The command (CP3): the cleanup phase, then the prune phase, through `cli.main`
+# ---------------------------------------------------------------------------
+
+COMBINED_STUB = (
+    "import sys\nSRC_PRUNE = %r\nSRC_RUN = %r\n"
+    "exec(compile(SRC_PRUNE if sys.argv[1] == 'prune' else SRC_RUN, 'stub', 'exec'))\n"
+) % (PRUNE_STUB, tur.trun.RUN_STUB)
+OLD_ARCHIVES = ("old-a", "old-b", "old-c")
+CLEANED = tur.full_run("item-00", "item-01", "item-02")
+PRUNED = ["prune:old-a", "prune --apply:old-a", "prune --apply:old-b", "prune --apply:old-c"]
+IRREVERSIBLE = ("a deleted archive cannot be undone; the archive store is "
+                "~/.local/share/workflow-archive, which the Manager does not back up")
+
+
+def with_archives(rep, ids=OLD_ARCHIVES, *, ages=(90, 60, 40)):
+    """`rep` plus archives of finished items whose folder is gone."""
+    rep = json.loads(json.dumps(rep))
+    rep["archives"] = [archive(i, age, modified=f"2026-03-0{n + 1}T00:00:00Z")
+                       for n, (i, age) in enumerate(zip(ids, ages))]
+    for i in ids:
+        gone = rs.finished(i, folder=False, archive=True)
+        rep["finished"].append(gone)
+    rep["totals"]["finished"] = len(rep["finished"])
+    return rep
+
+
+class Command(tur.Cmd):
+    """The unattended command with `unattended.prune` true and a stub that answers
+    the cleanup verbs and `prune`."""
+
+    PRUNE_ON = True
+
+    def setUp(self):
+        super().setUp()
+        (self.repo / rs.SCRIPT).write_text(COMBINED_STUB)
+        self.adopt_unattended(tur.policy_with(unattended=dict(UNATT, prune=self.PRUNE_ON)))
+        self.rep = with_archives(self.rep)
+
+    def doc(self, out):
+        return json.loads(out.out)
+
+    def planned(self, rep=None):
+        return tur.planned(rc.select(rp.load(self.repo), rep or self.rep))
+
+    def prune_lines(self):
+        return [l for l in self.lines() if l["step"] == "prune"]
+
+
+class TestCleansAndPrunes(Command):
+    def test_calls_in_order_a_report_then_the_dry_run_then_the_applies(self):
+        self.assertEqual(self.planned(), ["item-00", "item-01", "item-02"], "fixture")
+        out = self.go_u()
+        self.assertEqual((out.code, out.err), (0, ""), out.out)
+        self.assertEqual(self.keys(), CLEANED + PRUNED)
+        names = [c["argv"][1] for c in self.script_calls()]
+        self.assertEqual(names.count("report"), 2)      # the preflight's and the phase's
+        self.assertEqual(names[-5], "report")
+        self.assertEqual(len(self.script_calls()), 1 + 9 + 1 + 4)
+
+    def test_the_text_has_the_cleanup_lines_the_prune_lines_and_the_audit_line_last(self):
+        out = self.go_u()
+        text = out.out.splitlines()
+        self.assertEqual(text[-1], f"  audit: {self.audit_file}")
+        self.assertEqual(text[-2], f"retention prune: done, 3 of 3 archives deleted; {IRREVERSIBLE}")
+        self.assertEqual(text[-5:-2], [f"  old-{x}: pruned" for x in "abc"])
+        done = [l for l in text if l.startswith("retention cleanup: done")]
+        self.assertEqual(len(done), 1)
+        self.assertNotIn("prune was not run", out.out)
+        self.assertTrue(done[0].endswith("(the review folders were untracked)"), done[0])
+
+    def test_the_audit_has_the_cleanup_lines_then_the_prune_lines(self):
+        self.go_u()
+        lines = self.lines()
+        self.assertEqual([(l["step"], l["result"], l["item_id"]) for l in lines[10:]],
+                         [("prune", "started", None)] + [("prune", "ok", i) for i in OLD_ARCHIVES])
+        digest = rpr.prune_digest(rpr.select(self.rep, dict(UNATT),
+                                            policy_digest=rp.load(self.repo).digest))
+        self.assertTrue(all(l["plan_digest"] == digest for l in lines[10:]))
+        self.assertEqual({l["policy_digest"] for l in lines}, {rp.load(self.repo).digest})
+        self.assertEqual(len({l["run_id"] for l in lines}), 1)
+
+    def test_a_run_with_nothing_to_clean_still_prunes(self):
+        self.rep = with_archives(tc.many(5, mib=2))
+        out = self.go_u(rep=self.rep)
+        self.assertEqual((out.code, out.err), (0, ""), out.out)
+        self.assertEqual(self.keys(), PRUNED)
+        self.assertIn("nothing to do", out.out)
+        self.assertEqual(out.out.splitlines()[-1], f"  audit: {self.audit_file}")
+        self.assertIn(IRREVERSIBLE, out.out)
+
+    def test_nothing_eligible_prints_its_own_lines_then_the_prune_lines_then_audit(self):
+        self.adopt_unattended(tur.policy_with(unattended=dict(UNATT, keep_recent=100)))
+        out = self.go_u()
+        text = out.out.splitlines()
+        self.assertEqual((out.code, out.err), (0, ""), out.out)
+        self.assertTrue(text[0].startswith("retention cleanup: nothing eligible ("), text[0])
+        self.assertEqual(text[-1], f"  audit: {self.audit_file}")
+        self.assertEqual(self.keys(), PRUNED)
+        self.assertEqual([(l["step"], l["result"]) for l in self.lines()],
+                         [("plan", "nothing-eligible"), ("prune", "started")] +
+                         [("prune", "ok")] * 3)
+
+    def test_nothing_to_prune_prints_one_line_and_its_skips_and_no_audit_line(self):
+        rep = tc.many(5, mib=2)
+        rep["archives"] = [archive("old-a", 10), archive("kept", 90)]
+        rep["finished"].append(tc.entry("kept", archive=True))
+        rep["totals"]["finished"] = len(rep["finished"])
+        out = self.go_u(rep=rep)
+        self.assertEqual((out.code, out.err), (0, ""), out.out)
+        self.assertIn("nothing to do", out.out)
+        tail = out.out.splitlines()[-2:]
+        self.assertEqual(tail[0], "retention prune: nothing to prune (ttl_days 30, at most 3 per run)")
+        self.assertEqual(tail[1], "  skipped: kept (review-folder-present)")
+        self.assertNotIn("audit:", out.out)
+        self.assertEqual(self.lines(), [])
+        self.assertEqual(self.keys(), [])
+
+    def test_the_confirmed_run_never_prunes_and_keeps_its_bytes(self):
+        out = self.go(confirm=rc.sentence(self.digest()), rep=self.rep)
+        self.assertEqual((out.code, out.err), (0, ""), out.out)
+        self.assertTrue(out.out.endswith(
+            "(the review folders were untracked); prune was not run\n"), out.out)
+        self.assertEqual(self.keys(), CLEANED)
+
+    def test_cleanup_false_with_prune_true_is_still_refused(self):
+        self.adopt_unattended(tur.policy_with(unattended=dict(UNATT, cleanup=False)))
+        out = self.go_u()
+        self.assertEqual((out.code, out.out), (2, ""))
+        self.assertIn("unattended.cleanup is false", out.err)
+        self.assertEqual(self.keys(), [])
+        self.assertEqual([(l["step"], l["result"]) for l in self.lines()], [("preflight", "refused")])
+
+
+class TestPruneDisabled(Command):
+    PRUNE_ON = False
+
+    def test_the_text_audit_and_calls_are_the_cleanups_alone(self):
+        out = self.go_u()
+        self.assertEqual((out.code, out.err), (0, ""), out.out)
+        self.assertEqual(self.keys(), CLEANED)
+        self.assertTrue(out.out.endswith(
+            f"(the review folders were untracked); prune was not run\n  audit: {self.audit_file}\n"))
+        self.assertEqual(len(self.lines()), 10)
+        self.assertEqual({l["step"] for l in self.lines()}, {"plan", "archive", "verify", "remove"})
+
+    def test_the_document_has_the_prune_key_disabled(self):
+        doc = self.doc(self.go_u(extra=("--unattended", "--json")))
+        self.assertEqual(doc["prune"], {"enabled": False, "outcome": "disabled", "ttl_days": None,
+                                        "max_per_run": None, "plan_digest": None, "ids": [],
+                                        "results": [], "skipped": []})
+        self.assertEqual((doc["schema_version"], doc["outcome"], doc["done"]), (1, "done", 3))
+
+    def test_nothing_to_do_text_is_todays(self):
+        out = self.go_u(rep=tc.many(5, mib=2))
+        self.assertIn("nothing to do", out.out)
+        self.assertNotIn("audit:", out.out)
+        self.assertNotIn("retention prune", out.out)
+
+
+class TestPruneStops(Command):
+    def apply_refusal(self, item):
+        return {f"prune --apply:{item}": {"exit": 2, "stdout": "",
+                                          "stderr": "error: archive_changed: x\nnext step: look\n"}}
+
+    def test_an_apply_failure_after_a_clean_cleanup_exits_1(self):
+        out = self.go_u(self.apply_refusal("old-b"))
+        self.assertEqual(out.code, 1, out.out)
+        self.assertEqual(self.keys(), CLEANED + PRUNED[:3])
+        self.assertIn("error: retention prune: old-b:", out.err)
+        self.assertIn("next: look", out.err)
+        self.assertEqual(out.out.splitlines()[-1], f"  audit: {self.audit_file}")
+        self.assertIn("retention prune: stopped after 1 of 3 archives", out.out)
+        self.assertIn(f"1 of 3 archives were deleted before the stop; {IRREVERSIBLE}", out.out)
+        self.assertEqual(self.prune_lines()[-1]["result"], "failed")
+
+    def test_an_apply_failure_with_nothing_to_clean_exits_1(self):
+        out = self.go_u(self.apply_refusal("old-a"), rep=with_archives(tc.many(5, mib=2)))
+        self.assertEqual(out.code, 1, out.out)
+        self.assertEqual(self.keys(), PRUNED[:2])
+
+    def test_a_dry_run_that_differs_with_nothing_to_clean_exits_2_and_applies_nothing(self):
+        bad = {"prune:dry": {"stdout": {"kind": "retention-prune", "mode": "dry-run",
+                                        "ttl_days": 30, "archives": [], "result": {"removed": []}}}}
+        out = self.go_u(bad, rep=with_archives(tc.many(5, mib=2)))
+        self.assertEqual(out.code, 2, out.out)
+        self.assertEqual(self.keys(), ["prune:old-a"])
+        self.assertIn("error: retention prune:", out.err)
+
+    def test_a_dry_run_that_differs_after_a_cleanup_exits_1(self):
+        bad = {"prune:dry": {"stdout": "nope"}}
+        out = self.go_u(bad)
+        self.assertEqual(out.code, 1, out.out)
+        self.assertEqual(self.keys(), CLEANED + ["prune:old-a"])
+
+    def test_an_unreadable_report_in_the_phase_stops_it_with_nothing_to_clean(self):
+        real, seen = tur.retention.fetch, {"n": 0}
+
+        def fetch(target):
+            seen["n"] += 1
+            return real(target) if seen["n"] == 1 else real(target.parent / "absent")
+        out = self.go_u(rep=tc.many(5, mib=2),
+                        patches=[mock.patch.object(tur.retention, "fetch", fetch)])
+        self.assertEqual(out.code, 2, out.out)
+        self.assertEqual(self.keys(), [])
+        self.assertEqual([(l["step"], l["result"]) for l in self.lines()], [("prune", "refused")])
+        self.assertIn("error: retention prune: the fresh report is not available", out.err)
+
+    def test_a_policy_that_stops_allowing_prune_stops_before_any_prune_call(self):
+        real = tur.rr.policy_holds
+
+        def holds(*args, extra=None, **kw):
+            return False if extra is not None else real(*args, extra=extra, **kw)
+        out = self.go_u(patches=[mock.patch.object(tur.rr, "policy_holds", holds)])
+        self.assertEqual(out.code, 1, out.out)         # the cleanup attempted something
+        self.assertEqual([k for k in self.keys() if k.startswith("prune")], [])
+        self.assertEqual((self.lines()[-1]["step"], self.lines()[-1]["result"]), ("policy", "stopped"))
+        self.assertIn("error: retention prune: the policy changed", out.err)
+
+    def test_a_cleanup_stop_calls_no_prune_and_exits_as_the_cleanup_does(self):
+        stop = {"archive --apply:item-01": tur.refusal("place_failed", "nope")}
+        out = self.go_u(stop)
+        self.assertEqual(out.code, 1)
+        self.assertEqual([k for k in self.keys() if k.startswith("prune")], [])
+        self.assertEqual(len([c for c in self.script_calls() if c["argv"][1] == "report"]), 1)
+        self.assertNotIn("retention prune", out.out)
+        self.assertEqual(out.out.splitlines()[-1], f"  audit: {self.audit_file}")
+        self.assertIn("error: retention cleanup: item-01:", out.err)
+
+    def test_the_audit_stop_after_an_apply_says_it_had_succeeded(self):
+        out = self.go_u(patches=[self.write_seam(13)])   # the line after old-b's apply
+        self.assertEqual(out.code, 1, out.out)
+        self.assertIn("the apply had succeeded", out.err)
+        self.assertEqual(self.keys(), CLEANED + PRUNED[:3])
+
+
+class TestPruneJson(Command):
+    def go_j(self, *a, **kw):
+        return self.go_u(*a, extra=("--unattended", "--json"), **kw)
+
+    def test_a_done_document_and_only_the_document_on_stdout(self):
+        out = self.go_j()
+        doc = self.doc(out)
+        self.assertEqual(out.code, 0, out.err)
+        self.assertEqual((doc["schema_version"], doc["outcome"], doc["exit_code"], doc["done"]),
+                         (1, "done", 0, 3))
+        prune = doc["prune"]
+        self.assertEqual((prune["enabled"], prune["outcome"], prune["ttl_days"],
+                          prune["max_per_run"]), (True, "done", 30, 3))
+        self.assertEqual(prune["ids"], list(OLD_ARCHIVES))
+        self.assertEqual([(r["id"], r["result"]) for r in prune["results"]],
+                         [(i, "done") for i in OLD_ARCHIVES])
+        self.assertEqual(prune["plan_digest"], self.prune_lines()[0]["plan_digest"])
+        self.assertEqual(prune["skipped"], [])
+        self.assertEqual(doc["audit"]["lines_written"], 14)
+        self.assertIn("  old-a: pruned", out.err)
+        self.assertIn(IRREVERSIBLE, out.err)
+        self.assertNotIn("old-a", out.out.replace('"old-a"', ""))
+
+    def test_a_prune_stop_document(self):
+        out = self.go_j({"prune --apply:old-b": {"exit": 2, "stdout": "",
+                                                 "stderr": "error: archive_changed: x\nnext step: look\n"}})
+        doc = self.doc(out)
+        self.assertEqual((out.code, doc["exit_code"], doc["outcome"]), (1, 1, "stopped"))
+        self.assertEqual({k: doc["stopped"][k] for k in ("step", "item_id", "engine_code")},
+                         {"step": "prune", "item_id": "old-b", "engine_code": "archive_changed"})
+        self.assertEqual(doc["stopped"]["next_step"], "look")
+        self.assertEqual([r["result"] for r in doc["prune"]["results"]],
+                         ["done", "stopped", "not-attempted"])
+        self.assertEqual(doc["prune"]["outcome"], "stopped")
+        self.assertEqual(doc["done"], 3)     # the cleanup phase's own count
+
+    def test_a_cleanup_stop_document_says_not_attempted(self):
+        out = self.go_j({"archive --apply:item-01": tur.refusal("place_failed", "nope")})
+        doc = self.doc(out)
+        self.assertEqual((out.code, doc["outcome"], doc["stopped"]["step"]), (1, "stopped", "archive"))
+        self.assertEqual(doc["prune"], {"enabled": True, "outcome": "not-attempted", "ttl_days": 30,
+                                        "max_per_run": 3, "plan_digest": None, "ids": [],
+                                        "results": [], "skipped": []})
+
+    def test_a_nothing_to_prune_document_lists_the_skips(self):
+        rep = tc.many(5, mib=2)
+        rep["archives"] = [archive("kept", 90)]
+        rep["finished"].append(tc.entry("kept", archive=True))
+        rep["totals"]["finished"] = len(rep["finished"])
+        out = self.go_j(rep=rep)
+        doc = self.doc(out)
+        self.assertEqual((out.code, doc["outcome"]), (0, "nothing-to-do"))
+        self.assertEqual(doc["prune"]["outcome"], "nothing-to-prune")
+        self.assertEqual(doc["prune"]["skipped"], [{"id": "kept", "reason": "review-folder-present"}])
+        self.assertEqual((doc["prune"]["ids"], doc["prune"]["plan_digest"]), ([], None))
+        self.assertIn("nothing to prune", out.err)
+
+    def test_a_prune_stop_with_nothing_to_clean_keeps_the_cleanups_outcome_stopped(self):
+        out = self.go_j({"prune:dry": {"stdout": "nope"}}, rep=with_archives(tc.many(5, mib=2)))
+        doc = self.doc(out)
+        self.assertEqual((out.code, doc["exit_code"], doc["outcome"]), (2, 2, "stopped"))
+        self.assertEqual(doc["stopped"]["step"], "prune")
+        self.assertEqual(doc["prune"]["outcome"], "stopped")
+
+
+class TestHelpAndWording(unittest.TestCase):
+    def test_the_old_statements_are_gone_and_the_new_ones_say_the_limits(self):
+        text = " ".join(help_of(tc.COMMAND).split())
+        self.assertNotIn("Prune is never run.", text)
+        self.assertNotIn("Prune is never run\"", text)
+        for words in ("Prune is never run by the confirmed run", "unattended.prune is true",
+                      "older than unattended.ttl_days", "unattended.prune_max_per_run",
+                      "cannot be undone", "not backed up", "prune --apply was attempted"):
+            self.assertIn(words, text)
+        self.assertEqual(text.count("Prune is never run"), 1)
 
 
 if __name__ == "__main__":
