@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_work_item_id": "unattended-retention-prune",
+  "active_work_item_id": null,
   "work_items": {
     "plan-amendment-mechanism": {
       "work_item_type": "process",
@@ -43516,7 +43516,7 @@
       "registry_path": "docs/ai-workflow/registry/unattended-retention-prune-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/unattended-retention-prune-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_FUNCTIONAL_REVIEW",
+      "phase": "MILESTONE_COMPLETE",
       "plan_revision": 5,
       "implementation_revision": 3,
       "functional_review_round": null,
@@ -43811,8 +43811,8 @@
           "external": 2
         }
       },
-      "state_revision": 39,
-      "last_transition": "2026-11-19T16:25:39Z",
+      "state_revision": 40,
+      "last_transition": "2026-11-19T17:09:47Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -44146,213 +44146,387 @@
           "flow-1": {
             "flow_id": "flow-1",
             "status": "passed",
-            "head": "1878aa50d86aa2f42e697309834170d196c65f6b",
-            "ran_at": "2026-11-19T15:38:05Z",
+            "head": "67362143fe3e85e8e59983bf70388046f2256b29",
+            "ran_at": "2026-11-19T17:07:37Z",
             "summary": {
-              "checklist_blob": "75f339527946ba3efd469c7e19bfd42b77bdf1a8",
-              "text": "The source and test name-status changes match the checklist exactly."
+              "checklist_blob": "2aa4c2f6a600f4265de57bf9bc682696f18a9bff",
+              "text": "The name-status diff lists exactly the 2 A and 7 M files expected, nothing under tools, .github, .claude, scripts or .workflow-manager, and neither test_retention_run.py nor test_retention_policy.py."
             },
-            "log_digest": "ba73f826d10a4ae3a4687da54452c092a08b3ee7a6a80ac666618f068256dc0b",
-            "run_ref": "controller:20261119T153611Z-f8205de5",
-            "reporter": "workflow-controller 1.31.1",
-            "identity": "afd6b6ae9664d438505f2c25c66143f75387ae36b568587cde81eb6cff4a3c2b",
-            "recorded_at": "2026-11-19T15:38:05Z"
+            "log_digest": "a744962b5a3c57ba74c4d4a233ba3423a02fce762bbe3361882a4714ff3a7d12",
+            "run_ref": "claude-functional:md52-functional-r2",
+            "reporter": "manager claude-functional.sh (Sonnet 5.5)",
+            "identity": "851420a76cedd8df732e47ba6cf2f430a48a70d59860375e0088143c8003a259",
+            "recorded_at": "2026-11-19T17:07:37Z"
           },
           "flow-2": {
             "flow_id": "flow-2",
-            "status": "failed",
-            "head": "1878aa50d86aa2f42e697309834170d196c65f6b",
-            "ran_at": "2026-11-19T15:38:05Z",
+            "status": "passed",
+            "head": "67362143fe3e85e8e59983bf70388046f2256b29",
+            "ran_at": "2026-11-19T17:07:37Z",
             "summary": {
-              "checklist_blob": "75f339527946ba3efd469c7e19bfd42b77bdf1a8",
-              "reason": "defect",
-              "text": "The committed documentation changes match, but the expected working-tree modification to docs/ROADMAP.md is absent."
+              "checklist_blob": "2aa4c2f6a600f4265de57bf9bc682696f18a9bff",
+              "text": "The docs diff shows M for exit-codes.md, retention.md, ACTIVE_MILESTONE.md and WORKFLOW_STATE.json, and A for the plan, 2 registry files and the mapping file, with no other page."
             },
-            "log_digest": "cf9e04bea2b5e7d1d8f9db41cdfc359293d6021861fa3fca8b967079f8631013",
-            "run_ref": "controller:20261119T153611Z-f8205de5",
-            "reporter": "workflow-controller 1.31.1",
-            "identity": "afd6b6ae9664d438505f2c25c66143f75387ae36b568587cde81eb6cff4a3c2b",
-            "recorded_at": "2026-11-19T15:38:05Z"
+            "log_digest": "6f44cd0cda123584c571016681ffb5afb799e0d4e5dca14f046522fc64f77cc4",
+            "run_ref": "claude-functional:md52-functional-r2",
+            "reporter": "manager claude-functional.sh (Sonnet 5.5)",
+            "identity": "851420a76cedd8df732e47ba6cf2f430a48a70d59860375e0088143c8003a259",
+            "recorded_at": "2026-11-19T17:07:37Z"
           },
           "flow-3": {
             "flow_id": "flow-3",
             "status": "passed",
-            "head": "1878aa50d86aa2f42e697309834170d196c65f6b",
-            "ran_at": "2026-11-19T15:38:05Z",
+            "head": "67362143fe3e85e8e59983bf70388046f2256b29",
+            "ran_at": "2026-11-19T17:07:37Z",
             "summary": {
-              "checklist_blob": "75f339527946ba3efd469c7e19bfd42b77bdf1a8",
-              "text": "The specified paths have no changes against the base commit; git diff exited 0."
+              "checklist_blob": "2aa4c2f6a600f4265de57bf9bc682696f18a9bff",
+              "text": "The diff --exit-code over the unchanged files exits 0."
             },
-            "log_digest": "ca7d38f3b12b1ae7d21fbdcdf92336576bcc3dcba7eb824d7a18cf990947dacf",
-            "run_ref": "controller:20261119T153611Z-f8205de5",
-            "reporter": "workflow-controller 1.31.1",
-            "identity": "afd6b6ae9664d438505f2c25c66143f75387ae36b568587cde81eb6cff4a3c2b",
-            "recorded_at": "2026-11-19T15:38:05Z"
+            "log_digest": "28d3b9e880a77975493dc7e359144c0295a4f694cfe0af4f928c22307bc5c320",
+            "run_ref": "claude-functional:md52-functional-r2",
+            "reporter": "manager claude-functional.sh (Sonnet 5.5)",
+            "identity": "851420a76cedd8df732e47ba6cf2f430a48a70d59860375e0088143c8003a259",
+            "recorded_at": "2026-11-19T17:07:37Z"
           },
           "flow-4": {
             "flow_id": "flow-4",
             "status": "passed",
-            "head": "1878aa50d86aa2f42e697309834170d196c65f6b",
-            "ran_at": "2026-11-19T15:38:05Z",
+            "head": "67362143fe3e85e8e59983bf70388046f2256b29",
+            "ran_at": "2026-11-19T17:07:37Z",
             "summary": {
-              "checklist_blob": "75f339527946ba3efd469c7e19bfd42b77bdf1a8",
-              "text": "The retention documentation describes the TTL, cap, irreversible deletion and archive store; exit codes 0, 1 and 2 mention prune."
+              "checklist_blob": "2aa4c2f6a600f4265de57bf9bc682696f18a9bff",
+              "text": "retention.md names the ttl rule, prune_max_per_run, \"cannot be undone\" and workflow-archive, and exit-codes.md mentions prune in the rows for exits 0, 1 and 2."
             },
-            "log_digest": "28603ec9a16cce616b12ca278c872826971358c0583dcd77cc33c751a6f37a5d",
-            "run_ref": "controller:20261119T153611Z-f8205de5",
-            "reporter": "workflow-controller 1.31.1",
-            "identity": "afd6b6ae9664d438505f2c25c66143f75387ae36b568587cde81eb6cff4a3c2b",
-            "recorded_at": "2026-11-19T15:38:06Z"
+            "log_digest": "d3646da10bf0a1d15e32f9a81172290ee9bb36fb99b3b5281f5e62b8b9be88d0",
+            "run_ref": "claude-functional:md52-functional-r2",
+            "reporter": "manager claude-functional.sh (Sonnet 5.5)",
+            "identity": "851420a76cedd8df732e47ba6cf2f430a48a70d59860375e0088143c8003a259",
+            "recorded_at": "2026-11-19T17:07:37Z"
           },
           "flow-5": {
             "flow_id": "flow-5",
             "status": "passed",
-            "head": "1878aa50d86aa2f42e697309834170d196c65f6b",
-            "ran_at": "2026-11-19T15:38:06Z",
+            "head": "67362143fe3e85e8e59983bf70388046f2256b29",
+            "ran_at": "2026-11-19T17:07:37Z",
             "summary": {
-              "checklist_blob": "75f339527946ba3efd469c7e19bfd42b77bdf1a8",
-              "text": "None of the prohibited references appears in the two pages; grep exited 1."
+              "checklist_blob": "2aa4c2f6a600f4265de57bf9bc682696f18a9bff",
+              "text": "grep finds no match and exits 1."
             },
-            "log_digest": "0d32dbb375c15e2bd732e07235bc948e1a1bccfbfeba2364de28f13668b1ccf8",
-            "run_ref": "controller:20261119T153611Z-f8205de5",
-            "reporter": "workflow-controller 1.31.1",
-            "identity": "afd6b6ae9664d438505f2c25c66143f75387ae36b568587cde81eb6cff4a3c2b",
-            "recorded_at": "2026-11-19T15:38:06Z"
+            "log_digest": "0c6868c2c44f053619cef1cc383e1d530743b574ca192ace9168a9ccf46a86e3",
+            "run_ref": "claude-functional:md52-functional-r2",
+            "reporter": "manager claude-functional.sh (Sonnet 5.5)",
+            "identity": "851420a76cedd8df732e47ba6cf2f430a48a70d59860375e0088143c8003a259",
+            "recorded_at": "2026-11-19T17:07:37Z"
           },
           "flow-6": {
             "flow_id": "flow-6",
-            "status": "failed",
-            "head": "1878aa50d86aa2f42e697309834170d196c65f6b",
-            "ran_at": "2026-11-19T15:38:06Z",
+            "status": "passed",
+            "head": "67362143fe3e85e8e59983bf70388046f2256b29",
+            "ran_at": "2026-11-19T17:07:37Z",
             "summary": {
-              "checklist_blob": "75f339527946ba3efd469c7e19bfd42b77bdf1a8",
-              "reason": "defect",
-              "text": "The two expected matches appear, but docs/retention.md:90 also incorrectly says prune is never run, the checklist's known failure."
+              "checklist_blob": "2aa4c2f6a600f4265de57bf9bc682696f18a9bff",
+              "text": "Exactly two matches, both \"prune was not run\", at retention_run.py:359 and docs/retention.md:362, and no \"never new actions\" match."
             },
-            "log_digest": "320816171fb4fa698f90d321bd1ed7e9f2c23be47dbd1323eb07e6978e2b34ed",
-            "run_ref": "controller:20261119T153611Z-f8205de5",
-            "reporter": "workflow-controller 1.31.1",
-            "identity": "afd6b6ae9664d438505f2c25c66143f75387ae36b568587cde81eb6cff4a3c2b",
-            "recorded_at": "2026-11-19T15:38:06Z"
+            "log_digest": "041936818ddd9edb8224968da090833720d0ae206e299606897702afbb6983a5",
+            "run_ref": "claude-functional:md52-functional-r2",
+            "reporter": "manager claude-functional.sh (Sonnet 5.5)",
+            "identity": "851420a76cedd8df732e47ba6cf2f430a48a70d59860375e0088143c8003a259",
+            "recorded_at": "2026-11-19T17:07:37Z"
           },
           "flow-7": {
             "flow_id": "flow-7",
-            "status": "failed",
-            "head": "1878aa50d86aa2f42e697309834170d196c65f6b",
-            "ran_at": "2026-11-19T15:38:06Z",
+            "status": "passed",
+            "head": "67362143fe3e85e8e59983bf70388046f2256b29",
+            "ran_at": "2026-11-19T17:07:37Z",
             "summary": {
-              "checklist_blob": "75f339527946ba3efd469c7e19bfd42b77bdf1a8",
-              "reason": "defect",
-              "text": "Roadmap row 52 is absent and there is no one-line working-tree addition relative to the base; rows 50 and 51 are unchanged."
+              "checklist_blob": "2aa4c2f6a600f4265de57bf9bc682696f18a9bff",
+              "text": "Printed \"committed roadmap unchanged\", exit 0."
             },
-            "log_digest": "6306a953ef7758004f29dc0c38df837de888a2ac1b9c4ac42402c3ca39e9b538",
-            "run_ref": "controller:20261119T153611Z-f8205de5",
-            "reporter": "workflow-controller 1.31.1",
-            "identity": "afd6b6ae9664d438505f2c25c66143f75387ae36b568587cde81eb6cff4a3c2b",
-            "recorded_at": "2026-11-19T15:38:06Z"
+            "log_digest": "87f646f776cb9c59b158e826b91830b7f24ef7d7470c84c22e396636c6991371",
+            "run_ref": "claude-functional:md52-functional-r2",
+            "reporter": "manager claude-functional.sh (Sonnet 5.5)",
+            "identity": "851420a76cedd8df732e47ba6cf2f430a48a70d59860375e0088143c8003a259",
+            "recorded_at": "2026-11-19T17:07:37Z"
           },
           "flow-8": {
             "flow_id": "flow-8",
             "status": "passed",
-            "head": "1878aa50d86aa2f42e697309834170d196c65f6b",
-            "ran_at": "2026-11-19T15:38:06Z",
+            "head": "67362143fe3e85e8e59983bf70388046f2256b29",
+            "ran_at": "2026-11-19T17:07:37Z",
             "summary": {
-              "checklist_blob": "75f339527946ba3efd469c7e19bfd42b77bdf1a8",
-              "text": "Combining --confirm and --unattended was rejected with exit 2 and did not create the state directory."
+              "checklist_blob": "2aa4c2f6a600f4265de57bf9bc682696f18a9bff",
+              "text": "stderr was \"error: retention cleanup: --confirm and --unattended cannot be combined (...)\", the exit code was 2, and \"absent\" was printed."
             },
-            "log_digest": "c09506fd589f83d0731b214e0a23d6380bef2b03b35beffa511c43bbcb83f1fd",
-            "run_ref": "controller:20261119T153611Z-f8205de5",
-            "reporter": "workflow-controller 1.31.1",
-            "identity": "afd6b6ae9664d438505f2c25c66143f75387ae36b568587cde81eb6cff4a3c2b",
-            "recorded_at": "2026-11-19T15:38:07Z"
+            "log_digest": "e94ee20e34e7755c8c6202336c15cc96daf32e69fc37a0aa035b940e19ed1015",
+            "run_ref": "claude-functional:md52-functional-r2",
+            "reporter": "manager claude-functional.sh (Sonnet 5.5)",
+            "identity": "851420a76cedd8df732e47ba6cf2f430a48a70d59860375e0088143c8003a259",
+            "recorded_at": "2026-11-19T17:07:37Z"
           },
           "flow-9": {
             "flow_id": "flow-9",
             "status": "passed",
-            "head": "1878aa50d86aa2f42e697309834170d196c65f6b",
-            "ran_at": "2026-11-19T15:38:07Z",
+            "head": "67362143fe3e85e8e59983bf70388046f2256b29",
+            "ran_at": "2026-11-19T17:07:37Z",
             "summary": {
-              "checklist_blob": "75f339527946ba3efd469c7e19bfd42b77bdf1a8",
-              "text": "The release title was accepted with minor impact and exit 0."
+              "checklist_blob": "2aa4c2f6a600f4265de57bf9bc682696f18a9bff",
+              "text": "Printed \"valid title: feat, release impact minor\", exit 0."
             },
-            "log_digest": "a4ba86e10368be51be8dfb6e81492dfbcca9ade23cf8b8d9edec3ec84c7789fe",
-            "run_ref": "controller:20261119T153611Z-f8205de5",
-            "reporter": "workflow-controller 1.31.1",
-            "identity": "afd6b6ae9664d438505f2c25c66143f75387ae36b568587cde81eb6cff4a3c2b",
-            "recorded_at": "2026-11-19T15:38:07Z"
+            "log_digest": "df67c645cc0442024e1daf5f8d99ec4b1e99caabe4824499dfa26a5d4fcdbc5f",
+            "run_ref": "claude-functional:md52-functional-r2",
+            "reporter": "manager claude-functional.sh (Sonnet 5.5)",
+            "identity": "851420a76cedd8df732e47ba6cf2f430a48a70d59860375e0088143c8003a259",
+            "recorded_at": "2026-11-19T17:07:37Z"
           },
           "flow-10": {
             "flow_id": "flow-10",
-            "status": "failed",
-            "head": "1878aa50d86aa2f42e697309834170d196c65f6b",
-            "ran_at": "2026-11-19T15:38:07Z",
+            "status": "passed",
+            "head": "67362143fe3e85e8e59983bf70388046f2256b29",
+            "ran_at": "2026-11-19T17:07:37Z",
             "summary": {
-              "checklist_blob": "75f339527946ba3efd469c7e19bfd42b77bdf1a8",
-              "reason": "environment",
-              "text": "The runner cannot create its lock under the read-only clone's .git; the supplementary direct test run also lacks the verified release cache. The mutation phase conflicts with the rule prohibiting edits to product source, including copies."
+              "checklist_blob": "2aa4c2f6a600f4265de57bf9bc682696f18a9bff",
+              "text": "Targeted selection gave `verdict: exit 0` (71 of 71 units, 437 tests); mutation M3 in a scratch copy gave `verdict: exit 1` with 20 units run and both named tests (`test_an_old_archive_whose_folder_is_present_is_never_named`, `test_a_present_review_folder_is_excluded_with_its_reason`) among the failures."
             },
-            "log_digest": "d9ca114cb6404352979f051ec66eb758ece9716eced345b4d20a32165039098a",
-            "run_ref": "controller:20261119T153611Z-f8205de5",
-            "reporter": "workflow-controller 1.31.1",
-            "identity": "afd6b6ae9664d438505f2c25c66143f75387ae36b568587cde81eb6cff4a3c2b",
-            "recorded_at": "2026-11-19T15:38:07Z"
+            "log_digest": "a244ee4c7efdfb3795c49f3d0a0377d93d3239c091b9a578305ec48ec0e5e377",
+            "run_ref": "claude-functional:md52-functional-r1",
+            "reporter": "manager claude-functional.sh (Sonnet 5.5)",
+            "identity": "851420a76cedd8df732e47ba6cf2f430a48a70d59860375e0088143c8003a259",
+            "recorded_at": "2026-11-19T17:07:38Z"
           },
           "flow-11": {
             "flow_id": "flow-11",
-            "status": "failed",
-            "head": "1878aa50d86aa2f42e697309834170d196c65f6b",
-            "ran_at": "2026-11-19T15:38:07Z",
+            "status": "passed",
+            "head": "67362143fe3e85e8e59983bf70388046f2256b29",
+            "ran_at": "2026-11-19T17:07:37Z",
             "summary": {
-              "checklist_blob": "75f339527946ba3efd469c7e19bfd42b77bdf1a8",
-              "reason": "environment",
-              "text": "A managed target with an adopted policy and verified Workflow release is unavailable, and the release cannot be fetched without network access; the scratch-target preview was refused as unmanaged."
+              "checklist_blob": "2aa4c2f6a600f4265de57bf9bc682696f18a9bff",
+              "text": "Preview and `status --retention` exit 0 with the adopted-unattended lines (archives and removes, then prunes archives of finished items whose folder is gone, older than 14 days, at most 3 per run, cannot be undone, store `~/.local/share/workflow-archive`) and no \"prune is not run\" line."
             },
-            "log_digest": "5dd76968c4f25596da92542ef7b3c45f75154aa1b3a2c31391af5e26d5cf894d",
-            "run_ref": "controller:20261119T153611Z-f8205de5",
-            "reporter": "workflow-controller 1.31.1",
-            "identity": "afd6b6ae9664d438505f2c25c66143f75387ae36b568587cde81eb6cff4a3c2b",
-            "recorded_at": "2026-11-19T15:38:07Z"
+            "log_digest": "4ee43039c0ee66859d1be95f0eadbfeeb4d5917433034dcd2923841f91b6ae87",
+            "run_ref": "claude-functional:md52-functional-r1",
+            "reporter": "manager claude-functional.sh (Sonnet 5.5)",
+            "identity": "851420a76cedd8df732e47ba6cf2f430a48a70d59860375e0088143c8003a259",
+            "recorded_at": "2026-11-19T17:07:38Z"
           },
           "flow-12": {
             "flow_id": "flow-12",
-            "status": "failed",
-            "head": "1878aa50d86aa2f42e697309834170d196c65f6b",
-            "ran_at": "2026-11-19T15:38:08Z",
+            "status": "passed",
+            "head": "67362143fe3e85e8e59983bf70388046f2256b29",
+            "ran_at": "2026-11-19T17:07:37Z",
             "summary": {
-              "checklist_blob": "75f339527946ba3efd469c7e19bfd42b77bdf1a8",
-              "reason": "environment",
-              "text": "The managed target, verified release, adopted policy and prepared archive store are unavailable; the scratch-target unattended run was refused as unmanaged."
+              "checklist_blob": "2aa4c2f6a600f4265de57bf9bc682696f18a9bff",
+              "text": "Exit 0; JSON `prune.enabled` true, `outcome` done, ids the three oldest old archives oldest first (40, 35, 30 days), the 20-day archive (capped) and the 1-day archive remain, audit has one `prune` `started` then three `ok` lines, real store absent."
             },
-            "log_digest": "2f76ea839a2e0bb20a0ec181e5df326beeee16c17298cfc8056fb0af57be9dc1",
-            "run_ref": "controller:20261119T153611Z-f8205de5",
-            "reporter": "workflow-controller 1.31.1",
-            "identity": "afd6b6ae9664d438505f2c25c66143f75387ae36b568587cde81eb6cff4a3c2b",
-            "recorded_at": "2026-11-19T15:38:08Z"
+            "log_digest": "1b7ee163d04259a7bace8dacaa4425a79ff5b044c52d318d49ce7b3a87652872",
+            "run_ref": "claude-functional:md52-functional-r1",
+            "reporter": "manager claude-functional.sh (Sonnet 5.5)",
+            "identity": "851420a76cedd8df732e47ba6cf2f430a48a70d59860375e0088143c8003a259",
+            "recorded_at": "2026-11-19T17:07:38Z"
           },
           "flow-13": {
             "flow_id": "flow-13",
-            "status": "failed",
-            "head": "1878aa50d86aa2f42e697309834170d196c65f6b",
-            "ran_at": "2026-11-19T15:38:08Z",
+            "status": "passed",
+            "head": "67362143fe3e85e8e59983bf70388046f2256b29",
+            "ran_at": "2026-11-19T17:07:37Z",
             "summary": {
-              "checklist_blob": "75f339527946ba3efd469c7e19bfd42b77bdf1a8",
-              "reason": "environment",
-              "text": "The disabled-prune scenario depends on the unavailable managed target, verified release, policy and archives from flow 12, so it could not be run."
+              "checklist_blob": "2aa4c2f6a600f4265de57bf9bc682696f18a9bff",
+              "text": "With `prune` false and re-adopted: preview says `unattended.prune is false, so no archive is pruned`, JSON `prune.enabled` false / `outcome` `disabled`, a run that did cleanup ended `... prune was not run`, no new `prune` audit line, the remaining old archive was not deleted."
             },
-            "log_digest": "c2a65fc87cf33f03c35b11c61cb2eeb744e0f441fc84bc00b8ceaa7828ef4157",
-            "run_ref": "controller:20261119T153611Z-f8205de5",
-            "reporter": "workflow-controller 1.31.1",
-            "identity": "afd6b6ae9664d438505f2c25c66143f75387ae36b568587cde81eb6cff4a3c2b",
-            "recorded_at": "2026-11-19T15:38:08Z"
+            "log_digest": "b6e8f47dbbbfd8b2d58f5f6557b0d3d04bf2b5980408db042d7d43a0b5729952",
+            "run_ref": "claude-functional:md52-functional-r1",
+            "reporter": "manager claude-functional.sh (Sonnet 5.5)",
+            "identity": "851420a76cedd8df732e47ba6cf2f430a48a70d59860375e0088143c8003a259",
+            "recorded_at": "2026-11-19T17:07:38Z"
+          },
+          "flow-14": {
+            "flow_id": "flow-14",
+            "status": "passed",
+            "head": "67362143fe3e85e8e59983bf70388046f2256b29",
+            "ran_at": "2026-11-19T17:07:37Z",
+            "summary": {
+              "checklist_blob": "2aa4c2f6a600f4265de57bf9bc682696f18a9bff",
+              "text": "Row 52 names #254 and A3 with status Done as an uncommitted working-tree edit; name-status M, numstat 1 0 (rows 50 and 51 unchanged); read-only check by the orchestrator."
+            },
+            "log_digest": "6cfb54ef86215defbf96baa06ec5fbd08113d9e19a481d328513a3977b7c6ec4",
+            "run_ref": "manager orchestrator read-only check",
+            "reporter": "manager orchestrator",
+            "identity": "851420a76cedd8df732e47ba6cf2f430a48a70d59860375e0088143c8003a259",
+            "recorded_at": "2026-11-19T17:07:38Z"
           }
         },
-        "pr": null,
+        "pr": {
+          "pr": {
+            "number": 263,
+            "url": "https://github.com/RodrigoFAbreu/workflow-manager/pull/263"
+          },
+          "state": "open",
+          "head": "67362143fe3e85e8e59983bf70388046f2256b29",
+          "review_decision": null,
+          "reviewed_head": null,
+          "checks": {
+            "state": "success",
+            "failing": []
+          },
+          "review_id": null,
+          "findings": null,
+          "identity_at_head": "851420a76cedd8df732e47ba6cf2f430a48a70d59860375e0088143c8003a259",
+          "observed_at": "2026-11-19T17:09:47Z",
+          "ingest_seq": 1,
+          "repository": "RodrigoFAbreu/workflow-manager",
+          "queried_commit": "59b2c4e6faa17cb60fcf420e3d950388ba8644d6",
+          "provenance": {
+            "source": "workflow_gh",
+            "fetched_by": {
+              "name": "workflow-gh",
+              "version": "pr-list-v1"
+            },
+            "fetched_at": "2026-11-19T17:09:47Z",
+            "raw_sha256": "64da6b4a303e46b4366aedef0e0880f93d01243cd071c7fb0f9512e08910c1a0",
+            "run_ref": null,
+            "gh_path": "/usr/bin/gh",
+            "gh_sha256": "ce3200ab0615ae60ee68dd4833719cd3a3856e8b22ae1a3641998b39be8d3dbf"
+          },
+          "fact_id": "4a8e31c9245c9af16c348fb0901e21e81b49bd8d7a442aa097c64fd5e7d3a592"
+        },
         "pr_reported": null,
         "pr_keys": {
           "reopened_for": [],
           "applied": [],
-          "ingest_seq": 0
+          "ingest_seq": 1
         }
+      },
+      "acceptance_satisfaction": {
+        "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "policy_source": "default",
+        "file_digest": null,
+        "adopted_digest": null,
+        "floor_digest": null,
+        "requirements": [
+          {
+            "id": "checkpoints_complete",
+            "met": true,
+            "detail": "every checkpoint of the item's own registry is COMPLETE"
+          },
+          {
+            "id": "technical_approval_current",
+            "met": true,
+            "detail": "the technical approval is CURRENT for the content now"
+          },
+          {
+            "id": "functional_flows_passed",
+            "met": true,
+            "detail": "flows ['flow-1', 'flow-10', 'flow-11', 'flow-12', 'flow-13', 'flow-14', 'flow-2', 'flow-3', 'flow-4', 'flow-5', 'flow-6', 'flow-7', 'flow-8', 'flow-9'] passed at the approved content"
+          },
+          {
+            "id": "pr_fact_current",
+            "met": true,
+            "detail": "workflow_gh fact for PR #263 at 67362143fe3e85e8e59983bf70388046f2256b29 is current"
+          },
+          {
+            "id": "no_standing_pr_objection",
+            "met": true,
+            "detail": "no CHANGES_REQUESTED decision and no failed check"
+          },
+          {
+            "id": "ci_green",
+            "met": true,
+            "detail": "checks are 'success'"
+          }
+        ],
+        "inputs": {
+          "anchor_commit": "59b2c4e6faa17cb60fcf420e3d950388ba8644d6",
+          "anchor_identity": "851420a76cedd8df732e47ba6cf2f430a48a70d59860375e0088143c8003a259",
+          "technical_approval": {
+            "basis": "POLICY_SATISFIED",
+            "approved_review_content_id": "851420a76cedd8df732e47ba6cf2f430a48a70d59860375e0088143c8003a259",
+            "recorded_at": "2026-11-19T16:25:39Z"
+          },
+          "functional": {
+            "flow-1": {
+              "evidence_id": "081ac87ee9d0272e242e54a57612dc62fd365ca78a95fa5d17d1c94321e477eb",
+              "log_digest": "a744962b5a3c57ba74c4d4a233ba3423a02fce762bbe3361882a4714ff3a7d12",
+              "run_ref": "claude-functional:md52-functional-r2"
+            },
+            "flow-10": {
+              "evidence_id": "7ed9c7e8a2766b3a45e6e031549345464b1d8ed8970109e35e092d9a47439e1d",
+              "log_digest": "a244ee4c7efdfb3795c49f3d0a0377d93d3239c091b9a578305ec48ec0e5e377",
+              "run_ref": "claude-functional:md52-functional-r1"
+            },
+            "flow-11": {
+              "evidence_id": "69f48e8ecaff8a739f86f27db499264ac5513a11e330896686617d49ba2dff7b",
+              "log_digest": "4ee43039c0ee66859d1be95f0eadbfeeb4d5917433034dcd2923841f91b6ae87",
+              "run_ref": "claude-functional:md52-functional-r1"
+            },
+            "flow-12": {
+              "evidence_id": "7e44bf7ad7a1ca4a5c806560a1611b74409da23bb1a0113f552f09fed3bbb660",
+              "log_digest": "1b7ee163d04259a7bace8dacaa4425a79ff5b044c52d318d49ce7b3a87652872",
+              "run_ref": "claude-functional:md52-functional-r1"
+            },
+            "flow-13": {
+              "evidence_id": "331738a9a340b1a5e35cf4471e22b2be47122eb423ff96e6d9bbbfd93e710cfe",
+              "log_digest": "b6e8f47dbbbfd8b2d58f5f6557b0d3d04bf2b5980408db042d7d43a0b5729952",
+              "run_ref": "claude-functional:md52-functional-r1"
+            },
+            "flow-14": {
+              "evidence_id": "e3fbaa5c14fb5d82392a28b7415fd0aa67cf6605467f31563a579a04c32a1ca2",
+              "log_digest": "6cfb54ef86215defbf96baa06ec5fbd08113d9e19a481d328513a3977b7c6ec4",
+              "run_ref": "manager orchestrator read-only check"
+            },
+            "flow-2": {
+              "evidence_id": "0cc05517d192868eaa744ee52b1604b2186b7d57146a258e128adcc3de40e301",
+              "log_digest": "6f44cd0cda123584c571016681ffb5afb799e0d4e5dca14f046522fc64f77cc4",
+              "run_ref": "claude-functional:md52-functional-r2"
+            },
+            "flow-3": {
+              "evidence_id": "d9bca30731959bb6939d7e8c0e2e876e37f8493e83f2aa3e3087849e3e5162fc",
+              "log_digest": "28d3b9e880a77975493dc7e359144c0295a4f694cfe0af4f928c22307bc5c320",
+              "run_ref": "claude-functional:md52-functional-r2"
+            },
+            "flow-4": {
+              "evidence_id": "4b81693408fe720c79b569bc0da1971ffab65bbd7b604b119f59c6f27b19c44d",
+              "log_digest": "d3646da10bf0a1d15e32f9a81172290ee9bb36fb99b3b5281f5e62b8b9be88d0",
+              "run_ref": "claude-functional:md52-functional-r2"
+            },
+            "flow-5": {
+              "evidence_id": "238ca88dba36fd63457e4c8e0127bb51549a2e7c851e0b3b182afeb87275fe3f",
+              "log_digest": "0c6868c2c44f053619cef1cc383e1d530743b574ca192ace9168a9ccf46a86e3",
+              "run_ref": "claude-functional:md52-functional-r2"
+            },
+            "flow-6": {
+              "evidence_id": "f4c1a571d50b35a1decc4e69c787a838a727dde2e54123d9227b3a3ded3a0422",
+              "log_digest": "041936818ddd9edb8224968da090833720d0ae206e299606897702afbb6983a5",
+              "run_ref": "claude-functional:md52-functional-r2"
+            },
+            "flow-7": {
+              "evidence_id": "6e15240a553fce7f8092a6ff1ce9347c6275fe2d2b15c764fa1665221b8a2e9d",
+              "log_digest": "87f646f776cb9c59b158e826b91830b7f24ef7d7470c84c22e396636c6991371",
+              "run_ref": "claude-functional:md52-functional-r2"
+            },
+            "flow-8": {
+              "evidence_id": "811cd5dfa3fe508fdf1f974709cbe8cc1c929b2ad97560ee1960bac4a747974e",
+              "log_digest": "e94ee20e34e7755c8c6202336c15cc96daf32e69fc37a0aa035b940e19ed1015",
+              "run_ref": "claude-functional:md52-functional-r2"
+            },
+            "flow-9": {
+              "evidence_id": "1ba3b147f866c996c11ce952ce4067fb2e2784776ae1322a199ab3310bcb0715",
+              "log_digest": "df67c645cc0442024e1daf5f8d99ec4b1e99caabe4824499dfa26a5d4fcdbc5f",
+              "run_ref": "claude-functional:md52-functional-r2"
+            }
+          },
+          "pr": {
+            "fact_id": "4a8e31c9245c9af16c348fb0901e21e81b49bd8d7a442aa097c64fd5e7d3a592",
+            "head": "67362143fe3e85e8e59983bf70388046f2256b29",
+            "provenance": "workflow_gh",
+            "raw_sha256": "64da6b4a303e46b4366aedef0e0880f93d01243cd071c7fb0f9512e08910c1a0"
+          }
+        },
+        "trust": {
+          "review_verdicts": "orchestrator",
+          "functional_evidence": "orchestrator",
+          "pr_fact": "workflow_gh"
+        },
+        "evaluated_at": "2026-11-19T17:09:47Z",
+        "workflow_release": "2.29.9"
       }
     }
   }
