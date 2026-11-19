@@ -62,6 +62,8 @@ class Result:
     error: str | None = None
     next_step: str | None = None
     calls: list = field(default_factory=list)   # (step, item id) in the order issued
+    stop: dict | None = None     # how it stopped: step, item_id, engine_code, error
+    audit_error: str | None = None   # an observer (audit) failure, when there was one
 
 
 def _clean(text: str) -> str:
@@ -147,6 +149,18 @@ def _call(root: str, step: str, item_id: str, calls: list):
                     known=step != REMOVE)
 
 
+def _observe(observer, step: str, item_id: str, where: str) -> None:
+    """Tell the observer a step succeeded; its failure stops the run (`_AuditStop`)."""
+    if observer is None:
+        return
+    try:
+        observer(step, item_id, "ok", None, None)
+    except Exception as audit:  # noqa: BLE001 -- any observer failure stops the run
+        raise _AuditStop(step, getattr(audit, "cause", None) or str(audit),
+                         getattr(audit, "step", None) or f"inspect {where or 'the audit file'} "
+                         "and run again") from audit
+
+
 def _mib(count: int) -> int:
     return count // 2**20
 
@@ -184,9 +198,30 @@ def _closing(step: str, known: bool, item, total: int, done: int,
             "nothing was committed or needs committing")
 
 
-def run(target: Path, plan, emit=None) -> Result:
+class _AuditStop(Exception):
+    """The observer failed after a step that had succeeded: the run stops, no further
+    call is made."""
+
+    def __init__(self, step: str, cause: str, next_step: str):
+        super().__init__(cause)
+        self.step, self.cause, self.next_step = step, cause, next_step
+
+
+def _engine_code(engine) -> str | None:
+    return engine[0].split(":", 1)[0] if engine is not None else None
+
+
+def run(target: Path, plan, emit=None, *, unattended: bool = False, observer=None,
+        audit_where: str = "") -> Result:
     """Run `plan` item by item. `emit(line)` prints a line as it happens (default:
-    stdout, flushed), so a killed Manager leaves a record. Returns the `Result`."""
+    stdout, flushed), so a killed Manager leaves a record. Returns the `Result`.
+
+    `unattended`: the per-item policy re-read also requires the adoption to still
+    authorise an unattended cleanup (the policy's digest does not cover the adoption
+    record). `observer(step, item_id, result, engine_code, text)` is called after
+    each step (`result` `ok`, `failed`, `interrupted` or, for the policy stop,
+    `stopped`); when it raises after a step that succeeded, the run stops before the
+    next call. Both default to the confirmed run's behaviour, byte for byte."""
     if emit is None:
         def emit(line: str) -> None:
             print(line, flush=True)
@@ -206,6 +241,9 @@ def run(target: Path, plan, emit=None) -> Result:
                 state = retention_policy.load(Path(target))
                 unchanged = (state.state == retention_policy.ADOPTED
                              and state.digest == plan.policy_digest)
+                if unchanged and unattended:
+                    unchanged = (state.unattended is not None
+                                 and bool(state.unattended["cleanup"]))
             except Exception:  # noqa: BLE001 -- an unreadable policy is a changed policy
                 unchanged = False
             if not unchanged:
@@ -214,16 +252,40 @@ def run(target: Path, plan, emit=None) -> Result:
             if item.action != retention_cleanup.REMOVE_ONLY:
                 step = ARCHIVE
                 _call(root, ARCHIVE, item.work_item_id, result.calls)
+                _observe(observer, ARCHIVE, item.work_item_id, audit_where)
                 done_steps.append(f"archived {_mib(item.bytes)} MiB")
             step = VERIFY
             _call(root, VERIFY, item.work_item_id, result.calls)
+            _observe(observer, VERIFY, item.work_item_id, audit_where)
             done_steps.append("remove only, verified" if item.action == retention_cleanup.REMOVE_ONLY
                               else "verified")
             step = REMOVE
             _call(root, REMOVE, item.work_item_id, result.calls)
+            _observe(observer, REMOVE, item.work_item_id, audit_where)
             done_steps.append("removed")
             emit(f"  {number}. {item.work_item_id}: {', '.join(done_steps)}")
             result.done += 1
+        except _AuditStop as stop:
+            # the step had succeeded; its audit line could not be written
+            if stop.step == REMOVE:
+                result.done += 1
+            emit(f"  {number}. {item.work_item_id}: {stop.step} succeeded, but its audit line "
+                 "could not be written")
+            for later, rest in enumerate(items[index + 1:], number + 1):
+                emit(f"  {later}. {rest.work_item_id}: not attempted")
+            emit(f"retention cleanup: stopped after {result.done} of {total} items; the "
+                 f"{stop.step} step for {item.work_item_id} had succeeded, but its audit line "
+                 f"could not be written ({stop.cause}); no further call was made; the audit "
+                 f"file is {audit_where}; nothing was committed or needs committing")
+            result.error = (f"retention cleanup: {item.work_item_id}: the audit line for the "
+                            f"{stop.step} step could not be written: {stop.cause}")
+            result.next_step = stop.next_step
+            result.audit_error = stop.cause
+            result.stop = {"step": stop.step, "item_id": item.work_item_id,
+                           "engine_code": None, "error": result.error}
+            result.started = True
+            result.exit_code = 1
+            return result
         except (_Stop, KeyboardInterrupt) as stop:
             interrupted = isinstance(stop, KeyboardInterrupt)
             archive_state = None
@@ -270,6 +332,18 @@ def run(target: Path, plan, emit=None) -> Result:
                                     "current plan")
             result.started = bool(result.calls)
             result.exit_code = 1 if result.started else 2
+            engine_code = None if interrupted else _engine_code(stop.engine)
+            result.stop = {"step": step, "item_id": item.work_item_id,
+                           "engine_code": engine_code, "error": result.error}
+            if observer is not None:
+                outcome = ("stopped" if step == POLICY and not interrupted
+                           else "interrupted" if interrupted else "failed")
+                try:
+                    observer(step, item.work_item_id, outcome, engine_code, result.error)
+                except Exception as audit:  # noqa: BLE001 -- the run is stopping already
+                    result.audit_error = getattr(audit, "cause", None) or str(audit)
+                    emit(f"retention cleanup: the audit line for this stop could not be "
+                         f"written ({result.audit_error}); the audit file is {audit_where}")
             return result
     emit(f"retention cleanup: done, {result.done} of {total} items archived and removed; "
          "Git is unchanged (the review folders were untracked); prune was not run")

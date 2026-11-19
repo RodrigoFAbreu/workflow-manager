@@ -654,3 +654,475 @@ class TestAuditWriter(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# ---------------------------------------------------------------------------
+# CP3: the unattended run and its JSON document
+# ---------------------------------------------------------------------------
+
+import contextlib as _contextlib  # noqa: E402
+import errno  # noqa: E402
+import io  # noqa: E402
+import support  # noqa: E402
+import time  # noqa: E402
+from unittest import mock as _mock  # noqa: E402
+
+import test_retention_run as trun  # noqa: E402
+from workflow_manager import cli, retention, retention_run as rr  # noqa: E402
+
+full_run = trun.full_run
+refusal = trun.refusal
+
+
+class Cmd(trun.RunBase):
+    """`RunBase` adopted with an unattended policy (keep_recent 5), and the scratch
+    state directory the audit file goes to."""
+
+    adopt_unattended = Scratch.adopt_unattended
+
+    def setUp(self):
+        super().setUp()
+        self.adopt_unattended()
+        self.state_home = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.state_home, ignore_errors=True)
+        self.audit_file = self.state_home / "workflow-manager" / "retention-audit.jsonl"
+
+    def digest(self, rep=None):
+        return rc.plan_digest(rc.select(rp.load(self.repo), rep or self.rep))
+
+    def go_u(self, scenario=None, *, extra=("--unattended",), rep=None, patches=(),
+             target=None, **env):
+        rep = rep or self.rep
+        self.scenario.write_text(json.dumps(scenario or {}))
+        self.marker.unlink(missing_ok=True)
+        env["STUB_REPORT"] = str(self.put_report(rep))
+        env["STUB_SCENARIO"] = str(self.scenario)
+        env.setdefault("XDG_STATE_HOME", str(self.state_home))
+        argv = ["--release-version", support.PINNED_NEWEST, trun.COMMAND,
+                str(target or self.repo), *extra]
+        out, err = io.StringIO(), io.StringIO()
+        with _contextlib.ExitStack() as stack:
+            stack.enter_context(_mock.patch.dict(os.environ, self.env(**env), clear=True))
+            stack.enter_context(_mock.patch.object(cli, "_installed_script_state",
+                                                   return_value=ra.SCRIPT_OK))
+            for patch in patches:
+                stack.enter_context(patch)
+            stack.enter_context(_contextlib.redirect_stdout(out))
+            stack.enter_context(_contextlib.redirect_stderr(err))
+            try:
+                code = cli.main(argv)
+            except SystemExit as exit_:
+                code = exit_.code
+        return tc.Out(code, out.getvalue(), err.getvalue())
+
+    def lines(self):
+        if not self.audit_file.exists():
+            return []
+        return [json.loads(text) for text in self.audit_file.read_text().splitlines()]
+
+    def write_seam(self, fail_on, error=None):
+        """An `open_audit` that fails the `fail_on`-th write (1 based)."""
+        real, count = os.write, []
+
+        def write(fd, data):
+            count.append(1)
+            if len(count) == fail_on:
+                raise error or OSError(errno.ENOSPC, "No space left on device")
+            return real(fd, data)
+        original = ru.open_audit
+        return _mock.patch.object(
+            ru, "open_audit", lambda *a, **kw: original(*a, **kw, write=write))
+
+    def assert_nothing_written(self):
+        self.assertEqual(self.keys(), [])
+        self.assertFalse(self.audit_file.exists())
+
+
+class TestUnattendedRun(Cmd):
+    def test_it_runs_without_confirm_and_issues_the_confirmed_runs_calls(self):
+        out = self.go_u()
+        self.assertEqual((out.code, out.err), (0, ""), out.out)
+        self.assertEqual(self.keys(), full_run("item-00", "item-01", "item-02"))
+        verbs = {c["argv"][1] for c in self.script_calls()}
+        self.assertLessEqual(verbs, {"report", "archive", "remove"})   # never prune (M23)
+
+    def test_the_text_is_the_confirmed_runs_plus_the_audit_line(self):
+        sentence = rc.sentence(self.digest())
+        confirmed = self.go(confirm=sentence)
+        unattended = self.go_u()
+        self.assertEqual(confirmed.code, 0, confirmed.err)
+        self.assertEqual(unattended.out, confirmed.out + f"  audit: {self.audit_file}\n")
+
+    def test_the_audit_has_the_start_line_then_one_line_per_action(self):
+        self.go_u()
+        lines = self.lines()
+        digest = self.digest()
+        self.assertEqual([(l["step"], l["result"], l["item_id"]) for l in lines],
+                         [("plan", "started", None)] + [
+                             (step, "ok", item) for item in ("item-00", "item-01", "item-02")
+                             for step in ("archive", "verify", "remove")])
+        for line in lines:
+            self.assertEqual(line["plan_digest"], digest)
+            self.assertEqual(line["policy_digest"], rp.load(self.repo).digest)
+            self.assertEqual(len(line["run_id"]), 32)
+        self.assertEqual(len({l["run_id"] for l in lines}), 1)
+
+    def test_the_audit_path_is_the_xdg_state_home_one(self):
+        self.go_u()
+        self.assertTrue(self.audit_file.is_file())
+        self.assertEqual(ru.audit_path({"XDG_STATE_HOME": str(self.state_home)}), self.audit_file)
+
+    def test_a_clean_run_leaves_the_tree_unchanged(self):
+        self.stale_index()
+        before = tree_hash(self.repo)
+        self.assertEqual(self.go_u().code, 0)
+        self.assertEqual(tree_hash(self.repo), before)
+
+    def test_the_kept_items_are_never_run(self):
+        rep = many(12, mib=2)
+        out = self.go_u(rep=rep)
+        self.assertEqual(out.code, 0)
+        self.assertNotIn("item-10", "".join(self.keys()))
+        self.assertNotIn("item-11", "".join(self.keys()))
+
+
+class TestArgumentRefusals(Cmd):
+    def test_confirm_with_unattended_is_refused_before_anything_is_read(self):   # M1
+        out = self.go_u(extra=("--unattended", "--confirm", "x"))
+        self.refused(out, "--confirm and --unattended cannot be combined")
+        self.assert_nothing_written()
+        self.assertFalse(self.state_home.joinpath("workflow-manager").exists())
+
+    def test_json_without_unattended_is_refused_with_empty_stdout(self):   # M2
+        out = self.go_u(extra=("--json",))
+        self.refused(out, "--json is for the unattended run")
+        self.assert_nothing_written()
+
+    def test_a_target_that_is_not_managed_writes_no_audit_file(self):
+        shutil.rmtree(self.repo / ".workflow-manager")
+        out = self.go_u()
+        self.assertEqual((out.code, out.out), (2, ""))
+        self.assertIn("is not a managed repository", out.err)
+        self.assert_nothing_written()
+        self.assertFalse(self.state_home.joinpath("workflow-manager").exists())
+
+    def test_a_corrupt_installation_record_writes_no_audit_file(self):
+        (self.repo / ".workflow-manager" / "installation.json").write_text("{")
+        out = self.go_u()
+        self.assertEqual((out.code, out.out), (2, ""))
+        self.assertEqual(self.script_calls(), [])
+        self.assertFalse(self.state_home.joinpath("workflow-manager").exists())
+
+
+class TestRefusalsAreAudited(Cmd):
+    def preflight_line(self, out, cause):
+        self.assertEqual((out.code, out.out), (2, ""), out.err)
+        self.assertIn(cause, out.err)
+        self.assertEqual(self.keys(), [])
+        lines = self.lines()
+        self.assertEqual([(l["step"], l["result"]) for l in lines], [("preflight", "refused")])
+        self.assertIn(cause, lines[0]["error"])
+        self.assertIsNone(lines[0]["plan_digest"])
+
+    def test_rows_c_to_f_write_one_preflight_line(self):
+        record, policy = rp.record_path(self.repo), rp.policy_path(self.repo)
+        good_policy, good_record = policy.read_bytes(), record.read_bytes()
+
+        def reset():
+            git(self.repo, "reset", "-q", "--hard", "HEAD")
+            policy.write_bytes(good_policy)
+            record.write_bytes(good_record)
+            shutil.rmtree(self.state_home / "workflow-manager", ignore_errors=True)
+
+        def not_adopted():
+            record.unlink()
+
+        def no_key():
+            self.adopt(tc.POLICY)
+            self.commit(self.repo, "plain")
+
+        def ordinary():
+            self.adopt_unattended(ordinary=True)
+
+        def cleanup_false():
+            self.adopt_unattended(policy_with({**UNATTENDED, "cleanup": False, "prune": True}))
+
+        for label, setup, cause in (
+                ("c", not_adopted, f"retention policy: {rp.NOT_ADOPTED}"),
+                ("d", no_key, NO_KEY), ("e", ordinary, ORDINARY),
+                ("f", cleanup_false, CLEANUP_FALSE)):
+            with self.subTest(row=label):
+                setup()
+                self.stale_index()
+                before = tree_hash(self.repo)
+                patches = [_mock.patch.object(rc, "_git", side_effect=AssertionError("git"))] \
+                    if label in "def" else []
+                out = self.go_u(patches=patches)
+                self.preflight_line(out, cause)
+                if label in "def":
+                    self.assertEqual(self.script_calls(), [])   # no `report` either
+                self.assertEqual(tree_hash(self.repo), before)
+                reset()
+
+    def test_each_later_preflight_refusal_writes_one_line(self):
+        installation = self.repo / ".workflow-manager" / "installation.json"
+        policy, record = rp.policy_path(self.repo), rp.record_path(self.repo)
+
+        def mode():
+            self.adopt({**tc.POLICY, "mode": "notify"})
+            self.commit(self.repo, "notify")
+
+        def uncommitted():
+            git(self.repo, "rm", "-q", "--cached", ".workflow-manager/retention-policy.json")
+            git(self.repo, "commit", "-q", "-m", "untrack")
+
+        def dirty():
+            (self.repo / "CLAUDE.md").write_text("dirty\n")
+
+        def old_release():
+            data = json.loads(installation.read_text())
+            data["workflow_version"] = "2.25.4"
+            installation.write_text(json.dumps(data, indent=2) + "\n")
+            self.commit(self.repo, "old")
+
+        def missing_script():
+            (self.repo / trun.SCRIPT).unlink()
+            git(self.repo, "commit", "-q", "-am", "no script")
+
+        modified = _mock.patch.object(cli, "_installed_script_state",
+                                      return_value=ra.SCRIPT_MODIFIED)
+        cases = [
+            ("mode", mode, {}, "the adopted mode is notify"),
+            ("uncommitted", uncommitted, {}, "is not committed at HEAD"),
+            ("dirty", dirty, {}, "a tracked file is changed"),
+            ("old release", old_release, {}, "older than 2.25.5"),
+            ("modified script", lambda: None, {"patches": [modified]}, ra.CAUSE_MODIFIED),
+            ("incomplete", lambda: None, {"rep": dict(self.rep, complete=False)},
+             ra.CAUSE_INCOMPLETE),
+            ("interrupted", lambda: None, {"rep": dict(self.rep, removing=["half-gone"])},
+             "a removal was interrupted"),
+            ("missing script", missing_script, {},
+             "the repository has no scripts/workflow_retention.py"),
+        ]
+        for label, setup, kwargs, cause in cases:
+            with self.subTest(label=label):
+                head = git(self.repo, "rev-parse", "HEAD").stdout.strip()
+                saved = {p: p.read_bytes() for p in (policy, record, installation)}
+                shutil.rmtree(self.state_home / "workflow-manager", ignore_errors=True)
+                try:
+                    setup()
+                    self.stale_index()
+                    before = tree_hash(self.repo)
+                    out = self.go_u(**kwargs)
+                    self.preflight_line(out, cause)
+                    self.assertEqual(tree_hash(self.repo), before)
+                finally:
+                    git(self.repo, "reset", "-q", "--hard", head)
+                    for path, data in saved.items():
+                        path.write_bytes(data)
+
+    def test_a_refusal_whose_own_line_cannot_be_written_still_exits_2(self):   # LPR1-006
+        (self.repo / "CLAUDE.md").write_text("dirty\n")
+        out = self.go_u(patches=[self.write_seam(1)])
+        self.assertEqual((out.code, out.out), (2, ""))
+        lines = out.err.splitlines()
+        self.assertEqual(lines[0], "error: retention cleanup: a tracked file is changed")
+        self.assertTrue(lines[1].startswith(
+            "error: the audit file could not record this refusal: "), out.err)
+        self.assertEqual(self.keys(), [])
+
+
+class TestAuditRefusals(Cmd):
+    def test_an_unwritable_audit_directory_refuses_at_the_open(self):
+        blocker = self.state_home / "blocker"
+        blocker.write_text("a file")
+        out = self.go_u(XDG_STATE_HOME=str(blocker))
+        self.refused(out, "the audit file cannot be written")
+        self.assertEqual(self.script_calls(), [])
+
+    def test_a_first_write_failure_refuses_before_any_engine_verb(self):   # M16
+        out = self.go_u(patches=[self.write_seam(1)])
+        self.assertEqual((out.code, out.out), (2, ""))
+        self.assertIn("the audit file cannot be written", out.err)
+        self.assertEqual(self.keys(), [])
+        self.assertEqual(self.lines(), [])
+
+    def test_the_audit_inside_the_repository_is_refused(self):
+        out = self.go_u(XDG_STATE_HOME=str(self.repo / "state"))
+        self.refused(out, "it is inside the repository")
+        self.assertEqual(self.script_calls(), [])
+
+
+class TestFailuresAreAudited(Cmd):
+    def results(self):
+        return [(l["step"], l["result"], l["item_id"]) for l in self.lines()]
+
+    def test_an_archive_refusal_writes_a_failed_line_with_the_engine_code(self):
+        out = self.go_u({"archive --apply:item-01": refusal("place_failed", "nope")})
+        self.assertEqual(out.code, 1, out.err)
+        self.assertEqual(self.keys(), full_run("item-00") + ["archive --apply:item-01"])
+        last = self.lines()[-1]
+        self.assertEqual((last["step"], last["result"], last["item_id"], last["engine_code"]),
+                         ("archive", "failed", "item-01", "place_failed"))
+        self.assertIn("nope", last["error"])
+        self.assertIn("retention cleanup: stopped after 1 of 3 items", out.out)
+        self.assertIn("  3. item-02: not attempted", out.out)
+
+    def test_a_verify_mismatch_writes_a_failed_verify_line(self):
+        body = {"kind": "retention-remove", "mode": "dry-run", "work_item_id": "item-00",
+                "verify": {"matches": False}, "result": {"removed": False}}
+        out = self.go_u({"remove:item-00": {"stdout": body}})
+        self.assertEqual(out.code, 1)
+        self.assertEqual(self.results()[-1], ("verify", "failed", "item-00"))
+
+    def test_a_remove_timeout_writes_a_failed_remove_line(self):
+        out = self.go_u({"remove --apply:item-00": {"sleep": 30}},
+                        patches=[_mock.patch.object(rr, "CALL_TIMEOUT_SECONDS", 1)])
+        self.assertEqual(out.code, 1)
+        self.assertEqual(self.results()[-1], ("remove", "failed", "item-00"))
+
+    def test_an_interrupt_writes_an_interrupted_line(self):
+        out = self.go_u(patches=[trun.TestStop.interrupt_at(self, "remove:item-01")])
+        self.assertEqual(out.code, 1)
+        self.assertEqual(self.results()[-1], ("verify", "interrupted", "item-01"))
+        self.assertIn("stopped at verify: interrupted", out.out)
+
+    def test_a_policy_changed_before_item_two_writes_a_policy_line(self):   # M19
+        real, count = rp.load, []
+
+        def load(target):
+            count.append(1)
+            return rp.PolicyState(rp.CHANGED) if len(count) >= 3 else real(target)
+        out = self.go_u(patches=[_mock.patch.object(rp, "load", load)])
+        self.assertEqual(out.code, 1)
+        self.assertEqual(self.keys(), full_run("item-00"))
+        last = self.lines()[-1]
+        self.assertEqual((last["step"], last["result"], last["item_id"]),
+                         ("policy", "stopped", "item-01"))
+        self.assertIn("the policy changed", last["error"])
+
+    def test_a_swapped_adoption_record_stops_the_run(self):   # M18
+        """The record is swapped for an ordinary-only one: the policy digest is
+        unchanged, so only the authority condition stops the run."""
+        real, count = rp.load, []
+        ordinary = rp.PolicyState(rp.ADOPTED, mode="both", policy=rp.load(self.repo).policy,
+                                  digest=rp.load(self.repo).digest, unattended=None)
+
+        def load(target):
+            count.append(1)
+            return ordinary if len(count) >= 3 else real(target)
+        out = self.go_u(patches=[_mock.patch.object(rp, "load", load)])
+        self.assertEqual(out.code, 1)
+        self.assertEqual(self.keys(), full_run("item-00"))
+        self.assertEqual(self.results()[-1], ("policy", "stopped", "item-01"))
+
+    def test_a_write_failure_after_the_second_action_stops_before_the_third(self):   # M17
+        # writes: start, archive ok, verify ok (fails)
+        out = self.go_u(patches=[self.write_seam(3)])
+        self.assertEqual(out.code, 1)
+        self.assertEqual(self.keys(), ["archive --apply:item-00", "remove:item-00"])
+        self.assertIn("had succeeded", out.out)
+        self.assertIn("no further call was made", out.out)
+        self.assertIn(str(self.audit_file), out.out)
+        self.assertIn("audit line", out.err)
+        self.assertEqual([l["step"] for l in self.lines()], ["plan", "archive"])
+
+
+class TestNothingToRun(Cmd):
+    def test_no_threshold_reached_is_nothing_to_do_and_writes_no_line(self):
+        rep = many(5, mib=2)
+        out = self.go_u(rep=rep)
+        self.assertEqual((out.code, out.err), (0, ""))
+        self.assertIn("nothing to do", out.out)
+        self.assertNotIn("--confirm", out.out)
+        self.assertEqual(self.keys(), [])
+        self.assertEqual(self.lines(), [])
+
+    def hold_everything(self):
+        self.adopt_unattended(policy_with({**UNATTENDED, "keep_recent": 100}))
+
+    def test_a_threshold_held_by_keep_recent_is_nothing_eligible(self):   # LPR1-002
+        self.hold_everything()
+        out = self.go_u()
+        self.assertEqual((out.code, out.err), (0, ""), out.out)
+        self.assertIn("retention cleanup: nothing eligible (", out.out)
+        self.assertIn("running it again will not help", out.out)
+        self.assertNotIn("--confirm", out.out)
+        self.assertEqual(self.keys(), [])
+        lines = self.lines()
+        self.assertEqual([(l["step"], l["result"]) for l in lines], [("plan", "nothing-eligible")])
+        self.assertEqual(lines[0]["plan_digest"],
+                         rc.plan_digest(rc.select(rp.load(self.repo), self.rep)))
+
+
+class TestJson(Cmd):
+    def doc(self, out):
+        return json.loads(out.out)
+
+    def test_a_done_document_and_nothing_else_on_stdout(self):
+        out = self.go_u(extra=("--unattended", "--json"))
+        self.assertEqual(out.code, 0, out.err)
+        doc = self.doc(out)
+        self.assertEqual((doc["kind"], doc["schema_version"], doc["outcome"], doc["exit_code"]),
+                         ("retention_cleanup_run", 1, "done", 0))
+        self.assertEqual(doc["plan_digest"], self.digest())
+        self.assertEqual(doc["policy_digest"], rp.load(self.repo).digest)
+        self.assertEqual((doc["done"], doc["total"], doc["stopped"]), (3, 3, None))
+        self.assertEqual([i["result"] for i in doc["items"]], ["done"] * 3)
+        self.assertEqual([s["step"] for s in doc["items"][0]["steps"]],
+                         ["archive", "verify", "remove"])
+        self.assertEqual(doc["audit"], {"path": str(self.audit_file), "lines_written": 10,
+                                        "error": None})
+        self.assertEqual(doc["run_id"], self.lines()[0]["run_id"])
+        self.assertIn("retention cleanup: running plan", out.err)   # progress on stderr
+        self.assertEqual(doc["repository"], self.lines()[0]["repository"])
+
+    def test_a_stopped_document(self):
+        out = self.go_u({"archive --apply:item-01": refusal("place_failed", "nope")},
+                        extra=("--unattended", "--json"))
+        self.assertEqual(out.code, 1)
+        doc = self.doc(out)
+        self.assertEqual((doc["outcome"], doc["done"], doc["exit_code"]), ("stopped", 1, 1))
+        self.assertEqual([i["result"] for i in doc["items"]],
+                         ["done", "stopped", "not-attempted"])
+        self.assertEqual({k: doc["stopped"][k] for k in ("step", "item_id", "engine_code")},
+                         {"step": "archive", "item_id": "item-01", "engine_code": "place_failed"})
+        self.assertTrue(doc["stopped"]["next_step"])
+
+    def test_a_stop_before_the_first_call_prints_the_document_and_exits_2(self):
+        out = self.go_u(extra=("--unattended", "--json"), patches=[
+            _mock.patch.object(rp, "load", side_effect=[rp.load(self.repo)] +
+                               [rp.PolicyState(rp.CHANGED)] * 5)])
+        self.assertEqual(out.code, 2, out.err)
+        doc = self.doc(out)
+        self.assertEqual((doc["outcome"], doc["exit_code"], doc["stopped"]["step"]),
+                         ("stopped", 2, "policy"))
+        self.assertEqual(self.keys(), [])
+
+    def test_nothing_to_do_and_nothing_eligible_documents(self):
+        out = self.go_u(rep=many(5, mib=2), extra=("--unattended", "--json"))
+        doc = self.doc(out)
+        self.assertEqual((out.code, doc["outcome"], doc["items"], doc["thresholds_reached"]),
+                         (0, "nothing-to-do", [], []))
+        self.assertEqual(self.lines(), [])
+        self.adopt_unattended(policy_with({**UNATTENDED, "keep_recent": 100}))
+        out = self.go_u(extra=("--unattended", "--json"))
+        doc = self.doc(out)
+        self.assertEqual((out.code, doc["outcome"]), (0, "nothing-eligible"))
+        self.assertEqual(doc["thresholds_reached"], ["finished_items"])
+        self.assertEqual(doc["plan_digest"], self.lines()[0]["plan_digest"])
+
+    def test_a_refusal_prints_nothing_on_stdout(self):
+        (self.repo / "CLAUDE.md").write_text("dirty\n")
+        out = self.go_u(extra=("--unattended", "--json"))
+        self.assertEqual((out.code, out.out), (2, ""))
+        self.assertIn("error:", out.err)
+        self.assertIn("next:", out.err)
+
+    def test_an_audit_failure_after_an_action_is_in_the_document(self):
+        out = self.go_u(patches=[self.write_seam(3)], extra=("--unattended", "--json"))
+        self.assertEqual(out.code, 1)
+        doc = self.doc(out)
+        self.assertEqual(doc["outcome"], "stopped")
+        self.assertIn("audit file cannot be written", doc["audit"]["error"])
+        self.assertEqual(doc["audit"]["lines_written"], 2)
