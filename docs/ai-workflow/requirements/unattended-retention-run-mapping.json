@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "work_item_id": "unattended-retention-run",
+  "requirements": {
+    "R1": {
+      "description": "retention-cleanup --unattended is refused, with a named cause, nothing written and no engine verb run, unless PolicyState.unattended is set, unattended.cleanup is true and the mode is cleanup or both; --confirm with --unattended and --json without --unattended are refused; --confirm is not required with --unattended",
+      "checkpoint_ids": [
+        "CP1",
+        "CP3"
+      ]
+    },
+    "R2": {
+      "description": "Every existing preflight, the oldest-first selection, the cap of 5, the tracked-folder skip, the per-item policy re-read and the first-failure stop are kept; the Manager-side keep_recent skips the newest finished items; the unattended plan equals the preview plan with the same digest rule and the digest is printed and returned",
+      "checkpoint_ids": [
+        "CP1",
+        "CP3"
+      ]
+    },
+    "R3": {
+      "description": "One JSON audit line per action, refusal and stop at $XDG_STATE_HOME/workflow-manager/retention-audit.jsonl, created 0600 in a 0700 directory, append-only, one write per line, outside the repository and the archive store, with the eleven fields; an unwritable audit file refuses before any action and a mid-run write failure stops the run",
+      "checkpoint_ids": [
+        "CP2",
+        "CP3"
+      ]
+    },
+    "R4": {
+      "description": "--json prints the run as one retention_cleanup_run document with the existing exit-code conventions; the text output stays like the confirmed run",
+      "checkpoint_ids": [
+        "CP3"
+      ]
+    },
+    "R5": {
+      "description": "status, doctor, the adopt preview and the cleanup preview say that retention-cleanup --unattended enforces the cleanup part and that prune is not yet unattended; docs/retention.md and docs/exit-codes.md are updated; ROADMAP row 51 is added and marked Done; tests and goldens cover every refusal and failure",
+      "checkpoint_ids": [
+        "CP4"
+      ]
+    }
+  }
+}
