@@ -1079,6 +1079,11 @@ class TestHelpAndWording(unittest.TestCase):
             self.assertIn(words, text)
         self.assertEqual(text.count("Prune is never run"), 1)
 
+    def test_the_policy_page_does_not_say_prune_is_never_run(self):
+        page = " ".join((REPO_ROOT / "docs" / "retention.md").read_text().split())
+        self.assertNotIn("prune is never run.", page)
+        self.assertIn("prune is run only by `--unattended`, under an adopted `unattended.prune`", page)
+
 
 if __name__ == "__main__":
     unittest.main()
