@@ -43516,7 +43516,7 @@
       "registry_path": "docs/ai-workflow/registry/unattended-retention-prune-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/unattended-retention-prune-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "AWAITING_FUNCTIONAL_REVIEW",
       "plan_revision": 5,
       "implementation_revision": 1,
       "functional_review_round": null,
@@ -43633,7 +43633,150 @@
           "workflow_release": "2.29.9"
         }
       },
-      "technical_approval": null,
+      "technical_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "7fe751d7f0ced87fb294c11bae7c5debb1efbbdecf579a7843b3bb4c2c63a65d",
+        "approved_review_content_id": "afd6b6ae9664d438505f2c25c66143f75387ae36b568587cde81eb6cff4a3c2b",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/registry/unattended-retention-prune-artifacts.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "bf03fc1bf21e5c3ab14f678ff2c277348638f395"
+          },
+          {
+            "path": "docs/exit-codes.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "0b2ec6ffc775e024365984573fd04f660f73ccbc"
+          },
+          {
+            "path": "docs/retention.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "c10f4d323442b7abd87f5e2bf1a3840d3710c4c9"
+          },
+          {
+            "path": "src/workflow_manager/cli.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "8eb93b8a3a0494a92cecadbd86bcb1eb83412bd6"
+          },
+          {
+            "path": "src/workflow_manager/retention_policy.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "f80e7b8512a161423e4c226787469e80b59281ee"
+          },
+          {
+            "path": "src/workflow_manager/retention_prune.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "d5652b61a6618973e7e162f92c32ee3478222cfd"
+          },
+          {
+            "path": "src/workflow_manager/retention_run.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "e1c97b9072637db61a69202b865b65a846dd492c"
+          },
+          {
+            "path": "src/workflow_manager/retention_unattended.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "4a7aee19b16c88fad370f653a3e4950c1c5e5537"
+          },
+          {
+            "path": "tests/test_retention_cleanup.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "d865674aba9ef93bc94d5f7d466a1494b56a6589"
+          },
+          {
+            "path": "tests/test_retention_unattended.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "1131d8d424fe5f25cb473bd048e4ca8f3f80bd3f"
+          },
+          {
+            "path": "tests/test_retention_unattended_prune.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "135f6476181d88bb768a2273d3b6181c3d1cce2c"
+          },
+          {
+            "path": "tests/test_retention_unattended_run.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "14cbbaced9e163f8e3c68905d98d2c596c7aa200"
+          }
+        ],
+        "reviewed_content_commit": "862c8ec976928fe744c784de901d7149c1bf92c0",
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-11-19T15:26:43Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "afd6b6ae9664d438505f2c25c66143f75387ae36b568587cde81eb6cff4a3c2b",
+            "ledger": {
+              "local": {
+                "bundle_id": "7fe751d7f0ced87fb294c11bae7c5debb1efbbdecf579a7843b3bb4c2c63a65d",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "dd80acfb22d0201653a687afcd19bccbf2a79a236fb2cb169bc45add9a856403",
+                "ledger_entry_sha256": "53e0fa06ea8cbe29cfceab5410b5243b3106aacee2087608547b0197ad3083f8",
+                "run_ref": "session:local .ai-review/unattended-retention-prune/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "7fe751d7f0ced87fb294c11bae7c5debb1efbbdecf579a7843b3bb4c2c63a65d",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "cdaaa58ca691eb227bbe8166434e6fdf64cf91da40b53b0edebb7db01d56c7ec",
+                "ledger_entry_sha256": "cb0e60b9171fcbb6ea965ee4cd3f00362dab5cd7a9a83e8aab5b3ad954880964",
+                "run_ref": "codex:20261119T152123Z-5a83fd11",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-11-19T15:26:43Z",
+          "workflow_release": "2.29.9"
+        }
+      },
       "technical_review_block_pins": [],
       "plan_review_stages": {
         "review_content_id": "4f7f10d36c47d9fec6889a29b3ea99b463a0d8c8f1e4fb2f6ec7788d7b10afe8",
@@ -43664,12 +43807,12 @@
           "external": 3
         },
         "implementation": {
-          "local": 0,
-          "external": 0
+          "local": 1,
+          "external": 1
         }
       },
-      "state_revision": 29,
-      "last_transition": "2026-11-19T15:09:08Z",
+      "state_revision": 32,
+      "last_transition": "2026-11-19T15:26:43Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -43891,6 +44034,83 @@
               "at": "2026-11-19T14:05:20Z"
             }
           ]
+        },
+        "F-a11b2c982941": {
+          "digest": "a11b2c982941446d6659b1df49e5e42a9937101ec1f9e57b3beffab499393dc2",
+          "text": "**LIR1-001: `docs/retention.md` says beyond-cap archives are \"counted as `capped`\", but no output shows that count.** `PrunePlan.capped` is computed in `retention_prune.select`, but neither the text nor the `--json` `prune` section (`retention_unattended._prune_section`) carries it. So the sentence at `docs/retention.md:426` describes a count the operator never sees, and a run that hits the cap cannot tell how many aged-out archives are still waiting. Either add `capped` to the `prune` section and the done line, or reword the sentence to say the archives beyond the cap wait for a later run. The plan's 2.5 field list has no `capped`, so the code itself conforms; only the page is loose.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "afd6b6ae9664d438505f2c25c66143f75387ae36b568587cde81eb6cff4a3c2b",
+              "verdict": "APPROVE",
+              "at": "2026-11-19T15:20:09Z"
+            }
+          ]
+        },
+        "F-299be02f592d": {
+          "digest": "299be02f592db05685a3692342f5fcc46c3e24366398bd1cc2b39a0f2d5d57d2",
+          "text": "**LIR1-002: Two small inaccuracies in the stop text the pages describe.**\n  - The \"Text.\" paragraph of \"The unattended prune\" says that after a stop the closing line is `N of M archives were deleted before the stop`. The code prints that line only when at least one archive was deleted (`elif prune_result.done:` in `run_command`). The paragraph also does not mention the `retention prune: stopped after N of M archives; ...` line every prune stop prints.\n  - In `docs/exit-codes.md`, the `retention-cleanup` exit-1 row still says \"The closing `retention cleanup: stopped` line says what was done\". A prune stop's line is `retention prune: stopped ...`.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "afd6b6ae9664d438505f2c25c66143f75387ae36b568587cde81eb6cff4a3c2b",
+              "verdict": "APPROVE",
+              "at": "2026-11-19T15:20:09Z"
+            }
+          ]
+        },
+        "F-3894d1083ef9": {
+          "digest": "3894d1083ef9149f5473174416d1e7fe358c81aa4773b3747c60d9e5284beed0",
+          "text": "**LIR1-003: An interrupt in two narrow windows of the prune phase escapes `run_phase` uncaught.** The windows are:\n  - while the `ok` audit line of a successful apply is being written;\n  - while the `started` line is being written.\n\n  Both handlers catch `Exception`, not `KeyboardInterrupt`. Unlike A2's per-item loop, which catches `KeyboardInterrupt` after a successful step and reports it, the interrupt here propagates out of `run_command`. The result is no `error:`/`next:`, no `--json` document, and, in the first window, an archive deleted with no audit line. Each window is one append of a line, so the risk is low. Catching `KeyboardInterrupt` there too, with an `interrupted` stop that says the apply had succeeded, would close it.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "afd6b6ae9664d438505f2c25c66143f75387ae36b568587cde81eb6cff4a3c2b",
+              "verdict": "APPROVE",
+              "at": "2026-11-19T15:20:09Z"
+            }
+          ]
+        },
+        "F-47ffceb94d3e": {
+          "digest": "47ffceb94d3edc12521fc46e01a14fb61e33cde569d77fbb79169c8cbf904b77",
+          "text": "**LIR1-004: Plan section 5, flow 1 expects `tests/test_retention_policy.py` to be modified, but it is not.** It needed no change: nothing in it pinned the replaced text, and CP4 says \"where it pins\". `IMPLEMENTATION_SUMMARY.md`'s deviation list does not mention it, so the functional reviewer will see flow 1 differ from its stated expectation. Record it as a deviation, or tell the functional reviewer when the checklist is prepared.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "afd6b6ae9664d438505f2c25c66143f75387ae36b568587cde81eb6cff4a3c2b",
+              "verdict": "APPROVE",
+              "at": "2026-11-19T15:20:09Z"
+            }
+          ]
+        }
+      },
+      "implementation_review_stages": {
+        "review_content_id": "afd6b6ae9664d438505f2c25c66143f75387ae36b568587cde81eb6cff4a3c2b",
+        "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "7fe751d7f0ced87fb294c11bae7c5debb1efbbdecf579a7843b3bb4c2c63a65d",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-11-19T15:20:09Z",
+          "verdict_sha256": "dd80acfb22d0201653a687afcd19bccbf2a79a236fb2cb169bc45add9a856403",
+          "run_ref": "session:local .ai-review/unattended-retention-prune/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "7fe751d7f0ced87fb294c11bae7c5debb1efbbdecf579a7843b3bb4c2c63a65d",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-11-19T15:25:28Z",
+          "verdict_sha256": "cdaaa58ca691eb227bbe8166434e6fdf64cf91da40b53b0edebb7db01d56c7ec",
+          "run_ref": "codex:20261119T152123Z-5a83fd11",
+          "reviewer_model": "openai/gpt-6.1-sol"
         }
       }
     }
