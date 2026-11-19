@@ -43516,7 +43516,7 @@
       "registry_path": "docs/ai-workflow/registry/unattended-retention-prune-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/unattended-retention-prune-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "AWAITING_FUNCTIONAL_REVIEW",
       "plan_revision": 5,
       "implementation_revision": 3,
       "functional_review_round": null,
@@ -43634,10 +43634,10 @@
         }
       },
       "technical_approval": {
-        "status": "STALE",
+        "status": "CURRENT",
         "basis": "POLICY_SATISFIED",
-        "reviewed_bundle_id": "7fe751d7f0ced87fb294c11bae7c5debb1efbbdecf579a7843b3bb4c2c63a65d",
-        "approved_review_content_id": "afd6b6ae9664d438505f2c25c66143f75387ae36b568587cde81eb6cff4a3c2b",
+        "reviewed_bundle_id": "873c27993c1504a2dfdf99f27e5551472fe32db1b73106bd7f41d2a7a9205fec",
+        "approved_review_content_id": "851420a76cedd8df732e47ba6cf2f430a48a70d59860375e0088143c8003a259",
         "review_content_manifest": [
           {
             "path": "docs/ai-workflow/registry/unattended-retention-prune-artifacts.json",
@@ -43655,7 +43655,7 @@
             "path": "docs/retention.md",
             "exists": true,
             "mode": "100644",
-            "blob": "c10f4d323442b7abd87f5e2bf1a3840d3710c4c9"
+            "blob": "ce0e79acc9a2cdb3748f176beefee78afd50121d"
           },
           {
             "path": "src/workflow_manager/cli.py",
@@ -43703,7 +43703,7 @@
             "path": "tests/test_retention_unattended_prune.py",
             "exists": true,
             "mode": "100644",
-            "blob": "135f6476181d88bb768a2273d3b6181c3d1cce2c"
+            "blob": "2276fd057fd06eb23e97a8924fd31e772f58464d"
           },
           {
             "path": "tests/test_retention_unattended_run.py",
@@ -43712,11 +43712,11 @@
             "blob": "14cbbaced9e163f8e3c68905d98d2c596c7aa200"
           }
         ],
-        "reviewed_content_commit": "862c8ec976928fe744c784de901d7149c1bf92c0",
+        "reviewed_content_commit": "59b2c4e6faa17cb60fcf420e3d950388ba8644d6",
         "legacy_evidence": null,
         "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
         "waived_guarantees": [],
-        "recorded_at": "2026-11-19T15:26:43Z",
+        "recorded_at": "2026-11-19T16:25:39Z",
         "policy_evidence": {
           "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
           "policy_source": "default",
@@ -43746,24 +43746,24 @@
             }
           ],
           "inputs": {
-            "review_content_id": "afd6b6ae9664d438505f2c25c66143f75387ae36b568587cde81eb6cff4a3c2b",
+            "review_content_id": "851420a76cedd8df732e47ba6cf2f430a48a70d59860375e0088143c8003a259",
             "ledger": {
               "local": {
-                "bundle_id": "7fe751d7f0ced87fb294c11bae7c5debb1efbbdecf579a7843b3bb4c2c63a65d",
+                "bundle_id": "873c27993c1504a2dfdf99f27e5551472fe32db1b73106bd7f41d2a7a9205fec",
                 "verdict": "APPROVE",
-                "round": 1,
-                "verdict_sha256": "dd80acfb22d0201653a687afcd19bccbf2a79a236fb2cb169bc45add9a856403",
-                "ledger_entry_sha256": "53e0fa06ea8cbe29cfceab5410b5243b3106aacee2087608547b0197ad3083f8",
+                "round": 3,
+                "verdict_sha256": "fcda2a32a2f17cb26c9e48a7fe06a09b94572fd3dade98241f57d13bffa35998",
+                "ledger_entry_sha256": "73d313ceaf59190c4b52dc55656881655ffa89220ba5386b0a87561ad9e67184",
                 "run_ref": "session:local .ai-review/unattended-retention-prune/feedback/REVIEW_FEEDBACK.md",
                 "reviewer_model": "anthropic/claude-opus-5-5"
               },
               "manual": {
-                "bundle_id": "7fe751d7f0ced87fb294c11bae7c5debb1efbbdecf579a7843b3bb4c2c63a65d",
+                "bundle_id": "873c27993c1504a2dfdf99f27e5551472fe32db1b73106bd7f41d2a7a9205fec",
                 "verdict": "APPROVE",
-                "round": 1,
-                "verdict_sha256": "cdaaa58ca691eb227bbe8166434e6fdf64cf91da40b53b0edebb7db01d56c7ec",
-                "ledger_entry_sha256": "cb0e60b9171fcbb6ea965ee4cd3f00362dab5cd7a9a83e8aab5b3ad954880964",
-                "run_ref": "codex:20261119T152123Z-5a83fd11",
+                "round": 3,
+                "verdict_sha256": "48803980af0ea27ec9d8cbccb7e9bd901d560705099f2d64ccd92da74c854523",
+                "ledger_entry_sha256": "f2e2730126b3693600e00ef1cdc069b6be0ff59a1c006e782f3a43de807bb52e",
+                "run_ref": "codex:20261119T162035Z-dd2c4620",
                 "reviewer_model": "openai/gpt-6.1-sol"
               }
             },
@@ -43773,7 +43773,7 @@
           "trust": {
             "review_verdicts": "orchestrator"
           },
-          "evaluated_at": "2026-11-19T15:26:43Z",
+          "evaluated_at": "2026-11-19T16:25:39Z",
           "workflow_release": "2.29.9"
         }
       },
@@ -43807,12 +43807,12 @@
           "external": 3
         },
         "implementation": {
-          "local": 2,
-          "external": 1
+          "local": 3,
+          "external": 2
         }
       },
-      "state_revision": 36,
-      "last_transition": "2026-11-19T16:16:28Z",
+      "state_revision": 39,
+      "last_transition": "2026-11-19T16:25:39Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -44104,26 +44104,40 @@
               "at": "2026-11-19T15:59:38Z"
             }
           ]
+        },
+        "F-78c4bc65f9c0": {
+          "digest": "78c4bc65f9c00e10c131fc765bbad4ad988b3a083661d9690bfcd35d628f5182",
+          "text": "**LIR3-001 `docs/retention.md`, \"The unattended prune\", \"Archives beyond the cap are counted as `capped`, not listed.\"** `PrunePlan.capped` is computed (`retention_prune.select`) but it reaches no output: `_prune_section` has no `capped` field, and the text has no capped line. A reader who looks for `capped` in the `--json` document will not find it. The code follows plan 2.5 (its `prune` section lists no `capped`), so this is a wording point rather than a deviation. Either say \"are left for a later run\" without naming a field, or add `capped` to the `prune` section in a later item.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 3,
+              "review_content_id": "851420a76cedd8df732e47ba6cf2f430a48a70d59860375e0088143c8003a259",
+              "verdict": "APPROVE",
+              "at": "2026-11-19T16:19:21Z"
+            }
+          ]
         }
       },
       "implementation_review_stages": {
-        "review_content_id": "afd6b6ae9664d438505f2c25c66143f75387ae36b568587cde81eb6cff4a3c2b",
+        "review_content_id": "851420a76cedd8df732e47ba6cf2f430a48a70d59860375e0088143c8003a259",
         "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {
-          "bundle_id": "7fe751d7f0ced87fb294c11bae7c5debb1efbbdecf579a7843b3bb4c2c63a65d",
+          "bundle_id": "873c27993c1504a2dfdf99f27e5551472fe32db1b73106bd7f41d2a7a9205fec",
           "verdict": "APPROVE",
-          "round": 1,
-          "completed_at": "2026-11-19T15:20:09Z",
-          "verdict_sha256": "dd80acfb22d0201653a687afcd19bccbf2a79a236fb2cb169bc45add9a856403",
+          "round": 3,
+          "completed_at": "2026-11-19T16:19:21Z",
+          "verdict_sha256": "fcda2a32a2f17cb26c9e48a7fe06a09b94572fd3dade98241f57d13bffa35998",
           "run_ref": "session:local .ai-review/unattended-retention-prune/feedback/REVIEW_FEEDBACK.md",
           "reviewer_model": "anthropic/claude-opus-5-5"
         },
         "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": {
-          "bundle_id": "7fe751d7f0ced87fb294c11bae7c5debb1efbbdecf579a7843b3bb4c2c63a65d",
+          "bundle_id": "873c27993c1504a2dfdf99f27e5551472fe32db1b73106bd7f41d2a7a9205fec",
           "verdict": "APPROVE",
-          "round": 1,
-          "completed_at": "2026-11-19T15:25:28Z",
-          "verdict_sha256": "cdaaa58ca691eb227bbe8166434e6fdf64cf91da40b53b0edebb7db01d56c7ec",
-          "run_ref": "codex:20261119T152123Z-5a83fd11",
+          "round": 3,
+          "completed_at": "2026-11-19T16:24:24Z",
+          "verdict_sha256": "48803980af0ea27ec9d8cbccb7e9bd901d560705099f2d64ccd92da74c854523",
+          "run_ref": "codex:20261119T162035Z-dd2c4620",
           "reviewer_model": "openai/gpt-6.1-sol"
         }
       },
