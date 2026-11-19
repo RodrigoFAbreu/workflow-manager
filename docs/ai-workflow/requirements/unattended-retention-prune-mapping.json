@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "work_item_id": "unattended-retention-prune",
+  "requirements": {
+    "R1": {
+      "description": "The unattended prune selects only archives of class finished, older than unattended.ttl_days (strictly), whose review folder is already absent, never an id under an interrupted removal, at most prune_max_per_run, oldest first, from a fresh complete report; an archive whose folder still exists is never selected (the wedge hazard)",
+      "checkpoint_ids": [
+        "CP1",
+        "CP2"
+      ]
+    },
+    "R2": {
+      "description": "Dry-run equivalence: the engine's prune dry run for exactly the planned set must list exactly that set before any --apply; any difference stops the run; the apply is one id per call with --ttl-days passed explicitly",
+      "checkpoint_ids": [
+        "CP2"
+      ]
+    },
+    "R3": {
+      "description": "Every safeguard of the unattended run stays: preflight, authority, policy re-read before every engine call (also unattended.prune), audit-first, the first failure stops the run, one audit line per prune action and refusal (step prune), a prune failure leaves the earlier steps done and reported",
+      "checkpoint_ids": [
+        "CP2",
+        "CP3"
+      ]
+    },
+    "R4": {
+      "description": "retention-cleanup --unattended runs the prune phase after a cleanup phase that did not stop when unattended.prune is true; --json gains the prune section with schema_version unchanged; exit codes keep their meaning",
+      "checkpoint_ids": [
+        "CP3"
+      ]
+    },
+    "R5": {
+      "description": "status, doctor, the adopt preview, the cleanup preview and docs/retention.md say that prune is run unattended with its exact limits, that deleting an archive cannot be undone and where the archive store lives; docs/exit-codes.md is updated; ROADMAP row 52 is added and marked Done; tests and goldens cover every refusal and stop with failure-only mutations",
+      "checkpoint_ids": [
+        "CP4"
+      ]
+    }
+  }
+}

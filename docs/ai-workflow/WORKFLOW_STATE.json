@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_work_item_id": null,
+  "active_work_item_id": "unattended-retention-prune",
   "work_items": {
     "plan-amendment-mechanism": {
       "work_item_type": "process",
@@ -43505,6 +43505,376 @@
         },
         "evaluated_at": "2026-11-19T11:41:09Z",
         "workflow_release": "2.29.9"
+      }
+    },
+    "unattended-retention-prune": {
+      "work_item_type": "process",
+      "work_item_kind": "process",
+      "work_item_id": "unattended-retention-prune",
+      "parent_work_item_id": null,
+      "plan_path": "docs/ai-workflow/WORKFLOW_MANAGER_UNATTENDED_RETENTION_PRUNE_PLAN.md",
+      "registry_path": "docs/ai-workflow/registry/unattended-retention-prune-registry.json",
+      "mapping_path": "docs/ai-workflow/requirements/unattended-retention-prune-mapping.json",
+      "governing_workflow_version": "2.2",
+      "phase": "IMPLEMENTING",
+      "plan_revision": 5,
+      "implementation_revision": null,
+      "functional_review_round": null,
+      "base_commit": "7e0ab69ddfef482e15f7d771e97b4473d591d8b2",
+      "reviewed_implementation_head": null,
+      "current_checkpoint_id": null,
+      "last_completed_checkpoint_id": null,
+      "checkpoints": {},
+      "current_bundle_id": "690ecaf8f208b0de15e9e1d0b85421f74282da568502429182cabdd5a16d6d1e",
+      "plan_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "690ecaf8f208b0de15e9e1d0b85421f74282da568502429182cabdd5a16d6d1e",
+        "approved_review_content_id": "4f7f10d36c47d9fec6889a29b3ea99b463a0d8c8f1e4fb2f6ec7788d7b10afe8",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/WORKFLOW_MANAGER_UNATTENDED_RETENTION_PRUNE_PLAN.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "b4635c5cb6deff69fb61a8ada99193796ddccb0c"
+          },
+          {
+            "path": "docs/ai-workflow/registry/unattended-retention-prune-registry.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "12acaf2717f644fb6b4607482a408a3228fc4d31"
+          },
+          {
+            "path": "docs/ai-workflow/requirements/unattended-retention-prune-mapping.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "e86fc7fa227a1c19e25cee3c0244f9317773194b"
+          }
+        ],
+        "reviewed_content_commit": null,
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-11-19T14:16:56Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "4f7f10d36c47d9fec6889a29b3ea99b463a0d8c8f1e4fb2f6ec7788d7b10afe8",
+            "ledger": {
+              "local": {
+                "bundle_id": "690ecaf8f208b0de15e9e1d0b85421f74282da568502429182cabdd5a16d6d1e",
+                "verdict": "APPROVE",
+                "round": 5,
+                "verdict_sha256": "19de06f8d3e8d111f7158ae3a63c5afd78c284c6587c2649393bfbe03f2910c4",
+                "ledger_entry_sha256": "7949812a048a8aa8575b6f6ed504cbc8957e74cea1f28efb0c92b2ef2311f1fb",
+                "run_ref": "session:local .ai-review/unattended-retention-prune/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "690ecaf8f208b0de15e9e1d0b85421f74282da568502429182cabdd5a16d6d1e",
+                "verdict": "APPROVE",
+                "round": 5,
+                "verdict_sha256": "410a4491a7a5aae12af9ec38bf1612bbff7ec8581320858d30cf7741dcdcf01e",
+                "ledger_entry_sha256": "ffacbd9600aeeb5f63824847cae165d7fe4a85f5f3a81d0a7e625a7e110d8905",
+                "run_ref": "codex:20261119T141323Z-69e9b229",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-11-19T14:16:56Z",
+          "workflow_release": "2.29.9"
+        }
+      },
+      "technical_approval": null,
+      "technical_review_block_pins": [],
+      "plan_review_stages": {
+        "review_content_id": "4f7f10d36c47d9fec6889a29b3ea99b463a0d8c8f1e4fb2f6ec7788d7b10afe8",
+        "LOCAL_MODEL_PLAN_REVIEW": {
+          "bundle_id": "690ecaf8f208b0de15e9e1d0b85421f74282da568502429182cabdd5a16d6d1e",
+          "verdict": "APPROVE",
+          "round": 5,
+          "completed_at": "2026-11-19T14:12:19Z",
+          "verdict_sha256": "19de06f8d3e8d111f7158ae3a63c5afd78c284c6587c2649393bfbe03f2910c4",
+          "run_ref": "session:local .ai-review/unattended-retention-prune/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_PLAN_REVIEW": {
+          "bundle_id": "690ecaf8f208b0de15e9e1d0b85421f74282da568502429182cabdd5a16d6d1e",
+          "verdict": "APPROVE",
+          "round": 5,
+          "completed_at": "2026-11-19T14:15:20Z",
+          "verdict_sha256": "410a4491a7a5aae12af9ec38bf1612bbff7ec8581320858d30cf7741dcdcf01e",
+          "run_ref": "codex:20261119T141323Z-69e9b229",
+          "reviewer_model": "openai/gpt-6.1-sol"
+        }
+      },
+      "functional_acceptance_status": null,
+      "blocking_decisions": [],
+      "review_round_counts": {
+        "plan": {
+          "local": 5,
+          "external": 3
+        },
+        "implementation": {
+          "local": 0,
+          "external": 0
+        }
+      },
+      "state_revision": 20,
+      "last_transition": "2026-11-19T14:16:56Z",
+      "feedback_layout": "scoped",
+      "plan_review_binding": {
+        "status": "BOUND",
+        "at": "2026-11-19T14:10:13Z",
+        "consumed": {
+          "review_content_id": "7c2942cd05be3b920a889d31b9cd99133c1ffabd87e1292511b9e546d022a356",
+          "plan_revision": 4,
+          "legacy": false
+        },
+        "published": {
+          "review_content_id": "4f7f10d36c47d9fec6889a29b3ea99b463a0d8c8f1e4fb2f6ec7788d7b10afe8",
+          "plan_revision": 5
+        },
+        "bound": {
+          "review_content_id": "4f7f10d36c47d9fec6889a29b3ea99b463a0d8c8f1e4fb2f6ec7788d7b10afe8",
+          "bundle_id": "690ecaf8f208b0de15e9e1d0b85421f74282da568502429182cabdd5a16d6d1e",
+          "plan_revision": 5
+        }
+      },
+      "consumed_plan_review_content_ids": [
+        "7c2942cd05be3b920a889d31b9cd99133c1ffabd87e1292511b9e546d022a356",
+        "b045fee3912b0af75412bd970dcea03aaa50afd6a02ee3ae0b1ffd7fc61137b2",
+        "b9de6326f72102e15089166f590cf85c39d8e0b421a7f3ccd8338169a9176c27",
+        "d1229ab38fe7cb9c4288031ee08ef7f7086fa0b1d36ceca70b13260df4b64345"
+      ],
+      "optional_findings": {
+        "F-7bce98bf93ad": {
+          "digest": "7bce98bf93adf21fdc36e51fe7900205670f3724d1a200d542db319df3caff62",
+          "text": "**LPR1-003: The day-boundary reasoning runs the wrong way.** Sections 2.3 and 6 (fourth risk) say a day boundary between the report and the dry run can make the engine refuse `not_prunable`. `age_days` only grows with time (`_archive_fact`, `scripts/workflow_retention.py:366-368`), so an archive selected with `age_days > ttl_days` stays prunable at the dry run. Only a changed mtime (`archive_changed`) or a clock that moves backwards could flip it. The `not_prunable` fake-engine test is still worth keeping. Correct the stated cause.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "b9de6326f72102e15089166f590cf85c39d8e0b421a7f3ccd8338169a9176c27",
+              "verdict": "REVISE",
+              "at": "2026-11-19T13:44:37Z"
+            }
+          ]
+        },
+        "F-bb46e28ad6c5": {
+          "digest": "bb46e28ad6c5f4b45175c8c2efec31894a2e9e78985eadf2ac404313f8da08ff",
+          "text": "**LPR1-004: The engine reorders ids.** `prune_archives` runs `ids = sorted(set(ids))` (`scripts/workflow_retention.py:2074`), so the dry run's `archives[]` comes back in id order, not oldest first. Section 2.3's \"the set applied, in the same order\" should say the equivalence is a set comparison (as its first paragraph already says) and that the order is the Manager's, fixed by the per-id applies.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "b9de6326f72102e15089166f590cf85c39d8e0b421a7f3ccd8338169a9176c27",
+              "verdict": "REVISE",
+              "at": "2026-11-19T13:44:37Z"
+            }
+          ]
+        },
+        "F-a06c8228c881": {
+          "digest": "a06c8228c881e6b62a18e765bbc018c1ca84778d48a0a5373efb8902a38063bf",
+          "text": "**LPR1-005: One citation in section 1 point (5) is wrong.** The policy re-read is at `retention_run.py:241-251`, not `:206-214` (that range is `_AuditStop`/`_engine_code`). The other citations checked (`retention.py:310`, `workflow_retention.py:352-368`, `:499-546`, `:2067`) are correct.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "b9de6326f72102e15089166f590cf85c39d8e0b421a7f3ccd8338169a9176c27",
+              "verdict": "REVISE",
+              "at": "2026-11-19T13:44:37Z"
+            }
+          ]
+        },
+        "F-c012dac37321": {
+          "digest": "c012dac3732171201649d27b9c859299d58bd929c0ff2fe94e286158db95987d",
+          "text": "**LPR1-006: The risks do not name the folder-reappearance window.** The engine never looks at the review folder, and the Manager reads `review_folder.present` once, from the fresh report. A folder restored between that report and an apply (for example by a checkout of a branch that tracks it) would still be pruned and wedged. Section 6 names the analogous policy-swap window but not this one. Name it, or explain why it cannot occur.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "b9de6326f72102e15089166f590cf85c39d8e0b421a7f3ccd8338169a9176c27",
+              "verdict": "REVISE",
+              "at": "2026-11-19T13:44:37Z"
+            }
+          ]
+        },
+        "F-a1bf1c6e3ee8": {
+          "digest": "a1bf1c6e3ee88cb5cd69758f1c39488b7eaa3b8e7505582d1712a39d38ff02b1",
+          "text": "**LPR1-007: The text output of an empty cleanup is not specified.** Today `_empty` prints the preview lines and no `audit:` line for nothing-to-do. Section 2.5 says the final text line stays `  audit: PATH`. State what a run with nothing to clean prints when the prune phase then runs, prunes nothing, or stops, so CP3's goldens have a specified target.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "b9de6326f72102e15089166f590cf85c39d8e0b421a7f3ccd8338169a9176c27",
+              "verdict": "REVISE",
+              "at": "2026-11-19T13:44:37Z"
+            }
+          ]
+        },
+        "F-7dd6dfe7d4cf": {
+          "digest": "7dd6dfe7d4cf709c51a829cfdbb64076589d548722c74f8f0d58dfc93d771cf2",
+          "text": "**LPR2-002: Flow 6's grep is case-sensitive, so it misses two stale statements that 2.6 says will be replaced.** One is `retention_policy.py:16` (\"Prune is not run unattended yet.\", capital P, versus the needle `prune is not run unattended yet`). The other is `docs/retention.md:90` (\"...; prune is never run.\", lowercase, versus the needle `Prune is never run\\.`). CP4 names the docstrings and item 1 names the intro, so the plan intends to replace both, but the flow would not catch a leftover. Use `grep -rni`. With `-i` the needles still miss `retention_run.py:8` (\"Prune is never run:\") and `retention_cleanup.py:10-11` (where \"never part of\" and \"cleanup.\" are on separate lines). Both stay true and are untouched.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "b045fee3912b0af75412bd970dcea03aaa50afd6a02ee3ae0b1ffd7fc61137b2",
+              "verdict": "REVISE",
+              "at": "2026-11-19T13:50:27Z"
+            }
+          ]
+        },
+        "F-b9d675d134c7": {
+          "digest": "b9d675d134c7bd86ff329c7a3be38156a1ef5070e95a18d5ce539f7e5060d749",
+          "text": "**LPR2-003: Two \"the Manager never runs it\" sentences become imprecise.** `docs/retention.md:42` (\"Neither is run by the Manager.\", about the `prune ID --apply` line) and `:210` (\"The Manager never runs any of them.\", about the alert's `next:` steps, including `prune`) stop being literally true once `--unattended` prunes. `:210` was already imprecise for archive and remove after A2. Name them in 2.6, for example qualified as \"`verify`, `doctor` and `status` never run it; only `retention-cleanup --unattended` under an adopted `unattended.prune` does\", or record why they stay.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "b045fee3912b0af75412bd970dcea03aaa50afd6a02ee3ae0b1ffd7fc61137b2",
+              "verdict": "REVISE",
+              "at": "2026-11-19T13:50:27Z"
+            }
+          ]
+        },
+        "F-07ef19e5e094": {
+          "digest": "07ef19e5e094f2c922543fa528418ee3fc235d93f7b1d843a566aa13c3ee8e89",
+          "text": "**LPR2-004: The prune phase's audit table has no line for an interrupt outside an apply.** 2.4 lists `prune`/`interrupted` for an apply only, and `policy`/`stopped` for a changed policy. A2 writes `policy`/`interrupted` for an interrupt during a re-read (`docs/retention.md:403`). The plan does not say what an interrupt during the prune phase's re-read, its fresh report or its dry run writes (`refused`, or `interrupted` with `item_id` null). Say which, so CP2's interrupt tests and the page's step table have a specified target.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "b045fee3912b0af75412bd970dcea03aaa50afd6a02ee3ae0b1ffd7fc61137b2",
+              "verdict": "REVISE",
+              "at": "2026-11-19T13:50:27Z"
+            }
+          ]
+        },
+        "F-83aad08328b5": {
+          "digest": "83aad08328b58a87e9347deac0b34ebf24d9616bc9aac83a383691b63a00323a",
+          "text": "**LPR3-001: The prune phase's `plan_digest` is not specified for the lines written before a prune plan exists.** Section 2.4 says every line of the phase carries \"the prune plan digest in `plan_digest`\". Some of the phase's lines come before the selection: `policy`/`stopped` or `policy`/`interrupted` at the re-read before the fresh report, `prune`/`refused` for an unavailable or incomplete report, and `prune`/`interrupted` during the report. None of them has a prune plan yet. Say whether such a line writes `null` or the cleanup plan's digest, so that CP2's audit-line tests have one target.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 3,
+              "review_content_id": "d1229ab38fe7cb9c4288031ee08ef7f7086fa0b1d36ceca70b13260df4b64345",
+              "verdict": "APPROVE",
+              "at": "2026-11-19T13:56:23Z"
+            }
+          ]
+        },
+        "F-b4d78b92d8f5": {
+          "digest": "b4d78b92d8f509b08883fd6ee97cfc7721be64766fe3fae2f5a928dcf58f1aed",
+          "text": "**LPR3-002: One more \"the Manager never runs\" sentence is in the same class as items 6 and 7 of 2.6.** `docs/retention.md:44` (the status list's `next` line: \"`archive`, then `remove` ... The Manager never runs them.\") has been imprecise since A2, when `--unattended` began running `archive` and `remove`. This item does not make it worse, because that line never names `prune`. CP4 already edits the neighbouring line 42, so it could qualify this one the same way (\"`verify`, `doctor` and `status` never run them\"). Recording why it stays is also enough.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 3,
+              "review_content_id": "d1229ab38fe7cb9c4288031ee08ef7f7086fa0b1d36ceca70b13260df4b64345",
+              "verdict": "APPROVE",
+              "at": "2026-11-19T13:56:23Z"
+            }
+          ]
+        },
+        "F-5271b7e10316": {
+          "digest": "5271b7e103162ce6cb35452b94922a9f978a240e0bea8aadfb51610bc958e279",
+          "text": "**EPR-002 — Scope the introductory policy-recheck claim to the prune phase.** Lines 11–12 describe A2 as rereading policy before every engine call. A2 reads it once per item (`retention_run.py:241–250`), then performs archive, verification and removal without another read. Section 1(5) and CP2 correctly preserve that behavior. Align the introduction with those more precise sections.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "MANUAL_EXTERNAL_PLAN_REVIEW",
+              "round": 3,
+              "review_content_id": "d1229ab38fe7cb9c4288031ee08ef7f7086fa0b1d36ceca70b13260df4b64345",
+              "verdict": "REVISE",
+              "at": "2026-11-19T14:01:10Z"
+            }
+          ]
+        },
+        "F-8a7680ba324b": {
+          "digest": "8a7680ba324bd8d1adc1ea0a9ff67fb129561748870e80e85c764ce6c6daa446",
+          "text": "**EPR-003 — Complete the mutation coverage for defensive selection.** CP1 tests unacceptable ids, non-integer/boolean ages and missing `modified`, but section 3 does not name mutations that bypass those exclusions.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "MANUAL_EXTERNAL_PLAN_REVIEW",
+              "round": 3,
+              "review_content_id": "d1229ab38fe7cb9c4288031ee08ef7f7086fa0b1d36ceca70b13260df4b64345",
+              "verdict": "REVISE",
+              "at": "2026-11-19T14:01:10Z"
+            }
+          ]
+        },
+        "F-db8e117f0e53": {
+          "digest": "db8e117f0e53cacb60bff452ade81631ff36d003855695a93d800f2bd6be70d3",
+          "text": "**LPR4-001: Section 2.2 says \"three listed reasons\", but the table lists four.** The table's \"Excluded as\" column names `review-folder-present`, `removal-interrupted`, `unacceptable-id` and `age-not-known`, and M28 expects `age-not-known`. Say \"four\" (or \"one of the listed reasons\"). Also say whether an archive excluded for `age-not-known` (a valid `age_days` but no usable `modified`) appears in `skipped`. CP1's \"`skipped` listing only archives that were old and finished\" suggests it does.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 4,
+              "review_content_id": "7c2942cd05be3b920a889d31b9cd99133c1ffabd87e1292511b9e546d022a356",
+              "verdict": "APPROVE",
+              "at": "2026-11-19T14:05:20Z"
+            }
+          ]
+        },
+        "F-15294aa47229": {
+          "digest": "15294aa472290860bb5df9b1caa917b1934ab02c7679888feeb50800215a4a66",
+          "text": "**LPR4-002: LPR3-001 is still open.** Section 2.4 still says every line of the phase carries \"the prune plan digest in `plan_digest`\". It does not say what a line written before a prune plan exists carries: the policy re-read before the fresh report, a fresh report that is unavailable or incomplete, or an interrupt during that report. Name `null` or the cleanup plan's digest, so CP2's audit-line tests have one target.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 4,
+              "review_content_id": "7c2942cd05be3b920a889d31b9cd99133c1ffabd87e1292511b9e546d022a356",
+              "verdict": "APPROVE",
+              "at": "2026-11-19T14:05:20Z"
+            }
+          ]
+        }
       }
     }
   }

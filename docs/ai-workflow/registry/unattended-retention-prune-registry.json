@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "work_item_id": "unattended-retention-prune",
+  "plan_revision": 5,
+  "checkpoints": [
+    {
+      "id": "CP1",
+      "name": "The prune selection, its plan digest and its two argv forms",
+      "depends_on": [],
+      "complexity": 2,
+      "session_target": 1
+    },
+    {
+      "id": "CP2",
+      "name": "The prune phase: policy re-read, dry-run equivalence, per-id apply, audit lines",
+      "depends_on": [
+        "CP1"
+      ],
+      "complexity": 3,
+      "session_target": 1
+    },
+    {
+      "id": "CP3",
+      "name": "The unattended command runs the phase; the JSON document, text and exit codes",
+      "depends_on": [
+        "CP2"
+      ],
+      "complexity": 3,
+      "session_target": 1
+    },
+    {
+      "id": "CP4",
+      "name": "The status text, the docs and the ROADMAP row",
+      "depends_on": [
+        "CP3"
+      ],
+      "complexity": 2,
+      "session_target": 1
+    }
+  ]
+}
