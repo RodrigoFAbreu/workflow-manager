@@ -1047,7 +1047,10 @@ class TestDocs(unittest.TestCase):
         page = " ".join((REPO_ROOT / "docs" / "retention.md").read_text().split())
         self.assertIn("workflow-manager retention-cleanup", page)
         self.assertIn("2.25.5", page)
-        self.assertIn("Prune is never part of cleanup", page)
+        self.assertIn("The confirmed run never runs prune, and `workflow_retention.py prune` "
+                      "stays user-only", page)
+        self.assertNotIn("Prune is never part of cleanup", page)
+        self.assertNotIn("does not run it either yet", page)
 
     def test_the_exit_codes_page_has_the_command(self):
         page = (REPO_ROOT / "docs" / "exit-codes.md").read_text()

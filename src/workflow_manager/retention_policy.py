@@ -11,9 +11,10 @@ raises from `load`, never runs the retention script, and sends and cleans
 nothing: a later release evaluates the thresholds.
 
 The optional `unattended` key declares what an unattended run may do (archive,
-then prune). It is validated and printed here; only the cleanup part (archive and
-remove) of `retention-cleanup --unattended` acts on it, under an adoption with the
-unattended sentence. Prune is not run unattended yet. An older Manager refuses a file carrying the key (the file is closed), so it reads
+then prune). It is validated and printed here; only `retention-cleanup --unattended`
+acts on it, under an adoption with the
+unattended sentence; with `unattended.prune` true the run then prunes the archives the
+policy has aged out. An older Manager refuses a file carrying the key (the file is closed), so it reads
 the mode as `off` until it is updated.
 
 What an unattended run is authorised to do is asked of `PolicyState.unattended`,
@@ -234,16 +235,34 @@ def describe_unattended(unattended: dict) -> str:
             f"at most {unattended['prune_max_per_run']} prunes per run")
 
 
-NOT_ENFORCED = ("  enforced by retention-cleanup --unattended for the cleanup part (archive and "
-                "remove); prune is not run unattended yet")
+# The engine's own default archive store (its `DEFAULT_ARCHIVE_ROOT`); a test pins
+# the two together.
+ARCHIVE_ROOT = "~/.local/share/workflow-archive"
+
+
+def enforcement_lines(unattended: dict) -> list[str]:
+    """What `retention-cleanup --unattended` enforces of the `unattended` object, from
+    one place so `status`, `doctor`, the adopt preview and the cleanup preview agree."""
+    if not unattended["prune"]:
+        return ["  enforced by retention-cleanup --unattended for the cleanup part (archive and "
+                "remove); unattended.prune is false, so no archive is pruned"]
+    return [
+        "  enforced by retention-cleanup --unattended: it archives and removes, then prunes "
+        "archives of finished items whose review folder is already gone, older than "
+        f"{unattended['ttl_days']} days, at most {unattended['prune_max_per_run']} per run, "
+        "never one under an interrupted removal",
+        f"  deleting an archive cannot be undone; the archive store is {ARCHIVE_ROOT}, "
+        "which the Manager does not back up",
+    ]
 
 
 def unattended_lines(state: "PolicyState", target: Path) -> list[str]:
     """The unattended lines every output prints, so they agree: none for a state
     without a valid file or a file without the `unattended` key (those outputs stay
-    byte-identical), else what the key says in this state and that nothing enforces it."""
+    byte-identical), else what the key says in this state and what the unattended run enforces of it."""
     if not state.policy or "unattended" not in state.policy:
         return []
+    declared = state.unattended if state.unattended is not None else state.policy["unattended"]
     if state.unattended is not None:
         head = ("  unattended retention: adopted with the unattended sentence: "
                 + describe_unattended(state.unattended))
@@ -255,7 +274,7 @@ def unattended_lines(state: "PolicyState", target: Path) -> list[str]:
         head = ("  unattended retention: the file declares "
                 + describe_unattended(state.policy["unattended"])
                 + "; adopting it with the unattended sentence would authorise that")
-    return [head, NOT_ENFORCED]
+    return [head, *enforcement_lines(declared)]
 
 
 def canonical(policy: dict) -> bytes:

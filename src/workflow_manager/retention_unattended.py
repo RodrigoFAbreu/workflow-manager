@@ -24,15 +24,14 @@ import sys
 import uuid
 from pathlib import Path
 
-from . import retention, retention_cleanup, retention_prune, retention_run
+from . import retention, retention_cleanup, retention_policy, retention_prune, retention_run
 
 SCHEMA_VERSION = 1
 AUDIT_NAME = "retention-audit.jsonl"
 STATE_DIR_NAME = "workflow-manager"
 DIR_MODE, FILE_MODE = 0o700, 0o600
-# The engine's own default archive store (`scripts/workflow_retention.py`,
-# `DEFAULT_ARCHIVE_ROOT`); a test pins the two together.
-ARCHIVE_ROOT = "~/.local/share/workflow-archive"
+# The engine's own default archive store, named once in `retention_policy`.
+ARCHIVE_ROOT = retention_policy.ARCHIVE_ROOT
 
 # The vocabulary of a line (plan section 2.3).
 STEPS = ("archive", "verify", "remove", "plan", "preflight", "policy", "prune")
