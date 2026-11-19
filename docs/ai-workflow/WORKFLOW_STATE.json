@@ -43634,7 +43634,7 @@
         }
       },
       "technical_approval": {
-        "status": "CURRENT",
+        "status": "STALE",
         "basis": "POLICY_SATISFIED",
         "reviewed_bundle_id": "7fe751d7f0ced87fb294c11bae7c5debb1efbbdecf579a7843b3bb4c2c63a65d",
         "approved_review_content_id": "afd6b6ae9664d438505f2c25c66143f75387ae36b568587cde81eb6cff4a3c2b",
@@ -43811,8 +43811,8 @@
           "external": 1
         }
       },
-      "state_revision": 32,
-      "last_transition": "2026-11-19T15:26:43Z",
+      "state_revision": 33,
+      "last_transition": "2026-11-19T15:39:22Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -44111,6 +44111,219 @@
           "verdict_sha256": "cdaaa58ca691eb227bbe8166434e6fdf64cf91da40b53b0edebb7db01d56c7ec",
           "run_ref": "codex:20261119T152123Z-5a83fd11",
           "reviewer_model": "openai/gpt-6.1-sol"
+        }
+      },
+      "gate_evidence": {
+        "functional": {
+          "flow-1": {
+            "flow_id": "flow-1",
+            "status": "passed",
+            "head": "1878aa50d86aa2f42e697309834170d196c65f6b",
+            "ran_at": "2026-11-19T15:38:05Z",
+            "summary": {
+              "checklist_blob": "75f339527946ba3efd469c7e19bfd42b77bdf1a8",
+              "text": "The source and test name-status changes match the checklist exactly."
+            },
+            "log_digest": "ba73f826d10a4ae3a4687da54452c092a08b3ee7a6a80ac666618f068256dc0b",
+            "run_ref": "controller:20261119T153611Z-f8205de5",
+            "reporter": "workflow-controller 1.31.1",
+            "identity": "afd6b6ae9664d438505f2c25c66143f75387ae36b568587cde81eb6cff4a3c2b",
+            "recorded_at": "2026-11-19T15:38:05Z"
+          },
+          "flow-2": {
+            "flow_id": "flow-2",
+            "status": "failed",
+            "head": "1878aa50d86aa2f42e697309834170d196c65f6b",
+            "ran_at": "2026-11-19T15:38:05Z",
+            "summary": {
+              "checklist_blob": "75f339527946ba3efd469c7e19bfd42b77bdf1a8",
+              "reason": "defect",
+              "text": "The committed documentation changes match, but the expected working-tree modification to docs/ROADMAP.md is absent."
+            },
+            "log_digest": "cf9e04bea2b5e7d1d8f9db41cdfc359293d6021861fa3fca8b967079f8631013",
+            "run_ref": "controller:20261119T153611Z-f8205de5",
+            "reporter": "workflow-controller 1.31.1",
+            "identity": "afd6b6ae9664d438505f2c25c66143f75387ae36b568587cde81eb6cff4a3c2b",
+            "recorded_at": "2026-11-19T15:38:05Z"
+          },
+          "flow-3": {
+            "flow_id": "flow-3",
+            "status": "passed",
+            "head": "1878aa50d86aa2f42e697309834170d196c65f6b",
+            "ran_at": "2026-11-19T15:38:05Z",
+            "summary": {
+              "checklist_blob": "75f339527946ba3efd469c7e19bfd42b77bdf1a8",
+              "text": "The specified paths have no changes against the base commit; git diff exited 0."
+            },
+            "log_digest": "ca7d38f3b12b1ae7d21fbdcdf92336576bcc3dcba7eb824d7a18cf990947dacf",
+            "run_ref": "controller:20261119T153611Z-f8205de5",
+            "reporter": "workflow-controller 1.31.1",
+            "identity": "afd6b6ae9664d438505f2c25c66143f75387ae36b568587cde81eb6cff4a3c2b",
+            "recorded_at": "2026-11-19T15:38:05Z"
+          },
+          "flow-4": {
+            "flow_id": "flow-4",
+            "status": "passed",
+            "head": "1878aa50d86aa2f42e697309834170d196c65f6b",
+            "ran_at": "2026-11-19T15:38:05Z",
+            "summary": {
+              "checklist_blob": "75f339527946ba3efd469c7e19bfd42b77bdf1a8",
+              "text": "The retention documentation describes the TTL, cap, irreversible deletion and archive store; exit codes 0, 1 and 2 mention prune."
+            },
+            "log_digest": "28603ec9a16cce616b12ca278c872826971358c0583dcd77cc33c751a6f37a5d",
+            "run_ref": "controller:20261119T153611Z-f8205de5",
+            "reporter": "workflow-controller 1.31.1",
+            "identity": "afd6b6ae9664d438505f2c25c66143f75387ae36b568587cde81eb6cff4a3c2b",
+            "recorded_at": "2026-11-19T15:38:06Z"
+          },
+          "flow-5": {
+            "flow_id": "flow-5",
+            "status": "passed",
+            "head": "1878aa50d86aa2f42e697309834170d196c65f6b",
+            "ran_at": "2026-11-19T15:38:06Z",
+            "summary": {
+              "checklist_blob": "75f339527946ba3efd469c7e19bfd42b77bdf1a8",
+              "text": "None of the prohibited references appears in the two pages; grep exited 1."
+            },
+            "log_digest": "0d32dbb375c15e2bd732e07235bc948e1a1bccfbfeba2364de28f13668b1ccf8",
+            "run_ref": "controller:20261119T153611Z-f8205de5",
+            "reporter": "workflow-controller 1.31.1",
+            "identity": "afd6b6ae9664d438505f2c25c66143f75387ae36b568587cde81eb6cff4a3c2b",
+            "recorded_at": "2026-11-19T15:38:06Z"
+          },
+          "flow-6": {
+            "flow_id": "flow-6",
+            "status": "failed",
+            "head": "1878aa50d86aa2f42e697309834170d196c65f6b",
+            "ran_at": "2026-11-19T15:38:06Z",
+            "summary": {
+              "checklist_blob": "75f339527946ba3efd469c7e19bfd42b77bdf1a8",
+              "reason": "defect",
+              "text": "The two expected matches appear, but docs/retention.md:90 also incorrectly says prune is never run, the checklist's known failure."
+            },
+            "log_digest": "320816171fb4fa698f90d321bd1ed7e9f2c23be47dbd1323eb07e6978e2b34ed",
+            "run_ref": "controller:20261119T153611Z-f8205de5",
+            "reporter": "workflow-controller 1.31.1",
+            "identity": "afd6b6ae9664d438505f2c25c66143f75387ae36b568587cde81eb6cff4a3c2b",
+            "recorded_at": "2026-11-19T15:38:06Z"
+          },
+          "flow-7": {
+            "flow_id": "flow-7",
+            "status": "failed",
+            "head": "1878aa50d86aa2f42e697309834170d196c65f6b",
+            "ran_at": "2026-11-19T15:38:06Z",
+            "summary": {
+              "checklist_blob": "75f339527946ba3efd469c7e19bfd42b77bdf1a8",
+              "reason": "defect",
+              "text": "Roadmap row 52 is absent and there is no one-line working-tree addition relative to the base; rows 50 and 51 are unchanged."
+            },
+            "log_digest": "6306a953ef7758004f29dc0c38df837de888a2ac1b9c4ac42402c3ca39e9b538",
+            "run_ref": "controller:20261119T153611Z-f8205de5",
+            "reporter": "workflow-controller 1.31.1",
+            "identity": "afd6b6ae9664d438505f2c25c66143f75387ae36b568587cde81eb6cff4a3c2b",
+            "recorded_at": "2026-11-19T15:38:06Z"
+          },
+          "flow-8": {
+            "flow_id": "flow-8",
+            "status": "passed",
+            "head": "1878aa50d86aa2f42e697309834170d196c65f6b",
+            "ran_at": "2026-11-19T15:38:06Z",
+            "summary": {
+              "checklist_blob": "75f339527946ba3efd469c7e19bfd42b77bdf1a8",
+              "text": "Combining --confirm and --unattended was rejected with exit 2 and did not create the state directory."
+            },
+            "log_digest": "c09506fd589f83d0731b214e0a23d6380bef2b03b35beffa511c43bbcb83f1fd",
+            "run_ref": "controller:20261119T153611Z-f8205de5",
+            "reporter": "workflow-controller 1.31.1",
+            "identity": "afd6b6ae9664d438505f2c25c66143f75387ae36b568587cde81eb6cff4a3c2b",
+            "recorded_at": "2026-11-19T15:38:07Z"
+          },
+          "flow-9": {
+            "flow_id": "flow-9",
+            "status": "passed",
+            "head": "1878aa50d86aa2f42e697309834170d196c65f6b",
+            "ran_at": "2026-11-19T15:38:07Z",
+            "summary": {
+              "checklist_blob": "75f339527946ba3efd469c7e19bfd42b77bdf1a8",
+              "text": "The release title was accepted with minor impact and exit 0."
+            },
+            "log_digest": "a4ba86e10368be51be8dfb6e81492dfbcca9ade23cf8b8d9edec3ec84c7789fe",
+            "run_ref": "controller:20261119T153611Z-f8205de5",
+            "reporter": "workflow-controller 1.31.1",
+            "identity": "afd6b6ae9664d438505f2c25c66143f75387ae36b568587cde81eb6cff4a3c2b",
+            "recorded_at": "2026-11-19T15:38:07Z"
+          },
+          "flow-10": {
+            "flow_id": "flow-10",
+            "status": "failed",
+            "head": "1878aa50d86aa2f42e697309834170d196c65f6b",
+            "ran_at": "2026-11-19T15:38:07Z",
+            "summary": {
+              "checklist_blob": "75f339527946ba3efd469c7e19bfd42b77bdf1a8",
+              "reason": "environment",
+              "text": "The runner cannot create its lock under the read-only clone's .git; the supplementary direct test run also lacks the verified release cache. The mutation phase conflicts with the rule prohibiting edits to product source, including copies."
+            },
+            "log_digest": "d9ca114cb6404352979f051ec66eb758ece9716eced345b4d20a32165039098a",
+            "run_ref": "controller:20261119T153611Z-f8205de5",
+            "reporter": "workflow-controller 1.31.1",
+            "identity": "afd6b6ae9664d438505f2c25c66143f75387ae36b568587cde81eb6cff4a3c2b",
+            "recorded_at": "2026-11-19T15:38:07Z"
+          },
+          "flow-11": {
+            "flow_id": "flow-11",
+            "status": "failed",
+            "head": "1878aa50d86aa2f42e697309834170d196c65f6b",
+            "ran_at": "2026-11-19T15:38:07Z",
+            "summary": {
+              "checklist_blob": "75f339527946ba3efd469c7e19bfd42b77bdf1a8",
+              "reason": "environment",
+              "text": "A managed target with an adopted policy and verified Workflow release is unavailable, and the release cannot be fetched without network access; the scratch-target preview was refused as unmanaged."
+            },
+            "log_digest": "5dd76968c4f25596da92542ef7b3c45f75154aa1b3a2c31391af5e26d5cf894d",
+            "run_ref": "controller:20261119T153611Z-f8205de5",
+            "reporter": "workflow-controller 1.31.1",
+            "identity": "afd6b6ae9664d438505f2c25c66143f75387ae36b568587cde81eb6cff4a3c2b",
+            "recorded_at": "2026-11-19T15:38:07Z"
+          },
+          "flow-12": {
+            "flow_id": "flow-12",
+            "status": "failed",
+            "head": "1878aa50d86aa2f42e697309834170d196c65f6b",
+            "ran_at": "2026-11-19T15:38:08Z",
+            "summary": {
+              "checklist_blob": "75f339527946ba3efd469c7e19bfd42b77bdf1a8",
+              "reason": "environment",
+              "text": "The managed target, verified release, adopted policy and prepared archive store are unavailable; the scratch-target unattended run was refused as unmanaged."
+            },
+            "log_digest": "2f76ea839a2e0bb20a0ec181e5df326beeee16c17298cfc8056fb0af57be9dc1",
+            "run_ref": "controller:20261119T153611Z-f8205de5",
+            "reporter": "workflow-controller 1.31.1",
+            "identity": "afd6b6ae9664d438505f2c25c66143f75387ae36b568587cde81eb6cff4a3c2b",
+            "recorded_at": "2026-11-19T15:38:08Z"
+          },
+          "flow-13": {
+            "flow_id": "flow-13",
+            "status": "failed",
+            "head": "1878aa50d86aa2f42e697309834170d196c65f6b",
+            "ran_at": "2026-11-19T15:38:08Z",
+            "summary": {
+              "checklist_blob": "75f339527946ba3efd469c7e19bfd42b77bdf1a8",
+              "reason": "environment",
+              "text": "The disabled-prune scenario depends on the unavailable managed target, verified release, policy and archives from flow 12, so it could not be run."
+            },
+            "log_digest": "c2a65fc87cf33f03c35b11c61cb2eeb744e0f441fc84bc00b8ceaa7828ef4157",
+            "run_ref": "controller:20261119T153611Z-f8205de5",
+            "reporter": "workflow-controller 1.31.1",
+            "identity": "afd6b6ae9664d438505f2c25c66143f75387ae36b568587cde81eb6cff4a3c2b",
+            "recorded_at": "2026-11-19T15:38:08Z"
+          }
+        },
+        "pr": null,
+        "pr_reported": null,
+        "pr_keys": {
+          "reopened_for": [],
+          "applied": [],
+          "ingest_seq": 0
         }
       }
     }
