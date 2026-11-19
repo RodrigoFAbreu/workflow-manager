@@ -1268,8 +1268,10 @@ def build_parser() -> argparse.ArgumentParser:
                 "which you then commit. The mode in force stays off unless the file is "
                 "adopted unchanged. This release reads the policy and, for notify and both, "
                 "evaluates its thresholds in verify and doctor; adopting archives, removes, "
-                "prunes and sends nothing, and only retention-cleanup with --confirm cleans up "
-                "(for cleanup and both). Only the repository's owner runs it with --confirm; "
+                "prunes and sends nothing, and only retention-cleanup cleans up "
+                "(for cleanup and both), with --confirm, or with --unattended when the file "
+                "carries the unattended key and is adopted with the unattended sentence. "
+                "Only the repository's owner runs it with --confirm; "
                 "an agent must not. Exit 0: previewed or adopted; 2: refused, nothing written "
                 "(not managed, no valid file, the sentence does not match, .workflow-manager "
                 "is a link, the record path is not a regular file).")

@@ -822,6 +822,49 @@ class TestAgeKey(Base):
         self.assertEqual(rp.SCHEMA_VERSION, 1)
 
 
+class TestBlockLastLine(Base):
+    """The adopted block's last line names `--unattended` only under an adoption with the
+    unattended sentence and `cleanup` true; every other adopted state keeps the old line."""
+
+    OLD = ("  this Manager release reads the policy and, for notify and both, evaluates its "
+           "thresholds in verify and doctor; it sends nothing, and cleans up only when "
+           "retention-cleanup runs with --confirm")
+    NEW = OLD + (" or, under the adopted unattended policy, with --unattended")
+    UNATTENDED = {"cleanup": True, "prune": True, "keep_recent": 5, "ttl_days": 30,
+                  "prune_max_per_run": 3}
+
+    def adopted(self, sentence, **unattended):
+        policy = with_(unattended={**self.UNATTENDED, **unattended})
+        self.put(policy)
+        digest = self.digest(policy)
+        self.record_file().write_bytes(rp.serialize_record({
+            "schema_version": 1, "sha256": digest, "adopted_at": "2026-11-18T10:00:00Z",
+            "confirmation": sentence(digest), "policy": policy}))
+        state = self.state()
+        self.assertEqual(state.state, rp.ADOPTED)
+        return rp.block(state, Path("/t"))
+
+    def test_an_unattended_adoption_with_cleanup_names_unattended(self):
+        self.assertEqual(self.adopted(rp.unattended_sentence)[-1], self.NEW)
+        self.assertEqual(self.adopted(rp.unattended_sentence, prune=False)[-1], self.NEW)
+
+    def test_the_no_authority_line_ends_with_confirm_and_is_unchanged(self):
+        self.assertEqual(self.adopted(rp.sentence)[-1], self.OLD)
+        self.assertTrue(self.adopted(rp.unattended_sentence, cleanup=False)[-1].endswith("--confirm"))
+        self.assertEqual(self.adopted(rp.unattended_sentence, cleanup=False)[-1], self.OLD)
+        for line in (self.adopted(rp.sentence)[-1],
+                     self.adopted(rp.unattended_sentence, cleanup=False)[-1]):
+            self.assertNotIn("--unattended", line)
+
+    def test_a_policy_without_the_key_prints_the_old_line(self):
+        self.adopt()
+        self.assertEqual(rp.block(self.state(), Path("/t"))[-1], self.OLD)
+
+    def test_the_unattended_line_has_no_remaining_confirm_only_statement(self):
+        last = self.adopted(rp.unattended_sentence)[-1]
+        self.assertNotIn("cleans up only when retention-cleanup runs with --confirm\n", last + "\n")
+
+
 class TestDocs(unittest.TestCase):
     def test_the_page_has_the_section_and_the_exit_codes_row(self):
         page = (REPO_ROOT / "docs/retention.md").read_text()

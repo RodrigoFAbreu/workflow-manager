@@ -11,9 +11,9 @@ raises from `load`, never runs the retention script, and sends and cleans
 nothing: a later release evaluates the thresholds.
 
 The optional `unattended` key declares what an unattended run may do (archive,
-then prune). In this release it is only validated and printed: nothing runs
-unattended, and `retention-cleanup` still needs its per-plan `--confirm`. An
-older Manager refuses a file carrying the key (the file is closed), so it reads
+then prune). It is validated and printed here; only the cleanup part (archive and
+remove) of `retention-cleanup --unattended` acts on it, under an adoption with the
+unattended sentence. Prune is not run unattended yet. An older Manager refuses a file carrying the key (the file is closed), so it reads
 the mode as `off` until it is updated.
 
 What an unattended run is authorised to do is asked of `PolicyState.unattended`,
@@ -234,8 +234,8 @@ def describe_unattended(unattended: dict) -> str:
             f"at most {unattended['prune_max_per_run']} prunes per run")
 
 
-NOT_ENFORCED = ("  not enforced by this release: nothing runs unattended, and retention-cleanup "
-                "still needs its per-plan --confirm")
+NOT_ENFORCED = ("  enforced by retention-cleanup --unattended for the cleanup part (archive and "
+                "remove); prune is not run unattended yet")
 
 
 def unattended_lines(state: "PolicyState", target: Path) -> list[str]:
@@ -612,14 +612,21 @@ def block(state: PolicyState, target: Path) -> list[str]:
     if state.state == ABSENT:
         return []
     if state.state == ADOPTED:
+        if state.unattended is not None and state.unattended["cleanup"]:
+            last = ("  this Manager release reads the policy and, for notify and both, evaluates "
+                    "its thresholds in verify and doctor; it sends nothing, and cleans up only when "
+                    "retention-cleanup runs with --confirm or, under the adopted unattended "
+                    "policy, with --unattended")
+        else:
+            last = ("  this Manager release reads the policy and, for notify and both, evaluates "
+                    "its thresholds in verify and doctor; it sends nothing, and cleans up only when "
+                    "retention-cleanup runs with --confirm")
         return [
             f"retention policy: adopted, mode {state.mode} (digest {state.digest[:DIGEST_SHOWN]}, "
             f"adopted {state.adopted_at})",
             f"  thresholds: {describe(state.policy)}",
             *unattended_lines(state, target),
-            "  this Manager release reads the policy and, for notify and both, evaluates its "
-            "thresholds in verify and doctor; it sends nothing, and cleans up only when "
-            "retention-cleanup runs with --confirm",
+            last,
         ]
     lines = [f"retention policy: {state.state} ({WORDS[state.state]}); mode off is in force"]
     lines.extend(f"  problem: {problem}" for problem in state.problems[:PROBLEM_LIMIT])
