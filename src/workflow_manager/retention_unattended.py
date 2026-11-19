@@ -24,18 +24,17 @@ import sys
 import uuid
 from pathlib import Path
 
-from . import retention, retention_cleanup, retention_run
+from . import retention, retention_cleanup, retention_policy, retention_prune, retention_run
 
 SCHEMA_VERSION = 1
 AUDIT_NAME = "retention-audit.jsonl"
 STATE_DIR_NAME = "workflow-manager"
 DIR_MODE, FILE_MODE = 0o700, 0o600
-# The engine's own default archive store (`scripts/workflow_retention.py`,
-# `DEFAULT_ARCHIVE_ROOT`); a test pins the two together.
-ARCHIVE_ROOT = "~/.local/share/workflow-archive"
+# The engine's own default archive store, named once in `retention_policy`.
+ARCHIVE_ROOT = retention_policy.ARCHIVE_ROOT
 
 # The vocabulary of a line (plan section 2.3).
-STEPS = ("archive", "verify", "remove", "plan", "preflight", "policy")
+STEPS = ("archive", "verify", "remove", "plan", "preflight", "policy", "prune")
 RESULTS = ("ok", "failed", "interrupted", "nothing-eligible", "started", "refused", "stopped")
 FIELDS = ("schema_version", "time", "run_id", "repository", "policy_digest", "plan_digest",
           "item_id", "step", "engine_code", "result", "error")
@@ -270,8 +269,26 @@ class _Recorder:
                         engine_code=engine_code, error=text)
 
 
+def _prune_section(unattended, outcome: str, result=None) -> dict:
+    """The document's `prune` section (plan section 2.5). `unattended` is the adopted
+    object (None when there is none), `result` the phase's, when it ran."""
+    enabled = outcome != "disabled"
+    plan = result.plan if result is not None else None
+    return {
+        "enabled": bool(unattended and unattended.get("prune") is True),
+        "outcome": outcome,
+        "ttl_days": unattended["ttl_days"] if enabled else None,
+        "max_per_run": unattended["prune_max_per_run"] if enabled else None,
+        "plan_digest": result.digest if result is not None else None,
+        "ids": list(plan.ids) if plan is not None else [],
+        "results": [dict(entry) for entry in result.results] if result is not None else [],
+        "skipped": [{"id": shown, "reason": why}
+                    for shown, why in (plan.skipped if plan is not None else ())],
+    }
+
+
 def _document(audit, plan, plan_digest_value, outcome, *, result=None, recorder=None,
-              exit_code=0, audit_error=None) -> dict:
+              exit_code=0, audit_error=None, prune=None, prune_result=None) -> dict:
     items = []
     stop = result.stop if result is not None else None
     for index, item in enumerate(plan.items):
@@ -289,7 +306,12 @@ def _document(audit, plan, plan_digest_value, outcome, *, result=None, recorder=
         stopped = {"step": stop["step"], "item_id": stop["item_id"],
                    "engine_code": stop["engine_code"], "error": stop["error"],
                    "next_step": result.next_step}
-    return {
+    elif prune_result is not None and prune_result.stop is not None:
+        later = prune_result.stop
+        stopped = {"step": later["step"], "item_id": later["item_id"],
+                   "engine_code": later["engine_code"], "error": later["error"],
+                   "next_step": prune_result.next_step}
+    document = {
         "kind": KIND, "schema_version": SCHEMA_VERSION, "repository": audit.repository,
         "run_id": audit.run_id, "policy_digest": plan.policy_digest,
         "plan_digest": plan_digest_value, "outcome": outcome, "items": items,
@@ -299,17 +321,37 @@ def _document(audit, plan, plan_digest_value, outcome, *, result=None, recorder=
         "exit_code": exit_code,
         "audit": {"path": str(audit.path), "lines_written": audit.lines, "error": audit_error},
     }
+    document["prune"] = prune
+    return document
 
 
 def _print_document(document: dict) -> None:
     print(json.dumps(document, indent=2, sort_keys=False, ensure_ascii=True))
 
 
+def _prune_observer(audit: Audit, policy_digest: str):
+    def observe(step, item_id, result, engine_code, text, plan_digest):
+        audit.line(step, result, policy_digest=policy_digest, plan_digest=plan_digest,
+                   item_id=item_id, engine_code=engine_code, error=text)
+    return observe
+
+
+def _irreversible(count: int, total: int, *, done: bool) -> str:
+    lead = (f"retention prune: done, {count} of {total} archives deleted" if done
+            else f"retention prune: {count} of {total} archives were deleted before the stop")
+    return (f"{lead}; a deleted archive cannot be undone; the archive store is {ARCHIVE_ROOT}, "
+            "which the Manager does not back up")
+
+
 def run_command(args, preflight, *, environ=None, **seams) -> int:
     """`retention-cleanup TARGET --unattended [--json]`, after the caller has checked
     the arguments and that the target is managed with a readable record. `preflight`
     is called as `preflight(unattended=True)` and returns the `Cleared` state or
-    raises `retention_cleanup.Refusal`. `seams` go to `open_audit` (tests)."""
+    raises `retention_cleanup.Refusal`. `seams` go to `open_audit` (tests).
+
+    The cleanup phase runs first; when the adopted policy has `unattended.prune` true
+    and the cleanup phase did not stop, the prune phase follows (a nothing-to-do or
+    nothing-eligible cleanup included)."""
     as_json = bool(getattr(args, "json", False))
     try:
         audit = open_audit(args.target, environ, **seams)
@@ -330,57 +372,97 @@ def run_command(args, preflight, *, environ=None, **seams) -> int:
             return _fail(refusal.cause, refusal.step)
         plan = retention_cleanup.select(cleared.state, cleared.report)
         policy_digest = plan.policy_digest
-        if not plan.items:
-            return _empty(args, audit, plan, as_json)
-        digest = retention_cleanup.plan_digest(plan)
-        try:
-            audit.line("plan", "started", policy_digest=policy_digest, plan_digest=digest)
-        except AuditWriteError as failed:
-            return _fail(failed.cause, failed.step)
-        recorder = _Recorder(audit, policy_digest, digest)
-        emit = (lambda line: print(line, file=sys.stderr, flush=True)) if as_json else None
-        result = retention_run.run(args.target, plan, emit, unattended=True,
-                                   observer=recorder, audit_where=str(audit.path))
-        if not as_json:
-            print(_audit_text(audit), flush=True)
-        if result.exit_code != 0:
-            print(f"error: {result.error}", file=sys.stderr)
-            print(f"next: {result.next_step}", file=sys.stderr)
+        unattended = cleared.state.unattended
+        prune_on = bool(unattended and unattended.get("prune") is True)
         if as_json:
+            emit = lambda line: print(line, file=sys.stderr, flush=True)  # noqa: E731
+        else:
+            emit = lambda line: print(line, flush=True)  # noqa: E731
+
+        digest = None
+        result = recorder = None
+        if plan.items:
+            digest = retention_cleanup.plan_digest(plan)
+            try:
+                audit.line("plan", "started", policy_digest=policy_digest, plan_digest=digest)
+            except AuditWriteError as failed:
+                return _fail(failed.cause, failed.step)
+            recorder = _Recorder(audit, policy_digest, digest)
+            result = retention_run.run(args.target, plan, emit if as_json else None,
+                                       unattended=True, observer=recorder,
+                                       audit_where=str(audit.path),
+                                       closing="" if prune_on else None)
+            cleanup_stopped = result.exit_code != 0
+            outcome = STOPPED if cleanup_stopped else DONE
+        else:
+            cleanup_stopped = False
+            if plan.outcome is None:
+                outcome = NOTHING_TO_DO
+                if not as_json:
+                    for line in retention_cleanup.preview_lines(plan, args.target):
+                        print(line)
+            else:
+                outcome = NOTHING_ELIGIBLE
+                digest = retention_cleanup.plan_digest(plan)
+                try:
+                    audit.line("plan", "nothing-eligible", policy_digest=policy_digest,
+                               plan_digest=digest)
+                except AuditWriteError as failed:
+                    return _fail(failed.cause, failed.step)
+                if not as_json:
+                    left = ", ".join(retention_cleanup._measured(key, plan.before,
+                                                                 with_limit=plan.thresholds)
+                                     for key in plan.reached)
+                    skipped = ""
+                    if plan.skipped:
+                        skipped = f", skipped: {', '.join(shown for shown, _ in plan.skipped)}"
+                    print(f"retention cleanup: nothing eligible ({left}; no item is eligible"
+                          f"{skipped}; running it again will not help)")
+
+        prune_result = None
+        prune_outcome = "disabled"
+        if prune_on and cleanup_stopped:
+            prune_outcome = "not-attempted"
+        elif prune_on:
+            prune_result = retention_prune.run_phase(
+                args.target, unattended, policy_digest, emit,
+                observer=_prune_observer(audit, policy_digest), audit_where=str(audit.path))
+            prune_outcome = prune_result.outcome
+            ttl, cap = unattended["ttl_days"], unattended["prune_max_per_run"]
+            if prune_outcome == retention_prune.NOTHING_TO_PRUNE:
+                emit(f"retention prune: nothing to prune (ttl_days {ttl}, at most {cap} per run)")
+                if prune_result.plan is not None:
+                    for shown, why in prune_result.plan.skipped:
+                        emit(f"  skipped: {shown} ({why})")
+            elif prune_result.done:
+                emit(_irreversible(prune_result.done, len(prune_result.results),
+                                   done=prune_outcome == retention_prune.DONE))
+        prune_stopped = prune_result is not None and prune_result.outcome == retention_prune.STOPPED
+
+        if cleanup_stopped:
+            exit_code = result.exit_code
+        elif prune_stopped:
+            ran = bool(result is not None and result.calls) or prune_result.apply_attempted
+            exit_code = 1 if ran else 2
+        else:
+            exit_code = 0
+        if prune_stopped:
+            outcome = STOPPED
+
+        if not as_json and (plan.items or audit.lines or prune_stopped):
+            print(_audit_text(audit), flush=True)
+        failed_phase = result if cleanup_stopped else prune_result if prune_stopped else None
+        if failed_phase is not None:
+            print(f"error: {failed_phase.error}", file=sys.stderr)
+            print(f"next: {failed_phase.next_step}", file=sys.stderr)
+        if as_json:
+            audit_error = (result.audit_error if result is not None else None) or (
+                prune_result.audit_error if prune_result is not None else None)
             _print_document(_document(
-                audit, plan, digest, DONE if result.exit_code == 0 else STOPPED,
-                result=result, recorder=recorder, exit_code=result.exit_code,
-                audit_error=result.audit_error))
-        return result.exit_code
+                audit, plan, digest, outcome, result=result, recorder=recorder,
+                exit_code=exit_code, audit_error=audit_error,
+                prune=_prune_section(unattended, prune_outcome, prune_result),
+                prune_result=prune_result))
+        return exit_code
     finally:
         audit.close()
-
-
-def _empty(args, audit: Audit, plan, as_json: bool) -> int:
-    """An empty plan: nothing to do (no threshold reached; no line) or nothing
-    eligible (a threshold reached that no item can lower; one `plan` line)."""
-    if plan.outcome is None:
-        if as_json:
-            _print_document(_document(audit, plan, None, NOTHING_TO_DO))
-        else:
-            for line in retention_cleanup.preview_lines(plan, args.target):
-                print(line)
-        return 0
-    digest = retention_cleanup.plan_digest(plan)
-    try:
-        audit.line("plan", "nothing-eligible", policy_digest=plan.policy_digest,
-                   plan_digest=digest)
-    except AuditWriteError as failed:
-        return _fail(failed.cause, failed.step)
-    if as_json:
-        _print_document(_document(audit, plan, digest, NOTHING_ELIGIBLE))
-        return 0
-    left = ", ".join(retention_cleanup._measured(key, plan.before, with_limit=plan.thresholds)
-                     for key in plan.reached)
-    skipped = ""
-    if plan.skipped:
-        skipped = f", skipped: {', '.join(shown for shown, _ in plan.skipped)}"
-    print(f"retention cleanup: nothing eligible ({left}; no item is eligible{skipped}; "
-          "running it again will not help)")
-    print(_audit_text(audit))
-    return 0

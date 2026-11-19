@@ -1,0 +1,86 @@
+{
+  "schema_version": 1,
+  "work_item_id": "unattended-retention-prune",
+  "dispositions": {
+    "F-07ef19e5e094": {
+      "disposition": "fixed",
+      "note": "Plan 2.4 table lists policy/interrupted and prune/interrupted (item_id null); code matches at retention_prune.py:334-341, 373-375."
+    },
+    "F-5271b7e10316": {
+      "disposition": "fixed",
+      "note": "Plan intro says the policy is re-read once per item before its engine calls, matching retention_run.py:241-251."
+    },
+    "F-7bce98bf93ad": {
+      "disposition": "fixed",
+      "note": "Plan section 6 says a day boundary cannot cause a refusal (age_days only grows) and attributes not_prunable to an mtime moved forward."
+    },
+    "F-7dd6dfe7d4cf": {
+      "disposition": "fixed",
+      "note": "Plan flow 6 uses grep -rni and notes the two remaining unmatched lines."
+    },
+    "F-8a7680ba324b": {
+      "disposition": "fixed",
+      "note": "Plan section 3 lists M26, M27 and M28."
+    },
+    "F-a06c8228c881": {
+      "disposition": "fixed",
+      "note": "Plan section 1 point 5 cites retention_run.py:241-251."
+    },
+    "F-a1bf1c6e3ee8": {
+      "disposition": "fixed",
+      "note": "Plan 2.3 states the equivalence is a set comparison, the engine sorts ids, and the apply order is the Manager's (per-id calls)."
+    },
+    "F-b4d78b92d8f5": {
+      "disposition": "fixed",
+      "note": "Plan 2.6 item 7 and docs/retention.md:210 say verify, doctor and status never run archive, remove or prune; only retention-cleanup --unattended does."
+    },
+    "F-b9d675d134c7": {
+      "disposition": "fixed",
+      "note": "Plan 2.6 items 6 and 7 name both sentences; docs/retention.md:42 and :210 are qualified likewise."
+    },
+    "F-bb46e28ad6c5": {
+      "disposition": "fixed",
+      "note": "Same evidence as the equivalence finding: plan 2.3 states the set comparison and that order is the Manager's."
+    },
+    "F-bb954101821d": {
+      "disposition": "fixed",
+      "note": "docs/retention.md:409 ends '(the prune phase, below, adds its own)'."
+    },
+    "F-c012dac37321": {
+      "disposition": "fixed",
+      "note": "Plan section 6 has the bullet that a review folder can reappear between the report and an apply, with its accepted-risk reasoning."
+    },
+    "F-299be02f592d": {
+      "disposition": "follow-up",
+      "link": "https://github.com/RodrigoFAbreu/workflow-manager/issues/264"
+    },
+    "F-3894d1083ef9": {
+      "disposition": "follow-up",
+      "link": "https://github.com/RodrigoFAbreu/workflow-manager/issues/264"
+    },
+    "F-78c4bc65f9c0": {
+      "disposition": "follow-up",
+      "link": "https://github.com/RodrigoFAbreu/workflow-manager/issues/264"
+    },
+    "F-a11b2c982941": {
+      "disposition": "follow-up",
+      "link": "https://github.com/RodrigoFAbreu/workflow-manager/issues/264"
+    },
+    "F-15294aa47229": {
+      "disposition": "dropped",
+      "reason": "Plan wording only: the plan intro still says every line carries the plan digest; the plan is approved and frozen, the code writes null before a plan exists."
+    },
+    "F-83aad08328b5": {
+      "disposition": "dropped",
+      "reason": "Plan wording only (same as the previous finding): the code writes a null plan digest before a plan exists."
+    },
+    "F-47ffceb94d3e": {
+      "disposition": "dropped",
+      "reason": "Process note: tests/test_retention_policy.py is unchanged against the base although flow 1 expected it modified; nothing needed pinning."
+    },
+    "F-db8e117f0e53": {
+      "disposition": "dropped",
+      "reason": "Plan wording only: plan 2.2 says three listed reasons where the table lists four; the plan is frozen, code and table are right."
+    }
+  }
+}

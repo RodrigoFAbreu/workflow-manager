@@ -1028,7 +1028,15 @@ class TestRealRules(unittest.TestCase):
 class TestDocs(unittest.TestCase):
     def test_the_help_names_the_preview_the_run_the_floor_and_prune(self):
         text = " ".join(help_of(COMMAND).split())
-        for words in ("preview", "2.25.5", "writes nothing", "Prune is never run",
+        self.assertNotIn("Prune is never run.", text)     # A2's statements end (A3)
+        self.assertNotIn("Prune is never run\"", text)
+        self.assertEqual(text.count("Prune is never run"), 1)
+        for words in ("preview", "2.25.5", "writes nothing",
+                      "Prune is never run by the confirmed run; with --unattended it runs only "
+                      "when the adopted policy's unattended.prune is true",
+                      "After the archive-and-remove phase, a policy with unattended.prune true "
+                      "also prunes", "cannot be undone", "is not backed up by the Manager",
+                      "or a prune --apply was attempted",
                       "at most 5 per run", "Exit 0", "--confirm", "Run the retention cleanup",
                       "then its verification", "The first failure stops the run", "1: the run",
                       "after its first per-item call", "or stopped before that first call",
@@ -1039,7 +1047,10 @@ class TestDocs(unittest.TestCase):
         page = " ".join((REPO_ROOT / "docs" / "retention.md").read_text().split())
         self.assertIn("workflow-manager retention-cleanup", page)
         self.assertIn("2.25.5", page)
-        self.assertIn("Prune is never part of cleanup", page)
+        self.assertIn("The confirmed run never runs prune, and `workflow_retention.py prune` "
+                      "stays user-only", page)
+        self.assertNotIn("Prune is never part of cleanup", page)
+        self.assertNotIn("does not run it either yet", page)
 
     def test_the_exit_codes_page_has_the_command(self):
         page = (REPO_ROOT / "docs" / "exit-codes.md").read_text()

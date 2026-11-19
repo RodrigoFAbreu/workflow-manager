@@ -426,10 +426,17 @@ class TestAuditWriter(unittest.TestCase):
     def test_an_unknown_step_or_result_is_a_bug(self):
         audit = self.open()
         with self.assertRaises(ValueError):
-            audit.line("prune", "ok")
+            audit.line("unknown-step", "ok")
         with self.assertRaises(ValueError):
             audit.line("plan", "done")
         self.assertFalse((self.state / "workflow-manager" / "retention-audit.jsonl").read_text())
+
+    def test_the_prune_step_is_accepted_with_each_phase_result(self):
+        audit = self.open()
+        for result in ("started", "ok", "failed", "interrupted", "refused"):
+            self.assertEqual(audit.line("prune", result)["step"], "prune")
+        self.assertEqual([l["result"] for l in self.lines()],
+                         ["started", "ok", "failed", "interrupted", "refused"])
 
     # -- location -----------------------------------------------------------
 

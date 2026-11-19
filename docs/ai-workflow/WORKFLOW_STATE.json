@@ -43506,6 +43506,1028 @@
         "evaluated_at": "2026-11-19T11:41:09Z",
         "workflow_release": "2.29.9"
       }
+    },
+    "unattended-retention-prune": {
+      "work_item_type": "process",
+      "work_item_kind": "process",
+      "work_item_id": "unattended-retention-prune",
+      "parent_work_item_id": null,
+      "plan_path": "docs/ai-workflow/WORKFLOW_MANAGER_UNATTENDED_RETENTION_PRUNE_PLAN.md",
+      "registry_path": "docs/ai-workflow/registry/unattended-retention-prune-registry.json",
+      "mapping_path": "docs/ai-workflow/requirements/unattended-retention-prune-mapping.json",
+      "governing_workflow_version": "2.2",
+      "phase": "MILESTONE_COMPLETE",
+      "plan_revision": 5,
+      "implementation_revision": 3,
+      "functional_review_round": null,
+      "base_commit": "7e0ab69ddfef482e15f7d771e97b4473d591d8b2",
+      "reviewed_implementation_head": "59b2c4e6faa17cb60fcf420e3d950388ba8644d6",
+      "current_checkpoint_id": null,
+      "last_completed_checkpoint_id": "CP4",
+      "checkpoints": {
+        "CP1": {
+          "status": "COMPLETE",
+          "start_commit": "ae7a833131bf3ae40af82d7d2f9680ee73fdc874"
+        },
+        "CP2": {
+          "status": "COMPLETE",
+          "start_commit": "a3d68c1d552b36fd937d573022c7348e82e57a7b"
+        },
+        "CP3": {
+          "status": "COMPLETE",
+          "start_commit": "e74a0a752d746de6e7002aa7cedd36831ca01b74"
+        },
+        "CP4": {
+          "status": "COMPLETE",
+          "start_commit": "9a7ce2b51c0d741734b326e9e8a6e9e7c0459a81"
+        }
+      },
+      "current_bundle_id": "690ecaf8f208b0de15e9e1d0b85421f74282da568502429182cabdd5a16d6d1e",
+      "plan_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "690ecaf8f208b0de15e9e1d0b85421f74282da568502429182cabdd5a16d6d1e",
+        "approved_review_content_id": "4f7f10d36c47d9fec6889a29b3ea99b463a0d8c8f1e4fb2f6ec7788d7b10afe8",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/WORKFLOW_MANAGER_UNATTENDED_RETENTION_PRUNE_PLAN.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "b4635c5cb6deff69fb61a8ada99193796ddccb0c"
+          },
+          {
+            "path": "docs/ai-workflow/registry/unattended-retention-prune-registry.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "12acaf2717f644fb6b4607482a408a3228fc4d31"
+          },
+          {
+            "path": "docs/ai-workflow/requirements/unattended-retention-prune-mapping.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "e86fc7fa227a1c19e25cee3c0244f9317773194b"
+          }
+        ],
+        "reviewed_content_commit": null,
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-11-19T14:16:56Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "4f7f10d36c47d9fec6889a29b3ea99b463a0d8c8f1e4fb2f6ec7788d7b10afe8",
+            "ledger": {
+              "local": {
+                "bundle_id": "690ecaf8f208b0de15e9e1d0b85421f74282da568502429182cabdd5a16d6d1e",
+                "verdict": "APPROVE",
+                "round": 5,
+                "verdict_sha256": "19de06f8d3e8d111f7158ae3a63c5afd78c284c6587c2649393bfbe03f2910c4",
+                "ledger_entry_sha256": "7949812a048a8aa8575b6f6ed504cbc8957e74cea1f28efb0c92b2ef2311f1fb",
+                "run_ref": "session:local .ai-review/unattended-retention-prune/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "690ecaf8f208b0de15e9e1d0b85421f74282da568502429182cabdd5a16d6d1e",
+                "verdict": "APPROVE",
+                "round": 5,
+                "verdict_sha256": "410a4491a7a5aae12af9ec38bf1612bbff7ec8581320858d30cf7741dcdcf01e",
+                "ledger_entry_sha256": "ffacbd9600aeeb5f63824847cae165d7fe4a85f5f3a81d0a7e625a7e110d8905",
+                "run_ref": "codex:20261119T141323Z-69e9b229",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-11-19T14:16:56Z",
+          "workflow_release": "2.29.9"
+        }
+      },
+      "technical_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "873c27993c1504a2dfdf99f27e5551472fe32db1b73106bd7f41d2a7a9205fec",
+        "approved_review_content_id": "851420a76cedd8df732e47ba6cf2f430a48a70d59860375e0088143c8003a259",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/registry/unattended-retention-prune-artifacts.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "bf03fc1bf21e5c3ab14f678ff2c277348638f395"
+          },
+          {
+            "path": "docs/exit-codes.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "0b2ec6ffc775e024365984573fd04f660f73ccbc"
+          },
+          {
+            "path": "docs/retention.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "ce0e79acc9a2cdb3748f176beefee78afd50121d"
+          },
+          {
+            "path": "src/workflow_manager/cli.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "8eb93b8a3a0494a92cecadbd86bcb1eb83412bd6"
+          },
+          {
+            "path": "src/workflow_manager/retention_policy.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "f80e7b8512a161423e4c226787469e80b59281ee"
+          },
+          {
+            "path": "src/workflow_manager/retention_prune.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "d5652b61a6618973e7e162f92c32ee3478222cfd"
+          },
+          {
+            "path": "src/workflow_manager/retention_run.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "e1c97b9072637db61a69202b865b65a846dd492c"
+          },
+          {
+            "path": "src/workflow_manager/retention_unattended.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "4a7aee19b16c88fad370f653a3e4950c1c5e5537"
+          },
+          {
+            "path": "tests/test_retention_cleanup.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "d865674aba9ef93bc94d5f7d466a1494b56a6589"
+          },
+          {
+            "path": "tests/test_retention_unattended.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "1131d8d424fe5f25cb473bd048e4ca8f3f80bd3f"
+          },
+          {
+            "path": "tests/test_retention_unattended_prune.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "2276fd057fd06eb23e97a8924fd31e772f58464d"
+          },
+          {
+            "path": "tests/test_retention_unattended_run.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "14cbbaced9e163f8e3c68905d98d2c596c7aa200"
+          }
+        ],
+        "reviewed_content_commit": "59b2c4e6faa17cb60fcf420e3d950388ba8644d6",
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-11-19T16:25:39Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "851420a76cedd8df732e47ba6cf2f430a48a70d59860375e0088143c8003a259",
+            "ledger": {
+              "local": {
+                "bundle_id": "873c27993c1504a2dfdf99f27e5551472fe32db1b73106bd7f41d2a7a9205fec",
+                "verdict": "APPROVE",
+                "round": 3,
+                "verdict_sha256": "fcda2a32a2f17cb26c9e48a7fe06a09b94572fd3dade98241f57d13bffa35998",
+                "ledger_entry_sha256": "73d313ceaf59190c4b52dc55656881655ffa89220ba5386b0a87561ad9e67184",
+                "run_ref": "session:local .ai-review/unattended-retention-prune/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "873c27993c1504a2dfdf99f27e5551472fe32db1b73106bd7f41d2a7a9205fec",
+                "verdict": "APPROVE",
+                "round": 3,
+                "verdict_sha256": "48803980af0ea27ec9d8cbccb7e9bd901d560705099f2d64ccd92da74c854523",
+                "ledger_entry_sha256": "f2e2730126b3693600e00ef1cdc069b6be0ff59a1c006e782f3a43de807bb52e",
+                "run_ref": "codex:20261119T162035Z-dd2c4620",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-11-19T16:25:39Z",
+          "workflow_release": "2.29.9"
+        }
+      },
+      "technical_review_block_pins": [],
+      "plan_review_stages": {
+        "review_content_id": "4f7f10d36c47d9fec6889a29b3ea99b463a0d8c8f1e4fb2f6ec7788d7b10afe8",
+        "LOCAL_MODEL_PLAN_REVIEW": {
+          "bundle_id": "690ecaf8f208b0de15e9e1d0b85421f74282da568502429182cabdd5a16d6d1e",
+          "verdict": "APPROVE",
+          "round": 5,
+          "completed_at": "2026-11-19T14:12:19Z",
+          "verdict_sha256": "19de06f8d3e8d111f7158ae3a63c5afd78c284c6587c2649393bfbe03f2910c4",
+          "run_ref": "session:local .ai-review/unattended-retention-prune/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_PLAN_REVIEW": {
+          "bundle_id": "690ecaf8f208b0de15e9e1d0b85421f74282da568502429182cabdd5a16d6d1e",
+          "verdict": "APPROVE",
+          "round": 5,
+          "completed_at": "2026-11-19T14:15:20Z",
+          "verdict_sha256": "410a4491a7a5aae12af9ec38bf1612bbff7ec8581320858d30cf7741dcdcf01e",
+          "run_ref": "codex:20261119T141323Z-69e9b229",
+          "reviewer_model": "openai/gpt-6.1-sol"
+        }
+      },
+      "functional_acceptance_status": null,
+      "blocking_decisions": [],
+      "review_round_counts": {
+        "plan": {
+          "local": 5,
+          "external": 3
+        },
+        "implementation": {
+          "local": 3,
+          "external": 2
+        }
+      },
+      "state_revision": 40,
+      "last_transition": "2026-11-19T17:09:47Z",
+      "feedback_layout": "scoped",
+      "plan_review_binding": {
+        "status": "BOUND",
+        "at": "2026-11-19T14:10:13Z",
+        "consumed": {
+          "review_content_id": "7c2942cd05be3b920a889d31b9cd99133c1ffabd87e1292511b9e546d022a356",
+          "plan_revision": 4,
+          "legacy": false
+        },
+        "published": {
+          "review_content_id": "4f7f10d36c47d9fec6889a29b3ea99b463a0d8c8f1e4fb2f6ec7788d7b10afe8",
+          "plan_revision": 5
+        },
+        "bound": {
+          "review_content_id": "4f7f10d36c47d9fec6889a29b3ea99b463a0d8c8f1e4fb2f6ec7788d7b10afe8",
+          "bundle_id": "690ecaf8f208b0de15e9e1d0b85421f74282da568502429182cabdd5a16d6d1e",
+          "plan_revision": 5
+        }
+      },
+      "consumed_plan_review_content_ids": [
+        "7c2942cd05be3b920a889d31b9cd99133c1ffabd87e1292511b9e546d022a356",
+        "b045fee3912b0af75412bd970dcea03aaa50afd6a02ee3ae0b1ffd7fc61137b2",
+        "b9de6326f72102e15089166f590cf85c39d8e0b421a7f3ccd8338169a9176c27",
+        "d1229ab38fe7cb9c4288031ee08ef7f7086fa0b1d36ceca70b13260df4b64345"
+      ],
+      "optional_findings": {
+        "F-7bce98bf93ad": {
+          "digest": "7bce98bf93adf21fdc36e51fe7900205670f3724d1a200d542db319df3caff62",
+          "text": "**LPR1-003: The day-boundary reasoning runs the wrong way.** Sections 2.3 and 6 (fourth risk) say a day boundary between the report and the dry run can make the engine refuse `not_prunable`. `age_days` only grows with time (`_archive_fact`, `scripts/workflow_retention.py:366-368`), so an archive selected with `age_days > ttl_days` stays prunable at the dry run. Only a changed mtime (`archive_changed`) or a clock that moves backwards could flip it. The `not_prunable` fake-engine test is still worth keeping. Correct the stated cause.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "b9de6326f72102e15089166f590cf85c39d8e0b421a7f3ccd8338169a9176c27",
+              "verdict": "REVISE",
+              "at": "2026-11-19T13:44:37Z"
+            }
+          ]
+        },
+        "F-bb46e28ad6c5": {
+          "digest": "bb46e28ad6c5f4b45175c8c2efec31894a2e9e78985eadf2ac404313f8da08ff",
+          "text": "**LPR1-004: The engine reorders ids.** `prune_archives` runs `ids = sorted(set(ids))` (`scripts/workflow_retention.py:2074`), so the dry run's `archives[]` comes back in id order, not oldest first. Section 2.3's \"the set applied, in the same order\" should say the equivalence is a set comparison (as its first paragraph already says) and that the order is the Manager's, fixed by the per-id applies.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "b9de6326f72102e15089166f590cf85c39d8e0b421a7f3ccd8338169a9176c27",
+              "verdict": "REVISE",
+              "at": "2026-11-19T13:44:37Z"
+            }
+          ]
+        },
+        "F-a06c8228c881": {
+          "digest": "a06c8228c881e6b62a18e765bbc018c1ca84778d48a0a5373efb8902a38063bf",
+          "text": "**LPR1-005: One citation in section 1 point (5) is wrong.** The policy re-read is at `retention_run.py:241-251`, not `:206-214` (that range is `_AuditStop`/`_engine_code`). The other citations checked (`retention.py:310`, `workflow_retention.py:352-368`, `:499-546`, `:2067`) are correct.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "b9de6326f72102e15089166f590cf85c39d8e0b421a7f3ccd8338169a9176c27",
+              "verdict": "REVISE",
+              "at": "2026-11-19T13:44:37Z"
+            }
+          ]
+        },
+        "F-c012dac37321": {
+          "digest": "c012dac3732171201649d27b9c859299d58bd929c0ff2fe94e286158db95987d",
+          "text": "**LPR1-006: The risks do not name the folder-reappearance window.** The engine never looks at the review folder, and the Manager reads `review_folder.present` once, from the fresh report. A folder restored between that report and an apply (for example by a checkout of a branch that tracks it) would still be pruned and wedged. Section 6 names the analogous policy-swap window but not this one. Name it, or explain why it cannot occur.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "b9de6326f72102e15089166f590cf85c39d8e0b421a7f3ccd8338169a9176c27",
+              "verdict": "REVISE",
+              "at": "2026-11-19T13:44:37Z"
+            }
+          ]
+        },
+        "F-a1bf1c6e3ee8": {
+          "digest": "a1bf1c6e3ee88cb5cd69758f1c39488b7eaa3b8e7505582d1712a39d38ff02b1",
+          "text": "**LPR1-007: The text output of an empty cleanup is not specified.** Today `_empty` prints the preview lines and no `audit:` line for nothing-to-do. Section 2.5 says the final text line stays `  audit: PATH`. State what a run with nothing to clean prints when the prune phase then runs, prunes nothing, or stops, so CP3's goldens have a specified target.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "b9de6326f72102e15089166f590cf85c39d8e0b421a7f3ccd8338169a9176c27",
+              "verdict": "REVISE",
+              "at": "2026-11-19T13:44:37Z"
+            }
+          ]
+        },
+        "F-7dd6dfe7d4cf": {
+          "digest": "7dd6dfe7d4cf709c51a829cfdbb64076589d548722c74f8f0d58dfc93d771cf2",
+          "text": "**LPR2-002: Flow 6's grep is case-sensitive, so it misses two stale statements that 2.6 says will be replaced.** One is `retention_policy.py:16` (\"Prune is not run unattended yet.\", capital P, versus the needle `prune is not run unattended yet`). The other is `docs/retention.md:90` (\"...; prune is never run.\", lowercase, versus the needle `Prune is never run\\.`). CP4 names the docstrings and item 1 names the intro, so the plan intends to replace both, but the flow would not catch a leftover. Use `grep -rni`. With `-i` the needles still miss `retention_run.py:8` (\"Prune is never run:\") and `retention_cleanup.py:10-11` (where \"never part of\" and \"cleanup.\" are on separate lines). Both stay true and are untouched.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "b045fee3912b0af75412bd970dcea03aaa50afd6a02ee3ae0b1ffd7fc61137b2",
+              "verdict": "REVISE",
+              "at": "2026-11-19T13:50:27Z"
+            }
+          ]
+        },
+        "F-b9d675d134c7": {
+          "digest": "b9d675d134c7bd86ff329c7a3be38156a1ef5070e95a18d5ce539f7e5060d749",
+          "text": "**LPR2-003: Two \"the Manager never runs it\" sentences become imprecise.** `docs/retention.md:42` (\"Neither is run by the Manager.\", about the `prune ID --apply` line) and `:210` (\"The Manager never runs any of them.\", about the alert's `next:` steps, including `prune`) stop being literally true once `--unattended` prunes. `:210` was already imprecise for archive and remove after A2. Name them in 2.6, for example qualified as \"`verify`, `doctor` and `status` never run it; only `retention-cleanup --unattended` under an adopted `unattended.prune` does\", or record why they stay.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "b045fee3912b0af75412bd970dcea03aaa50afd6a02ee3ae0b1ffd7fc61137b2",
+              "verdict": "REVISE",
+              "at": "2026-11-19T13:50:27Z"
+            }
+          ]
+        },
+        "F-07ef19e5e094": {
+          "digest": "07ef19e5e094f2c922543fa528418ee3fc235d93f7b1d843a566aa13c3ee8e89",
+          "text": "**LPR2-004: The prune phase's audit table has no line for an interrupt outside an apply.** 2.4 lists `prune`/`interrupted` for an apply only, and `policy`/`stopped` for a changed policy. A2 writes `policy`/`interrupted` for an interrupt during a re-read (`docs/retention.md:403`). The plan does not say what an interrupt during the prune phase's re-read, its fresh report or its dry run writes (`refused`, or `interrupted` with `item_id` null). Say which, so CP2's interrupt tests and the page's step table have a specified target.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "b045fee3912b0af75412bd970dcea03aaa50afd6a02ee3ae0b1ffd7fc61137b2",
+              "verdict": "REVISE",
+              "at": "2026-11-19T13:50:27Z"
+            }
+          ]
+        },
+        "F-83aad08328b5": {
+          "digest": "83aad08328b58a87e9347deac0b34ebf24d9616bc9aac83a383691b63a00323a",
+          "text": "**LPR3-001: The prune phase's `plan_digest` is not specified for the lines written before a prune plan exists.** Section 2.4 says every line of the phase carries \"the prune plan digest in `plan_digest`\". Some of the phase's lines come before the selection: `policy`/`stopped` or `policy`/`interrupted` at the re-read before the fresh report, `prune`/`refused` for an unavailable or incomplete report, and `prune`/`interrupted` during the report. None of them has a prune plan yet. Say whether such a line writes `null` or the cleanup plan's digest, so that CP2's audit-line tests have one target.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 3,
+              "review_content_id": "d1229ab38fe7cb9c4288031ee08ef7f7086fa0b1d36ceca70b13260df4b64345",
+              "verdict": "APPROVE",
+              "at": "2026-11-19T13:56:23Z"
+            }
+          ]
+        },
+        "F-b4d78b92d8f5": {
+          "digest": "b4d78b92d8f509b08883fd6ee97cfc7721be64766fe3fae2f5a928dcf58f1aed",
+          "text": "**LPR3-002: One more \"the Manager never runs\" sentence is in the same class as items 6 and 7 of 2.6.** `docs/retention.md:44` (the status list's `next` line: \"`archive`, then `remove` ... The Manager never runs them.\") has been imprecise since A2, when `--unattended` began running `archive` and `remove`. This item does not make it worse, because that line never names `prune`. CP4 already edits the neighbouring line 42, so it could qualify this one the same way (\"`verify`, `doctor` and `status` never run them\"). Recording why it stays is also enough.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 3,
+              "review_content_id": "d1229ab38fe7cb9c4288031ee08ef7f7086fa0b1d36ceca70b13260df4b64345",
+              "verdict": "APPROVE",
+              "at": "2026-11-19T13:56:23Z"
+            }
+          ]
+        },
+        "F-5271b7e10316": {
+          "digest": "5271b7e103162ce6cb35452b94922a9f978a240e0bea8aadfb51610bc958e279",
+          "text": "**EPR-002 — Scope the introductory policy-recheck claim to the prune phase.** Lines 11–12 describe A2 as rereading policy before every engine call. A2 reads it once per item (`retention_run.py:241–250`), then performs archive, verification and removal without another read. Section 1(5) and CP2 correctly preserve that behavior. Align the introduction with those more precise sections.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "MANUAL_EXTERNAL_PLAN_REVIEW",
+              "round": 3,
+              "review_content_id": "d1229ab38fe7cb9c4288031ee08ef7f7086fa0b1d36ceca70b13260df4b64345",
+              "verdict": "REVISE",
+              "at": "2026-11-19T14:01:10Z"
+            }
+          ]
+        },
+        "F-8a7680ba324b": {
+          "digest": "8a7680ba324bd8d1adc1ea0a9ff67fb129561748870e80e85c764ce6c6daa446",
+          "text": "**EPR-003 — Complete the mutation coverage for defensive selection.** CP1 tests unacceptable ids, non-integer/boolean ages and missing `modified`, but section 3 does not name mutations that bypass those exclusions.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "MANUAL_EXTERNAL_PLAN_REVIEW",
+              "round": 3,
+              "review_content_id": "d1229ab38fe7cb9c4288031ee08ef7f7086fa0b1d36ceca70b13260df4b64345",
+              "verdict": "REVISE",
+              "at": "2026-11-19T14:01:10Z"
+            }
+          ]
+        },
+        "F-db8e117f0e53": {
+          "digest": "db8e117f0e53cacb60bff452ade81631ff36d003855695a93d800f2bd6be70d3",
+          "text": "**LPR4-001: Section 2.2 says \"three listed reasons\", but the table lists four.** The table's \"Excluded as\" column names `review-folder-present`, `removal-interrupted`, `unacceptable-id` and `age-not-known`, and M28 expects `age-not-known`. Say \"four\" (or \"one of the listed reasons\"). Also say whether an archive excluded for `age-not-known` (a valid `age_days` but no usable `modified`) appears in `skipped`. CP1's \"`skipped` listing only archives that were old and finished\" suggests it does.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 4,
+              "review_content_id": "7c2942cd05be3b920a889d31b9cd99133c1ffabd87e1292511b9e546d022a356",
+              "verdict": "APPROVE",
+              "at": "2026-11-19T14:05:20Z"
+            }
+          ]
+        },
+        "F-15294aa47229": {
+          "digest": "15294aa472290860bb5df9b1caa917b1934ab02c7679888feeb50800215a4a66",
+          "text": "**LPR4-002: LPR3-001 is still open.** Section 2.4 still says every line of the phase carries \"the prune plan digest in `plan_digest`\". It does not say what a line written before a prune plan exists carries: the policy re-read before the fresh report, a fresh report that is unavailable or incomplete, or an interrupt during that report. Name `null` or the cleanup plan's digest, so CP2's audit-line tests have one target.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 4,
+              "review_content_id": "7c2942cd05be3b920a889d31b9cd99133c1ffabd87e1292511b9e546d022a356",
+              "verdict": "APPROVE",
+              "at": "2026-11-19T14:05:20Z"
+            }
+          ]
+        },
+        "F-a11b2c982941": {
+          "digest": "a11b2c982941446d6659b1df49e5e42a9937101ec1f9e57b3beffab499393dc2",
+          "text": "**LIR1-001: `docs/retention.md` says beyond-cap archives are \"counted as `capped`\", but no output shows that count.** `PrunePlan.capped` is computed in `retention_prune.select`, but neither the text nor the `--json` `prune` section (`retention_unattended._prune_section`) carries it. So the sentence at `docs/retention.md:426` describes a count the operator never sees, and a run that hits the cap cannot tell how many aged-out archives are still waiting. Either add `capped` to the `prune` section and the done line, or reword the sentence to say the archives beyond the cap wait for a later run. The plan's 2.5 field list has no `capped`, so the code itself conforms; only the page is loose.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "afd6b6ae9664d438505f2c25c66143f75387ae36b568587cde81eb6cff4a3c2b",
+              "verdict": "APPROVE",
+              "at": "2026-11-19T15:20:09Z"
+            }
+          ]
+        },
+        "F-299be02f592d": {
+          "digest": "299be02f592db05685a3692342f5fcc46c3e24366398bd1cc2b39a0f2d5d57d2",
+          "text": "**LIR1-002: Two small inaccuracies in the stop text the pages describe.**\n  - The \"Text.\" paragraph of \"The unattended prune\" says that after a stop the closing line is `N of M archives were deleted before the stop`. The code prints that line only when at least one archive was deleted (`elif prune_result.done:` in `run_command`). The paragraph also does not mention the `retention prune: stopped after N of M archives; ...` line every prune stop prints.\n  - In `docs/exit-codes.md`, the `retention-cleanup` exit-1 row still says \"The closing `retention cleanup: stopped` line says what was done\". A prune stop's line is `retention prune: stopped ...`.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "afd6b6ae9664d438505f2c25c66143f75387ae36b568587cde81eb6cff4a3c2b",
+              "verdict": "APPROVE",
+              "at": "2026-11-19T15:20:09Z"
+            }
+          ]
+        },
+        "F-3894d1083ef9": {
+          "digest": "3894d1083ef9149f5473174416d1e7fe358c81aa4773b3747c60d9e5284beed0",
+          "text": "**LIR1-003: An interrupt in two narrow windows of the prune phase escapes `run_phase` uncaught.** The windows are:\n  - while the `ok` audit line of a successful apply is being written;\n  - while the `started` line is being written.\n\n  Both handlers catch `Exception`, not `KeyboardInterrupt`. Unlike A2's per-item loop, which catches `KeyboardInterrupt` after a successful step and reports it, the interrupt here propagates out of `run_command`. The result is no `error:`/`next:`, no `--json` document, and, in the first window, an archive deleted with no audit line. Each window is one append of a line, so the risk is low. Catching `KeyboardInterrupt` there too, with an `interrupted` stop that says the apply had succeeded, would close it.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "afd6b6ae9664d438505f2c25c66143f75387ae36b568587cde81eb6cff4a3c2b",
+              "verdict": "APPROVE",
+              "at": "2026-11-19T15:20:09Z"
+            }
+          ]
+        },
+        "F-47ffceb94d3e": {
+          "digest": "47ffceb94d3edc12521fc46e01a14fb61e33cde569d77fbb79169c8cbf904b77",
+          "text": "**LIR1-004: Plan section 5, flow 1 expects `tests/test_retention_policy.py` to be modified, but it is not.** It needed no change: nothing in it pinned the replaced text, and CP4 says \"where it pins\". `IMPLEMENTATION_SUMMARY.md`'s deviation list does not mention it, so the functional reviewer will see flow 1 differ from its stated expectation. Record it as a deviation, or tell the functional reviewer when the checklist is prepared.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "afd6b6ae9664d438505f2c25c66143f75387ae36b568587cde81eb6cff4a3c2b",
+              "verdict": "APPROVE",
+              "at": "2026-11-19T15:20:09Z"
+            }
+          ]
+        },
+        "F-bb954101821d": {
+          "digest": "bb954101821d15fc0b5705338da4c1bdd7e330e3e87f82acc8a6dd36dfe04dc9",
+          "text": "**LIR2-002 `docs/retention.md:409`, the unattended run's \"Exit status.\" paragraph** says \"The same as the confirmed run\". That is true for the cleanup phase, but a reader who stops there misses the prune phase's exit 1 after a `prune --apply`. \"The unattended prune\" section and the page's closing \"Exit status\" section state it correctly. Consider adding \"(the prune phase, below, adds its own)\" when fixing LIR2-001.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 2,
+              "review_content_id": "cbfa8e83daf5505fa4a6f5e13e529d5a2a6fc0d5ac48a2b8703c3c4160c71952",
+              "verdict": "REVISE",
+              "at": "2026-11-19T15:59:38Z"
+            }
+          ]
+        },
+        "F-78c4bc65f9c0": {
+          "digest": "78c4bc65f9c00e10c131fc765bbad4ad988b3a083661d9690bfcd35d628f5182",
+          "text": "**LIR3-001 `docs/retention.md`, \"The unattended prune\", \"Archives beyond the cap are counted as `capped`, not listed.\"** `PrunePlan.capped` is computed (`retention_prune.select`) but it reaches no output: `_prune_section` has no `capped` field, and the text has no capped line. A reader who looks for `capped` in the `--json` document will not find it. The code follows plan 2.5 (its `prune` section lists no `capped`), so this is a wording point rather than a deviation. Either say \"are left for a later run\" without naming a field, or add `capped` to the `prune` section in a later item.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 3,
+              "review_content_id": "851420a76cedd8df732e47ba6cf2f430a48a70d59860375e0088143c8003a259",
+              "verdict": "APPROVE",
+              "at": "2026-11-19T16:19:21Z"
+            }
+          ]
+        }
+      },
+      "implementation_review_stages": {
+        "review_content_id": "851420a76cedd8df732e47ba6cf2f430a48a70d59860375e0088143c8003a259",
+        "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "873c27993c1504a2dfdf99f27e5551472fe32db1b73106bd7f41d2a7a9205fec",
+          "verdict": "APPROVE",
+          "round": 3,
+          "completed_at": "2026-11-19T16:19:21Z",
+          "verdict_sha256": "fcda2a32a2f17cb26c9e48a7fe06a09b94572fd3dade98241f57d13bffa35998",
+          "run_ref": "session:local .ai-review/unattended-retention-prune/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "873c27993c1504a2dfdf99f27e5551472fe32db1b73106bd7f41d2a7a9205fec",
+          "verdict": "APPROVE",
+          "round": 3,
+          "completed_at": "2026-11-19T16:24:24Z",
+          "verdict_sha256": "48803980af0ea27ec9d8cbccb7e9bd901d560705099f2d64ccd92da74c854523",
+          "run_ref": "codex:20261119T162035Z-dd2c4620",
+          "reviewer_model": "openai/gpt-6.1-sol"
+        }
+      },
+      "gate_evidence": {
+        "functional": {
+          "flow-1": {
+            "flow_id": "flow-1",
+            "status": "passed",
+            "head": "67362143fe3e85e8e59983bf70388046f2256b29",
+            "ran_at": "2026-11-19T17:07:37Z",
+            "summary": {
+              "checklist_blob": "2aa4c2f6a600f4265de57bf9bc682696f18a9bff",
+              "text": "The name-status diff lists exactly the 2 A and 7 M files expected, nothing under tools, .github, .claude, scripts or .workflow-manager, and neither test_retention_run.py nor test_retention_policy.py."
+            },
+            "log_digest": "a744962b5a3c57ba74c4d4a233ba3423a02fce762bbe3361882a4714ff3a7d12",
+            "run_ref": "claude-functional:md52-functional-r2",
+            "reporter": "manager claude-functional.sh (Sonnet 5.5)",
+            "identity": "851420a76cedd8df732e47ba6cf2f430a48a70d59860375e0088143c8003a259",
+            "recorded_at": "2026-11-19T17:07:37Z"
+          },
+          "flow-2": {
+            "flow_id": "flow-2",
+            "status": "passed",
+            "head": "67362143fe3e85e8e59983bf70388046f2256b29",
+            "ran_at": "2026-11-19T17:07:37Z",
+            "summary": {
+              "checklist_blob": "2aa4c2f6a600f4265de57bf9bc682696f18a9bff",
+              "text": "The docs diff shows M for exit-codes.md, retention.md, ACTIVE_MILESTONE.md and WORKFLOW_STATE.json, and A for the plan, 2 registry files and the mapping file, with no other page."
+            },
+            "log_digest": "6f44cd0cda123584c571016681ffb5afb799e0d4e5dca14f046522fc64f77cc4",
+            "run_ref": "claude-functional:md52-functional-r2",
+            "reporter": "manager claude-functional.sh (Sonnet 5.5)",
+            "identity": "851420a76cedd8df732e47ba6cf2f430a48a70d59860375e0088143c8003a259",
+            "recorded_at": "2026-11-19T17:07:37Z"
+          },
+          "flow-3": {
+            "flow_id": "flow-3",
+            "status": "passed",
+            "head": "67362143fe3e85e8e59983bf70388046f2256b29",
+            "ran_at": "2026-11-19T17:07:37Z",
+            "summary": {
+              "checklist_blob": "2aa4c2f6a600f4265de57bf9bc682696f18a9bff",
+              "text": "The diff --exit-code over the unchanged files exits 0."
+            },
+            "log_digest": "28d3b9e880a77975493dc7e359144c0295a4f694cfe0af4f928c22307bc5c320",
+            "run_ref": "claude-functional:md52-functional-r2",
+            "reporter": "manager claude-functional.sh (Sonnet 5.5)",
+            "identity": "851420a76cedd8df732e47ba6cf2f430a48a70d59860375e0088143c8003a259",
+            "recorded_at": "2026-11-19T17:07:37Z"
+          },
+          "flow-4": {
+            "flow_id": "flow-4",
+            "status": "passed",
+            "head": "67362143fe3e85e8e59983bf70388046f2256b29",
+            "ran_at": "2026-11-19T17:07:37Z",
+            "summary": {
+              "checklist_blob": "2aa4c2f6a600f4265de57bf9bc682696f18a9bff",
+              "text": "retention.md names the ttl rule, prune_max_per_run, \"cannot be undone\" and workflow-archive, and exit-codes.md mentions prune in the rows for exits 0, 1 and 2."
+            },
+            "log_digest": "d3646da10bf0a1d15e32f9a81172290ee9bb36fb99b3b5281f5e62b8b9be88d0",
+            "run_ref": "claude-functional:md52-functional-r2",
+            "reporter": "manager claude-functional.sh (Sonnet 5.5)",
+            "identity": "851420a76cedd8df732e47ba6cf2f430a48a70d59860375e0088143c8003a259",
+            "recorded_at": "2026-11-19T17:07:37Z"
+          },
+          "flow-5": {
+            "flow_id": "flow-5",
+            "status": "passed",
+            "head": "67362143fe3e85e8e59983bf70388046f2256b29",
+            "ran_at": "2026-11-19T17:07:37Z",
+            "summary": {
+              "checklist_blob": "2aa4c2f6a600f4265de57bf9bc682696f18a9bff",
+              "text": "grep finds no match and exits 1."
+            },
+            "log_digest": "0c6868c2c44f053619cef1cc383e1d530743b574ca192ace9168a9ccf46a86e3",
+            "run_ref": "claude-functional:md52-functional-r2",
+            "reporter": "manager claude-functional.sh (Sonnet 5.5)",
+            "identity": "851420a76cedd8df732e47ba6cf2f430a48a70d59860375e0088143c8003a259",
+            "recorded_at": "2026-11-19T17:07:37Z"
+          },
+          "flow-6": {
+            "flow_id": "flow-6",
+            "status": "passed",
+            "head": "67362143fe3e85e8e59983bf70388046f2256b29",
+            "ran_at": "2026-11-19T17:07:37Z",
+            "summary": {
+              "checklist_blob": "2aa4c2f6a600f4265de57bf9bc682696f18a9bff",
+              "text": "Exactly two matches, both \"prune was not run\", at retention_run.py:359 and docs/retention.md:362, and no \"never new actions\" match."
+            },
+            "log_digest": "041936818ddd9edb8224968da090833720d0ae206e299606897702afbb6983a5",
+            "run_ref": "claude-functional:md52-functional-r2",
+            "reporter": "manager claude-functional.sh (Sonnet 5.5)",
+            "identity": "851420a76cedd8df732e47ba6cf2f430a48a70d59860375e0088143c8003a259",
+            "recorded_at": "2026-11-19T17:07:37Z"
+          },
+          "flow-7": {
+            "flow_id": "flow-7",
+            "status": "passed",
+            "head": "67362143fe3e85e8e59983bf70388046f2256b29",
+            "ran_at": "2026-11-19T17:07:37Z",
+            "summary": {
+              "checklist_blob": "2aa4c2f6a600f4265de57bf9bc682696f18a9bff",
+              "text": "Printed \"committed roadmap unchanged\", exit 0."
+            },
+            "log_digest": "87f646f776cb9c59b158e826b91830b7f24ef7d7470c84c22e396636c6991371",
+            "run_ref": "claude-functional:md52-functional-r2",
+            "reporter": "manager claude-functional.sh (Sonnet 5.5)",
+            "identity": "851420a76cedd8df732e47ba6cf2f430a48a70d59860375e0088143c8003a259",
+            "recorded_at": "2026-11-19T17:07:37Z"
+          },
+          "flow-8": {
+            "flow_id": "flow-8",
+            "status": "passed",
+            "head": "67362143fe3e85e8e59983bf70388046f2256b29",
+            "ran_at": "2026-11-19T17:07:37Z",
+            "summary": {
+              "checklist_blob": "2aa4c2f6a600f4265de57bf9bc682696f18a9bff",
+              "text": "stderr was \"error: retention cleanup: --confirm and --unattended cannot be combined (...)\", the exit code was 2, and \"absent\" was printed."
+            },
+            "log_digest": "e94ee20e34e7755c8c6202336c15cc96daf32e69fc37a0aa035b940e19ed1015",
+            "run_ref": "claude-functional:md52-functional-r2",
+            "reporter": "manager claude-functional.sh (Sonnet 5.5)",
+            "identity": "851420a76cedd8df732e47ba6cf2f430a48a70d59860375e0088143c8003a259",
+            "recorded_at": "2026-11-19T17:07:37Z"
+          },
+          "flow-9": {
+            "flow_id": "flow-9",
+            "status": "passed",
+            "head": "67362143fe3e85e8e59983bf70388046f2256b29",
+            "ran_at": "2026-11-19T17:07:37Z",
+            "summary": {
+              "checklist_blob": "2aa4c2f6a600f4265de57bf9bc682696f18a9bff",
+              "text": "Printed \"valid title: feat, release impact minor\", exit 0."
+            },
+            "log_digest": "df67c645cc0442024e1daf5f8d99ec4b1e99caabe4824499dfa26a5d4fcdbc5f",
+            "run_ref": "claude-functional:md52-functional-r2",
+            "reporter": "manager claude-functional.sh (Sonnet 5.5)",
+            "identity": "851420a76cedd8df732e47ba6cf2f430a48a70d59860375e0088143c8003a259",
+            "recorded_at": "2026-11-19T17:07:37Z"
+          },
+          "flow-10": {
+            "flow_id": "flow-10",
+            "status": "passed",
+            "head": "67362143fe3e85e8e59983bf70388046f2256b29",
+            "ran_at": "2026-11-19T17:07:37Z",
+            "summary": {
+              "checklist_blob": "2aa4c2f6a600f4265de57bf9bc682696f18a9bff",
+              "text": "Targeted selection gave `verdict: exit 0` (71 of 71 units, 437 tests); mutation M3 in a scratch copy gave `verdict: exit 1` with 20 units run and both named tests (`test_an_old_archive_whose_folder_is_present_is_never_named`, `test_a_present_review_folder_is_excluded_with_its_reason`) among the failures."
+            },
+            "log_digest": "a244ee4c7efdfb3795c49f3d0a0377d93d3239c091b9a578305ec48ec0e5e377",
+            "run_ref": "claude-functional:md52-functional-r1",
+            "reporter": "manager claude-functional.sh (Sonnet 5.5)",
+            "identity": "851420a76cedd8df732e47ba6cf2f430a48a70d59860375e0088143c8003a259",
+            "recorded_at": "2026-11-19T17:07:38Z"
+          },
+          "flow-11": {
+            "flow_id": "flow-11",
+            "status": "passed",
+            "head": "67362143fe3e85e8e59983bf70388046f2256b29",
+            "ran_at": "2026-11-19T17:07:37Z",
+            "summary": {
+              "checklist_blob": "2aa4c2f6a600f4265de57bf9bc682696f18a9bff",
+              "text": "Preview and `status --retention` exit 0 with the adopted-unattended lines (archives and removes, then prunes archives of finished items whose folder is gone, older than 14 days, at most 3 per run, cannot be undone, store `~/.local/share/workflow-archive`) and no \"prune is not run\" line."
+            },
+            "log_digest": "4ee43039c0ee66859d1be95f0eadbfeeb4d5917433034dcd2923841f91b6ae87",
+            "run_ref": "claude-functional:md52-functional-r1",
+            "reporter": "manager claude-functional.sh (Sonnet 5.5)",
+            "identity": "851420a76cedd8df732e47ba6cf2f430a48a70d59860375e0088143c8003a259",
+            "recorded_at": "2026-11-19T17:07:38Z"
+          },
+          "flow-12": {
+            "flow_id": "flow-12",
+            "status": "passed",
+            "head": "67362143fe3e85e8e59983bf70388046f2256b29",
+            "ran_at": "2026-11-19T17:07:37Z",
+            "summary": {
+              "checklist_blob": "2aa4c2f6a600f4265de57bf9bc682696f18a9bff",
+              "text": "Exit 0; JSON `prune.enabled` true, `outcome` done, ids the three oldest old archives oldest first (40, 35, 30 days), the 20-day archive (capped) and the 1-day archive remain, audit has one `prune` `started` then three `ok` lines, real store absent."
+            },
+            "log_digest": "1b7ee163d04259a7bace8dacaa4425a79ff5b044c52d318d49ce7b3a87652872",
+            "run_ref": "claude-functional:md52-functional-r1",
+            "reporter": "manager claude-functional.sh (Sonnet 5.5)",
+            "identity": "851420a76cedd8df732e47ba6cf2f430a48a70d59860375e0088143c8003a259",
+            "recorded_at": "2026-11-19T17:07:38Z"
+          },
+          "flow-13": {
+            "flow_id": "flow-13",
+            "status": "passed",
+            "head": "67362143fe3e85e8e59983bf70388046f2256b29",
+            "ran_at": "2026-11-19T17:07:37Z",
+            "summary": {
+              "checklist_blob": "2aa4c2f6a600f4265de57bf9bc682696f18a9bff",
+              "text": "With `prune` false and re-adopted: preview says `unattended.prune is false, so no archive is pruned`, JSON `prune.enabled` false / `outcome` `disabled`, a run that did cleanup ended `... prune was not run`, no new `prune` audit line, the remaining old archive was not deleted."
+            },
+            "log_digest": "b6e8f47dbbbfd8b2d58f5f6557b0d3d04bf2b5980408db042d7d43a0b5729952",
+            "run_ref": "claude-functional:md52-functional-r1",
+            "reporter": "manager claude-functional.sh (Sonnet 5.5)",
+            "identity": "851420a76cedd8df732e47ba6cf2f430a48a70d59860375e0088143c8003a259",
+            "recorded_at": "2026-11-19T17:07:38Z"
+          },
+          "flow-14": {
+            "flow_id": "flow-14",
+            "status": "passed",
+            "head": "67362143fe3e85e8e59983bf70388046f2256b29",
+            "ran_at": "2026-11-19T17:07:37Z",
+            "summary": {
+              "checklist_blob": "2aa4c2f6a600f4265de57bf9bc682696f18a9bff",
+              "text": "Row 52 names #254 and A3 with status Done as an uncommitted working-tree edit; name-status M, numstat 1 0 (rows 50 and 51 unchanged); read-only check by the orchestrator."
+            },
+            "log_digest": "6cfb54ef86215defbf96baa06ec5fbd08113d9e19a481d328513a3977b7c6ec4",
+            "run_ref": "manager orchestrator read-only check",
+            "reporter": "manager orchestrator",
+            "identity": "851420a76cedd8df732e47ba6cf2f430a48a70d59860375e0088143c8003a259",
+            "recorded_at": "2026-11-19T17:07:38Z"
+          }
+        },
+        "pr": {
+          "pr": {
+            "number": 263,
+            "url": "https://github.com/RodrigoFAbreu/workflow-manager/pull/263"
+          },
+          "state": "open",
+          "head": "67362143fe3e85e8e59983bf70388046f2256b29",
+          "review_decision": null,
+          "reviewed_head": null,
+          "checks": {
+            "state": "success",
+            "failing": []
+          },
+          "review_id": null,
+          "findings": null,
+          "identity_at_head": "851420a76cedd8df732e47ba6cf2f430a48a70d59860375e0088143c8003a259",
+          "observed_at": "2026-11-19T17:09:47Z",
+          "ingest_seq": 1,
+          "repository": "RodrigoFAbreu/workflow-manager",
+          "queried_commit": "59b2c4e6faa17cb60fcf420e3d950388ba8644d6",
+          "provenance": {
+            "source": "workflow_gh",
+            "fetched_by": {
+              "name": "workflow-gh",
+              "version": "pr-list-v1"
+            },
+            "fetched_at": "2026-11-19T17:09:47Z",
+            "raw_sha256": "64da6b4a303e46b4366aedef0e0880f93d01243cd071c7fb0f9512e08910c1a0",
+            "run_ref": null,
+            "gh_path": "/usr/bin/gh",
+            "gh_sha256": "ce3200ab0615ae60ee68dd4833719cd3a3856e8b22ae1a3641998b39be8d3dbf"
+          },
+          "fact_id": "4a8e31c9245c9af16c348fb0901e21e81b49bd8d7a442aa097c64fd5e7d3a592"
+        },
+        "pr_reported": null,
+        "pr_keys": {
+          "reopened_for": [],
+          "applied": [],
+          "ingest_seq": 1
+        }
+      },
+      "acceptance_satisfaction": {
+        "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "policy_source": "default",
+        "file_digest": null,
+        "adopted_digest": null,
+        "floor_digest": null,
+        "requirements": [
+          {
+            "id": "checkpoints_complete",
+            "met": true,
+            "detail": "every checkpoint of the item's own registry is COMPLETE"
+          },
+          {
+            "id": "technical_approval_current",
+            "met": true,
+            "detail": "the technical approval is CURRENT for the content now"
+          },
+          {
+            "id": "functional_flows_passed",
+            "met": true,
+            "detail": "flows ['flow-1', 'flow-10', 'flow-11', 'flow-12', 'flow-13', 'flow-14', 'flow-2', 'flow-3', 'flow-4', 'flow-5', 'flow-6', 'flow-7', 'flow-8', 'flow-9'] passed at the approved content"
+          },
+          {
+            "id": "pr_fact_current",
+            "met": true,
+            "detail": "workflow_gh fact for PR #263 at 67362143fe3e85e8e59983bf70388046f2256b29 is current"
+          },
+          {
+            "id": "no_standing_pr_objection",
+            "met": true,
+            "detail": "no CHANGES_REQUESTED decision and no failed check"
+          },
+          {
+            "id": "ci_green",
+            "met": true,
+            "detail": "checks are 'success'"
+          }
+        ],
+        "inputs": {
+          "anchor_commit": "59b2c4e6faa17cb60fcf420e3d950388ba8644d6",
+          "anchor_identity": "851420a76cedd8df732e47ba6cf2f430a48a70d59860375e0088143c8003a259",
+          "technical_approval": {
+            "basis": "POLICY_SATISFIED",
+            "approved_review_content_id": "851420a76cedd8df732e47ba6cf2f430a48a70d59860375e0088143c8003a259",
+            "recorded_at": "2026-11-19T16:25:39Z"
+          },
+          "functional": {
+            "flow-1": {
+              "evidence_id": "081ac87ee9d0272e242e54a57612dc62fd365ca78a95fa5d17d1c94321e477eb",
+              "log_digest": "a744962b5a3c57ba74c4d4a233ba3423a02fce762bbe3361882a4714ff3a7d12",
+              "run_ref": "claude-functional:md52-functional-r2"
+            },
+            "flow-10": {
+              "evidence_id": "7ed9c7e8a2766b3a45e6e031549345464b1d8ed8970109e35e092d9a47439e1d",
+              "log_digest": "a244ee4c7efdfb3795c49f3d0a0377d93d3239c091b9a578305ec48ec0e5e377",
+              "run_ref": "claude-functional:md52-functional-r1"
+            },
+            "flow-11": {
+              "evidence_id": "69f48e8ecaff8a739f86f27db499264ac5513a11e330896686617d49ba2dff7b",
+              "log_digest": "4ee43039c0ee66859d1be95f0eadbfeeb4d5917433034dcd2923841f91b6ae87",
+              "run_ref": "claude-functional:md52-functional-r1"
+            },
+            "flow-12": {
+              "evidence_id": "7e44bf7ad7a1ca4a5c806560a1611b74409da23bb1a0113f552f09fed3bbb660",
+              "log_digest": "1b7ee163d04259a7bace8dacaa4425a79ff5b044c52d318d49ce7b3a87652872",
+              "run_ref": "claude-functional:md52-functional-r1"
+            },
+            "flow-13": {
+              "evidence_id": "331738a9a340b1a5e35cf4471e22b2be47122eb423ff96e6d9bbbfd93e710cfe",
+              "log_digest": "b6e8f47dbbbfd8b2d58f5f6557b0d3d04bf2b5980408db042d7d43a0b5729952",
+              "run_ref": "claude-functional:md52-functional-r1"
+            },
+            "flow-14": {
+              "evidence_id": "e3fbaa5c14fb5d82392a28b7415fd0aa67cf6605467f31563a579a04c32a1ca2",
+              "log_digest": "6cfb54ef86215defbf96baa06ec5fbd08113d9e19a481d328513a3977b7c6ec4",
+              "run_ref": "manager orchestrator read-only check"
+            },
+            "flow-2": {
+              "evidence_id": "0cc05517d192868eaa744ee52b1604b2186b7d57146a258e128adcc3de40e301",
+              "log_digest": "6f44cd0cda123584c571016681ffb5afb799e0d4e5dca14f046522fc64f77cc4",
+              "run_ref": "claude-functional:md52-functional-r2"
+            },
+            "flow-3": {
+              "evidence_id": "d9bca30731959bb6939d7e8c0e2e876e37f8493e83f2aa3e3087849e3e5162fc",
+              "log_digest": "28d3b9e880a77975493dc7e359144c0295a4f694cfe0af4f928c22307bc5c320",
+              "run_ref": "claude-functional:md52-functional-r2"
+            },
+            "flow-4": {
+              "evidence_id": "4b81693408fe720c79b569bc0da1971ffab65bbd7b604b119f59c6f27b19c44d",
+              "log_digest": "d3646da10bf0a1d15e32f9a81172290ee9bb36fb99b3b5281f5e62b8b9be88d0",
+              "run_ref": "claude-functional:md52-functional-r2"
+            },
+            "flow-5": {
+              "evidence_id": "238ca88dba36fd63457e4c8e0127bb51549a2e7c851e0b3b182afeb87275fe3f",
+              "log_digest": "0c6868c2c44f053619cef1cc383e1d530743b574ca192ace9168a9ccf46a86e3",
+              "run_ref": "claude-functional:md52-functional-r2"
+            },
+            "flow-6": {
+              "evidence_id": "f4c1a571d50b35a1decc4e69c787a838a727dde2e54123d9227b3a3ded3a0422",
+              "log_digest": "041936818ddd9edb8224968da090833720d0ae206e299606897702afbb6983a5",
+              "run_ref": "claude-functional:md52-functional-r2"
+            },
+            "flow-7": {
+              "evidence_id": "6e15240a553fce7f8092a6ff1ce9347c6275fe2d2b15c764fa1665221b8a2e9d",
+              "log_digest": "87f646f776cb9c59b158e826b91830b7f24ef7d7470c84c22e396636c6991371",
+              "run_ref": "claude-functional:md52-functional-r2"
+            },
+            "flow-8": {
+              "evidence_id": "811cd5dfa3fe508fdf1f974709cbe8cc1c929b2ad97560ee1960bac4a747974e",
+              "log_digest": "e94ee20e34e7755c8c6202336c15cc96daf32e69fc37a0aa035b940e19ed1015",
+              "run_ref": "claude-functional:md52-functional-r2"
+            },
+            "flow-9": {
+              "evidence_id": "1ba3b147f866c996c11ce952ce4067fb2e2784776ae1322a199ab3310bcb0715",
+              "log_digest": "df67c645cc0442024e1daf5f8d99ec4b1e99caabe4824499dfa26a5d4fcdbc5f",
+              "run_ref": "claude-functional:md52-functional-r2"
+            }
+          },
+          "pr": {
+            "fact_id": "4a8e31c9245c9af16c348fb0901e21e81b49bd8d7a442aa097c64fd5e7d3a592",
+            "head": "67362143fe3e85e8e59983bf70388046f2256b29",
+            "provenance": "workflow_gh",
+            "raw_sha256": "64da6b4a303e46b4366aedef0e0880f93d01243cd071c7fb0f9512e08910c1a0"
+          }
+        },
+        "trust": {
+          "review_verdicts": "orchestrator",
+          "functional_evidence": "orchestrator",
+          "pr_fact": "workflow_gh"
+        },
+        "evaluated_at": "2026-11-19T17:09:47Z",
+        "workflow_release": "2.29.9"
+      }
     }
   }
 }

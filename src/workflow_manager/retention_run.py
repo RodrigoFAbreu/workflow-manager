@@ -211,8 +211,26 @@ def _engine_code(engine) -> str | None:
     return engine[0].split(":", 1)[0] if engine is not None else None
 
 
+def policy_holds(target, policy_digest: str, *, unattended: bool = False, extra=None) -> bool:
+    """Whether the policy is still the adopted one the run started under: adopted, with
+    `policy_digest`, and, for an unattended run, still authorising a cleanup (the
+    digest does not cover the adoption record). `extra`, when given, is a predicate on
+    the loaded state that must also hold. An unreadable policy is a changed policy;
+    an interrupt is not caught."""
+    try:
+        state = retention_policy.load(Path(target))
+        holds = state.state == retention_policy.ADOPTED and state.digest == policy_digest
+        if holds and unattended:
+            holds = state.unattended is not None and bool(state.unattended["cleanup"])
+        if holds and extra is not None:
+            holds = bool(extra(state))
+        return holds
+    except Exception:  # noqa: BLE001 -- an unreadable policy is a changed policy
+        return False
+
+
 def run(target: Path, plan, emit=None, *, unattended: bool = False, observer=None,
-        audit_where: str = "") -> Result:
+        audit_where: str = "", closing: str | None = None) -> Result:
     """Run `plan` item by item. `emit(line)` prints a line as it happens (default:
     stdout, flushed), so a killed Manager leaves a record. Returns the `Result`.
 
@@ -221,7 +239,8 @@ def run(target: Path, plan, emit=None, *, unattended: bool = False, observer=Non
     record). `observer(step, item_id, result, engine_code, text)` is called after
     each step (`result` `ok`, `failed`, `interrupted` or, for the policy stop,
     `stopped`); when it raises after a step that succeeded, the run stops before the
-    next call. Both default to the confirmed run's behaviour, byte for byte."""
+    next call. `closing`, when given, replaces the closing line's last clause (after
+    "untracked"). All three default to the confirmed run's behaviour, byte for byte."""
     if emit is None:
         def emit(line: str) -> None:
             print(line, flush=True)
@@ -237,15 +256,7 @@ def run(target: Path, plan, emit=None, *, unattended: bool = False, observer=Non
         number = index + 1
         step = POLICY           # until the first call: nothing has touched this item
         try:
-            try:
-                state = retention_policy.load(Path(target))
-                unchanged = (state.state == retention_policy.ADOPTED
-                             and state.digest == plan.policy_digest)
-                if unchanged and unattended:
-                    unchanged = (state.unattended is not None
-                                 and bool(state.unattended["cleanup"]))
-            except Exception:  # noqa: BLE001 -- an unreadable policy is a changed policy
-                unchanged = False
+            unchanged = policy_holds(target, plan.policy_digest, unattended=unattended)
             if not unchanged:
                 raise _Stop("stopped before any call for this item: the policy changed")
             done_steps = []
@@ -345,6 +356,7 @@ def run(target: Path, plan, emit=None, *, unattended: bool = False, observer=Non
                     emit(f"retention cleanup: the audit line for this stop could not be "
                          f"written ({result.audit_error}); the audit file is {audit_where}")
             return result
+    tail = "; prune was not run" if closing is None else closing
     emit(f"retention cleanup: done, {result.done} of {total} items archived and removed; "
-         "Git is unchanged (the review folders were untracked); prune was not run")
+         f"Git is unchanged (the review folders were untracked){tail}")
     return result
