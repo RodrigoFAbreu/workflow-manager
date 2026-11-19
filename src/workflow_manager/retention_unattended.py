@@ -35,7 +35,7 @@ DIR_MODE, FILE_MODE = 0o700, 0o600
 ARCHIVE_ROOT = "~/.local/share/workflow-archive"
 
 # The vocabulary of a line (plan section 2.3).
-STEPS = ("archive", "verify", "remove", "plan", "preflight", "policy")
+STEPS = ("archive", "verify", "remove", "plan", "preflight", "policy", "prune")
 RESULTS = ("ok", "failed", "interrupted", "nothing-eligible", "started", "refused", "stopped")
 FIELDS = ("schema_version", "time", "run_id", "repository", "policy_digest", "plan_digest",
           "item_id", "step", "engine_code", "result", "error")
