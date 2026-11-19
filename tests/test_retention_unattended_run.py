@@ -12,15 +12,22 @@ stronger: no script call at all and no `git` process.
 from __future__ import annotations
 
 import contextlib
+import datetime
 import json
 import os
+import re
+import shutil
+import tempfile
 import unittest
+from pathlib import Path
+from support import REPO_ROOT
 from unittest import mock
 
 import test_retention_cleanup as tc
 import test_retention_status as rs
 from test_operator_ux import git, tree_hash
 from workflow_manager import retention_alert as ra, retention_cleanup as rc, retention_policy as rp
+from workflow_manager import retention_unattended as ru
 
 UNATTENDED = {"cleanup": True, "prune": False, "keep_recent": 5, "ttl_days": 30,
               "prune_max_per_run": 3}
@@ -339,6 +346,310 @@ class TestKeepRecent(unittest.TestCase):
         plain = rc.select(tc.adopted("both", finished_items=10, finished_folder_mib=500), report)
         self.assertNotEqual(rc.plan_digest(plain), digest)   # the policy digest differs anyway
         self.assertEqual(planned(plan), planned(plain))      # 12 over 10: the 3 oldest either way
+
+
+class TestAuditWriter(unittest.TestCase):
+    """CP2: the audit file's location, modes, shape and write rules (plan 2.3)."""
+
+    def setUp(self):
+        base = Path(tempfile.mkdtemp(prefix="audit-"))
+        self.addCleanup(shutil.rmtree, base, True)
+        self.base = base.resolve()
+        self.repo = self.base / "repo"
+        self.repo.mkdir()
+        self.home = self.base / "home"
+        self.home.mkdir()
+        self.state = self.base / "state"
+        self.env = {"HOME": str(self.home), "XDG_STATE_HOME": str(self.state)}
+        self.when = datetime.datetime(2026, 11, 19, 10, 30, 5, tzinfo=datetime.timezone.utc)
+        self.opened = []
+
+    def open(self, **kw):
+        kw.setdefault("clock", lambda: self.when)
+        kw.setdefault("run_id", "ab" * 16)
+        audit = ru.open_audit(self.repo, self.env, **kw)
+        self.opened.append(audit)
+        self.addCleanup(audit.close)
+        return audit
+
+    def lines(self):
+        return [json.loads(l) for l in (self.state / "workflow-manager" /
+                                        "retention-audit.jsonl").read_text().splitlines()]
+
+    def refusal(self, **kw):
+        with self.assertRaises(ru.AuditRefusal) as caught:
+            ru.open_audit(self.repo, self.env, **kw)
+        self.assertTrue(caught.exception.cause.startswith("the audit file cannot be written: "))
+        self.assertTrue(caught.exception.step)
+        return caught.exception
+
+    # -- shape --------------------------------------------------------------
+
+    def test_every_kind_of_line_has_all_eleven_fields(self):
+        audit = self.open()
+        kinds = [("plan", "started"), ("archive", "ok"), ("verify", "failed"),
+                 ("remove", "interrupted"), ("plan", "nothing-eligible"),
+                 ("preflight", "refused"), ("policy", "stopped")]
+        for step, result in kinds:
+            audit.line(step, result)
+        rows = self.lines()
+        self.assertEqual(len(rows), len(kinds))
+        for row, (step, result) in zip(rows, kinds):
+            self.assertEqual(list(row), list(ru.FIELDS))
+            self.assertEqual((row["step"], row["result"]), (step, result))
+            self.assertEqual(row["schema_version"], 1)
+            self.assertEqual([row[k] for k in ("policy_digest", "plan_digest", "item_id",
+                                               "engine_code", "error")], [None] * 5)
+
+    def test_the_fields_carry_what_the_caller_names(self):
+        audit = self.open()
+        audit.line("archive", "failed", policy_digest="p" * 64, plan_digest="d" * 64,
+                   item_id="item-1", engine_code="ARCHIVE_EXISTS", error="line\nbreak \u00e9")
+        row = self.lines()[0]
+        self.assertEqual((row["policy_digest"], row["plan_digest"], row["item_id"],
+                          row["engine_code"]), ("p" * 64, "d" * 64, "item-1", "ARCHIVE_EXISTS"))
+        self.assertEqual(row["error"], "line\nbreak \u00e9")
+        self.assertEqual(row["repository"], str(self.repo))
+        raw = (self.state / "workflow-manager" / "retention-audit.jsonl").read_bytes()
+        self.assertEqual(raw.count(b"\n"), 1)          # an embedded newline is escaped
+
+    def test_the_time_is_iso_utc_and_the_run_id_is_32_hex(self):
+        audit = self.open(clock=lambda: self.when.astimezone(
+            datetime.timezone(datetime.timedelta(hours=2))))
+        audit.line("plan", "started")
+        self.assertEqual(self.lines()[0]["time"], "2026-11-19T10:30:05Z")
+        self.assertEqual(self.lines()[0]["run_id"], "ab" * 16)
+        default = ru.open_audit(self.repo, self.env)
+        self.addCleanup(default.close)
+        self.assertRegex(default.run_id, r"^[0-9a-f]{32}$")
+
+    def test_an_unknown_step_or_result_is_a_bug(self):
+        audit = self.open()
+        with self.assertRaises(ValueError):
+            audit.line("prune", "ok")
+        with self.assertRaises(ValueError):
+            audit.line("plan", "done")
+        self.assertFalse((self.state / "workflow-manager" / "retention-audit.jsonl").read_text())
+
+    # -- location -----------------------------------------------------------
+
+    def test_the_default_path_and_the_xdg_override(self):
+        self.assertEqual(ru.audit_path({"HOME": "/h"}),
+                         Path("/h/.local/state/workflow-manager/retention-audit.jsonl"))
+        self.assertEqual(ru.audit_path({"HOME": "/h", "XDG_STATE_HOME": "/x"}),
+                         Path("/x/workflow-manager/retention-audit.jsonl"))
+
+    def test_a_relative_or_empty_xdg_state_home_is_ignored(self):
+        for value in ("relative/dir", "", "."):
+            with self.subTest(value):
+                self.assertEqual(ru.audit_path({"HOME": "/h", "XDG_STATE_HOME": value}),
+                                 Path("/h/.local/state/workflow-manager/retention-audit.jsonl"))
+
+    def test_the_archive_store_default_is_the_engines_own(self):
+        engine = (REPO_ROOT / "scripts" / "workflow_retention.py").read_text()
+        found = re.search(r'^DEFAULT_ARCHIVE_ROOT = "([^"]+)"$', engine, re.MULTILINE)
+        self.assertEqual(found.group(1), ru.ARCHIVE_ROOT)
+        self.assertEqual(ru.archive_store({"HOME": "/h"}), Path("/h/.local/share/workflow-archive"))
+
+    def test_a_path_inside_the_repository_is_refused(self):
+        self.env["XDG_STATE_HOME"] = str(self.repo / "state")
+        self.refusal()
+        self.assertEqual(list(self.repo.iterdir()), [])
+
+    def test_a_path_inside_the_archive_store_is_refused(self):
+        self.env["XDG_STATE_HOME"] = str(self.home / ".local" / "share" / "workflow-archive" / "s")
+        self.refusal()
+        self.assertFalse((self.home / ".local" / "share").exists())
+
+    def test_a_link_into_the_repository_is_refused_by_its_real_path(self):
+        self.state.mkdir()
+        (self.state / "workflow-manager").symlink_to(self.repo)
+        self.refusal()
+        self.assertEqual(list(self.repo.iterdir()), [])
+
+    # -- modes --------------------------------------------------------------
+
+    def test_directory_0700_and_file_0600_under_any_umask(self):
+        for umask in (0o000, 0o077, 0o277):
+            with self.subTest(umask=oct(umask)):
+                shutil.rmtree(self.state, ignore_errors=True)
+                old = os.umask(umask)
+                try:
+                    audit = self.open()
+                finally:
+                    os.umask(old)
+                audit.line("plan", "started")
+                self.assertEqual((self.state / "workflow-manager").stat().st_mode & 0o777, 0o700)
+                self.assertEqual((self.state / "workflow-manager" / "retention-audit.jsonl")
+                                 .stat().st_mode & 0o777, 0o600)
+
+    def test_missing_parents_of_the_state_directory_are_created_0700(self):
+        self.env["XDG_STATE_HOME"] = str(self.base / "a" / "b" / "state")
+        old = os.umask(0o000)
+        try:
+            self.open()
+        finally:
+            os.umask(old)
+        for name in ("a", "a/b", "a/b/state", "a/b/state/workflow-manager"):
+            self.assertEqual((self.base / name).stat().st_mode & 0o777, 0o700, name)
+
+    def test_an_existing_parent_is_not_inspected(self):
+        self.state.mkdir(mode=0o777)
+        os.chmod(self.state, 0o777)
+        self.open().line("plan", "started")
+        self.assertEqual(self.state.stat().st_mode & 0o777, 0o777)
+
+    # -- append only --------------------------------------------------------
+
+    def test_two_runs_append_and_existing_bytes_stay(self):
+        first = self.open()
+        first.line("plan", "started")
+        path = self.state / "workflow-manager" / "retention-audit.jsonl"
+        before = path.read_bytes()
+        first.close()
+        second = self.open(run_id="cd" * 16)
+        second.line("plan", "started")
+        after = path.read_bytes()
+        self.assertTrue(after.startswith(before))
+        self.assertEqual([r["run_id"] for r in self.lines()], ["ab" * 16, "cd" * 16])
+
+    def test_the_open_flags_are_append_only(self):
+        seen = []
+        real = os.open
+
+        def spy(path, flags, *rest, **kw):
+            seen.append(flags)
+            return real(path, flags, *rest, **kw)
+
+        with mock.patch.object(ru.os, "open", spy):
+            self.open()
+        for flags in seen:
+            self.assertTrue(flags & os.O_WRONLY and flags & os.O_APPEND and flags & os.O_NOFOLLOW)
+            self.assertFalse(flags & (os.O_TRUNC | os.O_RDWR))
+
+    def test_no_seek_truncate_or_rewrite_is_ever_called(self):
+        audit = self.open()
+        with mock.patch.object(os, "lseek") as seek, mock.patch.object(os, "ftruncate") as trunc, \
+                mock.patch.object(os, "truncate") as trunc2:
+            audit.line("plan", "started")
+        for fake in (seek, trunc, trunc2):
+            fake.assert_not_called()
+
+    def test_one_os_write_per_line(self):
+        calls = []
+
+        def counting(fd, data):
+            calls.append(data)
+            return os.write(fd, data)
+
+        audit = self.open(write=counting)
+        for _ in range(3):
+            audit.line("plan", "started")
+        self.assertEqual(len(calls), 3)
+        for data in calls:
+            self.assertTrue(data.endswith(b"\n") and data.count(b"\n") == 1)
+
+    # -- refusals -----------------------------------------------------------
+
+    def test_a_link_in_place_of_the_file_is_refused(self):
+        directory = self.state / "workflow-manager"
+        directory.mkdir(parents=True, mode=0o700)
+        target = self.base / "elsewhere"
+        target.write_text("keep")
+        (directory / "retention-audit.jsonl").symlink_to(target)
+        self.assertIn("link", self.refusal().cause)
+        self.assertEqual(target.read_text(), "keep")
+
+    def test_a_directory_in_place_of_the_file_is_refused(self):
+        directory = self.state / "workflow-manager"
+        (directory / "retention-audit.jsonl").mkdir(parents=True, mode=0o700)
+        self.assertIn("directory", self.refusal().cause)
+
+    def test_a_group_writable_file_is_refused(self):
+        directory = self.state / "workflow-manager"
+        directory.mkdir(parents=True, mode=0o700)
+        path = directory / "retention-audit.jsonl"
+        path.write_text("x\n")
+        os.chmod(path, 0o664)
+        self.assertIn("group- or world-writable", self.refusal().cause)
+        self.assertEqual(path.read_text(), "x\n")
+
+    def test_a_group_writable_directory_is_refused(self):
+        directory = self.state / "workflow-manager"
+        directory.mkdir(parents=True)
+        os.chmod(directory, 0o770)
+        self.assertIn("directory", self.refusal().cause)
+
+    def test_a_file_owned_by_another_user_is_refused(self):
+        directory = self.state / "workflow-manager"
+        directory.mkdir(parents=True, mode=0o700)
+        (directory / "retention-audit.jsonl").write_text("")
+        real = os.stat
+
+        def other(target, *a, **kw):
+            info = real(target, *a, **kw)
+            return os.stat_result((info.st_mode, info.st_ino, info.st_dev, info.st_nlink,
+                                   os.getuid() + 1, info.st_gid, info.st_size,
+                                   int(info.st_atime), int(info.st_mtime), int(info.st_ctime)))
+
+        def fake_stat(target, *a, **kw):
+            return other(target, *a, **kw) if isinstance(target, int) else real(target, *a, **kw)
+
+        self.assertIn("not owned by you", self.refusal(stat=fake_stat).cause)
+
+    def test_a_directory_owned_by_another_user_is_refused(self):
+        real = os.stat
+
+        def fake_stat(target, *a, **kw):
+            info = real(target, *a, **kw)
+            return os.stat_result((info.st_mode, info.st_ino, info.st_dev, info.st_nlink,
+                                   os.getuid() + 1, info.st_gid, info.st_size,
+                                   int(info.st_atime), int(info.st_mtime), int(info.st_ctime)))
+
+        self.assertIn("directory", self.refusal(stat=fake_stat).cause)
+
+    @unittest.skipIf(os.getuid() == 0, "root can write anywhere")
+    def test_an_unwritable_directory_is_refused(self):
+        self.state.mkdir()
+        os.chmod(self.state, 0o500)
+        self.addCleanup(os.chmod, self.state, 0o700)
+        self.refusal()
+
+    # -- write errors -------------------------------------------------------
+
+    def test_a_write_error_raises_the_audit_error(self):
+        def failing(fd, data):
+            raise OSError(28, "No space left on device")
+
+        audit = self.open(write=failing)
+        with self.assertRaises(ru.AuditWriteError) as caught:
+            audit.line("plan", "started")
+        self.assertIn("No space left", caught.exception.cause)
+        self.assertEqual(audit.lines, 0)
+
+    def test_a_short_write_raises_the_audit_error(self):
+        audit = self.open(write=lambda fd, data: os.write(fd, data[:10]))
+        with self.assertRaises(ru.AuditWriteError) as caught:
+            audit.line("plan", "started")
+        self.assertIn("short write", caught.exception.cause)
+
+    def test_an_open_failure_and_a_first_write_failure_are_different_errors(self):
+        self.state.mkdir()
+        (self.state / "workflow-manager").write_text("not a directory")
+        with self.assertRaises(ru.AuditRefusal) as opened:
+            ru.open_audit(self.repo, self.env)
+        shutil.rmtree(self.state)
+
+        def failing(fd, data):
+            raise OSError(5, "I/O error")
+
+        audit = self.open(write=failing)
+        with self.assertRaises(ru.AuditWriteError) as wrote:
+            audit.line("plan", "started")
+        self.assertNotIsInstance(opened.exception, ru.AuditWriteError)
+        self.assertNotIsInstance(wrote.exception, ru.AuditRefusal)
+        self.assertTrue(issubclass(ru.AuditRefusal, ru.AuditError)
+                        and issubclass(ru.AuditWriteError, ru.AuditError))
 
 
 if __name__ == "__main__":
