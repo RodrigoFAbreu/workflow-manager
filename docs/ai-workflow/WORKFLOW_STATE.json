@@ -43516,7 +43516,7 @@
       "registry_path": "docs/ai-workflow/registry/unattended-retention-prune-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/unattended-retention-prune-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "APPLYING_REVIEW_FEEDBACK",
       "plan_revision": 5,
       "implementation_revision": 2,
       "functional_review_round": null,
@@ -43807,12 +43807,12 @@
           "external": 3
         },
         "implementation": {
-          "local": 1,
+          "local": 2,
           "external": 1
         }
       },
-      "state_revision": 34,
-      "last_transition": "2026-11-19T15:56:01Z",
+      "state_revision": 35,
+      "last_transition": "2026-11-19T15:59:38Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -44088,6 +44088,20 @@
               "review_content_id": "afd6b6ae9664d438505f2c25c66143f75387ae36b568587cde81eb6cff4a3c2b",
               "verdict": "APPROVE",
               "at": "2026-11-19T15:20:09Z"
+            }
+          ]
+        },
+        "F-bb954101821d": {
+          "digest": "bb954101821d15fc0b5705338da4c1bdd7e330e3e87f82acc8a6dd36dfe04dc9",
+          "text": "**LIR2-002 `docs/retention.md:409`, the unattended run's \"Exit status.\" paragraph** says \"The same as the confirmed run\". That is true for the cleanup phase, but a reader who stops there misses the prune phase's exit 1 after a `prune --apply`. \"The unattended prune\" section and the page's closing \"Exit status\" section state it correctly. Consider adding \"(the prune phase, below, adds its own)\" when fixing LIR2-001.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 2,
+              "review_content_id": "cbfa8e83daf5505fa4a6f5e13e529d5a2a6fc0d5ac48a2b8703c3c4160c71952",
+              "verdict": "REVISE",
+              "at": "2026-11-19T15:59:38Z"
             }
           ]
         }
