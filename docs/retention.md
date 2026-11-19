@@ -364,7 +364,7 @@ A stop at `archive` or `verify` leaves the review folder where it was, and the r
 - **Exit status.** 0: the preview, nothing to do, or every item done. 1: the run stopped after its first per-item call (`archive --apply`, the verification or `remove --apply`) was attempted, even if its script could not be started (the closing `retention cleanup: stopped` line says where; stderr has `error:` and `next:`). 2: refused, or stopped before that first call (the policy changed, or the run was interrupted, while item 1's policy was read), with nothing written.
 - **Re-runs.** An item archived by an earlier run whose removal did not happen is planned `remove only`: no second `archive` (the engine refuses `already_archived`). A removal left half done in `.removing/ID` is refused by the preflight and finished by hand. After a killed archiver the next `archive` refuses `partial_present`, and the run stops at that item. Two runs at once: the engine's lock makes the second stop with `archive_busy`.
 - **The archive store.** It is the engine's default, under `HOME` (`~/.local/share/workflow-archive/<repository>`). A job that runs with another `HOME` archives elsewhere. If the store is on another file system than the repository's `.ai-review`, the engine archives, then refuses the removal as `cross_device`, on every run: the report quotes its message and no item progresses. Remove by hand with `--archive-root`, or run with a `HOME` on the repository's file system; a user who changes `HOME` keeps `gh` signed in by setting `GH_CONFIG_DIR` to the real configuration directory first, and needs a Git identity if the run's repository setup commits.
-- **The sentence is a formality for a job that scrapes it.** The sentence proves the plan was shown, not who asked. A scheduled job that reads the sentence from the preview's `next:` line and passes it back makes the confirmation a formality: the owner's control is the adopted policy and the schedule.
+- **The sentence is a formality for a job that scrapes it.** The sentence proves the plan was shown, not who asked. A scheduled job that reads the sentence from the preview's `next:` line and passes it back makes the confirmation a formality: the owner's control is the adopted policy and the schedule. `--unattended` is the sanctioned route for a scheduled job; scraping the sentence is the workaround it replaces.
 
 ### The unattended run
 
@@ -400,7 +400,7 @@ A policy without an authorising adoption prints exactly the preview it printed b
 | `archive`, `verify`, `remove` | `ok`, `failed` or `interrupted` | one line per action, with the engine's `error: CODE:` as `engine_code` when it printed one |
 | `plan` | `nothing-eligible` | a threshold is reached and no item is eligible |
 | `preflight` | `refused` | a refusal after the audit file is opened |
-| `policy` | `stopped` | the policy changed or stopped authorising during the run |
+| `policy` | `stopped`, `interrupted` | the policy changed or stopped authorising during the run, or the run was interrupted while it was read |
 
 If the audit file cannot be opened or the first line cannot be written, the run is refused (exit 2) and no script verb is issued. If a refusal's own line cannot be written, it still exits 2 and a second `error:` line says so. If a write fails after an action, the run stops and its closing line says the step had succeeded, that nothing further was called and where the audit file is (exit 1). The text output of the run is the confirmed run's, plus a last line `  audit: PATH`.
 
