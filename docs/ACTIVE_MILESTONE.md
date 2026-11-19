@@ -88,7 +88,8 @@ The cleanup report makes one forge query per finished item, so the sandbox's ref
 
 ### Known findings at preparation
 
-- **`docs/retention.md:90`** says "prune is never run." It is stale: with `--unattended` and `unattended.prune` true the run prunes. Flow 6 fails on that line. One sentence would fix it. It was not changed here: `docs/retention.md` is in the approved technical-review manifest, so an edit would make `technical_approval` stale and need a new implementation round. If the review confirms it, record it in the feedback file below and route it with `/apply-functional-review`.
+- **`docs/retention.md:90`** (fixed in the functional-review round, commit 1b72add): it now says prune runs only under `--unattended` with an adopted `unattended.prune`, with a regression test (`TestHelpAndWording.test_the_policy_page_does_not_say_prune_is_never_run`). Flow 6 now has only the two expected matches. This staled the technical approval; a fresh implementation review is required.
+- **Flows 2 and 7 (automated tester)**: expected behavior, no change. They expect `docs/ROADMAP.md` row 52 as an uncommitted working-tree change, which an isolated clean checkout cannot contain; the row is present in the working tree here (`1 0` numstat) and stays uncommitted by design. Re-run these two flows in the working tree, not a sandbox checkout.
 
 ### Feedback and next steps
 
