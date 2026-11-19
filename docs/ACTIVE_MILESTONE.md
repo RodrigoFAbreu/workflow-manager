@@ -2,7 +2,7 @@
 
 ## Milestone
 
-**In progress.** `unattended-retention-prune` (`governing_workflow_version: "2.2"`, `process`, plan revision 5, base `7e0ab69`, branch `milestone/unattended-retention-prune`): step A3 of issue #254. `workflow-manager retention-cleanup TARGET --unattended`, after its archive-and-remove phase, also prunes the archives the adopted unattended policy has aged out (`unattended.prune` true): class `finished` only, strictly older than `unattended.ttl_days`, only items whose review folder is already gone, never an id under an interrupted removal, at most `unattended.prune_max_per_run`, oldest first, and only after the engine's own dry run lists exactly the planned set.
+**At functional review (round 1).** `unattended-retention-prune` (`governing_workflow_version: "2.2"`, `process`, plan revision 5, base `7e0ab69`, branch `milestone/unattended-retention-prune`): step A3 of issue #254. `workflow-manager retention-cleanup TARGET --unattended`, after its archive-and-remove phase, also prunes the archives the adopted unattended policy has aged out (`unattended.prune` true): class `finished` only, strictly older than `unattended.ttl_days`, only items whose review folder is already gone, never an id under an interrupted removal, at most `unattended.prune_max_per_run`, oldest first, and only after the engine's own dry run lists exactly the planned set.
 
 Plan: `docs/ai-workflow/WORKFLOW_MANAGER_UNATTENDED_RETENTION_PRUNE_PLAN.md`.
 
@@ -23,6 +23,75 @@ Pull request title: `feat: prune old archives in the unattended retention run un
 - CP4: `--select` of `test_retention_unattended.py` (57 tests), `test_retention_policy.py` (87), `test_retention_cleanup.py` (69), `test_retention_run.py` (50), `test_retention_unattended_run.py` (86), `test_retention_unattended_prune.py` (86), `test_docs.py`, `test_operator_ux_docs.py`, `test_operator_ux.py`, `test_retention_status.py`, `test_retention_alert.py` and `test_retention_alert_json.py`, each `verdict: exit 0`. One mutation (the prune-false branch of `enforcement_lines` removed) fails `test_prune_false_says_so_in_every_state`; the unmutated control passes.
 - CP3: `python3 tests/run_all.py --select test_retention_unattended_prune.py` (86 tests, `verdict: exit 0`), and `--select` of `test_retention_cleanup.py`, `test_retention_unattended_run.py`, `test_retention_run.py`, `test_retention_unattended.py` and `test_retention_policy.py`, each `verdict: exit 0`. Two mutations on the command (a prune stop always exiting 2; the cleanup closing line keeping "prune was not run") each fail the named tests; the unmutated control passes.
 
-## Next action
+- Full gate, implementation revision 1 (`python3 tests/run_all.py` at `862c8ec`, the last code commit): `verdict: exit 0`, 2491/2491 units, 16769 tests (`.ai-review/unattended-retention-prune/current/TEST_RESULTS.md`). Nothing under `src/`, `tests/` or `tools/` has changed since.
 
-Self-review of the full diff and the full verification (`python3 tests/run_all.py`), on the next `/milestone-implement unattended-retention-prune`.
+## Functional review checklist
+
+Round 1: implementation revision 1, base `7e0ab69`, plan revision 5. The commit that carries this checklist changes only this file; the flows test the code at `862c8ec`.
+
+**Already checked.** The flows below were dry-run on a scratch clone of `ccb254b`, with the sandbox limits (stand-ins, no network, scratch origin): flows 1 to 5, 7 to 10 gave the expected result; M3 gave `verdict: exit 1`. Flow 6 fails on one known line (see Known findings).
+
+### Setup (sandbox flows 1 to 10)
+
+Never work in the product clone `P`. Build a scratch clone under `$HOME/.cache`:
+
+```
+S=$(mktemp -d "$HOME/.cache/up-fr.XXXXXX")
+git clone -q --bare --no-hardlinks "$P" "$S/origin.git"        # scratch origin
+git clone -q "$S/origin.git" "$S/cand"                          # the branch, at its head
+command cp -f "$P/docs/ROADMAP.md" "$S/cand/docs/ROADMAP.md"   # row 52 is an uncommitted working-tree edit
+mkdir -p "$S/bin" "$S/home" "$S/tmp" "$S/cache/workflow-manager"
+for t in gh claude codex ssh; do   # refusing, logging stand-ins
+  printf '#!/bin/sh\necho "%s $*" >> "%s/stand-in.log"\necho "stand-in: %s refused (sandbox)" >&2\nexit 1\n' "$t" "$S" "$t" > "$S/bin/$t"; chmod +x "$S/bin/$t"; done
+command cp -a "$HOME/.cache/workflow-manager/releases" "$S/cache/workflow-manager/"   # primed release cache, about 770 MB
+(cd "$S/cand" && python3 -m compileall -q src)                  # before any test runs
+```
+
+Run every flow from `$S/cand` with `env -i PATH=$S/bin:/usr/bin:/bin HOME=$S/home XDG_CACHE_HOME=$S/cache XDG_STATE_HOME=$S/state TMPDIR=$S/tmp PYTHONDONTWRITEBYTECODE=1`. Flow 10 also runs under `unshare -rn` (no network) with `--allow-root`, because `unshare` maps the caller to root. Afterwards `test ! -s "$S/stand-in.log"`: no flow reached a forge or an agent.
+
+**Test data:** none. Each unit test builds its own scratch repository and a fake engine.
+
+### Sandbox flows
+
+| Flow | Do | Expect |
+| --- | --- | --- |
+| 1 | `git diff --name-status 7e0ab69 HEAD -- src tests tools .github .claude scripts .workflow-manager` | `A` `src/workflow_manager/retention_prune.py` and `tests/test_retention_unattended_prune.py`; `M` `src/workflow_manager/cli.py`, `retention_policy.py`, `retention_run.py`, `retention_unattended.py`, and `tests/test_retention_cleanup.py`, `test_retention_unattended.py`, `test_retention_unattended_run.py`; nothing under `tools`, `.github`, `.claude`, `scripts` or `.workflow-manager`; `tests/test_retention_run.py` and `tests/test_retention_policy.py` not listed |
+| 2 | `git diff --name-status 7e0ab69 HEAD -- docs`, then `git diff --name-status 7e0ab69 -- docs/ROADMAP.md` | committed: `M` `docs/exit-codes.md`, `docs/retention.md`, `docs/ACTIVE_MILESTONE.md`, `docs/ai-workflow/WORKFLOW_STATE.json`, and `A` the item's plan, registry, artifacts and mapping files, no other page; working tree: `M` `docs/ROADMAP.md` |
+| 3 | `git diff --exit-code 7e0ab69 HEAD -- docs/verify.md docs/update.md docs/release-history.md README.md tests/parallel/resources.json src/workflow_manager/retention.py src/workflow_manager/retention_cleanup.py src/workflow_manager/retention_alert.py src/workflow_manager/retention_alert_json.py` | exit 0 |
+| 4 | `grep -n "older than .ttl_days\|prune_max_per_run\|cannot be undone\|workflow-archive" docs/retention.md`; `grep -n "prune" docs/exit-codes.md` | the page names the ttl rule, the cap, that a deleted archive cannot be undone, and the archive store; exit codes 0, 1 and 2 each mention prune |
+| 5 | `grep -rn "unattended-retention\|#254\|#259" docs/retention.md docs/exit-codes.md` | no match (exit 1) |
+| 6 | `grep -rni --include='*.py' --include='*.md' "prune is not run unattended yet\|Prune is not yet unattended\|not prune,\|Prune is never run\.\|never part of cleanup\|does not run it either\|Neither is run by the Manager\|The Manager never runs any of them\|prune was not run" src docs/retention.md` | no match except two correct ones, `prune was not run` at `src/workflow_manager/retention_run.py:359` and `docs/retention.md:362` (the confirmed run's closing line and the unattended run's line with prune off); **known failure**: `docs/retention.md:90` ("prune is never run.", see Known findings) |
+| 7 | `grep -n "^\| 5[0-2] " docs/ROADMAP.md`; `git diff --numstat 7e0ab69 -- docs/ROADMAP.md` | row 52 names #254 and A3 with status Done; numstat `1 0` (rows 50 and 51 unchanged) |
+| 8 | `XDG_STATE_HOME=$S/state PYTHONPATH=src python3 -m workflow_manager retention-cleanup "$S" --unattended --confirm x; echo $?; test ! -e "$S/state" && echo absent` | stderr `error: retention cleanup: --confirm and --unattended cannot be combined`; exit 2; `absent` |
+| 9 | `python3 tools/release/release.py check-title "feat: prune old archives in the unattended retention run under the adopted unattended policy"` | `valid title: feat, release impact minor`, exit 0 |
+| 10 | `unshare -rn python3 tests/run_all.py --allow-root --select test_retention_unattended_prune.py --select test_retention_unattended_run.py --select test_retention_unattended.py --select test_retention_run.py --select test_retention_cleanup.py --select test_retention_policy.py` | `verdict: exit 0` (dry run: 435 tests in 71 units). Then mutation M3 in a second copy `$S/m3` (`command cp -a "$S/cand" "$S/m3"`): in `src/workflow_manager/retention_prune.py` change `elif _folder_present(report, item_id):` to `elif False and _folder_present(report, item_id):`, run `python3 -m compileall -q src` in that copy, then `unshare -rn python3 tests/run_all.py --allow-root --select test_retention_unattended_prune.py`: `verdict: exit 1`, 8 failures, including `test_an_old_archive_whose_folder_is_present_is_never_named` and `test_a_present_review_folder_is_excluded_with_its_reason` (dry run: exit 1, same 8 failures) |
+
+### Owner flows (need the real `gh`; the sandbox cannot run these)
+
+The cleanup report makes one forge query per finished item, so the sandbox's refusing `gh` stops it before any action. Run these in your own shell on a scratch managed repository whose name no real repository uses: the archive store is keyed by repository name (`~/.local/share/workflow-archive/<repository>`). For flow 12, run with `HOME=$S/home` and `GH_CONFIG_DIR=$HOME/.config/gh` so the real store is untouched (`docs/retention.md`, "The archive store"), and keep `$S` on the repository's file system.
+
+**Test data:** a managed repository with an adopted policy in the unattended form (`cleanup` true, `prune` true, `keep_recent` 5, `ttl_days` 14, `prune_max_per_run` 3), adopted with `workflow-manager adopt-retention-policy TARGET --confirm "Adopt the unattended retention policy DIGEST12."`; at least four archives older than 14 days whose review folders are already gone, and one archive younger than 14 days (set the older mtimes with `touch -d` in the scratch store only).
+
+| Flow | Do | Expect |
+| --- | --- | --- |
+| 11 | `workflow-manager retention-cleanup TARGET` (preview) and `workflow-manager status --retention TARGET` | exit 0; the lines say the run archives and removes, then prunes archives of finished items whose review folder is gone, older than 14 days, at most 3 per run, and that a deleted archive cannot be undone, with the archive store path; no line says prune is not run |
+| 12 | `XDG_STATE_HOME=$S/state HOME=$S/home GH_CONFIG_DIR=$HOME/.config/gh workflow-manager retention-cleanup TARGET --unattended --json` | exit 0; stdout is one JSON document with `prune.enabled` true and `prune.outcome` `done`; `prune.ids` has the at most three oldest old archives, oldest first; the young archive is not named; the deleted archives are gone from `$S/home/.local/share/workflow-archive/<repository>` and the rest remain; `$S/state/workflow-manager/retention-audit.jsonl` has a `prune` `started` line before the first delete and one `ok` line per deleted archive; the real `~/.local/share/workflow-archive` has nothing of this repository |
+| 13 | Change `prune` to `false`, re-adopt with the new digest's sentence, run flow 12's command again | the preview says `unattended.prune` is false, so no archive is pruned; the closing line ends `prune was not run`; the JSON `prune.enabled` is false and `prune.outcome` is `disabled`; no `prune` line in the audit file; no archive is deleted |
+
+### Known limitations (out of scope)
+
+- Deleting an archive cannot be undone, and the archive store is not backed up by the Manager. Moving it to a backed-up disk is the owner's decision and is not part of this item.
+- The confirmed run never prunes; `scripts/workflow_retention.py prune` stays user-only. No scheduler and no notification (the lane heartbeat step comes later). No Workflow release and no pin change.
+- `keep_recent` does not protect archives; only `ttl_days` and the cap do.
+- A review folder that reappears between the report and an apply is not seen by the engine. Named risk, bounded by the cap, not closed.
+- Plan section 5 expects `tests/test_retention_policy.py` to be modified. It is not: `enforcement_lines` lives in `retention_policy.py`, and that test file passes unchanged.
+
+### Known findings at preparation
+
+- **`docs/retention.md:90`** says "prune is never run." It is stale: with `--unattended` and `unattended.prune` true the run prunes. Flow 6 fails on that line. One sentence would fix it. It was not changed here: `docs/retention.md` is in the approved technical-review manifest, so an edit would make `technical_approval` stale and need a new implementation round. If the review confirms it, record it in the feedback file below and route it with `/apply-functional-review`.
+
+### Feedback and next steps
+
+- Findings go to `.ai-review/unattended-retention-prune/feedback/FUNCTIONAL_REVIEW.md`. Do not create a flat path.
+- Once testing is clean, `/accept-milestone` is the only acceptance command. It needs every checkpoint `COMPLETE`; CP1 to CP4 are, so acceptance is possible after a clean round. If a checkpoint were outstanding, the way forward would be `/milestone-implement`.
+- `docs/ROADMAP.md` row 52 stays uncommitted. Never stage it with this item's commits.
