@@ -27,31 +27,31 @@ Pull request title: `feat: prune old archives in the unattended retention run un
 
 ## Functional review checklist
 
-Round 2: implementation revision 3, base `7e0ab69`, plan revision 5, head `59b2c4e`. The commit that carries this checklist changes only this file; the flows test the code at `59b2c4e`.
+Round 2, checklist revision 2: implementation revision 3, base `7e0ab69`, plan revision 5, head `59b2c4e` (the code under test). The commit that carries this checklist changes only this file.
 
-**Round 2 automated-tester findings (flows 2 and 7), no code change.** The tester ran in an isolated sandbox at the committed head, so it lacks the uncommitted `docs/ROADMAP.md` row 52 that flows 2 and 7 expect in the working tree (by design: ROADMAP.md stays uncommitted until acceptance). In the real tree `git diff --name-status 7e0ab69 -- docs/ROADMAP.md` gives `M`, `--numstat` gives `1 0`, and row 52 is present. Expected behavior; flows 2 and 7 need a checkout carrying the working tree.
+**Why this revision.** The Controller's round-2 tester ran the checklist in a sandbox with no network, a refusing `gh`, `claude`, `codex` and `ssh`, a `PATH` of its own `bin/` and the system directories, a read-only product clone, and the committed head only (no working tree). In that sandbox flows 2 and 7 failed as `defect`: they expected the uncommitted `docs/ROADMAP.md` row 52, which is absent there by design (ROADMAP.md stays uncommitted until acceptance). Disposition `5a56803` recorded that as expected behavior. This revision removes the dependence on the working tree from the sandbox flows: flows 2 and 7 check only what is committed, and the working-tree check of row 52 is owner flow 14. Flows 11 to 13 need a real `gh`, so they move to the owner section; the round-2 run recorded them as `environment`. The same run recorded flow 10 as `environment`; the findings file does not give the cause (see flow 10's note).
 
-**What round 1 found, and what changed.** Round 1 (checklist tested at `1878aa5`) reported: flow 6 on `docs/retention.md:90` ("prune is never run"), fixed in `1b72add` with a regression test; flows 2 and 7, because the isolated checkout had no row 52 (the row is an uncommitted working-tree edit by design). The setup below copies that row into the scratch clone, which is the state those two flows expect. Implementation round 2 was REVISE (LIR2-001: `docs/retention.md` still said the unattended run adds "never new actions" although the prune phase is an added action; LIR2-002: its exit-status paragraph omitted the prune phase), fixed in `59b2c4e` with regression tests. Implementation round 3 is APPROVE from both reviewers (`LOCAL_MODEL_IMPLEMENTATION_REVIEW`, `MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW`), and the technical approval is recorded by policy for `59b2c4e`.
+**Round 1 and implementation review (history).** Round 1 flow 6 (`docs/retention.md:90`, "prune is never run") was fixed in `1b72add` with a regression test. Implementation round 2 was REVISE (LIR2-001: `docs/retention.md` said the unattended run adds "never new actions"; LIR2-002: its exit-status paragraph omitted the prune phase), fixed in `59b2c4e` with regression tests. Implementation round 3 is APPROVE from both reviewers (`LOCAL_MODEL_IMPLEMENTATION_REVIEW`, `MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW`), and the technical approval is recorded by policy for `59b2c4e`.
 
-**Already checked.** A scratch clone of `d9ade3f` (the same code as `59b2c4e`), built with the setup below and run with the sandbox limits (stand-ins, no network, scratch origin): flows 1 to 9 gave the expected result; flow 8 exited 2 with the named message and created no state directory. Flow 10: see the note under the table. The owner flows 11 to 13 are not run here.
+**Automated verification, current.** The full gate at `59b2c4e` is `verdict: exit 0`: 2491 of 2491 units, 16771 tests (`.ai-review/unattended-retention-prune/current/TEST_RESULTS.md`). Nothing under `src/`, `tests/` or `tools/` has changed since `59b2c4e`; only docs and workflow-state commits have landed. No rerun is needed. This revision's sandbox flows were dry-run in a scratch clone of the committed head `5a56803`, with the setup below: flows 1 to 10 gave the expected results (flow 10 `verdict: exit 0`, 71 of 71 units, 437 tests, without `unshare`; mutation M3 `verdict: exit 1`), and no stand-in was called. The commit that carries this checklist adds no flow input, so the dry run covers it.
 
 ### Setup (sandbox flows 1 to 10)
 
-Never work in the product clone `P`. Build a scratch clone under `$HOME/.cache`:
+Never write into the product clone `P`. Everything is written under one fresh scratch directory `S`; `P` is only read.
 
 ```
+P=$(git rev-parse --show-toplevel)                              # the product clone; read only
 S=$(mktemp -d "$HOME/.cache/up-fr.XXXXXX")
-git clone -q --bare --no-hardlinks "$P" "$S/origin.git"        # scratch origin
-git clone -q "$S/origin.git" "$S/cand"                          # the branch, at its head
-command cp -f "$P/docs/ROADMAP.md" "$S/cand/docs/ROADMAP.md"   # row 52 is an uncommitted working-tree edit
+git clone -q --bare --no-hardlinks "$P" "$S/origin.git"        # scratch origin: committed refs only
+git clone -q "$S/origin.git" "$S/cand"                          # the committed head of the branch
 mkdir -p "$S/bin" "$S/home" "$S/tmp" "$S/cache/workflow-manager"
 for t in gh claude codex ssh; do   # refusing, logging stand-ins
   printf '#!/bin/sh\necho "%s $*" >> "%s/stand-in.log"\necho "stand-in: %s refused (sandbox)" >&2\nexit 1\n' "$t" "$S" "$t" > "$S/bin/$t"; chmod +x "$S/bin/$t"; done
-command cp -a "$HOME/.cache/workflow-manager/releases" "$S/cache/workflow-manager/"   # primed release cache, about 770 MB
-(cd "$S/cand" && python3 -m compileall -q src)                  # before any test runs
+command cp -a "$HOME/.cache/workflow-manager/releases" "$S/cache/workflow-manager/"   # primed release cache, about 770 MB; needed by flow 10
+(cd "$S/cand" && python3 -m compileall -q src)                  # before any flow runs
 ```
 
-Run every flow from `$S/cand` with `env -i PATH=$S/bin:/usr/bin:/bin HOME=$S/home XDG_CACHE_HOME=$S/cache XDG_STATE_HOME=$S/state TMPDIR=$S/tmp PYTHONDONTWRITEBYTECODE=1`. Flow 10 also runs under `unshare -rn` (no network) with `--allow-root`, because `unshare` maps the caller to root. Afterwards `test ! -s "$S/stand-in.log"`: no flow reached a forge or an agent.
+Run every flow from `$S/cand` with `env -i S=$S PATH=$S/bin:/usr/bin:/bin HOME=$S/home XDG_CACHE_HOME=$S/cache XDG_STATE_HOME=$S/state TMPDIR=$S/tmp PYTHONDONTWRITEBYTECODE=1`. The sandbox supplies the no-network condition itself, so no flow needs `unshare`. After the flows, `test ! -s "$S/stand-in.log"`: no flow reached a forge or an agent.
 
 **Test data:** none. Each unit test builds its own scratch repository and a fake engine.
 
@@ -60,29 +60,30 @@ Run every flow from `$S/cand` with `env -i PATH=$S/bin:/usr/bin:/bin HOME=$S/hom
 | Flow | Do | Expect |
 | --- | --- | --- |
 | 1 | `git diff --name-status 7e0ab69 HEAD -- src tests tools .github .claude scripts .workflow-manager` | `A` `src/workflow_manager/retention_prune.py` and `tests/test_retention_unattended_prune.py`; `M` `src/workflow_manager/cli.py`, `retention_policy.py`, `retention_run.py`, `retention_unattended.py`, and `tests/test_retention_cleanup.py`, `test_retention_unattended.py`, `test_retention_unattended_run.py`; nothing under `tools`, `.github`, `.claude`, `scripts` or `.workflow-manager`; `tests/test_retention_run.py` and `tests/test_retention_policy.py` not listed |
-| 2 | `git diff --name-status 7e0ab69 HEAD -- docs`, then `git diff --name-status 7e0ab69 -- docs/ROADMAP.md` | committed: `M` `docs/exit-codes.md`, `docs/retention.md`, `docs/ACTIVE_MILESTONE.md`, `docs/ai-workflow/WORKFLOW_STATE.json`, and `A` the item's plan, registry, artifacts and mapping files, no other page; working tree: `M` `docs/ROADMAP.md` |
+| 2 | `git diff --name-status 7e0ab69 HEAD -- docs` | committed: `M` `docs/exit-codes.md`, `docs/retention.md`, `docs/ACTIVE_MILESTONE.md`, `docs/ai-workflow/WORKFLOW_STATE.json`, and `A` the item's plan, registry, artifacts and mapping files, no other page |
 | 3 | `git diff --exit-code 7e0ab69 HEAD -- docs/verify.md docs/update.md docs/release-history.md README.md tests/parallel/resources.json src/workflow_manager/retention.py src/workflow_manager/retention_cleanup.py src/workflow_manager/retention_alert.py src/workflow_manager/retention_alert_json.py` | exit 0 |
 | 4 | `grep -n "older than .ttl_days\|prune_max_per_run\|cannot be undone\|workflow-archive" docs/retention.md`; `grep -n "prune" docs/exit-codes.md` | the page names the ttl rule, the cap, that a deleted archive cannot be undone, and the archive store; exit codes 0, 1 and 2 each mention prune |
 | 5 | `grep -rn "unattended-retention\|#254\|#259" docs/retention.md docs/exit-codes.md` | no match (exit 1) |
 | 6 | `grep -rni --include='*.py' --include='*.md' "prune is not run unattended yet\|Prune is not yet unattended\|not prune,\|Prune is never run\.\|never part of cleanup\|does not run it either\|Neither is run by the Manager\|The Manager never runs any of them\|prune was not run\|it adds authority and evidence, never new actions" src docs/retention.md` | exactly two matches, both `prune was not run`: `src/workflow_manager/retention_run.py:359` (the confirmed run's closing line, and the unattended run's with prune off) and `docs/retention.md:362` (the page's description of it). No match for `never new actions` (`docs/retention.md:371` names the prune phase as the run's added action) |
-| 7 | `grep -n "^\| 5[0-2] " docs/ROADMAP.md`; `git diff --numstat 7e0ab69 -- docs/ROADMAP.md` | row 52 names #254 and A3 with status Done; numstat `1 0` (rows 50 and 51 unchanged) |
+| 7 | `git diff --quiet 7e0ab69 HEAD -- docs/ROADMAP.md && echo "committed roadmap unchanged"` | prints `committed roadmap unchanged`, exit 0. Row 52 is an uncommitted working-tree edit by design; owner flow 14 checks it |
 | 8 | `XDG_STATE_HOME=$S/state PYTHONPATH=src python3 -m workflow_manager retention-cleanup "$S" --unattended --confirm x; echo $?; test ! -e "$S/state" && echo absent` | stderr `error: retention cleanup: --confirm and --unattended cannot be combined`; exit 2; `absent` |
 | 9 | `python3 tools/release/release.py check-title "feat: prune old archives in the unattended retention run under the adopted unattended policy"` | `valid title: feat, release impact minor`, exit 0 |
-| 10 | `unshare -rn python3 tests/run_all.py --allow-root --select test_retention_unattended_prune.py --select test_retention_unattended_run.py --select test_retention_unattended.py --select test_retention_run.py --select test_retention_cleanup.py --select test_retention_policy.py` | `verdict: exit 0` (71 of 71 units, 437 tests). Then mutation M3 in a second copy `$S/m3` (`command cp -a "$S/cand" "$S/m3"`): in `src/workflow_manager/retention_prune.py` change `elif _folder_present(report, item_id):` to `elif False and _folder_present(report, item_id):`, run `python3 -m compileall -q src` in that copy, then `unshare -rn python3 tests/run_all.py --allow-root --select test_retention_unattended_prune.py`: `verdict: exit 1`, with failures including `test_an_old_archive_whose_folder_is_present_is_never_named` and `test_a_present_review_folder_is_excluded_with_its_reason` |
+| 10 | `python3 tests/run_all.py --select test_retention_unattended_prune.py --select test_retention_unattended_run.py --select test_retention_unattended.py --select test_retention_run.py --select test_retention_cleanup.py --select test_retention_policy.py` | `verdict: exit 0` (71 of 71 units, 437 tests). Then mutation M3 in a second copy: `command cp -a "$S/cand" "$S/m3"`; in `$S/m3/src/workflow_manager/retention_prune.py` change `elif _folder_present(report, item_id):` to `elif False and _folder_present(report, item_id):`; `(cd "$S/m3" && python3 -m compileall -q src)`; then `python3 tests/run_all.py --select test_retention_unattended_prune.py` in `$S/m3`: `verdict: exit 1`, with failures including `test_an_old_archive_whose_folder_is_present_is_never_named` and `test_a_present_review_folder_is_excluded_with_its_reason` |
 
-Flow 10 is the one flow that runs the test suite. It must run with the release cache copied in (the setup does this): without it, `run_all` stops with `PrimingError` (exit 2) before any test runs. The round-2 result at `d9ade3f` (the code of `59b2c4e`): the unmutated selection `verdict: exit 0` (71 of 71 units, 437 tests); M3 `verdict: exit 1` with eight failing test methods (`test_retention_unattended_prune.py` only), including the two named above and `test_the_cap_counts_only_selectable_archives`, `test_the_skipped_ids_do_not_move_it`, `test_a_missing_finished_entry_fails_closed`, `test_a_nothing_to_prune_document_lists_the_skips`, `test_nothing_to_prune_prints_one_line_and_its_skips_and_no_audit_line` and `test_a_folder_fact_that_is_not_exactly_false_fails_closed` (five values). The run made no stand-in call.
+Flow 10 needs the primed release cache: without it, `run_all` stops with `PrimingError` (exit 2) before any test runs. That is `environment`, not a defect. The full gate at `59b2c4e` already passed (16771 tests), so the code's test result does not depend on the sandbox run.
 
-### Owner flows (need the real `gh`; the sandbox cannot run these)
+### Owner flows (not for the sandbox tester)
 
-The cleanup report makes one forge query per finished item, so the sandbox's refusing `gh` stops it before any action. Run these in your own shell on a scratch managed repository whose name no real repository uses: the archive store is keyed by repository name (`~/.local/share/workflow-archive/<repository>`). For flow 12, run with `HOME=$S/home` and `GH_CONFIG_DIR=$HOME/.config/gh` so the real store is untouched (`docs/retention.md`, "The archive store"), and keep `$S` on the repository's file system.
+The sandbox tester does not run flows 11 to 14. Flows 11 to 13 need the real `gh`: the cleanup report makes one forge query per finished item, and the sandbox's refusing `gh` stops it before any action. Flow 14 reads the uncommitted working tree, which the sandbox does not have. Run these in your own shell.
 
-**Test data:** a managed repository with an adopted policy in the unattended form (`cleanup` true, `prune` true, `keep_recent` 5, `ttl_days` 14, `prune_max_per_run` 3), adopted with `workflow-manager adopt-retention-policy TARGET --confirm "Adopt the unattended retention policy DIGEST12."`; at least four archives older than 14 days whose review folders are already gone, and one archive younger than 14 days (set the older mtimes with `touch -d` in the scratch store only).
+**Test data:** a managed repository with an adopted policy in the unattended form (`cleanup` true, `prune` true, `keep_recent` 5, `ttl_days` 14, `prune_max_per_run` 3), adopted with `workflow-manager adopt-retention-policy TARGET --confirm "Adopt the unattended retention policy DIGEST12."`; at least four archives older than 14 days whose review folders are already gone, and one archive younger than 14 days (set the older mtimes with `touch -d` in the scratch store only). Use a managed repository whose name no real repository uses: the archive store is keyed by repository name (`~/.local/share/workflow-archive/<repository>`). For flow 12, run with `HOME=$S/home` and `GH_CONFIG_DIR=$HOME/.config/gh` so the real store is untouched (`docs/retention.md`, "The archive store"), and keep `$S` on the repository's file system.
 
 | Flow | Do | Expect |
 | --- | --- | --- |
 | 11 | `workflow-manager retention-cleanup TARGET` (preview) and `workflow-manager status --retention TARGET` | exit 0; the lines say the run archives and removes, then prunes archives of finished items whose review folder is gone, older than 14 days, at most 3 per run, and that a deleted archive cannot be undone, with the archive store path; no line says prune is not run |
 | 12 | `XDG_STATE_HOME=$S/state HOME=$S/home GH_CONFIG_DIR=$HOME/.config/gh workflow-manager retention-cleanup TARGET --unattended --json` | exit 0; stdout is one JSON document with `prune.enabled` true and `prune.outcome` `done`; `prune.ids` has the at most three oldest old archives, oldest first; the young archive is not named; the deleted archives are gone from `$S/home/.local/share/workflow-archive/<repository>` and the rest remain; `$S/state/workflow-manager/retention-audit.jsonl` has a `prune` `started` line before the first delete and one `ok` line per deleted archive; the real `~/.local/share/workflow-archive` has nothing of this repository |
 | 13 | Change `prune` to `false`, re-adopt with the new digest's sentence, run flow 12's command again | the preview says `unattended.prune` is false, so no archive is pruned; the closing line ends `prune was not run`; the JSON `prune.enabled` is false and `prune.outcome` is `disabled`; no `prune` line in the audit file; no archive is deleted |
+| 14 | In the product clone `P`, read only: `grep -n "^\| 5[0-2] " docs/ROADMAP.md`; `git diff --name-status 7e0ab69 -- docs/ROADMAP.md`; `git diff --numstat 7e0ab69 -- docs/ROADMAP.md` | row 52 names #254 and A3 with status Done; name-status `M`; numstat `1 0` (rows 50 and 51 unchanged). Row 52 stays uncommitted: never stage it, and never commit ROADMAP.md with this item |
 
 ### Known limitations (out of scope)
 
@@ -94,11 +95,11 @@ The cleanup report makes one forge query per finished item, so the sandbox's ref
 
 ### Known findings at preparation
 
-- None open. The round-1 findings are fixed (see "What round 1 found" above), and the implementation review's LIR2-001 and LIR2-002 are fixed in `59b2c4e`.
-- **Flows 2 and 7**: they expect `docs/ROADMAP.md` row 52 as an uncommitted working-tree change. The setup copies that row into the scratch clone, so they pass in a clean sandbox checkout; in the product clone the row is present (`1 0` numstat) and stays uncommitted by design.
+- None open that the sandbox can reproduce. Round 2's flows 2 and 7 failures came from the working-tree dependence, which this revision removes from the sandbox flows; disposition `5a56803` stands for the round-2 record.
+- Flow 10's round-2 `environment` result is not explained in the findings file. The likely cause is the primed release cache, which the setup now copies; that is unconfirmed.
 
 ### Feedback and next steps
 
-- Findings go to `.ai-review/unattended-retention-prune/feedback/FUNCTIONAL_REVIEW.md`. Do not create a flat path.
+- Findings go to `.ai-review/unattended-retention-prune/feedback/FUNCTIONAL_REVIEW.md`, owner flows included. Do not create a flat path.
 - Once testing is clean, `/accept-milestone` is the only acceptance command. It needs every checkpoint `COMPLETE`; CP1 to CP4 are, so acceptance is possible after a clean round. If a checkpoint were outstanding, the way forward would be `/milestone-implement`.
 - `docs/ROADMAP.md` row 52 stays uncommitted. Never stage it with this item's commits.
