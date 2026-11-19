@@ -565,6 +565,39 @@ class TestAuditWriter(unittest.TestCase):
         (directory / "retention-audit.jsonl").mkdir(parents=True, mode=0o700)
         self.assertIn("directory", self.refusal().cause)
 
+    def _fifo(self):
+        directory = self.state / "workflow-manager"
+        directory.mkdir(parents=True, mode=0o700)
+        path = directory / "retention-audit.jsonl"
+        os.mkfifo(path, 0o600)
+        return path
+
+    def test_a_fifo_with_no_reader_is_refused_without_blocking(self):   # LIR-I1 (external)
+        """A reader-opening timer is the safety net: a regression that blocks in open()
+        is released after 3 s, and the test then fails on `released`."""
+        import threading
+        path = self._fifo()
+        released = []
+
+        def release():
+            released.append(True)
+            os.close(os.open(path, os.O_RDONLY | os.O_NONBLOCK))
+        timer = threading.Timer(3, release)
+        timer.start()
+        try:
+            with self.assertRaises(ru.AuditRefusal) as caught:
+                ru.open_audit(self.repo, self.env)
+        finally:
+            timer.cancel()
+        self.assertEqual(released, [], "open() blocked on the FIFO")
+        self.assertIn("not a regular file", caught.exception.cause)
+
+    def test_a_fifo_with_a_reader_is_refused(self):
+        self._fifo_path = self._fifo()
+        reader = os.open(self._fifo_path, os.O_RDONLY | os.O_NONBLOCK)
+        self.addCleanup(os.close, reader)
+        self.assertIn("not a regular file", self.refusal().cause)
+
     def test_a_group_writable_file_is_refused(self):
         directory = self.state / "workflow-manager"
         directory.mkdir(parents=True, mode=0o700)
@@ -905,13 +938,27 @@ class TestRefusalsAreAudited(Cmd):
             installation.write_text(json.dumps(data, indent=2) + "\n")
             self.commit(self.repo, "old")
 
+        def unreadable_release():
+            data = json.loads(installation.read_text())
+            data["workflow_version"] = "02.25.5"
+            installation.write_text(json.dumps(data, indent=2) + "\n")
+            self.commit(self.repo, "unreadable")
+
         def missing_script():
             (self.repo / trun.SCRIPT).unlink()
             git(self.repo, "commit", "-q", "-am", "no script")
 
         modified = _mock.patch.object(cli, "_installed_script_state",
                                       return_value=ra.SCRIPT_MODIFIED)
+        script = lambda flag: _mock.patch.object(cli, "_installed_script_state", return_value=flag)
+        git_fails = _mock.patch.object(rc, "committed", side_effect=OSError("no git"))
         cases = [
+            ("failed git", lambda: None, {"patches": [git_fails]}, "Git could not be asked"),
+            ("unreadable release", unreadable_release, {}, "which is not a version"),
+            ("script without a release", lambda: None,
+             {"patches": [script(ra.SCRIPT_NO_RELEASE)]}, ra.CAUSE_NO_RELEASE),
+            ("script unchecked", lambda: None,
+             {"patches": [script(ra.SCRIPT_UNCHECKED)]}, ra.CAUSE_UNCHECKED),
             ("mode", mode, {}, "the adopted mode is notify"),
             ("uncommitted", uncommitted, {}, "is not committed at HEAD"),
             ("dirty", dirty, {}, "a tracked file is changed"),
@@ -966,6 +1013,30 @@ class TestAuditRefusals(Cmd):
         self.assertIn("the audit file cannot be written", out.err)
         self.assertEqual(self.keys(), [])
         self.assertEqual(self.lines(), [])
+
+    def test_a_fifo_audit_path_exits_2_promptly_with_no_engine_call(self):   # LIR-I1 (external)
+        import threading
+        directory = self.state_home / "workflow-manager"
+        directory.mkdir(parents=True, mode=0o700)
+        fifo = directory / "retention-audit.jsonl"
+        os.mkfifo(fifo, 0o600)
+        released = []
+
+        def release():
+            released.append(True)
+            os.close(os.open(fifo, os.O_RDONLY | os.O_NONBLOCK))
+        timer = threading.Timer(5, release)
+        timer.start()
+        try:
+            out = self.go_u()
+        finally:
+            timer.cancel()
+        self.assertEqual(released, [], "open() blocked on the FIFO")
+        self.refused(out, "it is not a regular file")
+        self.assertEqual(out.out, "")
+        self.assertIn("next:", out.err)
+        self.assertEqual(self.script_calls(), [])
+        self.assertEqual(self.keys(), [])
 
     def test_the_audit_inside_the_repository_is_refused(self):
         out = self.go_u(XDG_STATE_HOME=str(self.repo / "state"))

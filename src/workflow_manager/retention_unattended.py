@@ -194,10 +194,13 @@ def open_audit(repo_root, environ=None, *, archive_root=None, clock=None, run_id
             fd = os.open(path, flags | os.O_CREAT | os.O_EXCL, FILE_MODE)
             created = True
         except FileExistsError:
-            fd = os.open(path, flags)
+            # O_NONBLOCK: a FIFO with no reader must fail (ENXIO), never block; a
+            # regular file ignores it. The check below refuses a FIFO that opens.
+            fd = os.open(path, flags | os.O_NONBLOCK)
     except OSError as exc:
         why = ("it is a link" if exc.errno == errno.ELOOP else
                "it is a directory" if exc.errno == errno.EISDIR else
+               "it is not a regular file" if exc.errno == errno.ENXIO else
                f"it cannot be opened: {exc.strerror or exc}")
         raise _refuse(why, path, f"fix or remove {path} and run again") from exc
     try:
