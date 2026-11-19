@@ -42591,12 +42591,12 @@
       "registry_path": "docs/ai-workflow/registry/unattended-retention-run-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/unattended-retention-run-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "APPLYING_REVIEW_FEEDBACK",
+      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
       "plan_revision": 5,
-      "implementation_revision": 1,
+      "implementation_revision": 2,
       "functional_review_round": null,
       "base_commit": "73a5a7212b26238dd8a36a45c7a970c8518b3f52",
-      "reviewed_implementation_head": "4bd8ef28db7dd03174f0804ae1853e60a10e1491",
+      "reviewed_implementation_head": "5d29b77e71f7ec2e6c3f21c6bddeab6a9ed7c90b",
       "current_checkpoint_id": null,
       "last_completed_checkpoint_id": "CP4",
       "checkpoints": {
@@ -42743,8 +42743,8 @@
           "external": 1
         }
       },
-      "state_revision": 30,
-      "last_transition": "2026-11-19T10:44:15Z",
+      "state_revision": 31,
+      "last_transition": "2026-11-19T11:05:07Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
