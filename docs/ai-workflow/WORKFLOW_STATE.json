@@ -42591,7 +42591,7 @@
       "registry_path": "docs/ai-workflow/registry/unattended-retention-run-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/unattended-retention-run-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "APPLYING_REVIEW_FEEDBACK",
       "plan_revision": 5,
       "implementation_revision": 1,
       "functional_review_round": null,
@@ -42739,12 +42739,12 @@
           "external": 2
         },
         "implementation": {
-          "local": 0,
-          "external": 0
+          "local": 1,
+          "external": 1
         }
       },
-      "state_revision": 28,
-      "last_transition": "2026-11-19T10:27:25.236656+00:00",
+      "state_revision": 30,
+      "last_transition": "2026-11-19T10:44:15Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -42952,7 +42952,76 @@
               "at": "2026-11-19T02:18:46Z"
             }
           ]
+        },
+        "F-8320a5d80308": {
+          "digest": "8320a5d80308874e821f90c21dac7434cac56d91115a9c3226e50430f26f9b01",
+          "text": "**LIR1-001 -- Four later preflight refusals the plan lists are not run through the command.** CP3 lists failed `git`, an unreadable release record, and an unchecked or release-less script among the later refusals. Each was to be run unattended with the no-write proof and exactly one `preflight` line. `test_each_later_preflight_refusal_writes_one_line` covers eight cases: mode, uncommitted, dirty, old release, modified script, report unavailable (missing script), incomplete and interrupted. It does not cover those four. All four raise `retention_cleanup.Refusal` inside `preflight` (`retention_cleanup.py:231-270`), so `run_command`'s single `except retention_cleanup.Refusal` (`retention_unattended.py:318`) records them. There is no behavioural risk, and M25 is still killed. The omission is not listed among `IMPLEMENTATION_SUMMARY.md`'s deviations, though. Add the four cases to the test (patch `rc._git` to raise for the failed `git`, write a non-strict `workflow_version`, patch `_installed_script_state` to `SCRIPT_UNCHECKED` / `SCRIPT_NO_RELEASE`), or record the omission as a deviation.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "3fd2c2865bfbe33e9df5ee458d0b72b30d6c8a1c0606da99393b0c77d6960c3b",
+              "verdict": "APPROVE",
+              "at": "2026-11-19T10:38:35Z"
+            }
+          ]
+        },
+        "F-302505ab01c9": {
+          "digest": "302505ab01c9d50c3178341ea5789534a24bd6045b5ad880f017e36ccf258898",
+          "text": "**LIR1-002 -- `docs/exit-codes.md`'s exit-2 row says \"Nothing was written\" for every `--unattended` refusal.** Every refusal after the audit opens appends one `preflight` line to `retention-audit.jsonl` (plan 2.1, EPR3-001). This covers the `--unattended` rows d to f the same row lists, and the existing refusals before them. `docs/retention.md` says it correctly (\"nothing written in the repository\"). Use the same words here: \"Nothing was written in the repository; an `--unattended` refusal after the audit file opens appends one `preflight` line to it.\"",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "3fd2c2865bfbe33e9df5ee458d0b72b30d6c8a1c0606da99393b0c77d6960c3b",
+              "verdict": "APPROVE",
+              "at": "2026-11-19T10:38:35Z"
+            }
+          ]
+        },
+        "F-0579a28823a3": {
+          "digest": "0579a28823a34b1167c038c4258164eefb54ab5b7151e9488ff9521f81408ee6",
+          "text": "**LIR1-003 -- The page's audit table leaves out the `policy` / `interrupted` line.** An interrupt while item N's policy is read (`step` is `POLICY`, `retention_run.py:238`) makes the observer write `step` `policy`, `result` `interrupted` (`retention_run.py:339-341`). The table in \"The unattended run\" pairs `interrupted` only with `archive`, `verify` and `remove`, and pairs `policy` only with `stopped`. Add `interrupted` to the `policy` row (\"the policy changed, stopped authorising, or the run was interrupted while it was read\").",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "3fd2c2865bfbe33e9df5ee458d0b72b30d6c8a1c0606da99393b0c77d6960c3b",
+              "verdict": "APPROVE",
+              "at": "2026-11-19T10:38:35Z"
+            }
+          ]
+        },
+        "F-df375cb01099": {
+          "digest": "df375cb01099ef98d397b3d7e7e0170fbd88bad17ddb29de6c39f5ae1d674c64",
+          "text": "**LIR1-004 -- The \"scheduled job scrapes the sentence\" risk bullet is unchanged (LPR5-001, carried).** `docs/retention.md`'s \"The sentence is a formality for a job that scrapes it\" bullet still presents scraping as the way a scheduled job automates. That was true before `--unattended` existed. One clause pointing at `--unattended` as the sanctioned unattended route would keep the page from describing the workaround. Either act on it, or disposition it at acceptance together with the plan's other Optional findings.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "3fd2c2865bfbe33e9df5ee458d0b72b30d6c8a1c0606da99393b0c77d6960c3b",
+              "verdict": "APPROVE",
+              "at": "2026-11-19T10:38:35Z"
+            }
+          ]
         }
+      },
+      "implementation_review_stages": {
+        "review_content_id": "3fd2c2865bfbe33e9df5ee458d0b72b30d6c8a1c0606da99393b0c77d6960c3b",
+        "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "5838ea389907494a86d61be57d60517bbd1d0b74dd94e07143f3661f20db9c21",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-11-19T10:38:35Z",
+          "verdict_sha256": "3f7adbe6c9314258991d9f728a5046fea7b27783cb7732a58fd8da381ce0d158",
+          "run_ref": "session:local .ai-review/unattended-retention-run/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": null
       }
     }
   }
