@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "work_item_id": "unattended-retention-run",
+  "dispositions": {
+    "F-0579a28823a3": {
+      "disposition": "fixed",
+      "note": "docs/retention.md audit table: the policy row lists stopped and interrupted."
+    },
+    "F-114409f6f28e": {
+      "disposition": "fixed",
+      "note": "docs/retention.md risk bullet now names --unattended as the sanctioned route."
+    },
+    "F-13fdc1f221eb": {
+      "disposition": "fixed",
+      "note": "Plan section 2.4 classifies Installation.read errors as raised before any preflight; test_a_corrupt_installation_record_writes_no_audit_file."
+    },
+    "F-15a81cf9bffe": {
+      "disposition": "fixed",
+      "note": "Plan states which cause is printed when the preflight line cannot be written; retention_unattended.py and its test cover it."
+    },
+    "F-1f1bc18b0577": {
+      "disposition": "fixed",
+      "note": "Plan section 2.2 gives the sentence; test_a_kept_entry_without_a_review_folder_still_counts_toward_the_keep."
+    },
+    "F-2c59c1dd3b5f": {
+      "disposition": "fixed",
+      "note": "Plan says README.md:71 is left as it is on purpose; flow 3 keeps README untouched."
+    },
+    "F-302505ab01c9": {
+      "disposition": "fixed",
+      "note": "docs/exit-codes.md exit-2 row now says nothing was written in the repository and an --unattended refusal after the audit opens appends one preflight line."
+    },
+    "F-36683e1db095": {
+      "disposition": "fixed",
+      "note": "Plan flow 9 now says the first-write-fails test, matching M16."
+    },
+    "F-48867aff9c77": {
+      "disposition": "fixed",
+      "note": "Phrase kept in one literal in code and flow 6 greps are end-anchored."
+    },
+    "F-72eb0003577e": {
+      "disposition": "fixed",
+      "note": "Same as LPR3-001: one literal in code, rendered bytes proven by block tests."
+    },
+    "F-8320a5d80308": {
+      "disposition": "fixed",
+      "note": "test_each_later_preflight_refusal_writes_one_line now has 12 cases including failed git, unreadable release, script without release and unchecked script."
+    },
+    "F-99859ce9f42e": {
+      "disposition": "fixed",
+      "note": "Plan CP1 and M6 name the retention_cleanup._git seam patched to raise."
+    },
+    "F-ad94f57a7a94": {
+      "disposition": "fixed",
+      "note": "Plan section 6 says the window is up to three engine calls."
+    },
+    "F-c2460c161e02": {
+      "disposition": "fixed",
+      "note": "adopt --unattended help says the file must carry the unattended key (cleanup true)."
+    },
+    "F-cfe0fcee55b8": {
+      "disposition": "fixed",
+      "note": "Progress lines go to stderr under --json (plan and code)."
+    },
+    "F-d07ff01c2fdd": {
+      "disposition": "fixed",
+      "note": "Missing parent directories are created 0700, existing ones not inspected; tests cover both."
+    },
+    "F-df375cb01099": {
+      "disposition": "fixed",
+      "note": "Same as LPR5-001: docs/retention.md names --unattended as the sanctioned route."
+    }
+  }
+}

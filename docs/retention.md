@@ -87,7 +87,7 @@ When the kind or schema_version is one the Manager does not read, the line shows
 
 ## Retention policy
 
-The owner of a repository can write down how much finished work it tolerates, and adopt that policy so the Manager knows it was meant. The Manager reads the policy and, for mode `notify` or `both`, evaluates its thresholds in `verify` and `doctor` (see [The retention alert](#the-retention-alert)). Reading the policy sends nothing, archives nothing, removes nothing and prunes nothing, and decides nothing for the owner. For mode `cleanup` or `both`, `workflow-manager retention-cleanup` previews what a cleanup would do and, only when its `--confirm` holds the sentence bound to the plan, archives and removes those items (see [Retention cleanup](#retention-cleanup)); prune is never run. A later release sends notifications.
+The owner of a repository can write down how much finished work it tolerates, and adopt that policy so the Manager knows it was meant. The Manager reads the policy and, for mode `notify` or `both`, evaluates its thresholds in `verify` and `doctor` (see [The retention alert](#the-retention-alert)). Reading the policy sends nothing, archives nothing, removes nothing and prunes nothing, and decides nothing for the owner. For mode `cleanup` or `both`, `workflow-manager retention-cleanup` previews what a cleanup would do and, only when its `--confirm` holds the sentence bound to the plan, archives and removes those items, or, under a policy adopted with the unattended sentence, when run with `--unattended` (see [Retention cleanup](#retention-cleanup)); prune is never run. A later release sends notifications.
 
 The policy is the file `.workflow-manager/retention-policy.json`, committed by the owner. With no file nothing is printed and nothing changes.
 
@@ -106,7 +106,7 @@ The policy is the file `.workflow-manager/retention-policy.json`, committed by t
 | `thresholds.finished_max_age_days` | integer, 1 to 3650 | finished work items with a review folder, beyond the most recent ones, whose last transition is more than N days before the report's own time; an item with no usable last transition never counts. It is reached at one such item, not at N |
 | `thresholds.archives` | integer, 1 to 100000 | archives in the store, at or above it |
 | `thresholds.prunable_archives` | integer, 1 to 100000 | archives older than the script's time to live, at or above it |
-| `unattended` | an object with five keys, all required (see [The unattended key](#the-unattended-key)) | what the owner would allow an unattended run to do; **not enforced yet** |
+| `unattended` | an object with five keys, all required (see [The unattended key](#the-unattended-key)) | what the owner allows an unattended run to do; only the cleanup part is run, by `retention-cleanup --unattended` |
 
 `finished_max_age_days` is optional like the others. The file is closed, so **an older Manager refuses a file carrying it and treats the mode as `off`**: it neither alerts nor cleans until it is updated. `schema_version` stays 1, because a file without the key means what it always meant. Adding the key changes the policy digest, so the policy is adopted again.
 
@@ -159,7 +159,9 @@ Two rules keep the key from contradicting the file: at least one of `cleanup` an
 
 **An older Manager refuses a file carrying `unattended`** (state `invalid`) and treats the mode as `off`: it neither alerts nor cleans until it is updated.
 
-**This release does not enforce the key.** Nothing runs unattended, and `retention-cleanup` still needs its per-plan `--confirm`. Every output that shows the policy says so: `status --retention` and `doctor --retention` print, in the block below, an `unattended retention:` line (adopted with the unattended sentence, the file declares it but the adoption authorises nothing unattended, or what an unattended adoption would authorise) and `not enforced by this release: nothing runs unattended, and retention-cleanup still needs its per-plan --confirm`. The adopt preview and the `retention-cleanup` preview print the same two lines; a file without the key prints none of this.
+**The key is enforced for the cleanup part only.** `retention-cleanup TARGET --unattended` archives and removes under the adopted policy without a per-plan `--confirm` (see [The unattended run](#the-unattended-run)). `prune` is read and printed, and never run unattended yet. Every output that shows the policy says so: `status --retention` and `doctor --retention` print, in the block below, an `unattended retention:` line (adopted with the unattended sentence, the file declares it but the adoption authorises nothing unattended, or what an unattended adoption would authorise) and `enforced by retention-cleanup --unattended for the cleanup part (archive and remove); prune is not run unattended yet`. The adopt preview and the `retention-cleanup` preview print the same two lines; a file without the key prints none of this.
+
+**What the one-time adoption authorises.** Adopting a file with the unattended sentence is the owner's one decision to let `retention-cleanup --unattended` archive and remove finished work items, up to the numbers written in the file, with no further sentence. It authorises nothing else: not prune, not a file that changed after it was adopted (state `changed`, mode `off`), and not a file adopted with the ordinary sentence only. If `unattended.cleanup` is `false`, the run is refused.
 
 ### What `status --retention` and `doctor --retention` print
 
@@ -169,6 +171,12 @@ Before the report, one block, only when there is a policy file or a record:
 retention policy: adopted, mode both (digest 1a2b3c4d5e6f, adopted 2026-11-10T12:00:00Z)
   thresholds: finished items 10, finished folders 500 MiB, archives 20, prunable archives 5
   this Manager release reads the policy and, for notify and both, evaluates its thresholds in verify and doctor; it sends nothing, and cleans up only when retention-cleanup runs with --confirm
+```
+
+For a policy adopted with the unattended sentence and `cleanup` true, the last line adds the unattended run (the lines of an unattended adoption also show the `unattended retention:` line and the `enforced by` line before it):
+
+```
+  this Manager release reads the policy and, for notify and both, evaluates its thresholds in verify and doctor; it sends nothing, and cleans up only when retention-cleanup runs with --confirm or, under the adopted unattended policy, with --unattended
 ```
 
 Any other state reads `retention policy: STATE (WHY); mode off is in force`, then up to five problems, and an indented `next:` step.
@@ -300,7 +308,7 @@ The bytes are fixed: the same inputs give the same document, and every key is al
 
 ## Retention cleanup
 
-For a policy adopted with mode `cleanup` or `both`, `workflow-manager retention-cleanup TARGET` shows which finished work items an unattended cleanup would archive and then remove. It is its own command: `verify`, `doctor`, `update` and `status` never run it. **Without `--confirm` it is a preview: it writes nothing, archives nothing and removes nothing, and it runs no script verb but `report`.** With `--confirm` holding the plan's sentence it runs the plan (see [The confirmed run](#the-confirmed-run)). Prune is never part of cleanup: it stays user-only and is never run.
+For a policy adopted with mode `cleanup` or `both`, `workflow-manager retention-cleanup TARGET` shows which finished work items an unattended cleanup would archive and then remove. It is its own command: `verify`, `doctor`, `update` and `status` never run it. **Without `--confirm` it is a preview: it writes nothing, archives nothing and removes nothing, and it runs no script verb but `report`.** With `--confirm` holding the plan's sentence it runs the plan (see [The confirmed run](#the-confirmed-run)). Prune is never part of cleanup: it stays user-only and is never run, and the unattended run does not run it either yet.
 
 It checks these, in order, and the first that fails refuses with `error:` and `next:` on stderr (exit 2) before anything else runs:
 
@@ -356,8 +364,52 @@ A stop at `archive` or `verify` leaves the review folder where it was, and the r
 - **Exit status.** 0: the preview, nothing to do, or every item done. 1: the run stopped after its first per-item call (`archive --apply`, the verification or `remove --apply`) was attempted, even if its script could not be started (the closing `retention cleanup: stopped` line says where; stderr has `error:` and `next:`). 2: refused, or stopped before that first call (the policy changed, or the run was interrupted, while item 1's policy was read), with nothing written.
 - **Re-runs.** An item archived by an earlier run whose removal did not happen is planned `remove only`: no second `archive` (the engine refuses `already_archived`). A removal left half done in `.removing/ID` is refused by the preflight and finished by hand. After a killed archiver the next `archive` refuses `partial_present`, and the run stops at that item. Two runs at once: the engine's lock makes the second stop with `archive_busy`.
 - **The archive store.** It is the engine's default, under `HOME` (`~/.local/share/workflow-archive/<repository>`). A job that runs with another `HOME` archives elsewhere. If the store is on another file system than the repository's `.ai-review`, the engine archives, then refuses the removal as `cross_device`, on every run: the report quotes its message and no item progresses. Remove by hand with `--archive-root`, or run with a `HOME` on the repository's file system; a user who changes `HOME` keeps `gh` signed in by setting `GH_CONFIG_DIR` to the real configuration directory first, and needs a Git identity if the run's repository setup commits.
-- **The sentence is a formality for a job that scrapes it.** The sentence proves the plan was shown, not who asked. A scheduled job that reads the sentence from the preview's `next:` line and passes it back makes the confirmation a formality: the owner's control is the adopted policy and the schedule.
+- **The sentence is a formality for a job that scrapes it.** The sentence proves the plan was shown, not who asked. A scheduled job that reads the sentence from the preview's `next:` line and passes it back makes the confirmation a formality: the owner's control is the adopted policy and the schedule. `--unattended` is the sanctioned route for a scheduled job; scraping the sentence is the workaround it replaces.
+
+### The unattended run
+
+`workflow-manager retention-cleanup TARGET --unattended` is the confirmed run with the per-plan sentence replaced by the recorded adoption, and with a durable record of what it did. It plans, executes and stops exactly as [The confirmed run](#the-confirmed-run) does (the same plan, the same digest, the same three calls per item, the same stop at the first failure); it adds authority and evidence, never new actions. It is for a scheduled job. `--confirm` is not needed, and `--confirm` together with `--unattended` is refused (the per-plan sentence and the adopted policy are two authorities).
+
+**Authority.** The run is refused (exit 2, one `error:` and one `next:` line, nothing written in the repository, no script verb issued) unless the policy is adopted unchanged with mode `cleanup` or `both` **and** the adopted file carries the `unattended` key **and** the adoption holds the unattended sentence **and** `unattended.cleanup` is `true`. Each of those has its own cause:
+
+| Refusal | Cause |
+|---|---|
+| `--confirm` given too | `--confirm and --unattended cannot be combined` |
+| `--json` without `--unattended` | `--json is for the unattended run` |
+| the file has no `unattended` key | `--unattended is not authorised: the adopted policy has no unattended key` |
+| adopted with the ordinary sentence | `--unattended is not authorised: the adoption does not hold the unattended sentence` |
+| `unattended.cleanup` is `false` (prune only) | `--unattended is not authorised: unattended.cleanup is false` |
+
+A policy that is not adopted, was changed, is invalid or has a mode that does not allow cleanup is refused with the cause the preview gives. Every other refusal of the preview (see the list above) applies as it does there. The adopted policy is read again before each item, so a swapped adoption record stops the run.
+
+**`keep_recent` and the keep line.** `unattended.keep_recent` counts the finished items the Manager keeps: the N newest entries of the report's finished list stay, never planned and not listed as skipped, where the engine's own 3 are part of N (so `keep_recent` 5 keeps 2 more than the engine does). An entry counts whether or not its review folder is still there, and it still counts in the measured numbers, so a threshold that only those items hold up ends `nothing eligible`. The same rule applies to the preview and the confirmed run when the policy authorises unattended cleanup, so there is one plan and one digest, and the preview shows one extra line when items are kept:
+
+```text
+  keep: the 5 newest finished items stay (the policy's unattended keep_recent; the engine keeps 3, so 2 more here)
+```
+
+A policy without an authorising adoption prints exactly the preview it printed before.
+
+**Nothing to do and nothing eligible.** With no threshold reached the run prints `retention cleanup: nothing to do (...)`, writes no audit line (a daily job must not grow the file by itself) and exits 0. With a threshold reached and no item eligible (every candidate is tracked, unacceptable or held by `keep_recent`) it prints `retention cleanup: nothing eligible (...; running it again will not help)`, writes one `plan` audit line with result `nothing-eligible`, and exits 0; the retention alert reports the threshold. In `--json` those are `outcome` `nothing-to-do` and `nothing-eligible`.
+
+**The audit file.** Before the first action, the run appends one line to `retention-audit.jsonl` in `$XDG_STATE_HOME/workflow-manager/` (a relative or empty `XDG_STATE_HOME` is ignored; the default is `~/.local/state/workflow-manager/`). It is outside the repository and outside the engine's archive store: a path that resolves inside either is refused, so the repository stays clean. The missing directories are created with mode `0700`, the file with `0600`; an existing file must be a regular file you own, not a link and not writable by group or others, and an existing directory must be yours and not writable by group or others. The file is only ever appended to, one JSON object per line, one `write` per line. Each line has these eleven fields (`null` where there is none): `schema_version` (1), `time` (UTC, ending `Z`), `run_id`, `repository`, `policy_digest`, `plan_digest`, `item_id`, `step`, `engine_code`, `result`, `error`.
+
+| `step` | `result` | When |
+|---|---|---|
+| `plan` | `started` | once, when the plan is not empty, before the first action: it proves the file is writable and names the plan |
+| `archive`, `verify`, `remove` | `ok`, `failed` or `interrupted` | one line per action, with the engine's `error: CODE:` as `engine_code` when it printed one |
+| `plan` | `nothing-eligible` | a threshold is reached and no item is eligible |
+| `preflight` | `refused` | a refusal after the audit file is opened |
+| `policy` | `stopped`, `interrupted` | the policy changed or stopped authorising during the run, or the run was interrupted while it was read |
+
+If the audit file cannot be opened or the first line cannot be written, the run is refused (exit 2) and no script verb is issued. If a refusal's own line cannot be written, it still exits 2 and a second `error:` line says so. If a write fails after an action, the run stops and its closing line says the step had succeeded, that nothing further was called and where the audit file is (exit 1). The text output of the run is the confirmed run's, plus a last line `  audit: PATH`.
+
+**`--json`.** `--json` (only with `--unattended`) prints one document on stdout and nothing else there; the run's progress lines go to stderr. Its fields: `kind` (`retention_cleanup_run`), `schema_version` (1), `repository`, `run_id`, `policy_digest`, `plan_digest`, `outcome` (`done`, `stopped`, `nothing-to-do` or `nothing-eligible`), `items` (each with its id, action, `result` `done`, `stopped` or `not-attempted`, and its `steps`, each with `step`, `result`, `engine_code` and `error`), `done`, `total`, `stopped` (`null`, or `step`, `item_id`, `engine_code`, `error` and `next_step`), `thresholds_reached` (empty unless `nothing-eligible`), `exit_code` and `audit` (`path`, `lines_written`, `error`). A refusal before a plan exists prints nothing on stdout (stderr has `error:` and `next:`, and the audit file has its `preflight` line); a stop prints the document.
+
+**Exit status.** The same as the confirmed run: 0 done or nothing to do, 1 stopped after a per-item call was attempted, 2 refused or stopped before the first call.
+
+**Prune is not yet unattended.** Only the cleanup part (archive and remove) runs. `prune` and `unattended.ttl_days` and `prune_max_per_run` are read and validated, and used by nothing.
 
 ## Exit status
 
-`--retention` and the retention alert never change an exit code, and `doctor --retention --json` exits 0 whenever it prints its document; `adopt-retention-policy` exits 0 when it previews or adopts and 2 when it refuses; `retention-cleanup` exits 0 when it previews, has nothing to do or finishes the run, 1 when a confirmed run's first per-item call was attempted and the run then stopped, and 2 when it refuses or stops before that first call. See [Exit codes](exit-codes.md).
+`--retention` and the retention alert never change an exit code, and `doctor --retention --json` exits 0 whenever it prints its document; `adopt-retention-policy` exits 0 when it previews or adopts and 2 when it refuses; `retention-cleanup` exits 0 when it previews, has nothing to do or finishes the run, 1 when a confirmed or unattended run's first per-item call was attempted and the run then stopped, and 2 when it refuses or stops before that first call. See [Exit codes](exit-codes.md).

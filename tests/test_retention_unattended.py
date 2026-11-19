@@ -353,8 +353,15 @@ ADOPTED_UNATTENDED = ("  unattended retention: adopted with the unattended sente
 ADOPTED_ORDINARY = ("  unattended retention: the file declares it, but the adoption authorises "
                     "nothing unattended; only the unattended sentence authorises it: run "
                     "workflow-manager adopt-retention-policy /t")
-NOT_ENFORCED = ("  not enforced by this release: nothing runs unattended, and retention-cleanup "
-                "still needs its per-plan --confirm")
+NOT_ENFORCED = ("  enforced by retention-cleanup --unattended for the cleanup part (archive and "
+                "remove); prune is not run unattended yet")
+OLD_NOT_ENFORCED = ("not enforced by this release: nothing runs unattended, and retention-cleanup "
+                    "still needs its per-plan --confirm")
+OLD_BLOCK_LAST = ("cleans up only when retention-cleanup runs with --confirm")
+UNATTENDED_BLOCK_LAST = ("  this Manager release reads the policy and, for notify and both, "
+                         "evaluates its thresholds in verify and doctor; it sends nothing, and "
+                         "cleans up only when retention-cleanup runs with --confirm or, under "
+                         "the adopted unattended policy, with --unattended")
 
 
 class TestText(Base):
@@ -516,6 +523,7 @@ class TestCleanupPreview(trc.Base):
         self.assertEqual(out.code, 0, out.err)
         self.assertNotIn("unattended retention", out.out)
         self.assertNotIn("not enforced", out.out)
+        self.assertNotIn("enforced by", out.out)
 
     def test_the_nothing_to_do_preview_ends_with_the_lines(self):
         self.keyed()
@@ -540,9 +548,14 @@ class TestPage(unittest.TestCase):
                 "Adopt the unattended retention policy",
                 "The ordinary sentence, `Adopt the retention policy`, is refused",
                 "An older Manager refuses a file carrying `unattended`",
-                "This release does not enforce the key",
-                "not enforced by this release: nothing runs unattended, and retention-cleanup "
-                "still needs its per-plan --confirm",
+                "`retention-cleanup TARGET --unattended`",
+                "enforced by retention-cleanup --unattended for the cleanup part (archive and "
+                "remove); prune is not run unattended yet",
+                "retention-audit.jsonl",
+                "`nothing-eligible`",
+                "the N newest entries of the report's finished list",
+                "retention-cleanup runs with --confirm or, under the adopted unattended policy, "
+                "with --unattended",
                 "an `unattended retention:` line",
                 "reads `record-invalid` and the mode in force is `off`",
                 "reads `adopted` and authorises unattended"):
@@ -557,6 +570,34 @@ class TestPage(unittest.TestCase):
     def test_the_sentence_of_the_page_is_the_codes(self):
         self.assertIn(rp.unattended_sentence("0" * 64).split(" 0")[0], self.page)
         self.assertIn(NOT_ENFORCED.strip(), self.page)
+
+    def test_the_old_not_enforced_wording_is_gone_from_the_code_and_the_pages(self):
+        self.assertNotIn(OLD_NOT_ENFORCED, self.page)
+        self.assertNotIn("**not enforced yet**", self.page)
+        self.assertNotIn("This release does not enforce the key", self.page)
+        for path in (REPO_ROOT / "src" / "workflow_manager").glob("*.py"):
+            with self.subTest(path=path.name):
+                self.assertNotIn(OLD_NOT_ENFORCED, " ".join(path.read_text().split()))
+                self.assertNotIn("nothing runs unattended", path.read_text())
+        exit_codes = " ".join((REPO_ROOT / "docs" / "exit-codes.md").read_text().split())
+        self.assertNotIn(OLD_NOT_ENFORCED, exit_codes)
+        self.assertIn("--unattended", exit_codes)
+        self.assertIn("--json", exit_codes)
+
+    def test_the_block_last_line_page_and_help_carry_the_unattended_form(self):
+        self.assertIn(UNATTENDED_BLOCK_LAST.strip(), self.page)
+        self.assertIn("this Manager release reads the policy and, for notify and both, evaluates "
+                      "its thresholds in verify and doctor; it sends nothing, and cleans up only "
+                      "when retention-cleanup runs with --confirm ```", self.page)
+        self.assertIn("with --unattended when the file carries the unattended key", " ".join(
+            run(ADOPT, "--help").stdout.split()))
+
+    def test_the_pages_name_no_internal_id_for_the_run(self):
+        pages = self.page + " " + " ".join(
+            (REPO_ROOT / "docs" / "exit-codes.md").read_text().split())
+        for needle in ("unattended-retention-run", "LPR", "EPR", "CP4", "M22", "M24"):
+            with self.subTest(needle=needle):
+                self.assertNotIn(needle, pages)
 
     def test_the_roadmap_row_names_the_issue_and_the_step_and_is_done(self):
         rows = [line for line in (REPO_ROOT / "docs" / "ROADMAP.md").read_text().splitlines()

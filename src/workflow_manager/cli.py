@@ -46,7 +46,7 @@ from importlib import metadata
 from pathlib import Path
 
 from . import advice, retention, retention_alert, retention_alert_json, retention_cleanup
-from . import retention_policy, retention_run
+from . import retention_policy, retention_run, retention_unattended
 from . import source as release_source
 from .compatibility import (
     ContainmentError,
@@ -1023,7 +1023,13 @@ def cmd_adopt_retention_policy(args) -> int:
 def cmd_retention_cleanup(args) -> int:
     """Preview what an adopted `cleanup` or `both` policy would archive and remove or,
     with `--confirm` holding the plan's sentence, run it. The preview writes nothing
-    and starts no script but `report`, after every cheap check."""
+    and starts no script but `report`, after every cheap check. With `--unattended` the
+    adopted unattended policy replaces `--confirm` (`retention_unattended.run_command`)."""
+    refused = retention_unattended.argument_refusal(args)
+    if refused is not None:
+        print(f"error: {refused[0]}", file=sys.stderr)
+        print(f"next: {refused[1]}", file=sys.stderr)
+        return 2
     if not is_managed(args.target):
         raise NotManagedError(not_managed_text(args.target))
     installed = Installation.read(args.target).workflow_version
@@ -1036,6 +1042,10 @@ def cmd_retention_cleanup(args) -> int:
     def script_state():
         return _installed_script_state(args, installed, _readonly_destinations(args, installed))
 
+    if args.unattended:
+        return retention_unattended.run_command(
+            args, lambda **kw: retention_cleanup.preflight(
+                args.target, installed, script_state, record_refusal, **kw))
     try:
         cleared = retention_cleanup.preflight(args.target, installed, script_state, record_refusal)
     except retention_cleanup.Refusal as refusal:
@@ -1258,8 +1268,10 @@ def build_parser() -> argparse.ArgumentParser:
                 "which you then commit. The mode in force stays off unless the file is "
                 "adopted unchanged. This release reads the policy and, for notify and both, "
                 "evaluates its thresholds in verify and doctor; adopting archives, removes, "
-                "prunes and sends nothing, and only retention-cleanup with --confirm cleans up "
-                "(for cleanup and both). Only the repository's owner runs it with --confirm; "
+                "prunes and sends nothing, and only retention-cleanup cleans up "
+                "(for cleanup and both), with --confirm, or with --unattended when the file "
+                "carries the unattended key and is adopted with the unattended sentence. "
+                "Only the repository's owner runs it with --confirm; "
                 "an agent must not. Exit 0: previewed or adopted; 2: refused, nothing written "
                 "(not managed, no valid file, the sentence does not match, .workflow-manager "
                 "is a link, the record path is not a regular file).")
@@ -1301,6 +1313,17 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--confirm", default=None, metavar="TEXT",
                    help="run the plan: text containing 'Run the retention cleanup DIGEST12.' "
                         "for the plan digest the preview prints")
+    p.add_argument("--unattended", action="store_true",
+                   help="run the plan under the adopted unattended policy, without --confirm: "
+                        "the adopted file must carry the unattended key (cleanup true) and be "
+                        "adopted with the unattended sentence; every safeguard of the confirmed "
+                        "run applies, the policy's keep_recent newest finished items stay, and "
+                        "one audit line per action or refusal is appended to "
+                        "$XDG_STATE_HOME/workflow-manager/retention-audit.jsonl (default "
+                        "~/.local/state). Prune is never run")
+    p.add_argument("--json", action="store_true",
+                   help="with --unattended, print the result as one JSON document on stdout "
+                        "(progress goes to stderr; a refusal prints nothing on stdout)")
 
     p = command("bootstrap", "install the Workflow into a Git repository",
                 "Install a Workflow release into a Git repository that is not yet managed: the "

@@ -175,11 +175,40 @@ class Cleared:
     report: dict
 
 
-def preflight(target: Path, version, script_state, record_refusal=None) -> Cleared:
+def unattended_refusal(state, target: Path) -> Refusal | None:
+    """`None` when the adopted `state` authorises an unattended cleanup, else the
+    refusal that names why not (rows d to f of the authority table). Only
+    `PolicyState.unattended` is asked for the authority, never
+    `policy["unattended"]`: an ordinary-only adoption authorises nothing. A pure
+    function of the state: no process, no file."""
+    again = retention_policy.adopt_command(target)
+    if not state.policy or "unattended" not in state.policy:
+        return Refusal("retention cleanup: --unattended is not authorised: the adopted policy "
+                       "has no unattended key",
+                       f"add the unattended key to {retention_policy.DIRECTORY}/"
+                       f"{retention_policy.POLICY_FILE}, commit it, then run {again} and adopt "
+                       "it with the unattended sentence")
+    if state.unattended is None:
+        return Refusal("retention cleanup: --unattended is not authorised: the adoption does "
+                       "not hold the unattended sentence",
+                       f"run {again} and adopt the policy again with the unattended sentence "
+                       "it prints")
+    if not state.unattended["cleanup"]:
+        return Refusal("retention cleanup: --unattended is not authorised: unattended.cleanup "
+                       "is false",
+                       f"set unattended.cleanup to true in {retention_policy.DIRECTORY}/"
+                       f"{retention_policy.POLICY_FILE}, commit it, then run {again} and adopt "
+                       "it with the unattended sentence")
+    return None
+
+
+def preflight(target: Path, version, script_state, record_refusal=None, *,
+              unattended: bool = False) -> Cleared:
     """Check every precondition in order, the first refusal winning, and return the
     adopted policy and the complete report. Raises `Refusal`. Steps 1 (the
     repository is managed) is the caller's; steps 2 to 6 start no process but
-    `git`; the retention script starts at step 7."""
+    `git`; the retention script starts at step 7. With `unattended`, step 2b
+    (`unattended_refusal`) follows step 2, before anything starts a process."""
     target = Path(target)
     quoted = shlex.quote(str(target))
     # 2. the policy is adopted, with a mode that allows cleanup
@@ -192,6 +221,11 @@ def preflight(target: Path, version, script_state, record_refusal=None) -> Clear
                       'set mode to "cleanup" or "both" in '
                       f"{retention_policy.DIRECTORY}/{retention_policy.POLICY_FILE}, then run "
                       f"{retention_policy.adopt_command(target)}")
+    # 2b. an unattended run is authorised by the adoption, before any process starts
+    if unattended:
+        refused = unattended_refusal(state, target)
+        if refused is not None:
+            raise refused
     # 3. both files are at HEAD, unchanged
     try:
         missing = committed(target)
@@ -284,6 +318,9 @@ class Plan:
     skipped: tuple              # (id as shown, reason)
     outcome: str | None         # SETTLED, CAPPED, EXHAUSTED; None when there is nothing to do
     unknown_age: int = 0        # age key only: examined items with no usable last transition
+    kept: tuple = ()            # ids the unattended keep_recent holds back beyond the engine's own
+    keep_recent: int = 0        # the policy's unattended keep_recent (0: not applied)
+    engine_keep: int = 0        # the engine's own keep_recent, counted in keep_recent
 
 
 def _limit(key: str, thresholds: dict) -> int:
@@ -306,11 +343,31 @@ def _eligible(entry: dict) -> str | None:
     return None
 
 
+def _kept(state, report: dict) -> tuple[tuple, int, int]:
+    """(ids kept, the policy's keep_recent, the engine's) for a state that authorises
+    unattended cleanup, else nothing. The policy's `keep_recent` counts the engine's
+    own newest items too, so the extra skip is the difference, taken from the newest
+    end of `finished` (newest first) before any filter."""
+    unattended = state.unattended
+    if unattended is None or not unattended["cleanup"]:
+        return (), 0, 0
+    engine = report["keep_recent"]
+    extra = max(0, unattended["keep_recent"] - engine)
+    return tuple(e["work_item_id"] for e in report["finished"][:extra]), \
+        unattended["keep_recent"], engine
+
+
 def select(state, report: dict) -> Plan:
-    """The plan for an adopted policy and a complete report. Pure."""
+    """The plan for an adopted policy and a complete report. Pure. The same planner
+    serves the preview, the confirmed run and the unattended run: when the state
+    authorises unattended cleanup, the newest finished entries the policy's
+    `keep_recent` holds back are never planned (and not listed as skipped)."""
     thresholds = {key: state.policy["thresholds"][key]
                   for key in LOWERED if key in state.policy.get("thresholds", {})}
-    # The report lists the newest first; the oldest are cleaned first.
+    kept, keep_policy, keep_engine = _kept(state, report)
+    held = frozenset(kept)
+    # The report lists the newest first; the oldest are cleaned first. A kept entry
+    # still counts: the thresholds describe the repository, not the plan.
     candidates = [e for e in reversed(report["finished"]) if e["review_folder"]["present"]]
     before = {"finished_items": len(candidates),
               "finished_folder_mib": report["totals"]["finished_folder_bytes"]}
@@ -321,12 +378,15 @@ def select(state, report: dict) -> Plan:
         before[AGE_KEY] = len(old_ids)
     base = dict(repository=report["repository"], policy_digest=state.digest, mode=state.mode,
                 thresholds=thresholds, before=before, candidates=len(candidates),
-                unknown_age=unknown_age)
+                unknown_age=unknown_age, kept=kept, keep_recent=keep_policy,
+                engine_keep=keep_engine)
     reached = _reached(before, thresholds)
     if not reached:
         return Plan(**base, after=dict(before), reached=(), items=(), skipped=(), outcome=None)
     skipped, eligible = [], []
     for entry in candidates:
+        if entry["work_item_id"] in held:
+            continue
         reason = _eligible(entry)
         if reason is None:
             eligible.append(entry)
@@ -441,6 +501,10 @@ def preview_lines(plan: Plan, target, extra=()) -> list[str]:
         action = item.action if item.action == ARCHIVE_THEN_REMOVE \
             else f"{item.action} (already archived)"
         lines.append(f"    {number}. {item.work_item_id}: {_mib(item.bytes)} MiB, {action}")
+    if plan.kept:
+        lines.append(f"  keep: the {plan.keep_recent} newest finished items stay (the policy's "
+                     f"unattended keep_recent; the engine keeps {plan.engine_keep}, so "
+                     f"{plan.keep_recent - plan.engine_keep} more here)")
     for shown, reason in plan.skipped:
         lines.append(f"  skipped: {shown}: {reason}")
     lines.extend(_age_note(plan))
