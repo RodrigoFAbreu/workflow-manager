@@ -753,6 +753,26 @@ class TestUnattendedRun(Cmd):
         self.assertEqual(confirmed.code, 0, confirmed.err)
         self.assertEqual(unattended.out, confirmed.out + f"  audit: {self.audit_file}\n")
 
+    def test_the_preview_and_the_confirmed_run_apply_the_same_keep(self):   # M9
+        """Dry-run equivalence through the command: once the adoption authorises
+        unattended cleanup, the preview and the confirmed run plan with keep_recent
+        too. A keep of 13 holds item-11 to item-02, one of which (item-02) the
+        thresholds alone would plan, so a preview without the keep would show
+        another plan and another sentence."""
+        self.adopt_unattended(policy_with({**UNATTENDED, "keep_recent": 13}))
+        digest = self.digest()
+        preview = self.go(confirm=None)
+        self.assertEqual((preview.code, preview.err), (0, ""), preview.out)
+        self.assertIn(rc.sentence(digest), preview.out)
+        self.assertIn("  keep: the 13 newest finished items stay", preview.out)
+        self.assertRegex(preview.out, r"\d\. item-01:")
+        self.assertNotRegex(preview.out, r"\d\. item-02:")
+        confirmed = self.go(confirm=rc.sentence(digest))
+        self.assertEqual(confirmed.code, 0, confirmed.err)
+        self.assertEqual(self.keys(), full_run("item-00", "item-01"))
+        unattended = self.go_u()
+        self.assertEqual(unattended.out, confirmed.out + f"  audit: {self.audit_file}\n")
+
     def test_the_audit_has_the_start_line_then_one_line_per_action(self):
         self.go_u()
         lines = self.lines()
@@ -993,6 +1013,26 @@ class TestFailuresAreAudited(Cmd):
         def load(target):
             count.append(1)
             return rp.PolicyState(rp.CHANGED) if len(count) >= 3 else real(target)
+        out = self.go_u(patches=[_mock.patch.object(rp, "load", load)])
+        self.assertEqual(out.code, 1)
+        self.assertEqual(self.keys(), full_run("item-00"))
+        last = self.lines()[-1]
+        self.assertEqual((last["step"], last["result"], last["item_id"]),
+                         ("policy", "stopped", "item-01"))
+        self.assertIn("the policy changed", last["error"])
+
+    def test_a_policy_adopted_again_with_another_digest_stops_the_run(self):   # M19
+        """The file and its record are replaced by another adopted, still authorising
+        policy: the state is `adopted` and unattended cleanup is still authorised, so
+        only the digest comparison stops the run."""
+        import dataclasses
+        real, count = rp.load, []
+        other = dataclasses.replace(real(self.repo), digest="0" * 64)
+        self.assertIsNotNone(other.unattended)
+
+        def load(target):
+            count.append(1)
+            return other if len(count) >= 3 else real(target)
         out = self.go_u(patches=[_mock.patch.object(rp, "load", load)])
         self.assertEqual(out.code, 1)
         self.assertEqual(self.keys(), full_run("item-00"))
