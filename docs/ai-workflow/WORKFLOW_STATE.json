@@ -45815,12 +45815,12 @@
       "registry_path": "docs/ai-workflow/registry/unattended-prune-interrupt-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/unattended-prune-interrupt-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "SELF_REVIEWING_IMPLEMENTATION",
+      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
       "plan_revision": 1,
-      "implementation_revision": null,
+      "implementation_revision": 1,
       "functional_review_round": null,
       "base_commit": "a9dda8980619aafcdee5d3fbff6f7fd07a74552b",
-      "reviewed_implementation_head": null,
+      "reviewed_implementation_head": "cddfe979bb6769cb66e365268bd16b73596cd50c",
       "current_checkpoint_id": null,
       "last_completed_checkpoint_id": "CP2",
       "checkpoints": {
@@ -45959,8 +45959,8 @@
           "external": 0
         }
       },
-      "state_revision": 10,
-      "last_transition": "2026-11-23T16:20:00Z",
+      "state_revision": 11,
+      "last_transition": "2026-11-23T16:41:25Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
