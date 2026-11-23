@@ -1030,7 +1030,14 @@ def _open_index(adir_fd: int, *, write: bool, create: bool = False) -> tuple[int
                           "check its permissions and the free space, then run it again") from None
         raise _refuse("unreadable", f"{_INDEX_NAME} cannot be read: {exc.strerror or exc}",
                       "grant read access to it") from None
-    info = os.fstat(fd)
+    try:
+        info = os.fstat(fd)
+    except BaseException:
+        try:
+            os.close(fd)
+        except OSError:
+            pass
+        raise
     if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
         os.close(fd)
         raise _index_unsafe("is not an ordinary file with exactly one link")
