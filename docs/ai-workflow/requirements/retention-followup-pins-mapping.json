@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "work_item_id": "retention-followup-pins",
+  "requirements": {
+    "R1": {
+      "description": "The verify-command assertion renders the expected command the way the renderer does (shlex quoting) and a spaced target is pinned, so a renderer that stops quoting fails",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R2": {
+      "description": "The adopting helper test pins the empty result for a state with no policy file and for an invalid file, not only a keyless file",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R3": {
+      "description": "docs/retention.md and docs/exit-codes.md say what the prune and cleanup stop lines print and that beyond-the-cap archives are left for a later run, and the docs tests pin it; the KeyboardInterrupt point of #264 is recorded as not taken",
+      "checkpoint_ids": [
+        "CP2"
+      ]
+    }
+  }
+}

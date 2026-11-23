@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_work_item_id": null,
+  "active_work_item_id": "retention-followup-pins",
   "work_items": {
     "plan-amendment-mechanism": {
       "work_item_type": "process",
@@ -45123,6 +45123,212 @@
         },
         "evaluated_at": "2026-11-23T05:19:42Z",
         "workflow_release": "2.29.10"
+      }
+    },
+    "retention-followup-pins": {
+      "work_item_type": "process",
+      "work_item_kind": "process",
+      "work_item_id": "retention-followup-pins",
+      "parent_work_item_id": null,
+      "plan_path": "docs/ai-workflow/WORKFLOW_MANAGER_RETENTION_FOLLOWUP_PINS_PLAN.md",
+      "registry_path": "docs/ai-workflow/registry/retention-followup-pins-registry.json",
+      "mapping_path": "docs/ai-workflow/requirements/retention-followup-pins-mapping.json",
+      "governing_workflow_version": "2.2",
+      "phase": "IMPLEMENTING",
+      "plan_revision": 1,
+      "implementation_revision": null,
+      "functional_review_round": null,
+      "base_commit": "d2be4f8aeb374c7ebe5a610d09a5e98edd5ce971",
+      "reviewed_implementation_head": null,
+      "current_checkpoint_id": null,
+      "last_completed_checkpoint_id": null,
+      "checkpoints": {},
+      "current_bundle_id": "2af841cc5cbcbc2a60d5b38621770ccee2c22fa6404714c63c8b2e88dc297d92",
+      "plan_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "2af841cc5cbcbc2a60d5b38621770ccee2c22fa6404714c63c8b2e88dc297d92",
+        "approved_review_content_id": "5f56a5822c57f481ca36dd4817b05b1cbbd3830bffb02e34cbfe6db948daa678",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/WORKFLOW_MANAGER_RETENTION_FOLLOWUP_PINS_PLAN.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "bc8e08b4afe16277206730cd705cc3052eb40a88"
+          },
+          {
+            "path": "docs/ai-workflow/registry/retention-followup-pins-registry.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "6ea5da4c57e5ecb4806bed9d24eff0f55132cbc6"
+          },
+          {
+            "path": "docs/ai-workflow/requirements/retention-followup-pins-mapping.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "15facd28539a71cb34ce7822ba923130d580c652"
+          }
+        ],
+        "reviewed_content_commit": null,
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-11-23T12:56:02Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "5f56a5822c57f481ca36dd4817b05b1cbbd3830bffb02e34cbfe6db948daa678",
+            "ledger": {
+              "local": {
+                "bundle_id": "2af841cc5cbcbc2a60d5b38621770ccee2c22fa6404714c63c8b2e88dc297d92",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "dd52befc6c1b9b19377eedeb9a7533f187706ce43b2aa87a8e596037099fbfa1",
+                "ledger_entry_sha256": "66689d48e6bd540d36c2a6fde590e160c9feeb54680bbbfa90d4293002107e3f",
+                "run_ref": "session:local .ai-review/retention-followup-pins/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "2af841cc5cbcbc2a60d5b38621770ccee2c22fa6404714c63c8b2e88dc297d92",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "3f879dfb2ac2c4bc57c495c9dc46cc65e5a10c6b1a031b458c50422d13c48383",
+                "ledger_entry_sha256": "914592c81e0bb9306e6f148c29ce8ad47e7b782b7da41ca98019e15185543168",
+                "run_ref": "codex:20261123T125241Z-c252d95c",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-11-23T12:56:02Z",
+          "workflow_release": "2.29.11"
+        }
+      },
+      "technical_approval": null,
+      "technical_review_block_pins": [],
+      "plan_review_stages": {
+        "review_content_id": "5f56a5822c57f481ca36dd4817b05b1cbbd3830bffb02e34cbfe6db948daa678",
+        "LOCAL_MODEL_PLAN_REVIEW": {
+          "bundle_id": "2af841cc5cbcbc2a60d5b38621770ccee2c22fa6404714c63c8b2e88dc297d92",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-11-23T12:48:28Z",
+          "verdict_sha256": "dd52befc6c1b9b19377eedeb9a7533f187706ce43b2aa87a8e596037099fbfa1",
+          "run_ref": "session:local .ai-review/retention-followup-pins/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_PLAN_REVIEW": {
+          "bundle_id": "2af841cc5cbcbc2a60d5b38621770ccee2c22fa6404714c63c8b2e88dc297d92",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-11-23T12:55:16Z",
+          "verdict_sha256": "3f879dfb2ac2c4bc57c495c9dc46cc65e5a10c6b1a031b458c50422d13c48383",
+          "run_ref": "codex:20261123T125241Z-c252d95c",
+          "reviewer_model": "openai/gpt-6.1-sol"
+        }
+      },
+      "functional_acceptance_status": null,
+      "blocking_decisions": [],
+      "review_round_counts": {
+        "plan": {
+          "local": 1,
+          "external": 1
+        },
+        "implementation": {
+          "local": 0,
+          "external": 0
+        }
+      },
+      "state_revision": 6,
+      "last_transition": "2026-11-23T12:56:02Z",
+      "feedback_layout": "scoped",
+      "plan_review_binding": {
+        "status": "BOUND",
+        "at": "2026-11-23T12:43:32Z",
+        "consumed": null,
+        "published": {
+          "review_content_id": "5f56a5822c57f481ca36dd4817b05b1cbbd3830bffb02e34cbfe6db948daa678",
+          "plan_revision": 1
+        },
+        "bound": {
+          "review_content_id": "5f56a5822c57f481ca36dd4817b05b1cbbd3830bffb02e34cbfe6db948daa678",
+          "bundle_id": "2af841cc5cbcbc2a60d5b38621770ccee2c22fa6404714c63c8b2e88dc297d92",
+          "plan_revision": 1
+        }
+      },
+      "optional_findings": {
+        "F-b53caf7f33d4": {
+          "digest": "b53caf7f33d41015961e29c8fcca2313267bd111b9bbdee6c0dc03accfea7b4b",
+          "text": "**LPR1-001: \"ends with\" is a little stronger than the code for an unattended cleanup stop.** Section 2 has the exit-codes row say that a stopped cleanup \"ends with a `retention cleanup: stopped after N of M items; ` line\". Under `--unattended` the text output's last line is `  audit: PATH` (docs/retention.md line 405, \"plus a last line `  audit: PATH`\"). A failed audit write for the stop also prints `retention cleanup: the audit line for this stop could not be written ...` after it (retention_run.py line 356). This item exists to make the docs say no more than the code, so \"prints a `retention cleanup: stopped after N of M items; ` line\" is the exact wording. Suggested: use \"prints\", not \"ends with\", in the new row text.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "5f56a5822c57f481ca36dd4817b05b1cbbd3830bffb02e34cbfe6db948daa678",
+              "verdict": "APPROVE",
+              "at": "2026-11-23T12:48:28Z"
+            }
+          ]
+        },
+        "F-639a56f125fb": {
+          "digest": "639a56f125fb784c0163369e16fb74acebe8e207127c9d524fe94cf3bbcd046a",
+          "text": "**LPR1-002: the spaced target can be built directly instead of copied.** Section 2 and the risks copy the committed fixture, with its `.git`, to a directory whose name holds a space. `Case.setUp` already builds a target with `init_git_repo` and `bootstrap` (tests/test_compatibility.py lines 108 to 112), and `read_repository` takes any path. Building the second target the same way (for example `Path(self._tmp.name) / \"a target\"`, then the same commit) skips the copied Git directory and its stat-refresh step. Either way works; this is a simplification only.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "5f56a5822c57f481ca36dd4817b05b1cbbd3830bffb02e34cbfe6db948daa678",
+              "verdict": "APPROVE",
+              "at": "2026-11-23T12:48:28Z"
+            }
+          ]
+        },
+        "F-1b33b49d4b8b": {
+          "digest": "1b33b49d4b8b4d514bb2c616343b11dcef8e238ea346415c4337969b9b08db2d",
+          "text": "Plan §1.1 overstates the existing quoting coverage gap. `tests/test_compatibility.py:255` already catches a renderer that stops quoting, and line 1431 exercises a quoted repository path. Describe the proposed test as adding coverage specifically for the unresolved-release note.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "MANUAL_EXTERNAL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "5f56a5822c57f481ca36dd4817b05b1cbbd3830bffb02e34cbfe6db948daa678",
+              "verdict": "APPROVE",
+              "at": "2026-11-23T12:55:16Z"
+            }
+          ]
+        }
       }
     }
   }
