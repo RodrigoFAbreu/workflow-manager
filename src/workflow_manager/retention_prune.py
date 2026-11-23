@@ -360,6 +360,9 @@ def run_phase(target, unattended: dict, policy_digest: str, emit=None, *, observ
                        "error": None} for item_id in plan.ids]
     try:
         note("prune", None, "started", first=True)
+    except KeyboardInterrupt:
+        note("prune", None, "interrupted", None, interrupted_line)
+        return stop("prune", None, interrupted_line)
     except Exception as failed:  # noqa: BLE001
         result.audit_error = getattr(failed, "cause", None) or str(failed)
         result.next_step = getattr(failed, "step", None) or (
@@ -405,6 +408,11 @@ def run_phase(target, unattended: dict, policy_digest: str, emit=None, *, observ
         try:
             if observer is not None:
                 observer("prune", item_id, "ok", None, None, digest)
+        except KeyboardInterrupt:
+            text = ("interrupted; the apply had succeeded (the archive is deleted); "
+                    "no further call was made")
+            note("prune", item_id, "interrupted", None, text)
+            return stop("prune", item_id, f"{item_id}: {text}")
         except Exception as audit:  # noqa: BLE001 -- the step succeeded, its line did not
             cause = getattr(audit, "cause", None) or str(audit)
             result.audit_error = cause

@@ -45805,6 +45805,629 @@
         "evaluated_at": "2026-11-23T14:06:09Z",
         "workflow_release": "2.29.11"
       }
+    },
+    "unattended-prune-interrupt": {
+      "work_item_type": "process",
+      "work_item_kind": "process",
+      "work_item_id": "unattended-prune-interrupt",
+      "parent_work_item_id": null,
+      "plan_path": "docs/ai-workflow/WORKFLOW_MANAGER_UNATTENDED_PRUNE_INTERRUPT_PLAN.md",
+      "registry_path": "docs/ai-workflow/registry/unattended-prune-interrupt-registry.json",
+      "mapping_path": "docs/ai-workflow/requirements/unattended-prune-interrupt-mapping.json",
+      "governing_workflow_version": "2.2",
+      "phase": "MILESTONE_COMPLETE",
+      "plan_revision": 1,
+      "implementation_revision": 1,
+      "functional_review_round": null,
+      "base_commit": "a9dda8980619aafcdee5d3fbff6f7fd07a74552b",
+      "reviewed_implementation_head": "cddfe979bb6769cb66e365268bd16b73596cd50c",
+      "current_checkpoint_id": null,
+      "last_completed_checkpoint_id": "CP2",
+      "checkpoints": {
+        "CP1": {
+          "status": "COMPLETE",
+          "start_commit": "fe7b64c92b8b2b219619a6197cc37f21516e8b64"
+        },
+        "CP2": {
+          "status": "COMPLETE",
+          "start_commit": "3edba31e67292646531120a972d5d839f7c9a1cb"
+        }
+      },
+      "current_bundle_id": "0ac3e014d5f54c6597b105af64526ab4a59cd6ad0878306c0272b248fb31d380",
+      "plan_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "0ac3e014d5f54c6597b105af64526ab4a59cd6ad0878306c0272b248fb31d380",
+        "approved_review_content_id": "11a71de08af7b46472c4ae1c3034c5cdccf85f13ca56f8e6c35601f64fc31731",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/WORKFLOW_MANAGER_UNATTENDED_PRUNE_INTERRUPT_PLAN.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "cc7edd50050fe1918d1a61bf58e68c97a4fca0e9"
+          },
+          {
+            "path": "docs/ai-workflow/registry/unattended-prune-interrupt-registry.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "b63c3f9814364d684d1dbbf2a106807b4c7ce48a"
+          },
+          {
+            "path": "docs/ai-workflow/requirements/unattended-prune-interrupt-mapping.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "ca864f08ca8e3095a5e76241920801d1e76424bb"
+          }
+        ],
+        "reviewed_content_commit": null,
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-11-23T16:16:29Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "11a71de08af7b46472c4ae1c3034c5cdccf85f13ca56f8e6c35601f64fc31731",
+            "ledger": {
+              "local": {
+                "bundle_id": "0ac3e014d5f54c6597b105af64526ab4a59cd6ad0878306c0272b248fb31d380",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "b6d7a79b61329f1826687816a734d6466fcd7f5ac5e5f2261a06817e8f4a954c",
+                "ledger_entry_sha256": "19ffa77f2d775a1fcb9687c3463e886b39008426202701acabbf52dfc342e025",
+                "run_ref": "session:local /home/rodrigo/Workspace/workflow-manager/.ai-review/unattended-prune-interrupt/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "0ac3e014d5f54c6597b105af64526ab4a59cd6ad0878306c0272b248fb31d380",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "4d49b15a011c33d146dc19f5b2603051c85a6c420b1abc0a00b2dd5a1a6fb60a",
+                "ledger_entry_sha256": "3097fc787cea94dddcb8ca7633293708e4eefbea69c43bddea30b59c92c22bad",
+                "run_ref": "codex:20261123T161311Z-3fdd0e4e",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-11-23T16:16:29Z",
+          "workflow_release": "2.29.11"
+        }
+      },
+      "technical_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "5f07af0a4fb5575258e580797b77d9ef4bf707a5309b36a96bdbf34f653a867e",
+        "approved_review_content_id": "a3522dfe9c4f858543e528002443f6a588711779dc56fdd4bf640cdae7026d3f",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/registry/unattended-prune-interrupt-artifacts.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "efcc6658a1ea70b79e1317d6326f46bb540183ab"
+          },
+          {
+            "path": "docs/retention.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "707661e0a8bea739e897b153689c15d8a80bf766"
+          },
+          {
+            "path": "src/workflow_manager/retention_prune.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "4e4a8f4cc3d9130694e8bacfe853934edfb71797"
+          },
+          {
+            "path": "tests/test_retention_unattended.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "100aad5b1e8752b72b03008762816f306212ddfd"
+          },
+          {
+            "path": "tests/test_retention_unattended_prune.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "0b61c22d441628113d530bf5e5317846dc87d99d"
+          }
+        ],
+        "reviewed_content_commit": "cddfe979bb6769cb66e365268bd16b73596cd50c",
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-11-23T16:48:39Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "a3522dfe9c4f858543e528002443f6a588711779dc56fdd4bf640cdae7026d3f",
+            "ledger": {
+              "local": {
+                "bundle_id": "5f07af0a4fb5575258e580797b77d9ef4bf707a5309b36a96bdbf34f653a867e",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "332783bb1ec04b2639fcfb2de0ce2955646b036c40965edefa0b56fb795e7e2d",
+                "ledger_entry_sha256": "b786001ce6841c210b208f0c8527b9c3a96533fd5201e2a29b2404723a2a49e2",
+                "run_ref": "session:local /home/rodrigo/Workspace/workflow-manager/.ai-review/unattended-prune-interrupt/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "5f07af0a4fb5575258e580797b77d9ef4bf707a5309b36a96bdbf34f653a867e",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "cfc443bf36ba41cec92e2f3290bb7938fd103d713a850d3dfb9eac204173275b",
+                "ledger_entry_sha256": "cbd53a2077f54ec2c01fe7ba5efc4142d2b16101e1d87981c076d2a44d0b3ab8",
+                "run_ref": "codex:20261123T164608Z-e3124d8a",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-11-23T16:48:39Z",
+          "workflow_release": "2.29.11"
+        }
+      },
+      "technical_review_block_pins": [],
+      "plan_review_stages": {
+        "review_content_id": "11a71de08af7b46472c4ae1c3034c5cdccf85f13ca56f8e6c35601f64fc31731",
+        "LOCAL_MODEL_PLAN_REVIEW": {
+          "bundle_id": "0ac3e014d5f54c6597b105af64526ab4a59cd6ad0878306c0272b248fb31d380",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-11-23T16:12:45Z",
+          "verdict_sha256": "b6d7a79b61329f1826687816a734d6466fcd7f5ac5e5f2261a06817e8f4a954c",
+          "run_ref": "session:local /home/rodrigo/Workspace/workflow-manager/.ai-review/unattended-prune-interrupt/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_PLAN_REVIEW": {
+          "bundle_id": "0ac3e014d5f54c6597b105af64526ab4a59cd6ad0878306c0272b248fb31d380",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-11-23T16:15:46Z",
+          "verdict_sha256": "4d49b15a011c33d146dc19f5b2603051c85a6c420b1abc0a00b2dd5a1a6fb60a",
+          "run_ref": "codex:20261123T161311Z-3fdd0e4e",
+          "reviewer_model": "openai/gpt-6.1-sol"
+        }
+      },
+      "functional_acceptance_status": null,
+      "blocking_decisions": [],
+      "review_round_counts": {
+        "plan": {
+          "local": 1,
+          "external": 1
+        },
+        "implementation": {
+          "local": 1,
+          "external": 1
+        }
+      },
+      "state_revision": 15,
+      "last_transition": "2026-11-23T17:12:33Z",
+      "feedback_layout": "scoped",
+      "plan_review_binding": {
+        "status": "BOUND",
+        "at": "2026-11-23T16:09:11Z",
+        "consumed": null,
+        "published": {
+          "review_content_id": "11a71de08af7b46472c4ae1c3034c5cdccf85f13ca56f8e6c35601f64fc31731",
+          "plan_revision": 1
+        },
+        "bound": {
+          "review_content_id": "11a71de08af7b46472c4ae1c3034c5cdccf85f13ca56f8e6c35601f64fc31731",
+          "bundle_id": "0ac3e014d5f54c6597b105af64526ab4a59cd6ad0878306c0272b248fb31d380",
+          "plan_revision": 1
+        }
+      },
+      "optional_findings": {
+        "F-132bfef2b0a6": {
+          "digest": "132bfef2b0a6f1329d4a16807df49fb449109b9b5a85673cdeedf73742a4ae82",
+          "text": "LPR1-001 (section 1, line references): the `ok`-write line numbers are one off on the base commit. `entry[\"result\"] = \"done\"` is line 404, but the `try` is 405, the `observer(... \"ok\" ...)` call is 406-407 and `except Exception` is 408 (the plan says 405-406 and 407). The reused wording \"the apply had succeeded; no further call was made\" is at 412-414 (the plan says 410-415). The spots and the analysis are right; only the citations drift. Fix it if the plan is revised for another reason.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "11a71de08af7b46472c4ae1c3034c5cdccf85f13ca56f8e6c35601f64fc31731",
+              "verdict": "APPROVE",
+              "at": "2026-11-23T16:12:45Z"
+            }
+          ]
+        },
+        "F-a4f91c5e8fb2": {
+          "digest": "a4f91c5e8fb2e64d94c01d329312b287bcb96777be8c90e07d95f5221dbdb627",
+          "text": "LPR1-002 (section 2, the `ok` handler's text output): both neighbouring outcomes of the same step print a per-archive line: `  {id}: pruned` on success (line 418), and `  {id}: pruned, but its audit line could not be written` on an `OSError` (line 411). The new `KeyboardInterrupt` clause prints only the stop line. `docs/retention.md`'s \"Text.\" paragraph says \"One line per archive\". The stop line does say \"the archive is deleted\", and the command's `_irreversible` line still follows with the count, so nothing is lost. The implementer may emit a matching `  {id}: pruned, but the run was interrupted while its audit line was written` line for symmetry. If they do, the test should pin it. Either choice is acceptable, but record which one was made.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "11a71de08af7b46472c4ae1c3034c5cdccf85f13ca56f8e6c35601f64fc31731",
+              "verdict": "APPROVE",
+              "at": "2026-11-23T16:12:45Z"
+            }
+          ]
+        },
+        "F-de27f9d7a3e0": {
+          "digest": "de27f9d7a3e0c65598857a707feb0e85d459e0708cce6522a00c16d74edfe040",
+          "text": "LPR1-003 (section 2, `docs/exit-codes.md`): a `started` interrupt in a run whose cleanup made no calls exits 2 (`apply_attempted` is false). Row 2 of `docs/exit-codes.md` lists the prune's exit-2 stops as \"its refusal, or a dry run that does not match the plan\" and does not name an interrupt before the first call. The gap is not new: the existing report and dry-run interrupts are just as unlisted. Leaving the page unchanged is consistent with the plan's scope, but this is a candidate follow-up, not a defect of this item.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "11a71de08af7b46472c4ae1c3034c5cdccf85f13ca56f8e6c35601f64fc31731",
+              "verdict": "APPROVE",
+              "at": "2026-11-23T16:12:45Z"
+            }
+          ]
+        },
+        "F-cc195bfae4d9": {
+          "digest": "cc195bfae4d92fdb34ec6baea6fade3597da337fdaf47721dcab3a48f556a98d",
+          "text": "LIR1-001 (the `ok` interrupt's per-archive text line; carries plan finding LPR1-002 forward): the new `ok` clause in `run_phase` (`src/workflow_manager/retention_prune.py`) prints only the stop line, `retention prune: stopped after 2 of 3 archives; b-mid: interrupted; the apply had succeeded (the archive is deleted); no further call was made`. It does not print a per-archive `  b-mid: pruned...` line, although both neighbouring outcomes of that step print one (`  {id}: pruned` and `  {id}: pruned, but its audit line could not be written`). The stop line names the archive and says it is deleted, and `_irreversible` counts it, so no information is lost and the behaviour matches plan section 2 exactly. Plan finding LPR1-002 asked that the choice be recorded, but neither `IMPLEMENTATION_SUMMARY.md` nor `docs/ACTIVE_MILESTONE.md` says that the per-archive line was left out on purpose. Record that at acceptance; no code change is needed.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "a3522dfe9c4f858543e528002443f6a588711779dc56fdd4bf640cdae7026d3f",
+              "verdict": "APPROVE",
+              "at": "2026-11-23T16:45:17Z"
+            }
+          ]
+        },
+        "F-7ccefad31840": {
+          "digest": "7ccefad3184062d515f14f402a1f28ec6a2d7239a2b6f8ca2526e62c7a9eaf4b",
+          "text": "LIR1-002 (how the tests fail on a regression): if either new `except KeyboardInterrupt:` clause is removed (M1/M2), the escaped `KeyboardInterrupt` aborts the whole `TestAuditFailures` unit process. The runner then reports `InfrastructureFaultError ... missing_record` (exit 2) instead of a named test failure. I reproduced this independently for both mutations. The mutations are still caught, so this is not a coverage gap. Wrapping the two `self.go(...)` calls so an escaped `KeyboardInterrupt` becomes `self.fail(\"the interrupt escaped run_phase\")` would name the failing test and keep the unit's other results. This is a candidate follow-up, not a defect of this item.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "a3522dfe9c4f858543e528002443f6a588711779dc56fdd4bf640cdae7026d3f",
+              "verdict": "APPROVE",
+              "at": "2026-11-23T16:45:17Z"
+            }
+          ]
+        }
+      },
+      "implementation_review_stages": {
+        "review_content_id": "a3522dfe9c4f858543e528002443f6a588711779dc56fdd4bf640cdae7026d3f",
+        "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "5f07af0a4fb5575258e580797b77d9ef4bf707a5309b36a96bdbf34f653a867e",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-11-23T16:45:17Z",
+          "verdict_sha256": "332783bb1ec04b2639fcfb2de0ce2955646b036c40965edefa0b56fb795e7e2d",
+          "run_ref": "session:local /home/rodrigo/Workspace/workflow-manager/.ai-review/unattended-prune-interrupt/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "5f07af0a4fb5575258e580797b77d9ef4bf707a5309b36a96bdbf34f653a867e",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-11-23T16:48:11Z",
+          "verdict_sha256": "cfc443bf36ba41cec92e2f3290bb7938fd103d713a850d3dfb9eac204173275b",
+          "run_ref": "codex:20261123T164608Z-e3124d8a",
+          "reviewer_model": "openai/gpt-6.1-sol"
+        }
+      },
+      "gate_evidence": {
+        "functional": {
+          "flow-1": {
+            "flow_id": "flow-1",
+            "status": "passed",
+            "head": "ddc9be38cebf195590ae67dd56207f5c9d2e06a6",
+            "ran_at": "2026-11-23T16:53:57Z",
+            "summary": {
+              "checklist_blob": "f8297df5ce562849cdd65bf5fe2faa8bc9609bb6",
+              "text": "The tested HEAD matches; all ten name-status entries match exactly and the excluded paths have no diff."
+            },
+            "log_digest": "32a38ea9313c6a397f176b791a15fda29dfc503c21fd77c13b45e927d7e4b1c7",
+            "run_ref": "controller:20261123T165228Z-c48e4cd3",
+            "reporter": "workflow-controller 1.32.0",
+            "identity": "a3522dfe9c4f858543e528002443f6a588711779dc56fdd4bf640cdae7026d3f",
+            "recorded_at": "2026-11-23T16:53:57Z"
+          },
+          "flow-2": {
+            "flow_id": "flow-2",
+            "status": "passed",
+            "head": "ddc9be38cebf195590ae67dd56207f5c9d2e06a6",
+            "ran_at": "2026-11-23T16:53:57Z",
+            "summary": {
+              "checklist_blob": "f8297df5ce562849cdd65bf5fe2faa8bc9609bb6",
+              "text": "The source diff has eight additions and no deletions, with both specified KeyboardInterrupt handlers; the done result precedes the ok observer call."
+            },
+            "log_digest": "b99ab020a3b09e8f33aef7ef3e62bc5f2138ddbbf10dc98de792b1d12c211278",
+            "run_ref": "controller:20261123T165228Z-c48e4cd3",
+            "reporter": "workflow-controller 1.32.0",
+            "identity": "a3522dfe9c4f858543e528002443f6a588711779dc56fdd4bf640cdae7026d3f",
+            "recorded_at": "2026-11-23T16:53:57Z"
+          },
+          "flow-3": {
+            "flow_id": "flow-3",
+            "status": "passed",
+            "head": "ddc9be38cebf195590ae67dd56207f5c9d2e06a6",
+            "ran_at": "2026-11-23T16:53:57Z",
+            "summary": {
+              "checklist_blob": "f8297df5ce562849cdd65bf5fe2faa8bc9609bb6",
+              "text": "Only the Audit lines paragraph changed in retention.md, with the specified wording; exit-codes.md is unchanged."
+            },
+            "log_digest": "2e0f5afe4e4b202836cc5e78a7854544ae63f1891cbdb1e9f71bcc5ccad6bc84",
+            "run_ref": "controller:20261123T165228Z-c48e4cd3",
+            "reporter": "workflow-controller 1.32.0",
+            "identity": "a3522dfe9c4f858543e528002443f6a588711779dc56fdd4bf640cdae7026d3f",
+            "recorded_at": "2026-11-23T16:53:58Z"
+          },
+          "flow-4": {
+            "flow_id": "flow-4",
+            "status": "passed",
+            "head": "ddc9be38cebf195590ae67dd56207f5c9d2e06a6",
+            "ran_at": "2026-11-23T16:53:58Z",
+            "summary": {
+              "checklist_blob": "f8297df5ce562849cdd65bf5fe2faa8bc9609bb6",
+              "text": "The added tests and helper assertions pin the requested started and ok interruption behavior, the audit text, and documentation wording."
+            },
+            "log_digest": "ff86cea4f8e13795b8de646b473b4bc1a3b098f1d7e81548a5075a94e1d58c37",
+            "run_ref": "controller:20261123T165228Z-c48e4cd3",
+            "reporter": "workflow-controller 1.32.0",
+            "identity": "a3522dfe9c4f858543e528002443f6a588711779dc56fdd4bf640cdae7026d3f",
+            "recorded_at": "2026-11-23T16:53:58Z"
+          },
+          "flow-5": {
+            "flow_id": "flow-5",
+            "status": "passed",
+            "head": "ddc9be38cebf195590ae67dd56207f5c9d2e06a6",
+            "ran_at": "2026-11-23T16:56:39Z",
+            "summary": {
+              "checklist_blob": "f8297df5ce562849cdd65bf5fe2faa8bc9609bb6",
+              "text": "Offline tests unmutated in a scratch copy of the evidence commit (git archive HEAD, tests/ directory): test_retention_unattended_prune Ran 90 OK; test_retention_unattended Ran 62 OK; test_docs + test_operator_ux_docs Ran 49 OK (orchestrator run with the primed release cache)."
+            },
+            "log_digest": "a23eaa8c5e148ffe89197434d05ccd56695fc83abcbbce7fead8c43c960a5e78",
+            "run_ref": "manager orchestrator scratch run md55-flows",
+            "reporter": "manager orchestrator",
+            "identity": "a3522dfe9c4f858543e528002443f6a588711779dc56fdd4bf640cdae7026d3f",
+            "recorded_at": "2026-11-23T16:56:39Z"
+          },
+          "flow-6": {
+            "flow_id": "flow-6",
+            "status": "passed",
+            "head": "ddc9be38cebf195590ae67dd56207f5c9d2e06a6",
+            "ran_at": "2026-11-23T16:56:39Z",
+            "summary": {
+              "checklist_blob": "f8297df5ce562849cdd65bf5fe2faa8bc9609bb6",
+              "text": "Mutation probes, each in its own scratch copy: deleting the started clause and deleting the ok clause both abort the run with an escaped KeyboardInterrupt traceback (the expected failure); dropping 'the apply had succeeded' and writing the plain interrupted text each fail exactly test_an_interrupt_while_an_ok_line_is_written_says_the_archive_is_deleted (failures=1); reverting docs/retention.md fails TestPage test_the_page_says_an_interrupt_during_an_audit_write_is_recorded (two needles)."
+            },
+            "log_digest": "ff1ea1e3852e1142fda49f0e43146e881ef37c438e19788ba2227b28eaa31859",
+            "run_ref": "manager orchestrator scratch run md55-flows",
+            "reporter": "manager orchestrator",
+            "identity": "a3522dfe9c4f858543e528002443f6a588711779dc56fdd4bf640cdae7026d3f",
+            "recorded_at": "2026-11-23T16:56:39Z"
+          }
+        },
+        "pr": {
+          "pr": {
+            "number": 275,
+            "url": "https://github.com/RodrigoFAbreu/workflow-manager/pull/275"
+          },
+          "state": "open",
+          "head": "ddc9be38cebf195590ae67dd56207f5c9d2e06a6",
+          "review_decision": null,
+          "reviewed_head": null,
+          "checks": {
+            "state": "success",
+            "failing": []
+          },
+          "review_id": null,
+          "findings": null,
+          "identity_at_head": "a3522dfe9c4f858543e528002443f6a588711779dc56fdd4bf640cdae7026d3f",
+          "observed_at": "2026-11-23T17:12:33Z",
+          "ingest_seq": 4,
+          "repository": "RodrigoFAbreu/workflow-manager",
+          "queried_commit": "cddfe979bb6769cb66e365268bd16b73596cd50c",
+          "provenance": {
+            "source": "workflow_gh",
+            "fetched_by": {
+              "name": "workflow-gh",
+              "version": "pr-list-v1"
+            },
+            "fetched_at": "2026-11-23T17:12:33Z",
+            "raw_sha256": "46f9439c047b3bca484206d16b6ec470403e330c046d9529d57013104fa88fc1",
+            "run_ref": null,
+            "gh_path": "/usr/bin/gh",
+            "gh_sha256": "978350509c2883379c95475668f0173a838512fa57d52a0dde4a0579be7c1cbb"
+          },
+          "fact_id": "4666c278b487febc4099108156081c305ef5970f40aaae3c38d40c00f447fb8d"
+        },
+        "pr_reported": {
+          "pr": {
+            "number": 275,
+            "url": "https://github.com/RodrigoFAbreu/workflow-manager/pull/275"
+          },
+          "state": "open",
+          "head": "ddc9be38cebf195590ae67dd56207f5c9d2e06a6",
+          "review_decision": null,
+          "reviewed_head": null,
+          "checks": {
+            "state": "success",
+            "failing": []
+          },
+          "review_id": null,
+          "findings": null,
+          "identity_at_head": "a3522dfe9c4f858543e528002443f6a588711779dc56fdd4bf640cdae7026d3f",
+          "observed_at": "2026-11-23T17:11:45Z",
+          "ingest_seq": 2,
+          "repository": "RodrigoFAbreu/workflow-manager",
+          "queried_commit": "cddfe979bb6769cb66e365268bd16b73596cd50c",
+          "provenance": {
+            "source": "orchestrator_forge",
+            "fetched_by": {
+              "name": "workflow-controller",
+              "version": "1.32.0"
+            },
+            "fetched_at": "2026-11-23T17:11:45Z",
+            "raw_sha256": "46f9439c047b3bca484206d16b6ec470403e330c046d9529d57013104fa88fc1",
+            "run_ref": "controller:20261123T171145Z-1fceb63f"
+          },
+          "fact_id": "93605c5fe82e7209329ccff318dad4ddc960123953985f11a69dcf8ecb7d6b20"
+        },
+        "pr_keys": {
+          "reopened_for": [],
+          "applied": [],
+          "ingest_seq": 4
+        }
+      },
+      "acceptance_satisfaction": {
+        "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "policy_source": "default",
+        "file_digest": null,
+        "adopted_digest": null,
+        "floor_digest": null,
+        "requirements": [
+          {
+            "id": "checkpoints_complete",
+            "met": true,
+            "detail": "every checkpoint of the item's own registry is COMPLETE"
+          },
+          {
+            "id": "technical_approval_current",
+            "met": true,
+            "detail": "the technical approval is CURRENT for the content now"
+          },
+          {
+            "id": "functional_flows_passed",
+            "met": true,
+            "detail": "flows ['flow-1', 'flow-2', 'flow-3', 'flow-4', 'flow-5', 'flow-6'] passed at the approved content"
+          },
+          {
+            "id": "pr_fact_current",
+            "met": true,
+            "detail": "workflow_gh fact for PR #275 at ddc9be38cebf195590ae67dd56207f5c9d2e06a6 is current"
+          },
+          {
+            "id": "no_standing_pr_objection",
+            "met": true,
+            "detail": "no CHANGES_REQUESTED decision and no failed check"
+          },
+          {
+            "id": "ci_green",
+            "met": true,
+            "detail": "checks are 'success'"
+          }
+        ],
+        "inputs": {
+          "anchor_commit": "cddfe979bb6769cb66e365268bd16b73596cd50c",
+          "anchor_identity": "a3522dfe9c4f858543e528002443f6a588711779dc56fdd4bf640cdae7026d3f",
+          "technical_approval": {
+            "basis": "POLICY_SATISFIED",
+            "approved_review_content_id": "a3522dfe9c4f858543e528002443f6a588711779dc56fdd4bf640cdae7026d3f",
+            "recorded_at": "2026-11-23T16:48:39Z"
+          },
+          "functional": {
+            "flow-1": {
+              "evidence_id": "aa12f854e62ff52e3bf739e2e48ce940b53fa6f18f8c8d80a8912c1423c7f14b",
+              "log_digest": "32a38ea9313c6a397f176b791a15fda29dfc503c21fd77c13b45e927d7e4b1c7",
+              "run_ref": "controller:20261123T165228Z-c48e4cd3"
+            },
+            "flow-2": {
+              "evidence_id": "b82ae22a17b3a73c7cbc8ff9a20c0b2161c104476a77df554d3016c746f7ea45",
+              "log_digest": "b99ab020a3b09e8f33aef7ef3e62bc5f2138ddbbf10dc98de792b1d12c211278",
+              "run_ref": "controller:20261123T165228Z-c48e4cd3"
+            },
+            "flow-3": {
+              "evidence_id": "94df5e2c0a0db641d40eb473f8d02fffa36de350b6aee6498d97c998c94a1aff",
+              "log_digest": "2e0f5afe4e4b202836cc5e78a7854544ae63f1891cbdb1e9f71bcc5ccad6bc84",
+              "run_ref": "controller:20261123T165228Z-c48e4cd3"
+            },
+            "flow-4": {
+              "evidence_id": "5fb916fe3d485ed5fbebe55033de93fc6cfa815c2e980405dd52f8c4d2ba5968",
+              "log_digest": "ff86cea4f8e13795b8de646b473b4bc1a3b098f1d7e81548a5075a94e1d58c37",
+              "run_ref": "controller:20261123T165228Z-c48e4cd3"
+            },
+            "flow-5": {
+              "evidence_id": "d019f87a17b37e29eeff074bcf5c2281ba303a80f85088b3e19478d246600825",
+              "log_digest": "a23eaa8c5e148ffe89197434d05ccd56695fc83abcbbce7fead8c43c960a5e78",
+              "run_ref": "manager orchestrator scratch run md55-flows"
+            },
+            "flow-6": {
+              "evidence_id": "279dafff353eba7a4a5012335bd5b92ca3f7a9072456b2a7911aae6f1398c6f7",
+              "log_digest": "ff1ea1e3852e1142fda49f0e43146e881ef37c438e19788ba2227b28eaa31859",
+              "run_ref": "manager orchestrator scratch run md55-flows"
+            }
+          },
+          "pr": {
+            "fact_id": "4666c278b487febc4099108156081c305ef5970f40aaae3c38d40c00f447fb8d",
+            "head": "ddc9be38cebf195590ae67dd56207f5c9d2e06a6",
+            "provenance": "workflow_gh",
+            "raw_sha256": "46f9439c047b3bca484206d16b6ec470403e330c046d9529d57013104fa88fc1"
+          }
+        },
+        "trust": {
+          "review_verdicts": "orchestrator",
+          "functional_evidence": "orchestrator",
+          "pr_fact": "workflow_gh"
+        },
+        "evaluated_at": "2026-11-23T17:12:33Z",
+        "workflow_release": "2.29.11"
+      }
     }
   }
 }

@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "work_item_id": "unattended-prune-interrupt",
+  "dispositions": {
+    "F-132bfef2b0a6": {
+      "disposition": "dropped",
+      "reason": "Plan wording only: the ok-write line numbers in plan section 1 are one off on the base commit; the implementer finds the code by its text and the plan is frozen."
+    },
+    "F-7ccefad31840": {
+      "disposition": "dropped",
+      "reason": "Expected and documented: with either new clause removed the escaped KeyboardInterrupt aborts the unit process and the runner reports a missing record instead of a named failure; the checklist's flow 6 names this as the expected failure, and a named failure would need a different test design for no real gain."
+    },
+    "F-a4f91c5e8fb2": {
+      "disposition": "dropped",
+      "reason": "Deliberate: the stop line names the archive, says it is deleted and the irreversible count includes it, so the missing per-archive line loses no information; the choice is recorded here."
+    },
+    "F-cc195bfae4d9": {
+      "disposition": "dropped",
+      "reason": "Same as the previous finding: the per-archive line was left out on purpose because the stop line already carries the archive id, the deleted state and the count; recorded here."
+    },
+    "F-de27f9d7a3e0": {
+      "disposition": "follow-up",
+      "link": "https://github.com/RodrigoFAbreu/workflow-manager/issues/276"
+    }
+  }
+}

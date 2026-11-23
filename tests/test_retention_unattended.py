@@ -689,6 +689,14 @@ class TestPage(unittest.TestCase):
             with self.subTest(stale=needle):
                 self.assertNotIn(needle, text)
 
+    def test_the_page_says_an_interrupt_during_an_audit_write_is_recorded(self):
+        for needle in (
+                "An `interrupted` line is also written when the run is interrupted while the "
+                "`started` line or an archive's `ok` line is being written",
+                "for the `ok` line the archive is already deleted"):
+            with self.subTest(needle=needle):
+                self.assertIn(needle, self.page)
+
     def test_the_page_names_no_internal_id(self):
         for needle in ("unattended-retention-policy", "#254", "A1", "CP3", "WORKFLOW_STATE"):
             with self.subTest(needle=needle):
