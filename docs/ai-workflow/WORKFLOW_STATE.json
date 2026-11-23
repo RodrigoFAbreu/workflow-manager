@@ -44538,7 +44538,7 @@
       "registry_path": "docs/ai-workflow/registry/unattended-adopt-wording-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/unattended-adopt-wording-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "AWAITING_FUNCTIONAL_REVIEW",
       "plan_revision": 2,
       "implementation_revision": 1,
       "functional_review_round": null,
@@ -44647,7 +44647,108 @@
           "workflow_release": "2.29.10"
         }
       },
-      "technical_approval": null,
+      "technical_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "a74f50462cc2154e21d4809106ed4246448a8eb394f33a6e08eb1ecabf63afe9",
+        "approved_review_content_id": "eaae3bb69bbb3ce644e29c214d4b039914b833ec56c6e71bd5e315b925a34df7",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/registry/unattended-adopt-wording-artifacts.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "ad69f46130485f99e615f638e311a9e089ccfc71"
+          },
+          {
+            "path": "docs/retention.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "1f1ffcee5f57b33fee6635b50231a9861a9111fb"
+          },
+          {
+            "path": "src/workflow_manager/cli.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "09c32a709d5a4bb39dd3f0136f369e81e1bcb6d8"
+          },
+          {
+            "path": "src/workflow_manager/retention_policy.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "ccd2b4cfc59861c09ba4433ac7830b0b1d2dfa7d"
+          },
+          {
+            "path": "tests/test_retention_unattended.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "7a693c18cfc1a523a3bfaf7fa347380b557dceb7"
+          }
+        ],
+        "reviewed_content_commit": "3292b5484a7331b797e78104443df9a021fd7b9d",
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-11-23T04:56:07Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "eaae3bb69bbb3ce644e29c214d4b039914b833ec56c6e71bd5e315b925a34df7",
+            "ledger": {
+              "local": {
+                "bundle_id": "a74f50462cc2154e21d4809106ed4246448a8eb394f33a6e08eb1ecabf63afe9",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "97a2e6d59f2a8d0a30c57c838864fbd1b7762840f322809ee48c72efe1914dc5",
+                "ledger_entry_sha256": "34c919ffcab8c31e33be09133157fed661be6a37befbbcd1ee4d7e908fca1d4c",
+                "run_ref": "session:local .ai-review/unattended-adopt-wording/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "a74f50462cc2154e21d4809106ed4246448a8eb394f33a6e08eb1ecabf63afe9",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "a8f469e0936ee531c5803a2b87ff3e92a6cd1ddcc83398a4eeeebcc4e24a07d8",
+                "ledger_entry_sha256": "89223f894440d0d6a1a33d7f46e6feb052f283d7ea43c07f08eaa12c3f6063b2",
+                "run_ref": "codex:20261123T045344Z-2976e6e0",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-11-23T04:56:07Z",
+          "workflow_release": "2.29.10"
+        }
+      },
       "technical_review_block_pins": [],
       "plan_review_stages": {
         "review_content_id": "42137799dbeae78c0f536a62175a04edb22a07817b6e066fc8375502dd2b3669",
@@ -44678,12 +44779,12 @@
           "external": 1
         },
         "implementation": {
-          "local": 0,
-          "external": 0
+          "local": 1,
+          "external": 1
         }
       },
-      "state_revision": 14,
-      "last_transition": "2026-11-23T04:49:42Z",
+      "state_revision": 17,
+      "last_transition": "2026-11-23T04:56:07Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -44748,6 +44849,41 @@
               "at": "2026-11-23T04:10:58Z"
             }
           ]
+        },
+        "F-a04152085a98": {
+          "digest": "a04152085a98862a43cd888f813039710b7ae1c053c9d6cb9f75081d804b0040",
+          "text": "**LIR1-001: the helper test's `[]` case covers a file without the key, not a state without a valid file.** Plan section 3 says \"A state without the key or without a valid file still returns `[]`\" for `adopting=True`. `test_the_helper_with_adopting_changes_only_the_ordinary_head` checks only the keyless file (`self.put()` writes `GOOD`). The `not state.policy` guard comes before `adopting` is read, so the behaviour is correct, but a one-line assertion for a state with no policy file (or an invalid one) would make the pin match the plan's wording.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "eaae3bb69bbb3ce644e29c214d4b039914b833ec56c6e71bd5e315b925a34df7",
+              "verdict": "APPROVE",
+              "at": "2026-11-23T04:53:16Z"
+            }
+          ]
+        }
+      },
+      "implementation_review_stages": {
+        "review_content_id": "eaae3bb69bbb3ce644e29c214d4b039914b833ec56c6e71bd5e315b925a34df7",
+        "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "a74f50462cc2154e21d4809106ed4246448a8eb394f33a6e08eb1ecabf63afe9",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-11-23T04:53:16Z",
+          "verdict_sha256": "97a2e6d59f2a8d0a30c57c838864fbd1b7762840f322809ee48c72efe1914dc5",
+          "run_ref": "session:local .ai-review/unattended-adopt-wording/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "a74f50462cc2154e21d4809106ed4246448a8eb394f33a6e08eb1ecabf63afe9",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-11-23T04:55:42Z",
+          "verdict_sha256": "a8f469e0936ee531c5803a2b87ff3e92a6cd1ddcc83398a4eeeebcc4e24a07d8",
+          "run_ref": "codex:20261123T045344Z-2976e6e0",
+          "reviewer_model": "openai/gpt-6.1-sol"
         }
       }
     }
