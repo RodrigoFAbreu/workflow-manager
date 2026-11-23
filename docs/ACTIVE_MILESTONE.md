@@ -2,21 +2,17 @@
 
 ## Milestone
 
-**Complete.** `retention-followup-pins` (`governing_workflow_version: "2.2"`, `process`, plan revision 1, base `d2be4f8`, branch `milestone/retention-followup-pins`): tests and two docs sentences brought into line with the code (#257, #270, #264 points 1 and 2). Tests and docs only: no `src/` change, no release.
+**In progress.** `unattended-prune-interrupt` (`governing_workflow_version: "2.2"`, `process`, plan revision 1, base `a9dda89`, branch `milestone/unattended-prune-interrupt`): an interrupt that lands while the unattended prune writes its `started` or `ok` audit line stops the phase with `interrupted` instead of escaping (#264 point 3). A Manager patch release (`fix:`).
 
-Plan: `docs/ai-workflow/WORKFLOW_MANAGER_RETENTION_FOLLOWUP_PINS_PLAN.md`.
+Plan: `docs/ai-workflow/WORKFLOW_MANAGER_UNATTENDED_PRUNE_INTERRUPT_PLAN.md`.
 
-Pull request title: `test: pin the retention follow-ups and say in the docs what the code prints`.
+Pull request title: `fix: stop the unattended prune cleanly on an interrupt during its audit writes`.
 
 ### Checkpoints
 
-- CP1 -- the tests: a quoted verify command and the adopting helper's empty states: **complete**. The `not-verified` note is compared with `shlex.join`, a spaced target is pinned, and the adopting helper test covers a missing and an invalid policy file. Both mutations (`" ".join`, a guard that lets an empty policy through) fail the new tests.
-- CP2 -- the docs say what the code prints, and their pins: **complete**. `docs/retention.md` says archives beyond the cap are left for a later run and what a prune stop prints; `docs/exit-codes.md` names both stop lines; `TestPage` and the zero-deleted stop test pin them. The four docs/code mutations fail the new tests; the full gate passed (16780 tests).
-
-### Acceptance
-
-Accepted by policy (`/satisfy-gate acceptance`): all ten functional flows passed at the approved content, the pull request's checks are green and the technical approval is current. The three Optional findings have recorded dispositions (`docs/milestones/completed/retention-followup-pins-findings.md`). #264 stays open for its point 3, the `KeyboardInterrupt` handling in the prune apply, a `src/` change not taken here.
+- CP1 -- the two interrupt handlers and their tests: **complete**. `run_phase` handles `KeyboardInterrupt` on the `started` write and on the `ok` write; two tests in `TestAuditFailures` pin the stop, the audit line and the text. The three code mutations (either clause deleted, "the apply had succeeded" dropped) fail them.
+- CP2 -- the Audit lines clause and its pin: not started.
 
 ## Next action
 
-Plan the next item from `docs/ROADMAP.md` with `/milestone-plan`.
+Run `/milestone-implement unattended-prune-interrupt` for CP2.

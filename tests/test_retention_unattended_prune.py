@@ -681,6 +681,36 @@ class TestAuditFailures(Phase):
         self.assertIn("had succeeded", result.error)
         self.assertIsNotNone(result.audit_error)
 
+    def interrupting(self, at):
+        count = {"n": 0}
+
+        def observer(*line):
+            count["n"] += 1
+            if count["n"] == at:
+                raise KeyboardInterrupt
+            self.lines.append(line)
+        return observer
+
+    def test_an_interrupt_while_the_started_line_is_written_stops_interrupted(self):
+        before = self.tree()
+        result = self.go(observer=self.interrupting(1))
+        self.assert_stopped(result, "prune", None, ("prune", "interrupted", None))
+        self.assertEqual((self.verbs(), result.calls, result.apply_attempted), ([], [], False))
+        self.assertIn("retention prune: stopped after 0 of 3 archives; interrupted", self.said)
+        self.assertTrue(all(e["result"] in ("not-attempted", "stopped") for e in result.results))
+        self.assertEqual(before, self.tree())
+
+    def test_an_interrupt_while_an_ok_line_is_written_says_the_archive_is_deleted(self):
+        result = self.go(observer=self.interrupting(3))     # started, a ok, b ok (interrupted)
+        self.assert_stopped(result, "prune", "b-mid", ("prune", "interrupted", "b-mid"))
+        for text in ("interrupted", "the apply had succeeded", "the archive is deleted"):
+            self.assertIn(text, result.error)
+        self.assertEqual(self.verbs()[-1], "prune b-mid --apply")
+        self.assertEqual(len(self.verbs()), 3)
+        self.assertEqual([e["result"] for e in result.results], ["done", "done", "not-attempted"])
+        self.assertTrue(result.apply_attempted)
+        self.assertTrue(any("stopped after 2 of 3 archives" in s for s in self.said))
+
     def test_a_failing_line_for_a_stop_is_recorded_and_the_stop_stands(self):
         self.write_scenario({"prune:dry": {"stdout": "nope"}})
         result = self.go(observer=self.failing(2))
