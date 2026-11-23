@@ -256,10 +256,12 @@ def enforcement_lines(unattended: dict) -> list[str]:
     ]
 
 
-def unattended_lines(state: "PolicyState", target: Path) -> list[str]:
+def unattended_lines(state: "PolicyState", target: Path, *, adopting: bool = False) -> list[str]:
     """The unattended lines every output prints, so they agree: none for a state
     without a valid file or a file without the `unattended` key (those outputs stay
-    byte-identical), else what the key says in this state and what the unattended run enforces of it."""
+    byte-identical), else what the key says in this state and what the unattended run enforces of it.
+    `adopting` is true only for the adopt preview, which prints the unattended sentence
+    itself: there the ordinary-adoption head says to adopt again with it, not to run the command."""
     if not state.policy or "unattended" not in state.policy:
         return []
     declared = state.unattended if state.unattended is not None else state.policy["unattended"]
@@ -268,8 +270,9 @@ def unattended_lines(state: "PolicyState", target: Path) -> list[str]:
                 + describe_unattended(state.unattended))
     elif state.state == ADOPTED:
         head = ("  unattended retention: the file declares it, but the adoption authorises "
-                "nothing unattended; only the unattended sentence authorises it: run "
-                f"{adopt_command(target)}")
+                "nothing unattended; only the unattended sentence authorises it: "
+                + ("adopt again with the unattended sentence printed below" if adopting
+                   else f"run {adopt_command(target)}"))
     else:
         head = ("  unattended retention: the file declares "
                 + describe_unattended(state.policy["unattended"])

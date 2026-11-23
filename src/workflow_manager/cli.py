@@ -997,7 +997,7 @@ def cmd_adopt_retention_policy(args) -> int:
             print(f"mode: {state.policy['mode']}")
             print(f"thresholds: {retention_policy.describe(state.policy)}")
             print(f"state: {state.state}; mode {state.mode} is in force")
-            _print_lines(retention_policy.unattended_lines(state, args.target))
+            _print_lines(retention_policy.unattended_lines(state, args.target, adopting=True))
             print("nothing was written. Only the repository's owner adopts a policy: to adopt "
                   "this file, --confirm must contain the sentence")
             if "unattended" in state.policy:

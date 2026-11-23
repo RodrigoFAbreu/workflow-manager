@@ -8,6 +8,7 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import shlex
 import subprocess
 import sys
 import unittest
@@ -272,7 +273,12 @@ class TestSentences(Base):
             digest = self.digest(policy)
             text = f"{rp.sentence(digest)} {rp.unattended_sentence(digest)}"
             proc = self.refused("--confirm", text)
-            self.assertIn("mixes", proc.stderr)
+            again = f"workflow-manager adopt-retention-policy {shlex.quote(str(self.repo))}"
+            self.assertEqual(
+                proc.stderr,
+                "error: --confirm mixes the ordinary and the unattended adoption sentence\n"
+                f"next: run {again} to see the one sentence for this policy, then run it again "
+                "with --confirm holding only that sentence\n")
 
     def test_a_wrong_digest_unattended_sentence_is_refused(self):
         self.keyed()
@@ -353,6 +359,10 @@ ADOPTED_UNATTENDED = ("  unattended retention: adopted with the unattended sente
 ADOPTED_ORDINARY = ("  unattended retention: the file declares it, but the adoption authorises "
                     "nothing unattended; only the unattended sentence authorises it: run "
                     "workflow-manager adopt-retention-policy /t")
+ADOPTED_ORDINARY_ADOPT_PREVIEW = (
+    "  unattended retention: the file declares it, but the adoption authorises "
+    "nothing unattended; only the unattended sentence authorises it: adopt again with "
+    "the unattended sentence printed below")
 ENFORCED = ["  enforced by retention-cleanup --unattended: it archives and removes, then prunes "
             "archives of finished items whose review folder is already gone, older than 30 "
             "days, at most 3 per run, never one under an interrupted removal",
@@ -400,6 +410,37 @@ class TestText(Base):
             with self.subTest(how=how):
                 self.assertEqual(rp.unattended_lines(self.load_for(how), TARGET),
                                  [head, *ENFORCED])
+
+    def test_the_helper_with_adopting_changes_only_the_ordinary_head(self):
+        for how in ("unattended", "ordinary", "not-adopted", "record-invalid", "changed"):
+            with self.subTest(how=how):
+                state = self.load_for(how)
+                plain = rp.unattended_lines(state, TARGET)
+                lines = rp.unattended_lines(state, TARGET, adopting=True)
+                if how == "ordinary":
+                    self.assertEqual(lines, [ADOPTED_ORDINARY_ADOPT_PREVIEW, *ENFORCED])
+                    self.assertEqual(lines[1:], plain[1:])
+                else:
+                    self.assertEqual(lines, plain)
+        self.put()
+        self.record_file().unlink(missing_ok=True)
+        self.assertEqual(rp.unattended_lines(self.state(), TARGET, adopting=True), [])
+
+    def test_the_adopt_preview_of_an_ordinary_only_record_says_to_adopt_again(self):
+        policy = with_unattended()
+        digest = self.digest(policy)
+        self.write_record(policy, rp.sentence(digest))
+        before = tree_hash(self.repo)
+        proc = run(ADOPT, str(self.repo))
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertEqual(tree_hash(self.repo), before)
+        lines = proc.stdout.splitlines()
+        self.assertEqual(lines.count(ADOPTED_ORDINARY_ADOPT_PREVIEW), 1, proc.stdout)
+        head = lines.index(ADOPTED_ORDINARY_ADOPT_PREVIEW)
+        sentence_at = lines.index(f"  {rp.unattended_sentence(digest)}")
+        self.assertLess(head, sentence_at)
+        self.assertNotIn("adopt-retention-policy", lines[head])
+        self.assertNotIn(": run workflow-manager adopt-retention-policy", proc.stdout)
 
     def test_prune_false_says_so_in_every_state(self):
         for how in ("unattended", "ordinary", "not-adopted", "changed"):
