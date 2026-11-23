@@ -44538,18 +44538,22 @@
       "registry_path": "docs/ai-workflow/registry/unattended-adopt-wording-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/unattended-adopt-wording-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "IMPLEMENTING",
+      "phase": "SELF_REVIEWING_IMPLEMENTATION",
       "plan_revision": 2,
       "implementation_revision": null,
       "functional_review_round": null,
       "base_commit": "87c946035e6045b337b7bf09d764a4a9c5b152c8",
       "reviewed_implementation_head": null,
       "current_checkpoint_id": null,
-      "last_completed_checkpoint_id": "CP1",
+      "last_completed_checkpoint_id": "CP2",
       "checkpoints": {
         "CP1": {
           "status": "COMPLETE",
           "start_commit": "ed27c82179015ef7fcd6529ed166de56b4f23ef3"
+        },
+        "CP2": {
+          "status": "COMPLETE",
+          "start_commit": "6269921a5cdf34a197347b9e3e4019a76355bf91"
         }
       },
       "current_bundle_id": "3a580dbe94a6a25a2b146346212aefe270ad9e07db4370fd36689750a09fb8d6",
@@ -44678,8 +44682,8 @@
           "external": 0
         }
       },
-      "state_revision": 11,
-      "last_transition": "2026-11-23T04:13:55Z",
+      "state_revision": 13,
+      "last_transition": "2026-11-23T04:15:14Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",

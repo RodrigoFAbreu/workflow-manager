@@ -648,6 +648,20 @@ class TestPage(unittest.TestCase):
             with self.subTest(needle=needle):
                 self.assertIn(needle, self.page)
 
+    def test_the_page_says_the_owner_adopts_again(self):
+        self.assertEqual(self.page.count("so the owner adopts the policy again"), 2)
+        for needle in (
+                "and the owner adopts the policy again; a hand-written record",
+                "print the same lines, except that the adopt preview, for a file adopted with "
+                "the ordinary sentence only, says to adopt again with the unattended sentence "
+                "it prints below"):
+            with self.subTest(needle=needle):
+                self.assertIn(needle, self.page)
+        for needle in ("and the policy is adopted again", "so the policy is adopted again",
+                       "print the same lines; a file without the key"):
+            with self.subTest(needle=needle):
+                self.assertNotIn(needle, self.page)
+
     def test_the_page_names_no_internal_id(self):
         for needle in ("unattended-retention-policy", "#254", "A1", "CP3", "WORKFLOW_STATE"):
             with self.subTest(needle=needle):
