@@ -2,21 +2,21 @@
 
 ## Milestone
 
-**Complete.** `unattended-adopt-wording` (`governing_workflow_version: "2.2"`, `process`, plan revision 2, base `87c9460`, branch `milestone/unattended-adopt-wording`): the three points of issue #259, one mechanism: what the adopt output and the documentation say about adopting again, and the tests that pin it. Accepted by policy (`policy:bae758b4f4ce`).
+**Complete.** `retention-followup-pins` (`governing_workflow_version: "2.2"`, `process`, plan revision 1, base `d2be4f8`, branch `milestone/retention-followup-pins`): tests and two docs sentences brought into line with the code (#257, #270, #264 points 1 and 2). Tests and docs only: no `src/` change, no release.
 
-Plan: `docs/ai-workflow/WORKFLOW_MANAGER_UNATTENDED_ADOPT_WORDING_PLAN.md` (archived copy in `docs/milestones/completed/`).
+Plan: `docs/ai-workflow/WORKFLOW_MANAGER_RETENTION_FOLLOWUP_PINS_PLAN.md`.
 
-Pull request title: `fix: tell the adopt preview to adopt again with the unattended sentence instead of running itself`.
+Pull request title: `test: pin the retention follow-ups and say in the docs what the code prints`.
 
 ### Checkpoints
 
-- CP1 -- the adopt preview says to adopt again, and the mixed-confirmation refusal is pinned in full: **complete**. `retention_policy.unattended_lines(state, target, *, adopting=False)`; `cmd_adopt_retention_policy` passes `adopting=True`; `status`, `doctor` and the cleanup preview keep the shared text.
-- CP2 -- the docs say the owner adopts again, and the ROADMAP row: **complete**. `docs/retention.md` says "the owner adopts the policy again"; row 53 of `docs/ROADMAP.md` is Done.
+- CP1 -- the tests: a quoted verify command and the adopting helper's empty states: **complete**. The `not-verified` note is compared with `shlex.join`, a spaced target is pinned, and the adopting helper test covers a missing and an invalid policy file. Both mutations (`" ".join`, a guard that lets an empty policy through) fail the new tests.
+- CP2 -- the docs say what the code prints, and their pins: **complete**. `docs/retention.md` says archives beyond the cap are left for a later run and what a prune stop prints; `docs/exit-codes.md` names both stop lines; `TestPage` and the zero-deleted stop test pin them. The four docs/code mutations fail the new tests; the full gate passed (16780 tests).
 
-### Findings
+### Acceptance
 
-The four Optional findings (`F-c939785685a6`, `F-f5884c700870`, `F-9bcaf4ea730c`, `F-a04152085a98`) and their dispositions are in `docs/milestones/completed/unattended-adopt-wording-findings.md`.
+Accepted by policy (`/satisfy-gate acceptance`): all ten functional flows passed at the approved content, the pull request's checks are green and the technical approval is current. The three Optional findings have recorded dispositions (`docs/milestones/completed/retention-followup-pins-findings.md`). #264 stays open for its point 3, the `KeyboardInterrupt` handling in the prune apply, a `src/` change not taken here.
 
 ## Next action
 
-No roadmap item is ready: the remaining rows (5, 6) wait on the Controller (C10, C11). The Manager patch release follows the pull request merge, as its `fix:` title says.
+Plan the next item from `docs/ROADMAP.md` with `/milestone-plan`.

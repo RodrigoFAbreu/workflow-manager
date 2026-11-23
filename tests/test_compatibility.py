@@ -12,6 +12,7 @@ import contextlib
 import importlib
 import json
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -1316,10 +1317,25 @@ class TestMiscFindings(Case):
                 facts.installation = Installation(name, "full", {})
                 report = self.report(facts=facts, installed_resolved=False)
                 found = next(f for f in report.findings if f.id == "not-verified")
-                self.assertIn(f"`workflow-manager verify {self.target}` makes that comparison",
-                              found.detail)
+                command = shlex.join(["workflow-manager", "verify", str(self.target)])
+                self.assertIn(f"`{command}` makes that comparison", found.detail)
                 self.assertIn("makes that comparison, or prints why it cannot.", found.detail)
                 self.assertIn("(offline, the release is not pinned, or its package failed", found.detail)
+
+    def test_the_verify_command_in_the_note_quotes_a_target_with_a_space(self):
+        spaced = Path(self._tmp.name) / "a target"
+        init_git_repo(spaced)
+        bootstrap(spaced, support.release(LATEST), now=NOW)
+        subprocess.run(["git", "-C", str(spaced), "add", "-A"], check=True, capture_output=True)
+        subprocess.run(["git", "-C", str(spaced), "commit", "-q", "-m", "work"], check=True,
+                       capture_output=True)
+        facts = comp.read_repository(spaced)
+        facts.installation = Installation(self.VALID_RECORDS[0], "full", {})
+        report = self.report(facts=facts, installed_resolved=False)
+        found = next(f for f in report.findings if f.id == "not-verified")
+        self.assertIn(f"`workflow-manager verify {shlex.quote(str(spaced))}` makes that comparison",
+                      found.detail)
+        self.assertNotEqual(shlex.quote(str(spaced)), str(spaced))
 
     def test_a_refused_drift_and_an_unresolved_release_report_both_truthfully(self):
         self.commit()
