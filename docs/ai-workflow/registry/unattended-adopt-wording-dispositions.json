@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "work_item_id": "unattended-adopt-wording",
+  "dispositions": {
+    "F-a04152085a98": {
+      "disposition": "follow-up",
+      "link": "https://github.com/RodrigoFAbreu/workflow-manager/issues/270"
+    },
+    "F-9bcaf4ea730c": {
+      "disposition": "dropped",
+      "reason": "Plan wording only: the plan's CP1 verification line says first two rows where section 3 lists three; the approved plan is frozen and the functional review ran the mutations."
+    },
+    "F-c939785685a6": {
+      "disposition": "dropped",
+      "reason": "Plan wording only: two line references in plan section 1 are a few lines off; no decision depends on them."
+    },
+    "F-f5884c700870": {
+      "disposition": "dropped",
+      "reason": "ROADMAP row wording only: the row summarises the docs part without the qualified line-162 sentence; the sentence itself is in docs/retention.md and pinned, and ROADMAP.md is excluded from the item's deliverables."
+    }
+  }
+}
