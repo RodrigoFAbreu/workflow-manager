@@ -1,14 +1,21 @@
 {
   "schema_version": 1,
-  "sha256": "99325f5705c683fb444b24c18a3f123df4674b9017ef558408605c73254af8d4",
-  "adopted_at": "2026-11-13T08:12:38Z",
-  "confirmation": "Adopt the retention policy 99325f5705c6.",
+  "sha256": "76fcc0522a077cdeb68ce3d72799709794599a3676daa5b3f26f336d765f2d2a",
+  "adopted_at": "2026-11-23T18:08:01Z",
+  "confirmation": "Adopt the unattended retention policy 76fcc0522a07.",
   "policy": {
     "schema_version": 1,
-    "mode": "notify",
+    "mode": "both",
     "thresholds": {
       "finished_items": 30,
       "finished_folder_mib": 200
+    },
+    "unattended": {
+      "cleanup": true,
+      "prune": true,
+      "keep_recent": 5,
+      "ttl_days": 30,
+      "prune_max_per_run": 3
     }
   }
 }
