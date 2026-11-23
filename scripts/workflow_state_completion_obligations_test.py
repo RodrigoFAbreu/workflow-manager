@@ -33,6 +33,7 @@ import json
 import multiprocessing
 import os
 import re
+import shlex
 import shutil
 import stat
 import subprocess
@@ -4820,6 +4821,22 @@ class RetentionReportUnreadable(unittest.TestCase):
         self.assertEqual(by_id["w00"]["archive"], _RRU_UNREADABLE)
 
 
+def _spaced_zstd_stand_in(body, dirs):
+    """A `zstd` stand-in script run from a path that holds a space (RodrigoFAbreu/workflow#194):
+    the real program is reached through a link in a second spaced directory, and `real=` is
+    quoted. Every directory made is appended to `dirs`, the calling class's cleanup list."""
+    directory = Path(tempfile.mkdtemp(prefix="wfo zstd "))
+    dirs.append(directory)
+    link_dir = Path(tempfile.mkdtemp(prefix="wfo real zstd "))
+    dirs.append(link_dir)
+    real = link_dir / "zstd"
+    real.symlink_to(shutil.which("zstd"))
+    script = directory / "zstd"
+    script.write_text("#!/bin/sh\nreal=" + shlex.quote(str(real)) + "\n" + body)
+    script.chmod(0o755)
+    return script
+
+
 @unittest.skipUnless(_HAVE_ZSTD, "the archive tests need the zstd program on PATH")
 class RetentionArchive(unittest.TestCase):
     def setUp(self):
@@ -4837,12 +4854,8 @@ class RetentionArchive(unittest.TestCase):
 
     def stand_in(self, body):
         """A `zstd` stand-in script (`$real` is the real program)."""
-        directory = Path(tempfile.mkdtemp(prefix="wfo-zstd-"))
-        self._dirs.append(directory)
-        script = directory / "zstd"
-        script.write_text("#!/bin/sh\nreal=" + shutil.which("zstd") + "\n" + body)
-        script.chmod(0o755)
-        return str(script), directory
+        script = _spaced_zstd_stand_in(body, self._dirs)
+        return str(script), script.parent
 
     def hook(self, name, before=None, after=None):
         """Wraps `os.<name>`: `before(*args, **kwargs)` runs ahead of the real call."""
@@ -8272,12 +8285,7 @@ class RetentionTestPins(unittest.TestCase):
             shutil.rmtree(directory, ignore_errors=True)
 
     def stand_in(self, body):
-        directory = Path(tempfile.mkdtemp(prefix="wfo-zstd-"))
-        self._dirs.append(directory)
-        script = directory / "zstd"
-        script.write_text("#!/bin/sh\nreal=" + shutil.which("zstd") + "\n" + body)
-        script.chmod(0o755)
-        return str(script)
+        return str(_spaced_zstd_stand_in(body, self._dirs))
 
     def ra(self):
         rr = _RA()
@@ -8373,8 +8381,12 @@ class RetentionTestPins(unittest.TestCase):
 
     def test_p4_an_archive_whose_bytes_differ_with_names_types_and_sizes_equal_is_not_kept(self):
         rr = self.ra()
-        flip = Path(tempfile.mkdtemp(prefix="wfo-flip-"))
+        flip = Path(tempfile.mkdtemp(prefix="wfo flip "))
         self._dirs.append(flip)
+        python_dir = Path(tempfile.mkdtemp(prefix="wfo python "))
+        self._dirs.append(python_dir)
+        python = python_dir / "python"
+        python.symlink_to(sys.executable)
         script = flip / "flip.py"
         script.write_text(
             "import io, sys, tarfile\n"
@@ -8389,7 +8401,7 @@ class RetentionTestPins(unittest.TestCase):
             "sys.stdout.buffer.write(out.getvalue())\n")
         stand_in = self.stand_in(
             'if [ "$1" = "-dc" ]; then exec "$real" "$@"; fi\n'
-            f'{sys.executable} {script} | "$real" "$@"\n')
+            f'{shlex.quote(str(python))} {shlex.quote(str(script))} | "$real" "$@"\n')
         before, folder_before = rr.snap(times=False), _ra_snap(rr.root / ".ai-review" / "w00")
         result = rr.call(apply=True, zstd=stand_in)
         self.refused(result, "verify_failed")
@@ -8424,6 +8436,9 @@ class RetentionTestPins(unittest.TestCase):
         after = rr.files(folder)
         self.assertEqual({k: v[:2] for k, v in after.items()}, {k: v[:2] for k, v in folder_before.items()})
         self.assertEqual(rr.snap(times=False), before)
+        # The restored file carries the time the hook moved it to, +5 s, not a fresh touch.
+        self.assertNotEqual(after["a.txt"][2], folder_before["a.txt"][2])
+        self.assertLess(abs(after["a.txt"][2] - folder_before["a.txt"][2] - 5_000_000_000), 1_000_000)
 
     # -- #119 point 4c: the selection repeated under the lock -----------------
 
