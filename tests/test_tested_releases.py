@@ -33,6 +33,7 @@ from parallel import canonical_json, priming
 from test_parallel_runner import load_workflow_yaml
 from workflow_manager import package as package_module
 from workflow_manager import source as release_source
+from workflow_manager.release import _version_key
 
 TESTS = REPO_ROOT / "tests"
 #: The CI entry point, the reusable verification it calls and the reusable release.
@@ -67,7 +68,8 @@ class TestLockShape(unittest.TestCase):
         raw = json.loads(text)
         self.assertEqual(raw["schema_version"], 1)
         self.assertEqual(sorted(raw), ["releases", "schema_version"])
-        self.assertEqual(sorted(raw["releases"]), list(lock))
+        # In version order, not text order: 2.29.10 sorts after 2.29.9, before 2.29.2 as text.
+        self.assertEqual(sorted(raw["releases"], key=_version_key), list(lock))
         tested_releases.check_against_pins(lock, release_source.load_pins())
         self.assertEqual(tested_releases.dump_lock(lock), text)
 
