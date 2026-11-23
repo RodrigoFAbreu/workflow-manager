@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "work_item_id": "unattended-adopt-wording",
+  "requirements": {
+    "R1": {
+      "description": "The adopt-retention-policy preview of a file with the unattended key adopted only with the ordinary sentence says to adopt again with the unattended sentence printed below instead of telling the operator to run the command being run; status, doctor and the cleanup preview keep the shared text",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R2": {
+      "description": "test_a_mixed_confirmation_is_refused pins the full error cause and the next line for both policies",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R3": {
+      "description": "docs/retention.md says that the owner adopts the policy again in the three places that read as if re-adoption happens by itself, and qualifies the sentence that says the adopt preview and the cleanup preview print the same lines",
+      "checkpoint_ids": [
+        "CP2"
+      ]
+    },
+    "R4": {
+      "description": "ROADMAP row 53 exists with status Current and the last checkpoint marks it Done; the pull request title is a fix: change releasing a Manager patch",
+      "checkpoint_ids": [
+        "CP2"
+      ]
+    }
+  }
+}
