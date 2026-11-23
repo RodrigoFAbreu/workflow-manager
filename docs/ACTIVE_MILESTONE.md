@@ -13,6 +13,10 @@ Pull request title: `fix: tell the adopt preview to adopt again with the unatten
 - CP1 -- the adopt preview says to adopt again, and the mixed-confirmation refusal is pinned in full: **complete**. `retention_policy.unattended_lines(state, target, *, adopting=False)`: with `adopting` true, the head for a record adopted with the ordinary sentence only ends "adopt again with the unattended sentence printed below" instead of "run workflow-manager adopt-retention-policy TARGET"; `cmd_adopt_retention_policy` passes `adopting=True`; `status`, `doctor` and the cleanup preview keep the shared text. `test_a_mixed_confirmation_is_refused` pins the full stderr (cause and `next:` line) for both policies. New tests: the helper per state with `adopting=True`, the adopt preview through the command.
 - CP2 -- the docs say the owner adopts again, and the ROADMAP row: **complete**. `docs/retention.md`: the three sentences now say "the owner adopts the policy again" (lines 111, 149, 158); the adopt-preview/cleanup-preview sentence is qualified for the adopt preview of a file adopted with the ordinary sentence only. `TestPage.test_the_page_says_the_owner_adopts_again` pins them. ROADMAP row 53 marked Done.
 
+### Self-review
+
+- The full diff against `87c9460` (`cli.py`, `retention_policy.py`, `tests/test_retention_unattended.py`, `docs/retention.md`, `docs/ROADMAP.md`): no correctness, layer or test gap in the code and test changes. One defect fixed: CP2 recorded row 53 as marked Done, but the row still read `Current`. It now reads "Done (accepted by policy; a `fix:` change, Manager patch release)", as the plan's CP2 says, and its point (3) also names the qualified preview sentence (optional plan finding LPR2-001).
+
 ### Verification state
 
 - CP2: `python3 tests/run_all.py --select test_retention_unattended.py --select test_docs.py --select test_operator_ux_docs.py` (`verdict: exit 0`). Mutations (scratch copy outside the repository): both page reverts fail the page test; the unmutated control passes.
