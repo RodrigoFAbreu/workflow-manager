@@ -9701,6 +9701,16 @@ class TestTakeoverGuardIsNotTheOwnersToReclaim(unittest.TestCase):
             self.assertIn("take_over_claim", message)
             self.assertIn(ws.guard_release_authorization_literal(dead), message)
             self.assertEqual(ws.read_guard(repo.root, "wi")["lease_id"], dead["lease_id"])
+            # While the claim's epoch cannot be decided, the takeover's guard is still never
+            # the owner's to reclaim: the same refusal, nothing run, the guard untouched.
+            guard_file = ws.guard_path(repo.root, "wi")
+            guard_bytes = guard_file.read_bytes()
+            with mock.patch.object(ws, "_current_owner_token", return_value=(None, False)):
+                with self.assertRaises(ws.CheckpointOwnershipUnavailableError) as undecided:
+                    self._enter(repo, token, "1d", ws.ORDINARY, ran)
+            self.assertIn("take_over_claim", str(undecided.exception))
+            self.assertEqual(ran, [])
+            self.assertEqual(guard_file.read_bytes(), guard_bytes)
             record = self._takeover(repo, now="t3")
             self.assertIsNone(ws.read_guard(repo.root, "wi"))
             self.assertNotEqual(record["owner_token"], token)
@@ -9723,10 +9733,15 @@ class TestTakeoverGuardIsNotTheOwnersToReclaim(unittest.TestCase):
     def test_non_takeover_guard_of_the_same_token_is_still_reclaimed(self):
         with ScratchRepo() as repo:
             token = ws.claim_checkpoint(repo.root, "wi", "CP", now="t1")["owner_token"]
-            ws.acquire_guard(repo.root, "wi", holder_owner_token=token, checkpoint_id="CP",
-                             step="1d", step_class=ws.ORDINARY, now="t2")
+            first = ws.acquire_guard(repo.root, "wi", holder_owner_token=token, checkpoint_id="CP",
+                                     step="1d", step_class=ws.ORDINARY, now="t2")
             again = ws.acquire_guard(repo.root, "wi", holder_owner_token=token, checkpoint_id="CP",
                                      step="1f-commit", step_class=ws.DESTRUCTIVE, now="t3")
+            held = ws.read_guard(repo.root, "wi")
+            self.assertEqual(held["lease_id"], again["lease_id"])
+            self.assertNotEqual(held["lease_id"], first["lease_id"])
+            self.assertEqual(held["step"], "1f-commit")
+            self.assertEqual(held["step_class"], ws.DESTRUCTIVE)
             ws.release_guard(repo.root, "wi", again)
 
 
@@ -11711,14 +11726,26 @@ class TestReleaseCheckpointStartCommand(LiveGuardWorkerMixin, unittest.TestCase)
             self._amend(repo, state)
         return str(ctx.exception)
 
-    def _unclaimed_in_progress(self, repo, current):
+    # The pointer cases both tests below run: (name, current_checkpoint_id, status of the
+    # existing entry `CP1` the pointer names, or None when it names no entry).
+    _POINTER_CASES = (
+        ("no pointer", None, None),
+        ("a pointer naming no entry", "CP9", None),
+        ("a pointer naming an existing checkpoint that is not IN_PROGRESS", "CP1", "COMPLETE"),
+    )
+
+    def _unclaimed_in_progress(self, repo, current, other_status=None):
         """The committed state, no claim, and an uncommitted `IN_PROGRESS` entry for `self.CP`
-        whose pointer `current_checkpoint_id` is `current`."""
+        whose pointer `current_checkpoint_id` is `current`; `other_status` adds `CP1` as an
+        existing entry of that status."""
         self._start(repo, claim=False)
 
         def mutate(s):
             s = ws.transition_checkpoint_in_progress(
                 s, self.WI, self.CP, start_commit=repo.head(), now="t2")
+            if other_status is not None:
+                s["work_items"][self.WI]["checkpoints"]["CP1"] = {
+                    "status": other_status, "start_commit": repo.head()}
             s["work_items"][self.WI]["current_checkpoint_id"] = current
             return s
 
@@ -11772,14 +11799,17 @@ class TestReleaseCheckpointStartCommand(LiveGuardWorkerMixin, unittest.TestCase)
             self.assertNotIn("release that checkpoint instead", message)
 
     def test_m1_epr001_adoption_is_promised_only_when_the_pointer_names_the_entry(self):
-        for name, current in (("no pointer", None), ("a pointer naming another checkpoint", "CP9")):
+        for name, current, other_status in self._POINTER_CASES:
             with self.subTest(name), ScratchRepo() as repo:
-                self._unclaimed_in_progress(repo, current)
+                self._unclaimed_in_progress(repo, current, other_status)
                 self._assert_fresh(repo)
                 state, _ = TestRequestPlanAmendment._state_with_approved_plan(
                     repo, work_item_id=self.WI)
                 state["work_items"][self.WI]["checkpoints"] = {
                     self.CP: {"status": "IN_PROGRESS", "start_commit": repo.base}}
+                if other_status is not None:
+                    state["work_items"][self.WI]["checkpoints"]["CP1"] = {
+                        "status": other_status, "start_commit": repo.base}
                 state["work_items"][self.WI]["current_checkpoint_id"] = current
                 with self.assertRaises(ws.AmendmentCheckpointActiveError) as ctx:
                     self._amend(repo, state)
@@ -11814,9 +11844,9 @@ class TestReleaseCheckpointStartCommand(LiveGuardWorkerMixin, unittest.TestCase)
             self.assertEqual(self._observe(repo, "CP2")["kind"], "entry")
 
     def test_m1b_the_unclaimed_release_refusal_states_the_pointer_condition(self):
-        for name, current in (("no pointer", None), ("a pointer naming another checkpoint", "CP9")):
+        for name, current, other_status in self._POINTER_CASES:
             with self.subTest(name), ScratchRepo() as repo:
-                self._unclaimed_in_progress(repo, current)
+                self._unclaimed_in_progress(repo, current, other_status)
                 self._assert_fresh(repo)
                 with self.assertRaises(ws.CheckpointOwnershipStateMismatchError) as ctx:
                     self._plain_release(repo)

@@ -5751,9 +5751,23 @@ class TestPlanApprovalMutationGuardAndTakeover(unittest.TestCase):
             self.assertIn("take_over_plan_approval_transaction", message)
             self.assertIn(ws.plan_approval_guard_release_authorization_literal(dead), message)
             self.assertEqual(ws.read_plan_approval_guard(repo.root)["lease_id"], dead["lease_id"])
+            # The same dead takeover also left its claim, on its own inode (not a link of
+            # the journal, or the clear-and-relink would be unobservable).
+            journal_path = ws.plan_approval_journal_path(repo.root)
+            claim_path = journal_path.parent / f"PLAN_APPROVAL_JOURNAL.claim.{token}"
+            claim_path.write_bytes(journal_path.read_bytes())
+            planted_ino = claim_path.stat().st_ino
+            self.assertFalse(os.path.samefile(claim_path, journal_path))
+            self.assertIn(token, claim_path.read_text())
             new_token = self._takeover_journal(repo, now="t4")
             self.assertIsNone(ws.read_plan_approval_guard(repo.root))
             self.assertNotEqual(new_token, token)
+            # The route cleared the dead claim and made it again exactly once.
+            self.assertTrue(claim_path.exists())
+            self.assertNotEqual(claim_path.stat().st_ino, planted_ino)
+            self.assertFalse(os.path.samefile(claim_path, journal_path))
+            self.assertIn(token, claim_path.read_text())
+            self.assertEqual(ws.read_plan_approval_journal(repo.root)["owner_token"], new_token)
             with ws.plan_approval_guarded_mutation(
                 repo.root, owner_token=new_token, step="step-5-declaration-pin", now="t5",
             ):
@@ -5762,7 +5776,7 @@ class TestPlanApprovalMutationGuardAndTakeover(unittest.TestCase):
     def test_non_takeover_guard_of_the_same_token_is_still_reclaimed(self):
         with h.ScratchRepo() as repo:
             journal = self._open(repo)
-            ws.acquire_plan_approval_guard(
+            first = ws.acquire_plan_approval_guard(
                 repo.root, holder_owner_token=journal["owner_token"],
                 step="step-5-declaration-pin", now="t2",
             )
@@ -5770,6 +5784,10 @@ class TestPlanApprovalMutationGuardAndTakeover(unittest.TestCase):
                 repo.root, holder_owner_token=journal["owner_token"],
                 step="step-6.2-stage-ordinary", now="t3",
             )
+            held = ws.read_plan_approval_guard(repo.root)
+            self.assertEqual(held["lease_id"], again["lease_id"])
+            self.assertNotEqual(held["lease_id"], first["lease_id"])
+            self.assertEqual(held["step"], "step-6.2-stage-ordinary")
             ws.release_plan_approval_guard(repo.root, again)
 
     # -- guarded_mutation fixed window -------------------------------------
