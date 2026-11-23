@@ -425,6 +425,13 @@ class TestText(Base):
         self.put()
         self.record_file().unlink(missing_ok=True)
         self.assertEqual(rp.unattended_lines(self.state(), TARGET, adopting=True), [])
+        self.assertEqual(rp.unattended_lines(self.state(), TARGET), [])
+        self.policy_file().unlink()
+        self.assertEqual(rp.unattended_lines(self.state(), TARGET, adopting=True), [])
+        self.assertEqual(rp.unattended_lines(self.state(), TARGET), [])
+        self.put("not json")
+        self.assertEqual(rp.unattended_lines(self.state(), TARGET, adopting=True), [])
+        self.assertEqual(rp.unattended_lines(self.state(), TARGET), [])
 
     def test_the_adopt_preview_of_an_ordinary_only_record_says_to_adopt_again(self):
         policy = with_unattended()
