@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "work_item_id": "retention-followup-pins",
+  "dispositions": {
+    "F-1b33b49d4b8b": {
+      "disposition": "dropped",
+      "reason": "Plan wording only: section 1.1 describes the quoting coverage gap more strongly than it is (test_compatibility.py already pins a renderer that stops quoting); the new test covers the unresolved-release note specifically. The plan is frozen once approved."
+    },
+    "F-639a56f125fb": {
+      "disposition": "fixed",
+      "note": "The spaced-target test builds its target directly with init_git_repo and bootstrap (tests/test_compatibility.py test_the_verify_command_in_the_note_quotes_a_target_with_a_space), not by copying the fixture."
+    },
+    "F-b53caf7f33d4": {
+      "disposition": "fixed",
+      "note": "The exit-codes row no longer says a stopped cleanup 'ends with' a line: the docs state which stop lines print (pinned by TestPage, which fails when the row is reverted)."
+    }
+  }
+}
