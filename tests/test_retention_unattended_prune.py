@@ -699,12 +699,15 @@ class TestAuditFailures(Phase):
         self.assertIn("retention prune: stopped after 0 of 3 archives; interrupted", self.said)
         self.assertTrue(all(e["result"] in ("not-attempted", "stopped") for e in result.results))
         self.assertEqual(before, self.tree())
+        self.assertEqual(self.lines[-1][3:5], (None, "interrupted"))
 
     def test_an_interrupt_while_an_ok_line_is_written_says_the_archive_is_deleted(self):
         result = self.go(observer=self.interrupting(3))     # started, a ok, b ok (interrupted)
         self.assert_stopped(result, "prune", "b-mid", ("prune", "interrupted", "b-mid"))
         for text in ("interrupted", "the apply had succeeded", "the archive is deleted"):
             self.assertIn(text, result.error)
+        self.assertEqual(self.lines[-1][3], None)
+        self.assertEqual(f"retention prune: b-mid: {self.lines[-1][4]}", result.error)
         self.assertEqual(self.verbs()[-1], "prune b-mid --apply")
         self.assertEqual(len(self.verbs()), 3)
         self.assertEqual([e["result"] for e in result.results], ["done", "done", "not-attempted"])
