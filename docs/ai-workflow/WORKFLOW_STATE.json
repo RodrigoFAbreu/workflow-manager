@@ -45134,18 +45134,22 @@
       "registry_path": "docs/ai-workflow/registry/retention-followup-pins-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/retention-followup-pins-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "IMPLEMENTING",
+      "phase": "SELF_REVIEWING_IMPLEMENTATION",
       "plan_revision": 1,
       "implementation_revision": null,
       "functional_review_round": null,
       "base_commit": "d2be4f8aeb374c7ebe5a610d09a5e98edd5ce971",
       "reviewed_implementation_head": null,
       "current_checkpoint_id": null,
-      "last_completed_checkpoint_id": "CP1",
+      "last_completed_checkpoint_id": "CP2",
       "checkpoints": {
         "CP1": {
           "status": "COMPLETE",
           "start_commit": "f3137e0ca73785d480d698d64a8fba17f682a2de"
+        },
+        "CP2": {
+          "status": "COMPLETE",
+          "start_commit": "e8b9e8dcef44c4457ad252f2f1f4a9361fd110db"
         }
       },
       "current_bundle_id": "2af841cc5cbcbc2a60d5b38621770ccee2c22fa6404714c63c8b2e88dc297d92",
@@ -45274,8 +45278,8 @@
           "external": 0
         }
       },
-      "state_revision": 8,
-      "last_transition": "2026-11-23T12:58:12Z",
+      "state_revision": 10,
+      "last_transition": "2026-11-23T13:14:27Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",

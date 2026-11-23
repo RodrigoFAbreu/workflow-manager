@@ -423,7 +423,7 @@ With `--unattended`, after the archive-and-remove phase has finished without a s
 | the id is one the engine accepts | `unacceptable-id` |
 | the archive's age is known | `age-not-known` |
 
-Archives beyond the cap are counted as `capped`, not listed.
+Archives beyond the cap are not listed and are left for a later run.
 
 **Dry-run equivalence.** Before any deletion the phase runs the engine's own `prune` dry run with the same `--ttl-days` and `--repo-root` (never `--archive-root`); it must list exactly the planned ids. A difference stops the run with nothing deleted. Then it runs `prune ID --apply` once per id, and each result must remove exactly that id.
 
@@ -431,7 +431,7 @@ Archives beyond the cap are counted as `capped`, not listed.
 
 **Audit lines.** One line with `step` `prune` and result `started` (before any call to the engine's `prune`), one per archive with `ok` (deleted), `failed` (an engine refusal or an output the Manager cannot read) or `interrupted`, and one `refused` for a stop before any deletion (a report that is unavailable or incomplete, or a dry run that fails, does not finish or does not match the plan); the `started` line is written only when the selection is not empty. A stop of the policy is a `policy` line, as in the cleanup phase.
 
-**Text.** One line per archive, then `retention prune: done, N of N archives deleted; a deleted archive cannot be undone; the archive store is ~/.local/share/workflow-archive, which the Manager does not back up` (after a stop, `N of M archives were deleted before the stop`); when nothing was selected, `nothing to prune` with the `skipped:` lines; the `audit:` line last.
+**Text.** One line per archive, then `retention prune: done, N of N archives deleted; a deleted archive cannot be undone; the archive store is ~/.local/share/workflow-archive, which the Manager does not back up`. A stop prints `retention prune: stopped after N of M archives; ` and its cause and, only when at least one archive was deleted, `retention prune: N of M archives were deleted before the stop; ` followed by the same closing warning as the done line; when nothing was selected, `nothing to prune` with the `skipped:` lines; the `audit:` line last.
 
 **`--json`.** The document keeps `schema_version` 1 and gains a `prune` section: `enabled`, `outcome` (`disabled`, `not-attempted`, `nothing-to-prune`, `done` or `stopped`), `ttl_days`, `max_per_run`, `plan_digest`, `ids`, `results` (each with `id`, `result`, `engine_code` and `error`) and `skipped` (each with `id` and `reason`). The document's `outcome` is `stopped` when either phase stopped, and `stopped` names the first stop.
 

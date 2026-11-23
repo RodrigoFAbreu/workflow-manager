@@ -947,6 +947,8 @@ class TestPruneStops(Command):
         out = self.go_u(self.apply_refusal("old-a"), rep=with_archives(tc.many(5, mib=2)))
         self.assertEqual(out.code, 1, out.out)
         self.assertEqual(self.keys(), PRUNED[:2])
+        self.assertIn("retention prune: stopped after 0 of 3 archives", out.out)
+        self.assertNotIn("were deleted before the stop", out.out)
 
     def test_a_dry_run_that_differs_with_nothing_to_clean_exits_2_and_applies_nothing(self):
         bad = {"prune:dry": {"stdout": {"kind": "retention-prune", "mode": "dry-run",

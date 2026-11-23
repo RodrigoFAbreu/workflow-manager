@@ -643,7 +643,7 @@ class TestPage(unittest.TestCase):
                 "within its numbers",
                 "### The unattended prune", "`review-folder-present`", "`removal-interrupted`",
                 "Dry-run equivalence", "`prune ID --apply`", "`nothing-to-prune`",
-                "`max_per_run`", "`skipped`", "`capped`",
+                "`max_per_run`", "`skipped`", "left for a later run",
                 "retention-audit.jsonl",
                 "`nothing-eligible`",
                 "the N newest entries of the report's finished list",
@@ -668,6 +668,26 @@ class TestPage(unittest.TestCase):
                        "print the same lines; a file without the key"):
             with self.subTest(needle=needle):
                 self.assertNotIn(needle, self.page)
+
+    def test_the_page_says_what_a_stop_and_the_cap_print(self):
+        exit_codes = " ".join((REPO_ROOT / "docs" / "exit-codes.md").read_text().split())
+        for text, needle in (
+                (self.page, "Archives beyond the cap are not listed and are left for a later run."),
+                (self.page, "`retention prune: stopped after N of M archives; `"),
+                (self.page, "only when at least one archive was deleted, `retention prune: N of M "
+                            "archives were deleted before the stop; `"),
+                (exit_codes, "`retention cleanup: stopped after N of M items; `"),
+                (exit_codes, "`retention prune: stopped after N of M archives; `"),
+                (exit_codes, "the `stopped` line is what tells a stop apart")):
+            with self.subTest(needle=needle):
+                self.assertIn(needle, text)
+        for text, needle in (
+                (self.page, "counted as `capped`"),
+                (self.page, "(after a stop, `N of M archives were deleted before the stop`)"),
+                (exit_codes, "closing line is what tells a stop apart"),
+                (exit_codes, "closing `retention cleanup: stopped` line says")):
+            with self.subTest(stale=needle):
+                self.assertNotIn(needle, text)
 
     def test_the_page_names_no_internal_id(self):
         for needle in ("unattended-retention-policy", "#254", "A1", "CP3", "WORKFLOW_STATE"):
