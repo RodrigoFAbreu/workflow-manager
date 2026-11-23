@@ -8127,6 +8127,55 @@ class RetentionErrorPathsTwo(unittest.TestCase):
         self.assertEqual({k: v for k, v in after.items() if k in before}, before)
         self.assertEqual(rr.call("w00", apply=True).code, 0)
 
+    @unittest.skipUnless(os.path.isdir("/proc/self/fd"), "needs /proc to list open descriptors")
+    def test_t7a2_a_failed_stat_of_the_index_closes_its_descriptor(self):
+        def open_fds():
+            listing = {}
+            for name in os.listdir("/proc/self/fd"):
+                try:
+                    listing[int(name)] = os.readlink(f"/proc/self/fd/{name}")
+                except OSError:
+                    pass  # the listing's own descriptor, or one closed meanwhile
+            return listing
+
+        real_close = os.close
+
+        for flow in ("archive", "remove"):
+            with self.subTest(flow=flow):
+                rr = self.ra_env() if flow == "archive" else self.rm_env()
+                before = rr.snap(times=False)
+                fds_before = open_fds()
+                closed = []
+
+                def recording_close(fd):
+                    if sys._getframe(1).f_code.co_name == "_open_index":
+                        closed.append(fd)
+                    return real_close(fd)
+
+                with unittest.mock.patch.object(os, "close", recording_close):
+                    with _call_fails("fstat", "_open_index", errno.EIO) as counted:
+                        if flow == "archive":
+                            code, out, err = rr.main("w00", "--apply")
+                        else:
+                            code, out, err = rr.main_rm("w00", "--apply")
+                self.assertEqual(len(counted), 1)
+                self.assertEqual(closed, counted)
+                self.assertEqual(open_fds(), fds_before)
+                self.assertEqual(code, 2)
+                self.assertIn("error: unreadable", err)
+                self.assertIn(f"{flow} stopped on an unexpected I/O error: EIO", err)
+                after = rr.snap(times=False)
+                if flow == "archive":
+                    self.assertIn("next step: the review folder was not touched", err)
+                    added = {Path(k).name: v for k, v in after.items() if k not in before}
+                    self.assertEqual(set(added), {"index.jsonl"})
+                    self.assertEqual(added["index.jsonl"][2], 0)
+                    self.assertEqual({k: v for k, v in after.items() if k in before}, before)
+                    self.assertEqual(rr.call("w00", apply=True).code, 0)
+                else:
+                    self.assertEqual(after, before)
+                    self.assertEqual(rr.rm(apply=True).code, 0)
+
     def test_t7b_remove_turns_a_stray_oserror_into_unreadable(self):
         for site in ("_same_device", "_flow", "_judge_removal_archive"):
             with self.subTest(site=site):
