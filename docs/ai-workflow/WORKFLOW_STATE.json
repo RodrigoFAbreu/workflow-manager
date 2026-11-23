@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_work_item_id": null,
+  "active_work_item_id": "unattended-prune-interrupt",
   "work_items": {
     "plan-amendment-mechanism": {
       "work_item_type": "process",
@@ -45804,6 +45804,212 @@
         },
         "evaluated_at": "2026-11-23T14:06:09Z",
         "workflow_release": "2.29.11"
+      }
+    },
+    "unattended-prune-interrupt": {
+      "work_item_type": "process",
+      "work_item_kind": "process",
+      "work_item_id": "unattended-prune-interrupt",
+      "parent_work_item_id": null,
+      "plan_path": "docs/ai-workflow/WORKFLOW_MANAGER_UNATTENDED_PRUNE_INTERRUPT_PLAN.md",
+      "registry_path": "docs/ai-workflow/registry/unattended-prune-interrupt-registry.json",
+      "mapping_path": "docs/ai-workflow/requirements/unattended-prune-interrupt-mapping.json",
+      "governing_workflow_version": "2.2",
+      "phase": "IMPLEMENTING",
+      "plan_revision": 1,
+      "implementation_revision": null,
+      "functional_review_round": null,
+      "base_commit": "a9dda8980619aafcdee5d3fbff6f7fd07a74552b",
+      "reviewed_implementation_head": null,
+      "current_checkpoint_id": null,
+      "last_completed_checkpoint_id": null,
+      "checkpoints": {},
+      "current_bundle_id": "0ac3e014d5f54c6597b105af64526ab4a59cd6ad0878306c0272b248fb31d380",
+      "plan_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "0ac3e014d5f54c6597b105af64526ab4a59cd6ad0878306c0272b248fb31d380",
+        "approved_review_content_id": "11a71de08af7b46472c4ae1c3034c5cdccf85f13ca56f8e6c35601f64fc31731",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/WORKFLOW_MANAGER_UNATTENDED_PRUNE_INTERRUPT_PLAN.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "cc7edd50050fe1918d1a61bf58e68c97a4fca0e9"
+          },
+          {
+            "path": "docs/ai-workflow/registry/unattended-prune-interrupt-registry.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "b63c3f9814364d684d1dbbf2a106807b4c7ce48a"
+          },
+          {
+            "path": "docs/ai-workflow/requirements/unattended-prune-interrupt-mapping.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "ca864f08ca8e3095a5e76241920801d1e76424bb"
+          }
+        ],
+        "reviewed_content_commit": null,
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-11-23T16:16:29Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "11a71de08af7b46472c4ae1c3034c5cdccf85f13ca56f8e6c35601f64fc31731",
+            "ledger": {
+              "local": {
+                "bundle_id": "0ac3e014d5f54c6597b105af64526ab4a59cd6ad0878306c0272b248fb31d380",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "b6d7a79b61329f1826687816a734d6466fcd7f5ac5e5f2261a06817e8f4a954c",
+                "ledger_entry_sha256": "19ffa77f2d775a1fcb9687c3463e886b39008426202701acabbf52dfc342e025",
+                "run_ref": "session:local /home/rodrigo/Workspace/workflow-manager/.ai-review/unattended-prune-interrupt/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "0ac3e014d5f54c6597b105af64526ab4a59cd6ad0878306c0272b248fb31d380",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "4d49b15a011c33d146dc19f5b2603051c85a6c420b1abc0a00b2dd5a1a6fb60a",
+                "ledger_entry_sha256": "3097fc787cea94dddcb8ca7633293708e4eefbea69c43bddea30b59c92c22bad",
+                "run_ref": "codex:20261123T161311Z-3fdd0e4e",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-11-23T16:16:29Z",
+          "workflow_release": "2.29.11"
+        }
+      },
+      "technical_approval": null,
+      "technical_review_block_pins": [],
+      "plan_review_stages": {
+        "review_content_id": "11a71de08af7b46472c4ae1c3034c5cdccf85f13ca56f8e6c35601f64fc31731",
+        "LOCAL_MODEL_PLAN_REVIEW": {
+          "bundle_id": "0ac3e014d5f54c6597b105af64526ab4a59cd6ad0878306c0272b248fb31d380",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-11-23T16:12:45Z",
+          "verdict_sha256": "b6d7a79b61329f1826687816a734d6466fcd7f5ac5e5f2261a06817e8f4a954c",
+          "run_ref": "session:local /home/rodrigo/Workspace/workflow-manager/.ai-review/unattended-prune-interrupt/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_PLAN_REVIEW": {
+          "bundle_id": "0ac3e014d5f54c6597b105af64526ab4a59cd6ad0878306c0272b248fb31d380",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-11-23T16:15:46Z",
+          "verdict_sha256": "4d49b15a011c33d146dc19f5b2603051c85a6c420b1abc0a00b2dd5a1a6fb60a",
+          "run_ref": "codex:20261123T161311Z-3fdd0e4e",
+          "reviewer_model": "openai/gpt-6.1-sol"
+        }
+      },
+      "functional_acceptance_status": null,
+      "blocking_decisions": [],
+      "review_round_counts": {
+        "plan": {
+          "local": 1,
+          "external": 1
+        },
+        "implementation": {
+          "local": 0,
+          "external": 0
+        }
+      },
+      "state_revision": 6,
+      "last_transition": "2026-11-23T16:16:29Z",
+      "feedback_layout": "scoped",
+      "plan_review_binding": {
+        "status": "BOUND",
+        "at": "2026-11-23T16:09:11Z",
+        "consumed": null,
+        "published": {
+          "review_content_id": "11a71de08af7b46472c4ae1c3034c5cdccf85f13ca56f8e6c35601f64fc31731",
+          "plan_revision": 1
+        },
+        "bound": {
+          "review_content_id": "11a71de08af7b46472c4ae1c3034c5cdccf85f13ca56f8e6c35601f64fc31731",
+          "bundle_id": "0ac3e014d5f54c6597b105af64526ab4a59cd6ad0878306c0272b248fb31d380",
+          "plan_revision": 1
+        }
+      },
+      "optional_findings": {
+        "F-132bfef2b0a6": {
+          "digest": "132bfef2b0a6f1329d4a16807df49fb449109b9b5a85673cdeedf73742a4ae82",
+          "text": "LPR1-001 (section 1, line references): the `ok`-write line numbers are one off on the base commit. `entry[\"result\"] = \"done\"` is line 404, but the `try` is 405, the `observer(... \"ok\" ...)` call is 406-407 and `except Exception` is 408 (the plan says 405-406 and 407). The reused wording \"the apply had succeeded; no further call was made\" is at 412-414 (the plan says 410-415). The spots and the analysis are right; only the citations drift. Fix it if the plan is revised for another reason.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "11a71de08af7b46472c4ae1c3034c5cdccf85f13ca56f8e6c35601f64fc31731",
+              "verdict": "APPROVE",
+              "at": "2026-11-23T16:12:45Z"
+            }
+          ]
+        },
+        "F-a4f91c5e8fb2": {
+          "digest": "a4f91c5e8fb2e64d94c01d329312b287bcb96777be8c90e07d95f5221dbdb627",
+          "text": "LPR1-002 (section 2, the `ok` handler's text output): both neighbouring outcomes of the same step print a per-archive line: `  {id}: pruned` on success (line 418), and `  {id}: pruned, but its audit line could not be written` on an `OSError` (line 411). The new `KeyboardInterrupt` clause prints only the stop line. `docs/retention.md`'s \"Text.\" paragraph says \"One line per archive\". The stop line does say \"the archive is deleted\", and the command's `_irreversible` line still follows with the count, so nothing is lost. The implementer may emit a matching `  {id}: pruned, but the run was interrupted while its audit line was written` line for symmetry. If they do, the test should pin it. Either choice is acceptable, but record which one was made.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "11a71de08af7b46472c4ae1c3034c5cdccf85f13ca56f8e6c35601f64fc31731",
+              "verdict": "APPROVE",
+              "at": "2026-11-23T16:12:45Z"
+            }
+          ]
+        },
+        "F-de27f9d7a3e0": {
+          "digest": "de27f9d7a3e0c65598857a707feb0e85d459e0708cce6522a00c16d74edfe040",
+          "text": "LPR1-003 (section 2, `docs/exit-codes.md`): a `started` interrupt in a run whose cleanup made no calls exits 2 (`apply_attempted` is false). Row 2 of `docs/exit-codes.md` lists the prune's exit-2 stops as \"its refusal, or a dry run that does not match the plan\" and does not name an interrupt before the first call. The gap is not new: the existing report and dry-run interrupts are just as unlisted. Leaving the page unchanged is consistent with the plan's scope, but this is a candidate follow-up, not a defect of this item.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "11a71de08af7b46472c4ae1c3034c5cdccf85f13ca56f8e6c35601f64fc31731",
+              "verdict": "APPROVE",
+              "at": "2026-11-23T16:12:45Z"
+            }
+          ]
+        }
       }
     }
   }

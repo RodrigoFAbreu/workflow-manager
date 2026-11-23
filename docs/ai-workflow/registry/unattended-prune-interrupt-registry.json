@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "work_item_id": "unattended-prune-interrupt",
+  "plan_revision": 1,
+  "checkpoints": [
+    {
+      "id": "CP1",
+      "name": "The two interrupt handlers and their tests",
+      "depends_on": [],
+      "complexity": 2,
+      "session_target": 1
+    },
+    {
+      "id": "CP2",
+      "name": "The Audit lines clause and its pin",
+      "depends_on": [
+        "CP1"
+      ],
+      "complexity": 1,
+      "session_target": 1
+    }
+  ]
+}

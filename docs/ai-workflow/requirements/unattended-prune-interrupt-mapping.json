@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "work_item_id": "unattended-prune-interrupt",
+  "requirements": {
+    "R1": {
+      "description": "An interrupt while the prune phase writes its started audit line stops the phase with interrupted and no engine call",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R2": {
+      "description": "An interrupt while the prune phase writes the ok audit line after a successful apply stops the phase with interrupted, says the apply had succeeded, and records it in one audit line",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R3": {
+      "description": "docs/retention.md says the interrupted result also covers an interrupt during the started or ok line, and a test pins the clause",
+      "checkpoint_ids": [
+        "CP2"
+      ]
+    }
+  }
+}
