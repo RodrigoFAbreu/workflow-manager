@@ -8345,6 +8345,46 @@ class RetentionErrorPathsTwo(unittest.TestCase):
             self.assertTrue((rr.removing / "w00").is_dir())
             self.assertFalse((rr.root / ".ai-review" / "w00").exists())
             self.assertEqual(rr.rm(apply=True).code, 0)
+        for function, site in (("pread", "_index_ids"), ("fstat", "_judge_removal_archive")):
+            with self.subTest("in the leftover state a failed index read names the leftover once",
+                              function=function, site=site):
+                rr = self.rm_env()
+                rr.park()
+                before = rr.snap(times=False)
+                with _call_fails(function, site, errno.EIO) as counted:
+                    code, _, err = rr.main_rm("w00", "--apply")
+                self.assertTrue(counted)
+                self.assertEqual(code, 2)
+                self.assertIn("error: unreadable", err)
+                self.assertIn("remove stopped on an unexpected I/O error: EIO", err)
+                self.assertIn(f"{step}; an earlier run's leftover is untouched in ", err)
+                self.assertEqual(err.count("an earlier run's leftover is untouched in"), 1)
+                self.assertNotIn("renamed aside", err)
+                self.assertEqual(rr.renames, [])
+                self.assertEqual(rr.snap(times=False), before)
+                self.assertTrue((rr.removing / "w00").is_dir())
+                self.assertFalse((rr.root / ".ai-review" / "w00").exists())
+                self.assertEqual(rr.rm(apply=True).code, 0)
+        with self.subTest("in the leftover state an error before the archive directory is open names no leftover"):
+            rr = self.rm_env()
+            rr.park()
+            before = rr.snap(times=False)
+            # skip=0 fails the first, unwrapped os.open of _walk_chain (of "/"), before any archive-directory
+            # component is open; a later only=/skip= change must not silently retarget this case.
+            with _call_fails("open", "_walk_chain", errno.EIO) as counted:
+                code, _, err = rr.main_rm("w00", "--apply")
+            self.assertTrue(counted)
+            self.assertEqual(code, 2)
+            self.assertIn("error: unreadable", err)
+            self.assertIn("remove stopped on an unexpected I/O error: EIO", err)
+            self.assertIn(f"\n{step}\n", f"\n{err}")
+            self.assertNotIn("an earlier run's leftover", err)
+            self.assertNotIn("renamed aside", err)
+            self.assertEqual(rr.renames, [])
+            self.assertEqual(rr.snap(times=False), before)
+            self.assertTrue((rr.removing / "w00").is_dir())
+            self.assertFalse((rr.root / ".ai-review" / "w00").exists())
+            self.assertEqual(rr.rm(apply=True).code, 0)
 
     def test_t7b5_the_lock_time_reselection_names_the_leftover_once(self):
         note = "an earlier run's leftover is untouched in"

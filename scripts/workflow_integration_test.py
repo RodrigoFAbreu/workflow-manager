@@ -5729,6 +5729,38 @@ class TestPlanApprovalMutationGuardAndTakeover(unittest.TestCase):
             self.assertNotIn("take_over_plan_approval_transaction", message)
             self.assertEqual(guard_file.read_bytes(), before)
 
+        # A takeover's guard: the step is the claim guard's third arm (re-run the takeover),
+        # not the ordinary "take the transaction over".
+        with self.subTest("takeover"), h.ScratchRepo() as repo:
+            journal = self._open(repo)
+            live = ws.acquire_plan_approval_guard(
+                repo.root, holder_owner_token=journal["owner_token"],
+                step="takeover", now="t2", role="takeover",
+            )
+            guard_file = ws.plan_approval_guard_path(repo.root)
+            before = guard_file.read_bytes()
+            with self.assertRaises(ws.PlanApprovalGuardHeldError) as ctx:
+                ws.acquire_plan_approval_guard(
+                    repo.root, holder_owner_token="0" * 32,
+                    step="step-6.2-stage-ordinary", now="t3",
+                )
+            message = str(ctx.exception)
+            lease = live["lease_id"]
+            self.assertEqual(
+                message,
+                f"the plan-approval mutation guard is held by lease {lease!r} "
+                f"(step 'takeover', class {live['step_class']!r}) -- refusing to mutate the "
+                f"transaction concurrently with its owner; this session presents a token that is "
+                f"not the owner's, so it is not the holder: that guard is a takeover's: let a "
+                f"running takeover finish, or, if it died, re-run it: "
+                f"`workflow_state.plan_approval_takeover_evidence`, then "
+                f"`workflow_state.take_over_plan_approval_transaction` with the takeover literal "
+                f"and the guard-release literal "
+                f"{ws.plan_approval_guard_release_authorization_literal(live)!r}")
+            self.assertNotIn("then run this again", message)
+            self.assertEqual(guard_file.read_bytes(), before)
+            self.assertEqual(ws.read_plan_approval_guard(repo.root), live)
+
     # -- takeover-fence (#82, `D-Handoff`) -----------------------------------
 
     def _takeover_journal(self, repo, now="t9"):
