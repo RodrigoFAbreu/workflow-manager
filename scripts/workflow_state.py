@@ -3831,10 +3831,24 @@ def _acquire_plan_approval_guard_locked(
                 f"{authorized_lease_id!r} -- the owner is live; refusing to break it"
             )
     if not reclaim:
+        if held.get("step_class") == DESTRUCTIVE:
+            next_step = (
+                f"let the owning session finish (no takeover authorization breaks a destructive "
+                f"window); if that session is genuinely gone, remove "
+                f"{plan_approval_guard_path(repo_root, guard_path)} by hand once that is "
+                f"independently established; then run this again")
+        else:
+            next_step = (
+                f"let the owning session finish, or, if that session is gone, take the "
+                f"transaction over: `workflow_state.plan_approval_takeover_evidence`, then "
+                f"`workflow_state.take_over_plan_approval_transaction` with the takeover literal "
+                f"and the guard-release literal "
+                f"{plan_approval_guard_release_authorization_literal(held)!r}; then run this again")
         raise PlanApprovalGuardHeldError(
             f"the plan-approval mutation guard is held by lease {held.get('lease_id')!r} "
             f"(step {held.get('step')!r}, class {held.get('step_class')!r}) -- refusing to "
-            f"mutate the transaction concurrently with its owner"
+            f"mutate the transaction concurrently with its owner; this session presents a token "
+            f"that is not the owner's, so it is not the holder: {next_step}"
         )
 
     _release_plan_approval_guard_locked(repo_root, held.get("lease_id"), guard_path)

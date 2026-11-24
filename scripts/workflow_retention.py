@@ -593,9 +593,14 @@ def _stray_io(command: str, next_step: str):
     return decorate
 
 
-def _entry_error(path: str, kind: str) -> RetentionError:
+def _leave_step(command: str) -> str:
+    """The "leave it" alternative of a walk refusal, true for the running command."""
+    return "leave the review folder where it is" if command == "remove" else "leave the item unarchived"
+
+
+def _entry_error(path: str, kind: str, command: str = "archive") -> RetentionError:
     return _refuse("unsupported_entry", f"{path} is {kind}, which the archive does not store",
-                   "move it out of the review folder by hand, or leave the item unarchived")
+                   f"move it out of the review folder by hand, or {_leave_step(command)}")
 
 
 def _kind_of(mode: int) -> str | None:
@@ -608,14 +613,14 @@ def _kind_of(mode: int) -> str | None:
     return None
 
 
-def _walk_folder(ai_fd: int, item_id: str):
+def _walk_folder(ai_fd: int, item_id: str, command: str = "archive"):
     """Yields `(rel, dirfd, dir_stat, others)` per directory, topdown, sorted:
     `others` is the sorted list of `(name, lstat, kind)` of everything that is
     not a real subdirectory (a symlink to a directory included, never
     descended). Everything is read through descriptors; a link is never followed."""
     def failed(exc: OSError) -> None:
         raise _refuse("unreadable", f"{exc.filename or item_id} cannot be read: {exc.strerror or exc}",
-                      "grant read access to the review folder, or leave the item unarchived")
+                      f"grant read access to the review folder, or {_leave_step(command)}")
 
     try:
         top = os.stat(item_id, dir_fd=ai_fd, follow_symlinks=False)
@@ -628,7 +633,7 @@ def _walk_folder(ai_fd: int, item_id: str):
             return _refuse("folder_changed", f"{item_id} vanished while the folder was read",
                            "run it again when nothing writes to the review folder")
         return _refuse("unreadable", f"{exc.filename or item_id} cannot be read: {exc.strerror or exc}",
-                       "grant read access to the review folder, or leave the item unarchived")
+                       f"grant read access to the review folder, or {_leave_step(command)}")
 
     seen = False
     for dirpath, dirnames, filenames, dirfd in _guard_walk(
@@ -645,9 +650,9 @@ def _walk_folder(ai_fd: int, item_id: str):
                               "run it again when nothing writes to the review folder") from None
             kind = _kind_of(info.st_mode)
             if kind is None:
-                raise _entry_error(shown, "a socket, FIFO or device")
+                raise _entry_error(shown, "a socket, FIFO or device", command)
             if kind == "file" and info.st_nlink > 1:
-                raise _entry_error(shown, "a file with more than one hard link")
+                raise _entry_error(shown, "a file with more than one hard link", command)
             if kind == "dir":
                 real_dirs.append(name)
             else:
@@ -680,10 +685,10 @@ def _readlink_at(name: str, dirfd: int, shown: str, *, fail=_refuse) -> str:
                    "partial view") from None
 
 
-def _scan(ai_fd: int, item_id: str) -> list[dict]:
+def _scan(ai_fd: int, item_id: str, command: str = "archive") -> list[dict]:
     """The stat-only walk: one record per entry, root included (path '')."""
     records = []
-    for rel, dirfd, dir_info, others in _walk_folder(ai_fd, item_id):
+    for rel, dirfd, dir_info, others in _walk_folder(ai_fd, item_id, command):
         records.append(_record(rel, "dir", dir_info))
         for name, info, kind in others:
             shown = f"{rel}/{name}" if rel else name
@@ -692,7 +697,7 @@ def _scan(ai_fd: int, item_id: str) -> list[dict]:
     return records
 
 
-def _open_file(name: str, dirfd: int, shown: str) -> int:
+def _open_file(name: str, dirfd: int, shown: str, command: str = "archive") -> int:
     flags = os.O_RDONLY | os.O_NOFOLLOW | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_CLOEXEC", 0)
     noatime = getattr(os, "O_NOATIME", 0)
     try:
@@ -705,8 +710,8 @@ def _open_file(name: str, dirfd: int, shown: str) -> int:
     except OSError as exc:
         if exc.errno in (errno.EACCES, errno.EPERM):
             raise _refuse("unreadable", f"{shown} cannot be read ({exc.strerror or exc})",
-                          "grant read access to the review folder; the engine does not archive from a partial view"
-                          ) from None
+                          f"grant read access to the review folder; the engine does not {command} from a partial "
+                          "view") from None
         raise _refuse("folder_changed", f"{shown} changed while the folder was read ({exc.strerror or exc})",
                       "run it again when nothing writes to the review folder") from None
 
@@ -1475,14 +1480,14 @@ def _hash_folder(dir_fd: int, item_id: str) -> list[dict]:
     SHA-256 for every file (one read each; the same size and link checks as the
     pack)."""
     records = []
-    for rel, dirfd, dir_info, others in _walk_folder(dir_fd, item_id):
+    for rel, dirfd, dir_info, others in _walk_folder(dir_fd, item_id, "remove"):
         records.append(_record(rel, "dir", dir_info))
         for name, info, kind in others:
             shown = f"{rel}/{name}" if rel else name
             if kind == "symlink":
                 records.append(_record(shown, kind, info, _readlink_at(name, dirfd, shown)))
                 continue
-            fd = _open_file(name, dirfd, shown)
+            fd = _open_file(name, dirfd, shown, "remove")
             try:
                 opened = os.fstat(fd)
                 if not stat.S_ISREG(opened.st_mode) or opened.st_nlink > 1 or \
@@ -1686,20 +1691,12 @@ def _judge_removal_archive(adir_fd: int | None, item_id: str, resolved: str) -> 
     index line. Returns the archive's size."""
     ids: set[str] = set()
     if adir_fd is not None:
-        try:
-            fd, _ = _open_index(adir_fd, write=False)
-            if fd is not None:
-                try:
-                    ids = _index_ids(fd, os.fstat(fd).st_size)
-                finally:
-                    os.close(fd)
-        except OSError as exc:
-            # An I/O error on the index after it was opened, before any rename
-            # (the open's own failures are already mapped `RetentionError`s and
-            # pass through): the backstop's "renamed aside" would be false here.
-            raise _refuse("unreadable", _stray_message("remove", exc),
-                          "this run renamed nothing: the review folder is where it was before it started; "
-                          "repair the cause, then run the same command again") from None
+        fd, _ = _open_index(adir_fd, write=False)
+        if fd is not None:
+            try:
+                ids = _index_ids(fd, os.fstat(fd).st_size)
+            finally:
+                os.close(fd)
     final = f"{item_id}{ARCHIVE_SUFFIX}"
     info = _lstat_at(final, adir_fd, shown=os.path.join(resolved, final)) if adir_fd is not None else None
     has_file = info is not None and stat.S_ISREG(info.st_mode)
@@ -1715,6 +1712,16 @@ def _judge_removal_archive(adir_fd: int | None, item_id: str, resolved: str) -> 
 def _leftover_note(resolved: str, item_id: str) -> str:
     return (f"an earlier run's leftover is untouched in {os.path.join(resolved, _REMOVING, item_id)}; once this is "
             f"resolved, run `remove {item_id} --apply` again")
+
+
+_NOTHING_RENAMED = ("this run renamed nothing: the review folder is where it was before it started; repair the "
+                    "cause, then run the same command again")
+
+
+def _before_the_rename(exc: OSError) -> RetentionError:
+    """The refusal for an unexpected I/O error that `remove` meets before the rename: the
+    backstop's "renamed aside" would be false there."""
+    return _refuse("unreadable", _stray_message("remove", exc), _NOTHING_RENAMED)
 
 
 def _has_leftover(adir_fd: int | None, item_id: str) -> bool:
@@ -1733,12 +1740,21 @@ def _has_leftover(adir_fd: int | None, item_id: str) -> bool:
     return info is not None and stat.S_ISDIR(info.st_mode)
 
 
+def _add_leftover_note(exc: RetentionError, adir_fd: int | None, resolved: str, item_id: str) -> RetentionError:
+    """Names an earlier run's leftover once: a refusal that already carries the note keeps one."""
+    if _has_leftover(adir_fd, item_id) and exc.code != "leftover_conflict" and \
+            _leftover_note(resolved, item_id) not in exc.next_step:
+        exc.next_step += "; " + _leftover_note(resolved, item_id)
+    return exc
+
+
 def _select_removal(repo_root, item_id, archive_root, now, run, resolve, zstd, fds) -> dict:
     """D-Selection 1 to 11 for `remove`; nothing is written. Returns the facts the
     dry run and the flow share."""
-    root, ai_fd, report, record, resolved, adir_fd = _select_finished(
-        repo_root, item_id, archive_root, now, run, resolve, fds, "remove", needs=("rename",))
+    adir_fd = resolved = None
     try:
+        root, ai_fd, report, record, resolved, adir_fd = _select_finished(
+            repo_root, item_id, archive_root, now, run, resolve, fds, "remove", needs=("rename",))
         archive_bytes = _judge_removal_archive(adir_fd, item_id, resolved)                       # 6
         if _git_tracked(root, item_id):                                                # 7
             raise _refuse("tracked_files", f"Git tracks an entry at or under .ai-review/{item_id}",
@@ -1766,7 +1782,7 @@ def _select_removal(repo_root, item_id, archive_root, now, run, resolve, zstd, f
                 if _underneath(entry["path"], folder_path):
                     raise _refuse("unreadable", f"{entry['path']} cannot be read ({entry['error']})",
                                   "repair it; the engine does not remove from a partial view")
-        entries = _scan(folder_fd, item_id)
+        entries = _scan(folder_fd, item_id, "remove")
         if state == "L0" and not _same_device(ai_fd, adir_fd):                         # 10
             raise _refuse("cross_device", ".ai-review and the archive directory are on different file systems",
                           "run the engine by hand with an --archive-root on the repository's file system (archive "
@@ -1776,9 +1792,10 @@ def _select_removal(repo_root, item_id, archive_root, now, run, resolve, zstd, f
             raise _refuse("zstd_missing", "the zstd program was not found on PATH",
                           "install zstd so that it is on the PATH")
     except RetentionError as exc:
-        if _has_leftover(adir_fd, item_id) and exc.code != "leftover_conflict":
-            exc.next_step += "; " + _leftover_note(resolved, item_id)
+        _add_leftover_note(exc, adir_fd, resolved, item_id)
         raise
+    except OSError as exc:
+        raise _add_leftover_note(_before_the_rename(exc), adir_fd, resolved, item_id) from None
     return {"root": root, "ai_fd": ai_fd, "adir_fd": adir_fd, "removing_fd": removing_fd, "report": report,
             "record": record, "resolved": resolved, "state": state, "folder_fd": folder_fd,
             "folder_path": folder_path, "entries": entries, "program": program, "archive_bytes": archive_bytes}
@@ -1804,9 +1821,7 @@ def remove_item(repo_root, item_id: str, *, apply: bool = False, archive_root=DE
         leftover = sel["state"] == "L1"
 
         def note(exc: RetentionError) -> RetentionError:
-            if _has_leftover(sel["adir_fd"], item_id) and exc.code != "leftover_conflict":
-                exc.next_step += "; " + _leftover_note(resolved, item_id)
-            return exc
+            return _add_leftover_note(exc, sel["adir_fd"], resolved, item_id)
 
         if not apply:
             try:                                                                       # 12
@@ -1817,6 +1832,8 @@ def remove_item(repo_root, item_id: str, *, apply: bool = False, archive_root=DE
                     raise _mismatch(diffs, missing, archive)
             except RetentionError as exc:
                 raise note(exc) from None
+            except OSError as exc:
+                raise note(_before_the_rename(exc)) from None
             removed, folder = {"removed": False}, sel["entries"]
         else:
             removed, folder = _flow(sel, item_id, name, archive, removing_place, ai_place, note, fds, repo_root,
@@ -1877,6 +1894,8 @@ def _flow(sel, item_id, name, archive, removing_place, ai_place, note, fds, repo
         if created:
             _drop_container(adir_fd)
         raise note(exc) from None
+    except OSError as exc:
+        raise note(_before_the_rename(exc)) from None
     ai_fd = sel["ai_fd"]
 
     def leave_in_place(exc: RetentionError) -> RetentionError:
@@ -1930,7 +1949,7 @@ def _flow(sel, item_id, name, archive, removing_place, ai_place, note, fds, repo
         compared = True
         if diffs:
             raise _mismatch(diffs, missing, archive)
-        if [_comparable(r) for r in _scan(removing_fd, item_id)] != [_comparable(r) for r in records]:
+        if [_comparable(r) for r in _scan(removing_fd, item_id, "remove")] != [_comparable(r) for r in records]:
             raise _refuse("folder_changed", "the folder changed while it was verified",
                           "nothing was deleted; run it again when nothing writes to the folder")
     except RetentionError as exc:                                                      # 6, a refusal

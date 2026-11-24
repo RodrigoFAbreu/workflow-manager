@@ -7812,9 +7812,10 @@ def _fwalk_fails(site, err, skip=0):
 
 @contextlib.contextmanager
 def _call_fails(function, site, err, skip=0, only=None):
-    """Fails `os.<function>` (`fstat`, `close`, `open`) when called by the
-    function `site`, after `skip` earlier calls passed; `only` narrows by the
-    first argument. Yields the list of the calls counted."""
+    """Fails `os.<function>` (`fstat`, `close`, `open`, `pread`) when called by
+    the function `site`, after `skip` earlier calls passed; `only` narrows by
+    the first argument (a name, a path or a descriptor). Yields the list of
+    the calls counted."""
     real = getattr(os, function)
     counted = []
 
@@ -8246,6 +8247,21 @@ class RetentionErrorPathsTwo(unittest.TestCase):
                 self.assertTrue((rr.root / ".ai-review" / "w00").is_dir())
                 self.assertFalse((rr.removing / "w00").exists())
                 self.assertEqual(rr.rm(apply=True).code, 0)
+        with self.subTest("remove --apply, the read"):
+            rr = self.rm_env()
+            before = rr.snap(times=False)
+            with _call_fails("pread", "_index_ids", errno.EIO) as counted:
+                code, _, err = rr.main_rm("w00", "--apply")
+            self.assertTrue(counted)
+            self.assertEqual(code, 2)
+            self.assertIn("error: unreadable", err)
+            self.assertIn("remove stopped on an unexpected I/O error: EIO", err)
+            self.assertIn(step, err)
+            self.assertNotIn("renamed aside", err)
+            self.assertEqual(rr.snap(times=False), before)
+            self.assertTrue((rr.root / ".ai-review" / "w00").is_dir())
+            self.assertFalse((rr.removing / "w00").exists())
+            self.assertEqual(rr.rm(apply=True).code, 0)
         with self.subTest("remove --apply, the close"):
             rr = self.rm_env()
             before = rr.snap(times=False)
@@ -8282,6 +8298,184 @@ class RetentionErrorPathsTwo(unittest.TestCase):
             self.assertEqual(code, 2)
             self.assertIn("may be in the archive directory's `.removing/w00`", err)
             self.assertNotIn("this run renamed nothing", err)
+
+    def test_t7b4_every_stray_before_the_rename_says_nothing_was_renamed(self):
+        step = ("next step: this run renamed nothing: the review folder is where it was before it started; "
+                "repair the cause, then run the same command again")
+        cases = (
+            ("the dry run, the stat in the comparison", False, "fstat", "_hash_folder", 0),
+            ("the dry run, the close in the comparison", False, "close", "_hash_folder", 0),
+            ("the dry run, the close of the archive descriptor", False, "close", "_archive_table", 0),
+            ("remove --apply, the first stat under the lock", True, "fstat", "_flow", 0),
+            ("remove --apply, the second stat under the lock", True, "fstat", "_flow", 1),
+            ("remove --apply, the device check of the first selection", True, "fstat", "_same_device", 1),
+            ("remove --apply, the device check of the repeated selection", True, "fstat", "_same_device", 2),
+        )
+        for label, apply, function, site, skip in cases:
+            with self.subTest(label):
+                rr = self.rm_env()
+                before = rr.snap(times=False)
+                with _call_fails(function, site, errno.EIO, skip=skip) as counted:
+                    code, _, err = rr.main_rm("w00", "--apply") if apply else rr.main_rm("w00")
+                self.assertTrue(counted)
+                self.assertEqual(code, 2)
+                self.assertIn("error: unreadable", err)
+                self.assertIn("remove stopped on an unexpected I/O error: EIO", err)
+                self.assertIn(step, err)
+                self.assertNotIn("renamed aside", err)
+                self.assertEqual(rr.snap(times=False), before)
+                self.assertEqual(rr.renames, [])
+                self.assertTrue((rr.root / ".ai-review" / "w00").is_dir())
+                self.assertFalse((rr.removing / "w00").exists())
+                self.assertEqual(rr.rm(apply=True).code, 0)
+        with self.subTest("in the leftover state the step names the leftover once"):
+            rr = self.rm_env()
+            rr.park()
+            before = rr.snap(times=False)
+            with _call_fails("fstat", "_flow", errno.EIO) as counted:
+                code, _, err = rr.main_rm("w00", "--apply")
+            self.assertTrue(counted)
+            self.assertEqual(code, 2)
+            self.assertIn("error: unreadable", err)
+            self.assertIn(step, err)
+            self.assertNotIn("renamed aside", err)
+            self.assertEqual(err.count("an earlier run's leftover is untouched in"), 1)
+            self.assertIn(f"{step}; an earlier run's leftover is untouched in ", err)
+            self.assertEqual(rr.snap(times=False), before)
+            self.assertTrue((rr.removing / "w00").is_dir())
+            self.assertFalse((rr.root / ".ai-review" / "w00").exists())
+            self.assertEqual(rr.rm(apply=True).code, 0)
+
+    def test_t7b5_the_lock_time_reselection_names_the_leftover_once(self):
+        note = "an earlier run's leftover is untouched in"
+        with self.subTest("the repeated selection under the lock"):
+            rr = self.rm_env()
+            rr.park()
+            index = rr.adir / "index.jsonl"
+            good = index.read_bytes()
+
+            def spoil():
+                with open(index, "ab") as handle:
+                    handle.write(b'{"work_item_id"')
+            before = rr.snap(times=False)
+            with _hook_after_flock(spoil) as done:
+                result = rr.rm(apply=True, guard=False)
+            self.assertTrue(done)
+            self.assertEqual((result.code, result.err_code), (2, "index_invalid"))
+            self.assertEqual(result.error.next_step.count(note), 1)
+            self.assertEqual(rr.renames, [])
+            self.assertTrue((rr.removing / "w00").is_dir())
+            self.assertFalse((rr.root / ".ai-review" / "w00").exists())
+            index.write_bytes(good)
+            self.assertEqual(rr.snap(times=False), before)
+            self.assertEqual(rr.rm(apply=True).code, 0)
+        with self.subTest("a single selection carries the note once"):
+            rr = self.rm_env()
+            rr.park()
+            index = rr.adir / "index.jsonl"
+            good = index.read_bytes()
+            index.write_bytes(good + b'{"work_item_id"')
+            result = rr.rm()
+            self.assertEqual((result.code, result.err_code), (2, "index_invalid"))
+            self.assertEqual(result.error.next_step.count(note), 1)
+            index.write_bytes(good)
+            self.assertEqual(rr.rm(apply=True).code, 0)
+
+    def test_t7d_the_shared_walk_and_the_open_name_the_running_command(self):
+        leave_remove = "or leave the review folder where it is"
+        leave_archive = "or leave the item unarchived"
+
+        def step(err):
+            lines = [line for line in err.splitlines() if line.startswith("next step: ")]
+            self.assertEqual(len(lines), 1, err)
+            return lines[0][len("next step: "):]
+
+        def onerror_walk():
+            """An `os.fwalk` whose `onerror` is called with EACCES, for the walk of `_scan` only."""
+            real = os.fwalk
+
+            def stub(*args, **kwargs):
+                frame = sys._getframe(1)
+                while frame.f_code.co_name == "_walk_folder" and frame.f_back is not None:
+                    frame = frame.f_back
+                if frame.f_code.co_name != "_scan":
+                    return real(*args, **kwargs)
+
+                def walk():
+                    kwargs["onerror"](OSError(errno.EACCES, os.strerror(errno.EACCES), "w00/sub"))
+                    yield from ()
+                return walk()
+            return unittest.mock.patch.object(os, "fwalk", stub)
+
+        with self.subTest("a FIFO, remove"):
+            rr = self.rm_env()
+            os.mkfifo(rr.root / ".ai-review" / "w00" / "pipe")
+            before = rr.snap(times=False)
+            code, _, err = rr.main_rm("w00")
+            self.assertEqual(code, 2)
+            self.assertIn("error: unsupported_entry", err)
+            self.assertEqual(step(err), f"move it out of the review folder by hand, {leave_remove}")
+            self.assertEqual(rr.snap(times=False), before)
+            os.unlink(rr.root / ".ai-review" / "w00" / "pipe")
+            self.assertEqual(rr.rm(apply=True).code, 0)
+        with self.subTest("a FIFO, archive"):
+            rr = self.ra_env()
+            os.mkfifo(rr.root / ".ai-review" / "w00" / "pipe")
+            before = rr.snap(times=False)
+            code, _, err = rr.main("w00")
+            self.assertEqual(code, 2)
+            self.assertIn("error: unsupported_entry", err)
+            self.assertEqual(step(err), f"move it out of the review folder by hand, {leave_archive}")
+            self.assertEqual(rr.snap(times=False), before)
+        for label, make in (("the first step of the walk", lambda: _fwalk_fails("_scan", errno.EACCES)),
+                            ("the onerror of the walk", onerror_walk)):
+            with self.subTest(f"{label}, remove"):
+                rr = self.rm_env()
+                before = rr.snap(times=False)
+                with make():
+                    code, _, err = rr.main_rm("w00")
+                self.assertEqual(code, 2)
+                self.assertIn("error: unreadable", err)
+                self.assertEqual(step(err), f"grant read access to the review folder, {leave_remove}")
+                self.assertEqual(rr.snap(times=False), before)
+                self.assertEqual(rr.rm(apply=True).code, 0)
+            with self.subTest(f"{label}, archive"):
+                rr = self.ra_env()
+                before = rr.snap(times=False)
+                with make():
+                    code, _, err = rr.main("w00")
+                self.assertEqual(code, 2)
+                self.assertIn("error: unreadable", err)
+                self.assertEqual(step(err), f"grant read access to the review folder, {leave_archive}")
+                self.assertEqual(rr.snap(times=False), before)
+        with self.subTest("a denied open, remove"):
+            rr = self.rm_env()
+            before = rr.snap(times=False)
+            with _call_fails("open", "_open_file", errno.EACCES, only="a.txt") as counted:
+                code, _, err = rr.main_rm("w00")
+            self.assertTrue(counted)
+            self.assertEqual(code, 2)
+            self.assertIn("error: unreadable", err)
+            self.assertEqual(step(err), "grant read access to the review folder; the engine does not remove "
+                                        "from a partial view")
+            self.assertEqual(rr.snap(times=False), before)
+            self.assertEqual(rr.rm(apply=True).code, 0)
+        with self.subTest("a denied open, archive"):
+            rr = self.ra_env()
+            before = rr.snap(times=False)
+            out, errs = io.StringIO(), io.StringIO()
+            # `rr.main` runs under the write guard, which replaces `os.open`: call the engine directly.
+            with _call_fails("open", "_open_file", errno.EACCES, only="a.txt") as counted, \
+                    contextlib.redirect_stdout(out), contextlib.redirect_stderr(errs):
+                code = wr.main(["archive", "w00", "--repo-root", str(rr.root), "--archive-root",
+                                str(rr.archive_root), "--apply"], run=rr.run, resolve=rr.resolve, now=_RR_NOW)
+            err = errs.getvalue()
+            self.assertTrue(counted)
+            self.assertEqual(code, 2)
+            self.assertIn("error: unreadable", err)
+            self.assertEqual(step(err), "grant read access to the review folder; the engine does not archive "
+                                        "from a partial view")
+            self.assertEqual(rr.snap(times=False), before)
 
     def test_t7c_prune_turns_a_stray_oserror_into_unreadable(self):
         rr = _RP()
