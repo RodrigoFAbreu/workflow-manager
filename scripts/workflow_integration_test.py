@@ -5671,18 +5671,63 @@ class TestPlanApprovalMutationGuardAndTakeover(unittest.TestCase):
         `holder_owner_token` equals the journal's own current epoch but
         does *not* equal the token this call presents is never this
         session's own leftover -- refuse rather than reclaim."""
-        with h.ScratchRepo() as repo:
+        with self.subTest("ordinary"), h.ScratchRepo() as repo:
             journal = self._open(repo)
             live = ws.acquire_plan_approval_guard(
                 repo.root, holder_owner_token=journal["owner_token"],
                 step="step-5-declaration-pin", now="t2",
             )
-            with self.assertRaises(ws.PlanApprovalGuardHeldError):
+            guard_file = ws.plan_approval_guard_path(repo.root)
+            before = guard_file.read_bytes()
+            with self.assertRaises(ws.PlanApprovalGuardHeldError) as ctx:
                 ws.acquire_plan_approval_guard(
                     repo.root, holder_owner_token="0" * 32,
                     step="step-6.2-stage-ordinary", now="t3",
                 )
             self.assertEqual(ws.read_plan_approval_guard(repo.root), live)
+            self.assertEqual(guard_file.read_bytes(), before)
+            lease = live["lease_id"]
+            self.assertEqual(
+                str(ctx.exception),
+                f"the plan-approval mutation guard is held by lease {lease!r} "
+                f"(step 'step-5-declaration-pin', class 'ordinary') -- refusing to mutate the "
+                f"transaction concurrently with its owner; this session presents a token that is "
+                f"not the owner's, so it is not the holder: let the owning session finish, or, if "
+                f"that session is gone, take the transaction over: "
+                f"`workflow_state.plan_approval_takeover_evidence`, then "
+                f"`workflow_state.take_over_plan_approval_transaction` with the takeover literal "
+                f"and the guard-release literal "
+                f"{ws.plan_approval_guard_release_authorization_literal(live)!r}; then run this "
+                f"again")
+
+        # The destructive twin: no takeover authorization breaks a destructive window, so the
+        # step names the by-hand removal and no takeover route.
+        with self.subTest("destructive"), h.ScratchRepo() as repo:
+            journal = self._open(repo)
+            live = ws.acquire_plan_approval_guard(
+                repo.root, holder_owner_token=journal["owner_token"],
+                step="step-6.5-commit", now="t2",
+            )
+            guard_file = ws.plan_approval_guard_path(repo.root)
+            before = guard_file.read_bytes()
+            with self.assertRaises(ws.PlanApprovalGuardHeldError) as ctx:
+                ws.acquire_plan_approval_guard(
+                    repo.root, holder_owner_token="0" * 32,
+                    step="step-6.2-stage-ordinary", now="t3",
+                )
+            message = str(ctx.exception)
+            lease = live["lease_id"]
+            self.assertEqual(
+                message,
+                f"the plan-approval mutation guard is held by lease {lease!r} "
+                f"(step 'step-6.5-commit', class 'destructive') -- refusing to mutate the "
+                f"transaction concurrently with its owner; this session presents a token that is "
+                f"not the owner's, so it is not the holder: let the owning session finish (no "
+                f"takeover authorization breaks a destructive window); if that session is "
+                f"genuinely gone, remove {guard_file} by hand once that is independently "
+                f"established; then run this again")
+            self.assertNotIn("take_over_plan_approval_transaction", message)
+            self.assertEqual(guard_file.read_bytes(), before)
 
     # -- takeover-fence (#82, `D-Handoff`) -----------------------------------
 
