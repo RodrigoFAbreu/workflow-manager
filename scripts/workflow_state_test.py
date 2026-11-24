@@ -1252,19 +1252,23 @@ class TestStateValidation(unittest.TestCase):
     def test_repo_root_check_rejects_dot_dot_traversal_registry_path(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            outside = root.parent / "foreign.json"
-            outside.write_text(json.dumps({"work_item_id": "a", "plan_revision": 3, "checkpoints": []}))
+            # A uniquely named file of this test's own: the file exists, so the refusal comes from the
+            # traversal, and nothing of anyone else's in the parent directory is overwritten or deleted.
+            descriptor, outside_name = tempfile.mkstemp(dir=root.parent, prefix="foreign-", suffix=".json")
+            outside = Path(outside_name)
+            with os.fdopen(descriptor, "w") as handle:
+                handle.write(json.dumps({"work_item_id": "a", "plan_revision": 3, "checkpoints": []}))
             try:
                 (root / "registry").mkdir(parents=True, exist_ok=True)
                 state = _base_state(
                     a=_base_work_item(
-                        work_item_id="a", registry_path="registry/../../foreign.json", plan_revision=3,
+                        work_item_id="a", registry_path=f"registry/../../{outside.name}", plan_revision=3,
                     ),
                 )
                 with self.assertRaises(ws.MissingRegistryForPlanRevisionMirrorCheckError):
                     ws.validate_state(state, repo_root=root)
             finally:
-                outside.unlink()
+                outside.unlink(missing_ok=True)
 
     def test_repo_root_check_rejects_symlinked_registry_path(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -9723,12 +9727,26 @@ class TestTakeoverGuardIsNotTheOwnersToReclaim(unittest.TestCase):
             lease = ws.acquire_guard(repo.root, "wi", holder_owner_token=token, checkpoint_id="CP",
                                      step="takeover", step_class=ws.ORDINARY, now="t2",
                                      role="takeover")
-            wt2 = repo.worktree("b")
-            with self.assertRaises(ws.CheckpointOwnershipUnavailableError) as ctx:
-                ws.acquire_guard(wt2, "wi", holder_owner_token=token, checkpoint_id="CP",
-                                 step="1d", step_class=ws.ORDINARY, now="t3")
-            self.assertIn("presenting the claim's token is not being the holder", str(ctx.exception))
-            ws.release_guard(repo.root, "wi", lease)
+            try:
+                wt2 = repo.worktree("b")
+                guard_bytes = ws.guard_path(repo.root, "wi").read_bytes()
+                held = ws.read_guard(repo.root, "wi")
+                with self.assertRaises(ws.CheckpointOwnershipUnavailableError) as ctx:
+                    ws.acquire_guard(wt2, "wi", holder_owner_token=token, checkpoint_id="CP",
+                                     step="1d", step_class=ws.ORDINARY, now="t3")
+                self.assertIn("presenting the claim's token is not being the holder",
+                              str(ctx.exception))
+                self.assertTrue(str(ctx.exception).endswith(
+                    "; that guard is a takeover's: let a running takeover finish, or, if it died, "
+                    "re-run it: `workflow_state.takeover_evidence`, then "
+                    "`workflow_state.take_over_claim` with the takeover literal and the "
+                    "guard-release literal "
+                    f"{ws.guard_release_authorization_literal(held)!r}"))
+                self.assertEqual(ws.guard_path(repo.root, "wi").read_bytes(), guard_bytes)
+            finally:
+                # a failed assertion must not leave the guard held: a held guard
+                # makes every later test of the process raise LifecycleLockOrderError
+                ws.release_guard(repo.root, "wi", lease)
 
     def test_non_takeover_guard_of_the_same_token_is_still_reclaimed(self):
         with ScratchRepo() as repo:
@@ -10581,15 +10599,39 @@ class TestLiveGuardVisibility(LiveGuardWorkerMixin, unittest.TestCase):
             self.assertIn("take_over_claim", str(ctx.exception))
             self.assertNotIn("still running", str(ctx.exception))
             self._end_window(proc)
-        with self.subTest("the same-token other-worktree refusal"), ScratchRepo() as repo:
-            token = self._claim(repo)
-            proc, lease = self._hold(repo.root, token, "1d", ws.ORDINARY)
-            wt2 = repo.worktree("b")
-            with self.assertRaises(ws.CheckpointOwnershipUnavailableError) as ctx:
-                ws.acquire_guard(wt2, "wi", holder_owner_token=token, checkpoint_id="CP",
-                                 step="1d", step_class=ws.ORDINARY, now="t3")
-            self.assertIn("presenting the claim's token is not being the holder", str(ctx.exception))
-            self._end_window(proc)
+        for step, klass in (("1d", ws.ORDINARY), ("1f-commit", ws.DESTRUCTIVE)):
+            with self.subTest(f"the same-token other-worktree refusal, {klass} guard"), \
+                    ScratchRepo() as repo:
+                token = self._claim(repo)
+                proc, lease = self._hold(repo.root, token, step, klass)
+                try:
+                    wt2 = repo.worktree("b")
+                    guard_bytes = ws.guard_path(repo.root, "wi").read_bytes()
+                    held = ws.read_guard(repo.root, "wi")
+                    with self.assertRaises(ws.CheckpointOwnershipUnavailableError) as ctx:
+                        ws.acquire_guard(wt2, "wi", holder_owner_token=token, checkpoint_id="CP",
+                                         step="1d", step_class=ws.ORDINARY, now="t3")
+                    message = str(ctx.exception)
+                    self.assertIn("presenting the claim's token is not being the holder", message)
+                    head = ("; let that worktree finish its step, or, if its session died, resume "
+                            "there (its next entry reclaims its own leftover guard), or, if that "
+                            "worktree is gone, ")
+                    if klass == ws.DESTRUCTIVE:
+                        # only the abandoned-guard recovery breaks a destructive window
+                        self.assertTrue(message.endswith(
+                            head + "use the abandoned-guard recovery; then run this again"))
+                        self.assertNotIn("take_over_claim", message)
+                    else:
+                        # the recovery refuses an ordinary guard: name the takeover
+                        self.assertTrue(message.endswith(
+                            head + "take the claim over: `workflow_state.takeover_evidence`, then "
+                            "`workflow_state.take_over_claim` with the takeover literal and the "
+                            "guard-release literal "
+                            f"{ws.guard_release_authorization_literal(held)!r}; then run this again"))
+                        self.assertNotIn("abandoned-guard recovery", message)
+                    self.assertEqual(ws.guard_path(repo.root, "wi").read_bytes(), guard_bytes)
+                finally:
+                    self._end_window(proc)
 
     def _adopt_orphans(self):
         """Make this process a child subreaper for the rest of the test, so the

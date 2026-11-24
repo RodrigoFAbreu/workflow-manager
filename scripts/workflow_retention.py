@@ -567,6 +567,13 @@ def _refuse(code: str, message: str, next_step: str) -> RetentionError:
     return RetentionError(code, message, next_step)
 
 
+def _stray_message(command: str, exc: OSError) -> str:
+    """The cause text of the backstop's refusal for an unexpected `OSError`."""
+    name = errno.errorcode.get(exc.errno, "OSError") if exc.errno else "OSError"
+    detail = f"{name} {exc.strerror or exc}" + (f" ({exc.filename})" if exc.filename else "")
+    return f"{command} stopped on an unexpected I/O error: {detail}"
+
+
 def _stray_io(command: str, next_step: str):
     """The backstop of `archive_item`, `remove_item` and `prune_archives`: an
     `OSError` that no site maps (a bare descriptor call failing on `EIO`,
@@ -579,10 +586,8 @@ def _stray_io(command: str, next_step: str):
             try:
                 return function(*args, **kwargs)
             except OSError as exc:
-                name = errno.errorcode.get(exc.errno, "OSError") if exc.errno else "OSError"
-                detail = f"{name} {exc.strerror or exc}" + (f" ({exc.filename})" if exc.filename else "")
                 item = args[1] if len(args) > 1 else kwargs.get("item_id")
-                raise _refuse("unreadable", f"{command} stopped on an unexpected I/O error: {detail}",
+                raise _refuse("unreadable", _stray_message(command, exc),
                               next_step.replace("<id>", item) if isinstance(item, str) else next_step) from None
         return wrapper
     return decorate
@@ -1681,12 +1686,20 @@ def _judge_removal_archive(adir_fd: int | None, item_id: str, resolved: str) -> 
     index line. Returns the archive's size."""
     ids: set[str] = set()
     if adir_fd is not None:
-        fd, _ = _open_index(adir_fd, write=False)
-        if fd is not None:
-            try:
-                ids = _index_ids(fd, os.fstat(fd).st_size)
-            finally:
-                os.close(fd)
+        try:
+            fd, _ = _open_index(adir_fd, write=False)
+            if fd is not None:
+                try:
+                    ids = _index_ids(fd, os.fstat(fd).st_size)
+                finally:
+                    os.close(fd)
+        except OSError as exc:
+            # An I/O error on the index after it was opened, before any rename
+            # (the open's own failures are already mapped `RetentionError`s and
+            # pass through): the backstop's "renamed aside" would be false here.
+            raise _refuse("unreadable", _stray_message("remove", exc),
+                          "this run renamed nothing: the review folder is where it was before it started; "
+                          "repair the cause, then run the same command again") from None
     final = f"{item_id}{ARCHIVE_SUFFIX}"
     info = _lstat_at(final, adir_fd, shown=os.path.join(resolved, final)) if adir_fd is not None else None
     has_file = info is not None and stat.S_ISREG(info.st_mode)

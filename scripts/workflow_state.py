@@ -6902,7 +6902,21 @@ def _acquire_guard_locked(repo_root: Path, work_item_id: str, *, body: dict,
             f"{held.get('holder_worktree_git_dir')!r} (lease {held.get('lease_id')!r}, step "
             f"{held.get('step')!r}, class {held.get('step_class')!r}); this worktree is "
             f"{_worktree_git_dir(repo_root)!r} -- presenting the claim's token is not being the "
-            f"holder, and no worktree breaks another worktree's window here")
+            f"holder, and no worktree breaks another worktree's window here"
+            + (f"; that guard is a takeover's: let a running takeover finish, or, if it died, "
+               f"re-run it: `workflow_state.takeover_evidence`, then `workflow_state.take_over_claim` "
+               f"with the takeover literal and the guard-release literal "
+               f"{guard_release_authorization_literal(held)!r}"
+               if held.get("step") == "takeover" else
+               "; let that worktree finish its step, or, if its session died, resume there (its next "
+               "entry reclaims its own leftover guard), or, if that worktree is gone, use the "
+               "abandoned-guard recovery; then run this again"
+               if held.get("step_class") == DESTRUCTIVE else
+               f"; let that worktree finish its step, or, if its session died, resume there (its next "
+               f"entry reclaims its own leftover guard), or, if that worktree is gone, take the claim "
+               f"over: `workflow_state.takeover_evidence`, then `workflow_state.take_over_claim` with "
+               f"the takeover literal and the guard-release literal "
+               f"{guard_release_authorization_literal(held)!r}; then run this again"))
     elif role == "takeover":
         if held.get("step_class") == DESTRUCTIVE:
             raise CheckpointClaimTakeoverRefusedError(
@@ -14832,9 +14846,10 @@ def _release_start_next_step(
     work_item_id: str, checkpoint_id: object, *, entry_may_be_unclaimed: bool = False,
 ) -> str:
     """The next step the amendment refusals name (`D-Amendment-Message`). It is
-    the step for a start that was never committed, not for every case, and the
-    release has two refusals the raise sites cannot see: an `IN_PROGRESS` entry
-    with no claim, and a claim held by another worktree. The `IN_PROGRESS` raise
+    the step for a start that was never committed, not for every case: the
+    release has three cases, and this step is the first. The other two are
+    refusals the raise sites cannot see: an `IN_PROGRESS` entry with no claim,
+    and a claim held by another worktree. The `IN_PROGRESS` raise
     site does not read the claim, so it passes `entry_may_be_unclaimed` to state
     both facts under the condition each holds."""
     step = (f"If the checkpoint's own approved plan forbids completing it and its start was "
