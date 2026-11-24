@@ -185,6 +185,11 @@
       "manifest_sha256": "79613cc79586d485ff9e8df0ae1462c219952f9e973dc0bff5022d1fd3f32155",
       "sha256": "baa1137c8ba764a962b641d3b7e8a8440756abd28f57969ada8e849f9a2c65ac"
     },
+    "2.29.13": {
+      "archive": "workflow-2.29.13.tar.gz",
+      "manifest_sha256": "c491612e25584d6f7a2b56a90602721de4484ce09852ee9774ada6c117f1b8ae",
+      "sha256": "5863fd66f695948003a8ae4b01d46168f4bb0a8af892b2508445127797deab75"
+    },
     "2.29.2": {
       "archive": "workflow-2.29.2.tar.gz",
       "manifest_sha256": "dd90103f2bae4d135e14b1e206054d46c9a6b873c165e418c2fa9ced2417591f",
