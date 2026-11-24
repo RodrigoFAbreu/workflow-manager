@@ -3831,7 +3831,14 @@ def _acquire_plan_approval_guard_locked(
                 f"{authorized_lease_id!r} -- the owner is live; refusing to break it"
             )
     if not reclaim:
-        if held.get("step_class") == DESTRUCTIVE:
+        if held.get("step") == "takeover":
+            next_step = (
+                f"that guard is a takeover's: let a running takeover finish, or, if it died, "
+                f"re-run it: `workflow_state.plan_approval_takeover_evidence`, then "
+                f"`workflow_state.take_over_plan_approval_transaction` with the takeover literal "
+                f"and the guard-release literal "
+                f"{plan_approval_guard_release_authorization_literal(held)!r}")
+        elif held.get("step_class") == DESTRUCTIVE:
             next_step = (
                 f"let the owning session finish (no takeover authorization breaks a destructive "
                 f"window); if that session is genuinely gone, remove "
