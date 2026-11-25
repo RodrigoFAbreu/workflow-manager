@@ -2,24 +2,25 @@
 
 ## Milestone
 
-**Complete.** `unattended-prune-interrupt` (`governing_workflow_version: "2.2"`, `process`, plan revision 1, base `a9dda89`, branch `milestone/unattended-prune-interrupt`): an interrupt that lands while the unattended prune writes its `started` or `ok` audit line stops the phase with `interrupted` instead of escaping (#264 point 3). A Manager patch release (`fix:`).
+**Complete.** `exit-codes-interrupt-row` (`governing_workflow_version: "2.2"`, `process`, plan revision 1, implementation revision 1, base `a19f6a2`, branch `milestone/exit-codes-interrupt-row`): row 2 of the `retention-cleanup` table in `docs/exit-codes.md` says that an unattended prune interrupted before its first `prune --apply` exits 2, and one interrupted after a `prune --apply` was attempted exits 1. A test pins the clause. A follow-up of #276 (the Optional finding LPR1-003 of the previous item's plan review). Docs and one test pin only: no `src/` change and no release.
 
-Plan: `docs/ai-workflow/WORKFLOW_MANAGER_UNATTENDED_PRUNE_INTERRUPT_PLAN.md`.
+Plan: `docs/ai-workflow/WORKFLOW_MANAGER_EXIT_CODES_INTERRUPT_ROW_PLAN.md`.
 
-Pull request title: `fix: stop the unattended prune cleanly on an interrupt during its audit writes`.
+Pull request title: `docs: say in the exit codes that an unattended prune interrupt before its first call exits 2`.
 
 ### Checkpoints
 
-- CP1 -- the two interrupt handlers and their tests: **complete**. `run_phase` handles `KeyboardInterrupt` on the `started` write and on the `ok` write; two tests in `TestAuditFailures` pin the stop, the audit line and the text. The three code mutations (either clause deleted, "the apply had succeeded" dropped) fail them.
-- CP2 -- the Audit lines clause and its pin: **complete**. `docs/retention.md`'s Audit lines paragraph says an `interrupted` line is also written when the run is interrupted while the `started` line or an archive's `ok` line is written (the archive is already deleted for the latter); a `TestPage` pin holds both halves and fails against the base wording.
+- CP1 -- the interrupt clause in row 2 and its pin: **complete** (`de862da`). Only `docs/exit-codes.md` (line 34, row 2) and `tests/test_retention_unattended.py` (`TestPage.test_the_exit_codes_row_names_an_interrupt_before_the_first_prune_apply`) changed.
 
-### Self-review
+### Verification state at `4be2b8e`
 
-Self-review of the milestone diff: one gap fixed. The two interrupt tests now also pin the `interrupted` audit line's own text (plain `interrupted` for the `started` write; for the `ok` write the full text of the stop, so the line says the archive is deleted). A mutation that writes the plain `interrupted` text on the `ok` line now fails the `ok` test.
+- Targeted selection `python3 tests/run_all.py --select test_retention_unattended.py`: exit 0, 63 tests.
+- Full gate `python3 tests/run_all.py`: exit 0, 2491 of 2491 units, 16800 tests, `tree_digest` `677b68cd9772f0a2452e694b2ab510e244351456bcfc3f8d7b304ab1d786578f`.
+- The pin fails against the base page (scratch copy, 4 failures) and passes on the candidate.
 
 ### Acceptance
 
-Accepted by policy (`/satisfy-gate acceptance`): all six functional flows passed at the approved content, the pull request's checks are green and the technical approval is current. The five Optional findings have recorded dispositions (four dropped with a reason, one follow-up: #276) (`docs/milestones/completed/unattended-prune-interrupt-findings.md`). This closes point 3 of #264.
+Accepted by policy (`/satisfy-gate acceptance`): all seven functional flows passed at the approved content, the pull request's checks are green and the technical approval is current. The four Optional findings have recorded dispositions (two dropped with a reason, two follow-up: #286) (`docs/milestones/completed/exit-codes-interrupt-row-findings.md`). This closes the follow-up of #276.
 
 ## Next action
 

@@ -689,6 +689,19 @@ class TestPage(unittest.TestCase):
             with self.subTest(stale=needle):
                 self.assertNotIn(needle, text)
 
+    def test_the_exit_codes_row_names_an_interrupt_before_the_first_prune_apply(self):
+        exit_codes = " ".join((REPO_ROOT / "docs" / "exit-codes.md").read_text().split())
+        for needle in (
+                "An unattended prune that stops before any per-item call or `prune --apply` "
+                "was attempted exits 2 too",
+                "or an interrupt that lands before the first `prune --apply` (while the policy "
+                "or the fresh report is read, while its `started` audit line is written, or "
+                "during the engine's dry run)",
+                "an interrupt after a `prune --apply` was attempted exits 1"):
+            with self.subTest(needle=needle):
+                self.assertIn(needle, exit_codes)
+        self.assertNotIn("before any call of the run was attempted", exit_codes)
+
     def test_the_page_says_an_interrupt_during_an_audit_write_is_recorded(self):
         for needle in (
                 "An `interrupted` line is also written when the run is interrupted while the "
