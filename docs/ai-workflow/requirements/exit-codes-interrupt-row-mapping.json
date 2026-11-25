@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "work_item_id": "exit-codes-interrupt-row",
+  "requirements": {
+    "R1": {
+      "description": "Row 2 of the retention-cleanup table in docs/exit-codes.md says an unattended prune interrupted before its first prune --apply exits 2, and one after it exits 1",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    },
+    "R2": {
+      "description": "A test pins the new row 2 wording",
+      "checkpoint_ids": [
+        "CP1"
+      ]
+    }
+  }
+}

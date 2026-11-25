@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_work_item_id": null,
+  "active_work_item_id": "exit-codes-interrupt-row",
   "work_items": {
     "plan-amendment-mechanism": {
       "work_item_type": "process",
@@ -46428,6 +46428,219 @@
         "evaluated_at": "2026-11-23T17:12:33Z",
         "workflow_release": "2.29.11"
       }
+    },
+    "exit-codes-interrupt-row": {
+      "work_item_type": "process",
+      "work_item_kind": "process",
+      "work_item_id": "exit-codes-interrupt-row",
+      "parent_work_item_id": null,
+      "plan_path": "docs/ai-workflow/WORKFLOW_MANAGER_EXIT_CODES_INTERRUPT_ROW_PLAN.md",
+      "registry_path": "docs/ai-workflow/registry/exit-codes-interrupt-row-registry.json",
+      "mapping_path": "docs/ai-workflow/requirements/exit-codes-interrupt-row-mapping.json",
+      "governing_workflow_version": "2.2",
+      "phase": "IMPLEMENTING",
+      "plan_revision": 1,
+      "implementation_revision": null,
+      "functional_review_round": null,
+      "base_commit": "a19f6a215fda91ba55b2dc5e785b509d05079cb3",
+      "reviewed_implementation_head": null,
+      "current_checkpoint_id": null,
+      "last_completed_checkpoint_id": null,
+      "checkpoints": {},
+      "current_bundle_id": "c1b1775a54300ce7795e6843d4a274f79ba3beb16502344d637bf05030cc7feb",
+      "plan_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "c1b1775a54300ce7795e6843d4a274f79ba3beb16502344d637bf05030cc7feb",
+        "approved_review_content_id": "5bd43b2056d6f94db30d08162dcab8d05aab89beb0cdebd7cf0c8a72b73a1ad7",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/WORKFLOW_MANAGER_EXIT_CODES_INTERRUPT_ROW_PLAN.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "93760dff6160e9d3f9904697cbdad1573ba69f44"
+          },
+          {
+            "path": "docs/ai-workflow/registry/exit-codes-interrupt-row-registry.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "2e74d03d1180f476f020db543ae650a4162020fb"
+          },
+          {
+            "path": "docs/ai-workflow/requirements/exit-codes-interrupt-row-mapping.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "49f2d8fbcbdd8aea2d56a3b20b74cb449cb1a653"
+          }
+        ],
+        "reviewed_content_commit": null,
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-11-25T18:55:01Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "5bd43b2056d6f94db30d08162dcab8d05aab89beb0cdebd7cf0c8a72b73a1ad7",
+            "ledger": {
+              "local": {
+                "bundle_id": "c1b1775a54300ce7795e6843d4a274f79ba3beb16502344d637bf05030cc7feb",
+                "verdict": "APPROVE",
+                "round": 2,
+                "verdict_sha256": "6a6eb637b4a2b45fe03b9e098381c33540b13cb347de70904f2d40bcdd833088",
+                "ledger_entry_sha256": "79eff86c6f1569d672cc408da5065da0e2a4ca953eae0a55b00470d9ad7bb4a1",
+                "run_ref": "session:local .ai-review/exit-codes-interrupt-row/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "c1b1775a54300ce7795e6843d4a274f79ba3beb16502344d637bf05030cc7feb",
+                "verdict": "APPROVE",
+                "round": 2,
+                "verdict_sha256": "109fe3cdfa7f343815b10f77311c49d055fc925de8d2aeb904739fe33d4fc071",
+                "ledger_entry_sha256": "f2513d452542920a620238f4181bd5ad0f002a87392d5829cdf828886abf13b7",
+                "run_ref": "codex:20261125T185137Z-84963150",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-11-25T18:55:01Z",
+          "workflow_release": "2.29.14"
+        }
+      },
+      "technical_approval": null,
+      "technical_review_block_pins": [],
+      "plan_review_stages": {
+        "review_content_id": "5bd43b2056d6f94db30d08162dcab8d05aab89beb0cdebd7cf0c8a72b73a1ad7",
+        "LOCAL_MODEL_PLAN_REVIEW": {
+          "bundle_id": "c1b1775a54300ce7795e6843d4a274f79ba3beb16502344d637bf05030cc7feb",
+          "verdict": "APPROVE",
+          "round": 2,
+          "completed_at": "2026-11-25T18:50:11Z",
+          "verdict_sha256": "6a6eb637b4a2b45fe03b9e098381c33540b13cb347de70904f2d40bcdd833088",
+          "run_ref": "session:local .ai-review/exit-codes-interrupt-row/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_PLAN_REVIEW": {
+          "bundle_id": "c1b1775a54300ce7795e6843d4a274f79ba3beb16502344d637bf05030cc7feb",
+          "verdict": "APPROVE",
+          "round": 2,
+          "completed_at": "2026-11-25T18:53:35Z",
+          "verdict_sha256": "109fe3cdfa7f343815b10f77311c49d055fc925de8d2aeb904739fe33d4fc071",
+          "run_ref": "codex:20261125T185137Z-84963150",
+          "reviewer_model": "openai/gpt-6.1-sol"
+        }
+      },
+      "functional_acceptance_status": null,
+      "blocking_decisions": [],
+      "review_round_counts": {
+        "plan": {
+          "local": 2,
+          "external": 2
+        },
+        "implementation": {
+          "local": 0,
+          "external": 0
+        }
+      },
+      "state_revision": 10,
+      "last_transition": "2026-11-25T18:55:01Z",
+      "feedback_layout": "scoped",
+      "plan_review_binding": {
+        "status": "BOUND",
+        "at": "2026-11-25T18:47:29Z",
+        "consumed": {
+          "review_content_id": "3d53b380f59171560d27a67b51fec889117983fda4a902c0d40ef3343573b71a",
+          "plan_revision": 1,
+          "legacy": false
+        },
+        "published": {
+          "review_content_id": "5bd43b2056d6f94db30d08162dcab8d05aab89beb0cdebd7cf0c8a72b73a1ad7",
+          "plan_revision": 1
+        },
+        "bound": {
+          "review_content_id": "5bd43b2056d6f94db30d08162dcab8d05aab89beb0cdebd7cf0c8a72b73a1ad7",
+          "bundle_id": "c1b1775a54300ce7795e6843d4a274f79ba3beb16502344d637bf05030cc7feb",
+          "plan_revision": 1
+        }
+      },
+      "optional_findings": {
+        "F-0561fec1de22": {
+          "digest": "0561fec1de229d3999d72562872c104a7b01801ba2215a269d4bfc1bbe778a96",
+          "text": "LPR1-001 (section 3 vs CP1): section 3 lists `test_retention_cleanup.py` among the `--select` runs that keep the existing pins green, but CP1's verification list (`test_retention_unattended.py`, `test_retention_run.py`, `test_docs.py`, `test_operator_ux_docs.py`) omits it. The full gate covers it either way; add it to CP1's list so the two agree.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "3d53b380f59171560d27a67b51fec889117983fda4a902c0d40ef3343573b71a",
+              "verdict": "APPROVE",
+              "at": "2026-11-25T18:42:42Z"
+            }
+          ]
+        },
+        "F-486897513af8": {
+          "digest": "486897513af8354c4f819dd9c3b38e102c35b26832fb14063ff724c897385323",
+          "text": "LPR1-002 (section 2, the wording): \"an interrupt after a `prune --apply` was attempted exits 1\" also covers an interrupt during the first apply call itself (`apply_attempted` is set at `retention_prune.py:397`, before the call at 399). The wording is correct and matches row 1's \"after a `prune --apply`\"; the implementer may consider \"once a `prune --apply` was attempted\" to make the during-the-call case read unambiguously. Not required.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 1,
+              "review_content_id": "3d53b380f59171560d27a67b51fec889117983fda4a902c0d40ef3343573b71a",
+              "verdict": "APPROVE",
+              "at": "2026-11-25T18:42:42Z"
+            }
+          ]
+        },
+        "F-06792fa882cf": {
+          "digest": "06792fa882cfbc091069311bb27b39232118af9d90553e0a93ddd3cc28180cb3",
+          "text": "LPR2-001 (section 2 wording, after-apply half): the page sentence's last clause, \"an interrupt after a `prune --apply` was attempted exits 1\", is unqualified, while section 1 now (rightly) lists only the guarded operations. After the first apply there are still unguarded windows, the same class as the `select` one the external round named: `emit(f\"  {item_id}: pruned\")` at `src/workflow_manager/retention_prune.py` after the `ok`-line `try`, and the `_irreversible` summary print in `retention_unattended.py`; an interrupt there escapes as an unhandled `KeyboardInterrupt` (signal exit, not 1). The windows are a single print each and the before-half already names its places, so this does not block; at implementation, either name the guarded places in the after-half too (\"during an apply call, while its `ok` line is written, or while the policy is read before a later item\") or accept the generic wording knowingly and record that choice.",
+          "raised": [
+            {
+              "stage": "plan",
+              "role": "LOCAL_MODEL_PLAN_REVIEW",
+              "round": 2,
+              "review_content_id": "5bd43b2056d6f94db30d08162dcab8d05aab89beb0cdebd7cf0c8a72b73a1ad7",
+              "verdict": "APPROVE",
+              "at": "2026-11-25T18:50:11Z"
+            }
+          ]
+        }
+      },
+      "consumed_plan_review_content_ids": [
+        "3d53b380f59171560d27a67b51fec889117983fda4a902c0d40ef3343573b71a"
+      ]
     }
   }
 }
