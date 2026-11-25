@@ -1,0 +1,24 @@
+{
+  "dispositions": {
+    "F-0561fec1de22": {
+      "disposition": "dropped",
+      "reason": "Plan list wording only; the full gate covers the file."
+    },
+    "F-06792fa882cf": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#286",
+      "note": "Unguarded print windows after the first apply."
+    },
+    "F-15686128ed26": {
+      "disposition": "follow-up",
+      "link": "RodrigoFAbreu/workflow-manager#286",
+      "note": "Same point as F-06792fa882cf."
+    },
+    "F-486897513af8": {
+      "disposition": "dropped",
+      "reason": "Optional wording preference; the sentence is correct and matches row 1."
+    }
+  },
+  "schema_version": 1,
+  "work_item_id": "exit-codes-interrupt-row"
+}
