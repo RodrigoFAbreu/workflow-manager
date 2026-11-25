@@ -46438,7 +46438,7 @@
       "registry_path": "docs/ai-workflow/registry/exit-codes-interrupt-row-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/exit-codes-interrupt-row-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "AWAITING_LOCAL_IMPLEMENTATION_REVIEW",
+      "phase": "AWAITING_FUNCTIONAL_REVIEW",
       "plan_revision": 1,
       "implementation_revision": 1,
       "functional_review_round": null,
@@ -46543,7 +46543,96 @@
           "workflow_release": "2.29.14"
         }
       },
-      "technical_approval": null,
+      "technical_approval": {
+        "status": "CURRENT",
+        "basis": "POLICY_SATISFIED",
+        "reviewed_bundle_id": "4b362127ea83bbdb2ad0d41e6f77d6b4a3bac70850643b1be03a71f9eaab1419",
+        "approved_review_content_id": "69f000f53d03d76806f5e0e1ab1dd70b1b2b54d7065e10a6ecac2e358fd9298a",
+        "review_content_manifest": [
+          {
+            "path": "docs/ai-workflow/registry/exit-codes-interrupt-row-artifacts.json",
+            "exists": true,
+            "mode": "100644",
+            "blob": "3ddbde5763fa3f6dd7dbf98bad19d06ee0f63340"
+          },
+          {
+            "path": "docs/exit-codes.md",
+            "exists": true,
+            "mode": "100644",
+            "blob": "d9ee1fb57dd1c56417236da2f1d29bdc2567b8ff"
+          },
+          {
+            "path": "tests/test_retention_unattended.py",
+            "exists": true,
+            "mode": "100644",
+            "blob": "891e1b405f4534db9724eca2e1b4e13b5d071d8a"
+          }
+        ],
+        "reviewed_content_commit": "de862da8fa2c885cb30109fee333851144128be5",
+        "legacy_evidence": null,
+        "user_confirmation": "policy:bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+        "waived_guarantees": [],
+        "recorded_at": "2026-11-25T19:24:24Z",
+        "policy_evidence": {
+          "policy_digest": "bae758b4f4ce132042f656ca8ff42d47634c2abae3b005efbb3aa2c9513e56a3",
+          "policy_source": "default",
+          "file_digest": null,
+          "adopted_digest": null,
+          "adopted_at": null,
+          "requirements": [
+            {
+              "id": "gate_reachable",
+              "met": true,
+              "detail": "the approval gate is reachable"
+            },
+            {
+              "id": "verdict_approve_bound",
+              "met": true,
+              "detail": "the latest verdict is APPROVE and names the current bundle"
+            },
+            {
+              "id": "distinct_reviewer_models",
+              "met": true,
+              "detail": "families 'anthropic' and 'openai' differ"
+            },
+            {
+              "id": "review_evidence_audited",
+              "met": true,
+              "detail": "both stages carry the audit keys"
+            }
+          ],
+          "inputs": {
+            "review_content_id": "69f000f53d03d76806f5e0e1ab1dd70b1b2b54d7065e10a6ecac2e358fd9298a",
+            "ledger": {
+              "local": {
+                "bundle_id": "4b362127ea83bbdb2ad0d41e6f77d6b4a3bac70850643b1be03a71f9eaab1419",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "b6f39b41f75f9be852dac18c0a72c2bb99b3ddd553b186339dbae47b36751040",
+                "ledger_entry_sha256": "9a9ad858afb657a0956975216e1588dada6ed1aebee8440a368f8b2bca2b50a7",
+                "run_ref": "session:local /home/rodrigo/Workspace/workflow-manager/.ai-review/exit-codes-interrupt-row/feedback/REVIEW_FEEDBACK.md",
+                "reviewer_model": "anthropic/claude-opus-5-5"
+              },
+              "manual": {
+                "bundle_id": "4b362127ea83bbdb2ad0d41e6f77d6b4a3bac70850643b1be03a71f9eaab1419",
+                "verdict": "APPROVE",
+                "round": 1,
+                "verdict_sha256": "2b0c5b8f584df47b403745dedb7f278b09186419831a3dc90af5e150f258aca8",
+                "ledger_entry_sha256": "71d45257fa47b31210495547409ce89df239cfed1cde1faa9241dc209981b8d2",
+                "run_ref": "codex:20261125T192108Z-bc97c305",
+                "reviewer_model": "openai/gpt-6.1-sol"
+              }
+            },
+            "gate_status_digest": "208019226c6b1f204dc9cf40421b18bfb7dcdd87f3fee052ed0d7e6aa156165f"
+          },
+          "floor_digest": null,
+          "trust": {
+            "review_verdicts": "orchestrator"
+          },
+          "evaluated_at": "2026-11-25T19:24:24Z",
+          "workflow_release": "2.29.14"
+        }
+      },
       "technical_review_block_pins": [],
       "plan_review_stages": {
         "review_content_id": "5bd43b2056d6f94db30d08162dcab8d05aab89beb0cdebd7cf0c8a72b73a1ad7",
@@ -46574,12 +46663,12 @@
           "external": 2
         },
         "implementation": {
-          "local": 0,
-          "external": 0
+          "local": 1,
+          "external": 1
         }
       },
-      "state_revision": 13,
-      "last_transition": "2026-11-25T19:16:07Z",
+      "state_revision": 16,
+      "last_transition": "2026-11-25T19:24:24Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
@@ -46641,11 +46730,46 @@
               "at": "2026-11-25T18:50:11Z"
             }
           ]
+        },
+        "F-15686128ed26": {
+          "digest": "15686128ed26ebf1d87e9f5957a073ef2c0445a6176b94092240e44ad4d1d2d6",
+          "text": "LIR1-001 (plan Optional LPR2-001, no recorded disposition): the after-apply half, \"an interrupt after a `prune --apply` was attempted exits 1\", is still unqualified. The implementation kept the approved plan's generic wording, which is legitimate, but neither `IMPLEMENTATION_SUMMARY.md` nor the plan records the choice LPR2-001 asked for. There are still unguarded single-print windows after the first apply: `emit(f\"  {item_id}: pruned\")` in `retention_prune.py`, and the `_irreversible` summary in `retention_unattended.py`. The CLI has no top-level `KeyboardInterrupt` handler, so an interrupt in one of these windows escapes as a signal exit, not 1. Record a disposition at acceptance: either accept the generic wording knowingly, or file a follow-up to name the guarded places, or to guard the windows.",
+          "raised": [
+            {
+              "stage": "implementation",
+              "role": "LOCAL_MODEL_IMPLEMENTATION_REVIEW",
+              "round": 1,
+              "review_content_id": "69f000f53d03d76806f5e0e1ab1dd70b1b2b54d7065e10a6ecac2e358fd9298a",
+              "verdict": "APPROVE",
+              "at": "2026-11-25T19:19:59Z"
+            }
+          ]
         }
       },
       "consumed_plan_review_content_ids": [
         "3d53b380f59171560d27a67b51fec889117983fda4a902c0d40ef3343573b71a"
-      ]
+      ],
+      "implementation_review_stages": {
+        "review_content_id": "69f000f53d03d76806f5e0e1ab1dd70b1b2b54d7065e10a6ecac2e358fd9298a",
+        "LOCAL_MODEL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "4b362127ea83bbdb2ad0d41e6f77d6b4a3bac70850643b1be03a71f9eaab1419",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-11-25T19:19:59Z",
+          "verdict_sha256": "b6f39b41f75f9be852dac18c0a72c2bb99b3ddd553b186339dbae47b36751040",
+          "run_ref": "session:local /home/rodrigo/Workspace/workflow-manager/.ai-review/exit-codes-interrupt-row/feedback/REVIEW_FEEDBACK.md",
+          "reviewer_model": "anthropic/claude-opus-5-5"
+        },
+        "MANUAL_EXTERNAL_IMPLEMENTATION_REVIEW": {
+          "bundle_id": "4b362127ea83bbdb2ad0d41e6f77d6b4a3bac70850643b1be03a71f9eaab1419",
+          "verdict": "APPROVE",
+          "round": 1,
+          "completed_at": "2026-11-25T19:23:09Z",
+          "verdict_sha256": "2b0c5b8f584df47b403745dedb7f278b09186419831a3dc90af5e150f258aca8",
+          "run_ref": "codex:20261125T192108Z-bc97c305",
+          "reviewer_model": "openai/gpt-6.1-sol"
+        }
+      }
     }
   }
 }
