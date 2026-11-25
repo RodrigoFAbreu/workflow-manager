@@ -46438,15 +46438,20 @@
       "registry_path": "docs/ai-workflow/registry/exit-codes-interrupt-row-registry.json",
       "mapping_path": "docs/ai-workflow/requirements/exit-codes-interrupt-row-mapping.json",
       "governing_workflow_version": "2.2",
-      "phase": "IMPLEMENTING",
+      "phase": "SELF_REVIEWING_IMPLEMENTATION",
       "plan_revision": 1,
       "implementation_revision": null,
       "functional_review_round": null,
       "base_commit": "a19f6a215fda91ba55b2dc5e785b509d05079cb3",
       "reviewed_implementation_head": null,
       "current_checkpoint_id": null,
-      "last_completed_checkpoint_id": null,
-      "checkpoints": {},
+      "last_completed_checkpoint_id": "CP1",
+      "checkpoints": {
+        "CP1": {
+          "status": "COMPLETE",
+          "start_commit": "c7a60ec17b1f7f156030fbd3ea781be0222e1d7a"
+        }
+      },
       "current_bundle_id": "c1b1775a54300ce7795e6843d4a274f79ba3beb16502344d637bf05030cc7feb",
       "plan_approval": {
         "status": "CURRENT",
@@ -46573,8 +46578,8 @@
           "external": 0
         }
       },
-      "state_revision": 10,
-      "last_transition": "2026-11-25T18:55:01Z",
+      "state_revision": 12,
+      "last_transition": "2026-11-25T18:57:45Z",
       "feedback_layout": "scoped",
       "plan_review_binding": {
         "status": "BOUND",
