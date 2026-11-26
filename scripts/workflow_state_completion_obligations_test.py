@@ -6941,38 +6941,130 @@ class RetentionRemove(unittest.TestCase):
     # -- T12 ------------------------------------------------------------
 
     def test_t12_failures_during_the_delete_and_the_place(self):
-        rr = self.env()
-        rr.prepared()
-        real = os.unlink
-        count = []
+        hint = "run `remove w00 --apply` again; check the permissions of `.removing/w00`"
+        again = "run `remove w00 --apply` again"
 
-        def unlink(path, *args, **kwargs):
-            count.append(path)
-            if len(count) == 3:
-                raise OSError(errno.EIO, "Input/output error")
-            return real(path, *args, **kwargs)
+        def observed_run(rr, failing):
+            """One apply run with `os.unlink`/`os.rmdir` wrapped: `failing(kind, path, kwargs)` returns an errno
+            (the call raises it) or None; returns the result and the count of successful calls made with a
+            `dir_fd`, observed and not inferred (#143 point 3)."""
+            done = []
+            real = {"unlink": os.unlink, "rmdir": os.rmdir}
 
-        with unittest.mock.patch.object(os, "unlink", unlink):
-            result = rr.rm(apply=True)
-        self.refused(rr, result, "remove_failed")
-        self.assertRegex(result.error.message, r"stopped after deleting 3 entries, each proven archived; the rest is "
-                                               r"in .*/\.removing/w00")
-        self.assertIn("run `remove w00 --apply` again", result.error.next_step)
-        self.assertIn("check the permissions of `.removing/w00`", result.error.next_step)
-        self.assertEqual(rr.rm(apply=True).code, 0)
-        self.assertFalse((rr.removing / "w00").exists())
-        rr = self.env()
-        rr.prepared()
-        real_rmdir = os.rmdir
+            def make(kind):
+                def call(path, *args, **kwargs):
+                    err = failing(kind, path, kwargs)
+                    if err is not None:
+                        raise OSError(err, os.strerror(err))
+                    real[kind](path, *args, **kwargs)
+                    if kwargs.get("dir_fd") is not None:
+                        done.append(path)
+                return call
 
-        def rmdir(path, *args, **kwargs):
-            if path == "deeper":
-                raise OSError(errno.ENOTEMPTY, "Directory not empty")
-            return real_rmdir(path, *args, **kwargs)
+            with unittest.mock.patch.object(os, "unlink", make("unlink")), \
+                    unittest.mock.patch.object(os, "rmdir", make("rmdir")):
+                result = rr.rm(apply=True)
+            return result, len(done)
 
-        with unittest.mock.patch.object(os, "rmdir", rmdir):
-            self.refused(rr, rr.rm(apply=True), "folder_changed")
-        self.assertTrue((rr.removing / "w00").is_dir())
+        def no_write_proof(rr, archive, result, before, deleted, message):
+            self.assertEqual(result.error.message, message)
+            self.assertEqual((rr.adir / "w00.tar.zst").read_bytes(), archive)
+            self.assertFalse((rr.root / ".ai-review" / "w00").exists())
+            rest = rr.files(rr.removing / "w00")
+            self.assertEqual(len(before) - len(rest), deleted)
+            self.assertTrue(set(rest) <= set(before))
+            self.assertEqual(rr.rm(apply=True).code, 0)
+            self.assertFalse((rr.removing / "w00").exists())
+
+        with self.subTest("the unlink fails"):
+            rr = self.env()
+            rr.prepared()
+            archive = (rr.adir / "w00.tar.zst").read_bytes()
+            before = rr.files(rr.root / ".ai-review" / "w00")
+            real = os.unlink
+            count = []
+
+            def unlink(path, *args, **kwargs):
+                count.append(path)
+                if len(count) == 3:
+                    raise OSError(errno.EIO, "Input/output error")
+                return real(path, *args, **kwargs)
+
+            with unittest.mock.patch.object(os, "unlink", unlink):
+                result = rr.rm(apply=True)
+            self.refused(rr, result, "remove_failed")
+            self.assertRegex(result.error.message, r"stopped after deleting 3 entries, each proven archived; the rest "
+                                                   r"is in .*/\.removing/w00")
+            shown = re.fullmatch(r"([^ ]+) cannot be deleted \(Input/output error\); stopped after deleting 3 entries, "
+                                 r"each proven archived; the rest is in " + re.escape(str(rr.removing / "w00")),
+                                 result.error.message)
+            self.assertIsNotNone(shown, result.error.message)
+            # the shown path is relative to the folder and names the entry of the failing (third) call
+            self.assertEqual(os.path.basename(shown.group(1)), os.path.basename(count[2]))
+            self.assertIn(shown.group(1), before)
+            self.assertEqual(result.error.next_step, hint)
+            self.assertIn("run `remove w00 --apply` again", result.error.next_step)
+            self.assertIn("check the permissions of `.removing/w00`", result.error.next_step)
+            no_write_proof(rr, archive, result, before, 3, result.error.message)
+        with self.subTest("a directory that cannot be removed"):
+            rr = self.env()
+            rr.prepared()
+            archive = (rr.adir / "w00.tar.zst").read_bytes()
+            before = rr.files(rr.root / ".ai-review" / "w00")
+            fired = []
+
+            def failing(kind, path, kwargs):
+                if kind == "rmdir" and path == "sub" and kwargs.get("dir_fd") is not None and not fired:
+                    fired.append(1)
+                    return errno.EIO
+                return None
+
+            result, deleted = observed_run(rr, failing)
+            self.refused(rr, result, "remove_failed")
+            self.assertEqual(result.error.next_step, hint)
+            no_write_proof(rr, archive, result, before, deleted,
+                           f"sub cannot be removed (Input/output error); stopped after deleting {deleted} entries, "
+                           f"each proven archived; the rest is in {rr.removing / 'w00'}")
+        with self.subTest("a directory that is not empty"):
+            rr = self.env()
+            rr.prepared()
+            archive = (rr.adir / "w00.tar.zst").read_bytes()
+            before = rr.files(rr.root / ".ai-review" / "w00")
+            fired = []
+
+            def failing(kind, path, kwargs):
+                if kind == "rmdir" and path == "deeper" and not fired:
+                    fired.append(1)
+                    return errno.ENOTEMPTY
+                return None
+
+            result, deleted = observed_run(rr, failing)
+            self.refused(rr, result, "folder_changed")
+            self.assertEqual(result.error.next_step, again)
+            self.assertTrue((rr.removing / "w00").is_dir())
+            no_write_proof(rr, archive, result, before, deleted,
+                           f"sub/deeper cannot be removed (Directory not empty); stopped after deleting {deleted} "
+                           f"entries, each proven archived; the rest is in {rr.removing / 'w00'}")
+        with self.subTest("the folder itself cannot be removed"):
+            rr = self.env()
+            rr.prepared()
+            archive = (rr.adir / "w00.tar.zst").read_bytes()
+            before = rr.files(rr.root / ".ai-review" / "w00")
+            fired = []
+
+            def failing(kind, path, kwargs):
+                if kind == "rmdir" and path == "w00" and not fired:
+                    fired.append(1)
+                    return errno.EIO
+                return None
+
+            result, deleted = observed_run(rr, failing)
+            self.refused(rr, result, "remove_failed")
+            self.assertEqual(deleted, len(before))
+            self.assertEqual(result.error.next_step, hint)
+            no_write_proof(rr, archive, result, before, deleted,
+                           f"w00 cannot be removed (Input/output error); stopped after deleting {len(before)} "
+                           f"entries, each proven archived; the rest is in {rr.removing / 'w00'}")
         # `.removing` cannot be created
         rr = self.env()
         folder = rr.prepared()
@@ -8020,8 +8112,16 @@ class RetentionErrorPathsTwo(unittest.TestCase):
                 self.assertEqual(len(counted), 1)
                 self.refused(result, code, text=("stopped after deleting 0 entries, each proven archived; the rest "
                                                  "is in ",))
+                # the exact message and next step (#119 point 4a): the errno text, the place, the hint
+                what = "vanished" if code == "folder_changed" else f"cannot be read ({os.strerror(err)})"
+                self.assertEqual(result.error.message, f"w00 {what}; stopped after deleting 0 entries, each proven "
+                                                       f"archived; the rest is in {rr.removing / 'w00'}")
                 if code == "remove_failed":
                     self.assertIn("check the permissions of `.removing/w00`", result.error.next_step)
+                    self.assertEqual(result.error.next_step,
+                                     "run `remove w00 --apply` again; check the permissions of `.removing/w00`")
+                else:
+                    self.assertEqual(result.error.next_step, "run `remove w00 --apply` again")
                 self.assertEqual(rr.files(rr.removing / "w00"), whole)
                 self.assertEqual(rr.rm(apply=True).code, 0)
                 self.assertFalse((rr.removing / "w00").exists())
